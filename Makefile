@@ -3,10 +3,20 @@
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
 
-# Helper function to validate environment argument
+# Helper function to validate environment argument and project alignment
 define check_env
 	@if [ -z "$(filter dev prod,$(MAKECMDGOALS))" ]; then \
 		echo "❌ Error: Please specify environment: make $(1) dev|prod"; \
+		exit 1; \
+	fi
+	@ENV_NAME=$$(echo "$(MAKECMDGOALS)" | grep -o -E "(dev|prod)"); \
+	EXPECTED_PROJECT="desirelines-$$ENV_NAME"; \
+	CURRENT_PROJECT="$(GCP_PROJECT_ID)"; \
+	if [ "$$CURRENT_PROJECT" != "$$EXPECTED_PROJECT" ]; then \
+		echo "❌ Error: gcloud project mismatch!"; \
+		echo "   Expected: $$EXPECTED_PROJECT"; \
+		echo "   Current:  $$CURRENT_PROJECT"; \
+		echo "   Run: gcloud config set project $$EXPECTED_PROJECT"; \
 		exit 1; \
 	fi
 endef

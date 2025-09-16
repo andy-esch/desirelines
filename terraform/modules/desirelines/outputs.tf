@@ -123,3 +123,9 @@ output "deployment_info" {
     current_image_tag     = var.function_image_tag
   }
 }
+
+# Deployed function source SHA (for observability)
+output "deployed_function_source_tag" {
+  description = "SHA tag of deployed function sources"
+  value       = var.function_source_tag
+}
