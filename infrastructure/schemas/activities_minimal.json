@@ -1,0 +1,144 @@
+{
+  "table_name": "activities",
+  "description": "Strava activity data",
+  "schema": [
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "mode": "REQUIRED",
+      "description": "Strava activity ID (primary key)"
+    },
+    {
+      "name": "external_id",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "External activity ID"
+    },
+    {
+      "name": "upload_id",
+      "type": "INTEGER",
+      "mode": "NULLABLE",
+      "description": "Strava upload ID"
+    },
+    {
+      "name": "athlete_id",
+      "type": "INTEGER",
+      "mode": "REQUIRED",
+      "description": "Strava athlete ID who owns this activity"
+    },
+    {
+      "name": "name",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Activity name/title"
+    },
+    {
+      "name": "distance_meters",
+      "type": "FLOAT",
+      "mode": "NULLABLE",
+      "description": "Activity distance in meters"
+    },
+    {
+      "name": "moving_time_seconds",
+      "type": "INTEGER",
+      "mode": "NULLABLE",
+      "description": "Moving time in seconds"
+    },
+    {
+      "name": "elapsed_time_seconds",
+      "type": "INTEGER",
+      "mode": "NULLABLE",
+      "description": "Total elapsed time in seconds"
+    },
+    {
+      "name": "total_elevation_gain_meters",
+      "type": "FLOAT",
+      "mode": "NULLABLE",
+      "description": "Total elevation gain in meters"
+    },
+    {
+      "name": "activity_type",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Type of activity (Ride, VirtualRide, etc.)"
+    },
+    {
+      "name": "sport_type",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Sport type classification"
+    },
+    {
+      "name": "start_date",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "Activity start time (UTC)"
+    },
+    {
+      "name": "start_date_local",
+      "type": "TIMESTAMP",
+      "mode": "NULLABLE",
+      "description": "Activity start time in local timezone"
+    },
+    {
+      "name": "timezone",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Timezone of the activity"
+    },
+    {
+      "name": "average_speed_ms",
+      "type": "FLOAT",
+      "mode": "NULLABLE",
+      "description": "Average speed in meters per second"
+    },
+    {
+      "name": "max_speed_ms",
+      "type": "FLOAT",
+      "mode": "NULLABLE",
+      "description": "Maximum speed in meters per second"
+    },
+    {
+      "name": "average_watts",
+      "type": "FLOAT",
+      "mode": "NULLABLE",
+      "description": "Average power output in watts"
+    },
+    {
+      "name": "kilojoules",
+      "type": "FLOAT",
+      "mode": "NULLABLE",
+      "description": "Total energy output in kilojoules"
+    },
+    {
+      "name": "has_heartrate",
+      "type": "BOOLEAN",
+      "mode": "NULLABLE",
+      "description": "Whether activity has heartrate data"
+    },
+    {
+      "name": "average_heartrate",
+      "type": "FLOAT",
+      "mode": "NULLABLE",
+      "description": "Average heart rate in beats per minute"
+    },
+    {
+      "name": "max_heartrate",
+      "type": "FLOAT",
+      "mode": "NULLABLE",
+      "description": "Maximum heart rate in beats per minute"
+    },
+    {
+      "name": "created_at",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "When this record was inserted (ETL timestamp)"
+    },
+    {
+      "name": "updated_at",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "When this record was last updated (ETL timestamp)"
+    }
+  ]
+}

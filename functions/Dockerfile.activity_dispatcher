@@ -1,0 +1,44 @@
+# Go Dispatcher Cloud Function
+# Multi-stage build for optimal container size
+
+# Build stage
+FROM golang:1.25-alpine AS builder
+
+# Install git for Go module resolution
+RUN apk add --no-cache git
+
+WORKDIR /build
+
+# Copy Go workspace configuration
+COPY go.work ./
+
+# Copy dispatcher business logic package
+COPY packages/dispatcher/ ./packages/dispatcher/
+
+# Copy Cloud Function module
+COPY functions/activity_dispatcher/ ./functions/activity_dispatcher/
+
+# Build from the Cloud Function directory using workspace
+WORKDIR /build/functions/activity_dispatcher
+RUN go mod tidy && go mod download && go mod verify
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o dispatcher .
+
+# Runtime stage
+FROM alpine:latest
+
+# Install CA certificates and timezone data for HTTP requests
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /root/
+
+# Copy the built binary
+COPY --from=builder /build/functions/activity_dispatcher/dispatcher ./
+
+# Cloud Functions expect the service to run on PORT
+ENV PORT=8080
+EXPOSE 8080
+
+# Set the function target for Functions Framework
+ENV FUNCTION_TARGET=ActivityDispatcher
+
+CMD ["./dispatcher"]

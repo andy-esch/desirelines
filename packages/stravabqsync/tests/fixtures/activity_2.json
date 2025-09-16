@@ -1,0 +1,407 @@
+{
+  "resource_state": 3,
+  "athlete": {
+    "id": 1234,
+    "resource_state": 1
+  },
+  "name": "Wahoo SYSTM: Open: 30",
+  "distance": 13992.2,
+  "moving_time": 1811,
+  "elapsed_time": 1811,
+  "total_elevation_gain": 0,
+  "type": "VirtualRide",
+  "sport_type": "VirtualRide",
+  "id": 8726373550,
+  "start_date": "2023-03-16T20:48:36Z",
+  "start_date_local": "2023-03-16T16:48:36Z",
+  "timezone": "(GMT-04:00) America/Anguilla",
+  "utc_offset": -14400.0,
+  "location_city": null,
+  "location_state": null,
+  "location_country": "",
+  "achievement_count": 0,
+  "kudos_count": 0,
+  "comment_count": 0,
+  "athlete_count": 1,
+  "photo_count": 0,
+  "map": {
+    "id": "a8726373550",
+    "polyline": "",
+    "resource_state": 3,
+    "summary_polyline": ""
+  },
+  "trainer": true,
+  "commute": false,
+  "manual": false,
+  "private": true,
+  "visibility": "only_me",
+  "flagged": false,
+  "gear_id": "b9775211",
+  "start_latlng": [],
+  "end_latlng": [],
+  "average_speed": 7.726,
+  "max_speed": 8.144,
+  "average_cadence": 85.9,
+  "average_watts": 137.5,
+  "max_watts": 151,
+  "weighted_average_watts": 136,
+  "kilojoules": 249.0,
+  "device_watts": true,
+  "has_heartrate": true,
+  "average_heartrate": 127.4,
+  "max_heartrate": 139.0,
+  "heartrate_opt_out": false,
+  "display_hide_heartrate_option": true,
+  "upload_id": 9366094036,
+  "upload_id_str": "9366094036",
+  "external_id": "Wahoo",
+  "from_accepted_tag": false,
+  "pr_count": 0,
+  "total_photo_count": 1,
+  "has_kudoed": false,
+  "suffer_score": 9.0,
+  "description": null,
+  "calories": 249.0,
+  "perceived_exertion": null,
+  "prefer_perceived_exertion": null,
+  "segment_efforts": [],
+  "splits_metric": [
+    {
+      "distance": 1000.9,
+      "elapsed_time": 131,
+      "elevation_difference": null,
+      "moving_time": 131,
+      "split": 1,
+      "average_speed": 7.64,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 103.7557251908397,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1004.0,
+      "elapsed_time": 130,
+      "elevation_difference": null,
+      "moving_time": 130,
+      "split": 2,
+      "average_speed": 7.72,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 118.36153846153846,
+      "pace_zone": 0
+    },
+    {
+      "distance": 997.8,
+      "elapsed_time": 129,
+      "elevation_difference": null,
+      "moving_time": 129,
+      "split": 3,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 125.7751937984496,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1004.7,
+      "elapsed_time": 130,
+      "elevation_difference": null,
+      "moving_time": 130,
+      "split": 4,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 129.2153846153846,
+      "pace_zone": 0
+    },
+    {
+      "distance": 998.6,
+      "elapsed_time": 129,
+      "elevation_difference": null,
+      "moving_time": 129,
+      "split": 5,
+      "average_speed": 7.74,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 128.45736434108528,
+      "pace_zone": 0
+    },
+    {
+      "distance": 998.9,
+      "elapsed_time": 129,
+      "elevation_difference": null,
+      "moving_time": 129,
+      "split": 6,
+      "average_speed": 7.74,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 128.13178294573643,
+      "pace_zone": 0
+    },
+    {
+      "distance": 996.7,
+      "elapsed_time": 129,
+      "elevation_difference": null,
+      "moving_time": 129,
+      "split": 7,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 129.2170542635659,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1005.5,
+      "elapsed_time": 130,
+      "elevation_difference": null,
+      "moving_time": 130,
+      "split": 8,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 130.26153846153846,
+      "pace_zone": 0
+    },
+    {
+      "distance": 997.8,
+      "elapsed_time": 129,
+      "elevation_difference": null,
+      "moving_time": 129,
+      "split": 9,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 130.94573643410854,
+      "pace_zone": 0
+    },
+    {
+      "distance": 997.7,
+      "elapsed_time": 129,
+      "elevation_difference": null,
+      "moving_time": 129,
+      "split": 10,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 130.1705426356589,
+      "pace_zone": 0
+    },
+    {
+      "distance": 999.3,
+      "elapsed_time": 129,
+      "elevation_difference": null,
+      "moving_time": 129,
+      "split": 11,
+      "average_speed": 7.75,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 131.93798449612405,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1004.0,
+      "elapsed_time": 130,
+      "elevation_difference": null,
+      "moving_time": 130,
+      "split": 12,
+      "average_speed": 7.72,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 131.6153846153846,
+      "pace_zone": 0
+    },
+    {
+      "distance": 996.3,
+      "elapsed_time": 129,
+      "elevation_difference": null,
+      "moving_time": 129,
+      "split": 13,
+      "average_speed": 7.72,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 131.9922480620155,
+      "pace_zone": 0
+    },
+    {
+      "distance": 990.0,
+      "elapsed_time": 128,
+      "elevation_difference": null,
+      "moving_time": 128,
+      "split": 14,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 133.7578125,
+      "pace_zone": 0
+    }
+  ],
+  "splits_standard": [
+    {
+      "distance": 1611.2,
+      "elapsed_time": 210,
+      "elevation_difference": null,
+      "moving_time": 210,
+      "split": 1,
+      "average_speed": 7.67,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 108.91904761904762,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1607.9,
+      "elapsed_time": 208,
+      "elevation_difference": null,
+      "moving_time": 208,
+      "split": 2,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 124.10576923076923,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1611.0,
+      "elapsed_time": 208,
+      "elevation_difference": null,
+      "moving_time": 208,
+      "split": 3,
+      "average_speed": 7.75,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 129.35576923076923,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1614.2,
+      "elapsed_time": 209,
+      "elevation_difference": null,
+      "moving_time": 209,
+      "split": 4,
+      "average_speed": 7.72,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 128.8181818181818,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1609.5,
+      "elapsed_time": 208,
+      "elevation_difference": null,
+      "moving_time": 208,
+      "split": 5,
+      "average_speed": 7.74,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 129.60576923076923,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1609.5,
+      "elapsed_time": 208,
+      "elevation_difference": null,
+      "moving_time": 208,
+      "split": 6,
+      "average_speed": 7.74,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 130.82692307692307,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1607.1,
+      "elapsed_time": 208,
+      "elevation_difference": null,
+      "moving_time": 208,
+      "split": 7,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 130.98557692307693,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1608.8,
+      "elapsed_time": 208,
+      "elevation_difference": null,
+      "moving_time": 208,
+      "split": 8,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 132.25480769230768,
+      "pace_zone": 0
+    },
+    {
+      "distance": 1113.0,
+      "elapsed_time": 144,
+      "elevation_difference": null,
+      "moving_time": 144,
+      "split": 9,
+      "average_speed": 7.73,
+      "average_grade_adjusted_speed": null,
+      "average_heartrate": 133.52083333333334,
+      "pace_zone": 0
+    }
+  ],
+  "laps": [
+    {
+      "id": 29566553809,
+      "resource_state": 2,
+      "name": "Lap 1",
+      "activity": {
+        "id": 8726373550,
+        "visibility": "only_me",
+        "resource_state": 1
+      },
+      "athlete": {
+        "id": 1234,
+        "resource_state": 1
+      },
+      "elapsed_time": 1810,
+      "moving_time": 1810,
+      "start_date": "2023-03-16T20:48:36Z",
+      "start_date_local": "2023-03-16T16:48:36Z",
+      "distance": 13996.4,
+      "average_speed": 7.73,
+      "max_speed": 8.144,
+      "lap_index": 1,
+      "split": 1,
+      "start_index": 0,
+      "end_index": 1811,
+      "total_elevation_gain": 0,
+      "average_cadence": 85.9,
+      "device_watts": true,
+      "average_watts": 137.5,
+      "average_heartrate": 127.4,
+      "max_heartrate": 139.0
+    }
+  ],
+  "gear": {
+    "id": "b9775211",
+    "primary": false,
+    "name": "Roubaix",
+    "nickname": "Roubaix",
+    "resource_state": 2,
+    "retired": false,
+    "distance": 8922429,
+    "converted_distance": 5544.1
+  },
+  "photos": {
+    "primary": {
+      "unique_id": "daa6bb01-3a46-4434-b634-5645d2839084",
+      "urls": {
+        "600": "https://...",
+        "100": "https://..."
+      },
+      "source": 1,
+      "media_type": 1
+    },
+    "use_primary_photo": true,
+    "count": 1
+  },
+  "stats_visibility": [
+    {
+      "type": "heart_rate",
+      "visibility": "everyone"
+    },
+    {
+      "type": "pace",
+      "visibility": "everyone"
+    },
+    {
+      "type": "power",
+      "visibility": "everyone"
+    },
+    {
+      "type": "speed",
+      "visibility": "everyone"
+    },
+    {
+      "type": "calories",
+      "visibility": "everyone"
+    }
+  ],
+  "hide_from_home": false,
+  "device_name": "Wahoo",
+  "embed_token": "75250123abla",
+  "available_zones": ["heartrate", "power"]
+}

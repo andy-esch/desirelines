@@ -1,0 +1,117 @@
+# Docker Compose override for local hybrid development with real GCP resources
+# Uses Terraform-created local GCP resources (BigQuery, Storage) + PubSub emulator
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.local.yml up
+
+services:
+  activity-aggregator:
+    environment:
+      # Use real Terraform-created PubSub topics (no emulator)
+      # Use service account impersonation (no key files needed)
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
+      - GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID_LIVE}
+      # Impersonate the aggregator service account
+      - GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=aggregator-dev-local@progressor-341702.iam.gserviceaccount.com
+      # Override with live GCP project ID for AggregatorConfig
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
+      # Override with live GCP bucket name
+      - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE}
+      # Override with live Strava credentials
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID_LIVE}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET_LIVE}
+      - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN_LIVE}
+    volumes:
+      - ./.env:/app/.env
+      - ./functions/activity_aggregator.py:/app/main.py
+      - ./packages/desirelines/src/desirelines:/app/desirelines
+      # Mount your local gcloud config (Application Default Credentials)
+      - ~/.config/gcloud:/app/.config/gcloud:ro
+
+  activity-bq-inserter:
+    environment:
+      # Use real Terraform-created PubSub topics (no emulator)
+      # Use service account impersonation (no key files needed)
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
+      - GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID_LIVE}
+      # Impersonate the bq-inserter service account
+      - GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=bq-inserter-dev-local@progressor-341702.iam.gserviceaccount.com
+      # Override with live GCP project ID for BQInserterConfig
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
+      # Override with live Strava credentials
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID_LIVE}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET_LIVE}
+      - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN_LIVE}
+    volumes:
+      - ./.env:/app/.env
+      - ./functions/activity_bq_inserter.py:/app/main.py
+      - ./packages/stravabqsync/src/stravabqsync:/app/stravabqsync
+      # Mount your local gcloud config (Application Default Credentials)
+      - ~/.config/gcloud:/app/.config/gcloud:ro
+
+  activity-dispatcher-go:
+    environment:
+      # Use real Terraform-created PubSub topics
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
+      - GCP_PUBSUB_TOPIC_PATH=projects/${GCP_PROJECT_ID_LIVE}/topics/desirelines_activity_events_local
+      - PORT=8080
+      # Use service account impersonation (no key files needed)
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
+      - GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=dispatcher-dev-local@progressor-341702.iam.gserviceaccount.com
+    env_file:
+      - .env
+    volumes:
+      # Mount your local gcloud config (Application Default Credentials)
+      - ~/.config/gcloud:/app/.config/gcloud:ro
+
+  # API Gateway - live Cloud Function integration (manual start only)
+  api-gateway-live:
+    profiles: ["frontend"]  # Only starts with --profile frontend
+    build:
+      context: .
+      dockerfile: functions/Dockerfile.api_gateway
+    ports:
+      - "8084:8080"
+    environment:
+      - FUNCTION_TARGET=api_gateway
+      - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
+      # Impersonate aggregator service account (api-gateway needs storage access)
+      - GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=aggregator-dev-local@progressor-341702.iam.gserviceaccount.com
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env
+      - ./functions/api_gateway.py:/app/main.py
+      # Mount your local gcloud config (Application Default Credentials)
+      - ~/.config/gcloud:/app/.config/gcloud:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # React Web App - live configuration (manual start only)
+  web-live:
+    profiles: ["frontend"]  # Only starts with --profile frontend
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      # Point to live API gateway (local Docker or deployed Cloud Function)
+      - REACT_APP_API_URL=http://localhost:8084
+      # Alternative: Use deployed Cloud Function directly
+      # - REACT_APP_API_URL=https://us-central1-progressor-341702.cloudfunctions.net/api-gateway
+      - REACT_APP_ENV=live
+      - CHOKIDAR_USEPOLLING=true  # Hot reload in Docker
+    volumes:
+      - ./web/src:/app/src:ro
+      - ./web/public:/app/public:ro
+      # Exclude node_modules from bind mount for performance
+      - /app/node_modules
+    depends_on:
+      - api-gateway-live
+
+  # Keep emulator services - they're still useful!
+  # pubsub-emulator and pubsub-bootstrap remain unchanged

@@ -1,0 +1,127 @@
+services:
+  activity-dispatcher-go:
+    build:
+      context: ./packages/dispatcher
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=local-dev
+      - GCP_PUBSUB_TOPIC_PATH=strava-webhooks
+      - PORT=8080
+    env_file:
+      - .env
+    depends_on:
+      pubsub-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--method=HEAD", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  activity-aggregator:
+    build:
+      context: .
+      dockerfile: functions/Dockerfile.activity_aggregator
+    ports:
+      - "8082:8080"
+    environment:
+      - FUNCTION_TARGET=main
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env
+      - ./functions/activity_aggregator.py:/app/main.py
+      - ./packages/desirelines/src/desirelines:/app/desirelines
+    depends_on:
+      pubsub-bootstrap:
+        condition: service_completed_successfully
+
+  activity-bq-inserter:
+    build:
+      context: .
+      dockerfile: functions/Dockerfile.activity_bq_inserter
+    ports:
+      - "8083:8080"
+    environment:
+      - FUNCTION_TARGET=main
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env
+      - ./functions/activity_bq_inserter.py:/app/main.py
+      - ./packages/stravabqsync/src/stravabqsync:/app/stravabqsync
+    depends_on:
+      pubsub-bootstrap:
+        condition: service_completed_successfully
+
+  # Bootstrap PubSub topics and subscriptions
+  pubsub-bootstrap:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - PROJECT_ID=local-dev
+      - TOPIC_NAME=strava-webhooks
+    volumes:
+      - ./scripts/local-dev/bootstrap_pubsub.sh:/bootstrap_pubsub.sh:ro
+    command: /bootstrap_pubsub.sh
+    depends_on:
+      - pubsub-emulator
+
+  # Local PubSub emulator for testing
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+    ports:
+      - "8085:8085"
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+
+  # API Gateway - secure data serving (manual start only)
+  api-gateway:
+    profiles: ["frontend"]  # Only starts with --profile frontend
+    build:
+      context: .
+      dockerfile: functions/Dockerfile.api_gateway
+    ports:
+      - "8084:8080"
+    environment:
+      - FUNCTION_TARGET=api_gateway
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE:-local-dev}
+      - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE:-desirelines_local_testing}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env
+      - ./functions/api_gateway.py:/app/main.py
+      # Mount gcloud credentials for bucket access
+      - ~/.config/gcloud:/app/.config/gcloud:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # React Web App (manual start only)
+  web:
+    profiles: ["frontend"]  # Only starts with --profile frontend
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8084
+      - CHOKIDAR_USEPOLLING=true  # Hot reload in Docker
+    volumes:
+      - ./web/src:/app/src:ro
+      - ./web/public:/app/public:ro
+      # Exclude node_modules from bind mount for performance
+      - /app/node_modules
+    depends_on:
+      - api-gateway

@@ -1,0 +1,11 @@
+# Global Terraform configuration
+# Copy this file to terraform.tfvars and customize for your GCP project
+
+# Your Google Cloud Platform project details
+gcp_project_id     = "your-gcp-project-id"
+gcp_project_number = "your-gcp-project-number"  # Found in GCP Console project settings
+gcp_region         = "us-central1"              # Choose your preferred region
+
+# Terraform state storage bucket (must be globally unique)
+# Create this bucket manually: gsutil mb gs://your-project-terraform-state
+# Configure backend with: terraform init -backend-config="bucket=your-project-terraform-state"
