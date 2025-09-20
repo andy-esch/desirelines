@@ -488,6 +488,7 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
     available_memory      = "256Mi"
     timeout_seconds       = 540
     service_account_email = var.create_dev_service_accounts ? google_service_account.bq_inserter_dev[0].email : var.service_account_email
+    ingress_settings      = "ALLOW_INTERNAL_ONLY"
 
     environment_variables = {
       GCP_PROJECT_ID       = var.gcp_project_id
@@ -545,6 +546,8 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
     available_memory      = "512Mi"
     timeout_seconds       = 540
     service_account_email = var.create_dev_service_accounts ? google_service_account.aggregator_dev[0].email : var.service_account_email
+    ingress_settings      = "ALLOW_INTERNAL_ONLY"
+
 
     environment_variables = {
       GCP_PROJECT_ID       = var.gcp_project_id
