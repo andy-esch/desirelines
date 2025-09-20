@@ -22,7 +22,7 @@ Strava webhooks require three main steps:
 
 ### Manual Authorization Process
 
-1. **Generate authorization URL**:
+1. **Generate authorization URL** ⚠️ **CRITICAL: Must include `activity:read_all` scope**:
    ```
    https://www.strava.com/oauth/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=YOUR_REDIRECT_URI&approval_prompt=force&scope=activity:read_all
    ```
@@ -30,6 +30,8 @@ Strava webhooks require three main steps:
 2. **Visit the URL** in your browser while logged into the target Strava account
 
 3. **Grant permissions** - Click "Authorize" to allow your application access
+   - ⚠️ **VERIFY**: The authorization page should show "View data about your activities"
+   - ❌ **If missing**: Webhooks will be created but NO events will be delivered
 
 4. **Exchange code for tokens** (if you need refresh tokens):
    ```bash
@@ -42,11 +44,13 @@ Strava webhooks require three main steps:
 
 ### Key Points
 
+- ⚠️ **CRITICAL**: Must include `scope=activity:read_all` in authorization URL
 - ✅ **Must be done for each Strava account** that should trigger webhooks
 - ✅ **Required even for your own account** as the app developer
 - ✅ **Separate authorization needed** for dev and prod accounts
 - ❌ **Webhooks won't work** without this authorization step
 - ❌ **No error messages** - Strava silently ignores webhook events
+- 🔍 **Easy to miss** - Wrong scope = working webhook setup but zero events
 
 ## Step 3: Create Webhook Subscription
 
@@ -84,9 +88,12 @@ If webhooks aren't working, verify:
 
 ### Common Issues
 
-- **Missing OAuth2**: Most common issue - webhook subscription works but no events delivered
+- **Missing `activity:read_all` scope**: ⭐ **MOST COMMON** - Webhook subscription works but no events delivered
+  - **Symptom**: Webhook creates successfully, but no activity events trigger functions
+  - **Solution**: Re-authorize with correct scope URL (see above)
+  - **Check**: Strava API settings should show "View data about your activities" permission
+- **Missing OAuth2**: Webhook subscription works but no events delivered
 - **Account mismatch**: Activities on different account than authorized account
-- **Scope issues**: Make sure OAuth2 includes `activity:read_all` scope
 - **Token expiry**: Refresh tokens if API calls start failing
 
 ## Multi-User Support (Future)

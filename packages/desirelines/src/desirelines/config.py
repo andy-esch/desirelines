@@ -1,5 +1,7 @@
 """Function-specific configurations for cloud functions"""
 
+import json
+import os
 from pydantic_settings import BaseSettings
 
 
@@ -26,4 +28,22 @@ class AggregatorConfig(BaseSettings):
 
 def load_aggregator_config() -> AggregatorConfig:
     """Load and validate configuration for the aggregator function"""
+
+    # Load Strava secrets from mounted volume if available
+    strava_secrets = {}
+    secrets_path = "/etc/secrets/strava_auth.json"
+    if os.path.exists(secrets_path):
+        with open(secrets_path, "r", encoding="utf-8") as f:
+            strava_auth = json.load(f)
+            strava_secrets = {
+                "STRAVA_CLIENT_ID": strava_auth.get("client_id"),
+                "STRAVA_CLIENT_SECRET": strava_auth.get("client_secret"),
+                "STRAVA_REFRESH_TOKEN": strava_auth.get("refresh_token"),
+            }
+
+    # Set environment variables from secrets (takes precedence)
+    for key, value in strava_secrets.items():
+        if value is not None:
+            os.environ[key] = str(value)
+
     return AggregatorConfig()

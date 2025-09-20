@@ -81,8 +81,8 @@ rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
       --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
       packages/desirelines/src/desirelines/ "$TEMP_BQ/desirelines/"
 
-# Copy requirements.txt for dependencies
-cp packages/stravabqsync/requirements.txt "$TEMP_BQ/"
+# Generate requirements.txt from pyproject.toml for Cloud Functions deployment
+cd packages/stravabqsync && uv pip compile pyproject.toml --output-file "$TEMP_BQ/requirements.txt" && cd ../..
 
 # Create the zip
 cd "$TEMP_BQ" && zip -r - . > "$OLDPWD/$DIST_DIR/bq-inserter-$SHA.zip"
@@ -104,8 +104,8 @@ rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
       --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
       packages/desirelines/src/ "$TEMP_AGG/"
 
-# Copy requirements.txt for dependencies
-cp packages/desirelines/requirements.txt "$TEMP_AGG/"
+# Generate requirements.txt from pyproject.toml for Cloud Functions deployment
+cd packages/desirelines && uv pip compile pyproject.toml --output-file "$TEMP_AGG/requirements.txt" && cd ../..
 
 # Create the zip
 cd "$TEMP_AGG" && zip -r - . > "$OLDPWD/$DIST_DIR/aggregator-$SHA.zip"
@@ -127,8 +127,8 @@ rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
       --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
       packages/desirelines/src/ "$TEMP_API/"
 
-# Copy requirements.txt for dependencies
-cp packages/desirelines/requirements.txt "$TEMP_API/"
+# Generate requirements.txt from pyproject.toml for Cloud Functions deployment
+cd packages/desirelines && uv pip compile pyproject.toml --output-file "$TEMP_API/requirements.txt" && cd ../..
 
 # Create the zip
 cd "$TEMP_API" && zip -r - . > "$OLDPWD/$DIST_DIR/api-gateway-$SHA.zip"

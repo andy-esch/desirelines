@@ -40,9 +40,13 @@ fi
 echo "🔐 Deploying secrets for $ENV_NAME environment from $SECRET_FILE..."
 echo "📍 Using GCP project: $GCP_PROJECT_ID"
 
+# Ensure Secret Manager API is enabled
+echo "🔧 Ensuring Secret Manager API is enabled..."
+gcloud services enable secretmanager.googleapis.com --project="$GCP_PROJECT_ID"
+
 # Create or update secret
 echo "📋 Creating strava-auth-$ENV_NAME secret..."
-if gcloud secrets describe "strava-auth-$ENV_NAME" --project="$GCP_PROJECT_ID" >/dev/null 2>&1; then
+if gcloud secrets describe "strava-auth-$ENV_NAME" --project="$GCP_PROJECT_ID" 2>/dev/null; then
     echo "  Secret already exists, adding new version..."
 else
     echo "  Creating new secret..."
@@ -72,10 +76,13 @@ gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
     --member="serviceAccount:terraform-desirelines-$ENV_NAME@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
     --role="roles/secretmanager.admin"
 
-# Grant access to application service account
-gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
-    --project="$GCP_PROJECT_ID" \
-    --member="serviceAccount:desirelines-$ENV_NAME@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor"
+# Grant access to function service accounts
+for FUNCTION in dispatcher aggregator bq-inserter; do
+    echo "   Granting access to $FUNCTION-$ENV_NAME service account..."
+    gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
+        --project="$GCP_PROJECT_ID" \
+        --member="serviceAccount:$FUNCTION-$ENV_NAME@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
+        --role="roles/secretmanager.secretAccessor"
+done
 
 echo "✅ Secret strava-auth-$ENV_NAME deployed with content and proper IAM bindings"

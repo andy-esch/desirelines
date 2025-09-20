@@ -241,23 +241,23 @@ resource "google_pubsub_topic" "dead_letter" {
 # Development Service Accounts (only created if enabled)
 resource "google_service_account" "dispatcher_dev" {
   count        = var.create_dev_service_accounts ? 1 : 0
-  account_id   = "dispatcher-dev-${var.environment}"
-  display_name = "Desirelines Dispatcher Development (${title(var.environment)})"
-  description  = "Service account for dispatcher development in ${var.environment} environment"
+  account_id   = "dispatcher-${var.environment}"
+  display_name = "Desirelines Dispatcher (${title(var.environment)})"
+  description  = "Service account for dispatcher function in ${var.environment} environment"
 }
 
 resource "google_service_account" "aggregator_dev" {
   count        = var.create_dev_service_accounts ? 1 : 0
-  account_id   = "aggregator-dev-${var.environment}"
-  display_name = "Desirelines Aggregator Development (${title(var.environment)})"
-  description  = "Service account for aggregator development in ${var.environment} environment"
+  account_id   = "aggregator-${var.environment}"
+  display_name = "Desirelines Aggregator (${title(var.environment)})"
+  description  = "Service account for aggregator function in ${var.environment} environment"
 }
 
 resource "google_service_account" "bq_inserter_dev" {
   count        = var.create_dev_service_accounts ? 1 : 0
-  account_id   = "bq-inserter-dev-${var.environment}"
-  display_name = "Desirelines BQ Inserter Development (${title(var.environment)})"
-  description  = "Service account for BQ inserter development in ${var.environment} environment"
+  account_id   = "bq-inserter-${var.environment}"
+  display_name = "Desirelines BQ Inserter (${title(var.environment)})"
+  description  = "Service account for BQ inserter function in ${var.environment} environment"
 }
 
 # IAM permissions for dispatcher (PubSub Publisher only)
@@ -411,13 +411,21 @@ resource "google_cloudfunctions2_function" "activity_dispatcher" {
     service_account_email = var.create_dev_service_accounts ? google_service_account.dispatcher_dev[0].email : var.service_account_email
 
     environment_variables = {
-      GCP_PROJECT_ID                 = var.gcp_project_id
-      GCP_PUBSUB_TOPIC               = google_pubsub_topic.activity_events.name
-      ENVIRONMENT                    = var.environment
-      STRAVA_WEBHOOK_SUBSCRIPTION_ID = local.strava_auth.webhook_subscription_id
-      STRAVA_WEBHOOK_VERIFY_TOKEN    = local.strava_auth.webhook_verify_token
-      LOG_LEVEL                      = "INFO"
-      FORCE_REDEPLOY                 = "2025-09-14-secrets-updated-v1"
+      GCP_PROJECT_ID   = var.gcp_project_id
+      GCP_PUBSUB_TOPIC = google_pubsub_topic.activity_events.name
+      ENVIRONMENT      = var.environment
+      LOG_LEVEL        = "INFO"
+    }
+
+    # Mount Strava secrets as volume
+    secret_volumes {
+      mount_path = "/etc/secrets"
+      project_id = var.gcp_project_id
+      secret     = "strava-auth-${var.environment}"
+      versions {
+        version = "latest"
+        path    = "strava_auth.json"
+      }
     }
   }
 
@@ -425,12 +433,14 @@ resource "google_cloudfunctions2_function" "activity_dispatcher" {
 }
 
 # Allow unauthenticated access to dispatcher (required for Strava webhooks)
-resource "google_cloudfunctions2_function_iam_member" "dispatcher_public_access" {
-  project        = var.gcp_project_id
-  location       = var.gcp_region
-  cloud_function = google_cloudfunctions2_function.activity_dispatcher.name
-  role           = "roles/cloudfunctions.invoker"
-  member         = "allUsers"
+resource "google_cloud_run_service_iam_member" "dispatcher_public_access" {
+  project  = var.gcp_project_id
+  location = var.gcp_region
+  service  = google_cloudfunctions2_function.activity_dispatcher.service_config[0].service
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+
+  depends_on = [google_cloudfunctions2_function.activity_dispatcher]
 }
 
 # Activity BQ Inserter (Python Function - Source Package)
@@ -465,9 +475,19 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
       GCP_BIGQUERY_TABLE   = google_bigquery_table.activities.table_id
       GCP_BQ_SUBSCRIPTION  = google_pubsub_subscription.bq_inserter.name
       ENVIRONMENT          = var.environment
-      STRAVA_CLIENT_ID     = local.strava_auth.client_id
-      STRAVA_CLIENT_SECRET = local.strava_auth.client_secret
-      STRAVA_REFRESH_TOKEN = local.strava_auth.refresh_token
+      LOG_LEVEL            = "INFO"
+      FORCE_REDEPLOY       = "2025-09-19-new-strava-scope-v1"
+    }
+
+    # Mount Strava secrets as volume
+    secret_volumes {
+      mount_path = "/etc/secrets"
+      project_id = var.gcp_project_id
+      secret     = "strava-auth-${var.environment}"
+      versions {
+        version = "latest"
+        path    = "strava_auth.json"
+      }
     }
   }
 
@@ -511,9 +531,19 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
       GCP_BUCKET_NAME      = google_storage_bucket.aggregation_bucket.name
       GCP_AGG_SUBSCRIPTION = google_pubsub_subscription.aggregator.name
       ENVIRONMENT          = var.environment
-      STRAVA_CLIENT_ID     = local.strava_auth.client_id
-      STRAVA_CLIENT_SECRET = local.strava_auth.client_secret
-      STRAVA_REFRESH_TOKEN = local.strava_auth.refresh_token
+      LOG_LEVEL            = "INFO"
+      FORCE_REDEPLOY       = "2025-09-19-new-strava-scope-v1"
+    }
+
+    # Mount Strava secrets as volume
+    secret_volumes {
+      mount_path = "/etc/secrets"
+      project_id = var.gcp_project_id
+      secret     = "strava-auth-${var.environment}"
+      versions {
+        version = "latest"
+        path    = "strava_auth.json"
+      }
     }
   }
 

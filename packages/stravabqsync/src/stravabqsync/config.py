@@ -1,5 +1,7 @@
 """Configuration for stravabqsync package"""
 
+import json
+import os
 from typing import NamedTuple
 
 from pydantic_settings import BaseSettings
@@ -70,4 +72,22 @@ class BQInserterConfig(BaseSettings):
 
 def load_bq_inserter_config() -> BQInserterConfig:
     """Load and validate configuration for the BQ inserter function"""
+
+    # Load Strava secrets from mounted volume if available
+    strava_secrets = {}
+    secrets_path = "/etc/secrets/strava_auth.json"
+    if os.path.exists(secrets_path):
+        with open(secrets_path, "r", encoding="utf-8") as f:
+            strava_auth = json.load(f)
+            strava_secrets = {
+                "STRAVA_CLIENT_ID": strava_auth.get("client_id"),
+                "STRAVA_CLIENT_SECRET": strava_auth.get("client_secret"),
+                "STRAVA_REFRESH_TOKEN": strava_auth.get("refresh_token"),
+            }
+
+    # Set environment variables from secrets (takes precedence)
+    for key, value in strava_secrets.items():
+        if value is not None:
+            os.environ[key] = str(value)
+
     return BQInserterConfig()
