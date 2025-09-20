@@ -24,8 +24,32 @@ type Config struct {
 	LogLevel                    string
 }
 
-// LoadConfig loads configuration from environment variables.
+// LoadConfig loads configuration from environment variables and mounted secrets.
 func LoadConfig() (*Config, error) {
+	// Load webhook secrets from mounted volume if available
+	secretsPath := "/etc/secrets/strava_auth.json"
+	if _, err := os.Stat(secretsPath); err == nil {
+		secretsFile, err := os.Open(secretsPath)
+		if err != nil {
+			log.Printf("Failed to open secrets file: %v", err)
+		} else {
+			defer secretsFile.Close()
+
+			var stravaAuth map[string]interface{}
+			if err := json.NewDecoder(secretsFile).Decode(&stravaAuth); err != nil {
+				log.Printf("Failed to decode secrets file: %v", err)
+			} else {
+				// Set environment variables from secrets (takes precedence)
+				if verifyToken, ok := stravaAuth["verify_token"]; ok {
+					os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", fmt.Sprintf("%v", verifyToken))
+				}
+				if subscriptionID, ok := stravaAuth["subscription_id"]; ok {
+					os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", fmt.Sprintf("%v", subscriptionID))
+				}
+			}
+		}
+	}
+
 	subIDStr := getEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "0")
 	subscriptionID, err := strconv.Atoi(subIDStr)
 	if err != nil {
