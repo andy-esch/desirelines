@@ -1,25 +1,35 @@
 #!/bin/bash
 
 # Deploy secrets with proper IAM bindings for environment
-# Usage: ./scripts/deploy-secrets.sh <environment> <secret-file>
-# Example: ./scripts/deploy-secrets.sh dev strava-auth-dev.json
+# Usage: ./scripts/deploy-secrets.sh <secret-file>
+# Example: ./scripts/deploy-secrets.sh strava-auth.json
+# Environment is detected from current gcloud project
 
 set -euo pipefail
 
 # Check arguments
-if [ $# -ne 2 ]; then
-    echo "❌ Error: Please specify environment and file"
-    echo "Usage: $0 <environment> <secret-file>"
-    echo "Example: $0 dev strava-auth-dev.json"
+if [ $# -ne 1 ]; then
+    echo "❌ Error: Please specify secret file"
+    echo "Usage: $0 <secret-file>"
+    echo "Example: $0 strava-auth.json"
+    echo "Environment will be detected from current gcloud project"
     exit 1
 fi
 
-ENV_NAME="$1"
-SECRET_FILE="$2"
+SECRET_FILE="$1"
 
-# Validate environment
-if [[ ! "$ENV_NAME" =~ ^(dev|prod)$ ]]; then
-    echo "❌ Error: Environment must be 'dev' or 'prod'"
+# Get GCP project ID and detect environment
+GCP_PROJECT_ID=$(gcloud config get-value project)
+if [ "$GCP_PROJECT_ID" = "desirelines-dev" ]; then
+    ENV_NAME="dev"
+elif [ "$GCP_PROJECT_ID" = "desirelines-prod" ]; then
+    ENV_NAME="prod"
+else
+    echo "❌ Error: Invalid GCP project for desirelines!"
+    echo "   Current:  $GCP_PROJECT_ID"
+    echo "   Expected: desirelines-dev or desirelines-prod"
+    echo "   Run: gcloud config set project desirelines-dev"
+    echo "   Or:  gcloud config set project desirelines-prod"
     exit 1
 fi
 
@@ -29,16 +39,23 @@ if [ ! -f "$SECRET_FILE" ]; then
     exit 1
 fi
 
-# Get GCP project ID from gcloud config
-GCP_PROJECT_ID=$(gcloud config get-value project)
-if [ -z "$GCP_PROJECT_ID" ]; then
-    echo "❌ Error: No GCP project set in gcloud config"
-    echo "Run: gcloud config set project YOUR_PROJECT_ID"
-    exit 1
-fi
-
 echo "🔐 Deploying secrets for $ENV_NAME environment from $SECRET_FILE..."
 echo "📍 Using GCP project: $GCP_PROJECT_ID"
+echo "🎯 Environment: $ENV_NAME (detected from project)"
+echo ""
+
+# Confirmation dialog
+echo "⚠️  This will deploy/update secrets in the $ENV_NAME environment."
+echo "   Secret: strava-auth-$ENV_NAME"
+echo "   Project: $GCP_PROJECT_ID"
+echo ""
+read -p "Continue? (y/N): " -n 1 -r
+echo ""
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "❌ Deployment cancelled"
+    exit 1
+fi
+echo ""
 
 # Ensure Secret Manager API is enabled
 echo "🔧 Ensuring Secret Manager API is enabled..."

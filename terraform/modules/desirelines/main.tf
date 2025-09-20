@@ -412,7 +412,7 @@ resource "google_cloudfunctions2_function" "activity_dispatcher" {
   }
 
   service_config {
-    max_instance_count    = 10
+    max_instance_count    = 1
     min_instance_count    = 0
     available_memory      = "128Mi"
     timeout_seconds       = 60
@@ -483,7 +483,7 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
   }
 
   service_config {
-    max_instance_count    = 10
+    max_instance_count    = 1
     min_instance_count    = 0
     available_memory      = "256Mi"
     timeout_seconds       = 540
@@ -541,7 +541,7 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
   }
 
   service_config {
-    max_instance_count    = 5
+    max_instance_count    = 1
     min_instance_count    = 0
     available_memory      = "512Mi"
     timeout_seconds       = 540

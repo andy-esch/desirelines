@@ -135,6 +135,17 @@ cd "$TEMP_API" && zip -r - . > "$OLDPWD/$DIST_DIR/api-gateway-$SHA.zip"
 cd "$OLDPWD"
 
 # =============================================================================
+# Create "latest" tagged packages for convenient deployment
+# =============================================================================
+echo "📦 Creating 'latest' tagged packages..."
+
+# Copy SHA packages to "latest" versions for terraform default support
+cp "$DIST_DIR/dispatcher-$SHA.zip" "$DIST_DIR/dispatcher-latest.zip"
+cp "$DIST_DIR/bq-inserter-$SHA.zip" "$DIST_DIR/bq-inserter-latest.zip"
+cp "$DIST_DIR/aggregator-$SHA.zip" "$DIST_DIR/aggregator-latest.zip"
+cp "$DIST_DIR/api-gateway-$SHA.zip" "$DIST_DIR/api-gateway-latest.zip"
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo "✅ Source packages created:"
@@ -143,5 +154,12 @@ ls -lh "$DIST_DIR"/*-"$SHA".zip | while read -r line; do
 done
 
 echo ""
+echo "✅ 'Latest' packages created:"
+ls -lh "$DIST_DIR"/*-latest.zip | while read -r line; do
+  echo "   $line"
+done
+
+echo ""
 echo "🚀 Ready for Terraform deployment with:"
-echo "   terraform apply -var=\"function_source_tag=$SHA\""
+echo "   terraform apply                              # Uses 'latest' packages"
+echo "   terraform apply -var=\"function_source_tag=$SHA\"  # Uses specific SHA"

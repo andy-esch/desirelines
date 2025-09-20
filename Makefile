@@ -3,22 +3,22 @@
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
 
-# Helper function to validate environment argument and project alignment
-define check_env
-	@if [ -z "$(filter dev prod,$(MAKECMDGOALS))" ]; then \
-		echo "❌ Error: Please specify environment: make $(1) dev|prod"; \
-		exit 1; \
-	fi
-	@ENV_NAME=$$(echo "$(MAKECMDGOALS)" | grep -o -E "(dev|prod)"); \
-	EXPECTED_PROJECT="desirelines-$$ENV_NAME"; \
-	CURRENT_PROJECT="$(GCP_PROJECT_ID)"; \
-	if [ "$$CURRENT_PROJECT" != "$$EXPECTED_PROJECT" ]; then \
-		echo "❌ Error: gcloud project mismatch!"; \
-		echo "   Expected: $$EXPECTED_PROJECT"; \
+# Helper function to validate current project and detect environment
+define check_project
+	@CURRENT_PROJECT="$(GCP_PROJECT_ID)"; \
+	if [ "$$CURRENT_PROJECT" = "desirelines-dev" ]; then \
+		ENV_NAME="dev"; \
+	elif [ "$$CURRENT_PROJECT" = "desirelines-prod" ]; then \
+		ENV_NAME="prod"; \
+	else \
+		echo "❌ Error: Invalid GCP project for desirelines!"; \
 		echo "   Current:  $$CURRENT_PROJECT"; \
-		echo "   Run: gcloud config set project $$EXPECTED_PROJECT"; \
+		echo "   Expected: desirelines-dev or desirelines-prod"; \
+		echo "   Run: gcloud config set project desirelines-dev"; \
+		echo "   Or:  gcloud config set project desirelines-prod"; \
 		exit 1; \
-	fi
+	fi; \
+	export ENV_NAME=$$ENV_NAME
 endef
 
 # Python commands
@@ -72,9 +72,8 @@ js-dev:
 # Service Account Management
 .PHONY: impersonate-terraform
 impersonate-terraform:
-	$(call check_env,impersonate-terraform)
-	@ENV_NAME=$(filter dev prod,$(MAKECMDGOALS)) && \
-	echo "🔑 Impersonating terraform-desirelines-$$ENV_NAME service account..." && \
+	$(call check_project)
+	@echo "🔑 Impersonating terraform-desirelines-$$ENV_NAME service account..." && \
 	gcloud config set auth/impersonate_service_account terraform-desirelines-$$ENV_NAME@$(GCP_PROJECT_ID).iam.gserviceaccount.com && \
 	echo "✅ Now using terraform-desirelines-$$ENV_NAME@$(GCP_PROJECT_ID).iam.gserviceaccount.com"
 
@@ -156,11 +155,11 @@ help:
 	@echo "  go-test-all    - Run all Go tests in the workspace (more intensive)"
 	@echo "  go-test-coverage - Run Go tests with coverage report"
 	@echo ""
-	@echo "Secret Management & Webhooks:"
-	@echo "  deploy-secrets dev|prod SECRET_FILE=file.json - Deploy secrets from JSON file with IAM bindings"
-	@echo "  create-webhook dev|prod       - Create webhook subscription"
-	@echo "  view-subscription dev|prod    - View webhook subscriptions"
-	@echo "  delete-subscription dev|prod  - Delete webhook subscription"
+	@echo "Secret Management & Webhooks (uses current gcloud project):"
+	@echo "  deploy-secrets SECRET_FILE=file.json - Deploy secrets from JSON file with IAM bindings"
+	@echo "  create-webhook                - Create webhook subscription"
+	@echo "  view-webhook                  - View webhook subscriptions"
+	@echo "  delete-webhook                - Delete webhook subscription"
 	@echo "  generate-webhook-verify-token - Generate and store secure webhook verify token"
 	@echo "  rotate-webhook-verify-token   - Rotate webhook token and update webhook"
 	@echo ""
@@ -277,34 +276,32 @@ clean:
 # ==========================================
 
 deploy-secrets:
-	$(call check_env,deploy-secrets)
 	@if [ -z "$(SECRET_FILE)" ]; then \
-		echo "❌ Error: Please specify secret file: make deploy-secrets dev SECRET_FILE=strava-auth-dev.json"; \
+		echo "❌ Error: Please specify secret file: make deploy-secrets SECRET_FILE=strava-auth.json"; \
 		exit 1; \
 	fi
-	@./scripts/deploy-secrets.sh $(filter dev prod,$(MAKECMDGOALS)) $(SECRET_FILE)
+	@./scripts/deploy-secrets.sh $(SECRET_FILE)
 
 create-webhook:
-	$(call check_env,create-webhook)
-	@./scripts/webhook-management.sh create $(filter dev prod,$(MAKECMDGOALS))
+	$(call check_project)
+	@./scripts/webhook-management.sh create $$ENV_NAME
 
-view-subscription:
-	$(call check_env,view-subscription)
-	@./scripts/webhook-management.sh view $(filter dev prod,$(MAKECMDGOALS))
+view-webhook:
+	$(call check_project)
+	@./scripts/webhook-management.sh view $$ENV_NAME
 
-delete-subscription:
-	$(call check_env,delete-subscription)
-	@./scripts/webhook-management.sh delete $(filter dev prod,$(MAKECMDGOALS))
+delete-webhook:
+	$(call check_project)
+	@./scripts/webhook-management.sh delete $$ENV_NAME
 
 generate-webhook-verify-token:
-	@./scripts/webhook-management.sh generate-token dev
+	$(call check_project)
+	@./scripts/webhook-management.sh generate-token $$ENV_NAME
 
 rotate-webhook-verify-token:
-	@./scripts/webhook-management.sh rotate-token dev
+	$(call check_project)
+	@./scripts/webhook-management.sh rotate-token $$ENV_NAME
 
-# Dummy targets for environment arguments
-dev prod:
-	@:
 
 
 site-start:
