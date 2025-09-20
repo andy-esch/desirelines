@@ -415,6 +415,7 @@ resource "google_cloudfunctions2_function" "activity_dispatcher" {
       GCP_PUBSUB_TOPIC = google_pubsub_topic.activity_events.name
       ENVIRONMENT      = var.environment
       LOG_LEVEL        = "INFO"
+      FORCE_DEPLOY     = "20250919-v1"
     }
 
     # Mount Strava secrets as volume

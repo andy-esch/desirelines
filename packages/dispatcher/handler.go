@@ -41,9 +41,11 @@ func LoadConfig() (*Config, error) {
 			} else {
 				// Set environment variables from secrets (takes precedence)
 				if verifyToken, ok := stravaAuth["verify_token"]; ok {
+					log.Printf("Loading verify_token from secrets: %v", verifyToken)
 					os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", fmt.Sprintf("%v", verifyToken))
 				}
 				if subscriptionID, ok := stravaAuth["subscription_id"]; ok {
+					log.Printf("Loading subscription_id from secrets: %v", subscriptionID)
 					os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", fmt.Sprintf("%v", subscriptionID))
 				}
 			}
@@ -51,10 +53,12 @@ func LoadConfig() (*Config, error) {
 	}
 
 	subIDStr := getEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "0")
+	log.Printf("Final subscription_id string from env: '%s'", subIDStr)
 	subscriptionID, err := strconv.Atoi(subIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID: %v", err)
 	}
+	log.Printf("Parsed subscription_id as int: %d", subscriptionID)
 
 	return &Config{
 		StravaWebhookVerifyToken:    getEnvOrDefault("STRAVA_WEBHOOK_VERIFY_TOKEN", ""),
