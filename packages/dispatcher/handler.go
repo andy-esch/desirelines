@@ -28,7 +28,9 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	// Load webhook secrets from mounted volume if available
 	secretsPath := "/etc/secrets/strava_auth.json"
+	log.Printf("Checking for secrets file at: %s", secretsPath)
 	if _, err := os.Stat(secretsPath); err == nil {
+		log.Printf("Secrets file found, opening...")
 		secretsFile, err := os.Open(secretsPath)
 		if err != nil {
 			log.Printf("Failed to open secrets file: %v", err)
@@ -39,6 +41,7 @@ func LoadConfig() (*Config, error) {
 			if err := json.NewDecoder(secretsFile).Decode(&stravaAuth); err != nil {
 				log.Printf("Failed to decode secrets file: %v", err)
 			} else {
+				log.Printf("Successfully decoded secrets file, keys: %v", getKeys(stravaAuth))
 				// Set environment variables from secrets (takes precedence)
 				if verifyToken, ok := stravaAuth["verify_token"]; ok {
 					log.Printf("Loading verify_token from secrets: %v", verifyToken)
@@ -50,6 +53,8 @@ func LoadConfig() (*Config, error) {
 				}
 			}
 		}
+	} else {
+		log.Printf("Secrets file not found: %v", err)
 	}
 
 	subIDStr := getEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "0")
@@ -67,6 +72,14 @@ func LoadConfig() (*Config, error) {
 		GCPPubSubTopicID:            getEnvOrDefault("GCP_PUBSUB_TOPIC", ""),
 		LogLevel:                    getEnvOrDefault("LOG_LEVEL", "INFO"),
 	}, nil
+}
+
+func getKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
