@@ -27,4 +27,5 @@ def make_sync_service(config: BQInserterConfig | None = None) -> SyncService:
         read_strava_token=lambda: make_read_strava_token(config),
         read_activities=lambda tokens: make_read_activities(tokens, config),
         write_activities=lambda: make_write_activities(config),
+        enable_upsert=config.enable_upsert,
     )

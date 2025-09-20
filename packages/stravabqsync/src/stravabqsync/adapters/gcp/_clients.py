@@ -1,6 +1,6 @@
 import logging
 
-from google.cloud.bigquery import Client
+from google.cloud.bigquery import Client, QueryJobConfig
 
 from stravabqsync.exceptions import BigQueryError
 
@@ -26,3 +26,44 @@ class BigQueryClientWrapper:
                 f"Failed to insert {len(rows)} rows into {table_id}", errors
             )
         logger.info("Successfully inserted %s rows into %s.", len(rows), table_id)
+
+    def execute_merge_query(self, query: str) -> dict:
+        """Execute MERGE query for upsert operations
+
+        Returns:
+            dict: Job statistics including rows affected, execution time, etc.
+        """
+        job_config = QueryJobConfig()
+        job = self._client.query(query, job_config=job_config)
+
+        try:
+            result = job.result()  # Wait for completion
+
+            # Calculate execution time in milliseconds
+            execution_time_ms = None
+            if job.ended and job.started:
+                execution_time_ms = int((job.ended - job.started).total_seconds() * 1000)
+
+            # Extract statistics
+            stats = {
+                "rows_affected": getattr(job, "num_dml_affected_rows", 0),
+                "execution_time_ms": execution_time_ms,
+                "job_id": job.job_id,
+                "query_preview": query[:200],
+            }
+
+            logger.info(
+                "MERGE operation completed successfully",
+                extra={
+                    "operation": "bigquery_merge",
+                    "job_id": stats["job_id"],
+                    "rows_affected": stats["rows_affected"],
+                    "execution_time_ms": stats["execution_time_ms"],
+                }
+            )
+
+            return stats
+
+        except Exception as e:
+            logger.error("MERGE operation failed: %s", str(e))
+            raise BigQueryError(f"Failed to execute MERGE query: {str(e)}")

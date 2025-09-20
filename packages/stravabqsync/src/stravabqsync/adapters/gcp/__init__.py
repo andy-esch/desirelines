@@ -10,5 +10,7 @@ def make_bigquery_client_wrapper(config: BQInserterConfig) -> BigQueryClientWrap
 
 def make_write_activities(config: BQInserterConfig) -> WriteActivities:
     return WriteActivitiesRepo(
-        client=make_bigquery_client_wrapper(config), dataset_name=config.bq_dataset
+        client=make_bigquery_client_wrapper(config),
+        dataset_name=config.bq_dataset,
+        table_name="activities",
     )

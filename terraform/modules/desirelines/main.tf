@@ -112,6 +112,27 @@ resource "google_bigquery_table" "activities" {
   clustering = ["sport_type", "start_date"]
 }
 
+# BigQuery Staging Table for Activities (used for upsert operations)
+resource "google_bigquery_table" "activities_staging" {
+  dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
+  table_id            = "activities_staging"
+  friendly_name       = "Strava Activities Staging"
+  description         = "Staging table for activities upsert operations - temporary data before merge to main table"
+  deletion_protection = false  # Staging table should be easily recreatable
+  labels = local.common_labels
+
+  # Same schema as main activities table
+  schema = jsonencode(jsondecode(file("${path.module}/../../../infrastructure/schemas/activities_full.json")).schema)
+
+  # Same partitioning and clustering as main table for performance
+  time_partitioning {
+    type  = "DAY"
+    field = "start_date"
+  }
+
+  clustering = ["sport_type", "start_date"]
+}
+
 # Cloud Storage Bucket for aggregated data
 resource "google_storage_bucket" "aggregation_bucket" {
   name          = local.bucket_name
