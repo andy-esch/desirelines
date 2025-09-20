@@ -298,6 +298,14 @@ resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
   member     = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
 }
 
+resource "google_project_iam_member" "bq_inserter_bigquery_data_editor" {
+  count   = var.create_dev_service_accounts ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
+}
+
+
 # Service Account Impersonation permissions (allows your user to impersonate the service accounts)
 resource "google_service_account_iam_member" "dispatcher_impersonation" {
   count              = var.create_dev_service_accounts && var.developer_email != null ? 1 : 0
@@ -442,6 +450,17 @@ resource "google_cloud_run_service_iam_member" "dispatcher_public_access" {
   member   = "allUsers"
 
   depends_on = [google_cloudfunctions2_function.activity_dispatcher]
+}
+
+# Allow unauthenticated access to API Gateway (required for web app access)
+resource "google_cloud_run_service_iam_member" "api_gateway_public_access" {
+  project  = var.gcp_project_id
+  location = var.gcp_region
+  service  = google_cloudfunctions2_function.api_gateway.service_config[0].service
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+
+  depends_on = [google_cloudfunctions2_function.api_gateway]
 }
 
 # Activity BQ Inserter (Python Function - Source Package)

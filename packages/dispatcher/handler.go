@@ -28,9 +28,7 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	// Load webhook secrets from mounted volume if available
 	secretsPath := "/etc/secrets/strava_auth.json"
-	log.Printf("Checking for secrets file at: %s", secretsPath)
 	if _, err := os.Stat(secretsPath); err == nil {
-		log.Printf("Secrets file found, opening...")
 		secretsFile, err := os.Open(secretsPath)
 		if err != nil {
 			log.Printf("Failed to open secrets file: %v", err)
@@ -41,29 +39,22 @@ func LoadConfig() (*Config, error) {
 			if err := json.NewDecoder(secretsFile).Decode(&stravaAuth); err != nil {
 				log.Printf("Failed to decode secrets file: %v", err)
 			} else {
-				log.Printf("Successfully decoded secrets file, keys: %v", getKeys(stravaAuth))
 				// Set environment variables from secrets (takes precedence)
 				if verifyToken, ok := stravaAuth["webhook_verify_token"]; ok {
-					log.Printf("Loading webhook_verify_token from secrets: %v", verifyToken)
 					os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", fmt.Sprintf("%v", verifyToken))
 				}
 				if subscriptionID, ok := stravaAuth["webhook_subscription_id"]; ok {
-					log.Printf("Loading webhook_subscription_id from secrets: %v", subscriptionID)
 					os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", fmt.Sprintf("%v", subscriptionID))
 				}
 			}
 		}
-	} else {
-		log.Printf("Secrets file not found: %v", err)
 	}
 
 	subIDStr := getEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "0")
-	log.Printf("Final subscription_id string from env: '%s'", subIDStr)
 	subscriptionID, err := strconv.Atoi(subIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID: %v", err)
 	}
-	log.Printf("Parsed subscription_id as int: %d", subscriptionID)
 
 	return &Config{
 		StravaWebhookVerifyToken:    getEnvOrDefault("STRAVA_WEBHOOK_VERIFY_TOKEN", ""),
@@ -72,14 +63,6 @@ func LoadConfig() (*Config, error) {
 		GCPPubSubTopicID:            getEnvOrDefault("GCP_PUBSUB_TOPIC", ""),
 		LogLevel:                    getEnvOrDefault("LOG_LEVEL", "INFO"),
 	}, nil
-}
-
-func getKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
