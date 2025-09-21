@@ -71,15 +71,10 @@ TEMP_BQ=$(mktemp -d)
 # Copy Python function wrapper
 cp functions/activity_bq_inserter.py "$TEMP_BQ/main.py"
 
-# Copy stravabqsync business logic
+# Copy stravabqsync business logic (self-contained, no desirelines dependency)
 rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
       --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
       packages/stravabqsync/src/ "$TEMP_BQ/"
-
-# Copy desirelines config (shared dependency)
-rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
-      --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
-      packages/desirelines/src/desirelines/ "$TEMP_BQ/desirelines/"
 
 # Generate requirements.txt from pyproject.toml for Cloud Functions deployment
 cd packages/stravabqsync && uv pip compile pyproject.toml --output-file "$TEMP_BQ/requirements.txt" && cd ../..
