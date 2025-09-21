@@ -12,16 +12,7 @@ class WriteActivitiesRepo(WriteActivities):
         self._table_name = table_name
         self._staging_table_name = f"{table_name}_staging"  # Derive from main table name
 
-    def write_activity(self, activity: StravaActivity) -> None:
-        """Legacy insert method - will be removed after upsert rollout"""
-        activities_dict = [activity.model_dump(mode="json")]
-        self._client.insert_rows_json(
-            activities_dict,
-            dataset_name=self._dataset_name,
-            table_name=self._table_name,
-        )
-
-    def write_activity_with_upsert(self, activity: StravaActivity) -> dict:
+    def write_activity(self, activity: StravaActivity) -> dict:
         """Two-step upsert: stage then merge
 
         Returns:
@@ -31,7 +22,7 @@ class WriteActivitiesRepo(WriteActivities):
         self._write_to_staging(activity)
 
         # Step 2: MERGE from staging to main table
-        return self._merge_from_staging(activity.activity_id)
+        return self._merge_from_staging(activity.id)
 
     def _write_to_staging(self, activity: StravaActivity) -> None:
         """Insert activity to staging table using fast streaming insert"""

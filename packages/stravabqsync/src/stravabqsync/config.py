@@ -39,8 +39,6 @@ class BQInserterConfig(BaseSettings):
     # Optional configuration
     log_level: str = "INFO"
 
-    # Upsert configuration (feature flag - will be removed after full rollout)
-    enable_upsert: bool = False  # TODO: Remove after upsert feature is fully deployed
 
     class Config:
         env_file = ".env"

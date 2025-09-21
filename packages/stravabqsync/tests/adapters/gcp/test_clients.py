@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -64,3 +65,49 @@ class TestBigQueryClientWrapper:
         mock_client_instance.insert_rows_json.assert_called_once_with(
             expected_table_id, test_rows
         )
+
+    @patch("stravabqsync.adapters.gcp._clients.Client")
+    def test_execute_merge_query_success(self, mock_client_class):
+        # Test successful merge query execution
+        mock_client_instance = MagicMock()
+        mock_client_class.return_value = mock_client_instance
+
+        # Mock successful query job
+        mock_job = MagicMock()
+        mock_job.result.return_value = None
+        mock_job.num_dml_affected_rows = 5
+        mock_job.ended = datetime(2024, 1, 1, 12, 0, 1)
+        mock_job.started = datetime(2024, 1, 1, 12, 0, 0)
+        mock_job.job_id = "test-job-123"
+        mock_client_instance.query.return_value = mock_job
+
+        wrapper = BigQueryClientWrapper(project_id="test-project")
+        test_query = "MERGE INTO activities AS target USING activities_staging AS source"
+
+        result = wrapper.execute_merge_query(test_query)
+
+        assert result["rows_affected"] == 5
+        assert result["execution_time_ms"] == 1000  # 1 second = 1000ms
+        assert result["job_id"] == "test-job-123"
+        assert "query_preview" in result
+        mock_client_instance.query.assert_called_once()
+
+    @patch("stravabqsync.adapters.gcp._clients.Client")
+    def test_execute_merge_query_failure(self, mock_client_class):
+        # Test merge query execution failure
+        mock_client_instance = MagicMock()
+        mock_client_class.return_value = mock_client_instance
+
+        # Mock query job that fails
+        mock_job = MagicMock()
+        mock_job.result.side_effect = Exception("Query failed")
+        mock_client_instance.query.return_value = mock_job
+
+        wrapper = BigQueryClientWrapper(project_id="test-project")
+        test_query = "MERGE INTO activities AS target USING activities_staging AS source"
+
+        with pytest.raises(BigQueryError) as exc_info:
+            wrapper.execute_merge_query(test_query)
+
+        assert "Failed to execute MERGE query" in str(exc_info.value)
+        mock_client_instance.query.assert_called_once()

@@ -52,5 +52,9 @@ def service():
 
 class TestSyncService:
     def test_usage(self, service, activity):
-        service.run(activity)
+        service.run(activity.id)
+        assert service._write_activities.activity.id == 8726373550
+
+    def test_write_activity_uses_upsert(self, service, activity):
+        service.run(activity.id)
         assert service._write_activities.activity.id == 8726373550
