@@ -10,9 +10,9 @@ from cloudevents.http import CloudEvent
 import functions_framework
 from pydantic import ValidationError
 
-from desirelines.domain import WebhookRequest
 from stravabqsync.application.services import make_sync_service
 from stravabqsync.config import load_bq_inserter_config
+from stravabqsync.domain import WebhookRequest
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
