@@ -6,7 +6,7 @@ import DistanceChart from "./components/DistanceChart";
 import PacingChart from "./components/PacingChart";
 
 function App() {
-  const [newYear, setNewYear] = React.useState(2024);
+  const [newYear, setNewYear] = React.useState(2025);
   const handleYearClick = (year: number) => {
     setNewYear(year);
   };
