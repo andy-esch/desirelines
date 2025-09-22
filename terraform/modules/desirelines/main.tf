@@ -326,6 +326,13 @@ resource "google_project_iam_member" "bq_inserter_bigquery_data_editor" {
   member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
 }
 
+resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
+  count   = var.create_dev_service_accounts ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
+}
+
 
 # Service Account Impersonation permissions (allows your user to impersonate the service accounts)
 resource "google_service_account_iam_member" "dispatcher_impersonation" {

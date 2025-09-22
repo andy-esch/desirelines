@@ -6,11 +6,18 @@ from stravabqsync.ports.out.write import WriteActivities
 class WriteActivitiesRepo(WriteActivities):
     """Write Strava Activities to BigQuery"""
 
-    def __init__(self, client: BigQueryClientWrapper, *, dataset_name: str, table_name: str = "activities"):
+    def __init__(
+        self,
+        client: BigQueryClientWrapper,
+        *,
+        dataset_name: str,
+        table_name: str = "activities",
+    ):
         self._client = client
         self._dataset_name = dataset_name
         self._table_name = table_name
-        self._staging_table_name = f"{table_name}_staging"  # Derive from main table name
+        # Derive from main table name
+        self._staging_table_name = f"{table_name}_staging"
 
     def write_activity(self, activity: StravaActivity) -> dict:
         """Two-step upsert: stage then merge
@@ -44,12 +51,12 @@ class WriteActivitiesRepo(WriteActivities):
         MERGE `{self._client.project_id}.{self._dataset_name}.{self._table_name}` AS target
         USING (
             SELECT * EXCEPT(row_num) FROM (
-                SELECT *, ROW_NUMBER() OVER (PARTITION BY activity_id ORDER BY _PARTITIONTIME DESC) as row_num
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY start_date DESC) as row_num
                 FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
-                WHERE activity_id = {activity_id}
+                WHERE id = {activity_id}
             ) WHERE row_num = 1
         ) AS source
-        ON target.activity_id = source.activity_id
+        ON target.id = source.id
         WHEN MATCHED THEN
             UPDATE SET
                 name = source.name,
@@ -61,12 +68,12 @@ class WriteActivitiesRepo(WriteActivities):
                 updated_at = CURRENT_TIMESTAMP()
         WHEN NOT MATCHED THEN
             INSERT (
-                activity_id, name, distance, moving_time,
+                id, name, distance, moving_time,
                 total_elevation_gain, type, start_date,
                 created_at, updated_at
             )
             VALUES (
-                source.activity_id, source.name, source.distance,
+                source.id, source.name, source.distance,
                 source.moving_time, source.total_elevation_gain,
                 source.type, source.start_date,
                 CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()
