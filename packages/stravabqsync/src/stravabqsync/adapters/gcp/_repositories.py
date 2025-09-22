@@ -59,20 +59,32 @@ class WriteActivitiesRepo(WriteActivities):
         ON target.id = source.id
         WHEN MATCHED THEN
             UPDATE SET
+                external_id = source.external_id,
+                upload_id = source.upload_id,
+                athlete = source.athlete,
                 name = source.name,
                 distance = source.distance,
                 moving_time = source.moving_time,
+                elapsed_time = source.elapsed_time,
                 total_elevation_gain = source.total_elevation_gain,
+                elev_high = source.elev_high,
+                elev_low = source.elev_low,
                 type = source.type,
-                start_date = source.start_date
+                sport_type = source.sport_type,
+                start_date = source.start_date,
+                start_date_local = source.start_date_local,
+                timezone = source.timezone
         WHEN NOT MATCHED THEN
             INSERT (
-                id, name, distance, moving_time,
-                total_elevation_gain, type, start_date
+                id, external_id, upload_id, athlete, name, distance, moving_time,
+                elapsed_time, total_elevation_gain, elev_high, elev_low, type,
+                sport_type, start_date, start_date_local, timezone
             )
             VALUES (
-                source.id, source.name, source.distance,
-                source.moving_time, source.total_elevation_gain,
-                source.type, source.start_date
+                source.id, source.external_id, source.upload_id, source.athlete,
+                source.name, source.distance, source.moving_time, source.elapsed_time,
+                source.total_elevation_gain, source.elev_high, source.elev_low,
+                source.type, source.sport_type, source.start_date, source.start_date_local,
+                source.timezone
             )
         """
