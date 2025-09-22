@@ -64,18 +64,15 @@ class WriteActivitiesRepo(WriteActivities):
                 moving_time = source.moving_time,
                 total_elevation_gain = source.total_elevation_gain,
                 type = source.type,
-                start_date = source.start_date,
-                updated_at = CURRENT_TIMESTAMP()
+                start_date = source.start_date
         WHEN NOT MATCHED THEN
             INSERT (
                 id, name, distance, moving_time,
-                total_elevation_gain, type, start_date,
-                created_at, updated_at
+                total_elevation_gain, type, start_date
             )
             VALUES (
                 source.id, source.name, source.distance,
                 source.moving_time, source.total_elevation_gain,
-                source.type, source.start_date,
-                CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()
+                source.type, source.start_date
             )
         """
