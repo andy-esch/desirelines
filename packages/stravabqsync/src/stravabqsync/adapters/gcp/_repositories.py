@@ -73,18 +73,50 @@ class WriteActivitiesRepo(WriteActivities):
                 sport_type = source.sport_type,
                 start_date = source.start_date,
                 start_date_local = source.start_date_local,
-                timezone = source.timezone
+                timezone = source.timezone,
+                achievement_count = source.achievement_count,
+                athlete_count = source.athlete_count,
+                average_speed = source.average_speed,
+                calories = source.calories,
+                comment_count = source.comment_count,
+                commute = source.commute,
+                embed_token = source.embed_token,
+                flagged = source.flagged,
+                has_heartrate = source.has_heartrate,
+                has_kudoed = source.has_kudoed,
+                hide_from_home = source.hide_from_home,
+                kudos_count = source.kudos_count,
+                manual = source.manual,
+                map = source.map,
+                max_speed = source.max_speed,
+                photo_count = source.photo_count,
+                photos = source.photos,
+                pr_count = source.pr_count,
+                private = source.private,
+                total_photo_count = source.total_photo_count,
+                trainer = source.trainer
         WHEN NOT MATCHED THEN
             INSERT (
                 id, external_id, upload_id, athlete, name, distance, moving_time,
                 elapsed_time, total_elevation_gain, elev_high, elev_low, type,
-                sport_type, start_date, start_date_local, timezone
+                sport_type, start_date, start_date_local, timezone,
+                achievement_count, athlete_count, average_speed, calories,
+                comment_count, commute, embed_token, flagged, has_heartrate,
+                has_kudoed, hide_from_home, kudos_count, manual, map,
+                max_speed, photo_count, photos, pr_count, private,
+                total_photo_count, trainer
             )
             VALUES (
                 source.id, source.external_id, source.upload_id, source.athlete,
                 source.name, source.distance, source.moving_time, source.elapsed_time,
                 source.total_elevation_gain, source.elev_high, source.elev_low,
                 source.type, source.sport_type, source.start_date, source.start_date_local,
-                source.timezone
+                source.timezone, source.achievement_count, source.athlete_count,
+                source.average_speed, source.calories, source.comment_count,
+                source.commute, source.embed_token, source.flagged,
+                source.has_heartrate, source.has_kudoed, source.hide_from_home,
+                source.kudos_count, source.manual, source.map, source.max_speed,
+                source.photo_count, source.photos, source.pr_count, source.private,
+                source.total_photo_count, source.trainer
             )
         """
