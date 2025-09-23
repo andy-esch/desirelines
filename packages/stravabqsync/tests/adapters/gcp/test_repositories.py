@@ -39,7 +39,9 @@ class TestWriteActivitiesRepo:
         # Should have written to staging table first
         assert write_activities_repo._client.table_name == "activities_staging"
 
-    def test_write_activity_merge_query_executed(self, write_activities_repo, activity2):
+    def test_write_activity_merge_query_executed(
+        self, write_activities_repo, activity2
+    ):
         write_activities_repo.write_activity(activity2)
         # Should have executed a MERGE query
         assert len(write_activities_repo._client.executed_queries) == 1

@@ -57,6 +57,13 @@ def retry_on_failure(
                                 retry_after,
                                 attempt + 1,
                                 max_attempts,
+                                extra={
+                                    "operation": "retry_rate_limit",
+                                    "attempt": attempt + 1,
+                                    "max_attempts": max_attempts,
+                                    "retry_after_seconds": retry_after,
+                                    "status_code": status_code,
+                                },
                             )
                             time.sleep(retry_after)
                             continue
@@ -92,11 +99,28 @@ def retry_on_failure(
                         max_attempts,
                         delay,
                         str(last_exception),
+                        extra={
+                            "operation": "retry_attempt",
+                            "attempt": attempt + 1,
+                            "max_attempts": max_attempts,
+                            "delay_seconds": delay,
+                            "exception_type": type(last_exception).__name__,
+                        },
                     )
                     time.sleep(delay)
 
             # All attempts failed
-            logger.error("All %d retry attempts failed", max_attempts)
+            logger.error(
+                "All %d retry attempts failed",
+                max_attempts,
+                extra={
+                    "operation": "retry_exhausted",
+                    "max_attempts": max_attempts,
+                    "final_exception": type(last_exception).__name__
+                    if last_exception
+                    else "unknown",
+                },
+            )
             if last_exception:
                 raise last_exception
 

@@ -47,5 +47,5 @@ class SyncService:
                 "operation": "upsert",
                 "rows_affected": stats.get("rows_affected", 0),
                 "execution_time_ms": stats.get("execution_time_ms"),
-            }
+            },
         )

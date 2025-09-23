@@ -82,7 +82,9 @@ class TestBigQueryClientWrapper:
         mock_client_instance.query.return_value = mock_job
 
         wrapper = BigQueryClientWrapper(project_id="test-project")
-        test_query = "MERGE INTO activities AS target USING activities_staging AS source"
+        test_query = (
+            "MERGE INTO activities AS target USING activities_staging AS source"
+        )
 
         result = wrapper.execute_merge_query(test_query)
 
@@ -104,7 +106,9 @@ class TestBigQueryClientWrapper:
         mock_client_instance.query.return_value = mock_job
 
         wrapper = BigQueryClientWrapper(project_id="test-project")
-        test_query = "MERGE INTO activities AS target USING activities_staging AS source"
+        test_query = (
+            "MERGE INTO activities AS target USING activities_staging AS source"
+        )
 
         with pytest.raises(BigQueryError) as exc_info:
             wrapper.execute_merge_query(test_query)

@@ -39,7 +39,6 @@ class BQInserterConfig(BaseSettings):
     # Optional configuration
     log_level: str = "INFO"
 
-
     class Config:
         env_file = ".env"
         validate_default = True

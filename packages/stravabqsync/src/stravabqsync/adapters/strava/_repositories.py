@@ -56,7 +56,14 @@ class StravaTokenRepo(ReadStravaToken):
                 )
 
         access_token = resp.json()["access_token"]
-        logger.info("Tokens successfully updated")
+        logger.info(
+            "Tokens successfully updated",
+            extra={
+                "operation": "token_refresh",
+                "status_code": resp.status_code,
+                "client_id": self._tokens.client_id,
+            },
+        )
         return StravaTokenSet(
             client_id=self._tokens.client_id,
             client_secret=self._tokens.client_secret,
@@ -93,7 +100,15 @@ class StravaActivitiesRepo(ReadActivities):
         resp = _fetch()
         if not resp.ok:
             logger.error(
-                "Failed to fetch activity %s: %s", activity_id, resp.status_code
+                "Failed to fetch activity %s: %s",
+                activity_id,
+                resp.status_code,
+                extra={
+                    "operation": "fetch_activity",
+                    "activity_id": activity_id,
+                    "status_code": resp.status_code,
+                    "error_type": "api_error",
+                },
             )
             if resp.status_code == 404:
                 raise ActivityNotFoundError(activity_id)
@@ -107,6 +122,15 @@ class StravaActivitiesRepo(ReadActivities):
                     resp.status_code,
                     activity_id,
                 )
+
+        logger.info(
+            "Successfully fetched activity from Strava",
+            extra={
+                "operation": "fetch_activity",
+                "activity_id": activity_id,
+                "status_code": resp.status_code,
+            },
+        )
         return resp.json()
 
     def read_activity_by_id(self, activity_id: int) -> StravaActivity:

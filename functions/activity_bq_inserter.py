@@ -14,8 +14,18 @@ from stravabqsync.application.services import make_sync_service
 from stravabqsync.config import load_bq_inserter_config
 from stravabqsync.domain import WebhookRequest
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging for Google Cloud Functions
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 logger = logging.getLogger(__name__)
+
+# Set up Cloud Functions compatible logging
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(levelname)s:%(name)s:%(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 # Load and validate configuration at module level
 try:
@@ -74,12 +84,28 @@ def main(event: CloudEvent) -> dict:
     # Generate correlation ID for request tracing
     correlation_id = str(uuid.uuid4())
 
+    # Log function invocation for debugging unacked messages
+    logger.info(
+        "BQ inserter function invoked",
+        extra={
+            "correlation_id": correlation_id,
+            "event_type": getattr(event, "type", "unknown"),
+            "event_source": getattr(event, "source", "unknown"),
+        },
+    )
+
     try:
         # Validate CloudEvent structure
         validate_cloud_event(event)
         logger.info(
-            "Received CloudEvent for processing",
-            extra={"correlation_id": correlation_id},
+            "CloudEvent validation successful - processing message",
+            extra={
+                "correlation_id": correlation_id,
+                "message_id": event.data.get("message", {}).get("messageId", "unknown"),
+                "publish_time": event.data.get("message", {}).get(
+                    "publishTime", "unknown"
+                ),
+            },
         )
 
         # Safely decode message data

@@ -42,7 +42,9 @@ class BigQueryClientWrapper:
             # Calculate execution time in milliseconds
             execution_time_ms = None
             if job.ended and job.started:
-                execution_time_ms = int((job.ended - job.started).total_seconds() * 1000)
+                execution_time_ms = int(
+                    (job.ended - job.started).total_seconds() * 1000
+                )
 
             # Extract statistics
             stats = {
@@ -59,7 +61,7 @@ class BigQueryClientWrapper:
                     "job_id": stats["job_id"],
                     "rows_affected": stats["rows_affected"],
                     "execution_time_ms": stats["execution_time_ms"],
-                }
+                },
             )
 
             return stats
