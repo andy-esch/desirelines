@@ -26,6 +26,11 @@ variable "gcp_project_id" {
   type        = string
 }
 
+variable "gcp_project_number" {
+  description = "Google Cloud Project Number (needed for service account IAM)"
+  type        = string
+}
+
 variable "gcp_region" {
   description = "Default GCP region"
   type        = string

@@ -203,51 +203,8 @@ resource "google_pubsub_topic" "activity_events" {
   message_retention_duration = "604800s"
 }
 
-# PubSub Subscription for BigQuery inserter
-resource "google_pubsub_subscription" "bq_inserter" {
-  name  = "${var.project_name}_bq_inserter_${var.environment}"
-  topic = google_pubsub_topic.activity_events.name
-
-  labels = local.common_labels
-
-  # Acknowledgment deadline
-  ack_deadline_seconds = 300
-
-  # Retry policy
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "300s"
-  }
-
-  # Dead letter policy
-  dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.dead_letter.id
-    max_delivery_attempts = 5
-  }
-}
-
-# PubSub Subscription for activity aggregator
-resource "google_pubsub_subscription" "aggregator" {
-  name  = "${var.project_name}_aggregator_${var.environment}"
-  topic = google_pubsub_topic.activity_events.name
-
-  labels = local.common_labels
-
-  # Acknowledgment deadline
-  ack_deadline_seconds = 300
-
-  # Retry policy
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "300s"
-  }
-
-  # Dead letter policy
-  dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.dead_letter.id
-    max_delivery_attempts = 5
-  }
-}
+# Eventarc-created subscriptions are managed at the root module level
+# to configure dead letter queues. See the environment-specific main.tf files.
 
 # Dead letter topic for failed messages
 resource "google_pubsub_topic" "dead_letter" {
@@ -257,6 +214,25 @@ resource "google_pubsub_topic" "dead_letter" {
 
   # Longer retention for debugging
   message_retention_duration = "1209600s" # 14 days
+}
+
+# Dead letter topic subscription for monitoring failed messages
+resource "google_pubsub_subscription" "dead_letter_monitoring" {
+  name  = "${var.project_name}_dead_letter_monitoring_${var.environment}"
+  topic = google_pubsub_topic.dead_letter.name
+
+  labels = local.common_labels
+
+  # Longer retention for debugging failed messages
+  message_retention_duration = "1209600s" # 14 days
+  ack_deadline_seconds       = 600
+}
+
+# Grant PubSub service account permission to publish to dead letter topic
+resource "google_pubsub_topic_iam_member" "dead_letter_publisher" {
+  topic  = google_pubsub_topic.dead_letter.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:service-${var.gcp_project_number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
 # Development Service Accounts (only created if enabled)
@@ -289,13 +265,7 @@ resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   member = "serviceAccount:${google_service_account.dispatcher_dev[0].email}"
 }
 
-# IAM permissions for aggregator (PubSub Subscriber + Storage Admin)
-resource "google_pubsub_subscription_iam_member" "aggregator_subscriber" {
-  count        = var.create_dev_service_accounts ? 1 : 0
-  subscription = google_pubsub_subscription.aggregator.name
-  role         = "roles/pubsub.subscriber"
-  member       = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
-}
+# IAM permissions for aggregator (Storage Admin only - PubSub permissions handled by Eventarc)
 
 resource "google_storage_bucket_iam_member" "aggregator_storage" {
   count  = var.create_dev_service_accounts ? 1 : 0
@@ -304,13 +274,7 @@ resource "google_storage_bucket_iam_member" "aggregator_storage" {
   member = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
 }
 
-# IAM permissions for BQ inserter (PubSub Subscriber + BigQuery Data Editor)
-resource "google_pubsub_subscription_iam_member" "bq_inserter_subscriber" {
-  count        = var.create_dev_service_accounts ? 1 : 0
-  subscription = google_pubsub_subscription.bq_inserter.name
-  role         = "roles/pubsub.subscriber"
-  member       = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
-}
+# IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)
 
 resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
   count      = var.create_dev_service_accounts ? 1 : 0
@@ -522,7 +486,6 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
       GCP_PROJECT_ID       = var.gcp_project_id
       GCP_BIGQUERY_DATASET = google_bigquery_dataset.activities_dataset.dataset_id
       GCP_BIGQUERY_TABLE   = google_bigquery_table.activities.table_id
-      GCP_BQ_SUBSCRIPTION  = google_pubsub_subscription.bq_inserter.name
       ENVIRONMENT          = var.environment
       LOG_LEVEL            = "INFO"
       FORCE_REDEPLOY       = "2025-09-19-new-strava-scope-v1"
@@ -580,7 +543,6 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
     environment_variables = {
       GCP_PROJECT_ID       = var.gcp_project_id
       GCP_BUCKET_NAME      = google_storage_bucket.aggregation_bucket.name
-      GCP_AGG_SUBSCRIPTION = google_pubsub_subscription.aggregator.name
       ENVIRONMENT          = var.environment
       LOG_LEVEL            = "INFO"
       FORCE_REDEPLOY       = "2025-09-19-new-strava-scope-v1"

@@ -33,15 +33,6 @@ output "pubsub_topic_name" {
   value       = google_pubsub_topic.activity_events.name
 }
 
-output "pubsub_bq_subscription_name" {
-  description = "Name of the PubSub subscription for BigQuery inserter"
-  value       = google_pubsub_subscription.bq_inserter.name
-}
-
-output "pubsub_aggregator_subscription_name" {
-  description = "Name of the PubSub subscription for activity aggregator"
-  value       = google_pubsub_subscription.aggregator.name
-}
 
 output "pubsub_dead_letter_topic_name" {
   description = "Name of the dead letter PubSub topic"
@@ -56,8 +47,6 @@ output "resource_names" {
     table_name      = google_bigquery_table.activities.table_id
     bucket_name     = google_storage_bucket.aggregation_bucket.name
     topic_name      = google_pubsub_topic.activity_events.name
-    bq_subscription = google_pubsub_subscription.bq_inserter.name
-    agg_subscription = google_pubsub_subscription.aggregator.name
   }
 }
 
@@ -69,8 +58,6 @@ output "application_config" {
     gcp_bigquery_dataset   = google_bigquery_dataset.activities_dataset.dataset_id
     gcp_bucket_name        = google_storage_bucket.aggregation_bucket.name
     gcp_pubsub_topic       = google_pubsub_topic.activity_events.name
-    gcp_bq_subscription    = google_pubsub_subscription.bq_inserter.name
-    gcp_agg_subscription   = google_pubsub_subscription.aggregator.name
   }
 }
 
