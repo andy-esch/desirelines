@@ -54,61 +54,41 @@ module "desirelines" {
   developer_email = var.developer_email
 }
 
-# Import and manage Eventarc-created subscriptions to configure dead letter queues
-# These subscriptions are automatically created by Eventarc but need DLQ configuration
+# Dead Letter Queue Configuration for Eventarc-created subscriptions
+# Eventarc creates subscriptions automatically - we create separate DLQ subscriptions
 
-# Import Eventarc BQ inserter subscription
-import {
-  to = google_pubsub_subscription.eventarc_bq_inserter
-  id = "projects/${var.gcp_project_id}/subscriptions/eventarc-us-central1-desirelines-bq-inserter-661759-sub-662"
-}
+# Dead letter subscription for BQ inserter function
+resource "google_pubsub_subscription" "bq_inserter_dlq" {
+  name  = "desirelines-bq-inserter-dlq"
+  topic = module.desirelines.pubsub_dead_letter_topic_name
 
-resource "google_pubsub_subscription" "eventarc_bq_inserter" {
-  name  = "eventarc-us-central1-desirelines-bq-inserter-661759-sub-662"
-  topic = module.desirelines.pubsub_topic_name
+  # Long retention for debugging failed messages
+  message_retention_duration = "1209600s" # 14 days
+  ack_deadline_seconds       = 600
 
-  # Dead letter policy configuration
-  dead_letter_policy {
-    dead_letter_topic     = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
-    max_delivery_attempts = 5
-  }
-
-  # Retry policy (matches current Eventarc settings)
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "600s"
-  }
-
-  # Ignore push config as it's managed by Eventarc
-  lifecycle {
-    ignore_changes = [push_config]
+  labels = {
+    purpose     = "dead-letter-queue"
+    function    = "bq-inserter"
+    environment = "dev"
   }
 }
 
-# Import Eventarc aggregator subscription
-import {
-  to = google_pubsub_subscription.eventarc_aggregator
-  id = "projects/${var.gcp_project_id}/subscriptions/eventarc-us-central1-desirelines-aggregator-126476-sub-255"
-}
+# Dead letter subscription for aggregator function
+resource "google_pubsub_subscription" "aggregator_dlq" {
+  name  = "desirelines-aggregator-dlq"
+  topic = module.desirelines.pubsub_dead_letter_topic_name
 
-resource "google_pubsub_subscription" "eventarc_aggregator" {
-  name  = "eventarc-us-central1-desirelines-aggregator-126476-sub-255"
-  topic = module.desirelines.pubsub_topic_name
+  # Long retention for debugging failed messages
+  message_retention_duration = "1209600s" # 14 days
+  ack_deadline_seconds       = 600
 
-  # Dead letter policy configuration
-  dead_letter_policy {
-    dead_letter_topic     = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
-    max_delivery_attempts = 5
-  }
-
-  # Retry policy (matches current Eventarc settings)
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "600s"
-  }
-
-  # Ignore push config as it's managed by Eventarc
-  lifecycle {
-    ignore_changes = [push_config]
+  labels = {
+    purpose     = "dead-letter-queue"
+    function    = "aggregator"
+    environment = "dev"
   }
 }
+
+# Note: Eventarc automatically creates and manages the main subscriptions
+# that trigger the functions. We only manage the dead letter queue subscriptions
+# for monitoring and debugging failed messages.

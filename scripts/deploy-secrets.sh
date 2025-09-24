@@ -77,29 +77,38 @@ gcloud secrets versions add "strava-auth-$ENV_NAME" \
 
 echo "🔑 Granting secret access to service accounts..."
 
-# Grant access to terraform service account
-gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
-    --project="$GCP_PROJECT_ID" \
-    --member="serviceAccount:terraform-desirelines-$ENV_NAME@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor"
-
-gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
-    --project="$GCP_PROJECT_ID" \
-    --member="serviceAccount:terraform-desirelines-$ENV_NAME@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
-    --role="roles/secretmanager.secretVersionManager"
-
-gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
-    --project="$GCP_PROJECT_ID" \
-    --member="serviceAccount:terraform-desirelines-$ENV_NAME@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
-    --role="roles/secretmanager.admin"
-
-# Grant access to function service accounts
-for FUNCTION in dispatcher aggregator bq-inserter; do
-    echo "   Granting access to $FUNCTION-$ENV_NAME service account..."
+# Grant access to terraform service account (if it exists)
+if gcloud iam service-accounts describe "terraform-desirelines@$GCP_PROJECT_ID.iam.gserviceaccount.com" --project="$GCP_PROJECT_ID" >/dev/null 2>&1; then
+    echo "   Granting access to terraform-desirelines service account..."
     gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
         --project="$GCP_PROJECT_ID" \
-        --member="serviceAccount:$FUNCTION-$ENV_NAME@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
+        --member="serviceAccount:terraform-desirelines@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
         --role="roles/secretmanager.secretAccessor"
+
+    gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
+        --project="$GCP_PROJECT_ID" \
+        --member="serviceAccount:terraform-desirelines@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
+        --role="roles/secretmanager.secretVersionManager"
+
+    gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
+        --project="$GCP_PROJECT_ID" \
+        --member="serviceAccount:terraform-desirelines@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
+        --role="roles/secretmanager.admin"
+else
+    echo "   ⚠️  terraform-desirelines service account not found, skipping..."
+fi
+
+# Grant access to function service accounts (no environment suffix)
+for FUNCTION in dispatcher aggregator bq-inserter; do
+    if gcloud iam service-accounts describe "$FUNCTION@$GCP_PROJECT_ID.iam.gserviceaccount.com" --project="$GCP_PROJECT_ID" >/dev/null 2>&1; then
+        echo "   Granting access to $FUNCTION service account..."
+        gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
+            --project="$GCP_PROJECT_ID" \
+            --member="serviceAccount:$FUNCTION@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
+            --role="roles/secretmanager.secretAccessor"
+    else
+        echo "   ⚠️  $FUNCTION service account not found, skipping..."
+    fi
 done
 
 echo "✅ Secret strava-auth-$ENV_NAME deployed with content and proper IAM bindings"

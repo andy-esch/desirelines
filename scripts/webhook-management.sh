@@ -39,7 +39,15 @@ case "$COMMAND" in
     "create")
         echo "🔗 Creating Strava webhook subscription for $ENV_NAME environment..."
 
-        FUNCTION_NAME="desirelines_dispatcher_$ENV_NAME"
+        FUNCTION_NAME=$(gcloud functions list --regions=$REGION --filter="name~dispatcher" --format="value(name)" --project="$GCP_PROJECT_ID" | head -1)
+
+        if [ -z "$FUNCTION_NAME" ]; then
+            echo "❌ Error: Could not find dispatcher function in $REGION"
+            echo "Make sure the function is deployed and region is correct"
+            exit 1
+        fi
+
+        echo "📍 Found dispatcher function: $FUNCTION_NAME"
         STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth-$ENV_NAME" --project="$GCP_PROJECT_ID")
         CLIENT_ID=$(echo "$STRAVA_AUTH" | jq -r '.client_id')
         CLIENT_SECRET=$(echo "$STRAVA_AUTH" | jq -r '.client_secret')

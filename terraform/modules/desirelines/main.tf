@@ -332,10 +332,28 @@ resource "google_service_account_iam_member" "bq_inserter_impersonation" {
 }
 
 # Secret Manager IAM permissions for service accounts
-resource "google_secret_manager_secret_iam_member" "strava_auth_access" {
+
+# Dispatcher access to Strava auth secret
+resource "google_secret_manager_secret_iam_member" "dispatcher_strava_auth_access" {
   secret_id = "strava-auth-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
   member    = var.create_dev_service_accounts ? "serviceAccount:${google_service_account.dispatcher_dev[0].email}" : "serviceAccount:${var.service_account_email}"
+}
+
+# Aggregator access to Strava auth secret
+resource "google_secret_manager_secret_iam_member" "aggregator_strava_auth_access" {
+  count     = var.create_dev_service_accounts ? 1 : 0
+  secret_id = "strava-auth-${var.environment}"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
+}
+
+# BQ Inserter access to Strava auth secret
+resource "google_secret_manager_secret_iam_member" "bq_inserter_strava_auth_access" {
+  count     = var.create_dev_service_accounts ? 1 : 0
+  secret_id = "strava-auth-${var.environment}"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
 }
 
 # Grant developer access to secrets for local development
@@ -434,7 +452,7 @@ resource "google_cloudfunctions2_function" "activity_dispatcher" {
       GCP_PUBSUB_TOPIC = google_pubsub_topic.activity_events.name
       ENVIRONMENT      = var.environment
       LOG_LEVEL        = "INFO"
-      FORCE_DEPLOY     = "20250919-v1"
+      FORCE_DEPLOY     = "20250923-secret-update-v1"
     }
 
     # Mount Strava secrets as volume

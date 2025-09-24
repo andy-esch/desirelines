@@ -291,8 +291,27 @@ view-webhook:
 	@./scripts/webhook-management.sh view $$ENV_NAME
 
 delete-webhook:
-	$(call check_project)
-	@./scripts/webhook-management.sh delete $$ENV_NAME
+	@CURRENT_PROJECT="$(GCP_PROJECT_ID)"; \
+	if [ "$$CURRENT_PROJECT" = "desirelines-dev" ]; then \
+		ENV_NAME="dev"; \
+	elif [ "$$CURRENT_PROJECT" = "desirelines-prod" ]; then \
+		ENV_NAME="prod"; \
+	else \
+		echo "❌ Error: Invalid GCP project for desirelines!"; \
+		echo "   Current:  $$CURRENT_PROJECT"; \
+		echo "   Expected: desirelines-dev or desirelines-prod"; \
+		echo "   Fix: gcloud config set project desirelines-dev"; \
+		echo "   Or:  gcloud config set project desirelines-prod"; \
+		exit 1; \
+	fi; \
+	echo "⚠️  About to delete webhook subscription for $$ENV_NAME environment"; \
+	echo "   Project: $$CURRENT_PROJECT"; \
+	read -p "Are you sure? (y/N): " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		./scripts/webhook-management.sh delete $$ENV_NAME; \
+	else \
+		echo "❌ Cancelled webhook deletion"; \
+	fi
 
 generate-webhook-verify-token:
 	$(call check_project)
