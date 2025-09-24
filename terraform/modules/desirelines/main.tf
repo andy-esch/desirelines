@@ -19,8 +19,8 @@ data "google_secret_manager_secret_version" "strava_auth" {
 # Local variables for resource naming
 locals {
   # Consistent naming conventions using project ID for global uniqueness
-  dataset_name = "${var.project_name}_dataset_${var.environment}"
-  bucket_name  = "${var.gcp_project_id}-${var.project_name}-aggregation-${var.environment}"
+  dataset_name = var.project_name
+  bucket_name  = "${var.gcp_project_id}-${var.project_name}-aggregation"
 
   # Parse Strava auth JSON secret
   strava_auth = jsondecode(data.google_secret_manager_secret_version.strava_auth.secret_data)
@@ -34,6 +34,15 @@ locals {
     repository  = "andy-esch-desirelines"
     team        = "platform"
   }
+
+  # Function source configuration (local or external bucket)
+  function_source_bucket = var.external_function_source_bucket != null ? var.external_function_source_bucket : google_storage_bucket.function_source[0].name
+
+  # Function source object names
+  dispatcher_object_name  = "dispatcher-${var.function_source_tag}.zip"
+  bq_inserter_object_name = "bq-inserter-${var.function_source_tag}.zip"
+  aggregator_object_name  = "aggregator-${var.function_source_tag}.zip"
+  api_gateway_object_name = "api-gateway-${var.function_source_tag}.zip"
 }
 
 # ==============================================================================
@@ -118,8 +127,8 @@ resource "google_bigquery_table" "activities_staging" {
   table_id            = "activities_staging"
   friendly_name       = "Strava Activities Staging"
   description         = "Staging table for activities upsert operations - temporary data before merge to main table"
-  deletion_protection = false  # Staging table should be easily recreatable
-  labels = local.common_labels
+  deletion_protection = false # Staging table should be easily recreatable
+  labels              = local.common_labels
 
   # Same schema as main activities table
   schema = jsonencode(jsondecode(file("${path.module}/../../../infrastructure/schemas/activities_full.json")).schema)
@@ -171,8 +180,10 @@ resource "google_storage_bucket" "aggregation_bucket" {
   }
 }
 
-# Cloud Storage Bucket for function source packages
+# Cloud Storage Bucket for function source packages (only created if not using external bucket)
 resource "google_storage_bucket" "function_source" {
+  count = var.external_function_source_bucket == null ? 1 : 0
+
   name          = "${var.gcp_project_id}-function-source"
   location      = var.storage_location
   force_destroy = var.environment != "prod"
@@ -195,7 +206,7 @@ resource "google_storage_bucket" "function_source" {
 
 # PubSub Topic for activity events
 resource "google_pubsub_topic" "activity_events" {
-  name = "${var.project_name}_activity_events_${var.environment}"
+  name = "${var.project_name}_activity_events"
 
   labels = local.common_labels
 
@@ -208,7 +219,7 @@ resource "google_pubsub_topic" "activity_events" {
 
 # Dead letter topic for failed messages
 resource "google_pubsub_topic" "dead_letter" {
-  name = "${var.project_name}_dead_letter_${var.environment}"
+  name = "${var.project_name}_dead_letter"
 
   labels = local.common_labels
 
@@ -218,7 +229,7 @@ resource "google_pubsub_topic" "dead_letter" {
 
 # Dead letter topic subscription for monitoring failed messages
 resource "google_pubsub_subscription" "dead_letter_monitoring" {
-  name  = "${var.project_name}_dead_letter_monitoring_${var.environment}"
+  name  = "${var.project_name}_dead_letter_monitoring"
   topic = google_pubsub_topic.dead_letter.name
 
   labels = local.common_labels
@@ -238,21 +249,21 @@ resource "google_pubsub_topic_iam_member" "dead_letter_publisher" {
 # Development Service Accounts (only created if enabled)
 resource "google_service_account" "dispatcher_dev" {
   count        = var.create_dev_service_accounts ? 1 : 0
-  account_id   = "dispatcher-${var.environment}"
+  account_id   = "dispatcher"
   display_name = "Desirelines Dispatcher (${title(var.environment)})"
   description  = "Service account for dispatcher function in ${var.environment} environment"
 }
 
 resource "google_service_account" "aggregator_dev" {
   count        = var.create_dev_service_accounts ? 1 : 0
-  account_id   = "aggregator-${var.environment}"
+  account_id   = "aggregator"
   display_name = "Desirelines Aggregator (${title(var.environment)})"
   description  = "Service account for aggregator function in ${var.environment} environment"
 }
 
 resource "google_service_account" "bq_inserter_dev" {
   count        = var.create_dev_service_accounts ? 1 : 0
-  account_id   = "bq-inserter-${var.environment}"
+  account_id   = "bq-inserter"
   display_name = "Desirelines BQ Inserter (${title(var.environment)})"
   description  = "Service account for BQ inserter function in ${var.environment} environment"
 }
@@ -355,28 +366,36 @@ resource "google_artifact_registry_repository" "functions" {
 # Function Source Storage Objects
 # ==============================================================================
 
-# Upload function source packages to Cloud Storage
+# Upload function source packages to Cloud Storage (only when using local bucket)
 resource "google_storage_bucket_object" "dispatcher_source" {
+  count = var.external_function_source_bucket == null ? 1 : 0
+
   name   = "dispatcher-${var.function_source_tag}.zip"
-  bucket = google_storage_bucket.function_source.name
+  bucket = google_storage_bucket.function_source[0].name
   source = "${path.module}/../../../dist/dispatcher-${var.function_source_tag}.zip"
 }
 
 resource "google_storage_bucket_object" "bq_inserter_source" {
+  count = var.external_function_source_bucket == null ? 1 : 0
+
   name   = "bq-inserter-${var.function_source_tag}.zip"
-  bucket = google_storage_bucket.function_source.name
+  bucket = google_storage_bucket.function_source[0].name
   source = "${path.module}/../../../dist/bq-inserter-${var.function_source_tag}.zip"
 }
 
 resource "google_storage_bucket_object" "aggregator_source" {
+  count = var.external_function_source_bucket == null ? 1 : 0
+
   name   = "aggregator-${var.function_source_tag}.zip"
-  bucket = google_storage_bucket.function_source.name
+  bucket = google_storage_bucket.function_source[0].name
   source = "${path.module}/../../../dist/aggregator-${var.function_source_tag}.zip"
 }
 
 resource "google_storage_bucket_object" "api_gateway_source" {
+  count = var.external_function_source_bucket == null ? 1 : 0
+
   name   = "api-gateway-${var.function_source_tag}.zip"
-  bucket = google_storage_bucket.function_source.name
+  bucket = google_storage_bucket.function_source[0].name
   source = "${path.module}/../../../dist/api-gateway-${var.function_source_tag}.zip"
 }
 
@@ -386,7 +405,7 @@ resource "google_storage_bucket_object" "api_gateway_source" {
 
 # Activity Dispatcher (Go Function - Source Package)
 resource "google_cloudfunctions2_function" "activity_dispatcher" {
-  name        = "${var.project_name}_dispatcher_${var.environment}"
+  name        = "${var.project_name}_dispatcher"
   location    = var.gcp_region
   description = "Activity dispatcher - webhook receiver (${var.environment})"
 
@@ -397,8 +416,8 @@ resource "google_cloudfunctions2_function" "activity_dispatcher" {
 
     source {
       storage_source {
-        bucket = google_storage_bucket.function_source.name
-        object = google_storage_bucket_object.dispatcher_source.name
+        bucket = local.function_source_bucket
+        object = local.dispatcher_object_name
       }
     }
   }
@@ -457,7 +476,7 @@ resource "google_cloud_run_service_iam_member" "api_gateway_public_access" {
 
 # Activity BQ Inserter (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "activity_bq_inserter" {
-  name        = "${var.project_name}_bq_inserter_${var.environment}"
+  name        = "${var.project_name}_bq_inserter"
   location    = var.gcp_region
   description = "Activity BigQuery inserter (${var.environment})"
 
@@ -468,8 +487,8 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
 
     source {
       storage_source {
-        bucket = google_storage_bucket.function_source.name
-        object = google_storage_bucket_object.bq_inserter_source.name
+        bucket = local.function_source_bucket
+        object = local.bq_inserter_object_name
       }
     }
   }
@@ -514,7 +533,7 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
 
 # Activity Aggregator (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "activity_aggregator" {
-  name        = "${var.project_name}_aggregator_${var.environment}"
+  name        = "${var.project_name}_aggregator"
   location    = var.gcp_region
   description = "Activity aggregator and storage writer (${var.environment})"
 
@@ -525,8 +544,8 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
 
     source {
       storage_source {
-        bucket = google_storage_bucket.function_source.name
-        object = google_storage_bucket_object.aggregator_source.name
+        bucket = local.function_source_bucket
+        object = local.aggregator_object_name
       }
     }
   }
@@ -541,11 +560,11 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
 
 
     environment_variables = {
-      GCP_PROJECT_ID       = var.gcp_project_id
-      GCP_BUCKET_NAME      = google_storage_bucket.aggregation_bucket.name
-      ENVIRONMENT          = var.environment
-      LOG_LEVEL            = "INFO"
-      FORCE_REDEPLOY       = "2025-09-19-new-strava-scope-v1"
+      GCP_PROJECT_ID  = var.gcp_project_id
+      GCP_BUCKET_NAME = google_storage_bucket.aggregation_bucket.name
+      ENVIRONMENT     = var.environment
+      LOG_LEVEL       = "INFO"
+      FORCE_REDEPLOY  = "2025-09-19-new-strava-scope-v1"
     }
 
     # Mount Strava secrets as volume
@@ -571,7 +590,7 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
 
 # API Gateway (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "api_gateway" {
-  name        = "${var.project_name}_api_gateway_${var.environment}"
+  name        = "${var.project_name}_api_gateway"
   location    = var.gcp_region
   description = "API gateway for serving activity data (${var.environment})"
 
@@ -582,8 +601,8 @@ resource "google_cloudfunctions2_function" "api_gateway" {
 
     source {
       storage_source {
-        bucket = google_storage_bucket.function_source.name
-        object = google_storage_bucket_object.api_gateway_source.name
+        bucket = local.function_source_bucket
+        object = local.api_gateway_object_name
       }
     }
   }

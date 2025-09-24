@@ -15,3 +15,14 @@ variable "gcp_region" {
   type        = string
   default     = "us-central1"
 }
+
+variable "function_source_tag" {
+  description = "Git SHA tag for function source packages (e.g., git SHA)"
+  type        = string
+  default     = "latest"
+}
+
+variable "developer_email" {
+  description = "Developer email for IAM access"
+  type        = string
+}

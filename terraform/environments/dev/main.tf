@@ -60,11 +60,11 @@ module "desirelines" {
 # Import Eventarc BQ inserter subscription
 import {
   to = google_pubsub_subscription.eventarc_bq_inserter
-  id = "projects/${var.gcp_project_id}/subscriptions/eventarc-us-central1-desirelines-bq-inserter-dev-661759-sub-662"
+  id = "projects/${var.gcp_project_id}/subscriptions/eventarc-us-central1-desirelines-bq-inserter-661759-sub-662"
 }
 
 resource "google_pubsub_subscription" "eventarc_bq_inserter" {
-  name  = "eventarc-us-central1-desirelines-bq-inserter-dev-661759-sub-662"
+  name  = "eventarc-us-central1-desirelines-bq-inserter-661759-sub-662"
   topic = module.desirelines.pubsub_topic_name
 
   # Dead letter policy configuration
@@ -88,11 +88,11 @@ resource "google_pubsub_subscription" "eventarc_bq_inserter" {
 # Import Eventarc aggregator subscription
 import {
   to = google_pubsub_subscription.eventarc_aggregator
-  id = "projects/${var.gcp_project_id}/subscriptions/eventarc-us-central1-desirelines-aggregator-dev-126476-sub-255"
+  id = "projects/${var.gcp_project_id}/subscriptions/eventarc-us-central1-desirelines-aggregator-126476-sub-255"
 }
 
 resource "google_pubsub_subscription" "eventarc_aggregator" {
-  name  = "eventarc-us-central1-desirelines-aggregator-dev-126476-sub-255"
+  name  = "eventarc-us-central1-desirelines-aggregator-126476-sub-255"
   topic = module.desirelines.pubsub_topic_name
 
   # Dead letter policy configuration
