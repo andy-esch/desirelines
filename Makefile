@@ -4,7 +4,7 @@
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
 
 # Helper function to validate current project and detect environment
-define check_project
+define check_project_and_run
 	@CURRENT_PROJECT="$(GCP_PROJECT_ID)"; \
 	if [ "$$CURRENT_PROJECT" = "desirelines-dev" ]; then \
 		ENV_NAME="dev"; \
@@ -14,11 +14,11 @@ define check_project
 		echo "❌ Error: Invalid GCP project for desirelines!"; \
 		echo "   Current:  $$CURRENT_PROJECT"; \
 		echo "   Expected: desirelines-dev or desirelines-prod"; \
-		echo "   Run: gcloud config set project desirelines-dev"; \
+		echo "   Fix: gcloud config set project desirelines-dev"; \
 		echo "   Or:  gcloud config set project desirelines-prod"; \
 		exit 1; \
 	fi; \
-	export ENV_NAME=$$ENV_NAME
+	$(1) $$ENV_NAME
 endef
 
 # Python commands
@@ -73,9 +73,9 @@ js-dev:
 .PHONY: impersonate-terraform
 impersonate-terraform:
 	$(call check_project)
-	@echo "🔑 Impersonating terraform-desirelines-$$ENV_NAME service account..." && \
-	gcloud config set auth/impersonate_service_account terraform-desirelines-$$ENV_NAME@$(GCP_PROJECT_ID).iam.gserviceaccount.com && \
-	echo "✅ Now using terraform-desirelines-$$ENV_NAME@$(GCP_PROJECT_ID).iam.gserviceaccount.com"
+	@echo "🔑 Impersonating terraform-desirelines service account..." && \
+	gcloud config set auth/impersonate_service_account terraform-desirelines@$(GCP_PROJECT_ID).iam.gserviceaccount.com && \
+	echo "✅ Now using terraform-desirelines@$(GCP_PROJECT_ID).iam.gserviceaccount.com"
 
 .PHONY: stop-impersonate
 stop-impersonate:
@@ -283,12 +283,10 @@ deploy-secrets:
 	@./scripts/deploy-secrets.sh $(SECRET_FILE)
 
 create-webhook:
-	$(call check_project)
-	@./scripts/webhook-management.sh create $$ENV_NAME
+	$(call check_project_and_run,./scripts/webhook-management.sh create)
 
 view-webhook:
-	$(call check_project)
-	@./scripts/webhook-management.sh view $$ENV_NAME
+	$(call check_project_and_run,./scripts/webhook-management.sh view)
 
 delete-webhook:
 	@CURRENT_PROJECT="$(GCP_PROJECT_ID)"; \
@@ -314,12 +312,10 @@ delete-webhook:
 	fi
 
 generate-webhook-verify-token:
-	$(call check_project)
-	@./scripts/webhook-management.sh generate-token $$ENV_NAME
+	$(call check_project_and_run,./scripts/webhook-management.sh generate-token)
 
 rotate-webhook-verify-token:
-	$(call check_project)
-	@./scripts/webhook-management.sh rotate-token $$ENV_NAME
+	$(call check_project_and_run,./scripts/webhook-management.sh rotate-token)
 
 
 

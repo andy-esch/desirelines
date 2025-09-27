@@ -268,6 +268,13 @@ resource "google_service_account" "bq_inserter_dev" {
   description  = "Service account for BQ inserter function in ${var.environment} environment"
 }
 
+resource "google_service_account" "api_gateway_dev" {
+  count        = var.create_dev_service_accounts ? 1 : 0
+  account_id   = "api-gateway"
+  display_name = "Desirelines API Gateway (${title(var.environment)})"
+  description  = "Service account for API gateway function in ${var.environment} environment"
+}
+
 # IAM permissions for dispatcher (PubSub Publisher only)
 resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   count  = var.create_dev_service_accounts ? 1 : 0
@@ -308,6 +315,13 @@ resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
   member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
 }
 
+# IAM permissions for API Gateway (Storage Object Viewer only - read aggregated data)
+resource "google_storage_bucket_iam_member" "api_gateway_storage" {
+  count  = var.create_dev_service_accounts ? 1 : 0
+  bucket = google_storage_bucket.aggregation_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
+}
 
 # Service Account Impersonation permissions (allows your user to impersonate the service accounts)
 resource "google_service_account_iam_member" "dispatcher_impersonation" {
@@ -327,6 +341,13 @@ resource "google_service_account_iam_member" "aggregator_impersonation" {
 resource "google_service_account_iam_member" "bq_inserter_impersonation" {
   count              = var.create_dev_service_accounts && var.developer_email != null ? 1 : 0
   service_account_id = google_service_account.bq_inserter_dev[0].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "user:${var.developer_email}"
+}
+
+resource "google_service_account_iam_member" "api_gateway_impersonation" {
+  count              = var.create_dev_service_accounts && var.developer_email != null ? 1 : 0
+  service_account_id = google_service_account.api_gateway_dev[0].name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
@@ -452,7 +473,7 @@ resource "google_cloudfunctions2_function" "activity_dispatcher" {
       GCP_PUBSUB_TOPIC = google_pubsub_topic.activity_events.name
       ENVIRONMENT      = var.environment
       LOG_LEVEL        = "INFO"
-      FORCE_DEPLOY     = "20250923-secret-update-v1"
+      FORCE_DEPLOY     = "20250925-secret-update-v1"
     }
 
     # Mount Strava secrets as volume
@@ -630,8 +651,8 @@ resource "google_cloudfunctions2_function" "api_gateway" {
     min_instance_count             = 0
     available_memory               = "256Mi"
     timeout_seconds                = 60
-    service_account_email          = var.create_dev_service_accounts ? google_service_account.aggregator_dev[0].email : var.service_account_email
-    ingress_settings               = "ALLOW_ALL"
+    service_account_email          = var.create_dev_service_accounts ? google_service_account.api_gateway_dev[0].email : var.service_account_email
+    ingress_settings               = "ALLOW_INTERNAL_ONLY"
     all_traffic_on_latest_revision = true
 
     environment_variables = {

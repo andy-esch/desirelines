@@ -21,8 +21,6 @@ variable "function_source_tag" {
   type        = string
 }
 
-
-
 variable "developer_email" {
   description = "Developer email for BigQuery console access"
   type        = string

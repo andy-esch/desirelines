@@ -5,7 +5,7 @@ terraform {
 
   # Production uses remote state storage
   backend "gcs" {
-    bucket = "desirelines-terraform-state"
+    bucket = "desirelines-prod-terraform-state"
     prefix = "environments/prod"
   }
 

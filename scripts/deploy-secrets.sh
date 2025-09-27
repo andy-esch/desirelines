@@ -49,7 +49,7 @@ echo "⚠️  This will deploy/update secrets in the $ENV_NAME environment."
 echo "   Secret: strava-auth-$ENV_NAME"
 echo "   Project: $GCP_PROJECT_ID"
 echo ""
-read -p "Continue? (y/N): " -n 1 -r
+read -p "Continue? (y/N): " -r
 echo ""
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo "❌ Deployment cancelled"
@@ -75,40 +75,5 @@ gcloud secrets versions add "strava-auth-$ENV_NAME" \
     --project="$GCP_PROJECT_ID" \
     --data-file="$SECRET_FILE"
 
-echo "🔑 Granting secret access to service accounts..."
-
-# Grant access to terraform service account (if it exists)
-if gcloud iam service-accounts describe "terraform-desirelines@$GCP_PROJECT_ID.iam.gserviceaccount.com" --project="$GCP_PROJECT_ID" >/dev/null 2>&1; then
-    echo "   Granting access to terraform-desirelines service account..."
-    gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
-        --project="$GCP_PROJECT_ID" \
-        --member="serviceAccount:terraform-desirelines@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
-        --role="roles/secretmanager.secretAccessor"
-
-    gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
-        --project="$GCP_PROJECT_ID" \
-        --member="serviceAccount:terraform-desirelines@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
-        --role="roles/secretmanager.secretVersionManager"
-
-    gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
-        --project="$GCP_PROJECT_ID" \
-        --member="serviceAccount:terraform-desirelines@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
-        --role="roles/secretmanager.admin"
-else
-    echo "   ⚠️  terraform-desirelines service account not found, skipping..."
-fi
-
-# Grant access to function service accounts (no environment suffix)
-for FUNCTION in dispatcher aggregator bq-inserter; do
-    if gcloud iam service-accounts describe "$FUNCTION@$GCP_PROJECT_ID.iam.gserviceaccount.com" --project="$GCP_PROJECT_ID" >/dev/null 2>&1; then
-        echo "   Granting access to $FUNCTION service account..."
-        gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
-            --project="$GCP_PROJECT_ID" \
-            --member="serviceAccount:$FUNCTION@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
-            --role="roles/secretmanager.secretAccessor"
-    else
-        echo "   ⚠️  $FUNCTION service account not found, skipping..."
-    fi
-done
-
-echo "✅ Secret strava-auth-$ENV_NAME deployed with content and proper IAM bindings"
+echo "✅ Secret strava-auth-$ENV_NAME deployed with content"
+echo "ℹ️  IAM permissions will be managed by Terraform during infrastructure deployment"
