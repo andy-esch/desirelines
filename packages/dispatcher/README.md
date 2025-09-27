@@ -1,30 +1,33 @@
 # Strava Webhook Dispatcher (Go)
 
-A Go implementation of the Strava webhook dispatcher using **hexagonal architecture** with ports and adapters pattern.
+Receives Strava webhook events and forwards them to PubSub for downstream processing. This Go implementation provides fast cold starts (~100ms) and low memory usage for the desirelines fitness data pipeline.
 
 ## 🏗️ Architecture
 
+**Package Structure:**
 ```
-internal/
-├── ports/              # Interfaces (WebhookValidator, WebhookPublisher)
-├── adapters/           # Technology-specific implementations
-│   ├── http/           # HTTPWebhookValidator, HTTPResponseHandler
-│   └── pubsub/         # PubSubPublisher
-├── application/        # WebhookService business logic
-├── domain/            # WebhookRequest models
-└── config/            # Configuration management
+packages/dispatcher/     # Go package with business logic
+├── handler.go          # HTTP handler implementation
+├── webhook.go          # Webhook validation and processing
+├── publisher.go        # PubSub message publishing
+└── cmd/local/          # Local development server
+
+functions/activity_dispatcher/  # Cloud Function thin wrapper
+├── main.go             # Exports ActivityDispatcher() function
+└── go.mod              # Imports packages/dispatcher
 ```
+
+**Deployment Model:**
+This Go package is packaged into Cloud Functions via a build script, unlike the cleaner Python package approach used elsewhere. The `functions/activity_dispatcher/` directory contains a thin wrapper that imports this package.
 
 ## 🚀 Features
 
-- **Dual deployment modes**: Local development + Google Cloud Functions
-- **Hexagonal architecture**: Clean separation of concerns, matches Python packages
 - **Fast cold starts** (~100ms vs Python's 1-2s)
 - **Low memory footprint** (~10-20MB vs Python's 50-100MB)
 - **Webhook validation**: Strava signature and subscription ID verification
-- **PubSub publishing**: Reliable event forwarding with retry
-- **Correlation tracking**: Full request traceability
-- **Technology prefix naming**: Consistent `HTTPWebhookValidator`, `PubSubPublisher` patterns
+- **PubSub publishing**: Reliable event forwarding to downstream functions
+- **Dual deployment**: Local development server + Google Cloud Functions
+- **Secret volume support**: Dynamic loading from `/etc/secrets/strava_auth.json`
 
 ## Environment Variables
 
@@ -34,7 +37,7 @@ Required environment variables:
 STRAVA_WEBHOOK_VERIFY_TOKEN=your_verify_token
 STRAVA_WEBHOOK_SUBSCRIPTION_ID=123456
 GCP_PROJECT_ID=your-project-id
-GCP_PUBSUB_TOPIC_PATH=projects/your-project-id/topics/your-topic
+GCP_PUBSUB_TOPIC=your-topic-name
 ```
 
 Optional:
@@ -57,28 +60,27 @@ Automatically detects local environment and starts HTTP server:
 cd packages/dispatcher
 go mod download
 
-# Copy environment variables
+# Copy and configure environment variables
 cp .env.example .env
-# Edit .env with your values
+# Edit .env - set GCP_PROJECT_ID=local-dev to match docker-compose
 
-# Run locally (automatically detects local mode)
+# From the root directory (maybe in a separate terminal), start PubSub emulator:
+docker compose up pubsub-emulator pubsub-bootstrap -d
+
+# Run local development server with emulator
+PUBSUB_EMULATOR_HOST=localhost:8085 GCP_PUBSUB_TOPIC=strava-webhooks STRAVA_WEBHOOK_SUBSCRIPTION_ID=123456 GCP_PROJECT_ID=local-dev go run ./cmd/local
+```
+
+### Testing Cloud Function Wrapper
+
+Test the actual cloud function:
+
+```bash
+cd ../../functions/activity_dispatcher
 go run .
 ```
 
-### Cloud Function Mode
-
-Test locally with Functions Framework:
-
-```bash
-# Quick test
-./test_cloud_function.sh
-```
-
-Or manually:
-```bash
-export FUNCTION_TARGET="ActivityDispatcher"
-go run github.com/GoogleCloudPlatform/functions-framework-go/cmd/functions-framework@latest --target=ActivityDispatcher --source=.
-```
+**Note:** The local development server (`cmd/local`) may behave differently than the actual cloud function wrapper. For production-like testing, use the cloud function wrapper above.
 
 ### Testing Endpoints
 
