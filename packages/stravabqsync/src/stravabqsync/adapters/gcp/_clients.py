@@ -37,7 +37,7 @@ class BigQueryClientWrapper:
         job = self._client.query(query, job_config=job_config)
 
         try:
-            result = job.result()  # Wait for completion
+            _ = job.result()  # Wait for completion
 
             # Calculate execution time in milliseconds
             execution_time_ms = None
@@ -68,4 +68,4 @@ class BigQueryClientWrapper:
 
         except Exception as e:
             logger.error("MERGE operation failed: %s", str(e))
-            raise BigQueryError(f"Failed to execute MERGE query: {str(e)}")
+            raise BigQueryError(f"Failed to execute MERGE query: {e!s}") from e
