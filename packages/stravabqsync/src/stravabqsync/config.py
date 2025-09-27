@@ -79,7 +79,7 @@ def load_bq_inserter_config() -> BQInserterConfig:
     strava_secrets = {}
     secrets_path = "/etc/secrets/strava_auth.json"
     if os.path.exists(secrets_path):
-        with open(secrets_path, "r", encoding="utf-8") as f:
+        with open(secrets_path, encoding="utf-8") as f:
             strava_auth = json.load(f)
             strava_secrets = {
                 "STRAVA_CLIENT_ID": strava_auth.get("client_id"),

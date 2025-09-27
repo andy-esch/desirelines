@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -76,8 +76,8 @@ class TestBigQueryClientWrapper:
         mock_job = MagicMock()
         mock_job.result.return_value = None
         mock_job.num_dml_affected_rows = 5
-        mock_job.ended = datetime(2024, 1, 1, 12, 0, 1)
-        mock_job.started = datetime(2024, 1, 1, 12, 0, 0)
+        mock_job.ended = datetime(2024, 1, 1, 12, 0, 1, tzinfo=UTC)
+        mock_job.started = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_job.job_id = "test-job-123"
         mock_client_instance.query.return_value = mock_job
 
