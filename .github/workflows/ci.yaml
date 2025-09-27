@@ -17,7 +17,7 @@ env:
   GCP_BIGQUERY_DATASET: "test_dataset"
   STRAVA_WEBHOOK_VERIFY_TOKEN: "test_verify_token"
   STRAVA_WEBHOOK_SUBSCRIPTION_ID: 12345
-  GCP_PUBSUB_TOPIC_PATH: "projects/test-project/topics/test-topic"
+  GCP_PUBSUB_TOPIC: "test-topic"
 
 
 jobs:
@@ -50,7 +50,7 @@ jobs:
       run: cd packages/dispatcher && go mod download
 
     - name: Run Python tests
-      run: uv run pytest packages/desirelines/tests/ --cov=./ --cov-report=xml && uv run pytest packages/stravabqsync/tests/ --cov=./ --cov-report=xml
+      run: uv run pytest packages/aggregator/tests/ --cov=./ --cov-report=xml && uv run pytest packages/stravabqsync/tests/ --cov=./ --cov-report=xml
 
     - name: Run Go tests
       run: cd packages/dispatcher && go test -v ./...

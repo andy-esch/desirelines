@@ -23,7 +23,7 @@ endef
 
 # Python commands
 py-test:
-	uv run pytest packages/desirelines/tests/ && uv run pytest packages/stravabqsync/tests/
+	uv run pytest packages/aggregator/tests/ && uv run pytest packages/stravabqsync/tests/
 
 py-lint:
 	uv run ruff check . --fix
@@ -32,7 +32,7 @@ py-format:
 	uv run ruff format .
 
 py-typecheck:
-	uv run mypy packages/desirelines/src/ && uv run mypy packages/stravabqsync/src/
+	uv run mypy packages/aggregator/src/ && uv run mypy packages/stravabqsync/src/
 
 # Go commands
 go-test:
@@ -223,9 +223,9 @@ stop:
 generate-requirements:
 	@echo "📋 Generating function-specific requirements..."
 	@echo "  - Desirelines package requirements"
-	cd packages/desirelines && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-desirelines.txt
-	@echo "  - Removing local package references from desirelines requirements"
-	sed -i '' '/^\.\/packages\/desirelines$$/d' functions/requirements-desirelines.txt
+	cd packages/aggregator && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-aggregator.txt
+	@echo "  - Removing local package references from aggregator requirements"
+	sed -i '' '/^\.\/packages\/desirelines$$/d' functions/requirements-aggregator.txt
 	@echo "  - Stravabqsync package requirements"
 	cd packages/stravabqsync && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-stravabqsync.txt
 	@echo "  - Removing local package references from stravabqsync requirements"

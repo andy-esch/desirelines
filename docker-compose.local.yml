@@ -22,7 +22,7 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./functions/activity_aggregator.py:/app/main.py
-      - ./packages/desirelines/src/desirelines:/app/desirelines
+      - ./packages/aggregator/src/aggregator:/app/aggregator
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
 
@@ -51,7 +51,7 @@ services:
     environment:
       # Use real Terraform-created PubSub topics
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
-      - GCP_PUBSUB_TOPIC_PATH=projects/${GCP_PROJECT_ID_LIVE}/topics/desirelines_activity_events_local
+      - GCP_PUBSUB_TOPIC=desirelines_activity_events_local
       - PORT=8080
       # Use service account impersonation (no key files needed)
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json

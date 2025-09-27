@@ -23,7 +23,7 @@ WORKDIR /app
 COPY --from=builder /root/.local /root/.local
 
 # Copy package source code (both packages needed for BQ inserter)
-COPY packages/desirelines/src/desirelines ./desirelines
+COPY packages/aggregator/src/aggregator ./aggregator
 COPY packages/stravabqsync/src/stravabqsync ./stravabqsync
 
 # Copy function code

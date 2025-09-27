@@ -215,7 +215,7 @@ curl -X POST http://localhost:8081 \
 
 ### Making Code Changes
 
-**Python functions** (`functions/`, `packages/desirelines/`, `packages/stravabqsync/`):
+**Python functions** (`functions/`, `packages/aggregator/`, `packages/stravabqsync/`):
 
 - Changes automatically reload in Docker containers
 - Run `make test` to verify

@@ -4,6 +4,7 @@ import json
 import os
 from typing import NamedTuple
 
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 from stravabqsync.domain import StravaTokenSet
@@ -39,10 +40,11 @@ class BQInserterConfig(BaseSettings):
     # Optional configuration
     log_level: str = "INFO"
 
-    class Config:
-        env_file = ".env"
-        validate_default = True
-        extra = "ignore"  # Allow extra environment variables
+    model_config = ConfigDict(
+        env_file=".env",
+        validate_default=True,
+        extra="ignore",  # Allow extra environment variables
+    )
 
     @property
     def tokens(self) -> StravaTokenSet:
