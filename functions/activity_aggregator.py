@@ -7,12 +7,11 @@ import json
 import logging
 import uuid
 
+from aggregator.application.usecases import make_update_summary_use_case
+from aggregator.domain import WebhookRequest
 from cloudevents.http import CloudEvent
 import functions_framework
 from pydantic import ValidationError
-
-from desirelines.application.usecases import make_update_summary_use_case
-from desirelines.domain import WebhookRequest
 
 # Configure logging for Google Cloud Functions
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")

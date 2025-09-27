@@ -97,10 +97,10 @@ cp functions/activity_aggregator.py "$TEMP_AGG/main.py"
 # Copy desirelines business logic
 rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
       --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
-      packages/desirelines/src/ "$TEMP_AGG/"
+      packages/aggregator/src/ "$TEMP_AGG/"
 
 # Generate requirements.txt from pyproject.toml for Cloud Functions deployment
-cd packages/desirelines && uv pip compile pyproject.toml --output-file "$TEMP_AGG/requirements.txt" && cd ../..
+cd packages/aggregator && uv pip compile pyproject.toml --output-file "$TEMP_AGG/requirements.txt" && cd ../..
 
 # Create the zip
 cd "$TEMP_AGG" && zip -r - . > "$OLDPWD/$DIST_DIR/aggregator-$SHA.zip"
@@ -120,10 +120,10 @@ cp functions/api_gateway.py "$TEMP_API/main.py"
 # Copy desirelines business logic
 rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
       --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
-      packages/desirelines/src/ "$TEMP_API/"
+      packages/aggregator/src/ "$TEMP_API/"
 
 # Generate requirements.txt from pyproject.toml for Cloud Functions deployment
-cd packages/desirelines && uv pip compile pyproject.toml --output-file "$TEMP_API/requirements.txt" && cd ../..
+cd packages/aggregator && uv pip compile pyproject.toml --output-file "$TEMP_API/requirements.txt" && cd ../..
 
 # Create the zip
 cd "$TEMP_API" && zip -r - . > "$OLDPWD/$DIST_DIR/api-gateway-$SHA.zip"

@@ -1,0 +1,7 @@
+{
+  "client_id": 123456,
+  "client_secret": "your_strava_client_secret_here",
+  "refresh_token": "your_strava_refresh_token_here",
+  "webhook_verify_token": "your_webhook_verify_token_here",
+  "webhook_subscription_id": 123456
+}

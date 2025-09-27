@@ -288,4 +288,7 @@ class TestRetryOnFailure:
             always_failing()
 
         # Should log error about all attempts failing
-        mock_logger.error.assert_called_once_with("All %d retry attempts failed", 2)
+        mock_logger.error.assert_called_once()
+        args, kwargs = mock_logger.error.call_args
+        assert args == ("All %d retry attempts failed", 2)
+        assert "extra" in kwargs

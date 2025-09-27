@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy function-specific requirements
-COPY functions/requirements-desirelines.txt ./requirements.txt
+COPY functions/requirements-aggregator.txt ./requirements.txt
 
 # Install dependencies to user directory for easy copying
 RUN pip install --user --no-cache-dir -r requirements.txt
@@ -23,7 +23,7 @@ WORKDIR /app
 COPY --from=builder /root/.local /root/.local
 
 # Copy package source code
-COPY packages/desirelines/src/desirelines ./desirelines
+COPY packages/aggregator/src/aggregator ./aggregator
 
 # Copy function code
 COPY functions/activity_aggregator.py ./main.py

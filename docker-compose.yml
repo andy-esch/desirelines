@@ -1,5 +1,5 @@
 services:
-  activity-dispatcher-go:
+  activity-dispatcher:
     build:
       context: ./packages/dispatcher
       dockerfile: Dockerfile
@@ -12,6 +12,8 @@ services:
       - PORT=8080
     env_file:
       - .env
+    volumes:
+      - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
       pubsub-bootstrap:
         condition: service_completed_successfully
@@ -35,7 +37,8 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./functions/activity_aggregator.py:/app/main.py
-      - ./packages/desirelines/src/desirelines:/app/desirelines
+      - ./packages/aggregator/src/aggregator:/app/aggregator
+      - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
       pubsub-bootstrap:
         condition: service_completed_successfully
@@ -55,6 +58,7 @@ services:
       - ./.env:/app/.env
       - ./functions/activity_bq_inserter.py:/app/main.py
       - ./packages/stravabqsync/src/stravabqsync:/app/stravabqsync
+      - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
       pubsub-bootstrap:
         condition: service_completed_successfully

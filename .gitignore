@@ -228,3 +228,8 @@ functions/activity_dispatcher/go.sum
 functions/activity_dispatcher/*.deploy
 packages/**/requirements.txt
 .env.local
+
+# Strava secrets (all environments)
+strava-auth-local.json
+strava-auth-dev.json
+strava-auth-prod.json

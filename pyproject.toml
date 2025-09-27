@@ -1,6 +1,6 @@
 [tool.uv.workspace]
 members = [
-    "packages/desirelines",
+    "packages/aggregator",
     "packages/stravabqsync",
 ]
 
@@ -42,7 +42,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["desirelines", "stravabqsync"]
+known-first-party = ["aggregator", "stravabqsync"]
 force-sort-within-sections = true
 
 [tool.ruff.format]
@@ -53,18 +53,18 @@ line-ending = "auto"
 
 [tool.pytest.ini_options]
 testpaths = [
-    "packages/desirelines/tests",
+    "packages/aggregator/tests",
     "packages/stravabqsync/tests",
 ]
 pythonpath = [
-    "packages/desirelines/src",
+    "packages/aggregator/src",
     "packages/stravabqsync/src",
 ]
 addopts = "--import-mode=importlib"
 
 
 [tool.mypy]
-mypy_path = ["packages/desirelines/src", "packages/stravabqsync/src", "functions", "scripts"]
-packages = ["desirelines", "stravabqsync"]
+mypy_path = ["packages/aggregator/src", "packages/stravabqsync/src", "functions", "scripts"]
+packages = ["aggregator", "stravabqsync"]
 explicit_package_bases = true
 namespace_packages = true

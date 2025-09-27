@@ -1,11 +1,12 @@
 # Strava Webhook Dispatcher (Go)
 
-Receives Strava webhook events and forwards them to PubSub for downstream processing. This Go implementation provides fast cold starts (~100ms) and low memory usage for the desirelines fitness data pipeline.
+Receives Strava webhook events and forwards them to PubSub for downstream processing by the Aggregator and BQ Inserter applications. This Go Cloud package, when run as a Cloud Function, provides fast cold starts (~100ms) and low memory usage for the desirelines fitness data pipeline.
 
 ## 🏗️ Architecture
 
 **Package Structure:**
-```
+
+```text
 packages/dispatcher/     # Go package with business logic
 ├── handler.go          # HTTP handler implementation
 ├── webhook.go          # Webhook validation and processing
@@ -41,6 +42,7 @@ GCP_PUBSUB_TOPIC=your-topic-name
 ```
 
 Optional:
+
 ```bash
 LOG_LEVEL=INFO  # Default: INFO
 PORT=8080       # Default: 8080
@@ -49,6 +51,7 @@ PORT=8080       # Default: 8080
 ## 💻 Development
 
 ### Prerequisites
+
 - Go 1.21 or later
 - Google Cloud credentials configured
 
@@ -85,11 +88,13 @@ go run .
 ### Testing Endpoints
 
 **Webhook verification:**
+
 ```bash
 curl "http://localhost:8080/?hub.mode=subscribe&hub.challenge=test123&hub.verify_token=your_verify_token"
 ```
 
 **Webhook event:**
+
 ```bash
 curl -X POST http://localhost:8080/ \
   -H "Content-Type: application/json" \
@@ -116,51 +121,3 @@ gcloud functions deploy activity-dispatcher \
   --env-vars-file .env.yaml \
   --source=.
 ```
-
-### Build Binary (Optional)
-
-For other deployment targets:
-
-```bash
-# Local binary
-go build -o dispatcher .
-
-# Linux binary for containers
-GOOS=linux GOARCH=amd64 go build -o dispatcher .
-```
-
-## Comparison with Python Version
-
-| Metric | Python | Go |
-|--------|--------|-----|
-| Cold Start | ~1-2s | ~100ms |
-| Memory Usage | ~50-100MB | ~10-20MB |
-| Dependencies | ~15 packages | 2 packages |
-| Binary Size | N/A | ~15MB |
-| Lines of Code | 270 | ~220 |
-
-## Migration Notes
-
-This Go implementation provides equivalent functionality to the Python dispatcher:
-
-- ✅ Webhook verification (GET requests)
-- ✅ JSON payload validation
-- ✅ Subscription ID security checks
-- ✅ Correlation ID tracking
-- ✅ PubSub publishing with error handling
-- ✅ Structured logging
-- ✅ Comprehensive error responses
-
-The main differences:
-- **Simpler deployment** - single binary vs Python package dependencies
-- **Better performance** - faster cold starts and lower memory usage
-- **More verbose** - Go requires more explicit error handling
-- **Type safety** - Compile-time validation vs runtime validation
-
-## 🧪 Architecture Benefits
-
-- **Testable**: Each hexagonal layer can be unit tested independently
-- **Swappable**: Replace PubSub with different message bus without changing business logic
-- **Consistent**: Matches Python hexagonal architecture in other packages
-- **Clean Dependencies**: Business logic only depends on interfaces, not implementations
-- **Technology Agnostic**: Core business logic is independent of HTTP/PubSub specifics
