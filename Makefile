@@ -195,7 +195,8 @@ start-local: generate-requirements
 	@echo "🚀 Starting functions with local GCP resources (PubSub emulator + Terraform-created BigQuery/Storage)..."
 	@if [ ! -f "$$HOME/.config/gcloud/application_default_credentials.json" ]; then \
 		echo "❌ Error: No gcloud application default credentials found"; \
-		echo "   Please run: gcloud auth application-default login --impersonate-service-account=terraform-desirelines@$(GCP_PROJECT_ID).iam.gserviceaccount.com"; \
+		echo "   Please run: gcloud auth application-default login"; \
+		echo "   Then run: make impersonate-terraform"; \
 		echo "   This will authenticate your local environment for BigQuery access"; \
 		exit 1; \
 	fi
