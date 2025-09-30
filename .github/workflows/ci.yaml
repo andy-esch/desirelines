@@ -67,6 +67,9 @@ jobs:
       - name: Install Go dependencies
         run: cd packages/dispatcher && go mod download
 
+      - name: Tidy Go modules
+        run: cd packages/dispatcher && go mod tidy
+
       - name: Run Go tests
         run: make go-test
 
@@ -76,11 +79,8 @@ jobs:
       - name: Check Go formatting
         run: |
           make go-format
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "Go files are not properly formatted"
-            git diff
-            exit 1
-          fi
+          # Check that .go files are properly formatted
+          git diff --exit-code '*.go'
 
   terraform-validate:
     name: Terraform Validation
