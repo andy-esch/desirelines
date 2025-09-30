@@ -8,7 +8,7 @@ services:
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - GCP_PROJECT_ID=local-dev
-      - GCP_PUBSUB_TOPIC=strava-webhooks
+      - GCP_PUBSUB_TOPIC=desirelines_activity_events
       - PORT=8080
     env_file:
       - .env
@@ -69,7 +69,7 @@ services:
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - PROJECT_ID=local-dev
-      - TOPIC_NAME=strava-webhooks
+      - TOPIC_NAME=desirelines_activity_events
     volumes:
       - ./scripts/local-dev/bootstrap_pubsub.sh:/bootstrap_pubsub.sh:ro
     command: /bootstrap_pubsub.sh
@@ -84,6 +84,18 @@ services:
     command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+
+  # PubSub Emulator Web UI for debugging
+  pubsub-ui:
+    image: ghcr.io/neoscript/pubsub-emulator-ui:latest
+    ports:
+      - "4200:80"
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=local-dev
+    depends_on:
+      - pubsub-emulator
+    profiles: ["debug"]  # Only starts with --profile debug
 
   # API Gateway - secure data serving (manual start only)
   api-gateway:

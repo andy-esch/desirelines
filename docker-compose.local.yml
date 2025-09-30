@@ -3,22 +3,31 @@
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.local.yml up
 
 services:
+  activity-dispatcher:
+    environment:
+      # For hybrid mode: use emulator project ID since PubSub still uses emulator
+      - GCP_PROJECT_ID=local-dev
+      - GCP_PUBSUB_TOPIC=desirelines_activity_events
+      - PORT=8080
+      # Use user credentials (mounted from host)
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
+    env_file:
+      - .env
+    volumes:
+      # Mount your local gcloud config (Application Default Credentials)
+      - ~/.config/gcloud:/app/.config/gcloud:ro
+
   activity-aggregator:
     environment:
       # Use real Terraform-created PubSub topics (no emulator)
-      # Use service account impersonation (no key files needed)
+      # Use user credentials (mounted from host)
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
       - GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID_LIVE}
-      # Impersonate the aggregator service account
-      - GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=aggregator-dev-local@progressor-341702.iam.gserviceaccount.com
       # Override with live GCP project ID for AggregatorConfig
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
       # Override with live GCP bucket name
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE}
-      # Override with live Strava credentials
-      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID_LIVE}
-      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET_LIVE}
-      - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN_LIVE}
+      # Strava credentials loaded from mounted volume at /etc/secrets/strava_auth.json
     volumes:
       - ./.env:/app/.env
       - ./functions/activity_aggregator.py:/app/main.py
@@ -29,36 +38,17 @@ services:
   activity-bq-inserter:
     environment:
       # Use real Terraform-created PubSub topics (no emulator)
-      # Use service account impersonation (no key files needed)
+      # Use user credentials (mounted from host)
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
       - GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID_LIVE}
-      # Impersonate the bq-inserter service account
-      - GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=bq-inserter-dev-local@progressor-341702.iam.gserviceaccount.com
-      # Override with live GCP project ID for BQInserterConfig
+      # Override with live GCP project ID and dataset for BQInserterConfig
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
-      # Override with live Strava credentials
-      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID_LIVE}
-      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET_LIVE}
-      - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN_LIVE}
+      - GCP_BIGQUERY_DATASET=desirelines
+      # Strava credentials loaded from mounted volume at /etc/secrets/strava_auth.json
     volumes:
       - ./.env:/app/.env
       - ./functions/activity_bq_inserter.py:/app/main.py
       - ./packages/stravabqsync/src/stravabqsync:/app/stravabqsync
-      # Mount your local gcloud config (Application Default Credentials)
-      - ~/.config/gcloud:/app/.config/gcloud:ro
-
-  activity-dispatcher-go:
-    environment:
-      # Use real Terraform-created PubSub topics
-      - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
-      - GCP_PUBSUB_TOPIC=desirelines_activity_events_local
-      - PORT=8080
-      # Use service account impersonation (no key files needed)
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
-      - GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=dispatcher-dev-local@progressor-341702.iam.gserviceaccount.com
-    env_file:
-      - .env
-    volumes:
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
 
@@ -74,8 +64,7 @@ services:
       - FUNCTION_TARGET=api_gateway
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
-      # Impersonate aggregator service account (api-gateway needs storage access)
-      - GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=aggregator-dev-local@progressor-341702.iam.gserviceaccount.com
+      # Use user credentials for storage access
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
     env_file:
       - .env

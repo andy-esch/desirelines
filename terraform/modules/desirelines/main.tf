@@ -68,10 +68,11 @@ resource "google_project_service" "required_apis" {
 }
 
 # ==============================================================================
-# BigQuery Resources
+# CORE DATA RESOURCES (Created in all deployment modes)
 # ==============================================================================
 
 # BigQuery Dataset
+# Available in both "full" and "data-only" modes for storing activity data
 resource "google_bigquery_dataset" "activities_dataset" {
   dataset_id    = local.dataset_name
   friendly_name = "Desirelines Activities Dataset (${title(var.environment)})"
@@ -143,6 +144,7 @@ resource "google_bigquery_table" "activities_staging" {
 }
 
 # Cloud Storage Bucket for aggregated data
+# Available in both "full" and "data-only" modes for storing chart data
 resource "google_storage_bucket" "aggregation_bucket" {
   name          = local.bucket_name
   location      = var.storage_location
@@ -439,11 +441,14 @@ resource "google_storage_bucket_object" "api_gateway_source" {
 }
 
 # ==============================================================================
-# Cloud Functions (Source-based)
+# CLOUD FUNCTIONS (Only created in "full" deployment mode)
 # ==============================================================================
 
 # Activity Dispatcher (Go Function - Source Package)
+# Only created when deployment_mode = "full"
+# In "data-only" mode, functions run locally in Docker containers
 resource "google_cloudfunctions2_function" "activity_dispatcher" {
+  count = var.deployment_mode == "full" ? 1 : 0
   name        = "${var.project_name}_dispatcher"
   location    = var.gcp_region
   description = "Activity dispatcher - webhook receiver (${var.environment})"
@@ -493,9 +498,10 @@ resource "google_cloudfunctions2_function" "activity_dispatcher" {
 
 # Allow unauthenticated access to dispatcher (required for Strava webhooks)
 resource "google_cloud_run_service_iam_member" "dispatcher_public_access" {
+  count    = var.deployment_mode == "full" ? 1 : 0
   project  = var.gcp_project_id
   location = var.gcp_region
-  service  = google_cloudfunctions2_function.activity_dispatcher.service_config[0].service
+  service  = google_cloudfunctions2_function.activity_dispatcher[0].service_config[0].service
   role     = "roles/run.invoker"
   member   = "allUsers"
 
@@ -504,9 +510,10 @@ resource "google_cloud_run_service_iam_member" "dispatcher_public_access" {
 
 # Allow unauthenticated access to API Gateway (required for web app access)
 resource "google_cloud_run_service_iam_member" "api_gateway_public_access" {
+  count    = var.deployment_mode == "full" ? 1 : 0
   project  = var.gcp_project_id
   location = var.gcp_region
-  service  = google_cloudfunctions2_function.api_gateway.service_config[0].service
+  service  = google_cloudfunctions2_function.api_gateway[0].service_config[0].service
   role     = "roles/run.invoker"
   member   = "allUsers"
 
@@ -515,6 +522,7 @@ resource "google_cloud_run_service_iam_member" "api_gateway_public_access" {
 
 # Activity BQ Inserter (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "activity_bq_inserter" {
+  count = var.deployment_mode == "full" ? 1 : 0
   name        = "${var.project_name}_bq_inserter"
   location    = var.gcp_region
   description = "Activity BigQuery inserter (${var.environment})"
@@ -572,6 +580,7 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
 
 # Activity Aggregator (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "activity_aggregator" {
+  count = var.deployment_mode == "full" ? 1 : 0
   name        = "${var.project_name}_aggregator"
   location    = var.gcp_region
   description = "Activity aggregator and storage writer (${var.environment})"
@@ -629,6 +638,7 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
 
 # API Gateway (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "api_gateway" {
+  count = var.deployment_mode == "full" ? 1 : 0
   name        = "${var.project_name}_api_gateway"
   location    = var.gcp_region
   description = "API gateway for serving activity data (${var.environment})"

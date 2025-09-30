@@ -52,6 +52,10 @@ module "desirelines" {
   # Function deployment configuration (uses dev-built sources)
   function_source_tag = var.function_source_tag
 
+  # Use "full" mode for complete cloud deployment
+  # This creates all resources: Cloud Functions, PubSub, BigQuery, Storage, etc.
+  deployment_mode = "full"
+
   # Developer access
   developer_email = var.developer_email
 }

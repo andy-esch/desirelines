@@ -10,12 +10,15 @@ define check_project_and_run
 		ENV_NAME="dev"; \
 	elif [ "$$CURRENT_PROJECT" = "desirelines-prod" ]; then \
 		ENV_NAME="prod"; \
+	elif [ "$$CURRENT_PROJECT" = "desirelines-local" ]; then \
+		ENV_NAME="local"; \
 	else \
 		echo "❌ Error: Invalid GCP project for desirelines!"; \
 		echo "   Current:  $$CURRENT_PROJECT"; \
-		echo "   Expected: desirelines-dev or desirelines-prod"; \
+		echo "   Expected: desirelines-dev, desirelines-prod, or desirelines-local"; \
 		echo "   Fix: gcloud config set project desirelines-dev"; \
 		echo "   Or:  gcloud config set project desirelines-prod"; \
+		echo "   Or:  gcloud config set project desirelines-local"; \
 		exit 1; \
 	fi; \
 	$(1) $$ENV_NAME
@@ -137,6 +140,7 @@ help:
 	@echo "Local Development (Docker):"
 	@echo "  start          - Start all functions locally (PubSub emulator + local storage)"
 	@echo "  start-local    - Start functions with Terraform-managed GCP resources"
+	@echo "  start-debug    - Start with PubSub UI for debugging (port 4200)"
 	@echo "  stop           - Stop all functions and cleanup"
 	@echo "  logs           - View logs from all functions"
 	@echo "  logs-dispatcher - View activity-dispatcher logs"
@@ -196,28 +200,42 @@ start-local: generate-requirements
 	@if [ ! -f "$$HOME/.config/gcloud/application_default_credentials.json" ]; then \
 		echo "❌ Error: No gcloud application default credentials found"; \
 		echo "   Please run: gcloud auth application-default login"; \
-		echo "   Then run: make impersonate-terraform"; \
-		echo "   This will authenticate your local environment for BigQuery access"; \
+		echo "   This will authenticate your local environment for GCP access"; \
 		exit 1; \
 	fi
 	docker compose -f docker-compose.yml -f docker-compose.local.yml up --build --detach
 	@echo "✅ All services are running with local GCP resources!"
 	@echo "📋 Service URLs:"
-	@echo "  Dispatcher: http://localhost:8081"
-	@echo "  Aggregator: http://localhost:8082"
+	@echo "  Dispatcher: http://localhost:8081 (→ PubSub Emulator forwarding)"
+	@echo "  Aggregator: http://localhost:8082 (→ Terraform-managed Cloud Storage)"
 	@echo "  BQ Inserter: http://localhost:8083 (→ Terraform-managed BigQuery)"
 	@echo "  PubSub Emulator: http://localhost:8085"
 	@echo ""
 	@echo "🧪 Test the full flow:"
 	@echo "  make test-full-flow"
 	@echo ""
-	@echo "💡 Data will be written to: desirelines_dataset_local.activities"
-	@echo "🔐 Using your gcloud application default credentials with service account impersonation"
+	@echo "💡 Data will be written to: desirelines.activities"
+	@echo "🔐 Using your gcloud application default credentials"
+
+# Start with PubSub UI for debugging
+start-debug: generate-requirements
+	@echo "🐛 Starting all functions with PubSub debugging UI..."
+	docker compose --profile debug up --build --detach
+	@echo "✅ All services are running with debugging UI!"
+	@echo "📋 Service URLs:"
+	@echo "  Dispatcher: http://localhost:8081"
+	@echo "  Aggregator: http://localhost:8082"
+	@echo "  BQ Inserter: http://localhost:8083"
+	@echo "  PubSub Emulator: http://localhost:8085"
+	@echo "  🐛 PubSub UI: http://localhost:4200"
+	@echo ""
+	@echo "🧪 Test the full flow:"
+	@echo "  make test-full-flow"
 
 # Stop services and cleanup
 stop:
 	@echo "🛑 Stopping all functions..."
-	docker compose down
+	docker compose --profile debug --profile frontend down
 	rm -f functions/requirements-*.txt
 
 # Generate function-specific requirements files
@@ -295,12 +313,15 @@ delete-webhook:
 		ENV_NAME="dev"; \
 	elif [ "$$CURRENT_PROJECT" = "desirelines-prod" ]; then \
 		ENV_NAME="prod"; \
+	elif [ "$$CURRENT_PROJECT" = "desirelines-local" ]; then \
+		ENV_NAME="local"; \
 	else \
 		echo "❌ Error: Invalid GCP project for desirelines!"; \
 		echo "   Current:  $$CURRENT_PROJECT"; \
-		echo "   Expected: desirelines-dev or desirelines-prod"; \
+		echo "   Expected: desirelines-dev, desirelines-prod, or desirelines-local"; \
 		echo "   Fix: gcloud config set project desirelines-dev"; \
 		echo "   Or:  gcloud config set project desirelines-prod"; \
+		echo "   Or:  gcloud config set project desirelines-local"; \
 		exit 1; \
 	fi; \
 	echo "⚠️  About to delete webhook subscription for $$ENV_NAME environment"; \

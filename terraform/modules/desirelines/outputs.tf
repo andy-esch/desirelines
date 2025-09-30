@@ -71,23 +71,23 @@ output "dev_service_accounts" {
   } : {}
 }
 
-# Cloud Function outputs
+# Cloud Function outputs (only available in "full" deployment mode)
 output "cloud_function_urls" {
   description = "URLs for Cloud Functions"
-  value = {
-    dispatcher_url  = google_cloudfunctions2_function.activity_dispatcher.service_config[0].uri
-    api_gateway_url = google_cloudfunctions2_function.api_gateway.service_config[0].uri
-  }
+  value = var.deployment_mode == "full" ? {
+    dispatcher_url  = google_cloudfunctions2_function.activity_dispatcher[0].service_config[0].uri
+    api_gateway_url = google_cloudfunctions2_function.api_gateway[0].service_config[0].uri
+  } : {}
 }
 
 output "cloud_function_names" {
   description = "Names of deployed Cloud Functions"
-  value = {
-    dispatcher    = google_cloudfunctions2_function.activity_dispatcher.name
-    bq_inserter   = google_cloudfunctions2_function.activity_bq_inserter.name
-    aggregator    = google_cloudfunctions2_function.activity_aggregator.name
-    api_gateway   = google_cloudfunctions2_function.api_gateway.name
-  }
+  value = var.deployment_mode == "full" ? {
+    dispatcher    = google_cloudfunctions2_function.activity_dispatcher[0].name
+    bq_inserter   = google_cloudfunctions2_function.activity_bq_inserter[0].name
+    aggregator    = google_cloudfunctions2_function.activity_aggregator[0].name
+    api_gateway   = google_cloudfunctions2_function.api_gateway[0].name
+  } : {}
 }
 
 # Artifact Registry outputs

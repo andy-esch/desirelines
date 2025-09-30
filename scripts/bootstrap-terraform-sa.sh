@@ -14,8 +14,8 @@ if [[ -z "$ENV_NAME" ]]; then
     exit 1
 fi
 
-if [[ ! "$ENV_NAME" =~ ^(dev|prod)$ ]]; then
-    echo "❌ Error: Environment must be 'dev' or 'prod'"
+if [[ ! "$ENV_NAME" =~ ^(dev|prod|local)$ ]]; then
+    echo "❌ Error: Environment must be 'dev', 'prod', or 'local'"
     exit 1
 fi
 

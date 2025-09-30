@@ -19,8 +19,8 @@ if [[ -z "$ENV_NAME" ]]; then
     exit 1
 fi
 
-if [[ ! "$ENV_NAME" =~ ^(dev|prod)$ ]]; then
-    echo "❌ Error: Environment must be 'dev' or 'prod'"
+if [[ ! "$ENV_NAME" =~ ^(dev|prod|local)$ ]]; then
+    echo "❌ Error: Environment must be 'dev', 'prod', or 'local'"
     exit 1
 fi
 
@@ -217,7 +217,7 @@ echo "4️⃣ Deploying secrets..."
 
 # Deploy secrets (API already enabled above)
 
-SECRET_FILE="StravaAuth-$ENV_NAME.json"
+SECRET_FILE="strava-auth-$ENV_NAME.json"
 if [[ ! -f "$SECRET_FILE" ]]; then
     echo "❌ Error: $SECRET_FILE not found"
     echo "   Please create this file with your Strava API credentials"
@@ -237,15 +237,20 @@ gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
 echo "✅ Secrets deployed"
 
 # =============================================================================
-# Step 5: Package functions
+# Step 5: Package functions (skip for local environment)
 # =============================================================================
 echo ""
-echo "5️⃣ Packaging functions..."
 
-./scripts/package-functions.sh
-
-CURRENT_SHA=$(git rev-parse --short HEAD)
-echo "✅ Functions packaged with SHA: $CURRENT_SHA"
+if [[ "$ENV_NAME" == "local" ]]; then
+    echo "5️⃣ Skipping function packaging (local environment)"
+    echo "   Functions will run locally in Docker containers"
+    CURRENT_SHA="local-dev"
+else
+    echo "5️⃣ Packaging functions..."
+    ./scripts/package-functions.sh
+    CURRENT_SHA=$(git rev-parse --short HEAD)
+    echo "✅ Functions packaged with SHA: $CURRENT_SHA"
+fi
 
 # =============================================================================
 # Step 6: Deploy infrastructure

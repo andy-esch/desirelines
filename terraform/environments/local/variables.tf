@@ -21,3 +21,9 @@ variable "developer_email" {
   type        = string
   default     = null
 }
+
+variable "function_source_tag" {
+  description = "Git SHA or tag for function source packages"
+  type        = string
+  default     = "latest"
+}
