@@ -43,12 +43,15 @@ module "desirelines" {
 
   # Enable APIs and create service accounts
   enable_apis                 = true
-  create_service_accounts     = true  # Enabled for clean dev environment setup
-  create_dev_service_accounts = true  # Create runtime service accounts
+  create_service_accounts     = true # Enabled for clean dev environment setup
+  create_dev_service_accounts = true # Create runtime service accounts
 
   # Function deployment configuration
   function_source_tag = var.function_source_tag
 
+  # Use "full" mode for complete cloud deployment
+  # This creates all resources: Cloud Functions, PubSub, BigQuery, Storage, etc.
+  deployment_mode = "full"
 
   # Developer access
   developer_email = var.developer_email

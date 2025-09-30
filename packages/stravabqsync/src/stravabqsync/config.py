@@ -4,8 +4,7 @@ import json
 import os
 from typing import NamedTuple
 
-from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from stravabqsync.domain import StravaTokenSet
 
@@ -40,7 +39,7 @@ class BQInserterConfig(BaseSettings):
     # Optional configuration
     log_level: str = "INFO"
 
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         env_file=".env",
         validate_default=True,
         extra="ignore",  # Allow extra environment variables
@@ -92,4 +91,5 @@ def load_bq_inserter_config() -> BQInserterConfig:
         if value is not None:
             os.environ[key] = str(value)
 
-    return BQInserterConfig()
+    # Load config from environment variables (and secrets set above)
+    return BQInserterConfig.model_validate({})

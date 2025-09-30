@@ -3,8 +3,7 @@
 import json
 import os
 
-from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AggregatorConfig(BaseSettings):
@@ -22,7 +21,7 @@ class AggregatorConfig(BaseSettings):
     # Optional configuration
     log_level: str = "INFO"
 
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         env_file=".env",
         validate_default=True,
         extra="ignore",  # Allow extra environment variables
@@ -49,4 +48,5 @@ def load_aggregator_config() -> AggregatorConfig:
         if value is not None:
             os.environ[key] = str(value)
 
-    return AggregatorConfig()
+    # Load config from environment variables (and secrets set above)
+    return AggregatorConfig.model_validate({})

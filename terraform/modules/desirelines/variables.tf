@@ -21,6 +21,29 @@ variable "environment" {
   }
 }
 
+variable "deployment_mode" {
+  description = <<-EOT
+    Deployment mode that controls which resources are created:
+
+    - "full": Complete deployment with Cloud Functions, PubSub, service accounts, etc.
+              Used for: dev, prod environments
+
+    - "data-only": Minimal deployment with only data storage resources (BigQuery, Storage)
+                   Used for: local hybrid development where functions run in Docker
+
+    Resources created by mode:
+    - Both modes: BigQuery dataset/tables, Storage buckets, API enablement
+    - "full" only: Cloud Functions, PubSub topics, Eventarc, service accounts, DLQ
+  EOT
+  type        = string
+  default     = "full"
+
+  validation {
+    condition     = contains(["full", "data-only"], var.deployment_mode)
+    error_message = "Deployment mode must be either 'full' or 'data-only'."
+  }
+}
+
 variable "gcp_project_id" {
   description = "Google Cloud Project ID"
   type        = string

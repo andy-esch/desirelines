@@ -1,62 +1,124 @@
-name: Desirelines CI
+name: CI
 
 on:
+  pull_request:
   push:
+    branches: [main]
     paths-ignore:
       - '**/README.md'
+      - 'docs/**'
 
 env:
-  GH_TOKEN: "foo"
-  STRAVA_CLIENT_ID: 123
-  STRAVA_REFRESH_TOKEN: "bar"
-  STRAVA_CLIENT_SECRET: "baz"
-  GCP_BUCKET_NAME: "gs://foo"
-  GCP_SUMMARY_ACTIVITIES_PATH: "gs://bar"
-  # Go environment variables for tests
+  # Test environment variables
   GCP_PROJECT_ID: "test-project"
   GCP_BIGQUERY_DATASET: "test_dataset"
-  STRAVA_WEBHOOK_VERIFY_TOKEN: "test_verify_token"
-  STRAVA_WEBHOOK_SUBSCRIPTION_ID: 12345
+  GCP_BUCKET_NAME: "test-bucket"
   GCP_PUBSUB_TOPIC: "test-topic"
-
+  STRAVA_CLIENT_ID: "123"
+  STRAVA_CLIENT_SECRET: "test_secret"
+  STRAVA_REFRESH_TOKEN: "test_token"
+  STRAVA_WEBHOOK_VERIFY_TOKEN: "test_verify_token"
+  STRAVA_WEBHOOK_SUBSCRIPTION_ID: "12345"
 
 jobs:
-  build:
-
+  python-quality:
+    name: Python Tests & Quality
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout Desirelines App
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.21'
+      - name: Install Python dependencies
+        run: uv sync --all-packages
 
-    - name: Install Python dependencies
-      run: uv sync
+      - name: Run Python tests
+        run: make py-test
 
-    - name: Install Go dependencies
-      run: cd packages/dispatcher && go mod download
+      - name: Run Python linting
+        run: make py-lint
 
-    - name: Run Python tests
-      run: uv run pytest packages/aggregator/tests/ --cov=./ --cov-report=xml && uv run pytest packages/stravabqsync/tests/ --cov=./ --cov-report=xml
+      - name: Run Python type checking
+        run: make py-typecheck
 
-    - name: Run Go tests
-      run: cd packages/dispatcher && go test -v ./...
+  go-quality:
+    name: Go Tests & Quality
+    runs-on: ubuntu-latest
 
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v4.0.1
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        slug: andy-esch/desirelines
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install Go dependencies
+        run: cd packages/dispatcher && go mod download
+
+      - name: Tidy Go modules
+        run: cd packages/dispatcher && go mod tidy
+
+      - name: Run Go tests
+        run: make go-test
+
+      - name: Run Go linting
+        run: make go-lint
+
+      - name: Check Go formatting
+        run: |
+          make go-format
+          # Check that .go files are properly formatted
+          git diff --exit-code '*.go'
+
+  terraform-validate:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.0"
+
+      - name: Validate Terraform - Local Environment
+        run: |
+          cd terraform/environments/local
+          terraform fmt -check
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate Terraform - Dev Environment
+        run: |
+          cd terraform/environments/dev
+          terraform fmt -check
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate Terraform - Prod Environment
+        run: |
+          cd terraform/environments/prod
+          terraform fmt -check
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate Terraform - Module
+        run: |
+          cd terraform/modules/desirelines
+          terraform fmt -check
+          terraform init -backend=false
+          terraform validate
