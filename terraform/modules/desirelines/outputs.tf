@@ -43,10 +43,10 @@ output "pubsub_dead_letter_topic_name" {
 output "resource_names" {
   description = "Map of all resource names for easy reference"
   value = {
-    dataset_name    = google_bigquery_dataset.activities_dataset.dataset_id
-    table_name      = google_bigquery_table.activities.table_id
-    bucket_name     = google_storage_bucket.aggregation_bucket.name
-    topic_name      = google_pubsub_topic.activity_events.name
+    dataset_name = google_bigquery_dataset.activities_dataset.dataset_id
+    table_name   = google_bigquery_table.activities.table_id
+    bucket_name  = google_storage_bucket.aggregation_bucket.name
+    topic_name   = google_pubsub_topic.activity_events.name
   }
 }
 
@@ -54,10 +54,10 @@ output "resource_names" {
 output "application_config" {
   description = "Configuration values needed by the applications"
   value = {
-    gcp_project_id         = var.gcp_project_id
-    gcp_bigquery_dataset   = google_bigquery_dataset.activities_dataset.dataset_id
-    gcp_bucket_name        = google_storage_bucket.aggregation_bucket.name
-    gcp_pubsub_topic       = google_pubsub_topic.activity_events.name
+    gcp_project_id       = var.gcp_project_id
+    gcp_bigquery_dataset = google_bigquery_dataset.activities_dataset.dataset_id
+    gcp_bucket_name      = google_storage_bucket.aggregation_bucket.name
+    gcp_pubsub_topic     = google_pubsub_topic.activity_events.name
   }
 }
 
@@ -65,9 +65,9 @@ output "application_config" {
 output "dev_service_accounts" {
   description = "Development service account emails for Docker Compose"
   value = var.create_dev_service_accounts ? {
-    dispatcher_email   = google_service_account.dispatcher_dev[0].email
-    aggregator_email   = google_service_account.aggregator_dev[0].email
-    bq_inserter_email  = google_service_account.bq_inserter_dev[0].email
+    dispatcher_email  = google_service_account.dispatcher_dev[0].email
+    aggregator_email  = google_service_account.aggregator_dev[0].email
+    bq_inserter_email = google_service_account.bq_inserter_dev[0].email
   } : {}
 }
 
@@ -83,22 +83,22 @@ output "cloud_function_urls" {
 output "cloud_function_names" {
   description = "Names of deployed Cloud Functions"
   value = var.deployment_mode == "full" ? {
-    dispatcher    = google_cloudfunctions2_function.activity_dispatcher[0].name
-    bq_inserter   = google_cloudfunctions2_function.activity_bq_inserter[0].name
-    aggregator    = google_cloudfunctions2_function.activity_aggregator[0].name
-    api_gateway   = google_cloudfunctions2_function.api_gateway[0].name
+    dispatcher  = google_cloudfunctions2_function.activity_dispatcher[0].name
+    bq_inserter = google_cloudfunctions2_function.activity_bq_inserter[0].name
+    aggregator  = google_cloudfunctions2_function.activity_aggregator[0].name
+    api_gateway = google_cloudfunctions2_function.api_gateway[0].name
   } : {}
 }
 
 # Artifact Registry outputs
 output "artifact_registry_repository" {
   description = "Artifact Registry repository for container images (shared across environments)"
-  value = google_artifact_registry_repository.functions.name
+  value       = google_artifact_registry_repository.functions.name
 }
 
 output "container_image_base_url" {
   description = "Base URL for container images in Artifact Registry"
-  value = "${var.artifact_registry_location}-docker.pkg.dev/${var.gcp_project_id}/${var.project_name}-functions"
+  value       = "${var.artifact_registry_location}-docker.pkg.dev/${var.gcp_project_id}/${var.project_name}-functions"
 }
 
 # Deployment information
@@ -106,8 +106,8 @@ output "deployment_info" {
   description = "Information needed for CI/CD deployment"
   value = {
     artifact_registry_repo = google_artifact_registry_repository.functions.name
-    image_base_url        = "${var.artifact_registry_location}-docker.pkg.dev/${var.gcp_project_id}/${var.project_name}-functions"
-    current_image_tag     = var.function_image_tag
+    image_base_url         = "${var.artifact_registry_location}-docker.pkg.dev/${var.gcp_project_id}/${var.project_name}-functions"
+    current_image_tag      = var.function_image_tag
   }
 }
 

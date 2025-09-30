@@ -448,7 +448,7 @@ resource "google_storage_bucket_object" "api_gateway_source" {
 # Only created when deployment_mode = "full"
 # In "data-only" mode, functions run locally in Docker containers
 resource "google_cloudfunctions2_function" "activity_dispatcher" {
-  count = var.deployment_mode == "full" ? 1 : 0
+  count       = var.deployment_mode == "full" ? 1 : 0
   name        = "${var.project_name}_dispatcher"
   location    = var.gcp_region
   description = "Activity dispatcher - webhook receiver (${var.environment})"
@@ -522,7 +522,7 @@ resource "google_cloud_run_service_iam_member" "api_gateway_public_access" {
 
 # Activity BQ Inserter (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "activity_bq_inserter" {
-  count = var.deployment_mode == "full" ? 1 : 0
+  count       = var.deployment_mode == "full" ? 1 : 0
   name        = "${var.project_name}_bq_inserter"
   location    = var.gcp_region
   description = "Activity BigQuery inserter (${var.environment})"
@@ -580,7 +580,7 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
 
 # Activity Aggregator (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "activity_aggregator" {
-  count = var.deployment_mode == "full" ? 1 : 0
+  count       = var.deployment_mode == "full" ? 1 : 0
   name        = "${var.project_name}_aggregator"
   location    = var.gcp_region
   description = "Activity aggregator and storage writer (${var.environment})"
@@ -638,7 +638,7 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
 
 # API Gateway (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "api_gateway" {
-  count = var.deployment_mode == "full" ? 1 : 0
+  count       = var.deployment_mode == "full" ? 1 : 0
   name        = "${var.project_name}_api_gateway"
   location    = var.gcp_region
   description = "API gateway for serving activity data (${var.environment})"

@@ -40,7 +40,7 @@ variable "deployment_mode" {
 
   validation {
     condition     = contains(["full", "data-only"], var.deployment_mode)
-    error_message = "deployment_mode must be either 'full' or 'data-only'."
+    error_message = "Deployment mode must be either 'full' or 'data-only'."
   }
 }
 

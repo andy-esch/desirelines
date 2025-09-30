@@ -116,6 +116,21 @@ tf-local-destroy:
 	@echo "💥 Destroying local Terraform resources..."
 	@cd terraform/environments/local && terraform destroy
 
+# Terraform formatting and validation
+.PHONY: tf-fmt
+tf-fmt:
+	@echo "🎨 Formatting all Terraform files..."
+	@terraform fmt -recursive terraform/
+
+.PHONY: tf-validate-all
+tf-validate-all:
+	@echo "🔍 Validating all Terraform configurations..."
+	@cd terraform/environments/local && terraform init -backend=false && terraform validate
+	@cd terraform/environments/dev && terraform init -backend=false && terraform validate
+	@cd terraform/environments/prod && terraform init -backend=false && terraform validate
+	@cd terraform/modules/desirelines && terraform init -backend=false && terraform validate
+	@echo "✅ All Terraform configurations are valid!"
+
 # Combined workflows
 .PHONY: setup-local
 setup-local: impersonate-terraform tf-local-init tf-local-plan
@@ -136,6 +151,8 @@ help:
 	@echo "  tf-local-apply        - Apply local deployment"
 	@echo "  tf-local-destroy      - Destroy local resources"
 	@echo "  setup-local           - Complete local environment setup"
+	@echo "  tf-fmt                - Format all Terraform files"
+	@echo "  tf-validate-all       - Validate all Terraform configurations"
 	@echo ""
 	@echo "Local Development (Docker):"
 	@echo "  start          - Start all functions locally (PubSub emulator + local storage)"

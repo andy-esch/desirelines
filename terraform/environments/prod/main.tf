@@ -46,8 +46,8 @@ module "desirelines" {
 
   # Enable APIs and create service accounts
   enable_apis                 = true
-  create_service_accounts     = true   # Create terraform and infrastructure service accounts
-  create_dev_service_accounts = false  # Dev service accounts only in dev
+  create_service_accounts     = true  # Create terraform and infrastructure service accounts
+  create_dev_service_accounts = false # Dev service accounts only in dev
 
   # Function deployment configuration (uses dev-built sources)
   function_source_tag = var.function_source_tag
