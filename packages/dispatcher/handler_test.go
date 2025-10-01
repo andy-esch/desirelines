@@ -20,7 +20,7 @@ func TestHandler_ServeHTTP_Verification(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	secretsPath := filepath.Join(tempDir, "strava_auth.json")
-	secrets := map[string]interface{}{
+	secrets := map[string]any{
 		"webhook_verify_token":    "test-token",
 		"webhook_subscription_id": 12345,
 	}
@@ -64,7 +64,7 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	secretsPath := filepath.Join(tempDir, "strava_auth.json")
-	secrets := map[string]interface{}{
+	secrets := map[string]any{
 		"webhook_verify_token":    "test-token",
 		"webhook_subscription_id": 12345,
 	}
@@ -123,7 +123,7 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 }
 
 // Helper function to write test secrets file
-func writeTestSecretsFile(t *testing.T, path string, secrets map[string]interface{}) {
+func writeTestSecretsFile(t *testing.T, path string, secrets map[string]any) {
 	data, err := json.Marshal(secrets)
 	if err != nil {
 		t.Fatalf("Failed to marshal secrets: %v", err)

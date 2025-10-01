@@ -18,7 +18,7 @@ func TestWebhookRequest_Validate_Success(t *testing.T) {
 				ObjectType:     "activity",
 				OwnerID:        67890,
 				SubscriptionID: 123456,
-				Updates:        map[string]interface{}{},
+				Updates:        map[string]any{},
 			},
 		},
 		{
@@ -30,7 +30,7 @@ func TestWebhookRequest_Validate_Success(t *testing.T) {
 				ObjectType:     "activity",
 				OwnerID:        67890,
 				SubscriptionID: 123456,
-				Updates:        map[string]interface{}{"title": "New Title"},
+				Updates:        map[string]any{"title": "New Title"},
 			},
 		},
 		{
@@ -42,7 +42,7 @@ func TestWebhookRequest_Validate_Success(t *testing.T) {
 				ObjectType:     "activity",
 				OwnerID:        67890,
 				SubscriptionID: 123456,
-				Updates:        map[string]interface{}{},
+				Updates:        map[string]any{},
 			},
 		},
 	}
