@@ -131,7 +131,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlatio
 		return
 	}
 
-	if webhook.ObjectType != "activity" {
+	if webhook.ObjectType != ObjectActivity {
 		log.Printf("[%s] Ignoring non-activity webhook: %s", correlationID, webhook.ObjectType)
 		writeSuccess(w, correlationID)
 		return

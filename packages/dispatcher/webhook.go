@@ -4,6 +4,17 @@ import (
 	"fmt"
 )
 
+const (
+	// Webhook aspect types
+	AspectCreate = "create"
+	AspectUpdate = "update"
+	AspectDelete = "delete"
+
+	// Webhook object types
+	ObjectActivity = "activity"
+	ObjectAthlete  = "athlete"
+)
+
 // WebhookRequest represents the Strava webhook payload structure
 type WebhookRequest struct {
 	AspectType     string                 `json:"aspect_type"`
@@ -18,13 +29,13 @@ type WebhookRequest struct {
 // Validate validates the webhook request fields
 func (w *WebhookRequest) Validate() error {
 	// Validate aspect_type
-	validAspects := []string{"create", "update", "delete"}
+	validAspects := []string{AspectCreate, AspectUpdate, AspectDelete}
 	if !contains(validAspects, w.AspectType) {
 		return fmt.Errorf("invalid aspect_type: %s", w.AspectType)
 	}
 
 	// Validate object_type (accept both activity and athlete webhooks)
-	validObjectTypes := []string{"activity", "athlete"}
+	validObjectTypes := []string{ObjectActivity, ObjectAthlete}
 	if !contains(validObjectTypes, w.ObjectType) {
 		return fmt.Errorf("invalid object_type: %s", w.ObjectType)
 	}
