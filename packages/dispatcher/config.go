@@ -108,7 +108,11 @@ func (c *SecretCache) hashFile() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			log.Printf("Failed to close file: %v", closeErr)
+		}
+	}()
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
@@ -124,7 +128,11 @@ func (c *SecretCache) loadSecrets() error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			log.Printf("Failed to close secrets file: %v", closeErr)
+		}
+	}()
 
 	var secrets StravaSecrets
 	if err := json.NewDecoder(file).Decode(&secrets); err != nil {
@@ -147,7 +155,11 @@ func LoadConfig() (*Config, error) {
 		if err != nil {
 			log.Printf("Failed to open secrets file: %v", err)
 		} else {
-			defer secretsFile.Close()
+			defer func() {
+				if closeErr := secretsFile.Close(); closeErr != nil {
+					log.Printf("Failed to close secrets file: %v", closeErr)
+				}
+			}()
 
 			var secrets StravaSecrets
 			if err := json.NewDecoder(secretsFile).Decode(&secrets); err != nil {
@@ -155,10 +167,14 @@ func LoadConfig() (*Config, error) {
 			} else {
 				// Set environment variables from secrets (takes precedence)
 				if secrets.WebhookVerifyToken != "" {
-					os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", secrets.WebhookVerifyToken)
+					if err := os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", secrets.WebhookVerifyToken); err != nil {
+						log.Printf("Failed to set STRAVA_WEBHOOK_VERIFY_TOKEN: %v", err)
+					}
 				}
 				if secrets.WebhookSubscriptionID != 0 {
-					os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(secrets.WebhookSubscriptionID))
+					if err := os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(secrets.WebhookSubscriptionID)); err != nil {
+						log.Printf("Failed to set STRAVA_WEBHOOK_SUBSCRIPTION_ID: %v", err)
+					}
 				}
 			}
 		}

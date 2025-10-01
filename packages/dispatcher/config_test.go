@@ -14,7 +14,11 @@ func TestSecretCache_GetSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	secretsPath := filepath.Join(tempDir, "strava_auth.json")
 
@@ -95,7 +99,11 @@ func TestSecretCache_InvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	secretsPath := filepath.Join(tempDir, "invalid.json")
 
@@ -118,7 +126,11 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	secretsPath := filepath.Join(tempDir, "strava_auth.json")
 
@@ -141,7 +153,9 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 	}
 
 	// Delete the file to simulate temporary file system issue
-	os.Remove(secretsPath)
+	if err := os.Remove(secretsPath); err != nil {
+		t.Logf("Failed to remove test file: %v", err)
+	}
 
 	// Wait for TTL to expire
 	time.Sleep(150 * time.Millisecond)
@@ -161,7 +175,11 @@ func TestSecretCache_ContentHashDetection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	secretsPath := filepath.Join(tempDir, "strava_auth.json")
 
