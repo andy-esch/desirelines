@@ -58,6 +58,11 @@ issues:
       linters:
         - gosec  # Security checks less important in tests
 
+    # Exclude false positive for file path constant
+    - text: "Potential hardcoded credentials"
+      linters:
+        - gosec
+
 output:
   formats:
     - format: colored-line-number

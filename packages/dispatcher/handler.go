@@ -101,7 +101,9 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, cor
 
 	log.Printf("[%s] Webhook verification successful", correlationID)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge})
+	if err := json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge}); err != nil {
+		log.Printf("[%s] Failed to encode response: %v", correlationID, err)
+	}
 }
 
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlationID string) {
@@ -155,15 +157,19 @@ func writeError(w http.ResponseWriter, code int, msg, details, correlationID str
 	if details != "" {
 		response["details"] = details
 	}
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("[%s] Failed to encode error response: %v", correlationID, err)
+	}
 }
 
 func writeSuccess(w http.ResponseWriter, correlationID string) {
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"success":        "true",
 		"correlation_id": correlationID,
-	})
+	}); err != nil {
+		log.Printf("[%s] Failed to encode success response: %v", correlationID, err)
+	}
 }
 
 // logAndWriteError logs an error and writes an HTTP error response in one call.

@@ -22,10 +22,10 @@ const (
 // Config holds all configuration for the dispatcher.
 type Config struct {
 	StravaWebhookVerifyToken    string
-	StravaWebhookSubscriptionID int
 	GCPProjectID                string
 	GCPPubSubTopicID            string
 	LogLevel                    string
+	StravaWebhookSubscriptionID int
 }
 
 // StravaSecrets represents the structure of the mounted secret file.
@@ -36,12 +36,12 @@ type StravaSecrets struct {
 
 // SecretCache provides TTL-based caching with content hash validation for secrets.
 type SecretCache struct {
-	verifyToken    string
-	subscriptionID int
-	contentHash    string
 	lastCheck      time.Time
-	ttl            time.Duration
+	contentHash    string
 	secretsPath    string
+	verifyToken    string
+	ttl            time.Duration
+	subscriptionID int
 	mu             sync.RWMutex
 }
 

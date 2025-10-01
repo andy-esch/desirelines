@@ -18,13 +18,13 @@ const (
 
 // WebhookRequest represents the Strava webhook payload structure
 type WebhookRequest struct {
+	Updates        map[string]any `json:"updates"`
 	AspectType     string         `json:"aspect_type"`
+	ObjectType     string         `json:"object_type"`
 	EventTime      int64          `json:"event_time"`
 	ObjectID       int64          `json:"object_id"`
-	ObjectType     string         `json:"object_type"`
 	OwnerID        int64          `json:"owner_id"`
 	SubscriptionID int            `json:"subscription_id"`
-	Updates        map[string]any `json:"updates"`
 }
 
 // Validate validates the webhook request fields

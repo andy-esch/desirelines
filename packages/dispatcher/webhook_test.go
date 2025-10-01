@@ -102,8 +102,8 @@ func TestWebhookRequest_Validate_InvalidObjectType(t *testing.T) {
 func TestWebhookRequest_Validate_MissingRequiredFields(t *testing.T) {
 	tests := []struct {
 		name        string
-		webhook     WebhookRequest
 		expectedErr string
+		webhook     WebhookRequest
 	}{
 		{
 			name: "missing event_time",
