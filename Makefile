@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format js-lint js-format js-dev start stop logs clean build
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -50,7 +50,12 @@ go-test-coverage:
 	cd packages/dispatcher && go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out -o coverage.html
 
 go-lint:
-	cd packages/dispatcher && go vet ./...
+	@echo "🔍 Running golangci-lint..."
+	golangci-lint run packages/dispatcher
+
+go-lint-fix:
+	@echo "🔧 Running golangci-lint with auto-fix..."
+	golangci-lint run --fix packages/dispatcher
 
 go-format:
 	cd packages/dispatcher && go fmt ./...

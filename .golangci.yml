@@ -1,0 +1,63 @@
+# golangci-lint configuration
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+
+  gofmt:
+    simplify: true
+
+  goimports:
+    local-prefixes: github.com/andy-esch/desirelines
+
+  govet:
+    enable-all: true
+
+  staticcheck:
+    checks: ["all"]
+
+linters:
+  # Disable default linters
+  disable-all: true
+
+  # Enable core linters
+  enable:
+    # Code quality
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Suggest code simplifications
+    - govet         # Go vet checks
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Comprehensive static analysis
+    - typecheck     # Type checking
+    - unused        # Detect unused code
+
+    # Style and formatting
+    - gofmt         # Check formatting
+    - goimports     # Check import formatting
+    - misspell      # Fix common spelling mistakes
+
+    # Performance
+    - prealloc      # Suggest slice preallocation
+
+    # Bugs and correctness
+    - bodyclose     # Check HTTP response body is closed
+    - rowserrcheck  # Check SQL rows.Err
+    - unconvert     # Remove unnecessary conversions
+
+    # Security
+    - gosec         # Security issues
+
+issues:
+  # Exclude test files from some checks
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec  # Security checks less important in tests
+
+output:
+  formats:
+    - format: colored-line-number
