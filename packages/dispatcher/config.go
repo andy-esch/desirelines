@@ -28,6 +28,12 @@ type Config struct {
 	LogLevel                    string
 }
 
+// StravaSecrets represents the structure of the mounted secret file.
+type StravaSecrets struct {
+	WebhookVerifyToken    string `json:"webhook_verify_token"`
+	WebhookSubscriptionID int    `json:"webhook_subscription_id"`
+}
+
 // SecretCache provides TTL-based caching with content hash validation for secrets.
 type SecretCache struct {
 	verifyToken    string
@@ -120,28 +126,14 @@ func (c *SecretCache) loadSecrets() error {
 	}
 	defer file.Close()
 
-	var stravaAuth map[string]interface{}
-	if err := json.NewDecoder(file).Decode(&stravaAuth); err != nil {
+	var secrets StravaSecrets
+	if err := json.NewDecoder(file).Decode(&secrets); err != nil {
 		return err
 	}
 
-	// Extract webhook verify token
-	if verifyTokenRaw, ok := stravaAuth["webhook_verify_token"]; ok {
-		if token, ok := verifyTokenRaw.(string); ok {
-			c.verifyToken = token
-		}
-	}
-
-	// Extract webhook subscription ID
-	if subscriptionIDRaw, ok := stravaAuth["webhook_subscription_id"]; ok {
-		// JSON numbers are parsed as float64, handle both int and float64
-		switch id := subscriptionIDRaw.(type) {
-		case float64:
-			c.subscriptionID = int(id)
-		case int:
-			c.subscriptionID = id
-		}
-	}
+	// Direct field access with compile-time type safety
+	c.verifyToken = secrets.WebhookVerifyToken
+	c.subscriptionID = secrets.WebhookSubscriptionID
 
 	return nil
 }
@@ -157,24 +149,16 @@ func LoadConfig() (*Config, error) {
 		} else {
 			defer secretsFile.Close()
 
-			var stravaAuth map[string]interface{}
-			if err := json.NewDecoder(secretsFile).Decode(&stravaAuth); err != nil {
+			var secrets StravaSecrets
+			if err := json.NewDecoder(secretsFile).Decode(&secrets); err != nil {
 				log.Printf("Failed to decode secrets file: %v", err)
 			} else {
 				// Set environment variables from secrets (takes precedence)
-				if verifyTokenRaw, ok := stravaAuth["webhook_verify_token"]; ok {
-					if token, ok := verifyTokenRaw.(string); ok {
-						os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", token)
-					}
+				if secrets.WebhookVerifyToken != "" {
+					os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", secrets.WebhookVerifyToken)
 				}
-				if subscriptionIDRaw, ok := stravaAuth["webhook_subscription_id"]; ok {
-					// Convert to string for environment variable
-					switch id := subscriptionIDRaw.(type) {
-					case float64:
-						os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(int(id)))
-					case int:
-						os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(id))
-					}
+				if secrets.WebhookSubscriptionID != 0 {
+					os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(secrets.WebhookSubscriptionID))
 				}
 			}
 		}
