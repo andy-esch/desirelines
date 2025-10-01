@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -33,8 +32,8 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		return nil, fmt.Errorf("failed to create publisher: %w", err)
 	}
 
-	// Create secret cache with 5-minute TTL
-	secretCache := NewSecretCache("/etc/secrets/strava_auth.json", 5*time.Minute)
+	// Create secret cache with default settings
+	secretCache := NewDefaultSecretCache()
 
 	return &Handler{
 		secretCache: secretCache,
@@ -45,8 +44,8 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 
 // NewHandlerWithPublisher is a constructor for testing that allows injecting a mock publisher.
 func NewHandlerWithPublisher(cfg *Config, publisher Publisher) *Handler {
-	// Create secret cache with 5-minute TTL for testing
-	secretCache := NewSecretCache("/etc/secrets/strava_auth.json", 5*time.Minute)
+	// Create secret cache with default settings for testing
+	secretCache := NewDefaultSecretCache()
 
 	return &Handler{
 		secretCache: secretCache,

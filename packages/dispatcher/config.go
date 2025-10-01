@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+const (
+	// DefaultSecretsPath is the standard secret volume mount path
+	DefaultSecretsPath = "/etc/secrets/strava_auth.json"
+	// DefaultSecretCacheTTL is the default cache TTL for secret reloading
+	DefaultSecretCacheTTL = 5 * time.Minute
+)
+
 // Config holds all configuration for the dispatcher.
 type Config struct {
 	StravaWebhookVerifyToken    string
@@ -38,6 +45,11 @@ func NewSecretCache(secretsPath string, ttl time.Duration) *SecretCache {
 		secretsPath: secretsPath,
 		ttl:         ttl,
 	}
+}
+
+// NewDefaultSecretCache creates a new secret cache with default settings.
+func NewDefaultSecretCache() *SecretCache {
+	return NewSecretCache(DefaultSecretsPath, DefaultSecretCacheTTL)
 }
 
 // GetSecrets returns cached secrets or reloads them if TTL expired or content changed.
@@ -114,14 +126,20 @@ func (c *SecretCache) loadSecrets() error {
 	}
 
 	// Extract webhook verify token
-	if verifyToken, ok := stravaAuth["webhook_verify_token"]; ok {
-		c.verifyToken = fmt.Sprintf("%v", verifyToken)
+	if verifyTokenRaw, ok := stravaAuth["webhook_verify_token"]; ok {
+		if token, ok := verifyTokenRaw.(string); ok {
+			c.verifyToken = token
+		}
 	}
 
 	// Extract webhook subscription ID
 	if subscriptionIDRaw, ok := stravaAuth["webhook_subscription_id"]; ok {
-		if subscriptionID, err := strconv.Atoi(fmt.Sprintf("%v", subscriptionIDRaw)); err == nil {
-			c.subscriptionID = subscriptionID
+		// JSON numbers are parsed as float64, handle both int and float64
+		switch id := subscriptionIDRaw.(type) {
+		case float64:
+			c.subscriptionID = int(id)
+		case int:
+			c.subscriptionID = id
 		}
 	}
 
@@ -131,7 +149,7 @@ func (c *SecretCache) loadSecrets() error {
 // LoadConfig loads configuration from environment variables and mounted secrets.
 func LoadConfig() (*Config, error) {
 	// Load webhook secrets from mounted volume if available
-	secretsPath := "/etc/secrets/strava_auth.json"
+	secretsPath := DefaultSecretsPath
 	if _, err := os.Stat(secretsPath); err == nil {
 		secretsFile, err := os.Open(secretsPath)
 		if err != nil {
@@ -144,11 +162,19 @@ func LoadConfig() (*Config, error) {
 				log.Printf("Failed to decode secrets file: %v", err)
 			} else {
 				// Set environment variables from secrets (takes precedence)
-				if verifyToken, ok := stravaAuth["webhook_verify_token"]; ok {
-					os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", fmt.Sprintf("%v", verifyToken))
+				if verifyTokenRaw, ok := stravaAuth["webhook_verify_token"]; ok {
+					if token, ok := verifyTokenRaw.(string); ok {
+						os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", token)
+					}
 				}
-				if subscriptionID, ok := stravaAuth["webhook_subscription_id"]; ok {
-					os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", fmt.Sprintf("%v", subscriptionID))
+				if subscriptionIDRaw, ok := stravaAuth["webhook_subscription_id"]; ok {
+					// Convert to string for environment variable
+					switch id := subscriptionIDRaw.(type) {
+					case float64:
+						os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(int(id)))
+					case int:
+						os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(id))
+					}
 				}
 			}
 		}
