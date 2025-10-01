@@ -1,18 +1,37 @@
 package dispatcher
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHandler_ServeHTTP_Verification(t *testing.T) {
-	cfg := &Config{
-		StravaWebhookVerifyToken: "test-token",
+	// Create temporary secrets file
+	tempDir, err := os.MkdirTemp("", "handler_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
 	}
+	defer os.RemoveAll(tempDir)
+
+	secretsPath := filepath.Join(tempDir, "strava_auth.json")
+	secrets := map[string]interface{}{
+		"webhook_verify_token":    "test-token",
+		"webhook_subscription_id": 12345,
+	}
+	writeTestSecretsFile(t, secretsPath, secrets)
+
+	cfg := &Config{}
 	mockPub := &MockPublisher{}
 	handler := NewHandlerWithPublisher(cfg, mockPub)
+
+	// Override the secret cache path for testing
+	handler.secretCache = NewSecretCache(secretsPath, time.Minute)
 
 	// Valid request
 	req := httptest.NewRequest("GET", "/?hub.mode=subscribe&hub.challenge=test-challenge&hub.verify_token=test-token", nil)
@@ -37,11 +56,26 @@ func TestHandler_ServeHTTP_Verification(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_Event(t *testing.T) {
-	cfg := &Config{
-		StravaWebhookSubscriptionID: 12345,
+	// Create temporary secrets file
+	tempDir, err := os.MkdirTemp("", "handler_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
 	}
+	defer os.RemoveAll(tempDir)
+
+	secretsPath := filepath.Join(tempDir, "strava_auth.json")
+	secrets := map[string]interface{}{
+		"webhook_verify_token":    "test-token",
+		"webhook_subscription_id": 12345,
+	}
+	writeTestSecretsFile(t, secretsPath, secrets)
+
+	cfg := &Config{}
 	mockPub := &MockPublisher{}
 	handler := NewHandlerWithPublisher(cfg, mockPub)
+
+	// Override the secret cache path for testing
+	handler.secretCache = NewSecretCache(secretsPath, time.Minute)
 
 	// Valid event
 	body := `{"aspect_type":"create","object_type":"activity","object_id":1,"owner_id":1,"event_time":1,"subscription_id":12345}`
@@ -85,5 +119,18 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 	}
 	if len(mockPub.Published) != 0 {
 		t.Errorf("expected 0 messages to be published for ignored event, got %d", len(mockPub.Published))
+	}
+}
+
+// Helper function to write test secrets file
+func writeTestSecretsFile(t *testing.T, path string, secrets map[string]interface{}) {
+	data, err := json.Marshal(secrets)
+	if err != nil {
+		t.Fatalf("Failed to marshal secrets: %v", err)
+	}
+
+	err = os.WriteFile(path, data, 0644)
+	if err != nil {
+		t.Fatalf("Failed to write secrets file: %v", err)
 	}
 }

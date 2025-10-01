@@ -9,73 +9,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 )
 
-// Config holds all configuration for the dispatcher.
-type Config struct {
-	StravaWebhookVerifyToken    string
-	StravaWebhookSubscriptionID int
-	GCPProjectID                string
-	GCPPubSubTopicID            string
-	LogLevel                    string
-}
-
-// LoadConfig loads configuration from environment variables and mounted secrets.
-func LoadConfig() (*Config, error) {
-	// Load webhook secrets from mounted volume if available
-	secretsPath := "/etc/secrets/strava_auth.json"
-	if _, err := os.Stat(secretsPath); err == nil {
-		secretsFile, err := os.Open(secretsPath)
-		if err != nil {
-			log.Printf("Failed to open secrets file: %v", err)
-		} else {
-			defer secretsFile.Close()
-
-			var stravaAuth map[string]interface{}
-			if err := json.NewDecoder(secretsFile).Decode(&stravaAuth); err != nil {
-				log.Printf("Failed to decode secrets file: %v", err)
-			} else {
-				// Set environment variables from secrets (takes precedence)
-				if verifyToken, ok := stravaAuth["webhook_verify_token"]; ok {
-					os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", fmt.Sprintf("%v", verifyToken))
-				}
-				if subscriptionID, ok := stravaAuth["webhook_subscription_id"]; ok {
-					os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", fmt.Sprintf("%v", subscriptionID))
-				}
-			}
-		}
-	}
-
-	subIDStr := getEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "0")
-	subscriptionID, err := strconv.Atoi(subIDStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID: %v", err)
-	}
-
-	return &Config{
-		StravaWebhookVerifyToken:    getEnvOrDefault("STRAVA_WEBHOOK_VERIFY_TOKEN", ""),
-		StravaWebhookSubscriptionID: subscriptionID,
-		GCPProjectID:                getEnvOrDefault("GCP_PROJECT_ID", ""),
-		GCPPubSubTopicID:            getEnvOrDefault("GCP_PUBSUB_TOPIC", ""),
-		LogLevel:                    getEnvOrDefault("LOG_LEVEL", "INFO"),
-	}, nil
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
 // Handler orchestrates the webhook processing.
 type Handler struct {
-	config    *Config
-	publisher Publisher
+	secretCache *SecretCache
+	config      *Config
+	publisher   Publisher
 }
 
 // NewHandler creates a new webhook handler.
@@ -90,17 +33,25 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		return nil, fmt.Errorf("failed to create publisher: %w", err)
 	}
 
+	// Create secret cache with 5-minute TTL
+	secretCache := NewSecretCache("/etc/secrets/strava_auth.json", 5*time.Minute)
+
 	return &Handler{
-		config:    cfg,
-		publisher: publisher,
+		secretCache: secretCache,
+		config:      cfg,
+		publisher:   publisher,
 	}, nil
 }
 
 // NewHandlerWithPublisher is a constructor for testing that allows injecting a mock publisher.
 func NewHandlerWithPublisher(cfg *Config, publisher Publisher) *Handler {
+	// Create secret cache with 5-minute TTL for testing
+	secretCache := NewSecretCache("/etc/secrets/strava_auth.json", 5*time.Minute)
+
 	return &Handler{
-		config:    cfg,
-		publisher: publisher,
+		secretCache: secretCache,
+		config:      cfg,
+		publisher:   publisher,
 	}
 }
 
@@ -136,7 +87,16 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, cor
 		writeError(w, http.StatusBadRequest, msg, "", correlationID)
 		return
 	}
-	if token != h.config.StravaWebhookVerifyToken {
+
+	// Get current verify token from secret cache
+	verifyToken, _, err := h.secretCache.GetSecrets()
+	if err != nil {
+		log.Printf("[%s] Failed to get verify token: %v", correlationID, err)
+		writeError(w, http.StatusInternalServerError, "Configuration error", err.Error(), correlationID)
+		return
+	}
+
+	if token != verifyToken {
 		log.Printf("[%s] Invalid verify token", correlationID)
 		writeError(w, http.StatusUnauthorized, "Invalid verify token", "", correlationID)
 		return
@@ -163,7 +123,15 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlatio
 		return
 	}
 
-	if webhook.SubscriptionID != h.config.StravaWebhookSubscriptionID {
+	// Get current subscription ID from secret cache
+	_, subscriptionID, err := h.secretCache.GetSecrets()
+	if err != nil {
+		log.Printf("[%s] Failed to get subscription ID: %v", correlationID, err)
+		writeError(w, http.StatusInternalServerError, "Configuration error", err.Error(), correlationID)
+		return
+	}
+
+	if webhook.SubscriptionID != subscriptionID {
 		msg := fmt.Sprintf("invalid subscription_id: %d", webhook.SubscriptionID)
 		log.Printf("[%s] %s", correlationID, msg)
 		writeError(w, http.StatusUnauthorized, msg, "", correlationID)
