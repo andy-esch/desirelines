@@ -24,7 +24,7 @@ Complete environment bootstrap from scratch. Creates GCP project resources, enab
 ./scripts/infrastructure/bootstrap-environment.sh prod
 ```
 
-See [Bootstrap Guide](../docs/bootstrap-guide.md) for details.
+See [Bootstrap Guide](../docs/guides/bootstrap.md) for details.
 
 ### bootstrap-terraform-sa.sh
 Create and configure Terraform service account with required permissions.
@@ -52,7 +52,7 @@ Initialize local Docker Compose development environment with PubSub emulator.
 ./scripts/development/setup_local_testing.sh
 ```
 
-See [Local Testing Setup](../docs/local-testing-setup.md) for details.
+See [Local Testing Setup](../docs/guides/local-testing.md) for details.
 
 ### api-gateway-tunnel.sh
 Create SSH tunnel to access VPC-only API Gateway from local machine.
@@ -90,7 +90,7 @@ go run scripts/data/backfill_activities.go \
   --limit=50
 ```
 
-See [Backfill Guide](../docs/backfill-guide.md) for details.
+See [Backfill Guide](../docs/guides/backfill.md) for details.
 
 ## Operations Scripts
 
@@ -175,7 +175,6 @@ go run scripts/data/backfill_activities.go \
 
 ## Related Documentation
 
-- [Project Master Plan](../docs/project-master-plan.md) - Overall project status
-- [Bootstrap Guide](../docs/bootstrap-guide.md) - Environment setup details
-- [Backfill Guide](../docs/backfill-guide.md) - Data restoration process
-- [Local Testing Setup](../docs/local-testing-setup.md) - Docker development
+- [Bootstrap Guide](../docs/guides/bootstrap.md) - Environment setup details
+- [Backfill Guide](../docs/guides/backfill.md) - Data restoration process
+- [Local Testing Setup](../docs/guides/local-testing.md) - Docker development

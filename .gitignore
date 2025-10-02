@@ -233,3 +233,6 @@ packages/**/requirements.txt
 strava-auth-local.json
 strava-auth-dev.json
 strava-auth-prod.json
+
+# Planning and internal documentation
+docs/planning/
