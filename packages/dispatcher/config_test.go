@@ -14,12 +14,16 @@ func TestSecretCache_GetSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	secretsPath := filepath.Join(tempDir, "strava_auth.json")
 
 	// Create initial secrets file
-	initialSecrets := map[string]interface{}{
+	initialSecrets := map[string]any{
 		"webhook_verify_token":    "initial-token",
 		"webhook_subscription_id": 12345,
 	}
@@ -50,7 +54,7 @@ func TestSecretCache_GetSecrets(t *testing.T) {
 	}
 
 	// Update secrets file with new content
-	updatedSecrets := map[string]interface{}{
+	updatedSecrets := map[string]any{
 		"webhook_verify_token":    "updated-token",
 		"webhook_subscription_id": 67890,
 	}
@@ -95,7 +99,11 @@ func TestSecretCache_InvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	secretsPath := filepath.Join(tempDir, "invalid.json")
 
@@ -118,12 +126,16 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	secretsPath := filepath.Join(tempDir, "strava_auth.json")
 
 	// Create initial valid secrets file
-	initialSecrets := map[string]interface{}{
+	initialSecrets := map[string]any{
 		"webhook_verify_token":    "cached-token",
 		"webhook_subscription_id": 11111,
 	}
@@ -141,7 +153,9 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 	}
 
 	// Delete the file to simulate temporary file system issue
-	os.Remove(secretsPath)
+	if err := os.Remove(secretsPath); err != nil {
+		t.Logf("Failed to remove test file: %v", err)
+	}
 
 	// Wait for TTL to expire
 	time.Sleep(150 * time.Millisecond)
@@ -161,12 +175,16 @@ func TestSecretCache_ContentHashDetection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	secretsPath := filepath.Join(tempDir, "strava_auth.json")
 
 	// Create initial secrets file
-	initialSecrets := map[string]interface{}{
+	initialSecrets := map[string]any{
 		"webhook_verify_token":    "hash-test-token",
 		"webhook_subscription_id": 99999,
 	}
@@ -184,7 +202,7 @@ func TestSecretCache_ContentHashDetection(t *testing.T) {
 	}
 
 	// Update file content (different values, same file)
-	updatedSecrets := map[string]interface{}{
+	updatedSecrets := map[string]any{
 		"webhook_verify_token":    "new-hash-token",
 		"webhook_subscription_id": 88888,
 	}
@@ -207,7 +225,7 @@ func TestSecretCache_ContentHashDetection(t *testing.T) {
 }
 
 // Helper function to write secrets file
-func writeSecretsFile(t *testing.T, path string, secrets map[string]interface{}) {
+func writeSecretsFile(t *testing.T, path string, secrets map[string]any) {
 	data, err := json.Marshal(secrets)
 	if err != nil {
 		t.Fatalf("Failed to marshal secrets: %v", err)

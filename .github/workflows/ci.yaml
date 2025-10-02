@@ -62,7 +62,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.25'
 
       - name: Install Go dependencies
         run: cd packages/dispatcher && go mod download
@@ -73,8 +73,12 @@ jobs:
       - name: Run Go tests
         run: make go-test
 
-      - name: Run Go linting
-        run: make go-lint
+      - name: Run Go linting with golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: packages/dispatcher
+          args: --timeout=5m
 
       - name: Check Go formatting
         run: |

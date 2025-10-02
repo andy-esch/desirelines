@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -33,8 +32,8 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		return nil, fmt.Errorf("failed to create publisher: %w", err)
 	}
 
-	// Create secret cache with 5-minute TTL
-	secretCache := NewSecretCache("/etc/secrets/strava_auth.json", 5*time.Minute)
+	// Create secret cache with default settings
+	secretCache := NewDefaultSecretCache()
 
 	return &Handler{
 		secretCache: secretCache,
@@ -45,8 +44,8 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 
 // NewHandlerWithPublisher is a constructor for testing that allows injecting a mock publisher.
 func NewHandlerWithPublisher(cfg *Config, publisher Publisher) *Handler {
-	// Create secret cache with 5-minute TTL for testing
-	secretCache := NewSecretCache("/etc/secrets/strava_auth.json", 5*time.Minute)
+	// Create secret cache with default settings for testing
+	secretCache := NewDefaultSecretCache()
 
 	return &Handler{
 		secretCache: secretCache,
@@ -91,20 +90,20 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, cor
 	// Get current verify token from secret cache
 	verifyToken, _, err := h.secretCache.GetSecrets()
 	if err != nil {
-		log.Printf("[%s] Failed to get verify token: %v", correlationID, err)
-		writeError(w, http.StatusInternalServerError, "Configuration error", err.Error(), correlationID)
+		h.logAndWriteError(w, correlationID, http.StatusInternalServerError, "Configuration error", err, "Failed to get verify token")
 		return
 	}
 
 	if token != verifyToken {
-		log.Printf("[%s] Invalid verify token", correlationID)
-		writeError(w, http.StatusUnauthorized, "Invalid verify token", "", correlationID)
+		h.logAndWriteError(w, correlationID, http.StatusUnauthorized, "Invalid verify token", nil, "Invalid verify token")
 		return
 	}
 
 	log.Printf("[%s] Webhook verification successful", correlationID)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge})
+	if err := json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge}); err != nil {
+		log.Printf("[%s] Failed to encode response: %v", correlationID, err)
+	}
 }
 
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlationID string) {
@@ -112,41 +111,36 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlatio
 
 	var webhook WebhookRequest
 	if err := json.NewDecoder(r.Body).Decode(&webhook); err != nil {
-		log.Printf("[%s] Invalid JSON payload: %v", correlationID, err)
-		writeError(w, http.StatusBadRequest, "Invalid JSON payload", err.Error(), correlationID)
+		h.logAndWriteError(w, correlationID, http.StatusBadRequest, "Invalid JSON payload", err, "Invalid JSON payload")
 		return
 	}
 
 	if err := webhook.Validate(); err != nil {
-		log.Printf("[%s] Webhook validation failed: %v", correlationID, err)
-		writeError(w, http.StatusBadRequest, "Webhook validation failed", err.Error(), correlationID)
+		h.logAndWriteError(w, correlationID, http.StatusBadRequest, "Webhook validation failed", err, "Webhook validation failed")
 		return
 	}
 
 	// Get current subscription ID from secret cache
 	_, subscriptionID, err := h.secretCache.GetSecrets()
 	if err != nil {
-		log.Printf("[%s] Failed to get subscription ID: %v", correlationID, err)
-		writeError(w, http.StatusInternalServerError, "Configuration error", err.Error(), correlationID)
+		h.logAndWriteError(w, correlationID, http.StatusInternalServerError, "Configuration error", err, "Failed to get subscription ID")
 		return
 	}
 
 	if webhook.SubscriptionID != subscriptionID {
 		msg := fmt.Sprintf("invalid subscription_id: %d", webhook.SubscriptionID)
-		log.Printf("[%s] %s", correlationID, msg)
-		writeError(w, http.StatusUnauthorized, msg, "", correlationID)
+		h.logAndWriteError(w, correlationID, http.StatusUnauthorized, msg, nil, msg)
 		return
 	}
 
-	if webhook.ObjectType != "activity" {
+	if webhook.ObjectType != ObjectActivity {
 		log.Printf("[%s] Ignoring non-activity webhook: %s", correlationID, webhook.ObjectType)
 		writeSuccess(w, correlationID)
 		return
 	}
 
 	if err := h.publisher.Publish(r.Context(), webhook, correlationID); err != nil {
-		log.Printf("[%s] Failed to publish webhook: %v", correlationID, err)
-		writeError(w, http.StatusInternalServerError, "Failed to publish event", err.Error(), correlationID)
+		h.logAndWriteError(w, correlationID, http.StatusInternalServerError, "Failed to publish event", err, "Failed to publish webhook")
 		return
 	}
 
@@ -163,13 +157,30 @@ func writeError(w http.ResponseWriter, code int, msg, details, correlationID str
 	if details != "" {
 		response["details"] = details
 	}
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("[%s] Failed to encode error response: %v", correlationID, err)
+	}
 }
 
 func writeSuccess(w http.ResponseWriter, correlationID string) {
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"success":        "true",
 		"correlation_id": correlationID,
-	})
+	}); err != nil {
+		log.Printf("[%s] Failed to encode success response: %v", correlationID, err)
+	}
+}
+
+// logAndWriteError logs an error and writes an HTTP error response in one call.
+func (h *Handler) logAndWriteError(w http.ResponseWriter, correlationID string,
+	statusCode int, userMsg string, err error, logMsg string) {
+
+	if err != nil {
+		log.Printf("[%s] %s: %v", correlationID, logMsg, err)
+		writeError(w, statusCode, userMsg, err.Error(), correlationID)
+	} else {
+		log.Printf("[%s] %s", correlationID, logMsg)
+		writeError(w, statusCode, userMsg, "", correlationID)
+	}
 }
