@@ -14,6 +14,7 @@ Endpoints:
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 import functions_framework
@@ -24,9 +25,13 @@ from google.cloud.storage.blob import Blob
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize storage client (reused across invocations)
+# Configuration
+DATA_SOURCE = os.environ.get("DATA_SOURCE", "cloud-storage")  # "cloud-storage" or "local-fixtures"
+FIXTURES_PATH = os.environ.get("FIXTURES_PATH", "/app/data/fixtures")
+
+# Initialize storage client (reused across invocations, only for cloud mode)
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "local-dev")
-storage_client = storage.Client(project=PROJECT_ID)
+storage_client = storage.Client(project=PROJECT_ID) if DATA_SOURCE == "cloud-storage" else None
 BUCKET_NAME = os.environ.get("GCP_BUCKET_NAME", "desirelines_local_testing")
 
 
@@ -38,6 +43,29 @@ def _get_cors_headers() -> dict[str, str]:
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Max-Age": "3600",
     }
+
+
+def _fetch_local_fixture(file_path: str) -> tuple[dict[str, Any] | None, int]:
+    """Fetch JSON data from local fixtures directory"""
+    try:
+        full_path = Path(FIXTURES_PATH) / file_path
+
+        if not full_path.exists():
+            logger.warning(f"Fixture file not found: {full_path}")
+            return None, 404
+
+        with open(full_path, 'r') as f:
+            data = json.load(f)
+
+        logger.info(f"Successfully loaded fixture: {file_path}")
+        return data, 200
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in fixture {file_path}: {e}")
+        return None, 500
+    except Exception as e:
+        logger.error(f"Error loading fixture {file_path}: {e}")
+        return None, 500
 
 
 def _fetch_blob_data(blob_name: str) -> tuple[dict[str, Any] | None, int]:
@@ -62,6 +90,14 @@ def _fetch_blob_data(blob_name: str) -> tuple[dict[str, Any] | None, int]:
         return None, 500
 
 
+def _fetch_data(resource_path: str) -> tuple[dict[str, Any] | None, int]:
+    """Fetch data from configured source (local fixtures or cloud storage)"""
+    if DATA_SOURCE == "local-fixtures":
+        return _fetch_local_fixture(resource_path)
+    else:
+        return _fetch_blob_data(resource_path)
+
+
 @functions_framework.http
 def main(request):
     """API Gateway Cloud Function - handles all chart data endpoints"""
@@ -80,17 +116,16 @@ def main(request):
     try:
         # Health check endpoint
         if path == "health":
-            return (
-                {
-                    "status": "healthy",
-                    "bucket": BUCKET_NAME,
-                    "timestamp": json.loads(
-                        json.dumps({"now": "placeholder"})
-                    ),  # JSON serializable
-                },
-                200,
-                _get_cors_headers(),
-            )
+            health_data = {
+                "status": "healthy",
+                "data_source": DATA_SOURCE,
+            }
+            if DATA_SOURCE == "cloud-storage":
+                health_data["bucket"] = BUCKET_NAME
+            else:
+                health_data["fixtures_path"] = FIXTURES_PATH
+
+            return health_data, 200, _get_cors_headers()
 
         # Parse activity data endpoints: activities/{year}/{data_type}
         path_parts = path.split("/")
@@ -115,8 +150,8 @@ def main(request):
                     _get_cors_headers(),
                 )
 
-            blob_name = blob_mapping[data_type]
-            data, status_code = _fetch_blob_data(blob_name)
+            resource_path = blob_mapping[data_type]
+            data, status_code = _fetch_data(resource_path)
 
             if status_code != 200:
                 if status_code == 404:

@@ -22,4 +22,4 @@ RUN mkdir -p /.config/gcloud
 EXPOSE 8080
 
 # Use functions-framework to run the function
-CMD ["functions-framework", "--target=api_gateway", "--host=0.0.0.0", "--port=8080"]
+CMD ["functions-framework", "--target=main", "--host=0.0.0.0", "--port=8080"]

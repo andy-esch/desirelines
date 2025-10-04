@@ -1,5 +1,11 @@
 services:
+  # ==========================================
+  # BACKEND PIPELINE SERVICES
+  # Start with: make start (or docker compose up)
+  # ==========================================
+
   activity-dispatcher:
+    profiles: ["backend"]  # Backend pipeline only
     build:
       context: ./packages/dispatcher
       dockerfile: Dockerfile
@@ -24,6 +30,7 @@ services:
       retries: 3
 
   activity-aggregator:
+    profiles: ["backend"]  # Backend pipeline only
     build:
       context: .
       dockerfile: functions/Dockerfile.activity_aggregator
@@ -44,6 +51,7 @@ services:
         condition: service_completed_successfully
 
   activity-bq-inserter:
+    profiles: ["backend"]  # Backend pipeline only
     build:
       context: .
       dockerfile: functions/Dockerfile.activity_bq_inserter
@@ -65,6 +73,7 @@ services:
 
   # Bootstrap PubSub topics and subscriptions
   pubsub-bootstrap:
+    profiles: ["backend"]  # Backend pipeline only
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
@@ -78,6 +87,7 @@ services:
 
   # Local PubSub emulator for testing
   pubsub-emulator:
+    profiles: ["backend"]  # Backend pipeline only
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
     ports:
       - "8085:8085"
@@ -87,6 +97,7 @@ services:
 
   # PubSub Emulator Web UI for debugging
   pubsub-ui:
+    profiles: ["debug"]  # Debug profile (use with backend)
     image: ghcr.io/neoscript/pubsub-emulator-ui:latest
     ports:
       - "4200:80"
@@ -95,9 +106,13 @@ services:
       - GCP_PROJECT_ID=local-dev
     depends_on:
       - pubsub-emulator
-    profiles: ["debug"]  # Only starts with --profile debug
 
-  # API Gateway - secure data serving (manual start only)
+  # ==========================================
+  # FRONTEND SERVICES
+  # Start with: make start-frontend
+  # ==========================================
+
+  # API Gateway - serves data to web UI
   api-gateway:
     profiles: ["frontend"]  # Only starts with --profile frontend
     build:
@@ -106,7 +121,11 @@ services:
     ports:
       - "8084:8080"
     environment:
-      - FUNCTION_TARGET=api_gateway
+      - FUNCTION_TARGET=main
+      # Local fixtures mode (default) - set DATA_SOURCE=cloud-storage for live data
+      - DATA_SOURCE=${DATA_SOURCE:-local-fixtures}
+      - FIXTURES_PATH=/app/data/fixtures
+      # Cloud storage mode (when DATA_SOURCE=cloud-storage)
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE:-local-dev}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE:-desirelines_local_testing}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
@@ -115,8 +134,17 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./functions/api_gateway.py:/app/main.py
-      # Mount gcloud credentials for bucket access
+      # Mount local fixtures for offline development
+      - ./data/fixtures:/app/data/fixtures:ro
+      # Mount gcloud credentials for bucket access (cloud mode only)
       - ~/.config/gcloud:/app/.config/gcloud:ro
+    # Resource limits for low-memory systems
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -124,8 +152,9 @@ services:
       retries: 3
 
   # React Web App (manual start only)
+  # DISABLED: Use `make site-start` to run React directly (no Docker)
   web:
-    profiles: ["frontend"]  # Only starts with --profile frontend
+    profiles: ["frontend-docker"]  # Disabled by default, use different profile
     build:
       context: ./web
       dockerfile: Dockerfile.dev
@@ -134,10 +163,20 @@ services:
     environment:
       - REACT_APP_API_URL=http://localhost:8084
       - CHOKIDAR_USEPOLLING=true  # Hot reload in Docker
+      - NODE_OPTIONS=--max-old-space-size=512  # Limit Node.js memory to 512MB
     volumes:
-      - ./web/src:/app/src:ro
-      - ./web/public:/app/public:ro
+      - ./web/src:/app/src
+      - ./web/public:/app/public
+      - ./web/package.json:/app/package.json:ro
+      - ./web/tsconfig.json:/app/tsconfig.json:ro
       # Exclude node_modules from bind mount for performance
       - /app/node_modules
+    # Resource limits for low-memory systems
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
     depends_on:
       - api-gateway
