@@ -2,20 +2,22 @@
 import React, { useEffect, useState } from "react";
 import { Chart as ChartJS, TimeScale } from "chart.js/auto";
 import { Line } from "react-chartjs-2";
-import { fetchPacingData, pacingBlobType, emptyPacingData } from "./Data";
+import { fetchPacingData } from "../api/activities";
+import type { PacingBlobType } from "../types/activity";
+import { EMPTY_PACING_DATA } from "../constants";
 import "chartjs-adapter-date-fns";
 import { offsetDate } from "./utils";
 
 ChartJS.register(TimeScale);
 
 const PacingChart = (props: { year: number }) => {
-  const [pacingData, setPacingData] = useState<pacingBlobType>(emptyPacingData);
+  const [pacingData, setPacingData] = useState<PacingBlobType>(EMPTY_PACING_DATA);
   const [latestDate, setLatestDate] = useState<string>("2024-02-03");
   console.log(props);
   const { year } = props;
   console.log(`year: ${year}`);
   const fetchData = async (year: number) => {
-    const pacingData: pacingBlobType = await fetchPacingData(year);
+    const pacingData: PacingBlobType = await fetchPacingData(year);
     console.log("pacingData!", pacingData);
     setPacingData(pacingData);
 

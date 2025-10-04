@@ -2,7 +2,9 @@
 import React, { useEffect, useState } from "react";
 import { Chart as ChartJS, TimeScale } from "chart.js/auto";
 import { Line } from "react-chartjs-2";
-import { fetchDistanceData, rideBlobType, emptyRideData } from "./Data";
+import { fetchDistanceData } from "../api/activities";
+import type { RideBlobType } from "../types/activity";
+import { EMPTY_RIDE_DATA } from "../constants";
 import "chartjs-adapter-date-fns";
 import { offsetDate } from "./utils";
 
@@ -12,14 +14,14 @@ const DistanceChart = (props: { year: number }) => {
   console.log(props);
   const { year } = props;
   console.log(`year: ${year}`);
-  const [rideData, setRideData] = useState<rideBlobType>(emptyRideData);
+  const [rideData, setRideData] = useState<RideBlobType>(EMPTY_RIDE_DATA);
   const [maxRangeValue, setMaxRangeValue] = useState<number>(0);
   const [minRangeValue, setMinRangeValue] = useState<number>(0);
   const [totalDistanceTraveled, setTotalDistanceTraveled] = useState<number>(0);
   const [latestDate, setLatestDate] = useState<string>("2024-01-01");
 
   const fetchRideData = async (year: number) => {
-    const rideData: rideBlobType = await fetchDistanceData(year);
+    const rideData: RideBlobType = await fetchDistanceData(year);
     console.log("rideData:", rideData);
     setRideData(rideData);
 
