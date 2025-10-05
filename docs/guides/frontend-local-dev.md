@@ -5,24 +5,21 @@ Quick start guide for developing the React web UI with local fixture data.
 ## Quick Start
 
 ```bash
-# Start the frontend development stack (API Gateway + Web UI)
+# Start the API Gateway with local fixtures
 make start-frontend
 
-# View logs
-make logs-frontend
-
-# Stop services
-make stop-frontend
+# In a separate terminal, start the React web UI
+make site-start
 ```
 
-That's it! The web UI will be available at http://localhost:3000 and will connect to a local API Gateway serving fixture data.
+That's it! The web UI will be available at http://localhost:3000 and will connect to the local API Gateway serving fixture data.
 
 ## What Gets Started
 
-The `make start-frontend` command starts two services:
+The frontend development stack consists of:
 
-1. **API Gateway** (port 8084) - Serves local fixture data from `data/fixtures/`
-2. **Web UI** (port 3000) - React development server with hot reload
+1. **API Gateway** (port 8084) - Started with `make start-frontend`, serves local fixture data from `data/fixtures/`
+2. **Web UI** (port 3000) - Started with `make site-start`, React development server with hot reload (runs via npm, not Docker)
 
 ## Service URLs
 
@@ -87,61 +84,74 @@ See `data/fixtures/README.md` for detailed data structure.
 ### Viewing Logs
 
 ```bash
-# All frontend logs (API Gateway + Web UI)
-make logs-frontend
-
-# Just API Gateway
+# API Gateway logs
 make logs-api
 
-# Just Web UI
-make logs-web
+# Web UI logs (visible in the terminal where you ran `make site-start`)
+# Ctrl+C to stop the React dev server
 ```
 
 ## Memory Optimization
 
 The frontend stack is optimized for low-memory systems:
 
-**API Gateway:**
-- Memory limit: 256MB
-- Reserved: 64MB
+**API Gateway (Docker):**
+- Memory limit: 128MB
+- Reserved: 32MB
 
-**Web UI:**
-- Node.js heap: 512MB (`--max-old-space-size=512`)
-- Container limit: 768MB
-- Reserved: 256MB
+**Web UI (npm):**
+- Runs directly via npm (not containerized)
+- Uses default Node.js memory settings
+- Typically ~200-400MB depending on usage
 
-**Total frontend stack: ~1GB memory**
-
-If you experience memory issues, you can:
-1. Increase Node.js heap: `NODE_OPTIONS=--max-old-space-size=1024 make start-frontend`
-2. Run web UI directly (no Docker): `make site-start` (requires `npm install` in web/)
+**Total frontend stack: ~300-500MB memory**
 
 ## Troubleshooting
 
 ### Port Already in Use
 If ports 3000 or 8084 are busy:
 ```bash
-# Stop any existing frontend services
+# Stop API Gateway
 make stop-frontend
 
-# Check for other processes
+# Stop Web UI (Ctrl+C in the terminal running it, or:)
+lsof -i :3000  # Find the process
+kill <PID>     # Kill the process
+
+# Check for other processes using the ports
 lsof -i :3000
 lsof -i :8084
 ```
 
-### Docker Build Issues
+### API Gateway Build Issues
 ```bash
-# Clean rebuild
+# Clean rebuild of API Gateway
 make stop-frontend
-docker compose --profile frontend build --no-cache
+docker compose --profile frontend build --no-cache api-gateway
 make start-frontend
 ```
 
-### Fixture Data Not Loading
-Check the health endpoint to verify configuration:
+### Web UI Issues
 ```bash
+# Reinstall dependencies
+cd web
+rm -rf node_modules package-lock.json
+npm install
+
+# Start again
+make site-start
+```
+
+### Fixture Data Not Loading
+Check the health endpoint and logs to verify configuration:
+```bash
+# Check API Gateway is running
 curl http://localhost:8084/health
-# Should show: "data_source": "local-fixtures"
+# Should return: {"status":"healthy"}
+
+# Check logs for data source confirmation
+make logs-api
+# Should show: "Using local fixtures from: /app/data/fixtures"
 ```
 
 ## Next Steps
