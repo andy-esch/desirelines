@@ -112,41 +112,35 @@ services:
   # Start with: make start-frontend
   # ==========================================
 
-  # API Gateway - serves data to web UI
+  # API Gateway - serves data to web UI (Go implementation)
   api-gateway:
     profiles: ["frontend"]  # Only starts with --profile frontend
     build:
       context: .
-      dockerfile: functions/Dockerfile.api_gateway
+      dockerfile: functions/Dockerfile.apigateway
+      # Note: This builds from packages/apigateway/cmd/local for Docker development
     ports:
       - "8084:8080"
     environment:
-      - FUNCTION_TARGET=main
-      # Local fixtures mode (default) - set DATA_SOURCE=cloud-storage for live data
-      - DATA_SOURCE=${DATA_SOURCE:-local-fixtures}
-      - FIXTURES_PATH=/app/data/fixtures
-      # Cloud storage mode (when DATA_SOURCE=cloud-storage)
+      - PORT=8080
+      # Cloud storage configuration
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE:-local-dev}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE:-desirelines_local_testing}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
     env_file:
       - .env
     volumes:
-      - ./.env:/app/.env
-      - ./functions/api_gateway.py:/app/main.py
-      # Mount local fixtures for offline development
-      - ./data/fixtures:/app/data/fixtures:ro
-      # Mount gcloud credentials for bucket access (cloud mode only)
+      # Mount gcloud credentials for bucket access
       - ~/.config/gcloud:/app/.config/gcloud:ro
     # Resource limits for low-memory systems
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
         reservations:
-          memory: 64M
+          memory: 32M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3

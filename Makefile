@@ -41,6 +41,7 @@ py-typecheck:
 go-test:
 	@echo "🧪 Running Go tests for local packages..."
 	cd packages/dispatcher && go test -v ./...
+	cd packages/apigateway && go test -v ./...
 
 go-test-all:
 	@echo "🧪 Running all Go tests in workspace (parallelism=2)..."
@@ -51,14 +52,17 @@ go-test-coverage:
 
 go-lint:
 	@echo "🔍 Running golangci-lint..."
-	golangci-lint run packages/dispatcher
+	cd packages/dispatcher && golangci-lint run ./...
+	cd packages/apigateway && golangci-lint run ./...
 
 go-lint-fix:
 	@echo "🔧 Running golangci-lint with auto-fix..."
-	golangci-lint run --fix packages/dispatcher
+	cd packages/dispatcher && golangci-lint run --fix ./...
+	cd packages/apigateway && golangci-lint run --fix ./...
 
 go-format:
 	cd packages/dispatcher && go fmt ./...
+	cd packages/apigateway && go fmt ./...
 
 go-build:
 	cd packages/dispatcher && go build -v .
@@ -206,7 +210,7 @@ help:
 # Combined commands
 test: py-test go-test
 lint: py-lint go-lint
-format: py-format go-format
+format: py-format go-format tf-fmt
 
 
 # ==========================================
@@ -283,9 +287,6 @@ generate-requirements:
 	@echo "  - Removing local package references from stravabqsync requirements"
 	sed -i '' '/^\.\/packages\/stravabqsync$$/d' functions/requirements-stravabqsync.txt
 	sed -i '' '/^\.\/packages\/aggregator$$/d' functions/requirements-stravabqsync.txt
-	@echo "  - API Gateway requirements (standalone, no local packages)"
-	@echo "functions-framework==3.*" > functions/requirements-api_gateway.txt
-	@echo "google-cloud-storage==2.*" >> functions/requirements-api_gateway.txt
 
 # Build all images
 build: generate-requirements

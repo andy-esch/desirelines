@@ -107,26 +107,43 @@ cd "$TEMP_AGG" && zip -r - . > "$OLDPWD/$DIST_DIR/aggregator-$SHA.zip"
 cd "$OLDPWD"
 
 # =============================================================================
-# Python API Gateway Function
+# Go API Gateway Function
 # =============================================================================
 echo "  → api-gateway-$SHA.zip"
 
-# Create temporary directory for API gateway
-TEMP_API=$(mktemp -d)
+# Create temporary directory for Go API Gateway
+TEMP_API_GO=$(mktemp -d)
+trap "rm -rf $TEMP_API_GO" EXIT
 
-# Copy Python function wrapper
-cp functions/api_gateway.py "$TEMP_API/main.py"
+# 1. Copy function wrapper
+cp functions/apigateway/main.go "$TEMP_API_GO/function.go"
 
-# Copy desirelines business logic
+# 2. Copy complete business logic package
+mkdir -p "$TEMP_API_GO/packages"
 rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
       --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
-      packages/aggregator/src/ "$TEMP_API/"
+      --exclude='coverage.html' --exclude='coverage.out' \
+      --exclude='*_test.go' --exclude='test_*.sh' \
+      --exclude='Makefile' --exclude='README.md' \
+      packages/apigateway/ "$TEMP_API_GO/packages/apigateway/"
 
-# Generate requirements.txt from pyproject.toml for Cloud Functions deployment
-cd packages/aggregator && uv pip compile pyproject.toml --output-file "$TEMP_API/requirements.txt" && cd ../..
+# 3. Create go.mod with correct replace directive
+cat > "$TEMP_API_GO/go.mod" << 'EOF'
+module github.com/andy-esch/desirelines/api-gateway-function
 
-# Create the zip
-cd "$TEMP_API" && zip -r - . > "$OLDPWD/$DIST_DIR/api-gateway-$SHA.zip"
+go 1.25
+
+require (
+	cloud.google.com/go/storage v1.49.0
+	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
+	github.com/andy-esch/desirelines/packages/apigateway v0.0.0
+)
+
+replace github.com/andy-esch/desirelines/packages/apigateway => ./packages/apigateway
+EOF
+
+# Create the zip from temp directory
+cd "$TEMP_API_GO" && zip -r - . > "$OLDPWD/$DIST_DIR/api-gateway-$SHA.zip"
 cd "$OLDPWD"
 
 # =============================================================================
