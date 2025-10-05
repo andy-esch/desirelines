@@ -123,14 +123,19 @@ services:
       - "8084:8080"
     environment:
       - PORT=8080
-      # Cloud storage configuration
+      # Data source: local-fixtures (default) or cloud-storage
+      - DATA_SOURCE=${DATA_SOURCE:-local-fixtures}
+      - LOCAL_FIXTURES_PATH=/app/data/fixtures
+      # Cloud storage configuration (used when DATA_SOURCE=cloud-storage)
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE:-local-dev}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE:-desirelines_local_testing}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
     env_file:
       - .env
     volumes:
-      # Mount gcloud credentials for bucket access
+      # Mount local fixtures for development
+      - ./data/fixtures:/app/data/fixtures:ro
+      # Mount gcloud credentials for bucket access (used when DATA_SOURCE=cloud-storage)
       - ~/.config/gcloud:/app/.config/gcloud:ro
     # Resource limits for low-memory systems
     deploy:

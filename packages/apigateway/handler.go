@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
@@ -21,14 +22,41 @@ type Handler struct {
 
 // NewHandler creates a new API Gateway handler.
 func NewHandler(ctx context.Context) (*Handler, error) {
-	storageClient, err := storage.NewCloudStorageClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create storage client: %w", err)
+	var storageClient storage.Client
+	var err error
+
+	// Check DATA_SOURCE environment variable
+	dataSource := getEnvOrDefault("DATA_SOURCE", "cloud-storage")
+
+	switch dataSource {
+	case "local-fixtures":
+		basePath := getEnvOrDefault("LOCAL_FIXTURES_PATH", "data/fixtures")
+		storageClient, err = storage.NewLocalStorageClient(basePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create local storage client: %w", err)
+		}
+		log.Printf("Using local fixtures from: %s", basePath)
+	case "cloud-storage":
+		storageClient, err = storage.NewCloudStorageClient(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create cloud storage client: %w", err)
+		}
+		log.Println("Using Cloud Storage")
+	default:
+		return nil, fmt.Errorf("invalid DATA_SOURCE: %s (expected: local-fixtures or cloud-storage)", dataSource)
 	}
 
 	return &Handler{
 		storage: storageClient,
 	}, nil
+}
+
+// getEnvOrDefault returns environment variable value or default if not set.
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // NewHandlerWithStorage is a constructor for testing that allows injecting a mock storage client.

@@ -1,4 +1,4 @@
-// Package storage provides Cloud Storage operations for the API Gateway.
+// Package storage provides Cloud Storage and local file operations for the API Gateway.
 package storage
 
 import (
@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"cloud.google.com/go/storage"
 )
@@ -70,6 +71,47 @@ func (c *CloudStorageClient) ReadJSON(ctx context.Context, blobPath string) (int
 	var result interface{}
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	return result, nil
+}
+
+// LocalStorageClient implements Client using local filesystem.
+type LocalStorageClient struct {
+	basePath string
+}
+
+// NewLocalStorageClient creates a new local storage client.
+func NewLocalStorageClient(basePath string) (*LocalStorageClient, error) {
+	if basePath == "" {
+		basePath = "data/fixtures"
+	}
+
+	// Verify base path exists
+	if _, err := os.Stat(basePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("local storage base path does not exist: %s", basePath)
+	}
+
+	return &LocalStorageClient{
+		basePath: basePath,
+	}, nil
+}
+
+// ReadJSON reads a JSON file from local filesystem and returns parsed data.
+func (c *LocalStorageClient) ReadJSON(ctx context.Context, blobPath string) (interface{}, error) {
+	filePath := filepath.Join(c.basePath, blobPath)
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to read file %s: %w", filePath, err)
+	}
+
+	var result interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON from %s: %w", filePath, err)
 	}
 
 	return result, nil
