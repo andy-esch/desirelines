@@ -83,4 +83,4 @@ terraform apply -var="function_image_tag=$SHA"
 - **Use service account impersonation** - no need to manage key files locally
 - **State files contain sensitive data** - ensure proper GCS bucket permissions
 
-For detailed setup instructions, see `CLAUDE.md` in the project root.
+For detailed setup instructions, see [docs/guides/bootstrap.md](../docs/guides/bootstrap.md).

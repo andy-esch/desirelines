@@ -90,7 +90,7 @@ go run scripts/data/backfill_activities.go \
   --limit=50
 ```
 
-See [Backfill Guide](../docs/guides/backfill.md) for details.
+<!-- TODO: Add backfill guide to docs/guides/backfill.md -->
 
 ## Operations Scripts
 
@@ -176,5 +176,5 @@ go run scripts/data/backfill_activities.go \
 ## Related Documentation
 
 - [Bootstrap Guide](../docs/guides/bootstrap.md) - Environment setup details
-- [Backfill Guide](../docs/guides/backfill.md) - Data restoration process
 - [Local Testing Setup](../docs/guides/local-testing.md) - Docker development
+<!-- TODO: Add backfill guide to docs/guides/backfill.md -->

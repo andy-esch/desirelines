@@ -36,7 +36,7 @@ This monorepo system processes Strava activity events through a serverless pipel
 
 ```bash
 # Complete local development setup (recommended)
-./scripts/local-dev/setup-local-environment.sh
+./scripts/development/local-dev/setup-local-environment.sh
 
 # Or manually:
 uv sync
@@ -46,7 +46,7 @@ cp .env.example .env  # Edit with your values
 
 ## Strava Webhook Setup ⭐ CRITICAL
 
-**Important**: Strava webhooks require OAuth2 user authorization to deliver events. See [`docs/strava-webhook-setup.md`](./docs/strava-webhook-setup.md) for complete setup guide.
+**Important**: Strava webhooks require OAuth2 user authorization to deliver events. See [`docs/guides/strava-webhook.md`](./docs/guides/strava-webhook.md) for complete setup guide.
 
 ### Quick Webhook Setup
 
@@ -89,7 +89,7 @@ terraform apply -var="function_source_tag=$(git rev-parse --short HEAD)"
 # (requires OAuth2 authorization as described above)
 ```
 
-For comprehensive setup instructions, see [`docs/strava-webhook-setup.md`](./docs/strava-webhook-setup.md).
+For comprehensive setup instructions, see [`docs/guides/strava-webhook.md`](./docs/guides/strava-webhook.md).
 
 ### Testing
 
@@ -111,13 +111,14 @@ $ make test
 
 ### Essential Guides
 
-- **[Complete Setup Guide](./docs/setup-guide.md)** - Comprehensive development setup (recommended)
-- **[Strava Webhook Setup](./docs/strava-webhook-setup.md)** - OAuth2 and webhook configuration
-- **[Local Development Scripts](./scripts/local-dev/README.md)** - Script organization and usage
+- **[Bootstrap Guide](./docs/guides/bootstrap.md)** - Complete environment setup (dev/prod)
+- **[Strava Webhook Setup](./docs/guides/strava-webhook.md)** - OAuth2 and webhook configuration
+- **[Local Development Scripts](./scripts/development/local-dev/README.md)** - Script organization and usage
 
 ### Project Reference
 
-- **[Frontend Development](./docs/frontend-development.md)** - React app development guide
+- **[Frontend Development](./docs/guides/frontend-local-dev.md)** - React app development guide
+- **[Local Testing](./docs/guides/local-testing.md)** - Testing the full pipeline locally
 
 ## Contributing
 

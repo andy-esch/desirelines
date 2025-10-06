@@ -52,7 +52,7 @@ PORT=8080       # Default: 8080
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.25 or later
 - Google Cloud credentials configured
 
 ### Local Development Mode
@@ -115,7 +115,7 @@ Deploy to Google Cloud Functions:
 
 ```bash
 gcloud functions deploy activity-dispatcher \
-  --runtime go121 \
+  --runtime go125 \
   --trigger-http \
   --entry-point ActivityDispatcher \
   --env-vars-file .env.yaml \

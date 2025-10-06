@@ -13,7 +13,7 @@ This directory contains scripts specifically for local development environment s
 
 **Usage:**
 ```bash
-./scripts/local-dev/setup-local-environment.sh
+./scripts/development/local-dev/setup-local-environment.sh
 ```
 
 ### `bootstrap_pubsub.sh` 📫
@@ -75,19 +75,28 @@ make start-local --profile frontend
 ### Directory Structure
 ```
 scripts/
-├── local-dev/                    # Local development only
+├── development/local-dev/        # Local development only
 │   ├── README.md                 # This file
 │   ├── setup-local-environment.sh   # Master setup script
 │   ├── bootstrap_pubsub.sh       # PubSub emulator setup
 │   └── bootstrap_bigquery.sh     # BigQuery setup
-├── deploy-secrets.sh             # Production deployment
-├── webhook-management.sh         # Production webhook management
-└── package-functions.sh          # Production packaging
+├── infrastructure/               # Environment setup and deployment
+│   ├── deploy-secrets.sh         # Deploy secrets to Cloud Functions
+│   └── bootstrap-environment.sh  # Complete env bootstrap
+└── operations/                   # Build and deployment tasks
+    ├── package-functions.sh      # Package Cloud Functions
+    └── webhook-management.sh     # Webhook management
 ```
 
 ### Getting Started
-1. **First Time Setup**: `./scripts/local-dev/setup-local-environment.sh`
+1. **First Time Setup**: `./scripts/development/local-dev/setup-local-environment.sh`
 2. **Daily Development**: `make start` or `make start-local`
 3. **Frontend Work**: Add `--profile frontend` to any make command
 
 This organization follows the principle of **"local development should be simple and self-contained"** while keeping production deployment scripts separate and focused.
+
+## Related Documentation
+
+- [Frontend Local Development](../../../docs/guides/frontend-local-dev.md) - Full stack local development guide
+- [Local Testing Setup](../../../docs/guides/local-testing.md) - Docker development environment
+- [Bootstrap Guide](../../../docs/guides/bootstrap.md) - Complete environment setup (dev/prod)

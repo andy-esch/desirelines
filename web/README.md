@@ -1,46 +1,149 @@
-# Getting Started with Create React App
+# Desire Lines Web Interface
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React-based web application for visualizing Strava fitness data and tracking progress against personal goals. The primary user-facing interface for the desirelines platform.
+
+## Features
+
+- **Goal Visualization**: Track yearly distance goals with "desire line" progress charts
+- **Distance Charts**: Cumulative distance tracking with goal comparison
+- **Pacing Analytics**: Monitor daily pace and required effort to meet goals
+- **Year Selector**: Browse historical years and compare performance over time
+- **Responsive Design**: Clean, modern interface optimized for desktop and mobile
+
+## Architecture
+
+**Tech Stack:**
+- React 18 with TypeScript
+- Recharts for data visualization
+- Axios for API communication
+- Create React App build tooling
+
+**Project Structure:**
+```
+web/
+├── src/
+│   ├── components/        # React components
+│   │   ├── DistanceChart.tsx
+│   │   ├── PacingChart.tsx
+│   │   └── ...
+│   ├── api/              # API client functions
+│   │   └── activities.ts
+│   ├── types/            # TypeScript type definitions
+│   │   └── activity.ts
+│   ├── constants/        # App constants
+│   │   └── index.ts
+│   └── App.tsx           # Main application component
+└── public/               # Static assets
+```
+
+## Development
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+
+### Local Development
+
+```bash
+cd web
+
+# Install dependencies
+npm install
+
+# Start development server
+npm start
+```
+
+The app will open at [http://localhost:3000](http://localhost:3000).
+
+**API Configuration:**
+The web app connects to the API Gateway backend. Set the API URL via environment variable:
+
+```bash
+# .env.local
+REACT_APP_API_BASE_URL=http://localhost:8084  # Local API Gateway
+# or
+REACT_APP_API_BASE_URL=https://your-api-gateway-url.run.app  # Cloud API Gateway
+```
+
+### Full Stack Development
+
+To run the complete stack locally (backend + frontend):
+
+```bash
+# From project root - start backend services
+docker compose up
+
+# In a separate terminal - start web app
+cd web && npm start
+```
+
+See [docs/guides/frontend-local-dev.md](../docs/guides/frontend-local-dev.md) for comprehensive setup instructions.
+
+### Testing
+
+```bash
+# Run tests
+npm test
+
+# Run tests with coverage
+npm test -- --coverage
+```
+
+### Building for Production
+
+```bash
+# Create optimized production build
+npm run build
+
+# The build output will be in the build/ directory
+# Deploy this directory to your static hosting provider
+```
 
 ## Available Scripts
 
-In the project directory, you can run:
+- `npm start` - Start development server (port 3000)
+- `npm test` - Run test suite in watch mode
+- `npm run build` - Build production-optimized bundle
+- `npm run eject` - Eject from Create React App (irreversible)
 
-### `npm start`
+## API Integration
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+The web app consumes data from the API Gateway:
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+**Endpoints:**
+- `GET /activities/{year}/distances` - Distance chart data
+- `GET /activities/{year}/pacings` - Pacing chart data
+- `GET /activities/{year}/summary` - Activity summary statistics
 
-### `npm test`
+**Data Flow:**
+```
+API Gateway (Go) → Cloud Storage (JSON) → Web App (TypeScript)
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Deployment
 
-### `npm run build`
+### Docker Deployment
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+The web app can be deployed via Docker:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+# Build Docker image
+docker build -f Dockerfile.react -t desirelines-web .
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# Run container
+docker run -p 3000:3000 desirelines-web
+```
 
-### `npm run eject`
+### Static Hosting
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+Build and deploy to any static hosting provider (Netlify, Vercel, Firebase Hosting, etc.):
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+npm run build
+# Deploy the build/ directory
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+## Contributing
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+See the main project [README](../README.md) for contribution guidelines.
