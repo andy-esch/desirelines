@@ -41,6 +41,7 @@ py-typecheck:
 go-test:
 	@echo "🧪 Running Go tests for local packages..."
 	cd packages/dispatcher && go test -v ./...
+	cd packages/apigateway && go test -v ./...
 
 go-test-all:
 	@echo "🧪 Running all Go tests in workspace (parallelism=2)..."
@@ -51,14 +52,17 @@ go-test-coverage:
 
 go-lint:
 	@echo "🔍 Running golangci-lint..."
-	golangci-lint run packages/dispatcher
+	cd packages/dispatcher && golangci-lint run ./...
+	cd packages/apigateway && golangci-lint run ./...
 
 go-lint-fix:
 	@echo "🔧 Running golangci-lint with auto-fix..."
-	golangci-lint run --fix packages/dispatcher
+	cd packages/dispatcher && golangci-lint run --fix ./...
+	cd packages/apigateway && golangci-lint run --fix ./...
 
 go-format:
 	cd packages/dispatcher && go fmt ./...
+	cd packages/apigateway && go fmt ./...
 
 go-build:
 	cd packages/dispatcher && go build -v .
@@ -159,18 +163,29 @@ help:
 	@echo "  tf-fmt                - Format all Terraform files"
 	@echo "  tf-validate-all       - Validate all Terraform configurations"
 	@echo ""
-	@echo "Local Development (Docker):"
-	@echo "  start          - Start all functions locally (PubSub emulator + local storage)"
-	@echo "  start-local    - Start functions with Terraform-managed GCP resources"
-	@echo "  start-debug    - Start with PubSub UI for debugging (port 4200)"
-	@echo "  stop           - Stop all functions and cleanup"
-	@echo "  logs           - View logs from all functions"
-	@echo "  logs-dispatcher - View activity-dispatcher logs"
-	@echo "  logs-aggregator - View activity-aggregator logs"
-	@echo "  logs-bq        - View activity-bq-inserter logs"
-	@echo "  test-full-flow - Test complete webhook flow"
-	@echo "  build          - Build all Docker images"
-	@echo "  clean          - Clean up Docker resources"
+	@echo "Backend Pipeline (Docker):"
+	@echo "  start-backend       - Start backend pipeline (dispatcher, aggregator, bq-inserter)"
+	@echo "  start-backend-local - Start backend with Terraform-managed GCP resources"
+	@echo "  start-backend-debug - Start backend with PubSub UI for debugging (port 4200)"
+	@echo "  logs                - View logs from all backend functions"
+	@echo "  logs-dispatcher     - View activity-dispatcher logs"
+	@echo "  logs-aggregator     - View activity-aggregator logs"
+	@echo "  logs-bq             - View activity-bq-inserter logs"
+	@echo "  test-full-flow      - Test complete webhook flow"
+	@echo ""
+	@echo "Frontend Development (Docker):"
+	@echo "  start-frontend - Start Web UI + API Gateway with local fixtures"
+	@echo "  stop-frontend  - Stop frontend services"
+	@echo "  logs-frontend  - View frontend logs (API Gateway + Web UI)"
+	@echo "  logs-api       - View API Gateway logs only"
+	@echo "  logs-web       - View Web UI logs only"
+	@echo "  site-start     - Start Web UI directly (npm, no Docker)"
+	@echo "  site-build     - Build Web UI for production"
+	@echo ""
+	@echo "General:"
+	@echo "  stop  - Stop all services (backend + frontend)"
+	@echo "  build - Build all Docker images"
+	@echo "  clean - Clean up Docker resources"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  test           - Run all tests (Python + fast Go tests)"
@@ -195,18 +210,18 @@ help:
 # Combined commands
 test: py-test go-test
 lint: py-lint go-lint
-format: py-format go-format
+format: py-format go-format tf-fmt
 
 
 # ==========================================
 # Docker-based Local Development
 # ==========================================
 
-# Start all functions locally with PubSub emulator
-start: generate-requirements
-	@echo "🚀 Starting all functions locally (PubSub emulator + local storage)..."
-	docker compose up --build --detach
-	@echo "✅ All services are running!"
+# Start backend pipeline locally with PubSub emulator
+start-backend: generate-requirements
+	@echo "🚀 Starting backend pipeline locally (PubSub emulator + local storage)..."
+	docker compose --profile backend up --build --detach
+	@echo "✅ All backend services are running!"
 	@echo "📋 Service URLs:"
 	@echo "  Dispatcher: http://localhost:8081"
 	@echo "  Aggregator: http://localhost:8082"
@@ -216,9 +231,9 @@ start: generate-requirements
 	@echo "🧪 Test the full flow:"
 	@echo "  make test-full-flow"
 
-# Start all functions with local Terraform-managed GCP resources (hybrid mode)
-start-local: generate-requirements
-	@echo "🚀 Starting functions with local GCP resources (PubSub emulator + Terraform-created BigQuery/Storage)..."
+# Start backend with local Terraform-managed GCP resources (hybrid mode)
+start-backend-local: generate-requirements
+	@echo "🚀 Starting backend with local GCP resources (PubSub emulator + Terraform-created BigQuery/Storage)..."
 	@if [ ! -f "$$HOME/.config/gcloud/application_default_credentials.json" ]; then \
 		echo "❌ Error: No gcloud application default credentials found"; \
 		echo "   Please run: gcloud auth application-default login"; \
@@ -226,7 +241,7 @@ start-local: generate-requirements
 		exit 1; \
 	fi
 	docker compose -f docker-compose.yml -f docker-compose.local.yml up --build --detach
-	@echo "✅ All services are running with local GCP resources!"
+	@echo "✅ All backend services are running with local GCP resources!"
 	@echo "📋 Service URLs:"
 	@echo "  Dispatcher: http://localhost:8081 (→ PubSub Emulator forwarding)"
 	@echo "  Aggregator: http://localhost:8082 (→ Terraform-managed Cloud Storage)"
@@ -239,11 +254,11 @@ start-local: generate-requirements
 	@echo "💡 Data will be written to: desirelines.activities"
 	@echo "🔐 Using your gcloud application default credentials"
 
-# Start with PubSub UI for debugging
-start-debug: generate-requirements
-	@echo "🐛 Starting all functions with PubSub debugging UI..."
-	docker compose --profile debug up --build --detach
-	@echo "✅ All services are running with debugging UI!"
+# Start backend with PubSub UI for debugging
+start-backend-debug: generate-requirements
+	@echo "🐛 Starting backend pipeline with PubSub debugging UI..."
+	docker compose --profile backend --profile debug up --build --detach
+	@echo "✅ All backend services are running with debugging UI!"
 	@echo "📋 Service URLs:"
 	@echo "  Dispatcher: http://localhost:8081"
 	@echo "  Aggregator: http://localhost:8082"
@@ -256,8 +271,8 @@ start-debug: generate-requirements
 
 # Stop services and cleanup
 stop:
-	@echo "🛑 Stopping all functions..."
-	docker compose --profile debug --profile frontend down
+	@echo "🛑 Stopping all services..."
+	docker compose --profile backend --profile debug --profile frontend down
 	rm -f functions/requirements-*.txt
 
 # Generate function-specific requirements files
@@ -363,6 +378,39 @@ rotate-webhook-verify-token:
 
 
 
+# ==========================================
+# Frontend Development (Web UI + API Gateway)
+# ==========================================
+
+# Start frontend development stack (API Gateway + Web UI with local fixtures)
+start-frontend: generate-requirements
+	@echo "🎨 Starting frontend development stack (API Gateway + Web UI with local fixtures)..."
+	docker compose --profile frontend up --build --detach
+	@echo "✅ Frontend development stack is running!"
+	@echo "📋 Service URLs:"
+	@echo "  🌐 Web UI: http://localhost:3000"
+	@echo "  🔌 API Gateway: http://localhost:8084"
+	@echo "  📊 Data Source: Local fixtures (data/fixtures/)"
+	@echo ""
+	@echo "💡 To use live cloud data instead:"
+	@echo "  DATA_SOURCE=cloud-storage make start-frontend"
+
+# Stop frontend services
+stop-frontend:
+	@echo "🛑 Stopping frontend services..."
+	docker compose --profile frontend down
+
+# View frontend logs
+logs-frontend:
+	docker compose logs -f api-gateway web
+
+logs-api:
+	docker compose logs -f api-gateway
+
+logs-web:
+	docker compose logs -f web
+
+# Legacy site commands (direct npm, no Docker)
 site-start:
 	cd web && npm start
 

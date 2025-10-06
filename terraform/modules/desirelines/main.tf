@@ -636,7 +636,7 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
   labels = local.common_labels
 }
 
-# API Gateway (Python Function - Source Package)
+# API Gateway (Go Function - Source Package)
 resource "google_cloudfunctions2_function" "api_gateway" {
   count       = var.deployment_mode == "full" ? 1 : 0
   name        = "${var.project_name}_api_gateway"
@@ -644,8 +644,8 @@ resource "google_cloudfunctions2_function" "api_gateway" {
   description = "API gateway for serving activity data (${var.environment})"
 
   build_config {
-    runtime           = "python313"
-    entry_point       = "main"
+    runtime           = "go125"
+    entry_point       = "APIGateway"
     docker_repository = google_artifact_registry_repository.functions.id
 
     source {
@@ -659,7 +659,7 @@ resource "google_cloudfunctions2_function" "api_gateway" {
   service_config {
     max_instance_count             = 10
     min_instance_count             = 0
-    available_memory               = "256Mi"
+    available_memory               = "128Mi"
     timeout_seconds                = 60
     service_account_email          = var.create_dev_service_accounts ? google_service_account.api_gateway_dev[0].email : var.service_account_email
     ingress_settings               = "ALLOW_INTERNAL_ONLY"

@@ -64,20 +64,33 @@ jobs:
         with:
           go-version: '1.25'
 
-      - name: Install Go dependencies
+      - name: Install Go dependencies (dispatcher)
         run: cd packages/dispatcher && go mod download
 
-      - name: Tidy Go modules
+      - name: Install Go dependencies (apigateway)
+        run: cd packages/apigateway && go mod download
+
+      - name: Tidy Go modules (dispatcher)
         run: cd packages/dispatcher && go mod tidy
+
+      - name: Tidy Go modules (apigateway)
+        run: cd packages/apigateway && go mod tidy
 
       - name: Run Go tests
         run: make go-test
 
-      - name: Run Go linting with golangci-lint
+      - name: Run Go linting - dispatcher
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
           working-directory: packages/dispatcher
+          args: --timeout=5m
+
+      - name: Run Go linting - apigateway
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: packages/apigateway
           args: --timeout=5m
 
       - name: Check Go formatting

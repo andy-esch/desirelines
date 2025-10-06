@@ -52,29 +52,29 @@ services:
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
 
-  # API Gateway - live Cloud Function integration (manual start only)
+  # API Gateway - Go implementation with live Cloud Storage (manual start only)
   api-gateway-live:
     profiles: ["frontend"]  # Only starts with --profile frontend
     build:
       context: .
-      dockerfile: functions/Dockerfile.api_gateway
+      dockerfile: functions/Dockerfile.apigateway
+      # Note: This builds from packages/apigateway/cmd/local for Docker development
     ports:
       - "8084:8080"
     environment:
-      - FUNCTION_TARGET=api_gateway
+      - PORT=8080
+      # Always use cloud storage for live mode
+      - DATA_SOURCE=cloud-storage
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
-      # Use user credentials for storage access
-      - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
     env_file:
       - .env
     volumes:
-      - ./.env:/app/.env
-      - ./functions/api_gateway.py:/app/main.py
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -91,7 +91,7 @@ services:
       # Point to live API gateway (local Docker or deployed Cloud Function)
       - REACT_APP_API_URL=http://localhost:8084
       # Alternative: Use deployed Cloud Function directly
-      # - REACT_APP_API_URL=https://us-central1-progressor-341702.cloudfunctions.net/api-gateway
+      # - REACT_APP_API_URL=https://us-central1-desirelines-dev.cloudfunctions.net/desirelines_api_gateway
       - REACT_APP_ENV=live
       - CHOKIDAR_USEPOLLING=true  # Hot reload in Docker
     volumes:

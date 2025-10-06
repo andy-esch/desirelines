@@ -11,6 +11,31 @@ TUNNEL_INSTANCE="api-gateway-tunnel"
 LOCAL_PORT="8080"
 API_GATEWAY_URL="https://us-central1-desirelines-dev.cloudfunctions.net/desirelines_api_gateway"
 
+check_current_project() {
+    CURRENT_PROJECT=$(gcloud config get-value project 2>/dev/null)
+    if [ "$CURRENT_PROJECT" != "$GCP_PROJECT" ]; then
+        echo "❌ Error: Wrong GCP project!"
+        echo ""
+        echo "   Current project:  $CURRENT_PROJECT"
+        echo "   Expected project: $GCP_PROJECT"
+        echo ""
+        echo "Switch to the correct project with:"
+        echo "  gcloud config set project $GCP_PROJECT"
+        exit 1
+    fi
+    echo "✅ Using GCP project: $GCP_PROJECT"
+}
+
+check_compute_api_enabled() {
+    if ! gcloud services list --enabled --project="$GCP_PROJECT" --filter="name:compute.googleapis.com" --format="value(name)" | grep -q "compute.googleapis.com"; then
+        echo "❌ Error: Compute Engine API is not enabled for project $GCP_PROJECT"
+        echo ""
+        echo "Enable it with:"
+        echo "  gcloud services enable compute.googleapis.com --project=$GCP_PROJECT"
+        exit 1
+    fi
+}
+
 create_tunnel_instance() {
     echo "🔧 Creating minimal tunnel instance..."
     gcloud compute instances create "$TUNNEL_INSTANCE" \
@@ -21,7 +46,6 @@ create_tunnel_instance() {
         --no-restart-on-failure \
         --maintenance-policy=TERMINATE \
         --provisioning-model=SPOT \
-        --service-account="$(gcloud config get-value account)" \
         --scopes=https://www.googleapis.com/auth/cloud-platform \
         --create-disk=auto-delete=yes,boot=yes,device-name="$TUNNEL_INSTANCE",image=projects/debian-cloud/global/images/family/debian-12,mode=rw,size=10,type=projects/"$GCP_PROJECT"/zones/"$COMPUTE_ZONE"/diskTypes/pd-standard \
         --no-shielded-secure-boot \
@@ -34,6 +58,13 @@ create_tunnel_instance() {
 case "${1:-start}" in
     "start")
         echo "🔗 Starting API Gateway tunnel on localhost:$LOCAL_PORT"
+        echo ""
+
+        # Check we're using the correct GCP project
+        check_current_project
+
+        # Check if Compute Engine API is enabled
+        check_compute_api_enabled
 
         # Check if instance exists
         if ! gcloud compute instances describe "$TUNNEL_INSTANCE" --zone="$COMPUTE_ZONE" --project="$GCP_PROJECT" >/dev/null 2>&1; then
