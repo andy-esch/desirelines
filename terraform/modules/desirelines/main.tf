@@ -573,6 +573,7 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
     trigger_region = var.gcp_region
     event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
     pubsub_topic   = google_pubsub_topic.activity_events.id
+    retry_policy   = "RETRY_POLICY_RETRY"
   }
 
   labels = local.common_labels
@@ -631,6 +632,7 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
     trigger_region = var.gcp_region
     event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
     pubsub_topic   = google_pubsub_topic.activity_events.id
+    retry_policy   = "RETRY_POLICY_RETRY"
   }
 
   labels = local.common_labels

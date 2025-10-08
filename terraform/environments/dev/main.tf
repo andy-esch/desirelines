@@ -108,6 +108,17 @@ resource "google_pubsub_subscription" "aggregator_dlq" {
 # The ignore_changes lifecycle rule lets Eventarc continue managing
 # the push_config while we manage the dead_letter_policy.
 
+# Import existing Eventarc subscriptions (already imported, kept for documentation)
+import {
+  to = google_pubsub_subscription.bq_inserter_eventarc
+  id = "projects/desirelines-dev/subscriptions/eventarc-us-central1-desirelines-bq-inserter-601502-sub-060"
+}
+
+import {
+  to = google_pubsub_subscription.aggregator_eventarc
+  id = "projects/desirelines-dev/subscriptions/eventarc-us-central1-desirelines-aggregator-696214-sub-050"
+}
+
 # BQ Inserter Eventarc subscription with DLQ
 resource "google_pubsub_subscription" "bq_inserter_eventarc" {
   name  = "eventarc-us-central1-desirelines-bq-inserter-601502-sub-060"
