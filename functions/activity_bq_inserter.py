@@ -171,12 +171,8 @@ def main(event: CloudEvent) -> dict:
                     extra={"correlation_id": correlation_id},
                     exc_info=True,
                 )
-                return {
-                    "status": "failed",
-                    "error": "service_initialization_failed",
-                    "details": str(e),
-                    "correlation_id": correlation_id,
-                }
+                # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+                raise
 
             # Runner: Insert activity with parsed_request.object_id into BigQuery
             usecase.run(parsed_request.object_id)
@@ -198,13 +194,8 @@ def main(event: CloudEvent) -> dict:
                 extra={"correlation_id": correlation_id},
                 exc_info=True,
             )
-            return {
-                "status": "failed",
-                "error": "sync_failed",
-                "object_id": parsed_request.object_id,
-                "details": str(e),
-                "correlation_id": correlation_id,
-            }
+            # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+            raise
 
     except CloudEventValidationError as e:
         logger.error(
@@ -212,12 +203,8 @@ def main(event: CloudEvent) -> dict:
             e,
             extra={"correlation_id": correlation_id},
         )
-        return {
-            "status": "failed",
-            "error": "invalid_cloud_event",
-            "details": str(e),
-            "correlation_id": correlation_id,
-        }
+        # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+        raise
 
     except Exception as e:
         logger.error(
@@ -226,9 +213,5 @@ def main(event: CloudEvent) -> dict:
             extra={"correlation_id": correlation_id},
             exc_info=True,
         )
-        return {
-            "status": "failed",
-            "error": "unexpected_error",
-            "details": str(e),
-            "correlation_id": correlation_id,
-        }
+        # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+        raise

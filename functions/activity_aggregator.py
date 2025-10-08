@@ -7,11 +7,12 @@ import json
 import logging
 import uuid
 
-from aggregator.application.usecases import make_update_summary_use_case
-from aggregator.domain import WebhookRequest
 from cloudevents.http import CloudEvent
 import functions_framework
 from pydantic import ValidationError
+
+from aggregator.application.usecases import make_update_summary_use_case
+from aggregator.domain import WebhookRequest
 
 # Configure logging for Google Cloud Functions
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -105,12 +106,8 @@ def main(event: CloudEvent) -> dict:
                 e,
                 extra={"correlation_id": correlation_id},
             )
-            return {
-                "status": "failed",
-                "error": "message_decode_failed",
-                "details": str(e),
-                "correlation_id": correlation_id,
-            }
+            # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+            raise
 
         # Parse and validate webhook request
         try:
@@ -121,12 +118,8 @@ def main(event: CloudEvent) -> dict:
                 str(e),
                 extra={"correlation_id": correlation_id},
             )
-            return {
-                "status": "failed",
-                "error": "validation_failed",
-                "details": str(e),
-                "correlation_id": correlation_id,
-            }
+            # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+            raise
 
         logger.info(
             "Parsed webhook event",
@@ -159,12 +152,8 @@ def main(event: CloudEvent) -> dict:
                     extra={"correlation_id": correlation_id},
                     exc_info=True,
                 )
-                return {
-                    "status": "failed",
-                    "error": "service_initialization_failed",
-                    "details": str(e),
-                    "correlation_id": correlation_id,
-                }
+                # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+                raise
 
             # Update summary data with webhook request
             logger.info(
@@ -200,13 +189,8 @@ def main(event: CloudEvent) -> dict:
                 extra={"correlation_id": correlation_id},
                 exc_info=True,
             )
-            return {
-                "status": "failed",
-                "error": "summary_update_failed",
-                "object_id": parsed_request.object_id,
-                "details": str(e),
-                "correlation_id": correlation_id,
-            }
+            # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+            raise
 
     except CloudEventValidationError as e:
         logger.error(
@@ -214,12 +198,8 @@ def main(event: CloudEvent) -> dict:
             e,
             extra={"correlation_id": correlation_id},
         )
-        return {
-            "status": "failed",
-            "error": "invalid_cloud_event",
-            "details": str(e),
-            "correlation_id": correlation_id,
-        }
+        # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+        raise
 
     except Exception as e:
         logger.error(
@@ -228,9 +208,5 @@ def main(event: CloudEvent) -> dict:
             extra={"correlation_id": correlation_id},
             exc_info=True,
         )
-        return {
-            "status": "failed",
-            "error": "unexpected_error",
-            "details": str(e),
-            "correlation_id": correlation_id,
-        }
+        # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+        raise

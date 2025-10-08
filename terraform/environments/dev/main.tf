@@ -57,6 +57,11 @@ module "desirelines" {
   developer_email = var.developer_email
 }
 
+# Get project details for IAM configuration
+data "google_project" "project" {
+  project_id = var.gcp_project_id
+}
+
 # Dead Letter Queue Configuration for Eventarc-created subscriptions
 # Eventarc creates subscriptions automatically - we create separate DLQ subscriptions
 
@@ -95,3 +100,96 @@ resource "google_pubsub_subscription" "aggregator_dlq" {
 # Note: Eventarc automatically creates and manages the main subscriptions
 # that trigger the functions. We only manage the dead letter queue subscriptions
 # for monitoring and debugging failed messages.
+# ===================================================================
+# Eventarc Subscription Management with Dead Letter Queue
+# ===================================================================
+# Cloud Functions v2 with event_trigger automatically create Eventarc
+# subscriptions. We import these subscriptions to add DLQ configuration.
+# The ignore_changes lifecycle rule lets Eventarc continue managing
+# the push_config while we manage the dead_letter_policy.
+
+# BQ Inserter Eventarc subscription with DLQ
+resource "google_pubsub_subscription" "bq_inserter_eventarc" {
+  name  = "eventarc-us-central1-desirelines-bq-inserter-601502-sub-060"
+  topic = module.desirelines.pubsub_topic_name
+
+  dead_letter_policy {
+    dead_letter_topic     = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
+    max_delivery_attempts = 5
+  }
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "300s"
+  }
+
+  ack_deadline_seconds = 300 # 5 minutes for fast insert operation
+
+  lifecycle {
+    # Critical: Let Eventarc manage push configuration to avoid drift
+    ignore_changes = [push_config]
+  }
+
+  labels = {
+    managed-by  = "terraform"
+    function    = "bq-inserter"
+    environment = "dev"
+  }
+}
+
+# Aggregator Eventarc subscription with DLQ
+resource "google_pubsub_subscription" "aggregator_eventarc" {
+  name  = "eventarc-us-central1-desirelines-aggregator-696214-sub-050"
+  topic = module.desirelines.pubsub_topic_name
+
+  dead_letter_policy {
+    dead_letter_topic     = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
+    max_delivery_attempts = 5
+  }
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "300s"
+  }
+
+  ack_deadline_seconds = 540 # 9 minutes for aggregation with API calls
+
+  lifecycle {
+    # Critical: Let Eventarc manage push configuration to avoid drift
+    ignore_changes = [push_config]
+  }
+
+  labels = {
+    managed-by  = "terraform"
+    function    = "aggregator"
+    environment = "dev"
+  }
+}
+
+# ===================================================================
+# IAM Permissions for Dead Letter Queue
+# ===================================================================
+# The Pub/Sub service account needs permission to:
+# 1. Publish to the dead letter topic (when messages fail)
+# 2. Subscribe to the Eventarc subscriptions (to read failed messages)
+
+# Allow Pub/Sub service account to publish to dead letter topic
+resource "google_pubsub_topic_iam_member" "pubsub_sa_publish_deadletter" {
+  topic  = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+# Allow Pub/Sub service account to subscribe to BQ inserter subscription
+resource "google_pubsub_subscription_iam_member" "bq_inserter_pubsub_sa_subscribe" {
+  subscription = google_pubsub_subscription.bq_inserter_eventarc.name
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+# Allow Pub/Sub service account to subscribe to aggregator subscription
+resource "google_pubsub_subscription_iam_member" "aggregator_pubsub_sa_subscribe" {
+  subscription = google_pubsub_subscription.aggregator_eventarc.name
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
