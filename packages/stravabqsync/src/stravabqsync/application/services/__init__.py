@@ -58,5 +58,5 @@ def make_delete_service(
     return DeleteActivityService(
         bq_client=bq_client,
         project_id=config.gcp_project_id,
-        dataset_id=config.bigquery_dataset_id,
+        dataset_id=config.gcp_bigquery_dataset,
     )
