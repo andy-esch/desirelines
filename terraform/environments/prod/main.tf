@@ -1,7 +1,7 @@
 # Production environment configuration
 
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.12"
 
   # Production uses remote state storage
   backend "gcs" {

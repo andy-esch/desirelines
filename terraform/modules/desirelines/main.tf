@@ -2,7 +2,7 @@
 # This module creates all the core GCP resources needed for the desirelines project
 
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.12"
   required_providers {
     google = {
       source  = "hashicorp/google"
