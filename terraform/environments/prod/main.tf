@@ -113,7 +113,7 @@ data "google_project" "project" {
 # Import existing Eventarc subscriptions
 import {
   to = google_pubsub_subscription.bq_inserter_eventarc
-  id = "projects/desirelines-prod/subscriptions/eventarc-us-central1-desirelines-bq-inserter-126354-sub-923"
+  id = "projects/desirelines-prod/subscriptions/eventarc-us-central1-desirelines-bq-inserter-960936-sub-360"
 }
 
 import {
@@ -123,7 +123,7 @@ import {
 
 # BQ Inserter Eventarc subscription with DLQ
 resource "google_pubsub_subscription" "bq_inserter_eventarc" {
-  name  = "eventarc-us-central1-desirelines-bq-inserter-126354-sub-923"
+  name  = "eventarc-us-central1-desirelines-bq-inserter-960936-sub-360"
   topic = module.desirelines.pubsub_topic_name
 
   dead_letter_policy {
@@ -133,10 +133,10 @@ resource "google_pubsub_subscription" "bq_inserter_eventarc" {
 
   retry_policy {
     minimum_backoff = "10s"
-    maximum_backoff = "300s"
+    maximum_backoff = "600s"
   }
 
-  ack_deadline_seconds = 300 # 5 minutes for fast insert operation
+  ack_deadline_seconds = 600 # 10 minutes (matches current Eventarc config)
 
   lifecycle {
     # Critical: Let Eventarc manage push configuration to avoid drift
