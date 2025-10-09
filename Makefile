@@ -336,7 +336,7 @@ deploy-secrets:
 		echo "❌ Error: Please specify secret file: make deploy-secrets SECRET_FILE=strava-auth.json"; \
 		exit 1; \
 	fi
-	@./scripts/deploy-secrets.sh $(SECRET_FILE)
+	@./scripts/infrastructure/deploy-secrets.sh $(SECRET_FILE)
 
 create-webhook:
 	$(call check_project_and_run,./scripts/webhook-management.sh create)

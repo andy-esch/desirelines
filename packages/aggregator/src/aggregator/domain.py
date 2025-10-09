@@ -1,12 +1,27 @@
 from datetime import datetime
+from enum import Enum
 from typing import Annotated, NamedTuple
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 from typing_extensions import TypedDict
 
 
+class AspectType(str, Enum):
+    """Strava webhook aspect types.
+
+    Represents the type of change that occurred to trigger a webhook event.
+    """
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+
+
 class WebhookRequest(BaseModel):
-    aspect_type: Annotated[str, Field(max_length=20, description="Webhook aspect type")]
+    """Strava webhook request payload.
+
+    Validates incoming webhook data to protect against malformed or malicious requests.
+    """
+    aspect_type: Annotated[AspectType, Field(description="Webhook aspect type")]
     event_time: int
     object_id: int
     object_type: Annotated[
@@ -15,16 +30,6 @@ class WebhookRequest(BaseModel):
     owner_id: int
     subscription_id: int
     updates: Annotated[dict, Field(default_factory=dict, description="Update details")]
-
-    @field_validator("aspect_type")
-    @classmethod
-    def validate_aspect_type(cls, v):
-        valid_aspects = ["create", "update", "delete"]
-        if v not in valid_aspects:
-            raise ValueError(
-                f"Invalid aspect_type: {v}. Must be one of {valid_aspects}"
-            )
-        return v
 
     @field_validator("object_type")
     @classmethod
@@ -39,7 +44,15 @@ class WebhookRequest(BaseModel):
     @field_validator("updates")
     @classmethod
     def validate_updates_size(cls, v):
-        # Reasonable limit for updates field - Strava updates are typically small
+        """Validate updates field size as defensive programming.
+
+        Even though we don't process the updates field, we validate its size
+        to protect against malformed or malicious webhook data that could
+        consume excessive memory or cause issues in logging/debugging.
+
+        Strava's actual updates are typically small (< 100 chars), so 2000
+        is a reasonable safety limit.
+        """
         serialized = str(v)
         if len(serialized) > 2000:
             raise ValueError(

@@ -10,9 +10,9 @@ from cloudevents.http import CloudEvent
 import functions_framework
 from pydantic import ValidationError
 
-from stravabqsync.application.services import make_sync_service
+from stravabqsync.application.services import make_delete_service, make_sync_service
 from stravabqsync.config import load_bq_inserter_config
-from stravabqsync.domain import WebhookRequest
+from stravabqsync.domain import AspectType, WebhookRequest
 
 # Configure logging for Google Cloud Functions
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -145,28 +145,40 @@ def main(event: CloudEvent) -> dict:
             extra={"correlation_id": correlation_id, **parsed_request.model_dump()},
         )
 
-        # Skip non-create events
-        if parsed_request.aspect_type != "create":
-            logger.info(
-                "Skipping non-create event: %s",
-                parsed_request.aspect_type,
-                extra={"correlation_id": correlation_id},
-            )
-            return {
-                "status": "skipped",
-                "reason": "non_create_event",
-                "aspect_type": parsed_request.aspect_type,
-                "correlation_id": correlation_id,
-            }
-
-        # Process create events
-        try:
-            # Initialize sync service with error handling
+        # Route to appropriate handler based on aspect_type
+        if parsed_request.aspect_type == AspectType.CREATE:
+            # Handle create events (existing logic)
             try:
-                usecase = make_sync_service()
+                # Initialize sync service with error handling
+                try:
+                    usecase = make_sync_service()
+                except Exception as e:
+                    logger.error(
+                        "Failed to initialize sync service: %s",
+                        str(e),
+                        extra={"correlation_id": correlation_id},
+                        exc_info=True,
+                    )
+                    # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+                    raise
+
+                # Runner: Insert activity with parsed_request.object_id into BigQuery
+                usecase.run(parsed_request.object_id)
+                logger.info(
+                    "Successfully synced activity %s to BigQuery",
+                    parsed_request.object_id,
+                    extra={"correlation_id": correlation_id},
+                )
+                return {
+                    "status": "processed",
+                    "action": "created",
+                    "activity_id": parsed_request.object_id,
+                    "correlation_id": correlation_id,
+                }
             except Exception as e:
                 logger.error(
-                    "Failed to initialize sync service: %s",
+                    "BigQuery sync failed for activity %s: %s",
+                    parsed_request.object_id,
                     str(e),
                     extra={"correlation_id": correlation_id},
                     exc_info=True,
@@ -174,28 +186,57 @@ def main(event: CloudEvent) -> dict:
                 # Re-raise to trigger PubSub retry and eventual DLQ forwarding
                 raise
 
-            # Runner: Insert activity with parsed_request.object_id into BigQuery
-            usecase.run(parsed_request.object_id)
+        elif parsed_request.aspect_type == AspectType.DELETE:
+            # Handle delete events (NEW)
             logger.info(
-                "Successfully synced activity %s to BigQuery",
+                "Processing delete event for activity %s",
                 parsed_request.object_id,
+                extra={"correlation_id": correlation_id},
+            )
+            try:
+                # Initialize delete service with error handling
+                try:
+                    delete_service = make_delete_service()
+                except Exception as e:
+                    logger.error(
+                        "Failed to initialize delete service: %s",
+                        str(e),
+                        extra={"correlation_id": correlation_id},
+                        exc_info=True,
+                    )
+                    # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+                    raise
+
+                # Archive and delete activity
+                result = delete_service.run(
+                    activity_id=parsed_request.object_id,
+                    correlation_id=correlation_id,
+                    event_time=parsed_request.event_time,
+                )
+                return result
+            except Exception as e:
+                logger.error(
+                    "Delete operation failed for activity %s: %s",
+                    parsed_request.object_id,
+                    str(e),
+                    extra={"correlation_id": correlation_id},
+                    exc_info=True,
+                )
+                # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+                raise
+
+        else:
+            # Skip update events (AspectType.UPDATE - not implemented yet)
+            logger.info(
+                "Skipping event type: %s",
+                parsed_request.aspect_type.value,
                 extra={"correlation_id": correlation_id},
             )
             return {
-                "status": "processed",
-                "object_id": parsed_request.object_id,
+                "status": "skipped",
+                "aspect_type": parsed_request.aspect_type.value,
                 "correlation_id": correlation_id,
             }
-        except Exception as e:
-            logger.error(
-                "BigQuery sync failed for activity %s: %s",
-                parsed_request.object_id,
-                str(e),
-                extra={"correlation_id": correlation_id},
-                exc_info=True,
-            )
-            # Re-raise to trigger PubSub retry and eventual DLQ forwarding
-            raise
 
     except CloudEventValidationError as e:
         logger.error(
