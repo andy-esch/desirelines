@@ -83,7 +83,7 @@ class DeleteActivityService:
             )
 
             query_job = self.bq_client.query(insert_query, job_config=job_config)
-            result = query_job.result()
+            _ = query_job.result()
 
             # Check if any rows were inserted
             if query_job.num_dml_affected_rows == 0:
