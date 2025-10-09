@@ -11,6 +11,7 @@ class AspectType(str, Enum):
 
     Represents the type of change that occurred to trigger a webhook event.
     """
+
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
@@ -21,6 +22,7 @@ class WebhookRequest(BaseModel):
 
     Validates incoming webhook data to protect against malformed or malicious requests.
     """
+
     aspect_type: Annotated[AspectType, Field(description="Webhook aspect type")]
     event_time: int
     object_id: int

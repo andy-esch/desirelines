@@ -33,7 +33,9 @@ def make_sync_service(config: BQInserterConfig | None = None) -> SyncService:
     )
 
 
-def make_delete_service(config: BQInserterConfig | None = None) -> DeleteActivityService:
+def make_delete_service(
+    config: BQInserterConfig | None = None,
+) -> DeleteActivityService:
     """Create a configured DeleteActivityService instance.
 
     Factory function that wires together all dependencies needed for the
