@@ -7,6 +7,7 @@ import logging
 import requests
 
 from aggregator.domain import StravaActivity, StravaTokenSet
+from aggregator.exceptions import ActivityNotFoundError
 from aggregator.ports.out.read import ReadActivities, ReadStravaToken
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,14 @@ class StravaActivitiesRepo(ReadActivities):
             headers=self._headers,
             timeout=10,
         )
+
+        # Handle 404 specifically
+        #  Activity not found: deleted, never existed, or don't have access
+        if resp.status_code == 404:
+            raise ActivityNotFoundError(
+                f"Activity {activity_id} not found in Strava API"
+            )
+
         if not resp.ok:
             resp.raise_for_status()
         return resp.json()

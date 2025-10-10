@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from stravabqsync.application.services import make_delete_service, make_sync_service
 from stravabqsync.config import load_bq_inserter_config
 from stravabqsync.domain import AspectType, WebhookRequest
+from stravabqsync.exceptions import ActivityNotFoundError
 
 # Configure logging for Google Cloud Functions
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -147,22 +148,12 @@ def main(event: CloudEvent) -> dict:
 
         # Route to appropriate handler based on aspect_type
         if parsed_request.aspect_type == AspectType.CREATE:
-            # Handle create events (existing logic)
+            # Handle create events
             try:
-                # Initialize sync service with error handling
-                try:
-                    usecase = make_sync_service()
-                except Exception as e:
-                    logger.error(
-                        "Failed to initialize sync service: %s",
-                        str(e),
-                        extra={"correlation_id": correlation_id},
-                        exc_info=True,
-                    )
-                    # Re-raise to trigger PubSub retry and eventual DLQ forwarding
-                    raise
+                # Initialize sync service
+                usecase = make_sync_service()
 
-                # Runner: Insert activity with parsed_request.object_id into BigQuery
+                # Insert activity into BigQuery
                 usecase.run(parsed_request.object_id)
                 logger.info(
                     "Successfully synced activity %s to BigQuery",
@@ -172,6 +163,25 @@ def main(event: CloudEvent) -> dict:
                 return {
                     "status": "processed",
                     "action": "created",
+                    "activity_id": parsed_request.object_id,
+                    "correlation_id": correlation_id,
+                }
+            except ActivityNotFoundError:
+                # Activity not found (404)
+                # This is expected and should not trigger retry or DLQ
+                logger.warning(
+                    "Activity %s not found in Strava "
+                    "(already deleted, never existed, or don't have access)",
+                    parsed_request.object_id,
+                    extra={
+                        "correlation_id": correlation_id,
+                        "activity_id": parsed_request.object_id,
+                        "error_type": "activity_not_found",
+                    },
+                )
+                return {
+                    "status": "skipped",
+                    "reason": "activity_not_found",
                     "activity_id": parsed_request.object_id,
                     "correlation_id": correlation_id,
                 }
@@ -187,25 +197,15 @@ def main(event: CloudEvent) -> dict:
                 raise
 
         elif parsed_request.aspect_type == AspectType.DELETE:
-            # Handle delete events (NEW)
+            # Handle delete events
             logger.info(
                 "Processing delete event for activity %s",
                 parsed_request.object_id,
                 extra={"correlation_id": correlation_id},
             )
             try:
-                # Initialize delete service with error handling
-                try:
-                    delete_service = make_delete_service()
-                except Exception as e:
-                    logger.error(
-                        "Failed to initialize delete service: %s",
-                        str(e),
-                        extra={"correlation_id": correlation_id},
-                        exc_info=True,
-                    )
-                    # Re-raise to trigger PubSub retry and eventual DLQ forwarding
-                    raise
+                # Initialize delete service
+                delete_service = make_delete_service()
 
                 # Archive and delete activity
                 result = delete_service.run(
