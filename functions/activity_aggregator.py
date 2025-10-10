@@ -12,7 +12,8 @@ import functions_framework
 from pydantic import ValidationError
 
 from aggregator.application.usecases import make_update_summary_use_case
-from aggregator.domain import WebhookRequest
+from aggregator.domain import AspectType, WebhookRequest
+from aggregator.exceptions import ActivityNotFoundError
 
 # Configure logging for Google Cloud Functions
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -106,8 +107,12 @@ def main(event: CloudEvent) -> dict:
                 e,
                 extra={"correlation_id": correlation_id},
             )
-            # Re-raise to trigger PubSub retry and eventual DLQ forwarding
-            raise
+            return {
+                "status": "failed",
+                "error": "message_decode_failed",
+                "details": str(e),
+                "correlation_id": correlation_id,
+            }
 
         # Parse and validate webhook request
         try:
@@ -118,36 +123,70 @@ def main(event: CloudEvent) -> dict:
                 str(e),
                 extra={"correlation_id": correlation_id},
             )
-            # Re-raise to trigger PubSub retry and eventual DLQ forwarding
-            raise
+            return {
+                "status": "failed",
+                "error": "validation_failed",
+                "details": str(e),
+                "correlation_id": correlation_id,
+            }
 
         logger.info(
             "Parsed webhook event",
             extra={"correlation_id": correlation_id, **parsed_request.model_dump()},
         )
 
-        # Skip non-create events
-        if parsed_request.aspect_type != "create":
-            logger.info(
-                "Skipping non-create event: %s",
-                parsed_request.aspect_type,
-                extra={"correlation_id": correlation_id},
-            )
-            return {
-                "status": "skipped",
-                "reason": "non_create_event",
-                "aspect_type": parsed_request.aspect_type,
-                "correlation_id": correlation_id,
-            }
-
-        # Process create events
-        try:
-            # Initialize summary update service with error handling
+        # Route to appropriate handler based on aspect_type
+        if parsed_request.aspect_type == AspectType.CREATE:
+            # Handle create events
             try:
+                # Initialize summary update service
                 usecase = make_update_summary_use_case()
+
+                # Update summary data with webhook request
+                logger.info(
+                    "Starting summary update for activity",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "activity_id": parsed_request.object_id,
+                        "owner_id": parsed_request.owner_id,
+                        "aspect_type": parsed_request.aspect_type.value,
+                    },
+                )
+                usecase.run(parsed_request)
+                logger.info(
+                    "Successfully updated summary for activity %s",
+                    parsed_request.object_id,
+                    extra={"correlation_id": correlation_id},
+                )
+                return {
+                    "status": "processed",
+                    "action": "created",
+                    "activity_id": parsed_request.object_id,
+                    "correlation_id": correlation_id,
+                }
+            except ActivityNotFoundError:
+                # Activity not found (404)
+                # This is expected and should not trigger retry or DLQ
+                logger.warning(
+                    "Activity %s not found in Strava "
+                    "(already deleted, never existed, or don't have access)",
+                    parsed_request.object_id,
+                    extra={
+                        "correlation_id": correlation_id,
+                        "activity_id": parsed_request.object_id,
+                        "error_type": "activity_not_found",
+                    },
+                )
+                return {
+                    "status": "skipped",
+                    "reason": "activity_not_found",
+                    "activity_id": parsed_request.object_id,
+                    "correlation_id": correlation_id,
+                }
             except Exception as e:
                 logger.error(
-                    "Failed to initialize summary update service: %s",
+                    "Summary update failed for activity %s: %s",
+                    parsed_request.object_id,
                     str(e),
                     extra={"correlation_id": correlation_id},
                     exc_info=True,
@@ -155,42 +194,32 @@ def main(event: CloudEvent) -> dict:
                 # Re-raise to trigger PubSub retry and eventual DLQ forwarding
                 raise
 
-            # Update summary data with webhook request
+        elif parsed_request.aspect_type == AspectType.DELETE:
+            # Handle delete events (not yet implemented - Phase 3)
             logger.info(
-                "Starting summary update for activity",
-                extra={
-                    "correlation_id": correlation_id,
-                    "activity_id": parsed_request.object_id,
-                    "owner_id": parsed_request.owner_id,
-                    "aspect_type": parsed_request.aspect_type,
-                },
-            )
-            usecase.run(parsed_request)
-            logger.info(
-                "Successfully updated summary for activity %s",
+                "Skipping delete event: %s (not yet implemented)",
                 parsed_request.object_id,
                 extra={"correlation_id": correlation_id},
             )
-            result = {
-                "status": "processed",
-                "object_id": parsed_request.object_id,
+            return {
+                "status": "skipped",
+                "reason": "delete_not_implemented",
+                "aspect_type": parsed_request.aspect_type.value,
                 "correlation_id": correlation_id,
             }
+
+        else:
+            # Skip update events (AspectType.UPDATE - not implemented)
             logger.info(
-                "Activity aggregator function completed successfully",
-                extra={"correlation_id": correlation_id, "result": result},
-            )
-            return result
-        except Exception as e:
-            logger.error(
-                "Summary update failed for activity %s: %s",
-                parsed_request.object_id,
-                str(e),
+                "Skipping event type: %s",
+                parsed_request.aspect_type.value,
                 extra={"correlation_id": correlation_id},
-                exc_info=True,
             )
-            # Re-raise to trigger PubSub retry and eventual DLQ forwarding
-            raise
+            return {
+                "status": "skipped",
+                "aspect_type": parsed_request.aspect_type.value,
+                "correlation_id": correlation_id,
+            }
 
     except CloudEventValidationError as e:
         logger.error(
