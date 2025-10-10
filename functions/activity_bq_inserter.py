@@ -28,16 +28,20 @@ if not logger.handlers:
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 
-# Load and validate configuration at module level
+# Validate configuration at module level (fail fast pattern)
+# This ensures the function won't deploy if configuration is invalid,
+# catching issues at deployment time rather than on first webhook.
+# The services (make_sync_service, make_delete_service) will reload
+# config when needed, so we don't store the result here.
 try:
-    bq_config = load_bq_inserter_config()
-    logger.info("BQ Inserter configuration loaded successfully")
+    load_bq_inserter_config()
+    logger.info("BQ Inserter configuration validated successfully")
 except ValidationError as e:
     logger.error("BQ Inserter configuration validation failed: %s", e)
-    bq_config = None
+    raise  # Fail function startup - better to catch config errors at deploy time
 except Exception as e:
     logger.error("Failed to load BQ Inserter configuration: %s", e)
-    bq_config = None
+    raise  # Fail function startup - better to catch config errors at deploy time
 
 
 class MessageDecodeError(Exception):
