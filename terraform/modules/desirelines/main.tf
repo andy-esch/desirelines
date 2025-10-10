@@ -2,7 +2,7 @@
 # This module creates all the core GCP resources needed for the desirelines project
 
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.12"
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -141,6 +141,31 @@ resource "google_bigquery_table" "activities_staging" {
   }
 
   clustering = ["sport_type", "start_date"]
+}
+
+# BigQuery Table for Deleted Activities (archive)
+resource "google_bigquery_table" "deleted_activities" {
+  dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
+  table_id            = "deleted_activities"
+  friendly_name       = "Deleted Strava Activities Archive"
+  description         = "Archive of deleted Strava activities with deletion metadata - preserves data for audit trail"
+  deletion_protection = var.environment == "prod"
+
+  labels = merge(local.common_labels, {
+    purpose = "archive"
+  })
+
+  # Schema includes all activity fields plus deletion metadata
+  schema = jsonencode(jsondecode(file("${path.module}/../../../infrastructure/schemas/deleted_activities.json")).schema)
+
+  # Partition by deletion timestamp for efficient queries
+  time_partitioning {
+    type  = "DAY"
+    field = "deleted_at"
+  }
+
+  # Clustering for query optimization (by when deleted and original activity date)
+  clustering = ["deleted_at", "start_date"]
 }
 
 # Cloud Storage Bucket for aggregated data
@@ -573,6 +598,7 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
     trigger_region = var.gcp_region
     event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
     pubsub_topic   = google_pubsub_topic.activity_events.id
+    retry_policy   = "RETRY_POLICY_RETRY"
   }
 
   labels = local.common_labels
@@ -631,6 +657,7 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
     trigger_region = var.gcp_region
     event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
     pubsub_topic   = google_pubsub_topic.activity_events.id
+    retry_policy   = "RETRY_POLICY_RETRY"
   }
 
   labels = local.common_labels

@@ -1,7 +1,7 @@
 # Local development environment configuration
 
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.12"
 
   # State will be stored locally for development
   # backend "gcs" {
