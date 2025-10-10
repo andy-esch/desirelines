@@ -1,6 +1,7 @@
 """Service for archiving deleted activities to BigQuery"""
 
 import logging
+from typing import Any
 
 from google.cloud import bigquery
 
@@ -27,7 +28,7 @@ class DeleteActivityService:
         activity_id: int,
         correlation_id: str,
         event_time: int,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Archive deleted activity from activities to deleted_activities table.
 
         Process:
