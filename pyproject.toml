@@ -2,6 +2,7 @@
 members = [
     "packages/aggregator",
     "packages/stravabqsync",
+    "packages/stravapipe",
 ]
 
 [dependency-groups]
@@ -42,7 +43,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["aggregator", "stravabqsync"]
+known-first-party = ["aggregator", "stravabqsync", "stravapipe"]
 force-sort-within-sections = true
 
 [tool.ruff.format]
@@ -55,17 +56,19 @@ line-ending = "auto"
 testpaths = [
     "packages/aggregator/tests",
     "packages/stravabqsync/tests",
+    "packages/stravapipe/tests",
 ]
 pythonpath = [
     "packages/aggregator/src",
     "packages/stravabqsync/src",
+    "packages/stravapipe/src",
 ]
 addopts = "--import-mode=importlib"
 
 
 [tool.mypy]
-mypy_path = ["packages/aggregator/src", "packages/stravabqsync/src", "functions", "scripts"]
-packages = ["aggregator", "stravabqsync"]
+mypy_path = ["packages/aggregator/src", "packages/stravabqsync/src", "packages/stravapipe/src", "functions", "scripts"]
+packages = ["aggregator", "stravabqsync", "stravapipe"]
 explicit_package_bases = true
 namespace_packages = true
 
