@@ -1,4 +1,5 @@
 import pytest
+
 from stravapipe.adapters.strava import (
     make_read_detailed_activities,
     make_read_strava_token,

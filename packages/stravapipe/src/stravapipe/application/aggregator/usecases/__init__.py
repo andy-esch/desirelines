@@ -6,7 +6,11 @@ from stravapipe.application.aggregator.services.pacing_service import PacingServ
 from stravapipe.application.aggregator.usecases.update_summary import (
     UpdateSummaryUseCase,
 )
-from stravapipe.ports.out.read import ReadMinimalActivities, ReadStravaToken, ReadSummaries
+from stravapipe.ports.out.read import (
+    ReadMinimalActivities,
+    ReadStravaToken,
+    ReadSummaries,
+)
 
 
 def make_update_summary_use_case(

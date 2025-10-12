@@ -7,7 +7,11 @@ from stravapipe.adapters import OneArgSupplier, Supplier
 from stravapipe.application.aggregator.services.export_service import ExportService
 from stravapipe.application.aggregator.services.pacing_service import PacingService
 from stravapipe.domain import MinimalStravaActivity, WebhookRequest
-from stravapipe.ports.out.read import ReadMinimalActivities, ReadStravaToken, ReadSummaries
+from stravapipe.ports.out.read import (
+    ReadMinimalActivities,
+    ReadStravaToken,
+    ReadSummaries,
+)
 from stravapipe.types import SummaryObject
 
 logger = logging.getLogger(__name__)

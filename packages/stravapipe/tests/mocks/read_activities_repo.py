@@ -4,6 +4,7 @@ from stravapipe.ports.out.read import ReadDetailedActivities
 
 class MockReadActivitiesRepo(ReadDetailedActivities):
     """Mock for detailed activities (BQ inserter tests)"""
+
     def __init__(self, activity: DetailedStravaActivity):
         self.activity = activity
 

@@ -7,5 +7,7 @@ class UpdateService:
     def __init__(self):
         pass
 
-    def update(self, summary: dict[str, dict[str, float]], activity: MinimalStravaActivity):
+    def update(
+        self, summary: dict[str, dict[str, float]], activity: MinimalStravaActivity
+    ):
         pass

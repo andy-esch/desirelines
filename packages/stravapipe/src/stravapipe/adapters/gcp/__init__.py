@@ -55,19 +55,15 @@ def make_write_distances(config: AggregatorConfig) -> DistancesRepo:
 
 
 __all__ = [
-    # Clients
     "BigQueryClientWrapper",
     "CloudStorageClientWrapper",
-    # BigQuery repositories
-    "WriteActivitiesRepo",
-    # Cloud Storage repositories
-    "SummariesRepo",
-    "PacingsRepo",
     "DistancesRepo",
-    # Factory functions
+    "PacingsRepo",
+    "SummariesRepo",
+    "WriteActivitiesRepo",
     "make_bigquery_client_wrapper",
     "make_write_activities",
-    "make_write_summary",
-    "make_write_pacings",
     "make_write_distances",
+    "make_write_pacings",
+    "make_write_summary",
 ]

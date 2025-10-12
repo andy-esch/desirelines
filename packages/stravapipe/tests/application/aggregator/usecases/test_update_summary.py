@@ -1,12 +1,12 @@
 from datetime import UTC, datetime
 from functools import lru_cache
-import json
-from pathlib import Path
 
 import pytest
 
 from stravapipe.application.aggregator.services import PacingService
-from stravapipe.application.aggregator.usecases.update_summary import UpdateSummaryUseCase
+from stravapipe.application.aggregator.usecases.update_summary import (
+    UpdateSummaryUseCase,
+)
 from stravapipe.domain import MinimalStravaActivity, StravaTokenSet, WebhookRequest
 from tests.mocks.export_service import MockExportService
 from tests.mocks.read_activities import MockReadActivities

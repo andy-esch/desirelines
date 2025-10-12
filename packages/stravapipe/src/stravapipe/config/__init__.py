@@ -5,9 +5,9 @@ from stravapipe.config.bq_inserter import BQInserterConfig, load_bq_inserter_con
 from stravapipe.config.common import StravaApiConfig
 
 __all__ = [
-    "StravaApiConfig",
-    "BQInserterConfig",
-    "load_bq_inserter_config",
     "AggregatorConfig",
+    "BQInserterConfig",
+    "StravaApiConfig",
     "load_aggregator_config",
+    "load_bq_inserter_config",
 ]

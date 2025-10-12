@@ -10,4 +10,4 @@ T = TypeVar("T")
 Supplier = Callable[[], T]
 OneArgSupplier = Callable[[StravaTokenSet], T]
 
-__all__ = ["Supplier", "OneArgSupplier"]
+__all__ = ["OneArgSupplier", "Supplier"]

@@ -3,7 +3,9 @@ from datetime import UTC, datetime
 import pytest
 
 from stravapipe.application.aggregator.services import PacingService
-from stravapipe.application.aggregator.usecases.update_summary import UpdateSummaryUseCase
+from stravapipe.application.aggregator.usecases.update_summary import (
+    UpdateSummaryUseCase,
+)
 from stravapipe.domain import MinimalStravaActivity, StravaTokenSet, WebhookRequest
 
 

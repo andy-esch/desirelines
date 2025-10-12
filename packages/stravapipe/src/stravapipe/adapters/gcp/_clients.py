@@ -94,9 +94,7 @@ class CloudStorageClientWrapper:
     ) -> None:
         """Write a JSON blob to a bucket"""
         blob = self._bucket.blob(blob_name)
-        blob.upload_from_string(
-            data=json.dumps(data), content_type="application/json"
-        )
+        blob.upload_from_string(data=json.dumps(data), content_type="application/json")
 
     def download_blob_to_file(self, blob_name: str, file_path: str) -> None:
         """Download a blob to a local file"""

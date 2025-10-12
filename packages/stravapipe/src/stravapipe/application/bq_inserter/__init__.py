@@ -3,7 +3,10 @@
 from google.cloud import bigquery
 
 from stravapipe.adapters.gcp import make_write_activities
-from stravapipe.adapters.strava import make_read_detailed_activities, make_read_strava_token
+from stravapipe.adapters.strava import (
+    make_read_detailed_activities,
+    make_read_strava_token,
+)
 from stravapipe.application.bq_inserter.delete_service import DeleteActivityService
 from stravapipe.application.bq_inserter.sync_service import SyncService
 from stravapipe.config import BQInserterConfig, load_bq_inserter_config
@@ -35,7 +38,9 @@ def make_sync_service(config: BQInserterConfig | None = None) -> SyncService:
     )
 
 
-def make_delete_service(config: BQInserterConfig | None = None) -> DeleteActivityService:
+def make_delete_service(
+    config: BQInserterConfig | None = None,
+) -> DeleteActivityService:
     """Create a configured DeleteActivityService instance.
 
     Factory function that wires together all dependencies needed for the
@@ -63,8 +68,8 @@ def make_delete_service(config: BQInserterConfig | None = None) -> DeleteActivit
 
 
 __all__ = [
-    "SyncService",
     "DeleteActivityService",
-    "make_sync_service",
+    "SyncService",
     "make_delete_service",
+    "make_sync_service",
 ]

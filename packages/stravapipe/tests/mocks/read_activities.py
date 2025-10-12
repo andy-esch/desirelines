@@ -4,6 +4,7 @@ from stravapipe.ports.out.read import ReadMinimalActivities
 
 class MockReadActivities(ReadMinimalActivities):
     """Mock for minimal activities (aggregator tests)"""
+
     def __init__(self, activities: dict[int, MinimalStravaActivity]):
         self.activities = activities
 

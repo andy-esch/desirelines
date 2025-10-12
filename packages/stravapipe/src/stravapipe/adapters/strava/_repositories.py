@@ -41,7 +41,9 @@ class StravaApiConfig(NamedTuple):
 class StravaTokenRepo(ReadStravaToken):
     """Fetch new access token"""
 
-    def __init__(self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None):
+    def __init__(
+        self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None
+    ):
         self._tokens = tokens
         self._api_config = api_config or StravaApiConfig()
 
@@ -95,7 +97,9 @@ class StravaTokenRepo(ReadStravaToken):
 class DetailedStravaActivitiesRepo(ReadDetailedActivities):
     """Repository for fetching detailed Strava Activities (for BQ inserter)"""
 
-    def __init__(self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None):
+    def __init__(
+        self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None
+    ):
         self._tokens = tokens
         self._api_config = api_config or StravaApiConfig()
         self._headers = {"Authorization": f"Bearer {self._tokens.access_token}"}
@@ -206,18 +210,21 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities):
 
 class MinimalStravaActivitiesRepo(ReadMinimalActivities):
     """Repository for fetching minimal Strava Activities (for aggregator)
-    
+
     Returns only the minimal fields needed for aggregation calculations.
     Faster validation and lower memory usage than DetailedStravaActivitiesRepo.
     """
 
-    def __init__(self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None):
+    def __init__(
+        self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None
+    ):
         self._tokens = tokens
         self._api_config = api_config or StravaApiConfig()
         self._headers = {"Authorization": f"Bearer {self._tokens.access_token}"}
 
     def _read_raw_activity_by_id(self, activity_id: int) -> dict[str, Any]:
         """Fetch raw activity data from Strava API"""
+
         @retry_on_failure(
             max_attempts=self._api_config.activity_retry_attempts,
             backoff_seconds=self._api_config.activity_retry_backoff,
@@ -262,7 +269,7 @@ class MinimalStravaActivitiesRepo(ReadMinimalActivities):
 
     def read_activity_by_id(self, activity_id: int) -> MinimalStravaActivity:
         """Fetch minimal activity data from Strava
-        
+
         Only extracts the fields needed for aggregation (id, type, date, distance).
         Much faster validation than DetailedStravaActivity.
         """
@@ -279,7 +286,7 @@ class MinimalStravaActivitiesRepo(ReadMinimalActivities):
 
     def read_activities_by_year(self, year: int) -> list[MinimalStravaActivity]:
         """Read minimal Strava activities in a year
-        
+
         Note: Currently not implemented as aggregator doesn't use this method.
         """
         raise NotImplementedError("Aggregator doesn't fetch activities by year")

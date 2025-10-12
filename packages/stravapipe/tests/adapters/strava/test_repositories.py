@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from requests_mock import Mocker
+
 from stravapipe.adapters.strava._repositories import (
     DetailedStravaActivitiesRepo,
     StravaTokenRepo,
@@ -111,9 +112,7 @@ class TestDetailedStravaActivitiesRepo:
     def test_read_activity_api_error(self, detailed_activities_repo):
         activity_id = 12345678987654321
         with Mocker() as m:
-            endpoint = (
-                f"{detailed_activities_repo._api_config.api_base_url}/activities/{activity_id}"
-            )
+            endpoint = f"{detailed_activities_repo._api_config.api_base_url}/activities/{activity_id}"
             m.get(endpoint, status_code=500, text="Server Error")
             with pytest.raises(StravaApiError):
                 _ = detailed_activities_repo.read_activity_by_id(activity_id)

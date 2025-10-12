@@ -14,7 +14,9 @@ def make_read_strava_token(tokens: StravaTokenSet) -> StravaTokenRepo:
     return StravaTokenRepo(tokens=tokens, api_config=StravaApiConfig())
 
 
-def make_read_detailed_activities(tokens: StravaTokenSet) -> DetailedStravaActivitiesRepo:
+def make_read_detailed_activities(
+    tokens: StravaTokenSet,
+) -> DetailedStravaActivitiesRepo:
     """Create a detailed Strava activities repository (for BQ inserter)."""
     return DetailedStravaActivitiesRepo(tokens=tokens, api_config=StravaApiConfig())
 

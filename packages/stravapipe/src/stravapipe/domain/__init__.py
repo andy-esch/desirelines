@@ -8,12 +8,9 @@ from stravapipe.domain.auth import StravaTokenSet
 from stravapipe.domain.webhook import AspectType, WebhookRequest
 
 __all__ = [
-    # Webhook models
     "AspectType",
-    "WebhookRequest",
-    # Activity models
     "DetailedStravaActivity",
     "MinimalStravaActivity",
-    # Auth models
     "StravaTokenSet",
+    "WebhookRequest",
 ]
