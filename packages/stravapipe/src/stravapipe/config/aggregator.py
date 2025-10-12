@@ -5,6 +5,8 @@ import os
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from stravapipe.domain import StravaTokenSet
+
 
 class AggregatorConfig(BaseSettings):
     """Configuration for the activity aggregator cloud function.
@@ -30,6 +32,16 @@ class AggregatorConfig(BaseSettings):
         validate_default=True,
         extra="ignore",  # Allow extra environment variables
     )
+
+    @property
+    def tokens(self) -> StravaTokenSet:
+        """Create StravaTokenSet from config values."""
+        return StravaTokenSet(
+            client_id=self.strava_client_id,
+            client_secret=self.strava_client_secret,
+            access_token="",  # Will be refreshed on first use
+            refresh_token=self.strava_refresh_token,
+        )
 
 
 def load_aggregator_config() -> AggregatorConfig:

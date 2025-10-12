@@ -1,31 +1,46 @@
 """Aggregator use cases for webhook processing."""
 
-from stravapipe.adapters import OneArgSupplier, Supplier
-from stravapipe.application.aggregator.services.export_service import ExportService
-from stravapipe.application.aggregator.services.pacing_service import PacingService
+from stravapipe.adapters.gcp import make_read_summaries
+from stravapipe.adapters.strava import (
+    make_read_minimal_activities,
+    make_read_strava_token,
+)
+from stravapipe.application.aggregator.services import (
+    make_export_service,
+    make_pacing_service,
+)
 from stravapipe.application.aggregator.usecases.update_summary import (
     UpdateSummaryUseCase,
 )
-from stravapipe.ports.out.read import (
-    ReadMinimalActivities,
-    ReadStravaToken,
-    ReadSummaries,
-)
+from stravapipe.config import AggregatorConfig, load_aggregator_config
 
 
 def make_update_summary_use_case(
-    read_activities: OneArgSupplier[ReadMinimalActivities],
-    read_summaries: Supplier[ReadSummaries],
-    read_strava_token: Supplier[ReadStravaToken],
-    pacing_service: Supplier[PacingService],
-    export_service: Supplier[ExportService],
+    config: AggregatorConfig | None = None,
 ) -> UpdateSummaryUseCase:
+    """Create a configured UpdateSummaryUseCase instance.
+
+    Factory function that wires together all dependencies needed for the
+    update summary use case.
+
+    Args:
+        config: Application configuration. If None, loads from environment.
+
+    Returns:
+        UpdateSummaryUseCase: Fully configured use case instance.
+
+    Raises:
+        ConfigurationError: If required configuration is missing.
+    """
+    if config is None:
+        config = load_aggregator_config()
+
     return UpdateSummaryUseCase(
-        read_activities=read_activities,
-        read_summaries=read_summaries,
-        read_strava_token=read_strava_token,
-        pacing_service=pacing_service,
-        export_service=export_service,
+        read_activities=lambda tokens: make_read_minimal_activities(tokens),
+        read_summaries=lambda: make_read_summaries(config),
+        read_strava_token=lambda: make_read_strava_token(config.tokens),
+        pacing_service=make_pacing_service,
+        export_service=lambda: make_export_service(config),
     )
 
 

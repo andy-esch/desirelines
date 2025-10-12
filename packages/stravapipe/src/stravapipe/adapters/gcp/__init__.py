@@ -11,6 +11,8 @@ from stravapipe.adapters.gcp._storage import (
     SummariesRepo,
 )
 from stravapipe.config import AggregatorConfig, BQInserterConfig
+from stravapipe.ports.out.read import ReadSummaries
+from stravapipe.ports.out.write import WriteSummary
 
 
 def make_bigquery_client_wrapper(config: BQInserterConfig) -> BigQueryClientWrapper:
@@ -27,13 +29,23 @@ def make_write_activities(config: BQInserterConfig) -> WriteActivitiesRepo:
     )
 
 
-def make_write_summary(config: AggregatorConfig) -> SummariesRepo:
-    """Create a SummariesRepo for writing summary JSON."""
+def _make_summaries_repo(config: AggregatorConfig) -> SummariesRepo:
+    """Create a SummariesRepo (used for both read and write)."""
     client = CloudStorageClientWrapper(
         project_id=config.gcp_project_id,
         bucket_name=config.gcp_bucket_name,
     )
     return SummariesRepo(client=client)
+
+
+def make_read_summaries(config: AggregatorConfig) -> ReadSummaries:
+    """Create a ReadSummaries adapter for reading summary JSON from Cloud Storage."""
+    return _make_summaries_repo(config)
+
+
+def make_write_summary(config: AggregatorConfig) -> WriteSummary:
+    """Create a WriteSummary adapter for writing summary JSON to Cloud Storage."""
+    return _make_summaries_repo(config)
 
 
 def make_write_pacings(config: AggregatorConfig) -> PacingsRepo:
@@ -62,6 +74,7 @@ __all__ = [
     "SummariesRepo",
     "WriteActivitiesRepo",
     "make_bigquery_client_wrapper",
+    "make_read_summaries",
     "make_write_activities",
     "make_write_distances",
     "make_write_pacings",
