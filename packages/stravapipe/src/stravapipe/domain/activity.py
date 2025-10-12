@@ -227,15 +227,3 @@ class DetailedStravaActivity(BaseModel):
     max_heartrate: float | None = None
     available_zones: list[str] = Field(default_factory=list)
     visibility: str | None = None
-
-    @computed_field  # type: ignore
-    @property
-    def distance_miles(self) -> float:
-        """Convert meters to miles"""
-        return self.distance / 1000.0 * 0.62137
-
-    @computed_field  # type: ignore
-    @property
-    def date_str(self) -> str:
-        """Get date string in YYYY-MM-DD format"""
-        return self.start_date_local.date().strftime("%Y-%m-%d")

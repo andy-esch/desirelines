@@ -2,7 +2,7 @@
 set -e
 
 # Package Cloud Functions source code with SHA-based naming
-# Usage: ./scripts/package-functions.sh [SHA]
+# Usage: ./scripts/operations/package-functions.sh [SHA]
 # If no SHA provided, uses current git HEAD
 
 SHA=${1:-$(git rev-parse --short HEAD)}
@@ -72,12 +72,11 @@ TEMP_BQ=$(mktemp -d)
 cp functions/activity_bq_inserter.py "$TEMP_BQ/main.py"
 
 # Copy stravabqsync business logic (self-contained, no desirelines dependency)
-rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
-      --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
-      packages/stravabqsync/src/ "$TEMP_BQ/"
+rsync -av --exclude-from='.gitignore' --exclude='.git' \
+      packages/stravapipe/src/ "$TEMP_BQ/"
 
 # Generate requirements.txt from pyproject.toml for Cloud Functions deployment
-cd packages/stravabqsync && uv pip compile pyproject.toml --output-file "$TEMP_BQ/requirements.txt" && cd ../..
+cd packages/stravapipe && uv pip compile pyproject.toml --output-file "$TEMP_BQ/requirements.txt" && cd ../..
 
 # Create the zip
 cd "$TEMP_BQ" && zip -r - . > "$OLDPWD/$DIST_DIR/bq-inserter-$SHA.zip"
@@ -95,12 +94,11 @@ TEMP_AGG=$(mktemp -d)
 cp functions/activity_aggregator.py "$TEMP_AGG/main.py"
 
 # Copy desirelines business logic
-rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
-      --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
-      packages/aggregator/src/ "$TEMP_AGG/"
+rsync -av --exclude-from='./.gitignore' --exclude='.git' \
+      packages/stravapipe/src/ "$TEMP_AGG/"
 
 # Generate requirements.txt from pyproject.toml for Cloud Functions deployment
-cd packages/aggregator && uv pip compile pyproject.toml --output-file "$TEMP_AGG/requirements.txt" && cd ../..
+cd packages/stravapipe && uv pip compile pyproject.toml --output-file "$TEMP_AGG/requirements.txt" && cd ../..
 
 # Create the zip
 cd "$TEMP_AGG" && zip -r - . > "$OLDPWD/$DIST_DIR/aggregator-$SHA.zip"

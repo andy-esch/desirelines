@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Bootstrap Terraform Service Account for New Environment
-# Usage: ./scripts/bootstrap-terraform-sa.sh <environment>
-# Example: ./scripts/bootstrap-terraform-sa.sh dev
+# Usage: ./scripts/infrastructure/bootstrap-terraform-sa.sh <environment>
+# Example: ./scripts/infrastructure/bootstrap-terraform-sa.sh dev
 
 set -e
 
