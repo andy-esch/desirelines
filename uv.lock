@@ -4,8 +4,6 @@ requires-python = ">=3.13"
 
 [manifest]
 members = [
-    "aggregator",
-    "stravabqsync",
     "stravapipe",
 ]
 
@@ -20,31 +18,6 @@ dev = [
     { name = "ruff", specifier = ">=0.12.9" },
     { name = "types-pytz", specifier = ">=2025.2.0.20250809" },
     { name = "types-requests", specifier = ">=2.32.4.20250809" },
-]
-
-[[package]]
-name = "aggregator"
-version = "0.1.0"
-source = { editable = "packages/aggregator" }
-dependencies = [
-    { name = "functions-framework" },
-    { name = "google-cloud-storage" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "python-dotenv" },
-    { name = "pytz" },
-    { name = "requests" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "functions-framework", specifier = ">=3.0.0" },
-    { name = "google-cloud-storage", specifier = ">=3.3.0" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "pydantic-settings", specifier = ">=2.10.1" },
-    { name = "python-dotenv", specifier = ">=1.1.1" },
-    { name = "pytz", specifier = ">=2025.2" },
-    { name = "requests", specifier = ">=2.32.4" },
 ]
 
 [[package]]
@@ -886,29 +859,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
-]
-
-[[package]]
-name = "stravabqsync"
-version = "0.1.0"
-source = { editable = "packages/stravabqsync" }
-dependencies = [
-    { name = "functions-framework" },
-    { name = "google-cloud-bigquery" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "python-dotenv" },
-    { name = "requests" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "functions-framework", specifier = ">=3.8.3" },
-    { name = "google-cloud-bigquery", specifier = ">=3.35.1" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "pydantic-settings", specifier = ">=2.10.1" },
-    { name = "python-dotenv", specifier = ">=1.1.1" },
-    { name = "requests", specifier = ">=2.32.4" },
 ]
 
 [[package]]

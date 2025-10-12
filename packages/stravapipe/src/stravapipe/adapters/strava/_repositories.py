@@ -252,7 +252,7 @@ class MinimalStravaActivitiesRepo(ReadMinimalActivities):
                 },
             )
             if resp.status_code == 404:
-                raise ActivityNotFoundError(f"Activity {activity_id} not found")
+                raise ActivityNotFoundError(activity_id)
             else:
                 resp.raise_for_status()
 
