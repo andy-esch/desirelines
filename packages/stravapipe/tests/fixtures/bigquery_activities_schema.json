@@ -1,0 +1,1146 @@
+{
+  "table_name": "activities",
+  "description": "Complete Strava activity data matching production schema",
+  "schema": [
+    {
+      "mode": "REQUIRED",
+      "name": "id",
+      "type": "INTEGER",
+      "description": "Strava activity ID (primary key)"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "external_id",
+      "type": "STRING",
+      "description": "External activity ID"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "upload_id",
+      "type": "INTEGER",
+      "description": "Strava upload ID"
+    },
+    {
+      "fields": [
+        {
+          "mode": "REQUIRED",
+          "name": "id",
+          "type": "INTEGER",
+          "description": "Athlete ID"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "resource_state",
+          "type": "INTEGER",
+          "description": "Resource state"
+        }
+      ],
+      "mode": "REQUIRED",
+      "name": "athlete",
+      "type": "RECORD",
+      "description": "Athlete information"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "name",
+      "type": "STRING",
+      "description": "Activity name/title"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "distance",
+      "type": "FLOAT",
+      "description": "Activity distance in meters"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "moving_time",
+      "type": "INTEGER",
+      "description": "Moving time in seconds"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "elapsed_time",
+      "type": "INTEGER",
+      "description": "Total elapsed time in seconds"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "total_elevation_gain",
+      "type": "FLOAT",
+      "description": "Total elevation gain in meters"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "elev_high",
+      "type": "FLOAT",
+      "description": "Highest elevation in meters"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "elev_low",
+      "type": "FLOAT",
+      "description": "Lowest elevation in meters"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "type",
+      "type": "STRING",
+      "description": "Type of activity (Ride, VirtualRide, etc.)"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "sport_type",
+      "type": "STRING",
+      "description": "Sport type classification"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "start_date",
+      "type": "TIMESTAMP",
+      "description": "Activity start time (UTC)"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "start_date_local",
+      "type": "TIMESTAMP",
+      "description": "Activity start time in local timezone"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "timezone",
+      "type": "STRING",
+      "description": "Timezone of the activity"
+    },
+    {
+      "mode": "REPEATED",
+      "name": "start_latlng",
+      "type": "FLOAT",
+      "description": "Starting latitude and longitude coordinates"
+    },
+    {
+      "mode": "REPEATED",
+      "name": "end_latlng",
+      "type": "FLOAT",
+      "description": "Ending latitude and longitude coordinates"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "achievement_count",
+      "type": "INTEGER",
+      "description": "Number of achievements earned"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "kudos_count",
+      "type": "INTEGER",
+      "description": "Number of kudos received"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "comment_count",
+      "type": "INTEGER",
+      "description": "Number of comments"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "athlete_count",
+      "type": "INTEGER",
+      "description": "Number of athletes"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "photo_count",
+      "type": "INTEGER",
+      "description": "Number of photos"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "total_photo_count",
+      "type": "INTEGER",
+      "description": "Total photo count"
+    },
+    {
+      "fields": [
+        {
+          "mode": "REQUIRED",
+          "name": "id",
+          "type": "STRING",
+          "description": "Map ID"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "polyline",
+          "type": "STRING",
+          "description": "Encoded polyline"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "resource_state",
+          "type": "INTEGER",
+          "description": "Resource state"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "summary_polyline",
+          "type": "STRING",
+          "description": "Summary encoded polyline"
+        }
+      ],
+      "mode": "REQUIRED",
+      "name": "map",
+      "type": "RECORD",
+      "description": "Map data with polylines"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "trainer",
+      "type": "BOOLEAN",
+      "description": "Whether activity was on a trainer"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "commute",
+      "type": "BOOLEAN",
+      "description": "Whether activity was a commute"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "manual",
+      "type": "BOOLEAN",
+      "description": "Whether activity was manually entered"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "private",
+      "type": "BOOLEAN",
+      "description": "Whether activity is private"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "flagged",
+      "type": "BOOLEAN",
+      "description": "Whether activity was flagged"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "workout_type",
+      "type": "STRING",
+      "description": "Type of workout"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "upload_id_str",
+      "type": "STRING",
+      "description": "Upload ID as string"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "average_speed",
+      "type": "FLOAT",
+      "description": "Average speed in m/s"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "max_speed",
+      "type": "FLOAT",
+      "description": "Maximum speed in m/s"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "has_kudoed",
+      "type": "BOOLEAN",
+      "description": "Whether user has kudoed this activity"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "hide_from_home",
+      "type": "BOOLEAN",
+      "description": "Whether to hide from home feed"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "gear_id",
+      "type": "STRING",
+      "description": "ID of gear used"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "kilojoules",
+      "type": "FLOAT",
+      "description": "Total energy output in kilojoules"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "average_watts",
+      "type": "FLOAT",
+      "description": "Average power output in watts"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "device_watts",
+      "type": "BOOLEAN",
+      "description": "Whether watts are from device"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "max_watts",
+      "type": "INTEGER",
+      "description": "Maximum power output in watts"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "weighted_average_watts",
+      "type": "INTEGER",
+      "description": "Weighted average power in watts"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "description",
+      "type": "STRING",
+      "description": "Activity description"
+    },
+    {
+      "fields": [
+        {
+          "fields": [
+            {
+              "mode": "NULLABLE",
+              "name": "id",
+              "type": "STRING",
+              "description": "Photo ID"
+            },
+            {
+              "mode": "NULLABLE",
+              "name": "media_type",
+              "type": "INTEGER",
+              "description": "Media type"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "source",
+              "type": "INTEGER",
+              "description": "Photo source"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "unique_id",
+              "type": "STRING",
+              "description": "Unique photo ID"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "urls",
+              "type": "JSON",
+              "description": "Photo URLs as JSON"
+            }
+          ],
+          "mode": "NULLABLE",
+          "name": "primary",
+          "type": "RECORD",
+          "description": "Primary photo"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "count",
+          "type": "INTEGER",
+          "description": "Total photo count"
+        }
+      ],
+      "mode": "REQUIRED",
+      "name": "photos",
+      "type": "RECORD",
+      "description": "Photo information"
+    },
+    {
+      "fields": [
+        {
+          "mode": "REQUIRED",
+          "name": "id",
+          "type": "STRING",
+          "description": "Gear ID"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "primary",
+          "type": "BOOLEAN",
+          "description": "Whether this is primary gear"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "name",
+          "type": "STRING",
+          "description": "Gear name"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "resource_state",
+          "type": "INTEGER",
+          "description": "Resource state"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "distance",
+          "type": "FLOAT",
+          "description": "Total distance on gear"
+        }
+      ],
+      "mode": "NULLABLE",
+      "name": "gear",
+      "type": "RECORD",
+      "description": "Gear information"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "calories",
+      "type": "FLOAT",
+      "description": "Calories burned"
+    },
+    {
+      "mode": "REPEATED",
+      "name": "segment_efforts",
+      "type": "RECORD",
+      "description": "Segment efforts data",
+      "fields": [
+        {
+          "mode": "REQUIRED",
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "resource_state",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "name",
+          "type": "STRING"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "activity",
+          "type": "RECORD",
+          "fields": [
+            {
+              "mode": "REQUIRED",
+              "name": "id",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "resource_state",
+              "type": "INTEGER"
+            }
+          ]
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "athlete",
+          "type": "RECORD",
+          "fields": [
+            {
+              "mode": "REQUIRED",
+              "name": "id",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "resource_state",
+              "type": "INTEGER"
+            }
+          ]
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "elapsed_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "moving_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "start_date",
+          "type": "TIMESTAMP"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "start_date_local",
+          "type": "TIMESTAMP"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "distance",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "start_index",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "end_index",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "average_cadence",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "device_watts",
+          "type": "BOOLEAN"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "average_watts",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "segment",
+          "type": "RECORD",
+          "fields": [
+            {
+              "mode": "REQUIRED",
+              "name": "id",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "resource_state",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "name",
+              "type": "STRING"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "activity_type",
+              "type": "STRING"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "distance",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "average_grade",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "maximum_grade",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "elevation_high",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "elevation_low",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REPEATED",
+              "name": "start_latlng",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REPEATED",
+              "name": "end_latlng",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "climb_category",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "NULLABLE",
+              "name": "city",
+              "type": "STRING"
+            },
+            {
+              "mode": "NULLABLE",
+              "name": "state",
+              "type": "STRING"
+            },
+            {
+              "mode": "NULLABLE",
+              "name": "country",
+              "type": "STRING"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "private",
+              "type": "BOOLEAN"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "hazardous",
+              "type": "BOOLEAN"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "starred",
+              "type": "BOOLEAN"
+            }
+          ]
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "kom_rank",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "pr_rank",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "hidden",
+          "type": "BOOLEAN"
+        }
+      ]
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "device_name",
+      "type": "STRING",
+      "description": "Device name"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "embed_token",
+      "type": "STRING",
+      "description": "Embed token"
+    },
+    {
+      "mode": "REPEATED",
+      "name": "splits_metric",
+      "type": "RECORD",
+      "description": "Metric splits data",
+      "fields": [
+        {
+          "mode": "REQUIRED",
+          "name": "distance",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "elapsed_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "elevation_difference",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "moving_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "split",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "average_speed",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "pace_zone",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "mode": "REPEATED",
+      "name": "splits_standard",
+      "type": "RECORD",
+      "description": "Standard splits data",
+      "fields": [
+        {
+          "mode": "REQUIRED",
+          "name": "distance",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "elapsed_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "elevation_difference",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "moving_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "split",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "average_speed",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "pace_zone",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "mode": "REPEATED",
+      "name": "laps",
+      "type": "RECORD",
+      "description": "Lap data",
+      "fields": [
+        {
+          "mode": "REQUIRED",
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "resource_state",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "name",
+          "type": "STRING"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "activity",
+          "type": "RECORD",
+          "fields": [
+            {
+              "mode": "REQUIRED",
+              "name": "id",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "resource_state",
+              "type": "INTEGER"
+            }
+          ]
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "athlete",
+          "type": "RECORD",
+          "fields": [
+            {
+              "mode": "REQUIRED",
+              "name": "id",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "resource_state",
+              "type": "INTEGER"
+            }
+          ]
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "elapsed_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "moving_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "start_date",
+          "type": "TIMESTAMP"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "start_date_local",
+          "type": "TIMESTAMP"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "distance",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "start_index",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "end_index",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "total_elevation_gain",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "average_speed",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "max_speed",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "average_cadence",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "device_watts",
+          "type": "BOOLEAN"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "average_watts",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "lap_index",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "split",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "mode": "REPEATED",
+      "name": "best_efforts",
+      "type": "RECORD",
+      "description": "Best efforts data",
+      "fields": [
+        {
+          "mode": "REQUIRED",
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "resource_state",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "name",
+          "type": "STRING"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "activity",
+          "type": "RECORD",
+          "fields": [
+            {
+              "mode": "REQUIRED",
+              "name": "id",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "resource_state",
+              "type": "INTEGER"
+            }
+          ]
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "athlete",
+          "type": "RECORD",
+          "fields": [
+            {
+              "mode": "REQUIRED",
+              "name": "id",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "resource_state",
+              "type": "INTEGER"
+            }
+          ]
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "elapsed_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "moving_time",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "start_date",
+          "type": "TIMESTAMP"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "start_date_local",
+          "type": "TIMESTAMP"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "distance",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "start_index",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "end_index",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "average_cadence",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "device_watts",
+          "type": "BOOLEAN"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "average_watts",
+          "type": "FLOAT"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "segment",
+          "type": "RECORD",
+          "fields": [
+            {
+              "mode": "REQUIRED",
+              "name": "id",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "resource_state",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "name",
+              "type": "STRING"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "activity_type",
+              "type": "STRING"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "distance",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "average_grade",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "maximum_grade",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "elevation_high",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "elevation_low",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REPEATED",
+              "name": "start_latlng",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REPEATED",
+              "name": "end_latlng",
+              "type": "FLOAT"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "climb_category",
+              "type": "INTEGER"
+            },
+            {
+              "mode": "NULLABLE",
+              "name": "city",
+              "type": "STRING"
+            },
+            {
+              "mode": "NULLABLE",
+              "name": "state",
+              "type": "STRING"
+            },
+            {
+              "mode": "NULLABLE",
+              "name": "country",
+              "type": "STRING"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "private",
+              "type": "BOOLEAN"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "hazardous",
+              "type": "BOOLEAN"
+            },
+            {
+              "mode": "REQUIRED",
+              "name": "starred",
+              "type": "BOOLEAN"
+            }
+          ]
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "kom_rank",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "pr_rank",
+          "type": "INTEGER"
+        },
+        {
+          "mode": "NULLABLE",
+          "name": "hidden",
+          "type": "BOOLEAN"
+        }
+      ]
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "average_cadence",
+      "type": "FLOAT",
+      "description": "Average cadence"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "has_heartrate",
+      "type": "BOOLEAN",
+      "description": "Whether activity has heartrate data"
+    },
+    {
+      "mode": "REQUIRED",
+      "name": "pr_count",
+      "type": "INTEGER",
+      "description": "Number of personal records"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "suffer_score",
+      "type": "FLOAT",
+      "description": "Strava suffer score"
+    },
+    {
+      "mode": "REPEATED",
+      "name": "stats_visibility",
+      "type": "RECORD",
+      "description": "Stats visibility settings",
+      "fields": [
+        {
+          "mode": "REQUIRED",
+          "name": "type",
+          "type": "STRING"
+        },
+        {
+          "mode": "REQUIRED",
+          "name": "visibility",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "display_hide_heartrate_option",
+      "type": "BOOLEAN",
+      "description": "Whether to display hide heartrate option"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "heartrate_opt_out",
+      "type": "BOOLEAN",
+      "description": "Whether user opted out of heartrate"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "average_heartrate",
+      "type": "FLOAT",
+      "description": "Average heart rate in beats per minute"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "max_heartrate",
+      "type": "FLOAT",
+      "description": "Maximum heart rate in beats per minute"
+    },
+    {
+      "mode": "REPEATED",
+      "name": "available_zones",
+      "type": "STRING",
+      "description": "Available zones"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "visibility",
+      "type": "STRING",
+      "description": "Activity visibility setting"
+    }
+  ]
+}

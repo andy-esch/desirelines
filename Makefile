@@ -26,7 +26,7 @@ endef
 
 # Python commands
 py-test:
-	uv run pytest packages/aggregator/tests/ && uv run pytest packages/stravabqsync/tests/
+	uv run pytest packages/stravapipe/tests/
 
 py-lint:
 	uv run ruff check . --fix
@@ -35,7 +35,7 @@ py-format:
 	uv run ruff format .
 
 py-typecheck:
-	uv run mypy packages/aggregator/src/ && uv run mypy packages/stravabqsync/src/
+	uv run mypy packages/stravapipe/src/
 
 # Go commands
 go-test:
@@ -278,15 +278,14 @@ stop:
 # Generate function-specific requirements files
 generate-requirements:
 	@echo "📋 Generating function-specific requirements..."
-	@echo "  - Desirelines package requirements"
-	cd packages/aggregator && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-aggregator.txt
+	@echo "  - Stravapipe package requirements"
+	cd packages/stravapipe && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-aggregator.txt
 	@echo "  - Removing local package references from aggregator requirements"
-	sed -i '' '/^\.\/packages\/aggregator$$/d' functions/requirements-aggregator.txt
-	@echo "  - Stravabqsync package requirements"
-	cd packages/stravabqsync && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-stravabqsync.txt
-	@echo "  - Removing local package references from stravabqsync requirements"
-	sed -i '' '/^\.\/packages\/stravabqsync$$/d' functions/requirements-stravabqsync.txt
-	sed -i '' '/^\.\/packages\/aggregator$$/d' functions/requirements-stravabqsync.txt
+	sed -i '' '/^\.\/packages\/stravapipe$$/d' functions/requirements-aggregator.txt
+	@echo "  - Stravapipe package requirements (shared for both functions)"
+	cd packages/stravapipe && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-stravabqsync.txt
+	@echo "  - Removing local package references from BQ inserter requirements"
+	sed -i '' '/^\.\/packages\/stravapipe$$/d' functions/requirements-stravabqsync.txt
 
 # Build all images
 build: generate-requirements

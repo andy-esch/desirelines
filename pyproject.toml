@@ -1,7 +1,6 @@
 [tool.uv.workspace]
 members = [
-    "packages/aggregator",
-    "packages/stravabqsync",
+    "packages/stravapipe",
 ]
 
 [dependency-groups]
@@ -18,7 +17,7 @@ dev = [
 ]
 
 [tool.ruff]
-src = ["packages", "functions", "scripts"]
+src = ["packages", "functions", "scripts", "packages/stravapipe"]
 extend-exclude = ["*.ipynb"]
 line-length = 88
 target-version = "py313"
@@ -42,7 +41,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["aggregator", "stravabqsync"]
+known-first-party = ["stravapipe"]
 force-sort-within-sections = true
 
 [tool.ruff.format]
@@ -53,19 +52,17 @@ line-ending = "auto"
 
 [tool.pytest.ini_options]
 testpaths = [
-    "packages/aggregator/tests",
-    "packages/stravabqsync/tests",
+    "packages/stravapipe/tests",
 ]
 pythonpath = [
-    "packages/aggregator/src",
-    "packages/stravabqsync/src",
+    "packages/stravapipe/src",
 ]
 addopts = "--import-mode=importlib"
 
 
 [tool.mypy]
-mypy_path = ["packages/aggregator/src", "packages/stravabqsync/src", "functions", "scripts"]
-packages = ["aggregator", "stravabqsync"]
+mypy_path = ["packages/stravapipe/src", "functions", "scripts"]
+packages = ["stravapipe"]
 explicit_package_bases = true
 namespace_packages = true
 

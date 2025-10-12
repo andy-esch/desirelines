@@ -44,7 +44,7 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./functions/activity_aggregator.py:/app/main.py
-      - ./packages/aggregator/src/aggregator:/app/aggregator
+      - ./packages/stravapipe/src/stravapipe:/app/stravapipe
       - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
       pubsub-bootstrap:
@@ -65,7 +65,7 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./functions/activity_bq_inserter.py:/app/main.py
-      - ./packages/stravabqsync/src/stravabqsync:/app/stravabqsync
+      - ./packages/stravapipe/src/stravapipe:/app/stravapipe
       - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
       pubsub-bootstrap:
@@ -80,7 +80,7 @@ services:
       - PROJECT_ID=local-dev
       - TOPIC_NAME=desirelines_activity_events
     volumes:
-      - ./scripts/local-dev/bootstrap_pubsub.sh:/bootstrap_pubsub.sh:ro
+      - ./scripts/development/local-dev/bootstrap_pubsub.sh:/bootstrap_pubsub.sh:ro
     command: /bootstrap_pubsub.sh
     depends_on:
       - pubsub-emulator
@@ -97,7 +97,7 @@ services:
 
   # PubSub Emulator Web UI for debugging
   pubsub-ui:
-    profiles: ["debug"]  # Debug profile (use with backend)
+    profiles: ["debug", "monitoring"]  # Debug profile (use with backend)
     image: ghcr.io/neoscript/pubsub-emulator-ui:latest
     ports:
       - "4200:80"

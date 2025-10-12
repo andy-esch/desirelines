@@ -31,7 +31,7 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./functions/activity_aggregator.py:/app/main.py
-      - ./packages/aggregator/src/aggregator:/app/aggregator
+      - ./packages/stravapipe/src/stravapipe:/app/stravapipe
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
 
@@ -48,7 +48,7 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./functions/activity_bq_inserter.py:/app/main.py
-      - ./packages/stravabqsync/src/stravabqsync:/app/stravabqsync
+      - ./packages/stravapipe/src/stravapipe:/app/stravapipe
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
 

@@ -23,7 +23,7 @@ WORKDIR /app
 COPY --from=builder /root/.local /root/.local
 
 # Copy package source code
-COPY packages/aggregator/src/aggregator ./aggregator
+COPY packages/stravapipe/src/stravapipe ./stravapipe
 
 # Copy function code
 COPY functions/activity_aggregator.py ./main.py

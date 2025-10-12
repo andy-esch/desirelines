@@ -28,10 +28,10 @@ This guide shows how to bootstrap a complete desirelines environment (dev or pro
 
 ```bash
 # Bootstrap dev environment
-./scripts/bootstrap-environment.sh dev
+./scripts/operations/bootstrap-environment.sh dev
 
 # Or bootstrap prod environment
-./scripts/bootstrap-environment.sh prod
+./scripts/operations/bootstrap-environment.sh prod
 ```
 
 That's it! The script will:
@@ -62,7 +62,7 @@ After the initial bootstrap, to deploy changes:
 
 ```bash
 # Package new function code
-./scripts/package-functions.sh
+./scripts/operations/package-functions.sh
 
 # Deploy infrastructure updates
 cd terraform/environments/dev  # or prod
@@ -87,7 +87,7 @@ terraform apply -var="function_source_tag=$(git rev-parse --short HEAD)"
    - If terraform fails with IAM permission errors, the terraform service account may need additional roles
    - The bootstrap script grants comprehensive permissions, but if you created the SA manually, run:
      ```bash
-     ./scripts/bootstrap-terraform-sa.sh dev  # to add missing permissions
+     ./scripts/infrastructure/bootstrap-terraform-sa.sh dev  # to add missing permissions
      ```
    - Ensure you have Owner/Editor role on the project
    - Run: `gcloud auth list` to verify authentication
@@ -102,13 +102,13 @@ If the bootstrap script fails partway through, you can run individual steps:
 
 ```bash
 # Create terraform SA only
-./scripts/bootstrap-terraform-sa.sh dev
+./scripts/infrastructure/bootstrap-terraform-sa.sh dev
 
 # Deploy secrets only
-./scripts/deploy-secrets.sh StravaAuth-dev.json
+./scripts/infrastructure/deploy-secrets.sh StravaAuth-dev.json
 
 # Package functions only
-./scripts/package-functions.sh
+./scripts/operations/package-functions.sh
 
 # Deploy terraform only
 cd terraform/environments/dev
