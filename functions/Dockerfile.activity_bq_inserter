@@ -23,8 +23,7 @@ WORKDIR /app
 COPY --from=builder /root/.local /root/.local
 
 # Copy package source code (both packages needed for BQ inserter)
-COPY packages/aggregator/src/aggregator ./aggregator
-COPY packages/stravabqsync/src/stravabqsync ./stravabqsync
+COPY packages/stravapipe/src/stravapipe ./stravapipe
 
 # Copy function code
 COPY functions/activity_bq_inserter.py ./main.py

@@ -10,10 +10,10 @@ from cloudevents.http import CloudEvent
 import functions_framework
 from pydantic import ValidationError
 
-from stravabqsync.application.services import make_delete_service, make_sync_service
-from stravabqsync.config import load_bq_inserter_config
-from stravabqsync.domain import AspectType, WebhookRequest
-from stravabqsync.exceptions import ActivityNotFoundError
+from stravapipe.application.bq_inserter import make_delete_service, make_sync_service
+from stravapipe.config import load_bq_inserter_config
+from stravapipe.domain import AspectType, WebhookRequest
+from stravapipe.exceptions import ActivityNotFoundError
 
 # Configure logging for Google Cloud Functions
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")

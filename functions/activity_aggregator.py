@@ -11,9 +11,9 @@ from cloudevents.http import CloudEvent
 import functions_framework
 from pydantic import ValidationError
 
-from aggregator.application.usecases import make_update_summary_use_case
-from aggregator.domain import AspectType, WebhookRequest
-from aggregator.exceptions import ActivityNotFoundError
+from stravapipe.application.aggregator.usecases import make_update_summary_use_case
+from stravapipe.domain import AspectType, WebhookRequest
+from stravapipe.exceptions import ActivityNotFoundError
 
 # Configure logging for Google Cloud Functions
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
