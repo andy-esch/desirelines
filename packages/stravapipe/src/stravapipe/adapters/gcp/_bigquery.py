@@ -1,12 +1,16 @@
-"""BigQuery adapter for writing Strava activities."""
+"""BigQuery adapter for reading and writing Strava activities."""
+
+from google.cloud import bigquery
 
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
-from stravapipe.domain import DetailedStravaActivity
+from stravapipe.domain import DetailedStravaActivity, MinimalStravaActivity
+from stravapipe.exceptions import ActivityNotFoundError
+from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
 
 
-class WriteActivitiesRepo(WriteActivities):
-    """Write Strava Activities to BigQuery"""
+class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
+    """Read and write Strava Activities to/from BigQuery"""
 
     def __init__(
         self,
@@ -122,3 +126,69 @@ class WriteActivitiesRepo(WriteActivities):
                 source.total_photo_count, source.trainer
             )
         """
+
+    def read_activity_metadata(self, activity_id: int) -> MinimalStravaActivity:
+        """Query BigQuery for minimal activity metadata by ID.
+
+        Checks both 'activities' and 'deleted_activities' tables using UNION
+        to handle race condition where BQ inserter may have already moved
+        the activity before aggregator queries for it.
+
+        Args:
+            activity_id: Strava activity ID to look up
+
+        Returns:
+            MinimalStravaActivity with id, type, start_date_local, distance
+
+        Raises:
+            ActivityNotFoundError: If activity not found in either table
+        """
+        query = f"""
+        SELECT
+            id,
+            type,
+            start_date_local,
+            distance
+        FROM (
+            -- Check active activities table
+            SELECT id, type, start_date_local, distance
+            FROM `{self._client.project_id}.{self._dataset_name}.{self._table_name}`
+            WHERE id = @activity_id
+
+            UNION ALL
+
+            -- Also check deleted activities (handles race condition)
+            SELECT id, type, start_date_local, distance
+            FROM `{self._client.project_id}.{self._dataset_name}.deleted_activities`
+            WHERE id = @activity_id
+        )
+        LIMIT 1
+        """
+
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("activity_id", "INT64", activity_id)
+            ]
+        )
+
+        result = self._client._client.query(query, job_config=job_config).result()
+        rows = list(result)
+
+        if not rows:
+            raise ActivityNotFoundError(
+                activity_id,
+                f"Activity {activity_id} not found in BigQuery "
+                "(checked both activities and deleted_activities tables)",
+            )
+
+        row = rows[0]
+
+        # Convert distance from meters to miles for MinimalStravaActivity
+        distance_miles = row.distance / 1000.0 * 0.62137
+
+        return MinimalStravaActivity(
+            id=row.id,
+            type=row.type,
+            start_date_local=row.start_date_local,
+            distance=distance_miles,  # Already converted to miles
+        )

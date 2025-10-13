@@ -1,6 +1,6 @@
 """GCP adapters."""
 
-from stravapipe.adapters.gcp._bigquery import WriteActivitiesRepo
+from stravapipe.adapters.gcp._bigquery import ActivitiesRepo
 from stravapipe.adapters.gcp._clients import (
     BigQueryClientWrapper,
     CloudStorageClientWrapper,
@@ -11,8 +11,8 @@ from stravapipe.adapters.gcp._storage import (
     SummariesRepo,
 )
 from stravapipe.config import AggregatorConfig, BQInserterConfig
-from stravapipe.ports.out.read import ReadSummaries
-from stravapipe.ports.out.write import WriteSummary
+from stravapipe.ports.out.read import ReadActivitiesMetadata, ReadSummaries
+from stravapipe.ports.out.write import WriteActivities, WriteSummary
 
 
 def make_bigquery_client_wrapper(config: BQInserterConfig) -> BigQueryClientWrapper:
@@ -20,10 +20,19 @@ def make_bigquery_client_wrapper(config: BQInserterConfig) -> BigQueryClientWrap
     return BigQueryClientWrapper(project_id=config.project_id)
 
 
-def make_write_activities(config: BQInserterConfig) -> WriteActivitiesRepo:
-    """Create a WriteActivitiesRepo with the given config."""
+def make_write_activities(config: BQInserterConfig) -> WriteActivities:
+    """Create an ActivitiesRepo (WriteActivities port) with the given config."""
     client = make_bigquery_client_wrapper(config)
-    return WriteActivitiesRepo(
+    return ActivitiesRepo(
+        client=client,
+        dataset_name=config.bq_dataset,
+    )
+
+
+def make_read_activities(config: BQInserterConfig) -> ReadActivitiesMetadata:
+    """Create an ActivitiesRepo (ReadActivitiesMetadata port) with the given config."""
+    client = make_bigquery_client_wrapper(config)
+    return ActivitiesRepo(
         client=client,
         dataset_name=config.bq_dataset,
     )
@@ -67,13 +76,14 @@ def make_write_distances(config: AggregatorConfig) -> DistancesRepo:
 
 
 __all__ = [
+    "ActivitiesRepo",
     "BigQueryClientWrapper",
     "CloudStorageClientWrapper",
     "DistancesRepo",
     "PacingsRepo",
     "SummariesRepo",
-    "WriteActivitiesRepo",
     "make_bigquery_client_wrapper",
+    "make_read_activities",
     "make_read_summaries",
     "make_write_activities",
     "make_write_distances",

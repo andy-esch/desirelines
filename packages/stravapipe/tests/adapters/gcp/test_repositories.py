@@ -28,7 +28,11 @@ def bigquery_schema():
     This is a copy of infrastructure/schemas/activities_full.json kept in the package
     for self-contained testing. If the BigQuery schema changes, update this fixture file.
     """
-    schema_path = Path(__file__).parent.parent.parent / "fixtures" / "bigquery_activities_schema.json"
+    schema_path = (
+        Path(__file__).parent.parent.parent
+        / "fixtures"
+        / "bigquery_activities_schema.json"
+    )
     with open(schema_path, encoding="utf-8") as f:
         return json.load(f)["schema"]
 
@@ -68,6 +72,7 @@ class TestWriteActivitiesRepo:
         This ensures that model_dump() produces only fields that exist in the
         BigQuery table schema, preventing 'no such field' errors during insertion.
         """
+
         def extract_field_names(schema, prefix=""):
             """Recursively extract all field names from BigQuery schema, including nested RECORD fields."""
             fields = set()
@@ -79,8 +84,7 @@ class TestWriteActivitiesRepo:
                 # Handle nested RECORD types (like 'athlete', 'map', 'gear', etc.)
                 if field_def["type"] == "RECORD" and "fields" in field_def:
                     nested_fields = extract_field_names(
-                        field_def["fields"],
-                        prefix=f"{full_name}."
+                        field_def["fields"], prefix=f"{full_name}."
                     )
                     fields.update(nested_fields)
 

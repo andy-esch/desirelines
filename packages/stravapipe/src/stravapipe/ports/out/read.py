@@ -42,6 +42,19 @@ class ReadMinimalActivities(ABC):
         """Read all minimal activities in a year"""
 
 
+class ReadActivitiesMetadata(ABC):
+    """Read minimal activity metadata from BigQuery for delete operations"""
+
+    @abstractmethod
+    def read_activity_metadata(self, activity_id: int) -> MinimalStravaActivity:
+        """Get minimal activity data (id, type, date, distance) from BigQuery
+
+        Used by delete operations to get activity metadata without calling
+        Strava API. Checks both activities and deleted_activities tables
+        to handle race conditions.
+        """
+
+
 class ReadSummaries(ABC):
     """Read activity summaries"""
 

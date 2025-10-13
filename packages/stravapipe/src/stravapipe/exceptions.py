@@ -44,20 +44,32 @@ class StravaRateLimitError(StravaApiError):
 
 
 class ActivityNotFoundError(StravaApiError):
-    """Raised when activity is not found in Strava API (HTTP 404).
+    """Raised when activity is not found.
+
+    Used in multiple contexts:
+    - Strava API: Activity not found (HTTP 404)
+    - BigQuery: Activity not in database tables
+    - Summary: Activity not in aggregated JSON summaries
 
     This typically occurs when:
     - An activity has been deleted from Strava
     - An activity ID is invalid
     - An activity is not accessible to the authenticated user
+    - Activity missing from expected data stores (indicates data inconsistency)
 
-    This is a recoverable error for delete webhooks - the activity
-    is already gone, so we should gracefully handle this case
-    rather than retrying and sending to DLQ.
+    For Strava API 404s, this is recoverable (activity already gone).
+    For BigQuery/Summary misses, this may indicate missed webhook events.
     """
 
-    def __init__(self, activity_id: int):
-        super().__init__(f"Activity {activity_id} not found", activity_id=activity_id)
+    def __init__(self, activity_id: int, message: str | None = None):
+        """Initialize ActivityNotFoundError.
+
+        Args:
+            activity_id: The Strava activity ID that was not found
+            message: Optional custom error message. If not provided, uses default.
+        """
+        error_message = message or f"Activity {activity_id} not found"
+        super().__init__(error_message, activity_id=activity_id)
         self.activity_id = activity_id
 
 

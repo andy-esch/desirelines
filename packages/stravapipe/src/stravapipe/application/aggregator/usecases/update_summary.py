@@ -35,6 +35,8 @@ class UpdateSummaryUseCase:
         self._export_service = export_service()
 
     # TODO move to update service
+    # TODO update this so the logic is clearer. IMO a none-return doesn't
+    #      logically translate that it's not updated it
     @staticmethod
     def _update_summary(
         summary: SummaryObject, activity: MinimalStravaActivity

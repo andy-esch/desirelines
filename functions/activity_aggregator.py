@@ -11,7 +11,10 @@ from cloudevents.http import CloudEvent
 import functions_framework
 from pydantic import ValidationError
 
-from stravapipe.application.aggregator.usecases import make_update_summary_use_case
+from stravapipe.application.aggregator.usecases import (
+    make_delete_summary_use_case,
+    make_update_summary_use_case,
+)
 from stravapipe.domain import AspectType, WebhookRequest
 from stravapipe.exceptions import ActivityNotFoundError
 
@@ -195,18 +198,58 @@ def main(event: CloudEvent) -> dict:
                 raise
 
         elif parsed_request.aspect_type == AspectType.DELETE:
-            # Handle delete events (not yet implemented - Phase 3)
-            logger.info(
-                "Skipping delete event: %s (not yet implemented)",
-                parsed_request.object_id,
-                extra={"correlation_id": correlation_id},
-            )
-            return {
-                "status": "skipped",
-                "reason": "delete_not_implemented",
-                "aspect_type": parsed_request.aspect_type.value,
-                "correlation_id": correlation_id,
-            }
+            # Handle delete events
+            try:
+                # Initialize delete summary service
+                delete_usecase = make_delete_summary_use_case()
+
+                # Remove activity from summary
+                logger.info(
+                    "Starting summary delete for activity",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "activity_id": parsed_request.object_id,
+                        "owner_id": parsed_request.owner_id,
+                        "aspect_type": parsed_request.aspect_type.value,
+                    },
+                )
+                delete_usecase.run(parsed_request)
+                logger.info(
+                    "Successfully deleted activity %s from summary",
+                    parsed_request.object_id,
+                    extra={"correlation_id": correlation_id},
+                )
+                return {
+                    "status": "processed",
+                    "action": "deleted",
+                    "activity_id": parsed_request.object_id,
+                    "correlation_id": correlation_id,
+                }
+            except ActivityNotFoundError as e:
+                # Activity not found in BigQuery or summary
+                # Log as error since this indicates missing create/update events
+                logger.error(
+                    "Activity %s not found for deletion: %s",
+                    parsed_request.object_id,
+                    str(e),
+                    extra={
+                        "correlation_id": correlation_id,
+                        "activity_id": parsed_request.object_id,
+                        "error_type": "activity_not_found_for_delete",
+                    },
+                )
+                # Re-raise to trigger retry (might be race condition)
+                raise
+            except Exception as e:
+                logger.error(
+                    "Summary delete failed for activity %s: %s",
+                    parsed_request.object_id,
+                    str(e),
+                    extra={"correlation_id": correlation_id},
+                    exc_info=True,
+                )
+                # Re-raise to trigger PubSub retry and eventual DLQ forwarding
+                raise
 
         else:
             # Skip update events (AspectType.UPDATE - not implemented)

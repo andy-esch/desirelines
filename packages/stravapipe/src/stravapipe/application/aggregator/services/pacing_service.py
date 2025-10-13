@@ -78,7 +78,9 @@ class PacingService:
         ]
         return vals
 
-    def calculate(self, summary: dict, *, year: int, pacing_granularity: int = 500):
+    def calculate(
+        self, summary: SummaryObject, *, year: int, pacing_granularity: int = 500
+    ):
         """Calculate pacings data from year summary data"""
         total_distance = sum(val["distance_miles"] for val in summary.values())
         estimated_distance = (
