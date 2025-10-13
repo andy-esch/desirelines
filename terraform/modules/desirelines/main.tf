@@ -97,6 +97,15 @@ resource "google_bigquery_dataset" "activities_dataset" {
       user_by_email = access.value
     }
   }
+
+  # Aggregator service account access (read-only for delete operations)
+  dynamic "access" {
+    for_each = var.create_dev_service_accounts ? [1] : []
+    content {
+      role          = "READER"
+      user_by_email = google_service_account.aggregator_dev[0].email
+    }
+  }
 }
 
 # BigQuery Table for Activities

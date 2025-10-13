@@ -226,20 +226,45 @@ def main(event: CloudEvent) -> dict:
                     "correlation_id": correlation_id,
                 }
             except ActivityNotFoundError as e:
-                # Activity not found in BigQuery or summary
-                # Log as error since this indicates missing create/update events
-                logger.error(
-                    "Activity %s not found for deletion: %s",
-                    parsed_request.object_id,
-                    str(e),
-                    extra={
-                        "correlation_id": correlation_id,
+                # Activity not found - could be in BigQuery or summary
+                error_message = str(e)
+
+                # Distinguish between BigQuery miss (retry) vs summary miss (skip)
+                if "BigQuery" in error_message:
+                    # Activity not in BigQuery - this might be a race condition
+                    # BQ inserter may still be processing, worth retrying
+                    logger.error(
+                        "Activity %s not found in BigQuery for deletion: %s",
+                        parsed_request.object_id,
+                        error_message,
+                        extra={
+                            "correlation_id": correlation_id,
+                            "activity_id": parsed_request.object_id,
+                            "error_type": "activity_not_found_in_bigquery",
+                        },
+                    )
+                    # Re-raise to trigger retry (race condition handling)
+                    raise
+                else:
+                    # Activity not in summary - this is normal/expected
+                    # Activity may have been filtered (wrong type) or never aggregated
+                    logger.warning(
+                        "Activity %s not in summary for deletion (skipping): %s",
+                        parsed_request.object_id,
+                        error_message,
+                        extra={
+                            "correlation_id": correlation_id,
+                            "activity_id": parsed_request.object_id,
+                            "error_type": "activity_not_in_summary",
+                        },
+                    )
+                    # Return success - nothing to delete from summary
+                    return {
+                        "status": "skipped",
+                        "reason": "activity_not_in_summary",
                         "activity_id": parsed_request.object_id,
-                        "error_type": "activity_not_found_for_delete",
-                    },
-                )
-                # Re-raise to trigger retry (might be race condition)
-                raise
+                        "correlation_id": correlation_id,
+                    }
             except Exception as e:
                 logger.error(
                     "Summary delete failed for activity %s: %s",
