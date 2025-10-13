@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from stravapipe.adapters.gcp._bigquery import WriteActivitiesRepo
+from stravapipe.adapters.gcp._bigquery import ActivitiesRepo
 from stravapipe.domain import DetailedStravaActivity
 from tests.mocks.bigquery_client_wrapper import MockBigQueryClientWrapper
 
@@ -39,10 +39,10 @@ def bigquery_schema():
 
 @pytest.fixture
 def write_activities_repo(bq_client):
-    return WriteActivitiesRepo(bq_client, dataset_name="test-dataset")
+    return ActivitiesRepo(bq_client, dataset_name="test-dataset")
 
 
-class TestWriteActivitiesRepo:
+class TestActivitiesRepo:
     def test_write_activity_returns_stats(self, write_activities_repo, activity2):
         stats = write_activities_repo.write_activity(activity2)
         assert isinstance(stats, dict)
