@@ -183,12 +183,10 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
 
         row = rows[0]
 
-        # Convert distance from meters to miles for MinimalStravaActivity
-        distance_miles = row.distance / 1000.0 * 0.62137
-
+        # MinimalStravaActivity.distance expects meters (converts to miles via computed property)
         return MinimalStravaActivity(
             id=row.id,
             type=row.type,
             start_date_local=row.start_date_local,
-            distance=distance_miles,  # Already converted to miles
+            distance=row.distance,  # Pass through as meters from BigQuery
         )

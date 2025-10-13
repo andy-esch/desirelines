@@ -310,13 +310,31 @@ resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   member = "serviceAccount:${google_service_account.dispatcher_dev[0].email}"
 }
 
-# IAM permissions for aggregator (Storage Admin only - PubSub permissions handled by Eventarc)
+# IAM permissions for aggregator (Storage Admin + BigQuery read access - PubSub permissions handled by Eventarc)
 
 resource "google_storage_bucket_iam_member" "aggregator_storage" {
   count  = var.create_dev_service_accounts ? 1 : 0
   bucket = google_storage_bucket.aggregation_bucket.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
+}
+
+# BigQuery permissions for aggregator (needed for delete event handling)
+# Aggregator needs to query BigQuery to get activity metadata for distance calculations
+# NOTE: If implementing activity-indexed summary structure (see refactor-summary-structure-activity-indexed.md),
+#       these permissions can be removed as aggregator will no longer need BigQuery access
+resource "google_bigquery_dataset_iam_member" "aggregator_data_viewer" {
+  count      = var.create_dev_service_accounts ? 1 : 0
+  dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
+}
+
+resource "google_project_iam_member" "aggregator_bigquery_job_user" {
+  count   = var.create_dev_service_accounts ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
 }
 
 # IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)
