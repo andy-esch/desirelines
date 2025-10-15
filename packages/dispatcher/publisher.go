@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"cloud.google.com/go/pubsub/v2"
 )
@@ -28,7 +27,7 @@ func NewPubSubPublisher(ctx context.Context, projectID, topicID string) (*PubSub
 
 	topicName := fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
 	publisher := client.Publisher(topicName)
-	log.Printf("PubSub publisher initialized for topic %s", topicName)
+	Logger.Info("PubSub publisher initialized", "topic", topicName)
 
 	return &PubSubPublisher{publisher: publisher}, nil
 }
@@ -53,7 +52,11 @@ func (p *PubSubPublisher) Publish(ctx context.Context, webhook WebhookRequest, c
 		return fmt.Errorf("failed to publish to PubSub: %v", err)
 	}
 
-	log.Printf("[%s] Successfully published webhook to PubSub - ObjectID: %d", correlationID, webhook.ObjectID)
+	Logger.Info("Successfully published webhook to PubSub",
+		"correlation_id", correlationID,
+		"object_id", webhook.ObjectID,
+		"aspect_type", webhook.AspectType,
+		"owner_id", webhook.OwnerID)
 	return nil
 }
 

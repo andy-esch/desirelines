@@ -2,7 +2,6 @@ package dispatcher
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher"
@@ -14,7 +13,8 @@ func init() {
 	ctx := context.Background()
 	handler, err := dispatcher.NewHandler(ctx)
 	if err != nil {
-		log.Fatalf("Failed to initialize dispatcher.NewHandler: %v", err)
+		dispatcher.Logger.Error("Failed to initialize dispatcher", "error", err)
+		panic(err)
 	}
 	httpHandler = handler
 }
