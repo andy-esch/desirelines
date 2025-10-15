@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "cloudevents>=1.11.0",
     "functions-framework>=3.8.3",
     "google-cloud-bigquery>=3.35.1",
     "google-cloud-storage>=3.3.0",

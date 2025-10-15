@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cfutils.cloud_event import (
+from stravapipe.cfutils.cloud_event import (
     CloudEventValidationError,
     MessageDecodeError,
     safe_decode_message,

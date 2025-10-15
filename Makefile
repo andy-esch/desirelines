@@ -26,7 +26,7 @@ endef
 
 # Python commands
 py-test:
-	uv run pytest packages/stravapipe/tests/ packages/cfutils/tests/
+	uv run pytest packages/stravapipe/tests/
 
 py-lint:
 	uv run ruff check . --fix
@@ -35,7 +35,7 @@ py-format:
 	uv run ruff format .
 
 py-typecheck:
-	uv run mypy packages/stravapipe/src/ packages/cfutils/src/
+	uv run mypy packages/stravapipe/src/
 
 # Go commands
 go-test:

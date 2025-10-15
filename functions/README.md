@@ -34,14 +34,11 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 #### `activity_bq_inserter.py`
 **Purpose**: Syncs Strava activities to BigQuery
 
-**Packages**:
-- `packages/stravapipe/` - Business logic
-  - Uses: `stravapipe.application.bq_inserter` (use cases)
-  - Uses: `stravapipe.domain` (domain models)
-  - Uses: `stravapipe.config` (configuration)
-- `packages/cfutils/` - Shared Cloud Function utilities
-  - Uses: `cfutils.cloud_event` (CloudEvent processing)
-  - Uses: `cfutils.responses` (response helpers)
+**Package**: `packages/stravapipe/`
+- Uses: `stravapipe.application.bq_inserter` (use cases)
+- Uses: `stravapipe.domain` (domain models)
+- Uses: `stravapipe.config` (configuration)
+- Uses: `stravapipe.cfutils` (Cloud Function utilities - CloudEvent processing, response helpers)
 
 **Trigger**: Pub/Sub topic `desirelines_activity_events`
 
@@ -61,13 +58,10 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 #### `activity_aggregator.py`
 **Purpose**: Builds JSON summary documents for web UI consumption
 
-**Packages**:
-- `packages/stravapipe/` - Business logic
-  - Uses: `stravapipe.application.aggregator.usecases` (use cases)
-  - Uses: `stravapipe.domain` (domain models)
-- `packages/cfutils/` - Shared Cloud Function utilities
-  - Uses: `cfutils.cloud_event` (CloudEvent processing)
-  - Uses: `cfutils.responses` (response helpers)
+**Package**: `packages/stravapipe/`
+- Uses: `stravapipe.application.aggregator.usecases` (use cases)
+- Uses: `stravapipe.domain` (domain models)
+- Uses: `stravapipe.cfutils` (Cloud Function utilities - CloudEvent processing, response helpers)
 
 **Trigger**: Pub/Sub topic `desirelines_activity_events`
 
@@ -134,13 +128,12 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 ## Packaging and Dependencies
 
 ### Python Functions
-- **Requirements**: Generated from both `packages/stravapipe/pyproject.toml` and `packages/cfutils/pyproject.toml`
-  - `requirements-aggregator.txt` (for aggregator)
-  - `requirements-stravabqsync.txt` (for bq_inserter)
-- **Build**: Packaging script (`scripts/operations/package-functions.sh`) copies both packages into deployment archives
-- **Shared Code**:
-  - `stravapipe` - Domain logic, business rules, use cases
-  - `cfutils` - Cloud Function utilities (CloudEvent processing, response helpers, logging)
+- **Requirements**: Generated from `packages/stravapipe/pyproject.toml`
+  - `requirements.txt` (for both aggregator and bq_inserter)
+- **Build**: Packaging script (`scripts/operations/package-functions.sh`) copies stravapipe package into deployment archives
+- **Package Structure**:
+  - `stravapipe/` - Core business logic (domain models, use cases, repositories, configuration)
+  - `stravapipe/cfutils/` - Cloud Function infrastructure utilities (CloudEvent processing, response helpers, logging)
 
 ### Go Functions
 - **Dependencies**: Managed via `go.mod` in each function directory

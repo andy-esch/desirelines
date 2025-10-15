@@ -1,6 +1,10 @@
 """Tests for responses module"""
 
-from cfutils.responses import error_response, skipped_response, success_response
+from stravapipe.cfutils.responses import (
+    error_response,
+    skipped_response,
+    success_response,
+)
 
 
 class TestSuccessResponse:

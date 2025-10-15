@@ -71,19 +71,12 @@ TEMP_BQ=$(mktemp -d)
 # Copy Python function wrapper
 cp functions/activity_bq_inserter.py "$TEMP_BQ/main.py"
 
-# Copy stravapipe business logic
+# Copy stravapipe business logic (includes cfutils)
 rsync -av --exclude-from='.gitignore' --exclude='.git' \
       packages/stravapipe/src/ "$TEMP_BQ/"
 
-# Copy cfutils shared utilities
-rsync -av --exclude-from='.gitignore' --exclude='.git' \
-      packages/cfutils/src/ "$TEMP_BQ/"
-
-# Generate requirements.txt from both packages
-cd packages/stravapipe && uv pip compile pyproject.toml --output-file "$TEMP_BQ/requirements-stravapipe.txt" && cd ../..
-cd packages/cfutils && uv pip compile pyproject.toml --output-file "$TEMP_BQ/requirements-cfutils.txt" && cd ../..
-cat "$TEMP_BQ/requirements-stravapipe.txt" "$TEMP_BQ/requirements-cfutils.txt" | sort | uniq > "$TEMP_BQ/requirements.txt"
-rm "$TEMP_BQ/requirements-stravapipe.txt" "$TEMP_BQ/requirements-cfutils.txt"
+# Generate requirements.txt from stravapipe
+cd packages/stravapipe && uv pip compile pyproject.toml --output-file "$TEMP_BQ/requirements.txt" && cd ../..
 
 # Create the zip
 cd "$TEMP_BQ" && zip -r - . > "$OLDPWD/$DIST_DIR/bq-inserter-$SHA.zip"
@@ -100,19 +93,12 @@ TEMP_AGG=$(mktemp -d)
 # Copy Python function wrapper
 cp functions/activity_aggregator.py "$TEMP_AGG/main.py"
 
-# Copy stravapipe business logic
-rsync -av --exclude-from='./.gitignore' --exclude='.git' \
+# Copy stravapipe business logic (includes cfutils)
+rsync -av --exclude-from='.gitignore' --exclude='.git' \
       packages/stravapipe/src/ "$TEMP_AGG/"
 
-# Copy cfutils shared utilities
-rsync -av --exclude-from='.gitignore' --exclude='.git' \
-      packages/cfutils/src/ "$TEMP_AGG/"
-
-# Generate requirements.txt from both packages
-cd packages/stravapipe && uv pip compile pyproject.toml --output-file "$TEMP_AGG/requirements-stravapipe.txt" && cd ../..
-cd packages/cfutils && uv pip compile pyproject.toml --output-file "$TEMP_AGG/requirements-cfutils.txt" && cd ../..
-cat "$TEMP_AGG/requirements-stravapipe.txt" "$TEMP_AGG/requirements-cfutils.txt" | sort | uniq > "$TEMP_AGG/requirements.txt"
-rm "$TEMP_AGG/requirements-stravapipe.txt" "$TEMP_AGG/requirements-cfutils.txt"
+# Generate requirements.txt from stravapipe
+cd packages/stravapipe && uv pip compile pyproject.toml --output-file "$TEMP_AGG/requirements.txt" && cd ../..
 
 # Create the zip
 cd "$TEMP_AGG" && zip -r - . > "$OLDPWD/$DIST_DIR/aggregator-$SHA.zip"

@@ -6,15 +6,19 @@ from cloudevents.http import CloudEvent
 import functions_framework
 from pydantic import ValidationError
 
-from cfutils.cloud_event import (
+from stravapipe.application.bq_inserter import make_delete_service, make_sync_service
+from stravapipe.cfutils.cloud_event import (
     CloudEventValidationError,
     MessageDecodeError,
     safe_decode_message,
     setup_cloud_function_logging,
     validate_cloud_event,
 )
-from cfutils.responses import error_response, skipped_response, success_response
-from stravapipe.application.bq_inserter import make_delete_service, make_sync_service
+from stravapipe.cfutils.responses import (
+    error_response,
+    skipped_response,
+    success_response,
+)
 from stravapipe.config import load_bq_inserter_config
 from stravapipe.domain import AspectType, WebhookRequest
 from stravapipe.exceptions import ActivityNotFoundError
