@@ -100,10 +100,10 @@ resource "google_bigquery_dataset" "activities_dataset" {
 
   # Aggregator service account access (read-only for delete operations)
   dynamic "access" {
-    for_each = var.create_dev_service_accounts ? [1] : []
+    for_each = var.create_dev_service_accounts ? [google_service_account.aggregator_dev[0].email] : [var.service_account_email]
     content {
       role          = "READER"
-      user_by_email = google_service_account.aggregator_dev[0].email
+      user_by_email = access.value
     }
   }
 }
@@ -333,17 +333,15 @@ resource "google_storage_bucket_iam_member" "aggregator_storage" {
 # NOTE: If implementing activity-indexed summary structure (see refactor-summary-structure-activity-indexed.md),
 #       these permissions can be removed as aggregator will no longer need BigQuery access
 resource "google_bigquery_dataset_iam_member" "aggregator_data_viewer" {
-  count      = var.create_dev_service_accounts ? 1 : 0
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
   role       = "roles/bigquery.dataViewer"
-  member     = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
+  member     = var.create_dev_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
 }
 
 resource "google_project_iam_member" "aggregator_bigquery_job_user" {
-  count   = var.create_dev_service_accounts ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/bigquery.jobUser"
-  member  = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
+  member  = var.create_dev_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
 }
 
 # IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)

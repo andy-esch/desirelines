@@ -71,11 +71,11 @@ TEMP_BQ=$(mktemp -d)
 # Copy Python function wrapper
 cp functions/activity_bq_inserter.py "$TEMP_BQ/main.py"
 
-# Copy stravabqsync business logic (self-contained, no desirelines dependency)
+# Copy stravapipe business logic (includes cfutils)
 rsync -av --exclude-from='.gitignore' --exclude='.git' \
       packages/stravapipe/src/ "$TEMP_BQ/"
 
-# Generate requirements.txt from pyproject.toml for Cloud Functions deployment
+# Generate requirements.txt from stravapipe
 cd packages/stravapipe && uv pip compile pyproject.toml --output-file "$TEMP_BQ/requirements.txt" && cd ../..
 
 # Create the zip
@@ -93,11 +93,11 @@ TEMP_AGG=$(mktemp -d)
 # Copy Python function wrapper
 cp functions/activity_aggregator.py "$TEMP_AGG/main.py"
 
-# Copy desirelines business logic
-rsync -av --exclude-from='./.gitignore' --exclude='.git' \
+# Copy stravapipe business logic (includes cfutils)
+rsync -av --exclude-from='.gitignore' --exclude='.git' \
       packages/stravapipe/src/ "$TEMP_AGG/"
 
-# Generate requirements.txt from pyproject.toml for Cloud Functions deployment
+# Generate requirements.txt from stravapipe
 cd packages/stravapipe && uv pip compile pyproject.toml --output-file "$TEMP_AGG/requirements.txt" && cd ../..
 
 # Create the zip

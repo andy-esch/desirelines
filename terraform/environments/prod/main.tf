@@ -41,13 +41,13 @@ module "desirelines" {
   bigquery_location = "US"
   storage_location  = "US"
 
-  # Use default compute service account initially (will be replaced with dedicated SAs)
+  # Use default compute service account (only as fallback if dedicated SAs not created)
   service_account_email = "${var.gcp_project_number}-compute@developer.gserviceaccount.com"
 
   # Enable APIs and create service accounts
   enable_apis                 = true
-  create_service_accounts     = true  # Create terraform and infrastructure service accounts
-  create_dev_service_accounts = false # Dev service accounts only in dev
+  create_service_accounts     = true # Create terraform and infrastructure service accounts
+  create_dev_service_accounts = true # Create dedicated per-function service accounts (least privilege)
 
   # Function deployment configuration (uses dev-built sources)
   function_source_tag = var.function_source_tag

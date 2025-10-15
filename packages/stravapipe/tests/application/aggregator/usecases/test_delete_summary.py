@@ -1,7 +1,6 @@
 """Tests for DeleteSummaryUseCase"""
 
 from datetime import UTC, datetime
-from functools import lru_cache
 
 import pytest
 
@@ -159,7 +158,10 @@ class TestDeleteSummaryUseCase:
         )  # Allow 1 mile tolerance for floating point
 
     def test_delete_last_activity_removes_day(
-        self, webhook_delete_request_last_activity, mock_export_service, mock_pacing_service
+        self,
+        webhook_delete_request_last_activity,
+        mock_export_service,
+        mock_pacing_service,
     ):
         """Test removing last activity on a day removes the entire day entry"""
         # Arrange
