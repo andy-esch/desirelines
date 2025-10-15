@@ -1,4 +1,4 @@
-// src/components/DistanceChart.js
+// src/components/DistanceChart.tsx
 import React, { useEffect, useState } from "react";
 import { Chart as ChartJS, TimeScale } from "chart.js/auto";
 import { Line } from "react-chartjs-2";
@@ -11,9 +11,7 @@ import { offsetDate } from "./utils";
 ChartJS.register(TimeScale);
 
 const DistanceChart = (props: { year: number }) => {
-  console.log(props);
   const { year } = props;
-  console.log(`year: ${year}`);
   const [rideData, setRideData] = useState<RideBlobType>(EMPTY_RIDE_DATA);
   const [maxRangeValue, setMaxRangeValue] = useState<number>(0);
   const [minRangeValue, setMinRangeValue] = useState<number>(0);
@@ -22,11 +20,10 @@ const DistanceChart = (props: { year: number }) => {
 
   const fetchRideData = async (year: number) => {
     const rideData: RideBlobType = await fetchDistanceData(year);
-    console.log("rideData:", rideData);
     setRideData(rideData);
 
     // Defensive programming - check if data exists
-    if (rideData.summaries && rideData.summaries.length > 0) {
+    if (rideData.summaries && Object.keys(rideData.summaries).length > 0) {
       const range = Object.keys(rideData.summaries).map((x) => {
         return parseInt(x);
       });
@@ -56,7 +53,7 @@ const DistanceChart = (props: { year: number }) => {
       data={{
         datasets: [
           {
-            label: `2024 Data: ${totalDistanceTraveled.toFixed(1)} miles`,
+            label: `${year} Data: ${totalDistanceTraveled.toFixed(1)} miles`,
             data: rideData.distance_traveled,
             pointRadius: 0,
             borderColor: "rgb(0, 0, 0, 0.8)",
@@ -100,7 +97,6 @@ const DistanceChart = (props: { year: number }) => {
             time: {
               unit: "week",
             },
-            // suggestedMax: "2024-06-01",
           },
         },
         interaction: {

@@ -15,7 +15,6 @@ export const fetchDistanceData = async (
 ): Promise<RideBlobType> => {
   const apiBaseUrl = getApiBaseUrl();
   const url = `${apiBaseUrl}/activities/${year}/distances`;
-  console.log("Fetching distance data from:", url);
 
   try {
     const {
@@ -27,7 +26,6 @@ export const fetchDistanceData = async (
         upper_distance,
       },
     } = await axios.get(url);
-    console.log("Distance data received:", distance_traveled);
     return {
       avg_distance,
       distance_traveled,
@@ -46,13 +44,11 @@ export const fetchPacingData = async (
 ): Promise<PacingBlobType> => {
   const apiBaseUrl = getApiBaseUrl();
   const url = `${apiBaseUrl}/activities/${year}/pacings`;
-  console.log("Fetching pacing data from:", url);
 
   try {
     const {
       data: { pacing, upper_pacing, lower_pacing, summaries },
     } = await axios.get(url);
-    console.log("Pacing data received:", pacing);
     return {
       pacing,
       upper_pacing,

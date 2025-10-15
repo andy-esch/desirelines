@@ -1,4 +1,4 @@
-// src/components/PacingChart.js
+// src/components/PacingChart.tsx
 import React, { useEffect, useState } from "react";
 import { Chart as ChartJS, TimeScale } from "chart.js/auto";
 import { Line } from "react-chartjs-2";
@@ -13,12 +13,9 @@ ChartJS.register(TimeScale);
 const PacingChart = (props: { year: number }) => {
   const [pacingData, setPacingData] = useState<PacingBlobType>(EMPTY_PACING_DATA);
   const [latestDate, setLatestDate] = useState<string>("2024-02-03");
-  console.log(props);
   const { year } = props;
-  console.log(`year: ${year}`);
   const fetchData = async (year: number) => {
     const pacingData: PacingBlobType = await fetchPacingData(year);
-    console.log("pacingData!", pacingData);
     setPacingData(pacingData);
 
     // Defensive programming - check if data exists
@@ -40,7 +37,7 @@ const PacingChart = (props: { year: number }) => {
         datasets: [
           {
             data: pacingData.pacing,
-            label: `2024 Pacing Data`,
+            label: `${year} Pacing Data`,
             pointRadius: 0,
             borderColor: "rgb(0, 0, 0, 0.8)",
             backgroundColor: "rgb(0, 0, 0, 0.5)",
@@ -70,7 +67,6 @@ const PacingChart = (props: { year: number }) => {
           x: {
             type: "time",
             suggestedMax: latestDate,
-            // suggestedMax: "2024-06-01",
             time: {
               unit: "week",
             },
