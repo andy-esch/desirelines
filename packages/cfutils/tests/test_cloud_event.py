@@ -2,15 +2,16 @@
 
 import base64
 import json
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 from cfutils.cloud_event import (
     CloudEventValidationError,
     MessageDecodeError,
     safe_decode_message,
-    validate_cloud_event,
     setup_cloud_function_logging,
+    validate_cloud_event,
 )
 
 

@@ -1,8 +1,6 @@
 """Tests for responses module"""
 
-import pytest
-
-from cfutils.responses import success_response, skipped_response, error_response
+from cfutils.responses import error_response, skipped_response, success_response
 
 
 class TestSuccessResponse:

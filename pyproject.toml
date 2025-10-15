@@ -1,23 +1,40 @@
+# ==========================================
+# Workspace Configuration
+# ==========================================
 [tool.uv.workspace]
 members = [
     "packages/stravapipe",
+    "packages/cfutils",
 ]
 
+# ==========================================
+# Development Dependencies (Workspace-wide)
+# ==========================================
 [dependency-groups]
 dev = [
-    "mypy>=1.17.1",
-    "pre-commit>=4.3.0",
+    # Testing
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
     "pytest-mock>=3.14.1",
     "requests-mock>=1.12.1",
+
+    # Linting & Formatting
     "ruff>=0.12.9",
+
+    # Type Checking
+    "mypy>=1.17.1",
     "types-pytz>=2025.2.0.20250809",
     "types-requests>=2.32.4.20250809",
+
+    # Git Hooks
+    "pre-commit>=4.3.0",
 ]
 
+# ==========================================
+# Ruff Configuration (Linting & Formatting)
+# ==========================================
 [tool.ruff]
-src = ["packages", "functions", "scripts", "packages/stravapipe"]
+src = ["packages", "functions", "scripts"]
 extend-exclude = ["*.ipynb"]
 line-length = 88
 target-version = "py313"
@@ -41,7 +58,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["stravapipe"]
+known-first-party = ["stravapipe", "cfutils"]
 force-sort-within-sections = true
 
 [tool.ruff.format]
@@ -50,19 +67,26 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+# ==========================================
+# Pytest Configuration
+# ==========================================
 [tool.pytest.ini_options]
 testpaths = [
     "packages/stravapipe/tests",
+    "packages/cfutils/tests",
 ]
 pythonpath = [
     "packages/stravapipe/src",
+    "packages/cfutils/src",
 ]
 addopts = "--import-mode=importlib"
 
-
+# ==========================================
+# MyPy Configuration (Type Checking)
+# ==========================================
 [tool.mypy]
-mypy_path = ["packages/stravapipe/src", "functions", "scripts"]
-packages = ["stravapipe"]
+mypy_path = ["packages/stravapipe/src", "packages/cfutils/src", "functions", "scripts"]
+packages = ["stravapipe", "cfutils"]
 explicit_package_bases = true
 namespace_packages = true
 
