@@ -6,6 +6,7 @@ import json
 import logging
 
 from cloudevents.http import CloudEvent
+import google.cloud.logging
 
 
 class MessageDecodeError(Exception):
@@ -64,7 +65,10 @@ def validate_cloud_event(event: CloudEvent) -> None:
 
 
 def setup_cloud_function_logging(logger_name: str) -> logging.Logger:
-    """Set up Cloud Functions compatible logging
+    """Set up Cloud Functions compatible logging using Google Cloud Logging
+
+    Uses the official google-cloud-logging library which automatically
+    integrates with GCP and properly maps severity levels (INFO, WARNING, ERROR, etc.).
 
     Args:
         logger_name: Name for the logger (typically __name__)
@@ -72,15 +76,7 @@ def setup_cloud_function_logging(logger_name: str) -> logging.Logger:
     Returns:
         Configured logger instance
     """
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
-    logger = logging.getLogger(logger_name)
+    client = google.cloud.logging.Client()
+    client.setup_logging(log_level=logging.INFO)
 
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setLevel(logging.INFO)
-        formatter = logging.Formatter("%(levelname)s:%(name)s:%(message)s")
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
-
-    return logger
+    return logging.getLogger(logger_name)

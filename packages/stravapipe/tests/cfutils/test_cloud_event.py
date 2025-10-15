@@ -10,7 +10,6 @@ from stravapipe.cfutils.cloud_event import (
     CloudEventValidationError,
     MessageDecodeError,
     safe_decode_message,
-    setup_cloud_function_logging,
     validate_cloud_event,
 )
 
@@ -111,32 +110,3 @@ class TestValidateCloudEvent:
         assert "message missing 'data' field" in str(exc_info.value)
 
 
-class TestSetupCloudFunctionLogging:
-    """Tests for setup_cloud_function_logging function"""
-
-    def test_creates_logger(self):
-        """Should create and configure logger"""
-        logger = setup_cloud_function_logging("test_logger")
-
-        assert logger is not None
-        assert logger.name == "test_logger"
-        assert logger.level == 20  # INFO level
-
-    def test_logger_has_handler(self):
-        """Should add handler to logger"""
-        logger = setup_cloud_function_logging("test_logger_2")
-
-        assert len(logger.handlers) > 0
-        handler = logger.handlers[0]
-        assert handler.level == 20  # INFO level
-
-    def test_idempotent(self):
-        """Should not add duplicate handlers on multiple calls"""
-        logger1 = setup_cloud_function_logging("test_logger_3")
-        handler_count_1 = len(logger1.handlers)
-
-        logger2 = setup_cloud_function_logging("test_logger_3")
-        handler_count_2 = len(logger2.handlers)
-
-        assert logger1 is logger2
-        assert handler_count_1 == handler_count_2

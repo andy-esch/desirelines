@@ -11,6 +11,7 @@ dependencies = [
     "cloudevents>=1.11.0",
     "functions-framework>=3.8.3",
     "google-cloud-bigquery>=3.35.1",
+    "google-cloud-logging>=3.11.0",
     "google-cloud-storage>=3.3.0",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
