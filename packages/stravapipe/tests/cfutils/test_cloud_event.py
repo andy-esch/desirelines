@@ -108,5 +108,3 @@ class TestValidateCloudEvent:
             validate_cloud_event(event)
 
         assert "message missing 'data' field" in str(exc_info.value)
-
-

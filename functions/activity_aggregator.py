@@ -15,9 +15,9 @@ from stravapipe.cfutils.cloud_event import (
     CloudEventValidationError,
     MessageDecodeError,
     safe_decode_message,
-    setup_cloud_function_logging,
     validate_cloud_event,
 )
+from stravapipe.cfutils.logging import setup_cloud_function_logging
 from stravapipe.cfutils.responses import (
     error_response,
     skipped_response,

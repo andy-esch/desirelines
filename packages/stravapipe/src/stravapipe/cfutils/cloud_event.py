@@ -3,10 +3,8 @@
 import base64
 import binascii
 import json
-import logging
 
 from cloudevents.http import CloudEvent
-import google.cloud.logging
 
 
 class MessageDecodeError(Exception):
@@ -62,21 +60,3 @@ def validate_cloud_event(event: CloudEvent) -> None:
 
     if "data" not in event.data["message"]:
         raise CloudEventValidationError("CloudEvent message missing 'data' field")
-
-
-def setup_cloud_function_logging(logger_name: str) -> logging.Logger:
-    """Set up Cloud Functions compatible logging using Google Cloud Logging
-
-    Uses the official google-cloud-logging library which automatically
-    integrates with GCP and properly maps severity levels (INFO, WARNING, ERROR, etc.).
-
-    Args:
-        logger_name: Name for the logger (typically __name__)
-
-    Returns:
-        Configured logger instance
-    """
-    client = google.cloud.logging.Client()
-    client.setup_logging(log_level=logging.INFO)
-
-    return logging.getLogger(logger_name)
