@@ -4,9 +4,7 @@ import { EMPTY_RIDE_DATA, EMPTY_PACING_DATA } from "../constants";
 
 const getApiBaseUrl = (): string => {
   return (
-    window.ENV?.REACT_APP_API_URL ||
-    import.meta.env.REACT_APP_API_URL ||
-    "http://localhost:8084"
+    window.ENV?.REACT_APP_API_URL || import.meta.env.REACT_APP_API_URL || "http://localhost:8084"
   );
 };
 
