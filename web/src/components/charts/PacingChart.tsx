@@ -1,13 +1,13 @@
-// src/components/PacingChart.tsx
+// src/components/charts/PacingChart.tsx
 import { useEffect, useState } from "react";
 import { Chart as ChartJS, TimeScale } from "chart.js/auto";
 import { Line } from "react-chartjs-2";
-import { fetchPacingData } from "../api/activities";
-import type { PacingBlobType } from "../types/activity";
-import { EMPTY_PACING_DATA } from "../constants";
-import { CHART_COLORS } from "../constants/chartColors";
+import { fetchPacingData } from "../../api/activities";
+import type { PacingBlobType } from "../../types/activity";
+import { EMPTY_PACING_DATA } from "../../constants";
+import { CHART_COLORS } from "../../constants/chartColors";
 import "chartjs-adapter-date-fns";
-import { offsetDate } from "./utils";
+import { offsetDate } from "../utils";
 
 ChartJS.register(TimeScale);
 

@@ -4,7 +4,7 @@ import { EMPTY_RIDE_DATA, EMPTY_PACING_DATA } from "../constants";
 
 const getApiBaseUrl = (): string => {
   return (
-    (window as { ENV?: { REACT_APP_API_URL?: string } }).ENV?.REACT_APP_API_URL ||
+    window.ENV?.REACT_APP_API_URL ||
     import.meta.env.REACT_APP_API_URL ||
     "http://localhost:8084"
   );
@@ -25,8 +25,8 @@ export const fetchDistanceData = async (year: number): Promise<RideBlobType> => 
       summaries,
       upper_distance,
     };
-  } catch (err) {
-    console.error("Failed to fetch distance data:", err);
+  } catch (err: unknown) {
+    console.error("Failed to fetch distance data:", err instanceof Error ? err.message : err);
     return EMPTY_RIDE_DATA;
   }
 };
@@ -45,8 +45,8 @@ export const fetchPacingData = async (year: number): Promise<PacingBlobType> => 
       lower_pacing,
       summaries,
     };
-  } catch (err) {
-    console.error("Failed to fetch pacing data:", err);
+  } catch (err: unknown) {
+    console.error("Failed to fetch pacing data:", err instanceof Error ? err.message : err);
     return EMPTY_PACING_DATA;
   }
 };

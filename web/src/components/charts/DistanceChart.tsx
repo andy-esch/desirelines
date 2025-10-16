@@ -1,13 +1,13 @@
-// src/components/DistanceChart.tsx
+// src/components/charts/DistanceChart.tsx
 import { useEffect, useState } from "react";
 import { Chart as ChartJS, TimeScale } from "chart.js/auto";
 import { Line } from "react-chartjs-2";
-import { fetchDistanceData } from "../api/activities";
-import type { RideBlobType } from "../types/activity";
-import { EMPTY_RIDE_DATA } from "../constants";
-import { CHART_COLORS } from "../constants/chartColors";
+import { fetchDistanceData } from "../../api/activities";
+import type { RideBlobType } from "../../types/activity";
+import { EMPTY_RIDE_DATA } from "../../constants";
+import { CHART_COLORS } from "../../constants/chartColors";
 import "chartjs-adapter-date-fns";
-import { offsetDate } from "./utils";
+import { offsetDate } from "../utils";
 
 ChartJS.register(TimeScale);
 
