@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"strconv"
 	"sync"
@@ -76,7 +75,7 @@ func (c *SecretCache) GetSecrets() (string, int, error) {
 
 	currentHash, err := c.hashFile()
 	if err != nil {
-		log.Printf("Failed to hash secrets file: %v", err)
+		Logger.Error("Failed to hash secrets file", "error", err)
 		// Return cached values if available
 		if c.verifyToken != "" {
 			return c.verifyToken, c.subscriptionID, nil
@@ -87,7 +86,7 @@ func (c *SecretCache) GetSecrets() (string, int, error) {
 	// Content changed or first load
 	if currentHash != c.contentHash {
 		if err := c.loadSecrets(); err != nil {
-			log.Printf("Failed to reload secrets: %v", err)
+			Logger.Error("Failed to reload secrets", "error", err)
 			// Return cached values if available
 			if c.verifyToken != "" {
 				return c.verifyToken, c.subscriptionID, nil
@@ -95,7 +94,7 @@ func (c *SecretCache) GetSecrets() (string, int, error) {
 			return "", 0, fmt.Errorf("failed to load secrets: %w", err)
 		}
 		c.contentHash = currentHash
-		log.Printf("Secrets reloaded due to content change")
+		Logger.Info("Secrets reloaded due to content change")
 	}
 
 	c.lastCheck = now
@@ -110,7 +109,7 @@ func (c *SecretCache) hashFile() (string, error) {
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			log.Printf("Failed to close file: %v", closeErr)
+			Logger.Error("Failed to close file", "error", closeErr)
 		}
 	}()
 
@@ -130,7 +129,7 @@ func (c *SecretCache) loadSecrets() error {
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			log.Printf("Failed to close secrets file: %v", closeErr)
+			Logger.Error("Failed to close secrets file", "error", closeErr)
 		}
 	}()
 
@@ -153,27 +152,27 @@ func LoadConfig() (*Config, error) {
 	if _, err := os.Stat(secretsPath); err == nil {
 		secretsFile, err := os.Open(secretsPath)
 		if err != nil {
-			log.Printf("Failed to open secrets file: %v", err)
+			Logger.Error("Failed to open secrets file", "error", err)
 		} else {
 			defer func() {
 				if closeErr := secretsFile.Close(); closeErr != nil {
-					log.Printf("Failed to close secrets file: %v", closeErr)
+					Logger.Error("Failed to close secrets file", "error", closeErr)
 				}
 			}()
 
 			var secrets StravaSecrets
 			if err := json.NewDecoder(secretsFile).Decode(&secrets); err != nil {
-				log.Printf("Failed to decode secrets file: %v", err)
+				Logger.Error("Failed to decode secrets file", "error", err)
 			} else {
 				// Set environment variables from secrets (takes precedence)
 				if secrets.WebhookVerifyToken != "" {
 					if err := os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", secrets.WebhookVerifyToken); err != nil {
-						log.Printf("Failed to set STRAVA_WEBHOOK_VERIFY_TOKEN: %v", err)
+						Logger.Error("Failed to set STRAVA_WEBHOOK_VERIFY_TOKEN", "error", err)
 					}
 				}
 				if secrets.WebhookSubscriptionID != 0 {
 					if err := os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(secrets.WebhookSubscriptionID)); err != nil {
-						log.Printf("Failed to set STRAVA_WEBHOOK_SUBSCRIPTION_ID: %v", err)
+						Logger.Error("Failed to set STRAVA_WEBHOOK_SUBSCRIPTION_ID", "error", err)
 					}
 				}
 			}

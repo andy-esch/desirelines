@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -65,16 +64,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		h.handleEvent(w, r, correlationID)
 	case http.MethodHead:
-		log.Printf("[%s] Health check request", correlationID)
+		Logger.Info("Health check request", "correlation_id", correlationID)
 		w.WriteHeader(http.StatusOK)
 	default:
-		log.Printf("[%s] Invalid request method: %s", correlationID, r.Method)
+		Logger.Warn("Invalid request method", "correlation_id", correlationID, "method", r.Method)
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed", "", correlationID)
 	}
 }
 
 func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, correlationID string) {
-	log.Printf("[%s] Processing webhook verification request", correlationID)
+	Logger.Info("Processing webhook verification request", "correlation_id", correlationID)
 
 	mode := r.URL.Query().Get("hub.mode")
 	challenge := r.URL.Query().Get("hub.challenge")
@@ -82,7 +81,7 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, cor
 
 	if mode != "subscribe" {
 		msg := fmt.Sprintf("invalid hub.mode: %s", mode)
-		log.Printf("[%s] %s", correlationID, msg)
+		Logger.Warn("Invalid hub.mode", "correlation_id", correlationID, "hub_mode", mode)
 		writeError(w, http.StatusBadRequest, msg, "", correlationID)
 		return
 	}
@@ -99,15 +98,15 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, cor
 		return
 	}
 
-	log.Printf("[%s] Webhook verification successful", correlationID)
+	Logger.Info("Webhook verification successful", "correlation_id", correlationID)
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge}); err != nil {
-		log.Printf("[%s] Failed to encode response: %v", correlationID, err)
+		Logger.Error("Failed to encode response", "correlation_id", correlationID, "error", err)
 	}
 }
 
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlationID string) {
-	log.Printf("[%s] Processing webhook event", correlationID)
+	Logger.Info("Processing webhook event", "correlation_id", correlationID)
 
 	var webhook WebhookRequest
 	if err := json.NewDecoder(r.Body).Decode(&webhook); err != nil {
@@ -134,7 +133,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlatio
 	}
 
 	if webhook.ObjectType != ObjectActivity {
-		log.Printf("[%s] Ignoring non-activity webhook: %s", correlationID, webhook.ObjectType)
+		Logger.Info("Ignoring non-activity webhook", "correlation_id", correlationID, "object_type", webhook.ObjectType)
 		writeSuccess(w, correlationID)
 		return
 	}
@@ -144,7 +143,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlatio
 		return
 	}
 
-	log.Printf("[%s] Webhook processing successful", correlationID)
+	Logger.Info("Webhook processing successful", "correlation_id", correlationID)
 	writeSuccess(w, correlationID)
 }
 
@@ -158,7 +157,7 @@ func writeError(w http.ResponseWriter, code int, msg, details, correlationID str
 		response["details"] = details
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("[%s] Failed to encode error response: %v", correlationID, err)
+		Logger.Error("Failed to encode error response", "correlation_id", correlationID, "error", err)
 	}
 }
 
@@ -168,7 +167,7 @@ func writeSuccess(w http.ResponseWriter, correlationID string) {
 		"success":        "true",
 		"correlation_id": correlationID,
 	}); err != nil {
-		log.Printf("[%s] Failed to encode success response: %v", correlationID, err)
+		Logger.Error("Failed to encode success response", "correlation_id", correlationID, "error", err)
 	}
 }
 
@@ -177,10 +176,10 @@ func (h *Handler) logAndWriteError(w http.ResponseWriter, correlationID string,
 	statusCode int, userMsg string, err error, logMsg string) {
 
 	if err != nil {
-		log.Printf("[%s] %s: %v", correlationID, logMsg, err)
+		Logger.Error(logMsg, "correlation_id", correlationID, "error", err, "status_code", statusCode)
 		writeError(w, statusCode, userMsg, err.Error(), correlationID)
 	} else {
-		log.Printf("[%s] %s", correlationID, logMsg)
+		Logger.Warn(logMsg, "correlation_id", correlationID, "status_code", statusCode)
 		writeError(w, statusCode, userMsg, "", correlationID)
 	}
 }
