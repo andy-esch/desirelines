@@ -4,27 +4,19 @@ import { EMPTY_RIDE_DATA, EMPTY_PACING_DATA } from "../constants";
 
 const getApiBaseUrl = (): string => {
   return (
-    (window as any).ENV?.REACT_APP_API_URL ||
-    process.env.REACT_APP_API_URL ||
+    (window as { ENV?: { REACT_APP_API_URL?: string } }).ENV?.REACT_APP_API_URL ||
+    import.meta.env.REACT_APP_API_URL ||
     "http://localhost:8084"
   );
 };
 
-export const fetchDistanceData = async (
-  year: number
-): Promise<RideBlobType> => {
+export const fetchDistanceData = async (year: number): Promise<RideBlobType> => {
   const apiBaseUrl = getApiBaseUrl();
   const url = `${apiBaseUrl}/activities/${year}/distances`;
 
   try {
     const {
-      data: {
-        avg_distance,
-        distance_traveled,
-        lower_distance,
-        summaries,
-        upper_distance,
-      },
+      data: { avg_distance, distance_traveled, lower_distance, summaries, upper_distance },
     } = await axios.get(url);
     return {
       avg_distance,
@@ -39,9 +31,7 @@ export const fetchDistanceData = async (
   }
 };
 
-export const fetchPacingData = async (
-  year: number
-): Promise<PacingBlobType> => {
+export const fetchPacingData = async (year: number): Promise<PacingBlobType> => {
   const apiBaseUrl = getApiBaseUrl();
   const url = `${apiBaseUrl}/activities/${year}/pacings`;
 

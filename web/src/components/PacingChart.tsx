@@ -1,10 +1,11 @@
 // src/components/PacingChart.tsx
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Chart as ChartJS, TimeScale } from "chart.js/auto";
 import { Line } from "react-chartjs-2";
 import { fetchPacingData } from "../api/activities";
 import type { PacingBlobType } from "../types/activity";
 import { EMPTY_PACING_DATA } from "../constants";
+import { CHART_COLORS } from "../constants/chartColors";
 import "chartjs-adapter-date-fns";
 import { offsetDate } from "./utils";
 
@@ -39,25 +40,25 @@ const PacingChart = (props: { year: number }) => {
             data: pacingData.pacing,
             label: `${year} Pacing Data`,
             pointRadius: 0,
-            borderColor: "rgb(0, 0, 0, 0.8)",
-            backgroundColor: "rgb(0, 0, 0, 0.5)",
+            borderColor: CHART_COLORS.ACTUAL_DATA_LINE,
+            backgroundColor: CHART_COLORS.ACTUAL_DATA_FILL,
           },
           {
             data: pacingData.lower_pacing,
             label: `Lower Pacing`,
             pointRadius: 0,
-            borderColor: "rgb(0, 255, 255)",
+            borderColor: CHART_COLORS.LOWER_GOAL_LINE,
             segment: {
-              borderColor: "rgb(0, 255, 255)",
+              borderColor: CHART_COLORS.LOWER_GOAL_LINE,
             },
           },
           {
             data: pacingData.upper_pacing,
             label: `Upper Pacing`,
             pointRadius: 0,
-            borderColor: "rgb(255, 0, 255)",
+            borderColor: CHART_COLORS.UPPER_GOAL_LINE,
             segment: {
-              borderColor: "rgb(255, 0, 255)",
+              borderColor: CHART_COLORS.UPPER_GOAL_LINE,
             },
           },
         ],

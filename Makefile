@@ -67,15 +67,43 @@ go-format:
 go-build:
 	cd packages/dispatcher && go build -v .
 
-# JavaScript commands
-js-lint:
-	cd web && npm run lint || echo "⚠️  No lint script found in web/"
+# Web/React commands
+web-test:
+	@echo "🧪 Running React tests..."
+	cd web && npm test -- --coverage --watchAll=false
 
-js-format:
-	cd web && npm run format || echo "⚠️  No format script found in web/"
+web-lint:
+	@echo "🔍 Running ESLint..."
+	cd web && npm run lint
 
-js-dev:
-	cd web && npm start
+web-lint-fix:
+	@echo "🔧 Running ESLint with auto-fix..."
+	cd web && npm run lint:fix
+
+web-format:
+	@echo "🎨 Formatting code with Prettier..."
+	cd web && npm run format
+
+web-format-check:
+	@echo "🔍 Checking code formatting..."
+	cd web && npm run format:check
+
+web-typecheck:
+	@echo "🔍 Running TypeScript type checking..."
+	cd web && npm run typecheck
+
+web-build:
+	@echo "🔨 Building production bundle..."
+	cd web && npm run build
+
+web-dev:
+	@echo "⚡ Starting Vite dev server..."
+	cd web && npm run dev
+
+# Legacy aliases
+js-lint: web-lint
+js-format: web-format
+js-dev: web-dev
 
 # ==========================================
 # Service Account Management
@@ -208,9 +236,10 @@ help:
 	@echo "  Use Terraform for deployment (see terraform/ directory)"
 
 # Combined commands
-test: py-test go-test
-lint: py-lint go-lint
-format: py-format go-format tf-fmt
+test: py-test go-test web-test
+lint: py-lint go-lint web-lint
+format: py-format go-format web-format tf-fmt
+typecheck: py-typecheck web-typecheck
 
 
 # ==========================================

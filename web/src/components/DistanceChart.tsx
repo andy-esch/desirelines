@@ -1,10 +1,11 @@
 // src/components/DistanceChart.tsx
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Chart as ChartJS, TimeScale } from "chart.js/auto";
 import { Line } from "react-chartjs-2";
 import { fetchDistanceData } from "../api/activities";
 import type { RideBlobType } from "../types/activity";
 import { EMPTY_RIDE_DATA } from "../constants";
+import { CHART_COLORS } from "../constants/chartColors";
 import "chartjs-adapter-date-fns";
 import { offsetDate } from "./utils";
 
@@ -32,8 +33,7 @@ const DistanceChart = (props: { year: number }) => {
     }
 
     if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
-      const lastEntry =
-        rideData.distance_traveled[rideData.distance_traveled.length - 1];
+      const lastEntry = rideData.distance_traveled[rideData.distance_traveled.length - 1];
       if (lastEntry && lastEntry.y !== undefined) {
         setTotalDistanceTraveled(lastEntry.y);
       }
@@ -56,34 +56,34 @@ const DistanceChart = (props: { year: number }) => {
             label: `${year} Data: ${totalDistanceTraveled.toFixed(1)} miles`,
             data: rideData.distance_traveled,
             pointRadius: 0,
-            borderColor: "rgb(0, 0, 0, 0.8)",
-            backgroundColor: "rgb(0, 0, 0, 0.5)",
+            borderColor: CHART_COLORS.ACTUAL_DATA_LINE,
+            backgroundColor: CHART_COLORS.ACTUAL_DATA_FILL,
           },
           {
             label: `Goal: ${minRangeValue} miles`,
             data: rideData.lower_distance,
             pointRadius: 0,
-            borderColor: "rgb(0, 255, 255)",
+            borderColor: CHART_COLORS.LOWER_GOAL_LINE,
             segment: {
-              borderColor: "rgb(0, 255, 255)",
+              borderColor: CHART_COLORS.LOWER_GOAL_LINE,
             },
           },
           {
             label: `Goal: ${maxRangeValue} miles`,
             data: rideData.upper_distance,
             pointRadius: 0,
-            borderColor: "rgb(255, 0, 255)",
+            borderColor: CHART_COLORS.UPPER_GOAL_LINE,
             segment: {
-              borderColor: "rgb(255, 0, 255)",
+              borderColor: CHART_COLORS.UPPER_GOAL_LINE,
             },
           },
           {
             label: "Average Pacing",
             data: rideData.avg_distance,
             pointRadius: 0,
-            borderColor: "rgb(255, 95, 31)",
+            borderColor: CHART_COLORS.AVERAGE_LINE,
             segment: {
-              borderColor: "rgb(255, 95, 31)",
+              borderColor: CHART_COLORS.AVERAGE_LINE,
               borderDash: [6, 6],
             },
           },
