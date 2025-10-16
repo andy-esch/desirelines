@@ -6,6 +6,8 @@ import { fetchPacingData } from "../../api/activities";
 import type { PacingBlobType } from "../../types/activity";
 import { EMPTY_PACING_DATA } from "../../constants";
 import { CHART_COLORS } from "../../constants/chartColors";
+import LoadingChart from "./LoadingChart";
+import ErrorChart from "./ErrorChart";
 import "chartjs-adapter-date-fns";
 import { offsetDate } from "../utils";
 
@@ -14,23 +16,58 @@ ChartJS.register(TimeScale);
 const PacingChart = (props: { year: number }) => {
   const [pacingData, setPacingData] = useState<PacingBlobType>(EMPTY_PACING_DATA);
   const [latestDate, setLatestDate] = useState<string>("2024-02-03");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<Error | null>(null);
   const { year } = props;
-  const fetchData = async (year: number) => {
-    const pacingData: PacingBlobType = await fetchPacingData(year);
-    setPacingData(pacingData);
 
-    // Defensive programming - check if data exists
-    if (pacingData.pacing && pacingData.pacing.length > 0) {
-      const lastEntry = pacingData.pacing[pacingData.pacing.length - 1];
-      if (lastEntry && lastEntry.x) {
-        const dateOffset = offsetDate(lastEntry.x);
-        setLatestDate(dateOffset);
+  const fetchData = async (year: number, signal?: AbortSignal) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const pacingData: PacingBlobType = await fetchPacingData(year, signal);
+      setPacingData(pacingData);
+
+      // Defensive programming - check if data exists
+      if (pacingData.pacing && pacingData.pacing.length > 0) {
+        const lastEntry = pacingData.pacing[pacingData.pacing.length - 1];
+        if (lastEntry && lastEntry.x) {
+          const dateOffset = offsetDate(lastEntry.x);
+          setLatestDate(dateOffset);
+        }
       }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
     }
   };
+
   useEffect(() => {
-    fetchData(year);
+    const abortController = new AbortController();
+    fetchData(year, abortController.signal);
+
+    return () => {
+      abortController.abort();
+    };
   }, [year]);
+
+  if (isLoading) {
+    return (
+      <div>
+        <h2 style={{ textAlign: "center" }}>Pacings</h2>
+        <LoadingChart />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <h2 style={{ textAlign: "center" }}>Pacings</h2>
+        <ErrorChart error={error} onRetry={() => fetchData(year)} />
+      </div>
+    );
+  }
 
   const lineChart = (
     <Line

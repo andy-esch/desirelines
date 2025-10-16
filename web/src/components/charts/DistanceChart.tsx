@@ -6,6 +6,8 @@ import { fetchDistanceData } from "../../api/activities";
 import type { RideBlobType } from "../../types/activity";
 import { EMPTY_RIDE_DATA } from "../../constants";
 import { CHART_COLORS } from "../../constants/chartColors";
+import LoadingChart from "./LoadingChart";
+import ErrorChart from "./ErrorChart";
 import "chartjs-adapter-date-fns";
 import { offsetDate } from "../utils";
 
@@ -18,35 +20,69 @@ const DistanceChart = (props: { year: number }) => {
   const [minRangeValue, setMinRangeValue] = useState<number>(0);
   const [totalDistanceTraveled, setTotalDistanceTraveled] = useState<number>(0);
   const [latestDate, setLatestDate] = useState<string>("2024-01-01");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  const fetchRideData = async (year: number) => {
-    const rideData: RideBlobType = await fetchDistanceData(year);
-    setRideData(rideData);
+  const fetchRideData = async (year: number, signal?: AbortSignal) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const rideData: RideBlobType = await fetchDistanceData(year, signal);
+      setRideData(rideData);
 
-    // Defensive programming - check if data exists
-    if (rideData.summaries && Object.keys(rideData.summaries).length > 0) {
-      const range = Object.keys(rideData.summaries).map((x) => {
-        return parseInt(x);
-      });
-      setMaxRangeValue(Math.max(...range));
-      setMinRangeValue(Math.min(...range));
-    }
-
-    if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
-      const lastEntry = rideData.distance_traveled[rideData.distance_traveled.length - 1];
-      if (lastEntry && lastEntry.y !== undefined) {
-        setTotalDistanceTraveled(lastEntry.y);
+      // Defensive programming - check if data exists
+      if (rideData.summaries && Object.keys(rideData.summaries).length > 0) {
+        const range = Object.keys(rideData.summaries).map((x) => {
+          return parseInt(x);
+        });
+        setMaxRangeValue(Math.max(...range));
+        setMinRangeValue(Math.min(...range));
       }
-      if (lastEntry && lastEntry.x) {
-        const dateOffset = offsetDate(lastEntry.x);
-        setLatestDate(dateOffset);
+
+      if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
+        const lastEntry = rideData.distance_traveled[rideData.distance_traveled.length - 1];
+        if (lastEntry && lastEntry.y !== undefined) {
+          setTotalDistanceTraveled(lastEntry.y);
+        }
+        if (lastEntry && lastEntry.x) {
+          const dateOffset = offsetDate(lastEntry.x);
+          setLatestDate(dateOffset);
+        }
       }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
     }
   };
-  // set data to load by year
+
+  // set data to load by year, cancel previous request on year change
   useEffect(() => {
-    fetchRideData(year);
+    const abortController = new AbortController();
+    fetchRideData(year, abortController.signal);
+
+    return () => {
+      abortController.abort();
+    };
   }, [year]);
+
+  if (isLoading) {
+    return (
+      <div>
+        <h2 style={{ textAlign: "center" }}>Distances</h2>
+        <LoadingChart />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <h2 style={{ textAlign: "center" }}>Distances</h2>
+        <ErrorChart error={error} onRetry={() => fetchRideData(year)} />
+      </div>
+    );
+  }
 
   const lineChart = (
     <Line
