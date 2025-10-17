@@ -6,6 +6,7 @@ import Header from "./components/layout/Header";
 import Sidebar from "./components/layout/Sidebar";
 import DistanceChart from "./components/charts/DistanceChart";
 import PacingChart from "./components/charts/PacingChart";
+import GoalSummaryTable from "./components/GoalSummaryTable";
 import { generateDefaultGoals, estimateYearEndDistance, type Goals } from "./utils/goalCalculations";
 import { fetchDistanceData } from "./api/activities";
 
@@ -18,12 +19,33 @@ function App() {
 
   const handleYearClick = (year: number) => {
     setCurrentYear(year);
-    setIsInitializing(true); // Reset goals when year changes
+    setIsInitializing(true); // Reset when year changes
   };
 
-  // Fetch distance data to calculate proper default goals
+  // Custom goals persistence: save to localStorage whenever goals change
   useEffect(() => {
-    const loadDefaultGoals = async () => {
+    if (goals.length > 0 && !isInitializing) {
+      const key = `desirelines_goals_${currentYear}`;
+      localStorage.setItem(key, JSON.stringify(goals));
+    }
+  }, [goals, currentYear, isInitializing]);
+
+  // Fetch distance data and load/calculate goals
+  useEffect(() => {
+    const loadData = async () => {
+      // Try to load goals from localStorage for this year
+      const storageKey = `desirelines_goals_${currentYear}`;
+      const storedGoals = localStorage.getItem(storageKey);
+      let loadedGoals: Goals | null = null;
+
+      if (storedGoals) {
+        try {
+          loadedGoals = JSON.parse(storedGoals);
+        } catch (e) {
+          console.error('Failed to parse stored goals:', e);
+        }
+      }
+
       try {
         const rideData = await fetchDistanceData(currentYear);
         if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
@@ -34,25 +56,30 @@ function App() {
           const estimated = estimateYearEndDistance(rideData.distance_traveled, currentYear);
           setEstimatedYearEnd(estimated);
 
-          const defaultGoals = generateDefaultGoals(estimated);
-          setGoals(defaultGoals);
+          // Use stored goals if available, otherwise generate defaults
+          if (loadedGoals && loadedGoals.length > 0) {
+            setGoals(loadedGoals);
+          } else {
+            const defaultGoals = generateDefaultGoals(estimated);
+            setGoals(defaultGoals);
+          }
         } else {
           // No data yet, use reasonable defaults
           setCurrentDistance(0);
           setEstimatedYearEnd(2500);
-          setGoals(generateDefaultGoals(2500));
+          setGoals(loadedGoals && loadedGoals.length > 0 ? loadedGoals : generateDefaultGoals(2500));
         }
       } catch (err) {
         // Error fetching data, use reasonable defaults
         setCurrentDistance(0);
         setEstimatedYearEnd(2500);
-        setGoals(generateDefaultGoals(2500));
+        setGoals(loadedGoals && loadedGoals.length > 0 ? loadedGoals : generateDefaultGoals(2500));
       } finally {
         setIsInitializing(false);
       }
     };
 
-    loadDefaultGoals();
+    loadData();
   }, [currentYear]);
 
   return (
@@ -77,6 +104,11 @@ function App() {
               <>
                 <DistanceChart year={currentYear} goals={goals} onGoalsChange={setGoals} />
                 <PacingChart year={currentYear} goals={goals} onGoalsChange={setGoals} />
+                <GoalSummaryTable
+                  goals={goals}
+                  currentDistance={currentDistance}
+                  year={currentYear}
+                />
               </>
             )}
             {isInitializing && <p>Loading goals...</p>}

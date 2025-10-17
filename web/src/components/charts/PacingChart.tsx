@@ -10,7 +10,6 @@ import ErrorChart from "./ErrorChart";
 import {
   calculateActualPacing,
   calculateDynamicPacingGoal,
-  estimateYearEndDistance,
   type Goals,
 } from "../../utils/goalCalculations";
 import "chartjs-adapter-date-fns";
@@ -53,7 +52,7 @@ const PacingChart = (props: PacingChartProps) => {
 
         // Calculate actual pacing from distance data
         console.time("PacingChart: calculateActualPacing");
-        const pacing = calculateActualPacing(distances, year, new Date(lastEntry?.x || new Date()));
+        const pacing = calculateActualPacing(distances, new Date(lastEntry?.x || new Date()));
         console.timeEnd("PacingChart: calculateActualPacing");
         setActualPacing(pacing);
       }

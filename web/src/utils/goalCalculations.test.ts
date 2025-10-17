@@ -211,7 +211,7 @@ describe("calculateActualPacing", () => {
       { x: "2024-01-03", y: 45 }, // Day 3: 45 miles, pace = 45/3 = 15
     ];
 
-    const pacing = calculateActualPacing(distanceData, 2024, new Date("2024-01-03"));
+    const pacing = calculateActualPacing(distanceData, new Date("2024-01-03"));
 
     expect(pacing).toHaveLength(3);
     expect(pacing[0]).toEqual({ x: "2024-01-01", y: 10 });
@@ -226,13 +226,13 @@ describe("calculateActualPacing", () => {
       { x: "2024-01-03", y: 45 },
     ];
 
-    const pacing = calculateActualPacing(distanceData, 2024, new Date("2024-01-02"));
+    const pacing = calculateActualPacing(distanceData, new Date("2024-01-02"));
 
     expect(pacing).toHaveLength(2);
   });
 
   it("handles empty distance data", () => {
-    const pacing = calculateActualPacing([], 2024, new Date("2024-12-31"));
+    const pacing = calculateActualPacing([], new Date("2024-12-31"));
     expect(pacing).toEqual([]);
   });
 });

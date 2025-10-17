@@ -174,13 +174,11 @@ export function validateGoals(goals: Goals): { valid: boolean; error?: string } 
  * Pacing = distance / days elapsed (average miles per day so far)
  *
  * @param distanceTraveled - Actual cumulative distance data
- * @param year - Year to calculate for
  * @param maxDate - Don't plot beyond this date
  * @returns Timeseries with actual average pace over time
  */
 export function calculateActualPacing(
   distanceTraveled: DistanceTimeseries,
-  year: number,
   maxDate: Date
 ): PacingTimeseries {
   const pacing: PacingTimeseries = [];

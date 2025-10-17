@@ -76,7 +76,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
   return (
     <div className="mb-3">
-      <h6 className="text-muted">Goals ({goals.length}/5)</h6>
+      <h6 className="text-muted">Desirelines ({goals.length}/5)</h6>
       {!validation.valid && (
         <div className="alert alert-danger py-1 px-2 small">{validation.error}</div>
       )}

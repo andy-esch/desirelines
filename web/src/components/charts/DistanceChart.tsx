@@ -11,7 +11,6 @@ import {
   calculateDesireLine,
   calculateCurrentAverageLine,
   estimateYearEndDistance,
-  generateDefaultGoals,
   type Goals,
 } from "../../utils/goalCalculations";
 import "chartjs-adapter-date-fns";
