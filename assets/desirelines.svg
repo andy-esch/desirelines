@@ -1,8 +1,20 @@
-                <svg viewBox="0 0 100 100" class="w-full h-full">
-                    <!-- Background rectangle to ensure the color is part of the SVG -->
-                    <rect x="0" y="0" width="100" height="100" rx="15" ry="15" fill="#334155"/>
-                    <!-- The winding line representing the journey -->
-                    <path d="M 10 90 L 30 60 L 50 60 L 65 30 L 80 30 L 85 10 L 90 5" stroke="#f87171" stroke-width="8" stroke-linecap="round" fill="none" />
-                    <!-- The desire line connecting start and end points -->
-                    <path d="M 10 90 L 90 10" stroke="#1d4ed8" stroke-width="4" stroke-linecap="round" fill="none" stroke-dasharray="8 6" />
-                </svg>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- Dark background matching the app header -->
+    <rect x="0" y="0" width="100" height="100" rx="15" ry="15" fill="#212529"/>
+
+    <!-- The jagged ride data line (magenta from logo 'ines') - ends at y=5 -->
+    <path d="M 10 90 L 30 60 L 50 60 L 65 30 L 80 30 L 85 10 L 90 5"
+          stroke="rgba(255, 0, 255, 0.9)"
+          stroke-width="7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          fill="none" />
+
+    <!-- The desire line (cyan from logo 'desire') - ends at y=15, below the actual data (user exceeded goal!) -->
+    <path d="M 10 90 L 90 15"
+          stroke="rgba(0, 255, 255, 0.7)"
+          stroke-width="3"
+          stroke-linecap="round"
+          fill="none"
+          stroke-dasharray="8 4" />
+</svg>
