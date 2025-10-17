@@ -1,11 +1,25 @@
+import GoalControls from "../GoalControls";
+import type { Goals } from "../../utils/goalCalculations";
+
 interface SidebarProps {
   currentYear: number;
   onYearClick: (year: number) => void;
+  goals: Goals;
+  onGoalsChange: (goals: Goals) => void;
+  estimatedYearEnd: number;
+  currentDistance: number;
 }
 
 const AVAILABLE_YEARS = [2025, 2024, 2023];
 
-export default function Sidebar({ currentYear, onYearClick }: SidebarProps) {
+export default function Sidebar({
+  currentYear,
+  onYearClick,
+  goals,
+  onGoalsChange,
+  estimatedYearEnd,
+  currentDistance
+}: SidebarProps) {
   return (
     <div className="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary">
       <div
@@ -49,6 +63,15 @@ export default function Sidebar({ currentYear, onYearClick }: SidebarProps) {
           </ul>
 
           <hr className="my-3" />
+
+          <div className="px-3">
+            <GoalControls
+              goals={goals}
+              onGoalsChange={onGoalsChange}
+              estimatedYearEnd={estimatedYearEnd}
+              currentDistance={currentDistance}
+            />
+          </div>
         </div>
       </div>
     </div>

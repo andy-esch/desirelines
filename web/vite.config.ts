@@ -12,4 +12,8 @@ export default defineConfig({
     outDir: "build", // Keep same output dir for compatibility
   },
   envPrefix: "REACT_APP_", // Support existing env vars during transition
+  test: {
+    globals: true,
+    environment: "node", // Just for utilities, not components yet
+  },
 });

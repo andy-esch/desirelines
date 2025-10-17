@@ -3,51 +3,62 @@ import { useEffect, useState } from "react";
 import { Chart as ChartJS, TimeScale } from "chart.js/auto";
 import { Line } from "react-chartjs-2";
 import { fetchDistanceData } from "../../api/activities";
-import type { RideBlobType } from "../../types/activity";
-import { EMPTY_RIDE_DATA } from "../../constants";
+import type { DistanceEntry } from "../../types/activity";
 import { CHART_COLORS } from "../../constants/chartColors";
 import LoadingChart from "./LoadingChart";
 import ErrorChart from "./ErrorChart";
+import {
+  calculateDesireLine,
+  calculateCurrentAverageLine,
+  estimateYearEndDistance,
+  generateDefaultGoals,
+  type Goals,
+} from "../../utils/goalCalculations";
 import "chartjs-adapter-date-fns";
 import { offsetDate } from "../utils";
 
 ChartJS.register(TimeScale);
 
-const DistanceChart = (props: { year: number }) => {
-  const { year } = props;
-  const [rideData, setRideData] = useState<RideBlobType>(EMPTY_RIDE_DATA);
-  const [maxRangeValue, setMaxRangeValue] = useState<number>(0);
-  const [minRangeValue, setMinRangeValue] = useState<number>(0);
+interface DistanceChartProps {
+  year: number;
+  goals: Goals;
+  onGoalsChange?: (goals: Goals) => void;
+}
+
+const DistanceChart = (props: DistanceChartProps) => {
+  const { year, goals } = props;
+  // Data from backend (only distance_traveled, ignore goal fields)
+  const [distanceTraveled, setDistanceTraveled] = useState<DistanceEntry[]>([]);
   const [totalDistanceTraveled, setTotalDistanceTraveled] = useState<number>(0);
-  const [latestDate, setLatestDate] = useState<string>("2024-01-01");
+  const [latestDate, setLatestDate] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
+
+  // Frontend-calculated stats
+  const [estimatedYearEnd, setEstimatedYearEnd] = useState<number>(0);
 
   const fetchRideData = async (year: number, signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
     try {
-      const rideData: RideBlobType = await fetchDistanceData(year, signal);
-      setRideData(rideData);
+      const rideData = await fetchDistanceData(year, signal);
 
-      // Defensive programming - check if data exists
-      if (rideData.summaries && Object.keys(rideData.summaries).length > 0) {
-        const range = Object.keys(rideData.summaries).map((x) => {
-          return parseInt(x);
-        });
-        setMaxRangeValue(Math.max(...range));
-        setMinRangeValue(Math.min(...range));
-      }
-
+      // Only use distance_traveled from backend (ignore backend-calculated goals)
       if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
-        const lastEntry = rideData.distance_traveled[rideData.distance_traveled.length - 1];
-        if (lastEntry && lastEntry.y !== undefined) {
+        const distances = rideData.distance_traveled;
+        setDistanceTraveled(distances);
+
+        const lastEntry = distances[distances.length - 1];
+        if (lastEntry) {
           setTotalDistanceTraveled(lastEntry.y);
+          setLatestDate(new Date(lastEntry.x));
         }
-        if (lastEntry && lastEntry.x) {
-          const dateOffset = offsetDate(lastEntry.x);
-          setLatestDate(dateOffset);
-        }
+
+        // Calculate estimated year-end distance
+        console.time("DistanceChart: estimateYearEndDistance");
+        const estimated = estimateYearEndDistance(distances, year);
+        setEstimatedYearEnd(estimated);
+        console.timeEnd("DistanceChart: estimateYearEndDistance");
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err : new Error(String(err)));
@@ -84,38 +95,50 @@ const DistanceChart = (props: { year: number }) => {
     );
   }
 
+  // Calculate goal lines using frontend utilities
+  console.time("DistanceChart: calculateDesireLines");
+  const goalLines = goals.map(goal => ({
+    goal,
+    line: calculateDesireLine(goal.value, year, latestDate)
+  }));
+  console.timeEnd("DistanceChart: calculateDesireLines");
+
+  console.time("DistanceChart: calculateCurrentAverageLine");
+  const currentAverageLine = calculateCurrentAverageLine(distanceTraveled, year, latestDate);
+  console.timeEnd("DistanceChart: calculateCurrentAverageLine");
+
+  // Define colors for up to 5 goals
+  const goalColors = [
+    CHART_COLORS.LOWER_GOAL_LINE,    // cyan
+    CHART_COLORS.UPPER_GOAL_LINE,    // magenta
+    'rgb(100, 255, 100)',             // green
+    'rgb(255, 200, 0)',               // orange
+    'rgb(150, 100, 255)',             // purple
+  ];
+
   const lineChart = (
     <Line
       data={{
         datasets: [
           {
             label: `${year} Data: ${totalDistanceTraveled.toFixed(1)} miles`,
-            data: rideData.distance_traveled,
+            data: distanceTraveled,
             pointRadius: 0,
             borderColor: CHART_COLORS.ACTUAL_DATA_LINE,
             backgroundColor: CHART_COLORS.ACTUAL_DATA_FILL,
           },
-          {
-            label: `Goal: ${minRangeValue} miles`,
-            data: rideData.lower_distance,
+          ...goalLines.map((gl, index) => ({
+            label: `${gl.goal.label || 'Goal'}: ${gl.goal.value} miles`,
+            data: gl.line,
             pointRadius: 0,
-            borderColor: CHART_COLORS.LOWER_GOAL_LINE,
+            borderColor: goalColors[index % goalColors.length],
             segment: {
-              borderColor: CHART_COLORS.LOWER_GOAL_LINE,
+              borderColor: goalColors[index % goalColors.length],
             },
-          },
+          })),
           {
-            label: `Goal: ${maxRangeValue} miles`,
-            data: rideData.upper_distance,
-            pointRadius: 0,
-            borderColor: CHART_COLORS.UPPER_GOAL_LINE,
-            segment: {
-              borderColor: CHART_COLORS.UPPER_GOAL_LINE,
-            },
-          },
-          {
-            label: "Average Pacing",
-            data: rideData.avg_distance,
+            label: `Current Average (Est: ${estimatedYearEnd.toFixed(0)} miles)`,
+            data: currentAverageLine,
             pointRadius: 0,
             borderColor: CHART_COLORS.AVERAGE_LINE,
             segment: {
@@ -129,7 +152,7 @@ const DistanceChart = (props: { year: number }) => {
         scales: {
           x: {
             type: "time",
-            suggestedMax: latestDate,
+            suggestedMax: offsetDate(latestDate.toISOString()),
             time: {
               unit: "week",
             },
