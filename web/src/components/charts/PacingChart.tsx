@@ -51,9 +51,7 @@ const PacingChart = (props: PacingChartProps) => {
         }
 
         // Calculate actual pacing from distance data
-        console.time("PacingChart: calculateActualPacing");
         const pacing = calculateActualPacing(distances, new Date(lastEntry?.x || new Date()));
-        console.timeEnd("PacingChart: calculateActualPacing");
         setActualPacing(pacing);
       }
     } catch (err: unknown) {
@@ -91,12 +89,10 @@ const PacingChart = (props: PacingChartProps) => {
   }
 
   // Calculate dynamic pacing goals using frontend utilities
-  console.time("PacingChart: calculateDynamicPacingGoals");
   const pacingGoals = goals.map(goal => ({
     goal,
     pacing: calculateDynamicPacingGoal(distanceTraveled, goal.value, year, latestDate)
   }));
-  console.timeEnd("PacingChart: calculateDynamicPacingGoals");
 
   // Define colors for up to 5 goals (same as DistanceChart)
   const goalColors = [

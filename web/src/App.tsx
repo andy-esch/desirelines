@@ -69,7 +69,7 @@ function App() {
           setEstimatedYearEnd(2500);
           setGoals(loadedGoals && loadedGoals.length > 0 ? loadedGoals : generateDefaultGoals(2500));
         }
-      } catch (err) {
+      } catch {
         // Error fetching data, use reasonable defaults
         setCurrentDistance(0);
         setEstimatedYearEnd(2500);

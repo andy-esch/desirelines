@@ -53,11 +53,8 @@ const DistanceChart = (props: DistanceChartProps) => {
           setLatestDate(new Date(lastEntry.x));
         }
 
-        // Calculate estimated year-end distance
-        console.time("DistanceChart: estimateYearEndDistance");
         const estimated = estimateYearEndDistance(distances, year);
         setEstimatedYearEnd(estimated);
-        console.timeEnd("DistanceChart: estimateYearEndDistance");
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err : new Error(String(err)));
@@ -95,16 +92,12 @@ const DistanceChart = (props: DistanceChartProps) => {
   }
 
   // Calculate goal lines using frontend utilities
-  console.time("DistanceChart: calculateDesireLines");
   const goalLines = goals.map(goal => ({
     goal,
     line: calculateDesireLine(goal.value, year, latestDate)
   }));
-  console.timeEnd("DistanceChart: calculateDesireLines");
 
-  console.time("DistanceChart: calculateCurrentAverageLine");
   const currentAverageLine = calculateCurrentAverageLine(distanceTraveled, year, latestDate);
-  console.timeEnd("DistanceChart: calculateCurrentAverageLine");
 
   // Define colors for up to 5 goals
   const goalColors = [
