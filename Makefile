@@ -70,35 +70,35 @@ go-build:
 # Web/React commands
 web-test:
 	@echo "🧪 Running React tests..."
-	cd web && npm test -- --coverage --watchAll=false
+	cd packages/web && npm test -- --coverage --watchAll=false
 
 web-lint:
 	@echo "🔍 Running ESLint..."
-	cd web && npm run lint
+	cd packages/web && npm run lint
 
 web-lint-fix:
 	@echo "🔧 Running ESLint with auto-fix..."
-	cd web && npm run lint:fix
+	cd packages/web && npm run lint:fix
 
 web-format:
 	@echo "🎨 Formatting code with Prettier..."
-	cd web && npm run format
+	cd packages/web && npm run format
 
 web-format-check:
 	@echo "🔍 Checking code formatting..."
-	cd web && npm run format:check
+	cd packages/web && npm run format:check
 
 web-typecheck:
 	@echo "🔍 Running TypeScript type checking..."
-	cd web && npm run typecheck
+	cd packages/web && npm run typecheck
 
 web-build:
 	@echo "🔨 Building production bundle..."
-	cd web && npm run build
+	cd packages/web && npm run build
 
 web-dev:
 	@echo "⚡ Starting Vite dev server..."
-	cd web && npm run dev
+	cd packages/web && npm run dev
 
 # Legacy aliases
 js-lint: web-lint
@@ -131,12 +131,12 @@ proto-gen-typescript:
 	@echo "🔨 Generating TypeScript code from proto files..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
 	@command -v protoc-gen-ts >/dev/null 2>&1 || { echo "❌ Error: protoc-gen-ts not found. Install with: npm install -g protoc-gen-ts"; exit 1; }
-	@mkdir -p schemas/generated/typescript
+	@mkdir -p packages/web/src/types/generated
 	protoc --plugin=protoc-gen-ts=`which protoc-gen-ts` \
-		--ts_out=schemas/generated/typescript \
+		--ts_out=packages/web/src/types/generated \
 		-I schemas/proto \
 		schemas/proto/*.proto
-	@echo "✅ TypeScript protobuf code generated in schemas/generated/typescript/"
+	@echo "✅ TypeScript protobuf code generated in packages/web/src/types/generated/"
 
 # Clean generated protobuf code
 proto-clean:

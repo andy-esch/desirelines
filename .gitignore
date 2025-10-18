@@ -214,7 +214,7 @@ tmp/
 __debug_bin
 
 # Frontend configuration (contains deployment URLs)
-web/public/config.js
+packages/web/public/config.js
 
 # Terraform
 *.tfstate
@@ -240,3 +240,4 @@ docs/planning/
 
 # Protocol Buffer generated code
 schemas/generated/
+packages/web/src/types/generated/
