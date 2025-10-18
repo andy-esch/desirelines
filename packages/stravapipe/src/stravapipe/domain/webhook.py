@@ -21,17 +21,33 @@ class WebhookRequest(BaseModel):
     """Strava webhook request payload.
 
     Validates incoming webhook data to protect against malformed or malicious requests.
+    Strava WebHook documentation: https://developers.strava.com/docs/webhooks/
     """
 
-    aspect_type: Annotated[AspectType, Field(description="Webhook aspect type")]
-    event_time: int
-    object_id: int
-    object_type: Annotated[
-        str, Field(max_length=50, description="Object type being updated")
+    aspect_type: Annotated[
+        AspectType, Field(description="Always 'create,' 'update,' or 'delete.'")
     ]
-    owner_id: int
-    subscription_id: int
-    updates: Annotated[dict, Field(default_factory=dict, description="Update details")]
+    event_time: Annotated[int, Field(description="The time that the event occurred.")]
+    object_id: Annotated[
+        int,
+        Field(
+            description="For activity events, the activity's ID. For athlete events, the athlete's ID."
+        ),
+    ]
+    object_type: Annotated[
+        str, Field(max_length=50, description="Always either 'activity' or 'athlete.'")
+    ]
+    owner_id: Annotated[int, Field(description="The athlete's ID.")]
+    subscription_id: int = Field(
+        description="The push subscription ID that is receiving this event."
+    )
+    updates: Annotated[
+        dict,
+        Field(
+            default_factory=dict,
+            description="For activity update events, keys can contain 'title,' 'type,' and 'private,' which is always 'true' (activity visibility set to Only You) or 'false' (activity visibility set to Followers Only or Everyone). For app deauthorization events, there is always an 'authorized' : 'false' key-value pair.",
+        ),
+    ]
 
     @field_validator("object_type")
     @classmethod

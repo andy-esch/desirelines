@@ -5,7 +5,7 @@ services:
   # ==========================================
 
   activity-dispatcher:
-    profiles: ["backend"]  # Backend pipeline only
+    profiles: ["backend"] # Backend pipeline only
     build:
       context: ./packages/dispatcher
       dockerfile: Dockerfile
@@ -24,13 +24,21 @@ services:
       pubsub-bootstrap:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--method=HEAD", "http://localhost:8080/"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--method=HEAD",
+          "http://localhost:8080/",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
 
   activity-aggregator:
-    profiles: ["backend"]  # Backend pipeline only
+    profiles: ["backend"] # Backend pipeline only
     build:
       context: .
       dockerfile: functions/Dockerfile.activity_aggregator
@@ -51,7 +59,7 @@ services:
         condition: service_completed_successfully
 
   activity-bq-inserter:
-    profiles: ["backend"]  # Backend pipeline only
+    profiles: ["backend"] # Backend pipeline only
     build:
       context: .
       dockerfile: functions/Dockerfile.activity_bq_inserter
@@ -73,7 +81,7 @@ services:
 
   # Bootstrap PubSub topics and subscriptions
   pubsub-bootstrap:
-    profiles: ["backend"]  # Backend pipeline only
+    profiles: ["backend"] # Backend pipeline only
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
@@ -87,7 +95,7 @@ services:
 
   # Local PubSub emulator for testing
   pubsub-emulator:
-    profiles: ["backend"]  # Backend pipeline only
+    profiles: ["backend"] # Backend pipeline only
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
     ports:
       - "8085:8085"
@@ -97,7 +105,7 @@ services:
 
   # PubSub Emulator Web UI for debugging
   pubsub-ui:
-    profiles: ["debug", "monitoring"]  # Debug profile (use with backend)
+    profiles: ["debug", "monitoring"] # Debug profile (use with backend)
     image: ghcr.io/neoscript/pubsub-emulator-ui:latest
     ports:
       - "4200:80"
@@ -114,7 +122,7 @@ services:
 
   # API Gateway - serves data to web UI (Go implementation)
   api-gateway:
-    profiles: ["frontend"]  # Only starts with --profile frontend
+    profiles: ["frontend"] # Only starts with --profile frontend
     build:
       context: .
       dockerfile: functions/Dockerfile.apigateway
@@ -145,37 +153,15 @@ services:
         reservations:
           memory: 32M
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # React Web App (manual start only)
-  # DISABLED: Use `make site-start` to run React directly (no Docker)
-  web:
-    profiles: ["frontend-docker"]  # Disabled by default, use different profile
-    build:
-      context: ./web
-      dockerfile: Dockerfile.dev
-    ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://localhost:8084
-      - CHOKIDAR_USEPOLLING=true  # Hot reload in Docker
-      - NODE_OPTIONS=--max-old-space-size=512  # Limit Node.js memory to 512MB
-    volumes:
-      - ./web/src:/app/src
-      - ./web/public:/app/public
-      - ./web/package.json:/app/package.json:ro
-      - ./web/tsconfig.json:/app/tsconfig.json:ro
-      # Exclude node_modules from bind mount for performance
-      - /app/node_modules
-    # Resource limits for low-memory systems
-    deploy:
-      resources:
-        limits:
-          memory: 768M
-        reservations:
-          memory: 256M
-    depends_on:
-      - api-gateway

@@ -1,0 +1,12 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- Dark background matching header -->
+    <rect x="0" y="0" width="100" height="100" rx="15" ry="15" fill="#212529"/>
+
+    <!-- Just the jagged ride data line in NEON cyan (simplified for favicon) -->
+    <path d="M 10 90 L 30 60 L 50 60 L 65 30 L 80 30 L 85 10 L 90 5"
+          stroke="rgba(255, 0, 255, 0.9)"
+          stroke-width="8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          fill="none" />
+</svg>

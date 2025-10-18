@@ -12,7 +12,7 @@ export interface RideBlobType {
   avg_distance: DistanceEntry[];
   distance_traveled: DistanceEntry[];
   lower_distance: DistanceEntry[];
-  summaries: DistanceEntry[];
+  summaries: Record<string, string[]>;
   upper_distance: DistanceEntry[];
 }
 
@@ -20,5 +20,5 @@ export interface PacingBlobType {
   pacing: PacingEntry[];
   upper_pacing: PacingEntry[];
   lower_pacing: PacingEntry[];
-  summaries: string[];
+  summaries: Record<string, string[]>;
 }
