@@ -57,7 +57,8 @@ resource "google_project_service" "required_apis" {
     "pubsub.googleapis.com",
     "cloudfunctions.googleapis.com",
     "artifactregistry.googleapis.com",
-    "cloudbuild.googleapis.com"
+    "cloudbuild.googleapis.com",
+    "firestore.googleapis.com"
   ]) : []
 
   project = var.gcp_project_id
@@ -119,7 +120,7 @@ resource "google_bigquery_table" "activities" {
   labels = local.common_labels
 
   # Schema will be loaded from JSON file
-  schema = jsonencode(jsondecode(file("${path.module}/../../../infrastructure/schemas/activities_full.json")).schema)
+  schema = jsonencode(jsondecode(file("${path.module}/../../../schemas/bigquery/activities_full.json")).schema)
 
   # Partitioning by date for better performance
   time_partitioning {
@@ -141,7 +142,7 @@ resource "google_bigquery_table" "activities_staging" {
   labels              = local.common_labels
 
   # Same schema as main activities table
-  schema = jsonencode(jsondecode(file("${path.module}/../../../infrastructure/schemas/activities_full.json")).schema)
+  schema = jsonencode(jsondecode(file("${path.module}/../../../schemas/bigquery/activities_full.json")).schema)
 
   # Same partitioning and clustering as main table for performance
   time_partitioning {
@@ -165,7 +166,7 @@ resource "google_bigquery_table" "deleted_activities" {
   })
 
   # Schema includes all activity fields plus deletion metadata
-  schema = jsonencode(jsondecode(file("${path.module}/../../../infrastructure/schemas/deleted_activities.json")).schema)
+  schema = jsonencode(jsondecode(file("${path.module}/../../../schemas/bigquery/deleted_activities.json")).schema)
 
   # Partition by deletion timestamp for efficient queries
   time_partitioning {
@@ -239,6 +240,32 @@ resource "google_storage_bucket" "function_source" {
     }
   }
 }
+
+# ==============================================================================
+# FIRESTORE DATABASE
+# ==============================================================================
+
+# Firestore database for user configuration data
+# Stores user-specific frontend configs (goals, annotations, preferences)
+resource "google_firestore_database" "user_configs" {
+  project     = var.gcp_project_id
+  name        = "(default)"
+  location_id = var.firestore_location
+  type        = "FIRESTORE_NATIVE"
+
+  # Enable Point-in-Time Recovery for data protection
+  point_in_time_recovery_enablement = var.environment == "prod" ? "POINT_IN_TIME_RECOVERY_ENABLED" : "POINT_IN_TIME_RECOVERY_DISABLED"
+
+  # Deletion protection for production
+  deletion_policy = var.environment == "prod" ? "DELETE_PROTECTION_STATE_ENABLED" : "DELETE_PROTECTION_STATE_DISABLED"
+
+  # Depends on API being enabled
+  depends_on = [google_project_service.required_apis]
+}
+
+# ==============================================================================
+# PUBSUB RESOURCES
+# ==============================================================================
 
 # PubSub Topic for activity events
 resource "google_pubsub_topic" "activity_events" {

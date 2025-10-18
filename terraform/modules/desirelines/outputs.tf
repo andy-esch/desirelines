@@ -27,6 +27,17 @@ output "storage_bucket_url" {
   value       = google_storage_bucket.aggregation_bucket.url
 }
 
+# Firestore outputs
+output "firestore_database_name" {
+  description = "Name of the Firestore database"
+  value       = google_firestore_database.user_configs.name
+}
+
+output "firestore_database_location" {
+  description = "Location of the Firestore database"
+  value       = google_firestore_database.user_configs.location_id
+}
+
 # PubSub outputs
 output "pubsub_topic_name" {
   description = "Name of the main PubSub topic for activity events"

@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package desirelines.config.v1;
+
+option go_package = "github.com/andy-esch/desirelines/schemas/generated/go/userconfig";
+
+// Top-level user configuration stored in Firestore
+// Document path: users/{userId}/config/v1
+message UserConfig {
+  string schema_version = 1;  // "1.0"
+  string user_id = 2;
+  string last_updated = 3;  // RFC3339 timestamp
+
+  map<string, GoalsForYear> goals = 10;  // key = year (e.g., "2025")
+  map<string, AnnotationsForYear> annotations = 11;
+  Preferences preferences = 12;
+  Metadata metadata = 13;
+}
+
+// Goals for a specific year
+message GoalsForYear {
+  repeated Goal goals = 1;
+}
+
+message Goal {
+  string id = 1;
+  int32 value = 2;  // Distance in miles
+  string label = 3;
+  string created_at = 4;  // RFC3339 timestamp
+  string updated_at = 5;  // RFC3339 timestamp
+}
+
+// Annotations for a specific year
+message AnnotationsForYear {
+  repeated Annotation annotations = 1;
+}
+
+message Annotation {
+  string id = 1;
+  string start_date = 2;  // ISO date: "2025-07-14"
+  string end_date = 3;    // Optional, empty for single-day
+  string label = 4;
+  string description = 5;
+  string strava_activity_id = 6;  // Optional link
+  AnnotationType type = 7;
+  string created_at = 8;  // RFC3339 timestamp
+  string updated_at = 9;  // RFC3339 timestamp
+}
+
+enum AnnotationType {
+  ANNOTATION_TYPE_UNSPECIFIED = 0;
+  ANNOTATION_TYPE_EVENT = 1;
+  ANNOTATION_TYPE_PERIOD = 2;
+  ANNOTATION_TYPE_NOTE = 3;
+}
+
+// User preferences (global, not year-specific)
+message Preferences {
+  string theme = 1;  // "light" or "dark"
+  int32 default_year = 2;
+  ChartDefaults chart_defaults = 3;
+}
+
+message ChartDefaults {
+  bool show_average = 1;
+  bool show_goals = 2;
+}
+
+// Metadata about the config itself
+message Metadata {
+  string created_at = 1;  // RFC3339 timestamp
+  string last_synced_device = 2;
+  repeated string config_types = 3;  // ["goals", "annotations", "preferences"]
+}

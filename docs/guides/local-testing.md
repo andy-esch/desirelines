@@ -90,7 +90,7 @@ This will:
 
 ## 📊 BigQuery Table Structure
 
-The testing table (`activities_adhoc`) uses the schema defined in `infrastructure/schemas/activities.json`:
+The testing table (`activities_adhoc`) uses the schema defined in `schemas/bigquery/activities_full.json`:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -102,7 +102,7 @@ The testing table (`activities_adhoc`) uses the schema defined in `infrastructur
 | `start_date` | TIMESTAMP | Activity start time (UTC) |
 | `average_watts` | FLOAT | Average power output |
 | `created_at` | TIMESTAMP | ETL timestamp |
-| ... | ... | [Full schema](../infrastructure/schemas/activities.json) |
+| ... | ... | [Full schema](../../schemas/bigquery/activities_full.json) |
 
 **Features:**
 - ⚡ **Time partitioned** by `start_date` for efficient querying
