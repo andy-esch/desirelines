@@ -57,7 +57,8 @@ resource "google_project_service" "required_apis" {
     "pubsub.googleapis.com",
     "cloudfunctions.googleapis.com",
     "artifactregistry.googleapis.com",
-    "cloudbuild.googleapis.com"
+    "cloudbuild.googleapis.com",
+    "firestore.googleapis.com"
   ]) : []
 
   project = var.gcp_project_id
@@ -239,6 +240,32 @@ resource "google_storage_bucket" "function_source" {
     }
   }
 }
+
+# ==============================================================================
+# FIRESTORE DATABASE
+# ==============================================================================
+
+# Firestore database for user configuration data
+# Stores user-specific frontend configs (goals, annotations, preferences)
+resource "google_firestore_database" "user_configs" {
+  project     = var.gcp_project_id
+  name        = "(default)"
+  location_id = var.firestore_location
+  type        = "FIRESTORE_NATIVE"
+
+  # Enable Point-in-Time Recovery for data protection
+  point_in_time_recovery_enablement = var.environment == "prod" ? "POINT_IN_TIME_RECOVERY_ENABLED" : "POINT_IN_TIME_RECOVERY_DISABLED"
+
+  # Deletion protection for production
+  deletion_policy = var.environment == "prod" ? "DELETE_PROTECTION_STATE_ENABLED" : "DELETE_PROTECTION_STATE_DISABLED"
+
+  # Depends on API being enabled
+  depends_on = [google_project_service.required_apis]
+}
+
+# ==============================================================================
+# PUBSUB RESOURCES
+# ==============================================================================
 
 # PubSub Topic for activity events
 resource "google_pubsub_topic" "activity_events" {

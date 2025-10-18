@@ -72,6 +72,12 @@ variable "storage_location" {
   default     = "US"
 }
 
+variable "firestore_location" {
+  description = "Firestore database location (region ID, e.g., 'us-central1')"
+  type        = string
+  default     = "us-central1"
+}
+
 variable "service_account_email" {
   description = "Service account email for resource access"
   type        = string
