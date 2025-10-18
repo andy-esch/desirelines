@@ -1,5 +1,6 @@
 import React from 'react';
 import { Goals } from '../utils/goalCalculations';
+import { CHART_COLORS } from '../constants/chartColors';
 
 interface GoalSummaryTableProps {
   goals: Goals;
@@ -14,6 +15,15 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
 }) => {
   const today = new Date();
   const isCurrentYear = year === today.getFullYear();
+
+  // Define colors matching chart goal lines (same as DistanceChart and GoalControls)
+  const goalColors = [
+    CHART_COLORS.LOWER_GOAL_LINE,    // cyan
+    CHART_COLORS.UPPER_GOAL_LINE,    // magenta
+    'rgb(100, 255, 100)',             // green
+    'rgb(255, 200, 0)',               // orange
+    'rgb(150, 100, 255)',             // purple
+  ];
 
   const calculateDaysRemaining = (): number => {
     if (!isCurrentYear) return 0;
@@ -66,6 +76,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
           <table className="table table-hover table-sm">
             <thead>
               <tr>
+                <th style={{ width: '10px' }}></th>
                 <th>Goal</th>
                 <th>Target</th>
                 <th>Progress</th>
@@ -84,8 +95,17 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                 const status = getStatusText(goal.value);
                 const statusColor = getStatusColor(goal.value);
 
+                // Find the original index in the unsorted goals array to get the correct color
+                const originalIndex = goals.findIndex(g => g.id === goal.id);
+                const goalColor = goalColors[originalIndex % goalColors.length];
+
                 return (
                   <tr key={goal.id}>
+                    <td style={{
+                      borderLeft: `4px solid ${goalColor}`,
+                      padding: '0',
+                      width: '10px'
+                    }}></td>
                     <td><strong>{goal.label || 'Unnamed'}</strong></td>
                     <td>{goal.value.toLocaleString()} mi</td>
                     <td>

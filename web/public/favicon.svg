@@ -4,7 +4,7 @@
 
     <!-- Just the jagged ride data line in NEON cyan (simplified for favicon) -->
     <path d="M 10 90 L 30 60 L 50 60 L 65 30 L 80 30 L 85 10 L 90 5"
-          stroke="rgba(0, 255, 255, 1)"
+          stroke="rgba(255, 0, 255, 0.9)"
           stroke-width="8"
           stroke-linecap="round"
           stroke-linejoin="round"

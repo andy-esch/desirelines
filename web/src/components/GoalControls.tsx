@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Goals, Goal, validateGoals, generateDefaultGoals } from "../utils/goalCalculations";
+import { CHART_COLORS } from "../constants/chartColors";
 
 interface GoalControlsProps {
   goals: Goals;
@@ -18,6 +19,15 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   const [editValue, setEditValue] = useState("");
 
   const validation = validateGoals(goals);
+
+  // Define colors matching chart goal lines (same as DistanceChart)
+  const goalColors = [
+    CHART_COLORS.LOWER_GOAL_LINE,    // cyan
+    CHART_COLORS.UPPER_GOAL_LINE,    // magenta
+    'rgb(100, 255, 100)',             // green
+    'rgb(255, 200, 0)',               // orange
+    'rgb(150, 100, 255)',             // purple
+  ];
 
   const handleGoalValueChange = (id: string, value: number) => {
     // Round to nearest 100
@@ -82,8 +92,12 @@ const GoalControls: React.FC<GoalControlsProps> = ({
       )}
 
       <div className="list-group list-group-flush mb-2">
-        {goals.map((goal) => (
-          <div key={goal.id} className="list-group-item px-2 py-2">
+        {goals.map((goal, index) => (
+          <div
+            key={goal.id}
+            className="list-group-item px-2 py-2"
+            style={{ borderLeft: `4px solid ${goalColors[index % goalColors.length]}` }}
+          >
             <div className="d-flex justify-content-between align-items-center mb-1">
               <input
                 type="text"
