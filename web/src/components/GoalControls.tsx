@@ -22,11 +22,11 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
   // Define colors matching chart goal lines (same as DistanceChart)
   const goalColors = [
-    CHART_COLORS.LOWER_GOAL_LINE,    // cyan
-    CHART_COLORS.UPPER_GOAL_LINE,    // magenta
-    'rgb(100, 255, 100)',             // green
-    'rgb(255, 200, 0)',               // orange
-    'rgb(150, 100, 255)',             // purple
+    CHART_COLORS.LOWER_GOAL_LINE, // cyan
+    CHART_COLORS.UPPER_GOAL_LINE, // magenta
+    "rgb(100, 255, 100)", // green
+    "rgb(255, 200, 0)", // orange
+    "rgb(150, 100, 255)", // purple
   ];
 
   const handleGoalValueChange = (id: string, value: number) => {

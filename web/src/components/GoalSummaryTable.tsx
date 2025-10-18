@@ -1,6 +1,6 @@
-import React from 'react';
-import { Goals } from '../utils/goalCalculations';
-import { CHART_COLORS } from '../constants/chartColors';
+import React from "react";
+import { Goals } from "../utils/goalCalculations";
+import { CHART_COLORS } from "../constants/chartColors";
 
 interface GoalSummaryTableProps {
   goals: Goals;
@@ -8,21 +8,17 @@ interface GoalSummaryTableProps {
   year: number;
 }
 
-const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
-  goals,
-  currentDistance,
-  year,
-}) => {
+const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDistance, year }) => {
   const today = new Date();
   const isCurrentYear = year === today.getFullYear();
 
   // Define colors matching chart goal lines (same as DistanceChart and GoalControls)
   const goalColors = [
-    CHART_COLORS.LOWER_GOAL_LINE,    // cyan
-    CHART_COLORS.UPPER_GOAL_LINE,    // magenta
-    'rgb(100, 255, 100)',             // green
-    'rgb(255, 200, 0)',               // orange
-    'rgb(150, 100, 255)',             // purple
+    CHART_COLORS.LOWER_GOAL_LINE, // cyan
+    CHART_COLORS.UPPER_GOAL_LINE, // magenta
+    "rgb(100, 255, 100)", // green
+    "rgb(255, 200, 0)", // orange
+    "rgb(150, 100, 255)", // purple
   ];
 
   const calculateDaysRemaining = (): number => {
@@ -46,19 +42,19 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
 
   const getStatusText = (goalValue: number): string => {
     const progress = calculateProgress(goalValue);
-    if (progress >= 100) return 'Achieved ✓';
-    if (progress >= 90) return 'Nearly There';
-    if (progress >= 75) return 'On Track';
-    if (progress >= 50) return 'Behind';
-    return 'Far Behind';
+    if (progress >= 100) return "Achieved ✓";
+    if (progress >= 90) return "Nearly There";
+    if (progress >= 75) return "On Track";
+    if (progress >= 50) return "Behind";
+    return "Far Behind";
   };
 
   const getStatusColor = (goalValue: number): string => {
     const progress = calculateProgress(goalValue);
-    if (progress >= 100) return 'success';
-    if (progress >= 75) return 'info';
-    if (progress >= 50) return 'warning';
-    return 'danger';
+    if (progress >= 100) return "success";
+    if (progress >= 75) return "info";
+    if (progress >= 50) return "warning";
+    return "danger";
   };
 
   const daysRemaining = calculateDaysRemaining();
@@ -76,14 +72,12 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
           <table className="table table-hover table-sm">
             <thead>
               <tr>
-                <th style={{ width: '10px' }}></th>
+                <th style={{ width: "10px" }}></th>
                 <th>Goal</th>
                 <th>Target</th>
                 <th>Progress</th>
                 <th>Remaining</th>
-                {isCurrentYear && daysRemaining > 0 && (
-                  <th>Daily Pace Needed</th>
-                )}
+                {isCurrentYear && daysRemaining > 0 && <th>Daily Pace Needed</th>}
                 <th>Status</th>
               </tr>
             </thead>
@@ -96,20 +90,24 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                 const statusColor = getStatusColor(goal.value);
 
                 // Find the original index in the unsorted goals array to get the correct color
-                const originalIndex = goals.findIndex(g => g.id === goal.id);
+                const originalIndex = goals.findIndex((g) => g.id === goal.id);
                 const goalColor = goalColors[originalIndex % goalColors.length];
 
                 return (
                   <tr key={goal.id}>
-                    <td style={{
-                      borderLeft: `4px solid ${goalColor}`,
-                      padding: '0',
-                      width: '10px'
-                    }}></td>
-                    <td><strong>{goal.label || 'Unnamed'}</strong></td>
+                    <td
+                      style={{
+                        borderLeft: `4px solid ${goalColor}`,
+                        padding: "0",
+                        width: "10px",
+                      }}
+                    ></td>
+                    <td>
+                      <strong>{goal.label || "Unnamed"}</strong>
+                    </td>
                     <td>{goal.value.toLocaleString()} mi</td>
                     <td>
-                      <div className="progress" style={{ height: '20px', minWidth: '100px' }}>
+                      <div className="progress" style={{ height: "20px", minWidth: "100px" }}>
                         <div
                           className={`progress-bar bg-${statusColor}`}
                           role="progressbar"
@@ -123,13 +121,9 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                       </div>
                     </td>
                     <td>{remaining.toFixed(0)} mi</td>
-                    {isCurrentYear && daysRemaining > 0 && (
-                      <td>{paceNeeded.toFixed(1)} mi/day</td>
-                    )}
+                    {isCurrentYear && daysRemaining > 0 && <td>{paceNeeded.toFixed(1)} mi/day</td>}
                     <td>
-                      <span className={`badge bg-${statusColor}`}>
-                        {status}
-                      </span>
+                      <span className={`badge bg-${statusColor}`}>{status}</span>
                     </td>
                   </tr>
                 );
@@ -139,7 +133,9 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
         </div>
         {isCurrentYear && daysRemaining > 0 && (
           <p className="text-muted mt-2 mb-0">
-            <small>{daysRemaining} days remaining in {year}</small>
+            <small>
+              {daysRemaining} days remaining in {year}
+            </small>
           </p>
         )}
         {!isCurrentYear && (

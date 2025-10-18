@@ -7,9 +7,9 @@ export type PacingTimeseries = PacingEntry[];
  * Individual goal with unique value
  */
 export interface Goal {
-  id: string;       // Unique identifier
-  value: number;    // Distance in miles
-  label?: string;   // Optional user label
+  id: string; // Unique identifier
+  value: number; // Distance in miles
+  label?: string; // Optional user label
 }
 
 /**
@@ -121,27 +121,24 @@ export function estimateYearEndDistance(
  * Uses 100-mile granularity and rounds up for motivation
  * Returns 3 default goals: Conservative, Target, Stretch
  */
-export function generateDefaultGoals(
-  estimatedDistance: number,
-  granularity: number = 100
-): Goals {
+export function generateDefaultGoals(estimatedDistance: number, granularity: number = 100): Goals {
   const rounded = Math.ceil(estimatedDistance / granularity) * granularity;
 
   return [
     {
-      id: '1',
+      id: "1",
       value: Math.max(0, rounded - granularity),
-      label: 'Conservative'
+      label: "Conservative",
     },
     {
-      id: '2',
+      id: "2",
       value: rounded,
-      label: 'Target'
+      label: "Target",
     },
     {
-      id: '3',
+      id: "3",
       value: rounded + granularity,
-      label: 'Stretch'
+      label: "Stretch",
     },
   ];
 }
@@ -153,16 +150,16 @@ export function generateDefaultGoals(
  */
 export function validateGoals(goals: Goals): { valid: boolean; error?: string } {
   if (goals.length === 0) {
-    return { valid: false, error: 'At least one goal required' };
+    return { valid: false, error: "At least one goal required" };
   }
   if (goals.length > 5) {
-    return { valid: false, error: 'Maximum 5 goals allowed' };
+    return { valid: false, error: "Maximum 5 goals allowed" };
   }
 
-  const values = goals.map(g => g.value);
+  const values = goals.map((g) => g.value);
   const uniqueValues = new Set(values);
   if (values.length !== uniqueValues.size) {
-    return { valid: false, error: 'All goal values must be unique' };
+    return { valid: false, error: "All goal values must be unique" };
   }
 
   return { valid: true };
@@ -244,9 +241,7 @@ export function calculateDynamicPacingGoal(
     // If no days remaining, pace is 0 (year is over)
     // If distance remaining is negative, pace is 0 (goal already achieved)
     const requiredPace =
-      daysRemaining > 0 && distanceRemaining > 0
-        ? distanceRemaining / daysRemaining
-        : 0;
+      daysRemaining > 0 && distanceRemaining > 0 ? distanceRemaining / daysRemaining : 0;
 
     pacing.push({ x: dateStr, y: requiredPace });
   }

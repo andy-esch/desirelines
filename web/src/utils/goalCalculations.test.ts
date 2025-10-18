@@ -107,9 +107,9 @@ describe("generateDefaultGoals", () => {
     const goals = generateDefaultGoals(2650);
     // 2650 rounds UP to 2700 (Math.ceil(2650 / 100) * 100)
     expect(goals).toHaveLength(3);
-    expect(goals[0]).toEqual({ id: '1', value: 2600, label: 'Conservative' });
-    expect(goals[1]).toEqual({ id: '2', value: 2700, label: 'Target' });
-    expect(goals[2]).toEqual({ id: '3', value: 2800, label: 'Stretch' });
+    expect(goals[0]).toEqual({ id: "1", value: 2600, label: "Conservative" });
+    expect(goals[1]).toEqual({ id: "2", value: 2700, label: "Target" });
+    expect(goals[2]).toEqual({ id: "3", value: 2800, label: "Stretch" });
   });
 
   it("handles exact multiples of 100", () => {
@@ -137,10 +137,10 @@ describe("generateDefaultGoals", () => {
 
   it("returns Goals type with id and label", () => {
     const goals = generateDefaultGoals(1000);
-    goals.forEach(goal => {
-      expect(goal).toHaveProperty('id');
-      expect(goal).toHaveProperty('value');
-      expect(goal).toHaveProperty('label');
+    goals.forEach((goal) => {
+      expect(goal).toHaveProperty("id");
+      expect(goal).toHaveProperty("value");
+      expect(goal).toHaveProperty("label");
     });
   });
 });
@@ -148,9 +148,9 @@ describe("generateDefaultGoals", () => {
 describe("validateGoals", () => {
   it("validates correct goals", () => {
     const goals: Goals = [
-      { id: '1', value: 1000 },
-      { id: '2', value: 2000 },
-      { id: '3', value: 3000 },
+      { id: "1", value: 1000 },
+      { id: "2", value: 2000 },
+      { id: "3", value: 3000 },
     ];
     const result = validateGoals(goals);
     expect(result.valid).toBe(true);
@@ -160,44 +160,44 @@ describe("validateGoals", () => {
   it("rejects empty goals array", () => {
     const result = validateGoals([]);
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('At least one goal required');
+    expect(result.error).toBe("At least one goal required");
   });
 
   it("rejects more than 5 goals", () => {
     const goals: Goals = [
-      { id: '1', value: 1000 },
-      { id: '2', value: 2000 },
-      { id: '3', value: 3000 },
-      { id: '4', value: 4000 },
-      { id: '5', value: 5000 },
-      { id: '6', value: 6000 },
+      { id: "1", value: 1000 },
+      { id: "2", value: 2000 },
+      { id: "3", value: 3000 },
+      { id: "4", value: 4000 },
+      { id: "5", value: 5000 },
+      { id: "6", value: 6000 },
     ];
     const result = validateGoals(goals);
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Maximum 5 goals allowed');
+    expect(result.error).toBe("Maximum 5 goals allowed");
   });
 
   it("rejects duplicate goal values", () => {
     const goals: Goals = [
-      { id: '1', value: 2000 },
-      { id: '2', value: 2000 },
-      { id: '3', value: 3000 },
+      { id: "1", value: 2000 },
+      { id: "2", value: 2000 },
+      { id: "3", value: 3000 },
     ];
     const result = validateGoals(goals);
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('All goal values must be unique');
+    expect(result.error).toBe("All goal values must be unique");
   });
 
   it("accepts 1-5 goals with unique values", () => {
-    const oneGoal: Goals = [{ id: '1', value: 1000 }];
+    const oneGoal: Goals = [{ id: "1", value: 1000 }];
     expect(validateGoals(oneGoal).valid).toBe(true);
 
     const fiveGoals: Goals = [
-      { id: '1', value: 1000 },
-      { id: '2', value: 2000 },
-      { id: '3', value: 3000 },
-      { id: '4', value: 4000 },
-      { id: '5', value: 5000 },
+      { id: "1", value: 1000 },
+      { id: "2", value: 2000 },
+      { id: "3", value: 3000 },
+      { id: "4", value: 4000 },
+      { id: "5", value: 5000 },
     ];
     expect(validateGoals(fiveGoals).valid).toBe(true);
   });
@@ -266,9 +266,7 @@ describe("calculateDynamicPacingGoal", () => {
   });
 
   it("handles near end of year", () => {
-    const distanceData: DistanceEntry[] = [
-      { x: "2024-12-31", y: 2000 },
-    ];
+    const distanceData: DistanceEntry[] = [{ x: "2024-12-31", y: 2000 }];
 
     const pacing = calculateDynamicPacingGoal(distanceData, 2500, 2024, new Date("2024-12-31"));
 
@@ -276,9 +274,7 @@ describe("calculateDynamicPacingGoal", () => {
   });
 
   it("handles leap year", () => {
-    const distanceData: DistanceEntry[] = [
-      { x: "2024-01-01", y: 0 },
-    ];
+    const distanceData: DistanceEntry[] = [{ x: "2024-01-01", y: 0 }];
 
     const pacing = calculateDynamicPacingGoal(distanceData, 3660, 2024, new Date("2024-01-01"));
 

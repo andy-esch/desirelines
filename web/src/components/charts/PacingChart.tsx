@@ -89,18 +89,18 @@ const PacingChart = (props: PacingChartProps) => {
   }
 
   // Calculate dynamic pacing goals using frontend utilities
-  const pacingGoals = goals.map(goal => ({
+  const pacingGoals = goals.map((goal) => ({
     goal,
-    pacing: calculateDynamicPacingGoal(distanceTraveled, goal.value, year, latestDate)
+    pacing: calculateDynamicPacingGoal(distanceTraveled, goal.value, year, latestDate),
   }));
 
   // Define colors for up to 5 goals (same as DistanceChart)
   const goalColors = [
     CHART_COLORS.LOWER_GOAL_LINE,
     CHART_COLORS.UPPER_GOAL_LINE,
-    'rgb(100, 255, 100)',
-    'rgb(255, 200, 0)',
-    'rgb(150, 100, 255)',
+    "rgb(100, 255, 100)",
+    "rgb(255, 200, 0)",
+    "rgb(150, 100, 255)",
   ];
 
   const lineChart = (
@@ -116,7 +116,7 @@ const PacingChart = (props: PacingChartProps) => {
           },
           ...pacingGoals.map((pg, index) => ({
             data: pg.pacing,
-            label: `${pg.goal.label || 'Goal'} Pacing: ${pg.goal.value} miles`,
+            label: `${pg.goal.label || "Goal"} Pacing: ${pg.goal.value} miles`,
             pointRadius: 0,
             borderColor: goalColors[index % goalColors.length],
             segment: {

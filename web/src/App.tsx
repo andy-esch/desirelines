@@ -7,7 +7,11 @@ import Sidebar from "./components/layout/Sidebar";
 import DistanceChart from "./components/charts/DistanceChart";
 import PacingChart from "./components/charts/PacingChart";
 import GoalSummaryTable from "./components/GoalSummaryTable";
-import { generateDefaultGoals, estimateYearEndDistance, type Goals } from "./utils/goalCalculations";
+import {
+  generateDefaultGoals,
+  estimateYearEndDistance,
+  type Goals,
+} from "./utils/goalCalculations";
 import { fetchDistanceData } from "./api/activities";
 
 function App() {
@@ -42,7 +46,7 @@ function App() {
         try {
           loadedGoals = JSON.parse(storedGoals);
         } catch (e) {
-          console.error('Failed to parse stored goals:', e);
+          console.error("Failed to parse stored goals:", e);
         }
       }
 
@@ -67,7 +71,9 @@ function App() {
           // No data yet, use reasonable defaults
           setCurrentDistance(0);
           setEstimatedYearEnd(2500);
-          setGoals(loadedGoals && loadedGoals.length > 0 ? loadedGoals : generateDefaultGoals(2500));
+          setGoals(
+            loadedGoals && loadedGoals.length > 0 ? loadedGoals : generateDefaultGoals(2500)
+          );
         }
       } catch {
         // Error fetching data, use reasonable defaults

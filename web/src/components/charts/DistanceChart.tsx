@@ -92,20 +92,20 @@ const DistanceChart = (props: DistanceChartProps) => {
   }
 
   // Calculate goal lines using frontend utilities
-  const goalLines = goals.map(goal => ({
+  const goalLines = goals.map((goal) => ({
     goal,
-    line: calculateDesireLine(goal.value, year, latestDate)
+    line: calculateDesireLine(goal.value, year, latestDate),
   }));
 
   const currentAverageLine = calculateCurrentAverageLine(distanceTraveled, year, latestDate);
 
   // Define colors for up to 5 goals
   const goalColors = [
-    CHART_COLORS.LOWER_GOAL_LINE,    // cyan
-    CHART_COLORS.UPPER_GOAL_LINE,    // magenta
-    'rgb(100, 255, 100)',             // green
-    'rgb(255, 200, 0)',               // orange
-    'rgb(150, 100, 255)',             // purple
+    CHART_COLORS.LOWER_GOAL_LINE, // cyan
+    CHART_COLORS.UPPER_GOAL_LINE, // magenta
+    "rgb(100, 255, 100)", // green
+    "rgb(255, 200, 0)", // orange
+    "rgb(150, 100, 255)", // purple
   ];
 
   const lineChart = (
@@ -120,7 +120,7 @@ const DistanceChart = (props: DistanceChartProps) => {
             backgroundColor: CHART_COLORS.ACTUAL_DATA_FILL,
           },
           ...goalLines.map((gl, index) => ({
-            label: `${gl.goal.label || 'Goal'}: ${gl.goal.value} miles`,
+            label: `${gl.goal.label || "Goal"}: ${gl.goal.value} miles`,
             data: gl.line,
             pointRadius: 0,
             borderColor: goalColors[index % goalColors.length],

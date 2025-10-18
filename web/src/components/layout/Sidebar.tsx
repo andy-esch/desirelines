@@ -18,7 +18,7 @@ export default function Sidebar({
   goals,
   onGoalsChange,
   estimatedYearEnd,
-  currentDistance
+  currentDistance,
 }: SidebarProps) {
   return (
     <div className="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary">
