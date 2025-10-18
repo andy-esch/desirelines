@@ -25,7 +25,7 @@ def activity2():
 def bigquery_schema():
     """Load the BigQuery schema from test fixtures.
 
-    This is a copy of infrastructure/schemas/activities_full.json kept in the package
+    This is a copy of schemas/bigquery/activities_full.json kept in the package
     for self-contained testing. If the BigQuery schema changes, update this fixture file.
     """
     schema_path = (

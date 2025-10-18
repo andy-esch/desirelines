@@ -50,7 +50,7 @@ fi
 
 # Generate and create table schema
 echo "🏗️  Creating BigQuery table..."
-SCHEMA_CLI=$(uv run infrastructure/schema_to_bq.py activities)
+SCHEMA_CLI=$(uv run scripts/schema/schema_to_bq.py activities)
 
 # Create or update the table
 echo "  Creating table: $LOCAL_TABLE"

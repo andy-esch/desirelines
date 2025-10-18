@@ -237,3 +237,6 @@ strava-auth-prod.json
 
 # Planning and internal documentation
 docs/planning/
+
+# Protocol Buffer generated code
+schemas/generated/

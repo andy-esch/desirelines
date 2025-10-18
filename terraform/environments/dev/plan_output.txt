@@ -1,0 +1,22 @@
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mError acquiring the state lock[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mError message: writing
+[31m│[0m [0m"gs://desirelines-dev-terraform-state/environments/dev/default.tflock"
+[31m│[0m [0mfailed: googleapi: Error 412: At least one of the pre-conditions you
+[31m│[0m [0mspecified did not hold., conditionNotMet
+[31m│[0m [0mLock Info:
+[31m│[0m [0m  ID:        1760785650483983
+[31m│[0m [0m  Path:      gs://desirelines-dev-terraform-state/environments/dev/default.tflock
+[31m│[0m [0m  Operation: OperationTypePlan
+[31m│[0m [0m  Who:       petereschbacher@Peters-MacBook-Pro.local
+[31m│[0m [0m  Version:   1.13.3
+[31m│[0m [0m  Created:   2025-10-18 11:07:30.270549 +0000 UTC
+[31m│[0m [0m  Info:      
+[31m│[0m [0m
+[31m│[0m [0m
+[31m│[0m [0mTerraform acquires a state lock to protect the state from being written
+[31m│[0m [0mby multiple users at the same time. Please resolve the issue above and try
+[31m│[0m [0magain. For most commands, you can disable locking with the "-lock=false"
+[31m│[0m [0mflag, but this is not recommended.
+[31m╵[0m[0m
