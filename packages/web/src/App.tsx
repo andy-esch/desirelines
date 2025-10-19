@@ -38,7 +38,7 @@ function App() {
           setEstimatedYearEnd(2500);
         }
       } catch (err) {
-        console.error('Failed to fetch ride data:', err);
+        console.error("Failed to fetch ride data:", err);
         // Error fetching data, use reasonable defaults
         setCurrentDistance(0);
         setEstimatedYearEnd(2500);
@@ -53,7 +53,7 @@ function App() {
     goals: generateDefaultGoals(estimatedYearEnd || 2500).map((goal) => ({
       id: goal.id,
       value: goal.value,
-      label: goal.label || '', // Ensure label is always a string
+      label: goal.label || "", // Ensure label is always a string
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })),
@@ -65,11 +65,7 @@ function App() {
     loading: goalsLoading,
     error: goalsError,
     updateData: updateGoals,
-  } = useUserConfig(
-    'goals',
-    currentYear,
-    defaultGoalsForYear
-  );
+  } = useUserConfig("goals", currentYear, defaultGoalsForYear);
 
   // Extract goals array from GoalsForYear structure
   const goals = goalsData?.goals || [];
@@ -80,10 +76,11 @@ function App() {
       goals: newGoals.map((goal) => ({
         id: goal.id,
         value: goal.value,
-        label: goal.label || '', // Ensure label is always a string
+        label: goal.label || "", // Ensure label is always a string
         updatedAt: new Date().toISOString(),
         // Preserve createdAt if it exists, otherwise set it
-        createdAt: goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
+        createdAt:
+          goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
       })),
     };
     await updateGoals(updatedGoalsForYear);
