@@ -158,8 +158,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: packages/web/package-lock.json
 
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate user config from protobuf
+        run: npm run proto:gen
 
       - name: Run linting
         run: npm run lint
