@@ -18,22 +18,23 @@ service cloud.firestore {
 
       // Profile data - read by owner only
       match /profile/{document=**} {
-        allow read: if isOwner(userId);
-        allow write: if isOwner(userId);
+        allow read: if isOwner(userId) || isDefaultUserDev(userId);
+        allow write: if isOwner(userId) || isDefaultUserDev(userId);
       }
 
       // Private data - read/write by owner only
       match /private/{document=**} {
-        allow read: if isOwner(userId);
-        allow write: if isOwner(userId);
+        allow read: if isOwner(userId) || isDefaultUserDev(userId);
+        allow write: if isOwner(userId) || isDefaultUserDev(userId);
       }
 
-      // Config data - read/write by owner only
+      // Config data - read/write by owner only (or 'default' user for dev)
       match /config/{version} {
-        allow read: if isOwner(userId);
-        allow write: if isOwner(userId)
+        allow read: if isOwner(userId) || isDefaultUserDev(userId);
+        allow create, update: if (isOwner(userId) || isDefaultUserDev(userId))
                     && request.resource.data.keys().hasAll(['schemaVersion', 'userId', 'lastUpdated'])
                     && request.resource.data.userId == userId;
+        allow delete: if isOwner(userId) || isDefaultUserDev(userId);
       }
     }
   }

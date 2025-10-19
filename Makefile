@@ -130,10 +130,11 @@ proto-gen-go:
 proto-gen-typescript:
 	@echo "🔨 Generating TypeScript code from proto files..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
-	@command -v protoc-gen-ts >/dev/null 2>&1 || { echo "❌ Error: protoc-gen-ts not found. Install with: npm install -g protoc-gen-ts"; exit 1; }
+	@test -f packages/web/node_modules/.bin/protoc-gen-ts_proto || { echo "❌ Error: ts-proto not found. Run: cd packages/web && npm install"; exit 1; }
 	@mkdir -p packages/web/src/types/generated
-	protoc --plugin=protoc-gen-ts=`which protoc-gen-ts` \
-		--ts_out=packages/web/src/types/generated \
+	protoc --plugin=packages/web/node_modules/.bin/protoc-gen-ts_proto \
+		--ts_proto_out=packages/web/src/types/generated \
+		--ts_proto_opt=outputJsonMethods=false,outputPartialMethods=false,useOptionals=messages,oneof=unions \
 		-I schemas/proto \
 		schemas/proto/*.proto
 	@echo "✅ TypeScript protobuf code generated in packages/web/src/types/generated/"
