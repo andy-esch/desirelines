@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceDot,
 } from "recharts";
 import type { DistanceEntry } from "../../types/activity";
 import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
@@ -66,6 +67,38 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
     () => calculateCurrentAverageLine(distanceData, year, latestDate),
     [distanceData, year, latestDate]
   );
+
+  // Detect goal achievements (when actual crosses goal line)
+  const goalAchievements = useMemo(() => {
+    const achievements: Array<{
+      date: Date;
+      goalLabel: string;
+      goalValue: number;
+      actualValue: number;
+    }> = [];
+
+    goalLines.forEach((gl) => {
+      // Find first point where actual distance exceeds goal
+      for (let i = 1; i < distanceData.length; i++) {
+        const prevActual = distanceData[i - 1].y;
+        const currActual = distanceData[i].y;
+        const goalValue = gl.goal.value;
+
+        // Check if we crossed the goal line (from below to above)
+        if (prevActual < goalValue && currActual >= goalValue) {
+          achievements.push({
+            date: new Date(distanceData[i].x),
+            goalLabel: gl.goal.label || "Goal",
+            goalValue: goalValue,
+            actualValue: currActual,
+          });
+          break; // Only track first achievement of each goal
+        }
+      }
+    });
+
+    return achievements;
+  }, [distanceData, goalLines]);
 
   // Merge all data into a single array for Recharts
   // Recharts expects data like: [{ date: ..., actual: ..., goal1: ..., goal2: ..., average: ... }]
@@ -184,9 +217,13 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
             scale="time"
             tickFormatter={(timestamp) => {
               const date = new Date(timestamp);
-              return `${date.getMonth() + 1}/${date.getDate()}`;
+              const month = date.toLocaleDateString('en-US', { month: 'short' });
+              const day = date.getDate();
+              return `${month} ${day}`;
             }}
             stroke={CHART_CONFIG.axis.stroke}
+            tick={{ fontSize: 11 }}
+            interval="preserveStartEnd"
           />
           <YAxis
             label={{ value: "Miles", angle: -90, position: "insideLeft" }}
@@ -210,6 +247,8 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
             }}
             formatter={(value: number) => value.toFixed(1)}
             contentStyle={CHART_CONFIG.tooltip.contentStyle}
+            labelStyle={CHART_CONFIG.tooltip.labelStyle}
+            itemStyle={CHART_CONFIG.tooltip.itemStyle}
           />
 
           {/* Y-axis markers for current values */}
@@ -218,8 +257,19 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
             stroke="transparent"
             label={(props) => {
               const { viewBox } = props;
+              const label = "Actual";
+              const padding = 4;
+              const textWidth = label.length * 6; // Approximate width
               return (
                 <g>
+                  <rect
+                    x={viewBox.x - textWidth - 10 - padding * 2}
+                    y={viewBox.y - 10}
+                    width={textWidth + padding * 2}
+                    height={20}
+                    fill="rgba(0, 0, 0, 0.7)"
+                    rx={3}
+                  />
                   <circle
                     cx={viewBox.x}
                     cy={viewBox.y}
@@ -248,8 +298,19 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
               stroke="transparent"
               label={(props) => {
                 const { viewBox } = props;
+                const padding = 4;
+                const labelText = goal.label || "Goal";
+                const textWidth = labelText.length * 6; // Approximate width
                 return (
                   <g>
+                    <rect
+                      x={viewBox.x - textWidth - 10 - padding * 2}
+                      y={viewBox.y - 9}
+                      width={textWidth + padding * 2}
+                      height={18}
+                      fill="rgba(0, 0, 0, 0.7)"
+                      rx={3}
+                    />
                     <circle
                       cx={viewBox.x}
                       cy={viewBox.y}
@@ -264,7 +325,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
                       fontSize={CHART_CONFIG.marker.fontSize.goal}
                       dominantBaseline="middle"
                     >
-                      {goal.label}
+                      {labelText}
                     </text>
                   </g>
                 );
@@ -276,8 +337,19 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
             stroke="transparent"
             label={(props) => {
               const { viewBox } = props;
+              const label = "Average";
+              const padding = 4;
+              const textWidth = label.length * 6; // Approximate width
               return (
                 <g>
+                  <rect
+                    x={viewBox.x - textWidth - 10 - padding * 2}
+                    y={viewBox.y - 9}
+                    width={textWidth + padding * 2}
+                    height={18}
+                    fill="rgba(0, 0, 0, 0.7)"
+                    rx={3}
+                  />
                   <circle
                     cx={viewBox.x}
                     cy={viewBox.y}
@@ -335,6 +407,33 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
             name={`Current Average (Est: ${estimatedYearEnd.toFixed(0)} miles)`}
             animationDuration={CHART_CONFIG.animation.duration}
           />
+
+          {/* Goal achievement markers */}
+          {goalAchievements.map((achievement, index) => (
+            <ReferenceDot
+              key={index}
+              x={achievement.date.getTime()}
+              y={achievement.actualValue}
+              r={0}
+              label={(props: any) => {
+                const { viewBox } = props;
+                return (
+                  <g>
+                    <text
+                      x={viewBox.x}
+                      y={viewBox.y - 10}
+                      textAnchor="middle"
+                      fontSize={20}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      🎉
+                    </text>
+                    <title>{`${achievement.goalLabel} achieved! (${achievement.goalValue} miles)`}</title>
+                  </g>
+                );
+              }}
+            />
+          ))}
         </LineChart>
       </ResponsiveContainer>
     </div>

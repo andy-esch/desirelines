@@ -132,9 +132,13 @@ const PacingChartRecharts = (props: PacingChartProps) => {
             scale="time"
             tickFormatter={(timestamp) => {
               const date = new Date(timestamp);
-              return `${date.getMonth() + 1}/${date.getDate()}`;
+              const month = date.toLocaleDateString('en-US', { month: 'short' });
+              const day = date.getDate();
+              return `${month} ${day}`;
             }}
             stroke={CHART_CONFIG.axis.stroke}
+            tick={{ fontSize: 11 }}
+            interval="preserveStartEnd"
           />
           <YAxis
             label={{ value: "Miles/Day", angle: -90, position: "insideLeft" }}
@@ -149,6 +153,8 @@ const PacingChartRecharts = (props: PacingChartProps) => {
             }}
             formatter={(value: number) => value.toFixed(2)}
             contentStyle={CHART_CONFIG.tooltip.contentStyle}
+            labelStyle={CHART_CONFIG.tooltip.labelStyle}
+            itemStyle={CHART_CONFIG.tooltip.itemStyle}
           />
 
           {/* Y-axis markers for current values */}
@@ -157,8 +163,19 @@ const PacingChartRecharts = (props: PacingChartProps) => {
             stroke="transparent"
             label={(props) => {
               const { viewBox } = props;
+              const label = "Actual";
+              const padding = 4;
+              const textWidth = label.length * 6; // Approximate width
               return (
                 <g>
+                  <rect
+                    x={viewBox.x - textWidth - 10 - padding * 2}
+                    y={viewBox.y - 10}
+                    width={textWidth + padding * 2}
+                    height={20}
+                    fill="rgba(0, 0, 0, 0.7)"
+                    rx={3}
+                  />
                   <circle
                     cx={viewBox.x}
                     cy={viewBox.y}
@@ -187,8 +204,19 @@ const PacingChartRecharts = (props: PacingChartProps) => {
               stroke="transparent"
               label={(props) => {
                 const { viewBox } = props;
+                const padding = 4;
+                const labelText = goal.label || "Goal";
+                const textWidth = labelText.length * 6; // Approximate width
                 return (
                   <g>
+                    <rect
+                      x={viewBox.x - textWidth - 10 - padding * 2}
+                      y={viewBox.y - 9}
+                      width={textWidth + padding * 2}
+                      height={18}
+                      fill="rgba(0, 0, 0, 0.7)"
+                      rx={3}
+                    />
                     <circle
                       cx={viewBox.x}
                       cy={viewBox.y}
@@ -203,7 +231,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
                       fontSize={CHART_CONFIG.marker.fontSize.goal}
                       dominantBaseline="middle"
                     >
-                      {goal.label}
+                      {labelText}
                     </text>
                   </g>
                 );

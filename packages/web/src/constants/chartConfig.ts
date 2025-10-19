@@ -19,8 +19,8 @@ export const CHART_CONFIG = {
 
   /** Line stroke widths */
   strokeWidth: {
-    actual: 2,
-    goal: 1.5,
+    actual: 3,
+    goal: 2,
   },
 
   /** Grid styling */
@@ -48,7 +48,21 @@ export const CHART_CONFIG = {
   tooltip: {
     contentStyle: {
       backgroundColor: "#1a1a1a",
-      border: "1px solid #333",
+      border: "1px solid #444",
+      borderRadius: "6px",
+      padding: "12px 16px",
+      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
+    },
+    labelStyle: {
+      color: "#fff",
+      fontWeight: "bold",
+      marginBottom: "8px",
+      fontSize: "13px",
+    },
+    itemStyle: {
+      color: "#ddd",
+      padding: "4px 0",
+      fontSize: "12px",
     },
   },
 
