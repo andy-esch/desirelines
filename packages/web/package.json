@@ -11,11 +11,14 @@
     "chart.js": "^4.4.1",
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^3.3.1",
+    "firebase": "^12.4.0",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.2.0"
   },
   "scripts": {
+    "postinstall": "cd ../.. && make proto-gen-typescript || echo 'Warning: Protobuf generation skipped (protoc may not be installed)'",
+    "proto:gen": "cd ../.. && make proto-gen-typescript",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
@@ -37,6 +40,8 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.0",
     "prettier": "^3.6.2",
+    "protoc-gen-ts": "^0.8.7",
+    "ts-proto": "^2.7.7",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",
     "vite": "^7.1.10",

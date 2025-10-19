@@ -13,80 +13,78 @@ import {
   type Goals,
 } from "./utils/goalCalculations";
 import { fetchDistanceData } from "./api/activities";
+import { useUserConfig } from "./hooks/useUserConfig";
+import type { GoalsForYear } from "./services/userConfigService";
 
 function App() {
   const [currentYear, setCurrentYear] = useState(2025);
-  const [goals, setGoals] = useState<Goals>([]);
-  const [isInitializing, setIsInitializing] = useState(true);
   const [estimatedYearEnd, setEstimatedYearEnd] = useState(0);
   const [currentDistance, setCurrentDistance] = useState(0);
 
-  const handleYearClick = (year: number) => {
-    setCurrentYear(year);
-    setIsInitializing(true); // Reset when year changes
-  };
-
-  // Custom goals persistence: save to localStorage whenever goals change
-  useEffect(() => {
-    if (goals.length > 0 && !isInitializing) {
-      const key = `desirelines_goals_${currentYear}`;
-      localStorage.setItem(key, JSON.stringify(goals));
-    }
-  }, [goals, currentYear, isInitializing]);
-
-  // Fetch distance data and load/calculate goals
+  // Fetch distance data to calculate default goals
   useEffect(() => {
     const loadData = async () => {
-      // Try to load goals from localStorage for this year
-      const storageKey = `desirelines_goals_${currentYear}`;
-      const storedGoals = localStorage.getItem(storageKey);
-      let loadedGoals: Goals | null = null;
-
-      if (storedGoals) {
-        try {
-          loadedGoals = JSON.parse(storedGoals);
-        } catch (e) {
-          console.error("Failed to parse stored goals:", e);
-        }
-      }
-
       try {
         const rideData = await fetchDistanceData(currentYear);
         if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
           const lastEntry = rideData.distance_traveled[rideData.distance_traveled.length - 1];
-          const currentDist = lastEntry?.y || 0;
-          setCurrentDistance(currentDist);
+          setCurrentDistance(lastEntry?.y || 0);
 
           const estimated = estimateYearEndDistance(rideData.distance_traveled, currentYear);
           setEstimatedYearEnd(estimated);
-
-          // Use stored goals if available, otherwise generate defaults
-          if (loadedGoals && loadedGoals.length > 0) {
-            setGoals(loadedGoals);
-          } else {
-            const defaultGoals = generateDefaultGoals(estimated);
-            setGoals(defaultGoals);
-          }
         } else {
           // No data yet, use reasonable defaults
           setCurrentDistance(0);
           setEstimatedYearEnd(2500);
-          setGoals(
-            loadedGoals && loadedGoals.length > 0 ? loadedGoals : generateDefaultGoals(2500)
-          );
         }
-      } catch {
+      } catch (err) {
+        console.error("Failed to fetch ride data:", err);
         // Error fetching data, use reasonable defaults
         setCurrentDistance(0);
         setEstimatedYearEnd(2500);
-        setGoals(loadedGoals && loadedGoals.length > 0 ? loadedGoals : generateDefaultGoals(2500));
-      } finally {
-        setIsInitializing(false);
       }
     };
 
     loadData();
   }, [currentYear]);
+
+  // Generate default GoalsForYear structure
+  const defaultGoalsForYear: GoalsForYear = {
+    goals: generateDefaultGoals(estimatedYearEnd || 2500).map((goal) => ({
+      id: goal.id,
+      value: goal.value,
+      label: goal.label || "", // Ensure label is always a string
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })),
+  };
+
+  // Use Firestore-persisted goals with useUserConfig hook
+  const {
+    data: goalsData,
+    loading: goalsLoading,
+    error: goalsError,
+    updateData: updateGoals,
+  } = useUserConfig("goals", currentYear, defaultGoalsForYear);
+
+  // Extract goals array from GoalsForYear structure
+  const goals = goalsData?.goals || [];
+
+  // Wrapper to update goals (converts from Goals[] to GoalsForYear)
+  const handleGoalsChange = async (newGoals: Goals) => {
+    const updatedGoalsForYear: GoalsForYear = {
+      goals: newGoals.map((goal) => ({
+        id: goal.id,
+        value: goal.value,
+        label: goal.label || "", // Ensure label is always a string
+        updatedAt: new Date().toISOString(),
+        // Preserve createdAt if it exists, otherwise set it
+        createdAt:
+          goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
+      })),
+    };
+    await updateGoals(updatedGoalsForYear);
+  };
 
   return (
     <div className="App">
@@ -95,9 +93,9 @@ function App() {
         <div className="row">
           <Sidebar
             currentYear={currentYear}
-            onYearClick={handleYearClick}
+            onYearClick={setCurrentYear}
             goals={goals}
-            onGoalsChange={setGoals}
+            onGoalsChange={handleGoalsChange}
             estimatedYearEnd={estimatedYearEnd}
             currentDistance={currentDistance}
           />
@@ -106,10 +104,21 @@ function App() {
             <div className="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
               <h1 className="h2">Desirelines as of {new Date().toDateString()}</h1>
             </div>
-            {!isInitializing && goals.length > 0 && (
+
+            {goalsLoading ? (
+              <div className="text-center my-5">
+                <div className="spinner-border" role="status">
+                  <span className="visually-hidden">Loading goals...</span>
+                </div>
+              </div>
+            ) : goalsError ? (
+              <div className="alert alert-danger" role="alert">
+                Error loading goals: {goalsError.message}
+              </div>
+            ) : (
               <>
-                <DistanceChart year={currentYear} goals={goals} onGoalsChange={setGoals} />
-                <PacingChart year={currentYear} goals={goals} onGoalsChange={setGoals} />
+                <DistanceChart year={currentYear} goals={goals} onGoalsChange={handleGoalsChange} />
+                <PacingChart year={currentYear} goals={goals} onGoalsChange={handleGoalsChange} />
                 <GoalSummaryTable
                   goals={goals}
                   currentDistance={currentDistance}
@@ -117,7 +126,6 @@ function App() {
                 />
               </>
             )}
-            {isInitializing && <p>Loading goals...</p>}
           </main>
         </div>
       </div>

@@ -145,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./web
+        working-directory: ./packages/web
 
     steps:
       - name: Checkout code
@@ -156,10 +156,16 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: packages/web/package-lock.json
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate user config from protobuf
+        run: npm run proto:gen
 
       - name: Run linting
         run: npm run lint

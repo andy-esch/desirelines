@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -70,40 +70,80 @@ go-build:
 # Web/React commands
 web-test:
 	@echo "🧪 Running React tests..."
-	cd web && npm test -- --coverage --watchAll=false
+	cd packages/web && npm test -- --coverage --watchAll=false
 
 web-lint:
 	@echo "🔍 Running ESLint..."
-	cd web && npm run lint
+	cd packages/web && npm run lint
 
 web-lint-fix:
 	@echo "🔧 Running ESLint with auto-fix..."
-	cd web && npm run lint:fix
+	cd packages/web && npm run lint:fix
 
 web-format:
 	@echo "🎨 Formatting code with Prettier..."
-	cd web && npm run format
+	cd packages/web && npm run format
 
 web-format-check:
 	@echo "🔍 Checking code formatting..."
-	cd web && npm run format:check
+	cd packages/web && npm run format:check
 
 web-typecheck:
 	@echo "🔍 Running TypeScript type checking..."
-	cd web && npm run typecheck
+	cd packages/web && npm run typecheck
 
 web-build:
 	@echo "🔨 Building production bundle..."
-	cd web && npm run build
+	cd packages/web && npm run build
 
 web-dev:
 	@echo "⚡ Starting Vite dev server..."
-	cd web && npm run dev
+	cd packages/web && npm run dev
 
 # Legacy aliases
 js-lint: web-lint
 js-format: web-format
 js-dev: web-dev
+
+# ==========================================
+# Protocol Buffer Code Generation
+# ==========================================
+
+# Generate protobuf code for all languages
+proto-gen: proto-gen-go proto-gen-typescript
+	@echo "✅ Protocol buffer code generation complete"
+
+# Generate Go code from proto files
+proto-gen-go:
+	@echo "🔨 Generating Go code from proto files..."
+	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
+	@command -v protoc-gen-go >/dev/null 2>&1 || { echo "❌ Error: protoc-gen-go not found. Install with: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest"; exit 1; }
+	@mkdir -p schemas/generated/go
+	protoc --go_out=schemas/generated/go \
+		--go_opt=paths=source_relative \
+		--go_opt=Muser_config.proto=github.com/andy-esch/desirelines/schemas/generated/go/userconfig \
+		-I schemas/proto \
+		schemas/proto/*.proto
+	@echo "✅ Go protobuf code generated in schemas/generated/go/"
+
+# Generate TypeScript code from proto files
+proto-gen-typescript:
+	@echo "🔨 Generating TypeScript code from proto files..."
+	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
+	@test -f packages/web/node_modules/.bin/protoc-gen-ts_proto || { echo "❌ Error: ts-proto not found. Run: cd packages/web && npm install"; exit 1; }
+	@mkdir -p packages/web/src/types/generated
+	protoc --plugin=packages/web/node_modules/.bin/protoc-gen-ts_proto \
+		--ts_proto_out=packages/web/src/types/generated \
+		--ts_proto_opt=outputJsonMethods=false,outputPartialMethods=false,useOptionals=messages,oneof=unions \
+		-I schemas/proto \
+		schemas/proto/*.proto
+	@echo "✅ TypeScript protobuf code generated in packages/web/src/types/generated/"
+
+# Clean generated protobuf code
+proto-clean:
+	@echo "🧹 Cleaning generated protobuf code..."
+	rm -rf schemas/generated/go schemas/generated/typescript schemas/generated/python
+	@echo "✅ Generated protobuf code cleaned"
 
 # ==========================================
 # Service Account Management
@@ -223,6 +263,12 @@ help:
 	@echo "  go-test        - Run fast Go tests for local packages"
 	@echo "  go-test-all    - Run all Go tests in the workspace (more intensive)"
 	@echo "  go-test-coverage - Run Go tests with coverage report"
+	@echo ""
+	@echo "Protocol Buffers:"
+	@echo "  proto-gen            - Generate code for all languages (Go + TypeScript)"
+	@echo "  proto-gen-go         - Generate Go code from .proto files"
+	@echo "  proto-gen-typescript - Generate TypeScript code from .proto files"
+	@echo "  proto-clean          - Clean generated protobuf code"
 	@echo ""
 	@echo "Secret Management & Webhooks (uses current gcloud project):"
 	@echo "  deploy-secrets SECRET_FILE=file.json - Deploy secrets from JSON file with IAM bindings"
