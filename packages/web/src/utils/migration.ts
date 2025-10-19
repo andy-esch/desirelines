@@ -80,11 +80,6 @@ export async function migrateAllGoalsToFirestore(
     results[year] = await migrateGoalsToFirestore(configService, year);
   }
 
-  const migratedCount = Object.values(results).filter(Boolean).length;
-  if (migratedCount > 0) {
-    console.log(`✓ Migrated ${migratedCount} year(s) of goals to Firestore`);
-  }
-
   return results;
 }
 

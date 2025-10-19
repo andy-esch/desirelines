@@ -13,6 +13,12 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // // Helper function for development mode (allows unauthenticated access to 'default' user)
+    // // TODO: Remove this before production deployment
+    // function isDefaultUserDev(userId) {
+    //   return userId == 'default';
+    // }
+
     // Users collection
     match /users/{userId} {
 

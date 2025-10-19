@@ -11,7 +11,7 @@ export default defineConfig({
   build: {
     outDir: "build", // Keep same output dir for compatibility
   },
-  envPrefix: "REACT_APP_", // Support existing env vars during transition
+  envPrefix: ["VITE_", "REACT_APP_"], // Support both Vite and React env var prefixes
   test: {
     globals: true,
     environment: "node", // Just for utilities, not components yet
