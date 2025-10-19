@@ -1,12 +1,5 @@
-import {
-  doc,
-  getDoc,
-  setDoc,
-  deleteDoc,
-  onSnapshot,
-  Unsubscribe,
-} from 'firebase/firestore';
-import { db } from './firebase';
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
+import { db } from "./firebase";
 import type {
   UserConfig,
   GoalsForYear,
@@ -15,7 +8,7 @@ import type {
   Metadata,
   Goal,
   Annotation,
-} from '../types/generated/user_config';
+} from "../types/generated/user_config";
 
 /**
  * Service for managing user configuration in Firestore
@@ -25,7 +18,7 @@ export class UserConfigService {
   private userId: string;
   private version: string;
 
-  constructor(userId: string = 'default', version: string = 'v1') {
+  constructor(userId: string = "default", version: string = "v1") {
     this.userId = userId;
     this.version = version;
   }
@@ -34,7 +27,7 @@ export class UserConfigService {
    * Get Firestore document reference for this user's config
    */
   private getDocRef() {
-    return doc(db, 'users', this.userId, 'config', this.version);
+    return doc(db, "users", this.userId, "config", this.version);
   }
 
   /**
@@ -50,7 +43,7 @@ export class UserConfigService {
       }
       return null;
     } catch (error) {
-      console.error('Error fetching user config:', error);
+      console.error("Error fetching user config:", error);
       throw error;
     }
   }
@@ -58,30 +51,41 @@ export class UserConfigService {
   /**
    * Get goals for a specific year
    */
-  async getConfigSection(configType: 'goals', year: number): Promise<GoalsForYear | null>;
+  async getConfigSection(configType: "goals", year: number): Promise<GoalsForYear | null>;
   /**
    * Get all goals
    */
-  async getConfigSection(configType: 'goals'): Promise<{ [key: string]: GoalsForYear } | null>;
+  async getConfigSection(configType: "goals"): Promise<{ [key: string]: GoalsForYear } | null>;
   /**
    * Get annotations for a specific year
    */
-  async getConfigSection(configType: 'annotations', year: number): Promise<AnnotationsForYear | null>;
+  async getConfigSection(
+    configType: "annotations",
+    year: number
+  ): Promise<AnnotationsForYear | null>;
   /**
    * Get all annotations
    */
-  async getConfigSection(configType: 'annotations'): Promise<{ [key: string]: AnnotationsForYear } | null>;
+  async getConfigSection(
+    configType: "annotations"
+  ): Promise<{ [key: string]: AnnotationsForYear } | null>;
   /**
    * Get preferences
    */
-  async getConfigSection(configType: 'preferences'): Promise<Preferences | null>;
+  async getConfigSection(configType: "preferences"): Promise<Preferences | null>;
   /**
    * Implementation
    */
   async getConfigSection(
-    configType: 'goals' | 'annotations' | 'preferences',
+    configType: "goals" | "annotations" | "preferences",
     year?: number
-  ): Promise<GoalsForYear | AnnotationsForYear | Preferences | { [key: string]: GoalsForYear | AnnotationsForYear } | null> {
+  ): Promise<
+    | GoalsForYear
+    | AnnotationsForYear
+    | Preferences
+    | { [key: string]: GoalsForYear | AnnotationsForYear }
+    | null
+  > {
     const config = await this.getConfig();
     if (!config) return null;
 
@@ -89,10 +93,10 @@ export class UserConfigService {
     if (!section) return null;
 
     // If year specified and section is year-keyed
-    if (year !== undefined && configType === 'goals') {
+    if (year !== undefined && configType === "goals") {
       const goalsSection = section as { [key: string]: GoalsForYear };
       return goalsSection[year.toString()] || null;
-    } else if (year !== undefined && configType === 'annotations') {
+    } else if (year !== undefined && configType === "annotations") {
       const annotationsSection = section as { [key: string]: AnnotationsForYear };
       return annotationsSection[year.toString()] || null;
     }
@@ -103,20 +107,24 @@ export class UserConfigService {
   /**
    * Update goals for a specific year
    */
-  async updateConfigSection(configType: 'goals', data: GoalsForYear, year: number): Promise<void>;
+  async updateConfigSection(configType: "goals", data: GoalsForYear, year: number): Promise<void>;
   /**
    * Update annotations for a specific year
    */
-  async updateConfigSection(configType: 'annotations', data: AnnotationsForYear, year: number): Promise<void>;
+  async updateConfigSection(
+    configType: "annotations",
+    data: AnnotationsForYear,
+    year: number
+  ): Promise<void>;
   /**
    * Update preferences
    */
-  async updateConfigSection(configType: 'preferences', data: Preferences): Promise<void>;
+  async updateConfigSection(configType: "preferences", data: Preferences): Promise<void>;
   /**
    * Implementation
    */
   async updateConfigSection(
-    configType: 'goals' | 'annotations' | 'preferences',
+    configType: "goals" | "annotations" | "preferences",
     data: GoalsForYear | AnnotationsForYear | Preferences,
     year?: number
   ): Promise<void> {
@@ -125,7 +133,7 @@ export class UserConfigService {
       const existingConfig = await this.getConfig();
 
       const config: UserConfig = existingConfig || {
-        schemaVersion: '1.0',
+        schemaVersion: "1.0",
         userId: this.userId,
         lastUpdated: new Date().toISOString(),
         goals: {},
@@ -133,13 +141,13 @@ export class UserConfigService {
       };
 
       // Update specific section
-      if (year !== undefined && configType !== 'preferences') {
+      if (year !== undefined && configType !== "preferences") {
         // Year-keyed data (goals, annotations)
         if (!config[configType]) {
           config[configType] = {};
         }
         config[configType][year.toString()] = data as GoalsForYear | AnnotationsForYear;
-      } else if (configType === 'preferences') {
+      } else if (configType === "preferences") {
         // Global data (preferences)
         config.preferences = data as Preferences;
       }
@@ -150,7 +158,7 @@ export class UserConfigService {
       // Use merge to avoid overwriting other fields
       await setDoc(docRef, config, { merge: true });
     } catch (error) {
-      console.error('Error updating user config:', error);
+      console.error("Error updating user config:", error);
       throw error;
     }
   }
@@ -163,7 +171,7 @@ export class UserConfigService {
       const docRef = this.getDocRef();
       await deleteDoc(docRef);
     } catch (error) {
-      console.error('Error deleting user config:', error);
+      console.error("Error deleting user config:", error);
       throw error;
     }
   }
@@ -172,9 +180,7 @@ export class UserConfigService {
    * Subscribe to real-time config updates
    * Returns an unsubscribe function to stop listening
    */
-  subscribeToConfig(
-    callback: (config: UserConfig | null) => void
-  ): Unsubscribe {
+  subscribeToConfig(callback: (config: UserConfig | null) => void): Unsubscribe {
     const docRef = this.getDocRef();
 
     return onSnapshot(
@@ -187,7 +193,7 @@ export class UserConfigService {
         }
       },
       (error) => {
-        console.error('Error in config subscription:', error);
+        console.error("Error in config subscription:", error);
         callback(null);
       }
     );
@@ -197,7 +203,7 @@ export class UserConfigService {
    * Subscribe to goals for a specific year
    */
   subscribeToConfigSection(
-    configType: 'goals',
+    configType: "goals",
     callback: (data: GoalsForYear | null) => void,
     year: number
   ): Unsubscribe;
@@ -205,14 +211,14 @@ export class UserConfigService {
    * Subscribe to all goals
    */
   subscribeToConfigSection(
-    configType: 'goals',
+    configType: "goals",
     callback: (data: { [key: string]: GoalsForYear } | null) => void
   ): Unsubscribe;
   /**
    * Subscribe to annotations for a specific year
    */
   subscribeToConfigSection(
-    configType: 'annotations',
+    configType: "annotations",
     callback: (data: AnnotationsForYear | null) => void,
     year: number
   ): Unsubscribe;
@@ -220,21 +226,21 @@ export class UserConfigService {
    * Subscribe to all annotations
    */
   subscribeToConfigSection(
-    configType: 'annotations',
+    configType: "annotations",
     callback: (data: { [key: string]: AnnotationsForYear } | null) => void
   ): Unsubscribe;
   /**
    * Subscribe to preferences
    */
   subscribeToConfigSection(
-    configType: 'preferences',
+    configType: "preferences",
     callback: (data: Preferences | null) => void
   ): Unsubscribe;
   /**
    * Implementation
    */
   subscribeToConfigSection(
-    configType: 'goals' | 'annotations' | 'preferences',
+    configType: "goals" | "annotations" | "preferences",
     callback: (data: any) => void,
     year?: number
   ): Unsubscribe {
@@ -251,10 +257,10 @@ export class UserConfigService {
       }
 
       // If year specified and section is year-keyed
-      if (year !== undefined && configType === 'goals') {
+      if (year !== undefined && configType === "goals") {
         const goalsSection = section as { [key: string]: GoalsForYear };
         callback(goalsSection[year.toString()] || null);
-      } else if (year !== undefined && configType === 'annotations') {
+      } else if (year !== undefined && configType === "annotations") {
         const annotationsSection = section as { [key: string]: AnnotationsForYear };
         callback(annotationsSection[year.toString()] || null);
       } else {
@@ -265,7 +271,7 @@ export class UserConfigService {
 }
 
 // Default instance for convenience
-export const defaultConfigService = new UserConfigService('default', 'v1');
+export const defaultConfigService = new UserConfigService("default", "v1");
 
 // Re-export protobuf types for convenience
 export type {

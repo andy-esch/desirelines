@@ -1,4 +1,4 @@
-import { UserConfigService } from '../services/userConfigService';
+import { UserConfigService } from "../services/userConfigService";
 
 /**
  * Migrate user data from localStorage to Firestore
@@ -40,7 +40,7 @@ export async function migrateGoalsToFirestore(
     const goals = JSON.parse(localData);
 
     // Check if Firestore already has data (avoid overwriting)
-    const existingGoals = await configService.getConfigSection('goals', year);
+    const existingGoals = await configService.getConfigSection("goals", year);
     if (existingGoals && Array.isArray(existingGoals) && existingGoals.length > 0) {
       console.log(`Firestore already has goals for ${year}, skipping migration`);
       // Mark as migrated even though we didn't migrate (to avoid repeated checks)
@@ -49,7 +49,7 @@ export async function migrateGoalsToFirestore(
     }
 
     // Migrate to Firestore
-    await configService.updateConfigSection('goals', goals, year);
+    await configService.updateConfigSection("goals", goals, year);
     console.log(`✓ Successfully migrated goals for ${year} to Firestore`);
 
     // Mark as migrated (but keep localStorage data as backup)

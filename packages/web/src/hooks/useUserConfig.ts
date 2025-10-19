@@ -1,17 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 import {
   UserConfigService,
   type UserConfig,
   type GoalsForYear,
   type AnnotationsForYear,
   type Preferences,
-} from '../services/userConfigService';
+} from "../services/userConfigService";
 
 /**
  * Hook for accessing goals for a specific year with real-time sync
  */
 export function useUserConfig(
-  configType: 'goals',
+  configType: "goals",
   year: number,
   defaultValue?: GoalsForYear,
   userId?: string,
@@ -27,7 +27,7 @@ export function useUserConfig(
  * Hook for accessing annotations for a specific year with real-time sync
  */
 export function useUserConfig(
-  configType: 'annotations',
+  configType: "annotations",
   year: number,
   defaultValue?: AnnotationsForYear,
   userId?: string,
@@ -44,7 +44,7 @@ export function useUserConfig(
  * Note: year parameter is not used for preferences, but kept for signature compatibility
  */
 export function useUserConfig(
-  configType: 'preferences',
+  configType: "preferences",
   year?: undefined,
   defaultValue?: Preferences,
   userId?: string,
@@ -69,20 +69,20 @@ export function useUserConfig(
   // Parse overloaded parameters
   let year: number | undefined;
   let defaultValue: GoalsForYear | AnnotationsForYear | Preferences | undefined;
-  let userId: string = 'default';
-  let version: string = 'v1';
+  let userId: string = "default";
+  let version: string = "v1";
 
-  if (configType === 'preferences') {
+  if (configType === "preferences") {
     // preferences(configType, defaultValue?, userId?, version?)
     defaultValue = yearOrDefault as Preferences | undefined;
-    userId = (defaultValueOrUserId as string) || 'default';
-    version = (userIdOrVersion as string) || 'v1';
+    userId = (defaultValueOrUserId as string) || "default";
+    version = (userIdOrVersion as string) || "v1";
   } else {
     // goals/annotations(configType, year, defaultValue?, userId?, version?)
     year = yearOrDefault as number;
     defaultValue = defaultValueOrUserId as GoalsForYear | AnnotationsForYear | undefined;
-    userId = (userIdOrVersion as string) || 'default';
-    version = versionParam || 'v1';
+    userId = (userIdOrVersion as string) || "default";
+    version = versionParam || "v1";
   }
 
   const [data, setData] = useState<GoalsForYear | AnnotationsForYear | Preferences | null>(null);
@@ -101,9 +101,9 @@ export function useUserConfig(
         setError(null);
 
         // Subscribe to real-time updates for this specific section
-        if (configType === 'goals' && year !== undefined) {
+        if (configType === "goals" && year !== undefined) {
           unsubscribe = configService.subscribeToConfigSection(
-            'goals',
+            "goals",
             (section) => {
               if (section !== null) {
                 setData(section);
@@ -116,9 +116,9 @@ export function useUserConfig(
             },
             year
           );
-        } else if (configType === 'annotations' && year !== undefined) {
+        } else if (configType === "annotations" && year !== undefined) {
           unsubscribe = configService.subscribeToConfigSection(
-            'annotations',
+            "annotations",
             (section) => {
               if (section !== null) {
                 setData(section);
@@ -131,23 +131,20 @@ export function useUserConfig(
             },
             year
           );
-        } else if (configType === 'preferences') {
-          unsubscribe = configService.subscribeToConfigSection(
-            'preferences',
-            (section) => {
-              if (section !== null) {
-                setData(section);
-              } else if (defaultValue !== undefined) {
-                setData(defaultValue);
-              } else {
-                setData(null);
-              }
-              setLoading(false);
+        } else if (configType === "preferences") {
+          unsubscribe = configService.subscribeToConfigSection("preferences", (section) => {
+            if (section !== null) {
+              setData(section);
+            } else if (defaultValue !== undefined) {
+              setData(defaultValue);
+            } else {
+              setData(null);
             }
-          );
+            setLoading(false);
+          });
         }
       } catch (err) {
-        console.error('Error initializing config:', err);
+        console.error("Error initializing config:", err);
         setError(err as Error);
         setData(defaultValue || null);
         setLoading(false);
@@ -175,16 +172,20 @@ export function useUserConfig(
       setData(newData);
 
       try {
-        if (configType === 'goals' && year !== undefined) {
-          await configService.updateConfigSection('goals', newData as GoalsForYear, year);
-        } else if (configType === 'annotations' && year !== undefined) {
-          await configService.updateConfigSection('annotations', newData as AnnotationsForYear, year);
-        } else if (configType === 'preferences') {
-          await configService.updateConfigSection('preferences', newData as Preferences);
+        if (configType === "goals" && year !== undefined) {
+          await configService.updateConfigSection("goals", newData as GoalsForYear, year);
+        } else if (configType === "annotations" && year !== undefined) {
+          await configService.updateConfigSection(
+            "annotations",
+            newData as AnnotationsForYear,
+            year
+          );
+        } else if (configType === "preferences") {
+          await configService.updateConfigSection("preferences", newData as Preferences);
         }
         setError(null);
       } catch (err) {
-        console.error('Error updating config:', err);
+        console.error("Error updating config:", err);
         setError(err as Error);
         // Real-time listener will revert to correct state from Firestore
       }
@@ -216,10 +217,7 @@ export function useUserConfig(
  * await updateSection('goals', newGoals, 2025);
  * ```
  */
-export function useFullUserConfig(
-  userId: string = 'default',
-  version: string = 'v1'
-) {
+export function useFullUserConfig(userId: string = "default", version: string = "v1") {
   const [config, setConfig] = useState<UserConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -240,7 +238,7 @@ export function useFullUserConfig(
           setLoading(false);
         });
       } catch (err) {
-        console.error('Error initializing full config:', err);
+        console.error("Error initializing full config:", err);
         setError(err as Error);
         setConfig(null);
         setLoading(false);
@@ -258,21 +256,21 @@ export function useFullUserConfig(
 
   const updateSection = useCallback(
     async (
-      configType: 'goals' | 'annotations' | 'preferences',
+      configType: "goals" | "annotations" | "preferences",
       data: GoalsForYear | AnnotationsForYear | Preferences,
       year?: number
     ): Promise<void> => {
       try {
-        if (configType === 'goals' && year !== undefined) {
-          await configService.updateConfigSection('goals', data as GoalsForYear, year);
-        } else if (configType === 'annotations' && year !== undefined) {
-          await configService.updateConfigSection('annotations', data as AnnotationsForYear, year);
-        } else if (configType === 'preferences') {
-          await configService.updateConfigSection('preferences', data as Preferences);
+        if (configType === "goals" && year !== undefined) {
+          await configService.updateConfigSection("goals", data as GoalsForYear, year);
+        } else if (configType === "annotations" && year !== undefined) {
+          await configService.updateConfigSection("annotations", data as AnnotationsForYear, year);
+        } else if (configType === "preferences") {
+          await configService.updateConfigSection("preferences", data as Preferences);
         }
         setError(null);
       } catch (err) {
-        console.error('Error updating config section:', err);
+        console.error("Error updating config section:", err);
         setError(err as Error);
       }
     },
