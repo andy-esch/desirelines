@@ -48,7 +48,7 @@ class DistancesRepo(WriteDistances):
     def __init__(self, client: CloudStorageClientWrapper):
         self._client = client
 
-    def update(self, distances: DistanceTimeseries, *, year: int) -> None:
+    def update(self, distances: dict[str, DistanceTimeseries], *, year: int) -> None:
         """Write distances data to external storage"""
         distances_blob_name = f"activities/{year}/distances.json"
 

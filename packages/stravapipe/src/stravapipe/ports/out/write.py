@@ -31,5 +31,5 @@ class WriteDistances(ABC):
     """Write distances data to external storage"""
 
     @abstractmethod
-    def update(self, distances: DistanceTimeseries, *, year: int) -> None:
+    def update(self, distances: dict[str, DistanceTimeseries], *, year: int) -> None:
         """Write distances data to external storage"""
