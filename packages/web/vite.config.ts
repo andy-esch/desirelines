@@ -14,6 +14,8 @@ export default defineConfig({
   envPrefix: ["VITE_", "REACT_APP_"], // Support both Vite and React env var prefixes
   test: {
     globals: true,
-    environment: "node", // Just for utilities, not components yet
+    environment: "jsdom", // DOM environment for React component testing
+    setupFiles: "./src/test/setup.ts",
+    css: true, // Support CSS imports in tests
   },
 });

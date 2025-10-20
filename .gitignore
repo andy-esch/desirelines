@@ -249,3 +249,6 @@ docs/planning/
 # Protocol Buffer generated code
 schemas/generated/
 packages/web/src/types/generated/
+
+# Testing
+coverage/
