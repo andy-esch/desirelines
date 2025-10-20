@@ -28,4 +28,3 @@ class TimeseriesEntry(TypedDict):
 # Type aliases for aggregator output formats
 SummaryObject = dict[str, SummaryEntry]
 DistanceTimeseries = list[TimeseriesEntry]
-PacingTimeseries = list[TimeseriesEntry]

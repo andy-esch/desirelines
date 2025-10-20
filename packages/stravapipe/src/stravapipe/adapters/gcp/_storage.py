@@ -6,8 +6,8 @@ from google.cloud.storage.client import NotFound
 
 from stravapipe.adapters.gcp._clients import CloudStorageClientWrapper
 from stravapipe.ports.out.read import ReadSummaries
-from stravapipe.ports.out.write import WriteDistances, WritePacings, WriteSummary
-from stravapipe.types import DistanceTimeseries, PacingTimeseries, SummaryObject
+from stravapipe.ports.out.write import WriteDistances, WriteSummary
+from stravapipe.types import DistanceTimeseries, SummaryObject
 
 logger = logging.getLogger(__name__)
 
@@ -42,19 +42,6 @@ class SummariesRepo(ReadSummaries, WriteSummary):
 
         logger.info("Writing chart distances to blob: %s", distances_blob_name)
         self._client.write_json_to_bucket(distances, distances_blob_name)
-
-
-class PacingsRepo(WritePacings):
-    def __init__(self, client: CloudStorageClientWrapper):
-        self._client = client
-
-    def update(self, pacing: PacingTimeseries, *, year: int) -> None:
-        """Write pacings data to external storage"""
-        pacing_blob_name = f"activities/{year}/pacings.json"
-
-        # upload data to gcp bucket
-        logger.info("Writing pacing to blob: %s", pacing_blob_name)
-        self._client.write_json_to_bucket(pacing, pacing_blob_name)
 
 
 class DistancesRepo(WriteDistances):
