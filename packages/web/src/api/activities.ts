@@ -42,4 +42,3 @@ export const fetchDistanceData = async (
     throw err instanceof Error ? err : new Error(String(err));
   }
 };
-
