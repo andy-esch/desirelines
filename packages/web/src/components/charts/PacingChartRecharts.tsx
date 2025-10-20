@@ -30,6 +30,77 @@ interface PacingChartProps {
   error: Error | null;
 }
 
+// Custom tooltip component
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const date = new Date(label);
+  const formattedDate = date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  return (
+    <div
+      style={{
+        backgroundColor: "#1a1a1a",
+        border: "1px solid #444",
+        borderRadius: "8px",
+        padding: "16px",
+        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.6)",
+      }}
+    >
+      {/* Header with date */}
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: "bold",
+          color: "#fff",
+          marginBottom: "12px",
+          paddingBottom: "8px",
+          borderBottom: "1px solid #333",
+        }}
+      >
+        {formattedDate}
+      </div>
+
+      {/* Data items */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        {payload.map((entry: any, index: number) => {
+          // Get the color - use the stroke color from the entry
+          const color = entry.stroke || entry.color || "#888";
+          const value = typeof entry.value === "number" ? entry.value.toFixed(2) : entry.value;
+
+          return (
+            <div
+              key={index}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                fontSize: "13px",
+              }}
+            >
+              <div
+                style={{
+                  width: "12px",
+                  height: "12px",
+                  borderRadius: "2px",
+                  backgroundColor: color,
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ color: "#ddd", flex: 1 }}>{entry.name}:</span>
+              <span style={{ color: "#fff", fontWeight: "600" }}>{value} mi/day</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const PacingChartRecharts = (props: PacingChartProps) => {
   const { year, goals, distanceData, isLoading, error } = props;
 
@@ -146,16 +217,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
             stroke={CHART_CONFIG.axis.stroke}
             tickFormatter={(value: number) => value.toFixed(1)}
           />
-          <Tooltip
-            labelFormatter={(timestamp) => {
-              const date = new Date(timestamp as number);
-              return date.toLocaleDateString();
-            }}
-            formatter={(value: number) => value.toFixed(2)}
-            contentStyle={CHART_CONFIG.tooltip.contentStyle}
-            labelStyle={CHART_CONFIG.tooltip.labelStyle}
-            itemStyle={CHART_CONFIG.tooltip.itemStyle}
-          />
+          <Tooltip content={<CustomTooltip />} />
 
           {/* Y-axis markers for current values */}
           <ReferenceLine
@@ -163,19 +225,8 @@ const PacingChartRecharts = (props: PacingChartProps) => {
             stroke="transparent"
             label={(props) => {
               const { viewBox } = props;
-              const label = "Actual";
-              const padding = 4;
-              const textWidth = label.length * 6; // Approximate width
               return (
                 <g>
-                  <rect
-                    x={viewBox.x - textWidth - 10 - padding * 2}
-                    y={viewBox.y - 10}
-                    width={textWidth + padding * 2}
-                    height={20}
-                    fill="rgba(0, 0, 0, 0.7)"
-                    rx={3}
-                  />
                   <circle
                     cx={viewBox.x}
                     cy={viewBox.y}
@@ -183,9 +234,9 @@ const PacingChartRecharts = (props: PacingChartProps) => {
                     fill={CHART_COLORS.ACTUAL_DATA_LINE}
                   />
                   <text
-                    x={viewBox.x - 10}
+                    x={viewBox.x + 10}
                     y={viewBox.y}
-                    textAnchor="end"
+                    textAnchor="start"
                     fill={CHART_COLORS.ACTUAL_DATA_LINE}
                     fontSize={CHART_CONFIG.marker.fontSize.actual}
                     fontWeight="bold"
@@ -204,19 +255,9 @@ const PacingChartRecharts = (props: PacingChartProps) => {
               stroke="transparent"
               label={(props) => {
                 const { viewBox } = props;
-                const padding = 4;
                 const labelText = goal.label || "Goal";
-                const textWidth = labelText.length * 6; // Approximate width
                 return (
                   <g>
-                    <rect
-                      x={viewBox.x - textWidth - 10 - padding * 2}
-                      y={viewBox.y - 9}
-                      width={textWidth + padding * 2}
-                      height={18}
-                      fill="rgba(0, 0, 0, 0.7)"
-                      rx={3}
-                    />
                     <circle
                       cx={viewBox.x}
                       cy={viewBox.y}
@@ -224,9 +265,9 @@ const PacingChartRecharts = (props: PacingChartProps) => {
                       fill={goal.color}
                     />
                     <text
-                      x={viewBox.x - 10}
+                      x={viewBox.x + 10}
                       y={viewBox.y}
-                      textAnchor="end"
+                      textAnchor="start"
                       fill={goal.color}
                       fontSize={CHART_CONFIG.marker.fontSize.goal}
                       dominantBaseline="middle"
