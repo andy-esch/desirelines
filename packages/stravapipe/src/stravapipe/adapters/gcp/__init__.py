@@ -7,7 +7,6 @@ from stravapipe.adapters.gcp._clients import (
 )
 from stravapipe.adapters.gcp._storage import (
     DistancesRepo,
-    PacingsRepo,
     SummariesRepo,
 )
 from stravapipe.config import AggregatorConfig, BQInserterConfig
@@ -57,15 +56,6 @@ def make_write_summary(config: AggregatorConfig) -> WriteSummary:
     return _make_summaries_repo(config)
 
 
-def make_write_pacings(config: AggregatorConfig) -> PacingsRepo:
-    """Create a PacingsRepo for writing pacing timeseries."""
-    client = CloudStorageClientWrapper(
-        project_id=config.gcp_project_id,
-        bucket_name=config.gcp_bucket_name,
-    )
-    return PacingsRepo(client=client)
-
-
 def make_write_distances(config: AggregatorConfig) -> DistancesRepo:
     """Create a DistancesRepo for writing distance timeseries."""
     client = CloudStorageClientWrapper(
@@ -80,7 +70,6 @@ __all__ = [
     "BigQueryClientWrapper",
     "CloudStorageClientWrapper",
     "DistancesRepo",
-    "PacingsRepo",
     "SummariesRepo",
     "make_bigquery_client_wrapper",
     "make_read_activities",

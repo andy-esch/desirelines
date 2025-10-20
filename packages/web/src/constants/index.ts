@@ -1,4 +1,4 @@
-import type { RideBlobType, PacingBlobType } from "../types/activity";
+import type { RideBlobType } from "../types/activity";
 
 export const EMPTY_RIDE_DATA: RideBlobType = {
   avg_distance: [],
@@ -6,11 +6,4 @@ export const EMPTY_RIDE_DATA: RideBlobType = {
   lower_distance: [],
   summaries: {},
   upper_distance: [],
-};
-
-export const EMPTY_PACING_DATA: PacingBlobType = {
-  pacing: [],
-  upper_pacing: [],
-  lower_pacing: [],
-  summaries: {},
 };

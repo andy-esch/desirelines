@@ -11,7 +11,6 @@ class MockExportService(ExportService):
         *,
         summary: dict,
         distances_payload: dict,
-        pacings_payload: dict,
         year: int,
     ) -> None:
         self.results = summary

@@ -17,7 +17,12 @@ import sys
 def load_table_schema(table_name: str) -> dict:
     """Load table schema from JSON file."""
     # Navigate from scripts/schema/ to schemas/bigquery/
-    schema_file = Path(__file__).parent.parent.parent / "schemas" / "bigquery" / f"{table_name}.json"
+    schema_file = (
+        Path(__file__).parent.parent.parent
+        / "schemas"
+        / "bigquery"
+        / f"{table_name}.json"
+    )
 
     if not schema_file.exists():
         raise FileNotFoundError(f"Schema file not found: {schema_file}")

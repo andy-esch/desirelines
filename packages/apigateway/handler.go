@@ -121,8 +121,6 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 		blobPath = fmt.Sprintf("activities/%s/summary_activities.json", year)
 	case "distances":
 		blobPath = fmt.Sprintf("activities/%s/distances.json", year)
-	case "pacings":
-		blobPath = fmt.Sprintf("activities/%s/pacings.json", year)
 	default:
 		h.respondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid data type: %s", dataType))
 		return

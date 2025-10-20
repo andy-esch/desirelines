@@ -75,7 +75,7 @@ class UpdateSummaryUseCase:
         if updated_summary is None:
             logger.info("Activity already logged, exiting...")
             return
-        distances_payload, pacings_payload = self._pacing_service.calculate(
+        distances_payload = self._pacing_service.calculate(
             updated_summary, year=activity.start_date_local.year
         )
 
@@ -83,7 +83,6 @@ class UpdateSummaryUseCase:
         self._export_service.export(
             summary=updated_summary,
             distances_payload=distances_payload,
-            pacings_payload=pacings_payload,
             year=activity.start_date_local.year,
         )
         logger.info("Update complete for activity_id = %s", activity.id)
@@ -98,15 +97,12 @@ class UpdateSummaryUseCase:
             if temp is not None:
                 summary = temp
 
-        distances_payload, pacings_payload = self._pacing_service.calculate(
-            summary, year=year
-        )
+        distances_payload = self._pacing_service.calculate(summary, year=year)
 
         # post updated summary to blob
         self._export_service.export(
             summary=summary,
             distances_payload=distances_payload,
-            pacings_payload=pacings_payload,
             year=year,
         )
 

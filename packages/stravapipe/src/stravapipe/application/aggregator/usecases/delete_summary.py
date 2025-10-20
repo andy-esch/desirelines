@@ -122,7 +122,7 @@ class DeleteSummaryUseCase:
         updated_summary = self._remove_from_summary(summary, activity)
 
         # 5. Recalculate cumulative distances (PacingService rebuilds from scratch)
-        distances_payload, pacings_payload = self._pacing_service.calculate(
+        distances_payload = self._pacing_service.calculate(
             updated_summary, year=activity.start_date_local.year
         )
 
@@ -130,7 +130,6 @@ class DeleteSummaryUseCase:
         self._export_service.export(
             summary=updated_summary,
             distances_payload=distances_payload,
-            pacings_payload=pacings_payload,
             year=activity.start_date_local.year,
         )
 
