@@ -217,7 +217,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
             scale="time"
             tickFormatter={(timestamp) => {
               const date = new Date(timestamp);
-              const month = date.toLocaleDateString('en-US', { month: 'short' });
+              const month = date.toLocaleDateString("en-US", { month: "short" });
               const day = date.getDate();
               return `${month} ${day}`;
             }}
@@ -424,7 +424,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
                       y={viewBox.y - 10}
                       textAnchor="middle"
                       fontSize={20}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: "pointer" }}
                     >
                       🎉
                     </text>

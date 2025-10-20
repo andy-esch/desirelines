@@ -132,7 +132,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
             scale="time"
             tickFormatter={(timestamp) => {
               const date = new Date(timestamp);
-              const month = date.toLocaleDateString('en-US', { month: 'short' });
+              const month = date.toLocaleDateString("en-US", { month: "short" });
               const day = date.getDate();
               return `${month} ${day}`;
             }}
