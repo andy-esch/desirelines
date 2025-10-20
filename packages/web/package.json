@@ -4,17 +4,14 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "@types/react": "^18.2.46",
-    "@types/react-dom": "^18.2.18",
     "axios": "^1.6.7",
     "bootstrap": "^5.3.2",
-    "chart.js": "^4.4.1",
-    "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^3.3.1",
     "firebase": "^12.4.0",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "recharts": "^3.3.0"
   },
   "scripts": {
     "postinstall": "cd ../.. && make proto-gen-typescript || echo 'Warning: Protobuf generation skipped (protoc may not be installed)'",
@@ -29,16 +26,25 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css}\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@eslint/compat": "^1.4.0",
     "@eslint/js": "^9.37.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.7.2",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
+    "@vitest/ui": "^3.2.4",
     "eslint": "^9.37.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.0",
+    "jsdom": "^27.0.1",
     "prettier": "^3.6.2",
     "protoc-gen-ts": "^0.8.7",
     "ts-proto": "^2.7.7",

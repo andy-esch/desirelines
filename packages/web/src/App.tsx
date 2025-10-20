@@ -1,52 +1,43 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import "./App.css";
 import "bootstrap/dist/css/bootstrap.css";
 import "./css/dashboard.css";
 import Header from "./components/layout/Header";
 import Sidebar from "./components/layout/Sidebar";
-import DistanceChart from "./components/charts/DistanceChart";
-import PacingChart from "./components/charts/PacingChart";
+import DistanceChart from "./components/charts/DistanceChartRecharts";
+import PacingChart from "./components/charts/PacingChartRecharts";
 import GoalSummaryTable from "./components/GoalSummaryTable";
 import {
   generateDefaultGoals,
   estimateYearEndDistance,
   type Goals,
 } from "./utils/goalCalculations";
-import { fetchDistanceData } from "./api/activities";
+import { useDistanceData } from "./hooks/useDistanceData";
 import { useUserConfig } from "./hooks/useUserConfig";
 import type { GoalsForYear } from "./services/userConfigService";
 
 function App() {
   const [currentYear, setCurrentYear] = useState(2025);
-  const [estimatedYearEnd, setEstimatedYearEnd] = useState(0);
-  const [currentDistance, setCurrentDistance] = useState(0);
 
-  // Fetch distance data to calculate default goals
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const rideData = await fetchDistanceData(currentYear);
-        if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
-          const lastEntry = rideData.distance_traveled[rideData.distance_traveled.length - 1];
-          setCurrentDistance(lastEntry?.y || 0);
+  // Fetch distance data using custom hook (consolidates data fetching)
+  const {
+    distanceData,
+    isLoading: distanceLoading,
+    error: distanceError,
+  } = useDistanceData(currentYear);
 
-          const estimated = estimateYearEndDistance(rideData.distance_traveled, currentYear);
-          setEstimatedYearEnd(estimated);
-        } else {
-          // No data yet, use reasonable defaults
-          setCurrentDistance(0);
-          setEstimatedYearEnd(2500);
-        }
-      } catch (err) {
-        console.error("Failed to fetch ride data:", err);
-        // Error fetching data, use reasonable defaults
-        setCurrentDistance(0);
-        setEstimatedYearEnd(2500);
-      }
-    };
+  // Derive estimated year-end distance from data
+  const estimatedYearEnd = useMemo(() => {
+    if (distanceData.length === 0) return 2500; // Default when no data
+    return estimateYearEndDistance(distanceData, currentYear);
+  }, [distanceData, currentYear]);
 
-    loadData();
-  }, [currentYear]);
+  // Derive current distance from data
+  const currentDistance = useMemo(() => {
+    if (distanceData.length === 0) return 0;
+    const lastEntry = distanceData[distanceData.length - 1];
+    return lastEntry?.y || 0;
+  }, [distanceData]);
 
   // Generate default GoalsForYear structure
   const defaultGoalsForYear: GoalsForYear = {
@@ -117,8 +108,22 @@ function App() {
               </div>
             ) : (
               <>
-                <DistanceChart year={currentYear} goals={goals} onGoalsChange={handleGoalsChange} />
-                <PacingChart year={currentYear} goals={goals} onGoalsChange={handleGoalsChange} />
+                <DistanceChart
+                  year={currentYear}
+                  goals={goals}
+                  onGoalsChange={handleGoalsChange}
+                  distanceData={distanceData}
+                  isLoading={distanceLoading}
+                  error={distanceError}
+                />
+                <PacingChart
+                  year={currentYear}
+                  goals={goals}
+                  onGoalsChange={handleGoalsChange}
+                  distanceData={distanceData}
+                  isLoading={distanceLoading}
+                  error={distanceError}
+                />
                 <GoalSummaryTable
                   goals={goals}
                   currentDistance={currentDistance}

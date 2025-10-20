@@ -166,6 +166,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Vite / React build artifacts
+packages/web/.vite/
+packages/web/build/
+packages/web/dist/
+.vite/
+dist/
+build/
+
 # Go
 # Binaries for programs and plugins
 *.exe
@@ -241,3 +249,6 @@ docs/planning/
 # Protocol Buffer generated code
 schemas/generated/
 packages/web/src/types/generated/
+
+# Testing
+coverage/
