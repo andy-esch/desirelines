@@ -19,9 +19,7 @@ export default function Header() {
       </div>
 
       <div className="d-flex align-items-center gap-3 px-3 ms-auto">
-        <div className="navbar-text text-white-50 small d-none d-lg-block">
-          {currentDate}
-        </div>
+        <div className="navbar-text text-white-50 small d-none d-lg-block">{currentDate}</div>
       </div>
 
       {/* Mobile sidebar toggle */}

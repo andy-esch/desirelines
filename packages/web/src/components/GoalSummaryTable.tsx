@@ -108,10 +108,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDista
                     <td>{remaining.toFixed(0)} mi</td>
                     {isCurrentYear && daysRemaining > 0 && <td>{paceNeeded.toFixed(1)} mi/day</td>}
                     <td>
-                      <span
-                        className="badge"
-                        style={{ backgroundColor: goalColor }}
-                      >
+                      <span className="badge" style={{ backgroundColor: goalColor }}>
                         {status}
                       </span>
                     </td>

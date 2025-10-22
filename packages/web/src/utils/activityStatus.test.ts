@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import {
-  findLastActivityDate,
-  isActivityDataStale,
-  daysSinceLastActivity,
-} from "./activityStatus";
+import { findLastActivityDate, isActivityDataStale, daysSinceLastActivity } from "./activityStatus";
 import type { DistanceEntry } from "../types/activity";
 
 describe("findLastActivityDate", () => {

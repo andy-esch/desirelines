@@ -16,10 +16,7 @@ import type { DistanceEntry } from "../types/activity";
  * @param year - The year being viewed (to prevent extending past Dec 31 for past years)
  * @returns Extended distance data array
  */
-function extendDistanceDataToToday(
-  distanceData: DistanceEntry[],
-  year: number
-): DistanceEntry[] {
+function extendDistanceDataToToday(distanceData: DistanceEntry[], year: number): DistanceEntry[] {
   if (distanceData.length === 0) return distanceData;
 
   const lastEntry = distanceData[distanceData.length - 1];
@@ -27,16 +24,8 @@ function extendDistanceDataToToday(
   const today = new Date();
 
   // Reset to start of day for comparison (ignore time component)
-  const lastDateOnly = new Date(
-    lastDate.getFullYear(),
-    lastDate.getMonth(),
-    lastDate.getDate()
-  );
-  const todayOnly = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate()
-  );
+  const lastDateOnly = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   // Don't extend past end of requested year (e.g., viewing 2024 shouldn't extend past Dec 31, 2024)
   const endOfYear = new Date(year, 11, 31);
@@ -51,7 +40,7 @@ function extendDistanceDataToToday(
   const extendedData = [...distanceData];
   const lastDistance = lastEntry.y;
 
-  let currentDate = new Date(lastDateOnly);
+  const currentDate = new Date(lastDateOnly);
   currentDate.setDate(currentDate.getDate() + 1); // Start from day after last entry
 
   while (currentDate <= maxExtendDate) {
@@ -94,10 +83,7 @@ export function useDistanceData(year: number) {
         if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
           // IMPORTANT: Extend data to today before setting state
           // This ensures charts always show through current date, even if no recent activities
-          const extendedData = extendDistanceDataToToday(
-            rideData.distance_traveled,
-            year
-          );
+          const extendedData = extendDistanceDataToToday(rideData.distance_traveled, year);
           setDistanceData(extendedData);
         } else {
           // No data for this year

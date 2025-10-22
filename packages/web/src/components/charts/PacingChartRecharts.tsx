@@ -104,7 +104,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const PacingChartRecharts = (props: PacingChartProps) => {
-  const { year, goals, distanceData, isLoading, error, showFullYear = true, hideHeader = false } = props;
+  const {
+    year,
+    goals,
+    distanceData,
+    isLoading,
+    error,
+    showFullYear = true,
+    hideHeader = false,
+  } = props;
 
   // Derive values from distanceData
   const latestDate = useMemo(() => {
@@ -166,10 +174,15 @@ const PacingChartRecharts = (props: PacingChartProps) => {
   }, [actualPacing, pacingGoals]);
 
   // Get current values (at the latest date with actual data, not display end date)
-  const latestActualData = mergedData.find(d => d.actual !== undefined && typeof d.actual === 'number' && d.actual > 0);
-  const latestDataIndex = distanceData.length > 0
-    ? mergedData.findIndex(d => d.date && new Date(d.date as Date).getTime() === latestDate.getTime())
-    : mergedData.length - 1;
+  const latestActualData = mergedData.find(
+    (d) => d.actual !== undefined && typeof d.actual === "number" && d.actual > 0
+  );
+  const latestDataIndex =
+    distanceData.length > 0
+      ? mergedData.findIndex(
+          (d) => d.date && new Date(d.date as Date).getTime() === latestDate.getTime()
+        )
+      : mergedData.length - 1;
   const currentActualData = latestDataIndex >= 0 ? mergedData[latestDataIndex] : latestActualData;
 
   const currentValues = {

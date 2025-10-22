@@ -29,9 +29,7 @@ import { daysBetween } from "./dateCalculations";
  * const lastDate = findLastActivityDate(data);
  * // Returns: Date("2025-01-02")
  */
-export function findLastActivityDate(
-  distanceData: DistanceEntry[]
-): Date | null {
+export function findLastActivityDate(distanceData: DistanceEntry[]): Date | null {
   if (distanceData.length === 0) return null;
 
   // Scan backwards to find last day with actual activity (distance changed)
@@ -93,9 +91,7 @@ export function isActivityDataStale(
  * const days = daysSinceLastActivity(data);
  * // Returns: number of days between Oct 16 and today
  */
-export function daysSinceLastActivity(
-  distanceData: DistanceEntry[]
-): number | null {
+export function daysSinceLastActivity(distanceData: DistanceEntry[]): number | null {
   const lastActivityDate = findLastActivityDate(distanceData);
   if (!lastActivityDate) return null;
 

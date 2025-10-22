@@ -49,7 +49,10 @@ export default function Sidebar({
           <div className="px-3 mb-3">
             {/* Activity Type Selector */}
             <div className="d-flex align-items-center mb-2">
-              <label className="form-label small text-muted mb-0 text-start" style={{ minWidth: "65px" }}>
+              <label
+                className="form-label small text-muted mb-0 text-start"
+                style={{ minWidth: "65px" }}
+              >
                 Activity
               </label>
               <select className="form-select form-select-sm flex-grow-1" disabled>
@@ -61,7 +64,10 @@ export default function Sidebar({
 
             {/* Year Selector */}
             <div className="d-flex align-items-center">
-              <label className="form-label small text-muted mb-0 text-start" style={{ minWidth: "65px" }}>
+              <label
+                className="form-label small text-muted mb-0 text-start"
+                style={{ minWidth: "65px" }}
+              >
                 Year
               </label>
               <select

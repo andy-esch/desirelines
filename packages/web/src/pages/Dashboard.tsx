@@ -96,9 +96,8 @@ export default function Dashboard() {
   const nextGoalGap = nextGoal ? Math.max(0, nextGoal.value - currentDistance) : 0;
 
   // Pacing needed to reach next goal
-  const paceNeededForNextGoal = daysRemaining > 0 && nextGoalGap > 0
-    ? nextGoalGap / daysRemaining
-    : 0;
+  const paceNeededForNextGoal =
+    daysRemaining > 0 && nextGoalGap > 0 ? nextGoalGap / daysRemaining : 0;
 
   // Training momentum calculation: 14-day pacing slope
   const trainingMomentum = useMemo(
@@ -107,10 +106,7 @@ export default function Dashboard() {
   );
 
   // Check if activity data is stale (no recent activities)
-  const isDataStale = useMemo(
-    () => isActivityDataStale(distanceData),
-    [distanceData]
-  );
+  const isDataStale = useMemo(() => isActivityDataStale(distanceData), [distanceData]);
 
   // Categorize training momentum into 5 levels
   const momentumLevel: MomentumLevel = useMemo(
@@ -211,11 +207,10 @@ export default function Dashboard() {
                     <div className="card-body d-flex flex-column justify-content-between py-3">
                       <h6 className="card-subtitle mb-2 text-muted small">Current Distance</h6>
                       <div>
-                        <h2 className="card-title mb-1">
-                          {currentDistance.toFixed(0)} mi
-                        </h2>
+                        <h2 className="card-title mb-1">{currentDistance.toFixed(0)} mi</h2>
                         <small className="text-muted">
-                          {averagePace.toFixed(1)} mi/day avg{renderMomentumIndicator()} · {daysElapsed} days
+                          {averagePace.toFixed(1)} mi/day avg{renderMomentumIndicator()} ·{" "}
+                          {daysElapsed} days
                         </small>
                       </div>
                     </div>
@@ -294,7 +289,10 @@ export default function Dashboard() {
                 <table className="table table-sm table-hover">
                   <thead className="table-light">
                     <tr>
-                      <th colSpan={daysRemaining > 0 ? 6 : 5} className="bg-transparent border-0 pb-2">
+                      <th
+                        colSpan={daysRemaining > 0 ? 6 : 5}
+                        className="bg-transparent border-0 pb-2"
+                      >
                         <h6 className="mb-0 text-muted">Goal Achievability</h6>
                       </th>
                     </tr>
@@ -323,7 +321,9 @@ export default function Dashboard() {
                               width: "10px",
                             }}
                           ></td>
-                          <td><strong>{goal.label || "Unnamed"}</strong></td>
+                          <td>
+                            <strong>{goal.label || "Unnamed"}</strong>
+                          </td>
                           <td>{goal.value.toLocaleString()} mi</td>
                           <td>
                             <div className="progress" style={{ height: "18px", minWidth: "80px" }}>
@@ -351,7 +351,11 @@ export default function Dashboard() {
               {/* Chart Controls Bar */}
               <div className="d-flex justify-content-end align-items-center mb-2">
                 {/* Chart View Toggle */}
-                <div className="btn-group btn-group-sm" role="group" aria-label="Chart view options">
+                <div
+                  className="btn-group btn-group-sm"
+                  role="group"
+                  aria-label="Chart view options"
+                >
                   <input
                     type="radio"
                     className="btn-check"

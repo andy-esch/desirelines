@@ -34,12 +34,8 @@ export function calculateYearStats(year: number): YearStats {
   const startOfYear = new Date(year, 0, 1); // January 1 at 00:00:00
   const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999); // December 31 at 23:59:59.999
 
-  const daysElapsed = Math.ceil(
-    (today.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  const daysRemaining = Math.ceil(
-    (endOfYear.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  const daysElapsed = Math.ceil((today.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
+  const daysRemaining = Math.ceil((endOfYear.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   return {
     startOfYear,
@@ -61,10 +57,7 @@ export function calculateYearStats(year: number): YearStats {
  * const pace = calculateAveragePace(1500, 2025);
  * console.log(pace); // e.g., 5.08 mi/day (if 295 days have elapsed)
  */
-export function calculateAveragePace(
-  currentDistance: number,
-  year: number
-): number {
+export function calculateAveragePace(currentDistance: number, year: number): number {
   const { daysElapsed } = calculateYearStats(year);
   return daysElapsed > 0 ? currentDistance / daysElapsed : 0;
 }
@@ -81,7 +74,5 @@ export function calculateAveragePace(
  * console.log(days); // 14
  */
 export function daysBetween(fromDate: Date, toDate: Date): number {
-  return Math.floor(
-    (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  return Math.floor((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
 }

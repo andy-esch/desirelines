@@ -16,9 +16,7 @@ import { TRAINING_CONSTANTS } from "../constants/training";
  * @param distanceData - Full distance data including extended entries
  * @returns Filtered data containing only days with actual activity
  */
-export function filterActualActivityData(
-  distanceData: DistanceEntry[]
-): DistanceEntry[] {
+export function filterActualActivityData(distanceData: DistanceEntry[]): DistanceEntry[] {
   const actualData: DistanceEntry[] = [];
 
   for (let i = 0; i < distanceData.length; i++) {
@@ -184,10 +182,7 @@ export type MomentumLevel =
  * @param isStale - Whether activity data is stale (no recent activities)
  * @returns Categorized momentum level
  */
-export function getMomentumLevel(
-  momentum: number | null,
-  isStale: boolean
-): MomentumLevel {
+export function getMomentumLevel(momentum: number | null, isStale: boolean): MomentumLevel {
   if (momentum === null) return null;
   if (isStale) return "stale";
 

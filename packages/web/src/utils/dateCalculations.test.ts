@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import {
-  calculateYearStats,
-  calculateAveragePace,
-  daysBetween,
-} from "./dateCalculations";
+import { calculateYearStats, calculateAveragePace, daysBetween } from "./dateCalculations";
 
 describe("calculateYearStats", () => {
   beforeEach(() => {
