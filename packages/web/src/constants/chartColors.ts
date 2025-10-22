@@ -19,15 +19,16 @@ export const CHART_COLORS = {
 } as const;
 
 /**
- * Goal Colors
+ * Goal Colors - Neon Theme
  *
+ * Semantic progression from cool (conservative goals) to warm (stretch goals)
  * Array of colors for up to 5 goals.
  * Used consistently across all chart components.
  */
 export const GOAL_COLORS = [
-  "rgb(0, 255, 255)", // Cyan (CHART_COLORS.LOWER_GOAL_LINE)
-  "rgb(255, 0, 255)", // Magenta (CHART_COLORS.UPPER_GOAL_LINE)
-  "rgb(100, 255, 100)", // Green
-  "rgb(255, 200, 0)", // Orange
-  "rgb(150, 100, 255)", // Purple
+  "rgb(0, 255, 255)",     // Electric Cyan (conservative)
+  "rgb(0, 255, 128)",     // Neon Green-Cyan (moderate)
+  "rgb(255, 0, 255)",     // ✨ BRIGHT MAGENTA ✨ (target)
+  "rgb(255, 200, 0)",     // Neon Yellow-Orange (ambitious)
+  "rgb(255, 0, 128)",     // Neon Pink-Red (stretch)
 ] as const;

@@ -1,6 +1,6 @@
 import React from "react";
 import { Goals } from "../utils/goalCalculations";
-import { CHART_COLORS } from "../constants/chartColors";
+import { GOAL_COLORS } from "../constants/chartColors";
 
 interface GoalSummaryTableProps {
   goals: Goals;
@@ -11,15 +11,6 @@ interface GoalSummaryTableProps {
 const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDistance, year }) => {
   const today = new Date();
   const isCurrentYear = year === today.getFullYear();
-
-  // Define colors matching chart goal lines (same as DistanceChart and GoalControls)
-  const goalColors = [
-    CHART_COLORS.LOWER_GOAL_LINE, // cyan
-    CHART_COLORS.UPPER_GOAL_LINE, // magenta
-    "rgb(100, 255, 100)", // green
-    "rgb(255, 200, 0)", // orange
-    "rgb(150, 100, 255)", // purple
-  ];
 
   const calculateDaysRemaining = (): number => {
     if (!isCurrentYear) return 0;
@@ -47,14 +38,6 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDista
     if (progress >= 75) return "On Track";
     if (progress >= 50) return "Behind";
     return "Far Behind";
-  };
-
-  const getStatusColor = (goalValue: number): string => {
-    const progress = calculateProgress(goalValue);
-    if (progress >= 100) return "success";
-    if (progress >= 75) return "info";
-    if (progress >= 50) return "warning";
-    return "danger";
   };
 
   const daysRemaining = calculateDaysRemaining();
@@ -87,11 +70,10 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDista
                 const remaining = Math.max(0, goal.value - currentDistance);
                 const paceNeeded = calculateDailyPaceNeeded(goal.value);
                 const status = getStatusText(goal.value);
-                const statusColor = getStatusColor(goal.value);
 
                 // Find the original index in the unsorted goals array to get the correct color
                 const originalIndex = goals.findIndex((g) => g.id === goal.id);
-                const goalColor = goalColors[originalIndex % goalColors.length];
+                const goalColor = GOAL_COLORS[originalIndex % GOAL_COLORS.length];
 
                 return (
                   <tr key={goal.id}>
@@ -109,9 +91,12 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDista
                     <td>
                       <div className="progress" style={{ height: "20px", minWidth: "100px" }}>
                         <div
-                          className={`progress-bar bg-${statusColor}`}
+                          className="progress-bar"
                           role="progressbar"
-                          style={{ width: `${Math.min(100, progress)}%` }}
+                          style={{
+                            width: `${Math.min(100, progress)}%`,
+                            backgroundColor: goalColor,
+                          }}
                           aria-valuenow={progress}
                           aria-valuemin={0}
                           aria-valuemax={100}
@@ -123,7 +108,12 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDista
                     <td>{remaining.toFixed(0)} mi</td>
                     {isCurrentYear && daysRemaining > 0 && <td>{paceNeeded.toFixed(1)} mi/day</td>}
                     <td>
-                      <span className={`badge bg-${statusColor}`}>{status}</span>
+                      <span
+                        className="badge"
+                        style={{ backgroundColor: goalColor }}
+                      >
+                        {status}
+                      </span>
                     </td>
                   </tr>
                 );

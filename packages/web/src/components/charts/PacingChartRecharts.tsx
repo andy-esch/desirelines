@@ -28,6 +28,8 @@ interface PacingChartProps {
   distanceData: DistanceEntry[];
   isLoading: boolean;
   error: Error | null;
+  showFullYear?: boolean;
+  hideHeader?: boolean;
 }
 
 // Custom tooltip component
@@ -102,7 +104,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const PacingChartRecharts = (props: PacingChartProps) => {
-  const { year, goals, distanceData, isLoading, error } = props;
+  const { year, goals, distanceData, isLoading, error, showFullYear = true, hideHeader = false } = props;
 
   // Derive values from distanceData
   const latestDate = useMemo(() => {
@@ -111,19 +113,26 @@ const PacingChartRecharts = (props: PacingChartProps) => {
     return new Date(lastEntry?.x || new Date());
   }, [distanceData]);
 
+  // Calculate year boundaries
+  const startDate = useMemo(() => new Date(year, 0, 1), [year]);
+  const endDate = useMemo(() => new Date(year, 11, 31), [year]);
+
+  // Use either full year or current date based on toggle
+  const displayEndDate = showFullYear ? endDate : latestDate;
+
   const actualPacing = useMemo(() => {
     if (distanceData.length === 0) return [];
-    return calculateActualPacing(distanceData, latestDate);
-  }, [distanceData, latestDate]);
+    return calculateActualPacing(distanceData, displayEndDate);
+  }, [distanceData, displayEndDate]);
 
   // Calculate dynamic pacing goals (must be before early returns per React hooks rules)
   const pacingGoals = useMemo(
     () =>
       goals.map((goal) => ({
         goal,
-        pacing: calculateDynamicPacingGoal(distanceData, goal.value, year, latestDate),
+        pacing: calculateDynamicPacingGoal(distanceData, goal.value, year, displayEndDate),
       })),
-    [goals, distanceData, year, latestDate]
+    [goals, distanceData, year, displayEndDate]
   );
 
   // Merge all pacing data into a single array for Recharts
@@ -156,22 +165,34 @@ const PacingChartRecharts = (props: PacingChartProps) => {
     );
   }, [actualPacing, pacingGoals]);
 
-  // Get current values (at the latest date)
-  const latestData = mergedData[mergedData.length - 1];
+  // Get current values (at the latest date with actual data, not display end date)
+  const latestActualData = mergedData.find(d => d.actual !== undefined && typeof d.actual === 'number' && d.actual > 0);
+  const latestDataIndex = distanceData.length > 0
+    ? mergedData.findIndex(d => d.date && new Date(d.date as Date).getTime() === latestDate.getTime())
+    : mergedData.length - 1;
+  const currentActualData = latestDataIndex >= 0 ? mergedData[latestDataIndex] : latestActualData;
+
   const currentValues = {
-    actual: (latestData?.actual as number) || 0,
-    goals: pacingGoals.map((pg, index) => ({
-      label: pg.goal.label,
-      value: (latestData?.[`goal${index}`] as number) || 0,
-      color: GOAL_COLORS[index % GOAL_COLORS.length],
-    })),
+    actual: (currentActualData?.actual as number) || 0,
+    goals: pacingGoals.map((pg, index) => {
+      const goalValue = currentActualData?.[`goal${index}`] as number;
+      return {
+        label: pg.goal.label,
+        value: goalValue || 0,
+        color: GOAL_COLORS[index % GOAL_COLORS.length],
+      };
+    }),
   };
 
   // Early returns for loading/error states (must be after all hooks)
   if (isLoading) {
     return (
-      <div>
-        <h2 style={{ textAlign: "center" }}>Pacings</h2>
+      <div className={hideHeader ? "" : "mt-4"}>
+        {!hideHeader && (
+          <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            Daily Pace (miles/day)
+          </h3>
+        )}
         <LoadingChart />
       </div>
     );
@@ -179,16 +200,24 @@ const PacingChartRecharts = (props: PacingChartProps) => {
 
   if (error) {
     return (
-      <div>
-        <h2 style={{ textAlign: "center" }}>Pacings</h2>
+      <div className={hideHeader ? "" : "mt-4"}>
+        {!hideHeader && (
+          <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            Daily Pace (miles/day)
+          </h3>
+        )}
         <ErrorChart error={error} onRetry={() => window.location.reload()} />
       </div>
     );
   }
 
   return (
-    <div>
-      <h2 style={{ textAlign: "center" }}>Pacings</h2>
+    <div className={hideHeader ? "" : "mt-4"}>
+      {!hideHeader && (
+        <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+          Daily Pace (miles/day)
+        </h3>
+      )}
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
         <LineChart data={mergedData} margin={CHART_CONFIG.margin}>
           <CartesianGrid
@@ -199,7 +228,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
           <XAxis
             dataKey="date"
             type="number"
-            domain={["dataMin", "dataMax"]}
+            domain={[startDate.getTime(), displayEndDate.getTime()]}
             scale="time"
             tickFormatter={(timestamp) => {
               const date = new Date(timestamp);

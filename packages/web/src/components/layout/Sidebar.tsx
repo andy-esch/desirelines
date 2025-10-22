@@ -41,26 +41,42 @@ export default function Sidebar({
           ></button>
         </div>
         <div className="offcanvas-body d-md-flex flex-column p-0 pt-lg-3 overflow-y-auto">
-          <h6 className="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-body-secondary text-uppercase">
-            <span>Ride Data</span>
+          {/* Filters Section */}
+          <h6 className="sidebar-heading px-3 mt-4 mb-3 text-body-secondary text-uppercase">
+            <span>Filters</span>
           </h6>
-          <ul className="nav flex-column mb-auto">
-            {AVAILABLE_YEARS.map((year) => (
-              <li key={year} className="nav-item">
-                <button
-                  className={`nav-link d-flex align-items-center gap-2 ${
-                    year === currentYear ? "active" : ""
-                  }`}
-                  onClick={() => onYearClick(year)}
-                >
-                  <svg className="bi">
-                    <use xlinkHref="#file-earmark-text" />
-                  </svg>
-                  {year} Ride Data
-                </button>
-              </li>
-            ))}
-          </ul>
+
+          <div className="px-3 mb-3">
+            {/* Activity Type Selector */}
+            <div className="d-flex align-items-center mb-2">
+              <label className="form-label small text-muted mb-0 text-start" style={{ minWidth: "65px" }}>
+                Activity
+              </label>
+              <select className="form-select form-select-sm flex-grow-1" disabled>
+                <option>Ride</option>
+                <option>Run (Soon)</option>
+                <option>Swim (Soon)</option>
+              </select>
+            </div>
+
+            {/* Year Selector */}
+            <div className="d-flex align-items-center">
+              <label className="form-label small text-muted mb-0 text-start" style={{ minWidth: "65px" }}>
+                Year
+              </label>
+              <select
+                className="form-select form-select-sm flex-grow-1"
+                value={currentYear}
+                onChange={(e) => onYearClick(Number(e.target.value))}
+              >
+                {AVAILABLE_YEARS.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           <hr className="my-3" />
 
