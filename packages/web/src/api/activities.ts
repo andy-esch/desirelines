@@ -16,16 +16,8 @@ export const fetchDistanceData = async (
   const url = `${apiBaseUrl}/activities/${year}/distances`;
 
   try {
-    const {
-      data: { avg_distance, distance_traveled, lower_distance, summaries, upper_distance },
-    } = await axios.get(url, { signal });
-    return {
-      avg_distance,
-      distance_traveled,
-      lower_distance,
-      summaries,
-      upper_distance,
-    };
+    const { data } = await axios.get<RideBlobType>(url, { signal });
+    return data;
   } catch (err: unknown) {
     // Request was cancelled - don't treat as error
     if (axios.isCancel(err)) {
