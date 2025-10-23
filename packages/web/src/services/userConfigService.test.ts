@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { UserConfigService } from "./userConfigService";
-import type { UserConfig, GoalsForYear, AnnotationsForYear, Preferences } from "./userConfigService";
+import type {
+  UserConfig,
+  GoalsForYear,
+  AnnotationsForYear,
+  Preferences,
+} from "./userConfigService";
 import * as firestore from "firebase/firestore";
 
 // Mock firebase modules
@@ -297,11 +302,9 @@ describe("UserConfigService", () => {
       await service.updateConfigSection("goals", newGoals, 2025);
 
       // Verify merge option is used
-      expect(firestore.setDoc).toHaveBeenCalledWith(
-        mockDocRef,
-        expect.any(Object),
-        { merge: true }
-      );
+      expect(firestore.setDoc).toHaveBeenCalledWith(mockDocRef, expect.any(Object), {
+        merge: true,
+      });
     });
 
     it("should update lastUpdated timestamp", async () => {
@@ -382,7 +385,7 @@ describe("UserConfigService", () => {
       const mockUnsubscribe = vi.fn();
       let capturedOnNext: ((doc: any) => void) | undefined;
 
-      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext, onError) => {
+      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext, _onError) => {
         capturedOnNext = onNext as any;
         return mockUnsubscribe;
       });
@@ -405,7 +408,7 @@ describe("UserConfigService", () => {
       const mockUnsubscribe = vi.fn();
       let capturedOnNext: ((doc: any) => void) | undefined;
 
-      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext, onError) => {
+      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext, _onError) => {
         capturedOnNext = onNext as any;
         return mockUnsubscribe;
       });

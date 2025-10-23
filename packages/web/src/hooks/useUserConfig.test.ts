@@ -238,9 +238,7 @@ describe("useUserConfig", () => {
     it("should update local state immediately when updateData is called", async () => {
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
-      let subscriptionCallback: any;
       vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
-        subscriptionCallback = callback;
         setTimeout(() => {
           callback({
             exists: () => true,
