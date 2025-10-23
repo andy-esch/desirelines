@@ -45,7 +45,17 @@ describe("UserConfigService", () => {
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
-          "2025": [{ distance: 1000, label: "Test Goal" }],
+          "2025": {
+            goals: [
+              {
+                id: "1",
+                value: 1000,
+                label: "Test Goal",
+                createdAt: "2025-01-01T00:00:00Z",
+                updatedAt: "2025-01-01T00:00:00Z",
+              },
+            ],
+          },
         },
         annotations: {},
       };
@@ -100,15 +110,49 @@ describe("UserConfigService", () => {
       userId: "test-user",
       lastUpdated: "2025-01-01T00:00:00Z",
       goals: {
-        "2025": [{ distance: 1000, label: "2025 Goal" }],
-        "2024": [{ distance: 800, label: "2024 Goal" }],
+        "2025": {
+          goals: [
+            {
+              id: "1",
+              value: 1000,
+              label: "2025 Goal",
+              createdAt: "2025-01-01T00:00:00Z",
+              updatedAt: "2025-01-01T00:00:00Z",
+            },
+          ],
+        },
+        "2024": {
+          goals: [
+            {
+              id: "2",
+              value: 800,
+              label: "2024 Goal",
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
+            },
+          ],
+        },
       },
       annotations: {
-        "2025": [{ date: "2025-01-01", label: "Test Annotation" }],
+        "2025": {
+          annotations: [
+            {
+              id: "1",
+              startDate: "2025-01-01",
+              endDate: "",
+              label: "Test Annotation",
+              description: "",
+              stravaActivityId: "",
+              type: 0,
+              createdAt: "2025-01-01T00:00:00Z",
+              updatedAt: "2025-01-01T00:00:00Z",
+            },
+          ],
+        },
       },
       preferences: {
         theme: "dark",
-        units: "metric",
+        defaultYear: 2025,
       },
     };
 
@@ -123,22 +167,66 @@ describe("UserConfigService", () => {
     it("should return goals for specific year", async () => {
       const result = await service.getConfigSection("goals", 2025);
 
-      expect(result).toEqual([{ distance: 1000, label: "2025 Goal" }]);
+      expect(result).toEqual({
+        goals: [
+          {
+            id: "1",
+            value: 1000,
+            label: "2025 Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      });
     });
 
     it("should return all goals when year not specified", async () => {
       const result = await service.getConfigSection("goals");
 
       expect(result).toEqual({
-        "2025": [{ distance: 1000, label: "2025 Goal" }],
-        "2024": [{ distance: 800, label: "2024 Goal" }],
+        "2025": {
+          goals: [
+            {
+              id: "1",
+              value: 1000,
+              label: "2025 Goal",
+              createdAt: "2025-01-01T00:00:00Z",
+              updatedAt: "2025-01-01T00:00:00Z",
+            },
+          ],
+        },
+        "2024": {
+          goals: [
+            {
+              id: "2",
+              value: 800,
+              label: "2024 Goal",
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
+            },
+          ],
+        },
       });
     });
 
     it("should return annotations for specific year", async () => {
       const result = await service.getConfigSection("annotations", 2025);
 
-      expect(result).toEqual([{ date: "2025-01-01", label: "Test Annotation" }]);
+      expect(result).toEqual({
+        annotations: [
+          {
+            id: "1",
+            startDate: "2025-01-01",
+            endDate: "",
+            label: "Test Annotation",
+            description: "",
+            stravaActivityId: "",
+            type: 0,
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      });
     });
 
     it("should return null for year with no data", async () => {
@@ -152,7 +240,7 @@ describe("UserConfigService", () => {
 
       expect(result).toEqual({
         theme: "dark",
-        units: "metric",
+        defaultYear: 2025,
       });
     });
 
@@ -195,7 +283,17 @@ describe("UserConfigService", () => {
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
-          "2024": [{ distance: 800, label: "2024 Goal" }],
+          "2024": {
+            goals: [
+              {
+                id: "2024-1",
+                value: 800,
+                label: "2024 Goal",
+                createdAt: "2024-01-01T00:00:00Z",
+                updatedAt: "2024-01-01T00:00:00Z",
+              },
+            ],
+          },
         },
         annotations: {},
       };
@@ -206,7 +304,17 @@ describe("UserConfigService", () => {
       };
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
 
-      const newGoals: GoalsForYear = [{ distance: 1000, label: "2025 Goal" }];
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "2025-1",
+            value: 1000,
+            label: "2025 Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
 
       await service.updateConfigSection("goals", newGoals, 2025);
 
@@ -216,8 +324,28 @@ describe("UserConfigService", () => {
           schemaVersion: "1.0",
           userId: "test-user",
           goals: {
-            "2024": [{ distance: 800, label: "2024 Goal" }],
-            "2025": [{ distance: 1000, label: "2025 Goal" }],
+            "2024": {
+              goals: [
+                {
+                  id: "2024-1",
+                  value: 800,
+                  label: "2024 Goal",
+                  createdAt: "2024-01-01T00:00:00Z",
+                  updatedAt: "2024-01-01T00:00:00Z",
+                },
+              ],
+            },
+            "2025": {
+              goals: [
+                {
+                  id: "2025-1",
+                  value: 1000,
+                  label: "2025 Goal",
+                  createdAt: "2025-01-01T00:00:00Z",
+                  updatedAt: "2025-01-01T00:00:00Z",
+                },
+              ],
+            },
           },
           annotations: {},
           lastUpdated: expect.any(String),
@@ -232,7 +360,17 @@ describe("UserConfigService", () => {
       };
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
 
-      const newGoals: GoalsForYear = [{ distance: 1000, label: "2025 Goal" }];
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "2025-new",
+            value: 1000,
+            label: "2025 Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
 
       await service.updateConfigSection("goals", newGoals, 2025);
 
@@ -242,7 +380,17 @@ describe("UserConfigService", () => {
           schemaVersion: "1.0",
           userId: "test-user",
           goals: {
-            "2025": [{ distance: 1000, label: "2025 Goal" }],
+            "2025": {
+              goals: [
+                {
+                  id: "2025-new",
+                  value: 1000,
+                  label: "2025 Goal",
+                  createdAt: "2025-01-01T00:00:00Z",
+                  updatedAt: "2025-01-01T00:00:00Z",
+                },
+              ],
+            },
           },
           annotations: {},
           lastUpdated: expect.any(String),
@@ -257,7 +405,21 @@ describe("UserConfigService", () => {
       };
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
 
-      const newAnnotations: AnnotationsForYear = [{ date: "2025-01-01", label: "Test" }];
+      const newAnnotations: AnnotationsForYear = {
+        annotations: [
+          {
+            id: "ann1",
+            startDate: "2025-01-01",
+            endDate: "",
+            label: "Test",
+            description: "",
+            stravaActivityId: "",
+            type: 0,
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
 
       await service.updateConfigSection("annotations", newAnnotations, 2025);
 
@@ -265,7 +427,21 @@ describe("UserConfigService", () => {
         mockDocRef,
         expect.objectContaining({
           annotations: {
-            "2025": [{ date: "2025-01-01", label: "Test" }],
+            "2025": {
+              annotations: [
+                {
+                  id: "ann1",
+                  startDate: "2025-01-01",
+                  endDate: "",
+                  label: "Test",
+                  description: "",
+                  stravaActivityId: "",
+                  type: 0,
+                  createdAt: "2025-01-01T00:00:00Z",
+                  updatedAt: "2025-01-01T00:00:00Z",
+                },
+              ],
+            },
           },
         }),
         { merge: true }
@@ -278,14 +454,14 @@ describe("UserConfigService", () => {
       };
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
 
-      const newPreferences: Preferences = { theme: "light", units: "imperial" };
+      const newPreferences: Preferences = { theme: "light", defaultYear: 2025 };
 
       await service.updateConfigSection("preferences", newPreferences);
 
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
         expect.objectContaining({
-          preferences: { theme: "light", units: "imperial" },
+          preferences: { theme: "light", defaultYear: 2025 },
         }),
         { merge: true }
       );
@@ -297,7 +473,17 @@ describe("UserConfigService", () => {
       };
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
 
-      const newGoals: GoalsForYear = [{ distance: 1000, label: "Goal" }];
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "merge-test",
+            value: 1000,
+            label: "Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
 
       await service.updateConfigSection("goals", newGoals, 2025);
 
@@ -314,7 +500,7 @@ describe("UserConfigService", () => {
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
 
       const beforeUpdate = new Date().toISOString();
-      await service.updateConfigSection("goals", [], 2025);
+      await service.updateConfigSection("goals", { goals: [] }, 2025);
       const afterUpdate = new Date().toISOString();
 
       const setDocCall = vi.mocked(firestore.setDoc).mock.calls[0];
@@ -329,7 +515,7 @@ describe("UserConfigService", () => {
       const error = new Error("Firestore write error");
       vi.mocked(firestore.getDoc).mockRejectedValue(error);
 
-      await expect(service.updateConfigSection("goals", [], 2025)).rejects.toThrow(
+      await expect(service.updateConfigSection("goals", { goals: [] }, 2025)).rejects.toThrow(
         "Firestore write error"
       );
     });
@@ -339,7 +525,7 @@ describe("UserConfigService", () => {
       const error = new Error("Update failed");
       vi.mocked(firestore.getDoc).mockRejectedValue(error);
 
-      await expect(service.updateConfigSection("goals", [], 2025)).rejects.toThrow();
+      await expect(service.updateConfigSection("goals", { goals: [] }, 2025)).rejects.toThrow();
 
       expect(consoleErrorSpy).toHaveBeenCalledWith("Error updating user config:", error);
       consoleErrorSpy.mockRestore();
@@ -385,7 +571,7 @@ describe("UserConfigService", () => {
       const mockUnsubscribe = vi.fn();
       let capturedOnNext: ((doc: any) => void) | undefined;
 
-      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext, _onError) => {
+      vi.mocked(firestore.onSnapshot).mockImplementation((_docRef, onNext, _onError) => {
         capturedOnNext = onNext as any;
         return mockUnsubscribe;
       });
@@ -408,7 +594,7 @@ describe("UserConfigService", () => {
       const mockUnsubscribe = vi.fn();
       let capturedOnNext: ((doc: any) => void) | undefined;
 
-      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext, _onError) => {
+      vi.mocked(firestore.onSnapshot).mockImplementation((_docRef, onNext, _onError) => {
         capturedOnNext = onNext as any;
         return mockUnsubscribe;
       });
@@ -429,7 +615,7 @@ describe("UserConfigService", () => {
       const mockUnsubscribe = vi.fn();
       let capturedOnError: ((error: Error) => void) | undefined;
 
-      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext, onError) => {
+      vi.mocked(firestore.onSnapshot).mockImplementation((_docRef, _onNext, onError) => {
         capturedOnError = onError as any;
         return mockUnsubscribe;
       });
@@ -467,7 +653,17 @@ describe("UserConfigService", () => {
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
-          "2025": [{ distance: 1000, label: "Goal" }],
+          "2025": {
+            goals: [
+              {
+                id: "1",
+                value: 1000,
+                label: "Goal",
+                createdAt: "2025-01-01T00:00:00Z",
+                updatedAt: "2025-01-01T00:00:00Z",
+              },
+            ],
+          },
         },
         annotations: {},
       };
@@ -475,7 +671,7 @@ describe("UserConfigService", () => {
       const mockUnsubscribe = vi.fn();
       let capturedOnNext: ((doc: any) => void) | undefined;
 
-      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext) => {
+      vi.mocked(firestore.onSnapshot).mockImplementation((_docRef, onNext) => {
         capturedOnNext = onNext as any;
         return mockUnsubscribe;
       });
@@ -489,7 +685,17 @@ describe("UserConfigService", () => {
       };
       capturedOnNext!(mockDocSnap);
 
-      expect(callback).toHaveBeenCalledWith([{ distance: 1000, label: "Goal" }]);
+      expect(callback).toHaveBeenCalledWith({
+        goals: [
+          {
+            id: "1",
+            value: 1000,
+            label: "Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      });
     });
 
     it("should call callback with null when year has no data", () => {
@@ -498,14 +704,24 @@ describe("UserConfigService", () => {
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
-          "2024": [{ distance: 800, label: "Goal" }],
+          "2024": {
+            goals: [
+              {
+                id: "2",
+                value: 800,
+                label: "Goal",
+                createdAt: "2024-01-01T00:00:00Z",
+                updatedAt: "2024-01-01T00:00:00Z",
+              },
+            ],
+          },
         },
         annotations: {},
       };
 
       let capturedOnNext: ((doc: any) => void) | undefined;
 
-      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext) => {
+      vi.mocked(firestore.onSnapshot).mockImplementation((_docRef, onNext) => {
         capturedOnNext = onNext as any;
         return vi.fn();
       });
@@ -529,12 +745,12 @@ describe("UserConfigService", () => {
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {},
         annotations: {},
-        preferences: { theme: "dark", units: "metric" },
+        preferences: { theme: "dark", defaultYear: 2025 },
       };
 
       let capturedOnNext: ((doc: any) => void) | undefined;
 
-      vi.mocked(firestore.onSnapshot).mockImplementation((docRef, onNext) => {
+      vi.mocked(firestore.onSnapshot).mockImplementation((_docRef, onNext) => {
         capturedOnNext = onNext as any;
         return vi.fn();
       });
@@ -548,7 +764,7 @@ describe("UserConfigService", () => {
       };
       capturedOnNext!(mockDocSnap);
 
-      expect(callback).toHaveBeenCalledWith({ theme: "dark", units: "metric" });
+      expect(callback).toHaveBeenCalledWith({ theme: "dark", defaultYear: 2025 });
     });
 
     it("should return unsubscribe function", () => {

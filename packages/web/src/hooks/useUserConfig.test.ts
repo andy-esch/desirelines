@@ -30,13 +30,20 @@ describe("useUserConfig", () => {
   describe("overloaded signatures", () => {
     it("should work with 'goals' configType and year parameter", async () => {
       const mockGoals: GoalsForYear = {
-        annualGoal: 1000,
-        monthlyGoals: { "2025-01": 100 },
+        goals: [
+          {
+            id: "1",
+            value: 1000,
+            label: "Annual Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
       };
 
       // Mock the subscription to immediately call callback with data
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         // Simulate subscription callback with data
         setTimeout(() => {
           callback({
@@ -63,11 +70,23 @@ describe("useUserConfig", () => {
 
     it("should work with 'annotations' configType and year parameter", async () => {
       const mockAnnotations: AnnotationsForYear = {
-        events: [{ date: "2025-01-01", label: "New Year" }],
+        annotations: [
+          {
+            id: "1",
+            startDate: "2025-01-01",
+            endDate: "",
+            label: "New Year",
+            description: "",
+            stravaActivityId: "",
+            type: 0,
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
       };
 
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -91,11 +110,11 @@ describe("useUserConfig", () => {
     it("should work with 'preferences' configType (no year parameter)", async () => {
       const mockPreferences: Preferences = {
         theme: "dark",
-        units: "metric",
+        defaultYear: 2025,
       };
 
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -119,10 +138,20 @@ describe("useUserConfig", () => {
 
   describe("initial load and loading states", () => {
     it("should set loading to true initially, then false after data loads", async () => {
-      const mockGoals: GoalsForYear = { annualGoal: 500 };
+      const mockGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "1",
+            value: 500,
+            label: "Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
 
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -150,12 +179,19 @@ describe("useUserConfig", () => {
   describe("default values", () => {
     it("should use default value when no data exists in Firestore", async () => {
       const defaultGoals: GoalsForYear = {
-        annualGoal: 1000,
-        monthlyGoals: {},
+        goals: [
+          {
+            id: "default",
+            value: 1000,
+            label: "Default Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
       };
 
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -176,7 +212,7 @@ describe("useUserConfig", () => {
 
     it("should return null when no data exists and no default value provided", async () => {
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -201,7 +237,7 @@ describe("useUserConfig", () => {
       let triggerUpdate: (data: any) => void = () => {};
 
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         triggerUpdate = (data: any) => {
           callback({
             exists: () => true,
@@ -238,7 +274,7 @@ describe("useUserConfig", () => {
     it("should update local state immediately when updateData is called", async () => {
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -265,7 +301,17 @@ describe("useUserConfig", () => {
       expect(result.current.data).toEqual({ annualGoal: 500 });
 
       // Call updateData (optimistic update) - should update immediately
-      const newGoals: GoalsForYear = { annualGoal: 1000, monthlyGoals: {} };
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "new",
+            value: 1000,
+            label: "New Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
       const updatePromise = result.current.updateData(newGoals);
 
       // Check optimistic update happened immediately (before promise resolves)
@@ -280,7 +326,7 @@ describe("useUserConfig", () => {
     it("should call updateConfigSection with correct parameters for goals", async () => {
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -303,7 +349,17 @@ describe("useUserConfig", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const newGoals: GoalsForYear = { annualGoal: 2000 };
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "new",
+            value: 2000,
+            label: "New Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
       await result.current.updateData(newGoals);
 
       expect(setDoc).toHaveBeenCalled();
@@ -312,7 +368,7 @@ describe("useUserConfig", () => {
     it("should call updateConfigSection with correct parameters for preferences", async () => {
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -335,7 +391,7 @@ describe("useUserConfig", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const newPrefs: Preferences = { theme: "dark" };
+      const newPrefs: Preferences = { theme: "dark", defaultYear: 2025 };
       await result.current.updateData(newPrefs);
 
       expect(setDoc).toHaveBeenCalled();
@@ -347,7 +403,7 @@ describe("useUserConfig", () => {
       const unsubscribeMock = vi.fn();
 
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -376,7 +432,7 @@ describe("useUserConfig", () => {
       let callCount = 0;
 
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         callCount++;
         setTimeout(() => {
           callback({
@@ -437,7 +493,17 @@ describe("useUserConfig", () => {
 
     it("should use default value when subscription fails", async () => {
       const mockError = new Error("Firestore connection failed");
-      const defaultGoals: GoalsForYear = { annualGoal: 1000 };
+      const defaultGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "default",
+            value: 1000,
+            label: "Default",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
 
       const { onSnapshot } = await import("firebase/firestore");
       vi.mocked(onSnapshot).mockImplementation(() => {
@@ -461,7 +527,7 @@ describe("useUserConfig", () => {
     it("should set error state and log when updateData fails", async () => {
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -487,7 +553,17 @@ describe("useUserConfig", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const newGoals: GoalsForYear = { annualGoal: 2000 };
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "new",
+            value: 2000,
+            label: "New Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
       await result.current.updateData(newGoals);
 
       // Wait for error state to be set
@@ -505,7 +581,7 @@ describe("useUserConfig", () => {
     it("should pass userId and version to UserConfigService", async () => {
       const { onSnapshot, doc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -549,17 +625,37 @@ describe("useFullUserConfig", () => {
     it("should load full user config with all sections", async () => {
       const mockFullConfig = {
         goals: {
-          "2025": { annualGoal: 1000 },
-          "2024": { annualGoal: 900 },
+          "2025": {
+            goals: [
+              {
+                id: "1",
+                value: 1000,
+                label: "2025 Goal",
+                createdAt: "2025-01-01T00:00:00Z",
+                updatedAt: "2025-01-01T00:00:00Z",
+              },
+            ],
+          },
+          "2024": {
+            goals: [
+              {
+                id: "2",
+                value: 900,
+                label: "2024 Goal",
+                createdAt: "2024-01-01T00:00:00Z",
+                updatedAt: "2024-01-01T00:00:00Z",
+              },
+            ],
+          },
         },
         annotations: {
-          "2025": { events: [] },
+          "2025": { annotations: [] },
         },
-        preferences: { theme: "dark" },
+        preferences: { theme: "dark", defaultYear: 2025 },
       };
 
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -583,7 +679,7 @@ describe("useFullUserConfig", () => {
 
     it("should handle null config (document doesn't exist)", async () => {
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => false,
@@ -606,13 +702,25 @@ describe("useFullUserConfig", () => {
   describe("updateSection method", () => {
     it("should update goals section with year", async () => {
       const mockConfig = {
-        goals: { "2025": { annualGoal: 1000 } },
-        preferences: { theme: "dark" },
+        goals: {
+          "2025": {
+            goals: [
+              {
+                id: "1",
+                value: 1000,
+                label: "Goal",
+                createdAt: "2025-01-01T00:00:00Z",
+                updatedAt: "2025-01-01T00:00:00Z",
+              },
+            ],
+          },
+        },
+        preferences: { theme: "dark", defaultYear: 2025 },
       };
 
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -635,7 +743,17 @@ describe("useFullUserConfig", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const newGoals: GoalsForYear = { annualGoal: 2000 };
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "new",
+            value: 2000,
+            label: "New Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
       await result.current.updateSection("goals", newGoals, 2025);
 
       expect(setDoc).toHaveBeenCalled();
@@ -645,7 +763,7 @@ describe("useFullUserConfig", () => {
     it("should update annotations section with year", async () => {
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -669,7 +787,19 @@ describe("useFullUserConfig", () => {
       });
 
       const newAnnotations: AnnotationsForYear = {
-        events: [{ date: "2025-01-01", label: "Test" }],
+        annotations: [
+          {
+            id: "new",
+            startDate: "2025-01-01",
+            endDate: "",
+            label: "Test",
+            description: "",
+            stravaActivityId: "",
+            type: 0,
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
       };
       await result.current.updateSection("annotations", newAnnotations, 2025);
 
@@ -679,7 +809,7 @@ describe("useFullUserConfig", () => {
     it("should update preferences section without year", async () => {
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -702,7 +832,7 @@ describe("useFullUserConfig", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const newPrefs: Preferences = { theme: "dark", units: "imperial" };
+      const newPrefs: Preferences = { theme: "dark", defaultYear: 2025 };
       await result.current.updateSection("preferences", newPrefs);
 
       expect(setDoc).toHaveBeenCalled();
@@ -711,7 +841,7 @@ describe("useFullUserConfig", () => {
     it("should set error when updateSection fails", async () => {
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -737,7 +867,17 @@ describe("useFullUserConfig", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const newGoals: GoalsForYear = { annualGoal: 3000 };
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "new",
+            value: 3000,
+            label: "New Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
       await result.current.updateSection("goals", newGoals, 2025);
 
       // Wait for error state to be set
@@ -756,7 +896,7 @@ describe("useFullUserConfig", () => {
       const unsubscribeMock = vi.fn();
 
       const { onSnapshot } = await import("firebase/firestore");
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
@@ -782,7 +922,7 @@ describe("useFullUserConfig", () => {
     it("should use custom userId and version", async () => {
       const { onSnapshot, doc } = await import("firebase/firestore");
 
-      vi.mocked(onSnapshot).mockImplementation((doc, callback: any) => {
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
         setTimeout(() => {
           callback({
             exists: () => true,
