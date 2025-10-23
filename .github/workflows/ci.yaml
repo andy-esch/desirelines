@@ -42,8 +42,17 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --all-packages
 
-      - name: Run Python tests
-        run: make py-test
+      - name: Run Python tests with coverage
+        run: make py-test-coverage
+
+      - name: Upload Python coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: python
+          name: python-coverage
+          fail_ci_if_error: false
 
       - name: Run Python linting
         run: make py-lint
@@ -76,8 +85,26 @@ jobs:
       - name: Tidy Go modules (apigateway)
         run: cd packages/apigateway && go mod tidy
 
-      - name: Run Go tests
-        run: make go-test
+      - name: Run Go tests with coverage
+        run: make go-test-coverage
+
+      - name: Upload Go coverage to Codecov (dispatcher)
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/dispatcher/coverage.out
+          flags: go-dispatcher
+          name: go-dispatcher-coverage
+          fail_ci_if_error: false
+
+      - name: Upload Go coverage to Codecov (apigateway)
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/apigateway/coverage.out
+          flags: go-apigateway
+          name: go-apigateway-coverage
+          fail_ci_if_error: false
 
       - name: Run Go linting - dispatcher
         uses: golangci/golangci-lint-action@v8
@@ -175,6 +202,18 @@ jobs:
 
       - name: Run type checking
         run: npm run typecheck
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload Web coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/web/coverage/lcov.info
+          flags: web
+          name: web-coverage
+          fail_ci_if_error: false
 
       - name: Build application
         run: npm run build

@@ -28,6 +28,9 @@ endef
 py-test:
 	uv run pytest packages/stravapipe/tests/
 
+py-test-coverage:
+	uv run pytest packages/stravapipe/tests/ --cov=packages/stravapipe/src --cov-report=xml --cov-report=term
+
 py-lint:
 	uv run ruff check . --fix
 
@@ -48,7 +51,9 @@ go-test-all:
 	go test -v -p 2 all
 
 go-test-coverage:
-	cd packages/dispatcher && go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out -o coverage.html
+	@echo "🧪 Running Go tests with coverage..."
+	cd packages/dispatcher && go test -v -coverprofile=coverage.out -covermode=atomic ./...
+	cd packages/apigateway && go test -v -coverprofile=coverage.out -covermode=atomic ./...
 
 go-lint:
 	@echo "🔍 Running golangci-lint..."
