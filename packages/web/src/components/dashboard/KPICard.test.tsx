@@ -5,11 +5,7 @@ import KPICard from "./KPICard";
 describe("KPICard", () => {
   it("renders title, value, and subtitle", () => {
     render(
-      <KPICard
-        title="Current Distance"
-        value="2450 mi"
-        subtitle="8.3 mi/day avg · 295 days"
-      />
+      <KPICard title="Current Distance" value="2450 mi" subtitle="8.3 mi/day avg · 295 days" />
     );
 
     expect(screen.getByText("Current Distance")).toBeInTheDocument();

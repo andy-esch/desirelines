@@ -27,22 +27,14 @@ describe("ChartTooltip", () => {
   });
 
   it("renders nothing when payload is empty", () => {
-    const { container } = render(
-      <ChartTooltip active={true} payload={[]} label="2025-10-22" />
-    );
+    const { container } = render(<ChartTooltip active={true} payload={[]} label="2025-10-22" />);
 
     expect(container.firstChild).toBeNull();
   });
 
   it("renders date and values when active", () => {
     render(
-      <ChartTooltip
-        active={true}
-        payload={mockPayload}
-        label="2025-10-22"
-        unit="mi"
-        decimals={1}
-      />
+      <ChartTooltip active={true} payload={mockPayload} label="2025-10-22" unit="mi" decimals={1} />
     );
 
     // Check data entries render correctly
@@ -104,11 +96,7 @@ describe("ChartTooltip", () => {
 
   it("uses fallback color when stroke/color not provided", () => {
     render(
-      <ChartTooltip
-        active={true}
-        payload={[{ name: "Test", value: 100 }]}
-        label="2025-10-22"
-      />
+      <ChartTooltip active={true} payload={[{ name: "Test", value: 100 }]} label="2025-10-22" />
     );
 
     // Check that the tooltip renders with data

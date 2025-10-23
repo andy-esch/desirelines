@@ -91,10 +91,9 @@ describe("useGoalStats", () => {
     expect(result.current.nextGoal?.label).toBe("Challenger");
 
     // Add a new goal between current distance and next goal
-    const newGoals = [
-      ...goals,
-      { id: "4", value: 1800, label: "Intermediate" },
-    ].sort((a, b) => a.value - b.value);
+    const newGoals = [...goals, { id: "4", value: 1800, label: "Intermediate" }].sort(
+      (a, b) => a.value - b.value
+    );
 
     rerender({ goals: newGoals, distance: 1500, days: 70 });
 

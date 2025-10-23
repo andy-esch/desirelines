@@ -46,62 +46,60 @@ export interface KPICardsProps {
  *   momentumIndicator={<MomentumIndicator />}
  * />
  */
-const KPICards = React.memo(({
-  currentDistance,
-  averagePace,
-  daysElapsed,
-  daysRemaining,
-  nextGoal,
-  nextGoalProgress,
-  nextGoalGap,
-  paceNeededForNextGoal,
-  momentumIndicator,
-}: KPICardsProps) => {
-  return (
-    <div className="row g-3 mb-4">
-      {/* Current Distance Card */}
-      <KPICard
-        title="Current Distance"
-        value={`${currentDistance.toFixed(0)} mi`}
-        subtitle={
-          <>
-            {averagePace.toFixed(1)} mi/day avg
-            {momentumIndicator && (
-              <>
-                {momentumIndicator} ·{" "}
-              </>
-            )}
-            {daysElapsed} days
-          </>
-        }
-      />
+const KPICards = React.memo(
+  ({
+    currentDistance,
+    averagePace,
+    daysElapsed,
+    daysRemaining,
+    nextGoal,
+    nextGoalProgress,
+    nextGoalGap,
+    paceNeededForNextGoal,
+    momentumIndicator,
+  }: KPICardsProps) => {
+    return (
+      <div className="row g-3 mb-4">
+        {/* Current Distance Card */}
+        <KPICard
+          title="Current Distance"
+          value={`${currentDistance.toFixed(0)} mi`}
+          subtitle={
+            <>
+              {averagePace.toFixed(1)} mi/day avg
+              {momentumIndicator && <>{momentumIndicator} · </>}
+              {daysElapsed} days
+            </>
+          }
+        />
 
-      {/* Next Goal Card */}
-      <KPICard
-        title={nextGoal?.label || "Next Goal"}
-        value={`${nextGoalProgress.toFixed(0)}%`}
-        subtitle={
-          nextGoalGap > 0
-            ? `${nextGoalGap.toFixed(0)} mi to ${nextGoal?.value.toLocaleString()}`
-            : nextGoal
-              ? `${nextGoal.value.toLocaleString()} mi reached!`
-              : "No goal set"
-        }
-      />
+        {/* Next Goal Card */}
+        <KPICard
+          title={nextGoal?.label || "Next Goal"}
+          value={`${nextGoalProgress.toFixed(0)}%`}
+          subtitle={
+            nextGoalGap > 0
+              ? `${nextGoalGap.toFixed(0)} mi to ${nextGoal?.value.toLocaleString()}`
+              : nextGoal
+                ? `${nextGoal.value.toLocaleString()} mi reached!`
+                : "No goal set"
+          }
+        />
 
-      {/* Pace to Goal Card */}
-      <KPICard
-        title={`Pace to ${nextGoal?.label || "Goal"}`}
-        value={paceNeededForNextGoal > 0 ? paceNeededForNextGoal.toFixed(1) : "—"}
-        subtitle={
-          paceNeededForNextGoal > 0
-            ? `mi/day · ${daysRemaining} days left`
-            : `${daysRemaining} days remaining`
-        }
-      />
-    </div>
-  );
-});
+        {/* Pace to Goal Card */}
+        <KPICard
+          title={`Pace to ${nextGoal?.label || "Goal"}`}
+          value={paceNeededForNextGoal > 0 ? paceNeededForNextGoal.toFixed(1) : "—"}
+          subtitle={
+            paceNeededForNextGoal > 0
+              ? `mi/day · ${daysRemaining} days left`
+              : `${daysRemaining} days remaining`
+          }
+        />
+      </div>
+    );
+  }
+);
 
 KPICards.displayName = "KPICards";
 

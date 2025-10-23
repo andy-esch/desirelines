@@ -46,10 +46,7 @@ describe("KPICards", () => {
 
   it("renders momentum indicator when provided", () => {
     render(
-      <KPICards
-        {...defaultProps}
-        momentumIndicator={<span data-testid="momentum">↑</span>}
-      />
+      <KPICards {...defaultProps} momentumIndicator={<span data-testid="momentum">↑</span>} />
     );
 
     expect(screen.getByTestId("momentum")).toBeInTheDocument();
