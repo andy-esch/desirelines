@@ -7,13 +7,13 @@
 
 export const CHART_CONFIG = {
   /** Chart dimensions */
-  height: 450,
+  height: 400,
 
   /** Chart margins (top, right, bottom, left) */
   margin: {
     top: 20,
-    right: 20,
-    left: 80,
+    right: 5,
+    left: 5,
     bottom: 5,
   },
 

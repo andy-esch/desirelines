@@ -20,6 +20,7 @@ import {
   calculateDynamicPacingGoal,
   type Goals,
 } from "../../utils/goalCalculations";
+import ChartTooltip from "./ChartTooltip";
 
 interface PacingChartProps {
   year: number;
@@ -28,81 +29,22 @@ interface PacingChartProps {
   distanceData: DistanceEntry[];
   isLoading: boolean;
   error: Error | null;
+  showFullYear?: boolean;
+  hideHeader?: boolean;
 }
 
-// Custom tooltip component
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || payload.length === 0) return null;
-
-  const date = new Date(label);
-  const formattedDate = date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  return (
-    <div
-      style={{
-        backgroundColor: "#1a1a1a",
-        border: "1px solid #444",
-        borderRadius: "8px",
-        padding: "16px",
-        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.6)",
-      }}
-    >
-      {/* Header with date */}
-      <div
-        style={{
-          fontSize: "14px",
-          fontWeight: "bold",
-          color: "#fff",
-          marginBottom: "12px",
-          paddingBottom: "8px",
-          borderBottom: "1px solid #333",
-        }}
-      >
-        {formattedDate}
-      </div>
-
-      {/* Data items */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        {payload.map((entry: any, index: number) => {
-          // Get the color - use the stroke color from the entry
-          const color = entry.stroke || entry.color || "#888";
-          const value = typeof entry.value === "number" ? entry.value.toFixed(2) : entry.value;
-
-          return (
-            <div
-              key={index}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                fontSize: "13px",
-              }}
-            >
-              <div
-                style={{
-                  width: "12px",
-                  height: "12px",
-                  borderRadius: "2px",
-                  backgroundColor: color,
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ color: "#ddd", flex: 1 }}>{entry.name}:</span>
-              <span style={{ color: "#fff", fontWeight: "600" }}>{value} mi/day</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+// Removed CustomTooltip - now using shared ChartTooltip component
 
 const PacingChartRecharts = (props: PacingChartProps) => {
-  const { year, goals, distanceData, isLoading, error } = props;
+  const {
+    year,
+    goals,
+    distanceData,
+    isLoading,
+    error,
+    showFullYear = true,
+    hideHeader = false,
+  } = props;
 
   // Derive values from distanceData
   const latestDate = useMemo(() => {
@@ -111,19 +53,26 @@ const PacingChartRecharts = (props: PacingChartProps) => {
     return new Date(lastEntry?.x || new Date());
   }, [distanceData]);
 
+  // Calculate year boundaries
+  const startDate = useMemo(() => new Date(year, 0, 1), [year]);
+  const endDate = useMemo(() => new Date(year, 11, 31), [year]);
+
+  // Use either full year or current date based on toggle
+  const displayEndDate = showFullYear ? endDate : latestDate;
+
   const actualPacing = useMemo(() => {
     if (distanceData.length === 0) return [];
-    return calculateActualPacing(distanceData, latestDate);
-  }, [distanceData, latestDate]);
+    return calculateActualPacing(distanceData, displayEndDate);
+  }, [distanceData, displayEndDate]);
 
   // Calculate dynamic pacing goals (must be before early returns per React hooks rules)
   const pacingGoals = useMemo(
     () =>
       goals.map((goal) => ({
         goal,
-        pacing: calculateDynamicPacingGoal(distanceData, goal.value, year, latestDate),
+        pacing: calculateDynamicPacingGoal(distanceData, goal.value, year, displayEndDate),
       })),
-    [goals, distanceData, year, latestDate]
+    [goals, distanceData, year, displayEndDate]
   );
 
   // Merge all pacing data into a single array for Recharts
@@ -156,22 +105,39 @@ const PacingChartRecharts = (props: PacingChartProps) => {
     );
   }, [actualPacing, pacingGoals]);
 
-  // Get current values (at the latest date)
-  const latestData = mergedData[mergedData.length - 1];
+  // Get current values (at the latest date with actual data, not display end date)
+  const latestActualData = mergedData.find(
+    (d) => d.actual !== undefined && typeof d.actual === "number" && d.actual > 0
+  );
+  const latestDataIndex =
+    distanceData.length > 0
+      ? mergedData.findIndex(
+          (d) => d.date && new Date(d.date as Date).getTime() === latestDate.getTime()
+        )
+      : mergedData.length - 1;
+  const currentActualData = latestDataIndex >= 0 ? mergedData[latestDataIndex] : latestActualData;
+
   const currentValues = {
-    actual: (latestData?.actual as number) || 0,
-    goals: pacingGoals.map((pg, index) => ({
-      label: pg.goal.label,
-      value: (latestData?.[`goal${index}`] as number) || 0,
-      color: GOAL_COLORS[index % GOAL_COLORS.length],
-    })),
+    actual: (currentActualData?.actual as number) || 0,
+    goals: pacingGoals.map((pg, index) => {
+      const goalValue = currentActualData?.[`goal${index}`] as number;
+      return {
+        label: pg.goal.label,
+        value: goalValue || 0,
+        color: GOAL_COLORS[index % GOAL_COLORS.length],
+      };
+    }),
   };
 
   // Early returns for loading/error states (must be after all hooks)
   if (isLoading) {
     return (
-      <div>
-        <h2 style={{ textAlign: "center" }}>Pacings</h2>
+      <div className={hideHeader ? "" : "mt-4"}>
+        {!hideHeader && (
+          <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            Daily Pace (miles/day)
+          </h3>
+        )}
         <LoadingChart />
       </div>
     );
@@ -179,16 +145,24 @@ const PacingChartRecharts = (props: PacingChartProps) => {
 
   if (error) {
     return (
-      <div>
-        <h2 style={{ textAlign: "center" }}>Pacings</h2>
+      <div className={hideHeader ? "" : "mt-4"}>
+        {!hideHeader && (
+          <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            Daily Pace (miles/day)
+          </h3>
+        )}
         <ErrorChart error={error} onRetry={() => window.location.reload()} />
       </div>
     );
   }
 
   return (
-    <div>
-      <h2 style={{ textAlign: "center" }}>Pacings</h2>
+    <div className={hideHeader ? "" : "mt-4"}>
+      {!hideHeader && (
+        <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+          Daily Pace (miles/day)
+        </h3>
+      )}
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
         <LineChart data={mergedData} margin={CHART_CONFIG.margin}>
           <CartesianGrid
@@ -199,7 +173,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
           <XAxis
             dataKey="date"
             type="number"
-            domain={["dataMin", "dataMax"]}
+            domain={[startDate.getTime(), displayEndDate.getTime()]}
             scale="time"
             tickFormatter={(timestamp) => {
               const date = new Date(timestamp);
@@ -217,7 +191,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
             stroke={CHART_CONFIG.axis.stroke}
             tickFormatter={(value: number) => value.toFixed(1)}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<ChartTooltip unit="mi/day" decimals={2} />} />
 
           {/* Y-axis markers for current values */}
           <ReferenceLine

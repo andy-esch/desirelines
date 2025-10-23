@@ -22,6 +22,7 @@ import {
   estimateYearEndDistance,
   type Goals,
 } from "../../utils/goalCalculations";
+import ChartTooltip from "./ChartTooltip";
 
 interface DistanceChartProps {
   year: number;
@@ -30,81 +31,24 @@ interface DistanceChartProps {
   distanceData: DistanceEntry[];
   isLoading: boolean;
   error: Error | null;
+  showFullYear?: boolean;
+  onViewChange?: (showFullYear: boolean) => void;
+  hideHeader?: boolean;
 }
 
-// Custom tooltip component
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || payload.length === 0) return null;
-
-  const date = new Date(label);
-  const formattedDate = date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  return (
-    <div
-      style={{
-        backgroundColor: "#1a1a1a",
-        border: "1px solid #444",
-        borderRadius: "8px",
-        padding: "16px",
-        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.6)",
-      }}
-    >
-      {/* Header with date */}
-      <div
-        style={{
-          fontSize: "14px",
-          fontWeight: "bold",
-          color: "#fff",
-          marginBottom: "12px",
-          paddingBottom: "8px",
-          borderBottom: "1px solid #333",
-        }}
-      >
-        {formattedDate}
-      </div>
-
-      {/* Data items */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        {payload.map((entry: any, index: number) => {
-          // Get the color - use the stroke color from the entry
-          const color = entry.stroke || entry.color || "#888";
-          const value = typeof entry.value === "number" ? entry.value.toFixed(1) : entry.value;
-
-          return (
-            <div
-              key={index}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                fontSize: "13px",
-              }}
-            >
-              <div
-                style={{
-                  width: "12px",
-                  height: "12px",
-                  borderRadius: "2px",
-                  backgroundColor: color,
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ color: "#ddd", flex: 1 }}>{entry.name}:</span>
-              <span style={{ color: "#fff", fontWeight: "600" }}>{value} mi</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+// Removed CustomTooltip - now using shared ChartTooltip component
 
 const DistanceChartRecharts = (props: DistanceChartProps) => {
-  const { year, goals, distanceData, isLoading, error } = props;
+  const {
+    year,
+    goals,
+    distanceData,
+    isLoading,
+    error,
+    showFullYear = true,
+    onViewChange,
+    hideHeader = false,
+  } = props;
 
   // Derive values from distanceData
   const latestDate = useMemo(() => {
@@ -124,19 +68,27 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
     return estimateYearEndDistance(distanceData, year);
   }, [distanceData, year]);
 
+  // Calculate year boundaries
+  const startDate = useMemo(() => new Date(year, 0, 1), [year]);
+  const endDate = useMemo(() => new Date(year, 11, 31), [year]);
+
+  // Use either full year or current date based on toggle
+  const displayEndDate = showFullYear ? endDate : latestDate;
+
   // Calculate goal lines (must be before early returns per React hooks rules)
   const goalLines = useMemo(
     () =>
       goals.map((goal) => ({
         goal,
-        line: calculateDesireLine(goal.value, year, latestDate),
+        line: calculateDesireLine(goal.value, year, displayEndDate),
       })),
-    [goals, year, latestDate]
+    [goals, year, displayEndDate]
   );
 
+  // Project average line
   const currentAverageLine = useMemo(
-    () => calculateCurrentAverageLine(distanceData, year, latestDate),
-    [distanceData, year, latestDate]
+    () => calculateCurrentAverageLine(distanceData, year, displayEndDate),
+    [distanceData, year, displayEndDate]
   );
 
   // Detect goal achievements (when actual crosses goal line)
@@ -216,16 +168,30 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
     );
   }, [distanceData, goalLines, currentAverageLine]);
 
-  // Get current values (at the latest date)
-  const latestData = mergedData[mergedData.length - 1];
+  // Get current values (at the latest date with actual data, not display end date)
+  const latestActualData = mergedData.find(
+    (d) => d.actual !== undefined && typeof d.actual === "number" && d.actual > 0
+  );
+  const latestDataIndex =
+    distanceData.length > 0
+      ? mergedData.findIndex(
+          (d) => d.date && new Date(d.date as Date).getTime() === latestDate.getTime()
+        )
+      : mergedData.length - 1;
+  const currentActualData = latestDataIndex >= 0 ? mergedData[latestDataIndex] : latestActualData;
+
   const currentValues = {
-    actual: (latestData?.actual as number) || 0,
-    goals: goalLines.map((gl, index) => ({
-      label: gl.goal.label,
-      value: (latestData?.[`goal${index}`] as number) || gl.goal.value,
-      color: GOAL_COLORS[index % GOAL_COLORS.length],
-    })),
-    average: (latestData?.average as number) || 0,
+    actual: totalDistanceTraveled, // Use actual distance traveled, not merged data
+    goals: goalLines.map((gl, index) => {
+      // Get goal value at the latest actual data point
+      const goalValue = currentActualData?.[`goal${index}`] as number;
+      return {
+        label: gl.goal.label,
+        value: goalValue || gl.goal.value,
+        color: GOAL_COLORS[index % GOAL_COLORS.length],
+      };
+    }),
+    average: (currentActualData?.average as number) || 0,
   };
 
   // Calculate Y-axis ticks based on data range
@@ -260,7 +226,11 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
   if (isLoading) {
     return (
       <div>
-        <h2 style={{ textAlign: "center" }}>Distances</h2>
+        {!hideHeader && (
+          <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            Cumulative Distance
+          </h3>
+        )}
         <LoadingChart />
       </div>
     );
@@ -269,7 +239,11 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
   if (error) {
     return (
       <div>
-        <h2 style={{ textAlign: "center" }}>Distances</h2>
+        {!hideHeader && (
+          <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            Cumulative Distance
+          </h3>
+        )}
         <ErrorChart error={error} onRetry={() => window.location.reload()} />
       </div>
     );
@@ -277,7 +251,44 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
 
   return (
     <div>
-      <h2 style={{ textAlign: "center" }}>Distances</h2>
+      {!hideHeader && (
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h3 className="text-muted mb-0" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            Cumulative Distance
+          </h3>
+
+          {onViewChange && (
+            <div className="btn-group btn-group-sm" role="group">
+              <input
+                type="radio"
+                className="btn-check"
+                name="chartView"
+                id="viewCurrent"
+                autoComplete="off"
+                checked={!showFullYear}
+                onChange={() => onViewChange(false)}
+              />
+              <label className="btn btn-outline-secondary" htmlFor="viewCurrent">
+                Current
+              </label>
+
+              <input
+                type="radio"
+                className="btn-check"
+                name="chartView"
+                id="viewFullYear"
+                autoComplete="off"
+                checked={showFullYear}
+                onChange={() => onViewChange(true)}
+              />
+              <label className="btn btn-outline-secondary" htmlFor="viewFullYear">
+                Full Year
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
         <LineChart data={mergedData} margin={CHART_CONFIG.margin}>
           <CartesianGrid
@@ -288,7 +299,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
           <XAxis
             dataKey="date"
             type="number"
-            domain={["dataMin", "dataMax"]}
+            domain={[startDate.getTime(), displayEndDate.getTime()]}
             scale="time"
             tickFormatter={(timestamp) => {
               const date = new Date(timestamp);
@@ -315,7 +326,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
             ]}
             ticks={yAxisTicks}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<ChartTooltip unit="mi" decimals={1} />} />
 
           {/* Y-axis markers for current values */}
           <ReferenceLine
@@ -377,33 +388,6 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
               }}
             />
           ))}
-          <ReferenceLine
-            y={currentValues.average}
-            stroke="transparent"
-            label={(props) => {
-              const { viewBox } = props;
-              return (
-                <g>
-                  <circle
-                    cx={viewBox.x}
-                    cy={viewBox.y}
-                    r={CHART_CONFIG.marker.radius}
-                    fill={CHART_COLORS.AVERAGE_LINE}
-                  />
-                  <text
-                    x={viewBox.x + 10}
-                    y={viewBox.y}
-                    textAnchor="start"
-                    fill={CHART_COLORS.AVERAGE_LINE}
-                    fontSize={CHART_CONFIG.marker.fontSize.goal}
-                    dominantBaseline="middle"
-                  >
-                    Average
-                  </text>
-                </g>
-              );
-            }}
-          />
 
           {/* Actual distance */}
           <Line

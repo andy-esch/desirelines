@@ -17,5 +17,16 @@ export default defineConfig({
     environment: "jsdom", // DOM environment for React component testing
     setupFiles: "./src/test/setup.ts",
     css: true, // Support CSS imports in tests
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html", "lcov"],
+      exclude: [
+        "node_modules/",
+        "src/test/setup.ts",
+        "**/*.test.{ts,tsx}",
+        "**/*.spec.{ts,tsx}",
+        "vite.config.ts",
+      ],
+    },
   },
 });
