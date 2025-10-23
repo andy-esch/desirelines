@@ -20,6 +20,7 @@ import {
   calculateDynamicPacingGoal,
   type Goals,
 } from "../../utils/goalCalculations";
+import ChartTooltip from "./ChartTooltip";
 
 interface PacingChartProps {
   year: number;
@@ -32,76 +33,7 @@ interface PacingChartProps {
   hideHeader?: boolean;
 }
 
-// Custom tooltip component
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || payload.length === 0) return null;
-
-  const date = new Date(label);
-  const formattedDate = date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  return (
-    <div
-      style={{
-        backgroundColor: "#1a1a1a",
-        border: "1px solid #444",
-        borderRadius: "8px",
-        padding: "16px",
-        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.6)",
-      }}
-    >
-      {/* Header with date */}
-      <div
-        style={{
-          fontSize: "14px",
-          fontWeight: "bold",
-          color: "#fff",
-          marginBottom: "12px",
-          paddingBottom: "8px",
-          borderBottom: "1px solid #333",
-        }}
-      >
-        {formattedDate}
-      </div>
-
-      {/* Data items */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        {payload.map((entry: any, index: number) => {
-          // Get the color - use the stroke color from the entry
-          const color = entry.stroke || entry.color || "#888";
-          const value = typeof entry.value === "number" ? entry.value.toFixed(2) : entry.value;
-
-          return (
-            <div
-              key={index}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                fontSize: "13px",
-              }}
-            >
-              <div
-                style={{
-                  width: "12px",
-                  height: "12px",
-                  borderRadius: "2px",
-                  backgroundColor: color,
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ color: "#ddd", flex: 1 }}>{entry.name}:</span>
-              <span style={{ color: "#fff", fontWeight: "600" }}>{value} mi/day</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+// Removed CustomTooltip - now using shared ChartTooltip component
 
 const PacingChartRecharts = (props: PacingChartProps) => {
   const {
@@ -259,7 +191,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
             stroke={CHART_CONFIG.axis.stroke}
             tickFormatter={(value: number) => value.toFixed(1)}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<ChartTooltip unit="mi/day" decimals={2} />} />
 
           {/* Y-axis markers for current values */}
           <ReferenceLine

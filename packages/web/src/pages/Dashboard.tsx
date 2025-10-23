@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Sidebar from "../components/layout/Sidebar";
 import DistanceChart from "../components/charts/DistanceChartRecharts";
 import PacingChart from "../components/charts/PacingChartRecharts";
+import KPICards from "../components/dashboard/KPICards";
 import {
   generateDefaultGoals,
   estimateYearEndDistance,
@@ -9,15 +10,11 @@ import {
 } from "../utils/goalCalculations";
 import { useDistanceData } from "../hooks/useDistanceData";
 import { useUserConfig } from "../hooks/useUserConfig";
+import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
+import { useGoalStats } from "../hooks/useGoalStats";
 import type { GoalsForYear } from "../services/userConfigService";
 import { GOAL_COLORS } from "../constants/chartColors";
 import { calculateYearStats, calculateAveragePace } from "../utils/dateCalculations";
-import { isActivityDataStale } from "../utils/activityStatus";
-import {
-  calculateTrainingMomentum,
-  getMomentumLevel,
-  type MomentumLevel,
-} from "../utils/trainingMomentum";
 
 export default function Dashboard() {
   const [currentYear, setCurrentYear] = useState(2025);
@@ -59,107 +56,36 @@ export default function Dashboard() {
 
   const goals = goalsData?.goals || [];
 
-  const handleGoalsChange = async (newGoals: Goals) => {
-    const updatedGoalsForYear: GoalsForYear = {
-      goals: newGoals.map((goal) => ({
-        id: goal.id,
-        value: goal.value,
-        label: goal.label || "",
-        updatedAt: new Date().toISOString(),
-        createdAt:
-          goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
-      })),
-    };
-    await updateGoals(updatedGoalsForYear);
-  };
+  const handleGoalsChange = useCallback(
+    async (newGoals: Goals) => {
+      const updatedGoalsForYear: GoalsForYear = {
+        goals: newGoals.map((goal) => ({
+          id: goal.id,
+          value: goal.value,
+          label: goal.label || "",
+          updatedAt: new Date().toISOString(),
+          createdAt:
+            goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
+        })),
+      };
+      await updateGoals(updatedGoalsForYear);
+    },
+    [goalsData, updateGoals]
+  );
 
   // Calculate stats for cards
   const yearStats = calculateYearStats(currentYear);
   const { daysElapsed, daysRemaining } = yearStats;
   const averagePace = calculateAveragePace(currentDistance, currentYear);
 
-  // Smart "Next Goal" logic
-  const nextGoal = useMemo(() => {
-    if (goals.length === 0) return null;
-
-    // Find first goal above current distance
-    const goalsAbove = goals.filter((g) => g.value > currentDistance);
-    if (goalsAbove.length > 0) {
-      return goalsAbove[0];
-    }
-
-    // All goals passed - return the most recently passed (highest goal)
-    return goals[goals.length - 1];
-  }, [goals, currentDistance]);
-
-  const nextGoalProgress = nextGoal ? (currentDistance / nextGoal.value) * 100 : 0;
-  const nextGoalGap = nextGoal ? Math.max(0, nextGoal.value - currentDistance) : 0;
-
-  // Pacing needed to reach next goal
-  const paceNeededForNextGoal =
-    daysRemaining > 0 && nextGoalGap > 0 ? nextGoalGap / daysRemaining : 0;
-
-  // Training momentum calculation: 14-day pacing slope
-  const trainingMomentum = useMemo(
-    () => calculateTrainingMomentum(distanceData, averagePace),
-    [distanceData, averagePace]
+  // Custom hooks for complex calculations
+  const { nextGoal, nextGoalProgress, nextGoalGap, paceNeededForNextGoal } = useGoalStats(
+    goals,
+    currentDistance,
+    daysRemaining
   );
 
-  // Check if activity data is stale (no recent activities)
-  const isDataStale = useMemo(() => isActivityDataStale(distanceData), [distanceData]);
-
-  // Categorize training momentum into 5 levels
-  const momentumLevel: MomentumLevel = useMemo(
-    () => getMomentumLevel(trainingMomentum, isDataStale),
-    [trainingMomentum, isDataStale]
-  );
-
-  // Training momentum indicator renderer (simple style)
-  const renderMomentumIndicator = () => {
-    if (!momentumLevel) return null;
-
-    const getSymbol = () => {
-      if (momentumLevel === "stale") return "✕";
-      if (momentumLevel === "significantly-up" || momentumLevel === "up") return "↑";
-      if (momentumLevel === "steady") return "─";
-      return "↓";
-    };
-
-    const getDescription = () => {
-      if (momentumLevel === "stale") {
-        return "Training Momentum: No recent activity\n\nNo activity recorded in the last 7 days. Momentum indicator is not available.";
-      }
-
-      if (trainingMomentum === null) return "";
-
-      const sign = trainingMomentum >= 0 ? "+" : "";
-      const percentage = `${sign}${trainingMomentum.toFixed(1)}%`;
-
-      let trend = "";
-      if (momentumLevel === "significantly-up") trend = "Significantly ramping up";
-      else if (momentumLevel === "up") trend = "Ramping up";
-      else if (momentumLevel === "steady") trend = "Steady pace";
-      else if (momentumLevel === "down") trend = "Slightly declining";
-      else if (momentumLevel === "significantly-down") trend = "Declining";
-
-      return `Training Momentum: ${trend}\n${percentage} per week (14-day trend)\n\nShows whether your daily pace is accelerating, steady, or slowing down over the last 2 weeks.`;
-    };
-
-    return (
-      <span
-        style={{
-          color: "#888",
-          fontSize: "0.9em",
-          marginLeft: "4px",
-          cursor: "help",
-          textDecoration: "underline dotted",
-        }}
-        title={getDescription()}
-      >
-        {getSymbol()}
-      </span>
-    );
-  };
+  const { momentumIndicator } = useTrainingMomentum(distanceData, averagePace);
 
   return (
     <div className="container-fluid">
@@ -186,103 +112,18 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              {/* Key Stats Cards Row - Equal Heights */}
-              <div className="row g-3 mb-4">
-                <div className="col-md-4">
-                  <div
-                    className="card h-100"
-                    style={{
-                      transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                      cursor: "default",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-4px)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "";
-                    }}
-                  >
-                    <div className="card-body d-flex flex-column justify-content-between py-3">
-                      <h6 className="card-subtitle mb-2 text-muted small">Current Distance</h6>
-                      <div>
-                        <h2 className="card-title mb-1">{currentDistance.toFixed(0)} mi</h2>
-                        <small className="text-muted">
-                          {averagePace.toFixed(1)} mi/day avg{renderMomentumIndicator()} ·{" "}
-                          {daysElapsed} days
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-4">
-                  <div
-                    className="card h-100"
-                    style={{
-                      transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                      cursor: "default",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-4px)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "";
-                    }}
-                  >
-                    <div className="card-body d-flex flex-column justify-content-between py-3">
-                      <h6 className="card-subtitle mb-2 text-muted small">
-                        {nextGoal?.label || "Next Goal"}
-                      </h6>
-                      <div>
-                        <h2 className="card-title mb-1">{nextGoalProgress.toFixed(0)}%</h2>
-                        <small className="text-muted">
-                          {nextGoalGap > 0
-                            ? `${nextGoalGap.toFixed(0)} mi to ${nextGoal?.value.toLocaleString()}`
-                            : nextGoal
-                              ? `${nextGoal.value.toLocaleString()} mi reached!`
-                              : "No goal set"}
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-4">
-                  <div
-                    className="card h-100"
-                    style={{
-                      transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                      cursor: "default",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-4px)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "";
-                    }}
-                  >
-                    <div className="card-body d-flex flex-column justify-content-between py-3">
-                      <h6 className="card-subtitle mb-2 text-muted small">
-                        Pace to {nextGoal?.label || "Goal"}
-                      </h6>
-                      <div>
-                        <h2 className="card-title mb-1">
-                          {paceNeededForNextGoal > 0 ? paceNeededForNextGoal.toFixed(1) : "—"}
-                        </h2>
-                        <small className="text-muted">
-                          {paceNeededForNextGoal > 0
-                            ? `mi/day · ${daysRemaining} days left`
-                            : `${daysRemaining} days remaining`}
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* Key Stats Cards Row */}
+              <KPICards
+                currentDistance={currentDistance}
+                averagePace={averagePace}
+                daysElapsed={daysElapsed}
+                daysRemaining={daysRemaining}
+                nextGoal={nextGoal}
+                nextGoalProgress={nextGoalProgress}
+                nextGoalGap={nextGoalGap}
+                paceNeededForNextGoal={paceNeededForNextGoal}
+                momentumIndicator={momentumIndicator}
+              />
 
               {/* Goal Achievability Table */}
               <div className="mb-4">
