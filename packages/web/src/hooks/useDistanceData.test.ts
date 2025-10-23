@@ -225,7 +225,7 @@ describe("useDistanceData", () => {
       };
 
       let capturedSignal: AbortSignal | undefined;
-      vi.mocked(activitiesApi.fetchDistanceData).mockImplementation(async (year, signal) => {
+      vi.mocked(activitiesApi.fetchDistanceData).mockImplementation(async (_year, signal) => {
         capturedSignal = signal;
         return mockData;
       });
@@ -247,7 +247,7 @@ describe("useDistanceData", () => {
         distance_traveled: [{ x: "2024-01-01", y: 200 }],
       };
 
-      let capturedSignals: AbortSignal[] = [];
+      const capturedSignals: AbortSignal[] = [];
       vi.mocked(activitiesApi.fetchDistanceData).mockImplementation(async (year, signal) => {
         if (signal) {
           capturedSignals.push(signal);
@@ -283,9 +283,7 @@ describe("useDistanceData", () => {
       vi.setSystemTime(new Date("2024-02-29T12:00:00Z"));
 
       const mockData: RideBlobType = {
-        distance_traveled: [
-          { x: "2024-02-28", y: 100 },
-        ],
+        distance_traveled: [{ x: "2024-02-28", y: 100 }],
       };
 
       vi.mocked(activitiesApi.fetchDistanceData).mockResolvedValue(mockData);
@@ -309,9 +307,7 @@ describe("useDistanceData", () => {
       vi.setSystemTime(new Date("2024-12-31T12:00:00Z"));
 
       const mockData: RideBlobType = {
-        distance_traveled: [
-          { x: "2024-12-29", y: 500 },
-        ],
+        distance_traveled: [{ x: "2024-12-29", y: 500 }],
       };
 
       vi.mocked(activitiesApi.fetchDistanceData).mockResolvedValue(mockData);
