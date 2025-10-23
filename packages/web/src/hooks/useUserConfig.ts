@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   UserConfigService,
   type UserConfig,
@@ -89,7 +89,8 @@ export function useUserConfig(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const configService = new UserConfigService(userId, version);
+  // Memoize configService to avoid recreating on every render
+  const configService = useMemo(() => new UserConfigService(userId, version), [userId, version]);
 
   // Load config and subscribe to real-time updates
   useEffect(() => {
@@ -159,7 +160,9 @@ export function useUserConfig(
         unsubscribe();
       }
     };
-  }, [configType, year]); // Intentionally omitting defaultValue to avoid re-subscriptions
+    // Intentionally omitting defaultValue to avoid re-subscriptions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configType, year, configService]);
 
   /**
    * Update the config data
@@ -222,7 +225,8 @@ export function useFullUserConfig(userId: string = "default", version: string = 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const configService = new UserConfigService(userId, version);
+  // Memoize configService to avoid recreating on every render
+  const configService = useMemo(() => new UserConfigService(userId, version), [userId, version]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -252,7 +256,7 @@ export function useFullUserConfig(userId: string = "default", version: string = 
         unsubscribe();
       }
     };
-  }, [userId, version]);
+  }, [configService]);
 
   const updateSection = useCallback(
     async (
