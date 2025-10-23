@@ -49,7 +49,7 @@ describe("useDistanceData", () => {
       expect(result.current.distanceData[1]).toEqual({ x: "2025-01-15", y: 250 });
       expect(result.current.distanceData[2]).toEqual({ x: "2025-02-01", y: 400 });
 
-      // Last entry should be yesterday (June 14) - extension logic extends up to but not including today
+      // Last entry should be yesterday (June 14) - extension logic extends to yesterday (today's data incomplete)
       const lastEntry = result.current.distanceData[result.current.distanceData.length - 1];
       expect(lastEntry.x).toBe("2025-06-14");
       expect(lastEntry.y).toBe(400); // Carried forward from last activity
@@ -137,7 +137,7 @@ describe("useDistanceData", () => {
         expect(result.current.isLoading).toBe(false);
       });
 
-      // Should have extended from Jan 1 to June 15
+      // Should have extended from Jan 1 to June 14 (yesterday)
       expect(result.current.distanceData.length).toBeGreaterThan(1);
       expect(result.current.distanceData[0]).toEqual({ x: "2025-01-01", y: 100 });
 
