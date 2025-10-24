@@ -11,9 +11,5 @@ export type PacingEntry = {
 };
 
 export interface RideBlobType {
-  avg_distance: DistanceEntry[];
   distance_traveled: DistanceEntry[];
-  lower_distance: DistanceEntry[];
-  summaries: Record<string, string[]>;
-  upper_distance: DistanceEntry[];
 }

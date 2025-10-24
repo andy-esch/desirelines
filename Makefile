@@ -75,7 +75,7 @@ go-build:
 # Web/React commands
 web-test:
 	@echo "🧪 Running React tests..."
-	cd packages/web && npm test -- --coverage --watchAll=false
+	cd packages/web && npm test -- --coverage
 
 web-lint:
 	@echo "🔍 Running ESLint..."
