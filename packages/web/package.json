@@ -14,8 +14,9 @@
   "scripts": {
     "postinstall": "cd ../.. && make proto-gen-typescript || echo 'Warning: Protobuf generation skipped (protoc may not be installed)'",
     "proto:gen": "cd ../.. && make proto-gen-typescript",
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "copy-fixtures": "mkdir -p src/data/fixtures && cp -r ../../data/fixtures/activities src/data/fixtures/",
+    "dev": "npm run copy-fixtures && vite",
+    "build": "npm run copy-fixtures && tsc && vite build",
     "preview": "vite preview",
     "start": "vite",
     "lint": "eslint .",

@@ -18,6 +18,21 @@ vi.mock("firebase/firestore", () => ({
   onSnapshot: vi.fn(),
 }));
 
+// Mock the config to disable fixtures (so tests can test Firestore logic)
+vi.mock("../config", () => ({
+  USE_FIXTURE_DATA: false,
+  API_BASE_URL: "http://localhost:8080",
+}));
+
+// Mock useAuth with stable user object (prevents unnecessary re-renders)
+const mockUser = { uid: "test-user", email: "test@example.com", displayName: "Test User" };
+vi.mock("./useAuth", () => ({
+  useAuth: () => ({
+    user: mockUser,
+    loading: false,
+  }),
+}));
+
 describe("useUserConfig", () => {
   beforeEach(() => {
     vi.clearAllMocks();

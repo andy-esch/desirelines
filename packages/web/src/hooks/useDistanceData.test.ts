@@ -7,6 +7,21 @@ import type { RideBlobType } from "../types/activity";
 // Mock the activities API
 vi.mock("../api/activities");
 
+// Mock the config to disable fixtures (so tests can test API fetching logic)
+vi.mock("../config", () => ({
+  USE_FIXTURE_DATA: false,
+  API_BASE_URL: "http://localhost:8080",
+}));
+
+// Mock useAuth with stable user object (prevents unnecessary re-renders)
+const mockUser = { uid: "test-user", email: "test@example.com", displayName: "Test User" };
+vi.mock("./useAuth", () => ({
+  useAuth: () => ({
+    user: mockUser,
+    loading: false,
+  }),
+}));
+
 describe("useDistanceData", () => {
   beforeEach(() => {
     vi.clearAllMocks();

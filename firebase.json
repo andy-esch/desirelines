@@ -2,6 +2,20 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "hosting": {
+    "public": "packages/web/build",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
   "emulators": {
     "firestore": {
       "port": 8080,

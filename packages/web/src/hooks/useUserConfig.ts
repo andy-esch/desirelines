@@ -6,6 +6,9 @@ import {
   type AnnotationsForYear,
   type Preferences,
 } from "../services/userConfigService";
+import { USE_FIXTURE_DATA } from "../config";
+import { FIXTURE_GOALS } from "../data/fixtures";
+import { useAuth } from "./useAuth";
 
 /**
  * Hook for accessing goals for a specific year with real-time sync
@@ -88,12 +91,36 @@ export function useUserConfig(
   const [data, setData] = useState<GoalsForYear | AnnotationsForYear | Preferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const { user } = useAuth();
+
+  // Smart mode: Use fixtures if:
+  // 1. Environment is configured for fixture-only mode (USE_FIXTURE_DATA=true), OR
+  // 2. User is not authenticated (anonymous users see demo)
+  useEffect(() => {
+    if (USE_FIXTURE_DATA || !user) {
+      if (configType === "goals") {
+        setData(FIXTURE_GOALS);
+      } else if (configType === "annotations") {
+        setData({ annotations: [] } as AnnotationsForYear);
+      } else if (configType === "preferences") {
+        setData({ theme: "light", defaultYear: 2025 } as Preferences);
+      }
+      setLoading(false);
+      setError(null);
+      return;
+    }
+  }, [configType, user]);
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(() => new UserConfigService(userId, version), [userId, version]);
 
   // Load config and subscribe to real-time updates
   useEffect(() => {
+    // Skip Firestore if using fixtures or not authenticated
+    if (USE_FIXTURE_DATA || !user) {
+      return;
+    }
+
     let unsubscribe: (() => void) | undefined;
 
     async function initializeConfig() {
@@ -162,7 +189,7 @@ export function useUserConfig(
     };
     // Intentionally omitting defaultValue to avoid re-subscriptions
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configType, year, configService]);
+  }, [configType, year, configService, user]);
 
   /**
    * Update the config data
@@ -171,6 +198,13 @@ export function useUserConfig(
    */
   const updateData = useCallback(
     async (newData: GoalsForYear | AnnotationsForYear | Preferences) => {
+      // In fixture mode, just update local state (no persistence)
+      if (USE_FIXTURE_DATA) {
+        console.log("Fixture mode: Changes not persisted", newData);
+        setData(newData);
+        return;
+      }
+
       // Optimistic update
       setData(newData);
 
@@ -264,6 +298,12 @@ export function useFullUserConfig(userId: string = "default", version: string = 
       data: GoalsForYear | AnnotationsForYear | Preferences,
       year?: number
     ): Promise<void> => {
+      // In fixture mode, skip persistence
+      if (USE_FIXTURE_DATA) {
+        console.log("Fixture mode: Changes not persisted", data);
+        return;
+      }
+
       try {
         if (configType === "goals" && year !== undefined) {
           await configService.updateConfigSection("goals", data as GoalsForYear, year);
