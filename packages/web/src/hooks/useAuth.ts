@@ -1,11 +1,20 @@
 /**
- * Authentication hook (stub for Stage 2)
- * Returns null user until Firebase Auth is implemented in Stage 3
+ * Authentication hook using Firebase Auth
  *
- * This allows smart mode logic to work:
- * - No user (null) → Show fixtures
- * - With user → Show backend data
+ * Provides authentication state and handles sign in/out
+ * - No user (null) → Show fixtures (demo mode)
+ * - With user → Show backend data (authenticated mode)
  */
+
+import { useState, useEffect } from 'react';
+import {
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  GoogleAuthProvider,
+  type User as FirebaseUser
+} from 'firebase/auth';
+import { getFirebaseAuth } from '../lib/firebase';
 
 export interface User {
   uid: string;
@@ -16,30 +25,83 @@ export interface User {
 export interface AuthState {
   user: User | null;
   loading: boolean;
+  signIn: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
 /**
- * Hook for accessing authentication state
+ * Hook for accessing authentication state and actions
  *
- * @returns Auth state with user and loading status
+ * @returns Auth state with user, loading status, and auth actions
  *
  * @example
  * ```tsx
- * const { user, loading } = useAuth();
+ * const { user, loading, signIn, signOut } = useAuth();
  *
  * if (loading) return <Spinner />;
  * if (!user) {
- *   // Show demo data (fixtures)
+ *   return <button onClick={signIn}>Sign In with Google</button>;
  * } else {
- *   // Show personal data from backend
+ *   return <button onClick={signOut}>Sign Out</button>;
  * }
  * ```
  */
 export function useAuth(): AuthState {
-  // Stage 2: Stub implementation (always returns null user)
-  // Stage 3: Will be replaced with Firebase Auth
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const auth = getFirebaseAuth();
+
+    // Subscribe to auth state changes
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        // User is signed in
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+        });
+      } else {
+        // User is signed out
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
+
+  const signIn = async () => {
+    const auth = getFirebaseAuth();
+    const provider = new GoogleAuthProvider();
+
+    try {
+      await signInWithPopup(auth, provider);
+      // User state will be updated by onAuthStateChanged
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
+    }
+  };
+
+  const signOut = async () => {
+    const auth = getFirebaseAuth();
+
+    try {
+      await firebaseSignOut(auth);
+      // User state will be updated by onAuthStateChanged
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
+  };
+
   return {
-    user: null,
-    loading: false,
+    user,
+    loading,
+    signIn,
+    signOut,
   };
 }
