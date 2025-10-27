@@ -752,6 +752,7 @@ resource "google_cloudfunctions2_function" "api_gateway" {
       GCP_PROJECT_ID  = var.gcp_project_id
       GCP_BUCKET_NAME = google_storage_bucket.aggregation_bucket.name
       ENVIRONMENT     = var.environment
+      ALLOWED_ORIGINS = var.api_gateway_allowed_origins
     }
   }
 

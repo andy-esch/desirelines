@@ -58,6 +58,9 @@ module "desirelines" {
 
   # Developer access
   developer_email = var.developer_email
+
+  # API Gateway CORS configuration (production domains only)
+  api_gateway_allowed_origins = "https://desirelines-prod.web.app,https://desirelines.andyes.ch"
 }
 
 # ===================================================================

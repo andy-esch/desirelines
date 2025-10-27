@@ -59,6 +59,9 @@ module "desirelines" {
 
   # Developer access
   developer_email = var.developer_email
+
+  # API Gateway CORS configuration (localhost-only for local dev)
+  api_gateway_allowed_origins = "https://desirelines-local.web.app,http://localhost:5173"
 }
 
 # Dead Letter Queue Configuration for Eventarc-created subscriptions

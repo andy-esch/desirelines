@@ -76,7 +76,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Only allow GET requests
 	if r.Method != http.MethodGet {
-		h.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		h.respondError(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -90,7 +90,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "activities/"):
 		h.handleActivities(w, r, path)
 	default:
-		h.respondError(w, http.StatusNotFound, "Not found")
+		h.respondError(w, r, http.StatusNotFound, "Not found")
 	}
 }
 
@@ -99,7 +99,7 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	response := types.HealthResponse{
 		Status: "healthy",
 	}
-	h.respondJSON(w, http.StatusOK, response)
+	h.respondJSON(w, r, http.StatusOK, response)
 }
 
 // handleActivities routes activity data requests.
@@ -107,7 +107,7 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	// Parse path: activities/{year}/{data_type}
 	parts := strings.Split(path, "/")
 	if len(parts) != 3 {
-		h.respondError(w, http.StatusBadRequest, "Invalid path format. Expected: /activities/{year}/{type}")
+		h.respondError(w, r, http.StatusBadRequest, "Invalid path format. Expected: /activities/{year}/{type}")
 		return
 	}
 
@@ -122,7 +122,7 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	case "distances":
 		blobPath = fmt.Sprintf("activities/%s/distances.json", year)
 	default:
-		h.respondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid data type: %s", dataType))
+		h.respondError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid data type: %s", dataType))
 		return
 	}
 
@@ -130,30 +130,70 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	data, err := h.storage.ReadJSON(r.Context(), blobPath)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			h.respondError(w, http.StatusNotFound, fmt.Sprintf("Data not found for %s/%s", year, dataType))
+			h.respondError(w, r, http.StatusNotFound, fmt.Sprintf("Data not found for %s/%s", year, dataType))
 			return
 		}
 		log.Printf("Error reading blob %s: %v", blobPath, err)
-		h.respondError(w, http.StatusInternalServerError, "Internal server error")
+		h.respondError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Respond with data (already parsed JSON)
-	h.respondJSONRaw(w, http.StatusOK, data)
+	h.respondJSONRaw(w, r, http.StatusOK, data)
 }
 
 // handleCORS responds to CORS preflight requests.
 func (h *Handler) handleCORS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	origin := r.Header.Get("Origin")
+
+	// Set CORS headers with origin validation
+	h.setCORSHeaders(w, origin)
+
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	w.Header().Set("Access-Control-Max-Age", "3600")
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// setCORSHeaders sets appropriate CORS headers based on the request origin.
+func (h *Handler) setCORSHeaders(w http.ResponseWriter, origin string) {
+	// Get allowed origins from environment variable (comma-separated)
+	// Example: ALLOWED_ORIGINS="https://desirelines-dev.web.app,http://localhost:5173"
+	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
+
+	if allowedOriginsEnv == "" {
+		// Secure by default: no CORS headers if not configured
+		// This will cause browser to block cross-origin requests
+		log.Printf("CORS: ALLOWED_ORIGINS not set, blocking all cross-origin requests")
+		return
+	}
+
+	// Parse comma-separated origins
+	allowedOrigins := strings.Split(allowedOriginsEnv, ",")
+
+	// Trim whitespace from each origin
+	for i := range allowedOrigins {
+		allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
+	}
+
+	// Check if origin is in whitelist
+	for _, allowed := range allowedOrigins {
+		if origin == allowed {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			return
+		}
+	}
+
+	// No CORS header if origin not allowed (browser will block)
+	log.Printf("CORS: Origin not allowed: %s (allowed: %s)", origin, allowedOriginsEnv)
+}
+
 // respondJSON writes a JSON response with CORS headers.
-func (h *Handler) respondJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+	origin := r.Header.Get("Origin")
+	h.setCORSHeaders(w, origin)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
@@ -163,8 +203,10 @@ func (h *Handler) respondJSON(w http.ResponseWriter, status int, data interface{
 }
 
 // respondJSONRaw writes pre-marshaled JSON data with CORS headers.
-func (h *Handler) respondJSONRaw(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+	origin := r.Header.Get("Origin")
+	h.setCORSHeaders(w, origin)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=300") // 5 minutes
 	w.WriteHeader(status)
@@ -175,9 +217,9 @@ func (h *Handler) respondJSONRaw(w http.ResponseWriter, status int, data interfa
 }
 
 // respondError writes an error response with CORS headers.
-func (h *Handler) respondError(w http.ResponseWriter, status int, message string) {
+func (h *Handler) respondError(w http.ResponseWriter, r *http.Request, status int, message string) {
 	response := types.ErrorResponse{
 		Error: message,
 	}
-	h.respondJSON(w, status, response)
+	h.respondJSON(w, r, status, response)
 }
