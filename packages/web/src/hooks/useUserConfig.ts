@@ -69,29 +69,33 @@ export function useUserConfig(
   userIdOrVersion?: any,
   versionParam?: any
 ): any {
+  // Get authenticated user
+  const { user } = useAuth();
+
   // Parse overloaded parameters
   let year: number | undefined;
   let defaultValue: GoalsForYear | AnnotationsForYear | Preferences | undefined;
-  let userId: string = "default";
+  let userId: string = user?.uid || "default";  // Use authenticated user's ID
   let version: string = "v1";
 
   if (configType === "preferences") {
     // preferences(configType, defaultValue?, userId?, version?)
     defaultValue = yearOrDefault as Preferences | undefined;
-    userId = (defaultValueOrUserId as string) || "default";
+    // Allow override, but default to authenticated user
+    userId = (defaultValueOrUserId as string) || user?.uid || "default";
     version = (userIdOrVersion as string) || "v1";
   } else {
     // goals/annotations(configType, year, defaultValue?, userId?, version?)
     year = yearOrDefault as number;
     defaultValue = defaultValueOrUserId as GoalsForYear | AnnotationsForYear | undefined;
-    userId = (userIdOrVersion as string) || "default";
+    // Allow override, but default to authenticated user
+    userId = (userIdOrVersion as string) || user?.uid || "default";
     version = versionParam || "v1";
   }
 
   const [data, setData] = useState<GoalsForYear | AnnotationsForYear | Preferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const { user } = useAuth();
 
   // Smart mode: Use fixtures if:
   // 1. Environment is configured for fixture-only mode (USE_FIXTURE_DATA=true), OR
