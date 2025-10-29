@@ -6,6 +6,9 @@ import {
   type AnnotationsForYear,
   type Preferences,
 } from "../services/userConfigService";
+import { USE_FIXTURE_DATA } from "../config";
+import { FIXTURE_GOALS } from "../data/fixtures";
+import { useAuth } from "./useAuth";
 
 /**
  * Hook for accessing goals for a specific year with real-time sync
@@ -66,22 +69,27 @@ export function useUserConfig(
   userIdOrVersion?: any,
   versionParam?: any
 ): any {
+  // Get authenticated user
+  const { user } = useAuth();
+
   // Parse overloaded parameters
   let year: number | undefined;
   let defaultValue: GoalsForYear | AnnotationsForYear | Preferences | undefined;
-  let userId: string = "default";
+  let userId: string = user?.uid || "default"; // Use authenticated user's ID
   let version: string = "v1";
 
   if (configType === "preferences") {
     // preferences(configType, defaultValue?, userId?, version?)
     defaultValue = yearOrDefault as Preferences | undefined;
-    userId = (defaultValueOrUserId as string) || "default";
+    // Allow override, but default to authenticated user
+    userId = (defaultValueOrUserId as string) || user?.uid || "default";
     version = (userIdOrVersion as string) || "v1";
   } else {
     // goals/annotations(configType, year, defaultValue?, userId?, version?)
     year = yearOrDefault as number;
     defaultValue = defaultValueOrUserId as GoalsForYear | AnnotationsForYear | undefined;
-    userId = (userIdOrVersion as string) || "default";
+    // Allow override, but default to authenticated user
+    userId = (userIdOrVersion as string) || user?.uid || "default";
     version = versionParam || "v1";
   }
 
@@ -89,11 +97,34 @@ export function useUserConfig(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Smart mode: Use fixtures if:
+  // 1. Environment is configured for fixture-only mode (USE_FIXTURE_DATA=true), OR
+  // 2. User is not authenticated (anonymous users see demo)
+  useEffect(() => {
+    if (USE_FIXTURE_DATA || !user) {
+      if (configType === "goals") {
+        setData(FIXTURE_GOALS);
+      } else if (configType === "annotations") {
+        setData({ annotations: [] } as AnnotationsForYear);
+      } else if (configType === "preferences") {
+        setData({ theme: "light", defaultYear: 2025 } as Preferences);
+      }
+      setLoading(false);
+      setError(null);
+      return;
+    }
+  }, [configType, user]);
+
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(() => new UserConfigService(userId, version), [userId, version]);
 
   // Load config and subscribe to real-time updates
   useEffect(() => {
+    // Skip Firestore if using fixtures or not authenticated
+    if (USE_FIXTURE_DATA || !user) {
+      return;
+    }
+
     let unsubscribe: (() => void) | undefined;
 
     async function initializeConfig() {
@@ -162,7 +193,7 @@ export function useUserConfig(
     };
     // Intentionally omitting defaultValue to avoid re-subscriptions
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configType, year, configService]);
+  }, [configType, year, configService, user]);
 
   /**
    * Update the config data
@@ -171,6 +202,13 @@ export function useUserConfig(
    */
   const updateData = useCallback(
     async (newData: GoalsForYear | AnnotationsForYear | Preferences) => {
+      // In fixture mode, just update local state (no persistence)
+      if (USE_FIXTURE_DATA) {
+        console.log("Fixture mode: Changes not persisted", newData);
+        setData(newData);
+        return;
+      }
+
       // Optimistic update
       setData(newData);
 
@@ -264,6 +302,12 @@ export function useFullUserConfig(userId: string = "default", version: string = 
       data: GoalsForYear | AnnotationsForYear | Preferences,
       year?: number
     ): Promise<void> => {
+      // In fixture mode, skip persistence
+      if (USE_FIXTURE_DATA) {
+        console.log("Fixture mode: Changes not persisted", data);
+        return;
+      }
+
       try {
         if (configType === "goals" && year !== undefined) {
           await configService.updateConfigSection("goals", data as GoalsForYear, year);

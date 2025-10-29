@@ -51,6 +51,7 @@ for role in \
     "roles/pubsub.admin" \
     "roles/iam.serviceAccountAdmin" \
     "roles/resourcemanager.projectIamAdmin" \
+    "roles/storage.admin" \
     "roles/editor" \
     "roles/secretmanager.admin"
 do
@@ -108,7 +109,7 @@ fi
 echo "✅ Terraform service account bootstrap complete!"
 echo "📋 Summary:"
 echo "   Service Account: $SA_EMAIL"
-echo "   Roles: Artifact Registry Admin, BigQuery Admin, Cloud Functions Admin, PubSub Admin, IAM SA Admin, Project IAM Admin, Editor, Secret Manager Admin"
+echo "   Roles: Artifact Registry Admin, BigQuery Admin, Cloud Functions Admin, PubSub Admin, IAM SA Admin, Project IAM Admin, Storage Admin, Editor, Secret Manager Admin"
 echo "   Impersonation: $CURRENT_USER can impersonate this service account"
 if [ "$ENV_NAME" = "prod" ]; then
     echo "   Cross-project: Read access to desirelines-dev resources"

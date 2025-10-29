@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 import { useDistanceData } from "./useDistanceData";
 import * as activitiesApi from "../api/activities";
 import type { RideBlobType } from "../types/activity";
@@ -7,15 +7,32 @@ import type { RideBlobType } from "../types/activity";
 // Mock the activities API
 vi.mock("../api/activities");
 
+// Mock the config to disable fixtures (so tests can test API fetching logic)
+vi.mock("../config", () => ({
+  USE_FIXTURE_DATA: false,
+  API_BASE_URL: "http://localhost:8080",
+}));
+
+// Mock useAuth with stable user object (prevents unnecessary re-renders)
+const mockUser = { uid: "test-user", email: "test@example.com", displayName: "Test User" };
+vi.mock("./useAuth", () => ({
+  useAuth: () => ({
+    user: mockUser,
+    loading: false,
+  }),
+}));
+
 describe("useDistanceData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock current date to a known value for consistent testing
     // Use explicit UTC time to avoid timezone issues in CI
+    vi.useFakeTimers();
     vi.setSystemTime(new Date("2025-06-15T12:00:00Z"));
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -37,10 +54,11 @@ describe("useDistanceData", () => {
       expect(result.current.isLoading).toBe(true);
       expect(result.current.distanceData).toEqual([]);
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       // Should have extended data from Feb 1 through today
       expect(result.current.distanceData.length).toBeGreaterThan(3);
 
@@ -74,10 +92,11 @@ describe("useDistanceData", () => {
 
       const { result } = renderHook(() => useDistanceData(2023));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       // Should extend to Dec 31, 2023, not to today (2025-06-15)
       const lastEntry = result.current.distanceData[result.current.distanceData.length - 1];
       expect(lastEntry.x).toBe("2023-12-31");
@@ -107,10 +126,11 @@ describe("useDistanceData", () => {
 
       const { result } = renderHook(() => useDistanceData(2025));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       // Should not add any entries (data already in the future)
       expect(result.current.distanceData).toHaveLength(2);
       expect(result.current.distanceData[0]).toEqual({ x: "2025-01-01", y: 100 });
@@ -126,10 +146,11 @@ describe("useDistanceData", () => {
 
       const { result } = renderHook(() => useDistanceData(2025));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       expect(result.current.distanceData).toEqual([]);
       expect(result.current.error).toBeNull();
     });
@@ -143,10 +164,11 @@ describe("useDistanceData", () => {
 
       const { result } = renderHook(() => useDistanceData(2025));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       // Should have extended from Jan 1 to today (mocked as June 15)
       expect(result.current.distanceData.length).toBeGreaterThan(1);
       expect(result.current.distanceData[0]).toEqual({ x: "2025-01-01", y: 100 });
@@ -177,10 +199,11 @@ describe("useDistanceData", () => {
       expect(result.current.distanceData).toEqual([]);
       expect(result.current.error).toBeNull();
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       expect(result.current.distanceData.length).toBeGreaterThan(0);
     });
   });
@@ -194,10 +217,11 @@ describe("useDistanceData", () => {
 
       expect(result.current.isLoading).toBe(true);
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       expect(result.current.error).toEqual(mockError);
       expect(result.current.distanceData).toEqual([]);
     });
@@ -209,10 +233,11 @@ describe("useDistanceData", () => {
 
       const { result } = renderHook(() => useDistanceData(2025));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       // AbortError should not be set as error (name check filters it out)
       expect(result.current.error).toBeNull();
       expect(result.current.distanceData).toEqual([]);
@@ -223,10 +248,11 @@ describe("useDistanceData", () => {
 
       const { result } = renderHook(() => useDistanceData(2025));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       // Should convert to Error
       expect(result.current.error).toBeInstanceOf(Error);
       expect(result.current.error?.message).toBe("String error");
@@ -235,14 +261,11 @@ describe("useDistanceData", () => {
 
   describe("AbortController cleanup", () => {
     it("should abort fetch on unmount", async () => {
-      const mockData: RideBlobType = {
-        distance_traveled: [{ x: "2025-01-01", y: 100 }],
-      };
-
       let capturedSignal: AbortSignal | undefined;
       vi.mocked(activitiesApi.fetchDistanceData).mockImplementation(async (_year, signal) => {
         capturedSignal = signal;
-        return mockData;
+        // Never resolve to test abort
+        return new Promise(() => {});
       });
 
       const { unmount } = renderHook(() => useDistanceData(2025));
@@ -270,25 +293,31 @@ describe("useDistanceData", () => {
         return year === 2023 ? mockData2023 : mockData2024;
       });
 
-      const { rerender } = renderHook(({ year }) => useDistanceData(year), {
+      const { result, rerender } = renderHook(({ year }) => useDistanceData(year), {
         initialProps: { year: 2023 },
       });
 
-      await waitFor(() => {
-        expect(capturedSignals.length).toBe(1);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
-      // Change year - should abort previous fetch
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.distanceData[0].x).toBe("2023-01-01");
+      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(2023, expect.any(Object));
+
+      // Change year
       rerender({ year: 2024 });
 
-      await waitFor(() => {
-        expect(capturedSignals.length).toBe(2);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.distanceData[0].x).toBe("2024-01-01");
+      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(2024, expect.any(Object));
+      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledTimes(2);
       // First signal should be aborted
       expect(capturedSignals[0].aborted).toBe(true);
-      // Second signal should still be active (or completed)
-      // We can't guarantee it's not aborted if the component unmounted
     });
   });
 
@@ -305,10 +334,11 @@ describe("useDistanceData", () => {
 
       const { result } = renderHook(() => useDistanceData(2024));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       // Should include Feb 29 (leap day)
       const hasFeb29 = result.current.distanceData.some((entry) => entry.x === "2024-02-29");
       expect(hasFeb29).toBe(true);
@@ -333,10 +363,11 @@ describe("useDistanceData", () => {
 
       const { result } = renderHook(() => useDistanceData(2024));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       // Should extend to today (mocked as Dec 31)
       const today = new Date();
       const expectedLastDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -359,10 +390,11 @@ describe("useDistanceData", () => {
 
       const { result } = renderHook(() => useDistanceData(2025));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       // Should not extend when last entry is in the future
       expect(result.current.distanceData).toHaveLength(2);
       expect(result.current.distanceData[1]).toEqual({ x: "2025-12-31", y: 1000 });
@@ -386,20 +418,23 @@ describe("useDistanceData", () => {
         initialProps: { year: 2023 },
       });
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
       expect(result.current.distanceData[0].x).toBe("2023-01-01");
       expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(2023, expect.any(Object));
 
       // Change year
       rerender({ year: 2024 });
 
-      await waitFor(() => {
-        expect(result.current.distanceData[0].x).toBe("2024-01-01");
+      await act(async () => {
+        await vi.runAllTimersAsync();
       });
 
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.distanceData[0].x).toBe("2024-01-01");
       expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(2024, expect.any(Object));
       expect(activitiesApi.fetchDistanceData).toHaveBeenCalledTimes(2);
     });

@@ -55,6 +55,9 @@ module "desirelines" {
 
   # Developer access
   developer_email = var.developer_email
+
+  # API Gateway CORS configuration
+  api_gateway_allowed_origins = "https://desirelines-dev.web.app,http://localhost:5173"
 }
 
 # Get project details for IAM configuration

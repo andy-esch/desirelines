@@ -8,6 +8,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = "~> 6.0"
+    }
   }
 }
 
@@ -741,13 +745,14 @@ resource "google_cloudfunctions2_function" "api_gateway" {
     available_memory               = "128Mi"
     timeout_seconds                = 60
     service_account_email          = var.create_dev_service_accounts ? google_service_account.api_gateway_dev[0].email : var.service_account_email
-    ingress_settings               = "ALLOW_INTERNAL_ONLY"
+    ingress_settings               = "ALLOW_ALL" # TODO: Harden with Load Balancer
     all_traffic_on_latest_revision = true
 
     environment_variables = {
       GCP_PROJECT_ID  = var.gcp_project_id
       GCP_BUCKET_NAME = google_storage_bucket.aggregation_bucket.name
       ENVIRONMENT     = var.environment
+      ALLOWED_ORIGINS = var.api_gateway_allowed_origins
     }
   }
 

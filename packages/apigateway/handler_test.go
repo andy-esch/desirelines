@@ -44,18 +44,84 @@ func TestHandlerCORS(t *testing.T) {
 	mock := &mockStorageClient{}
 	handler := NewHandlerWithStorage(mock)
 
-	req := httptest.NewRequest(http.MethodOptions, "/health", nil)
-	w := httptest.NewRecorder()
+	t.Run("preflight with allowed origin", func(t *testing.T) {
+		// Set environment variable for this test
+		t.Setenv("ALLOWED_ORIGINS", "https://desirelines-dev.web.app,http://localhost:5173")
 
-	handler.ServeHTTP(w, req)
+		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
+		req.Header.Set("Origin", "https://desirelines-dev.web.app")
+		w := httptest.NewRecorder()
 
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected status 204, got %d", w.Code)
-	}
+		handler.ServeHTTP(w, req)
 
-	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Error("expected CORS headers to be set")
-	}
+		if w.Code != http.StatusNoContent {
+			t.Errorf("expected status 204, got %d", w.Code)
+		}
+
+		allowedOrigin := w.Header().Get("Access-Control-Allow-Origin")
+		if allowedOrigin != "https://desirelines-dev.web.app" {
+			t.Errorf("expected CORS origin to be https://desirelines-dev.web.app, got %s", allowedOrigin)
+		}
+
+		allowMethods := w.Header().Get("Access-Control-Allow-Methods")
+		if allowMethods != "GET, OPTIONS" {
+			t.Errorf("expected Allow-Methods to be GET, OPTIONS, got %s", allowMethods)
+		}
+	})
+
+	t.Run("preflight with disallowed origin", func(t *testing.T) {
+		// Set environment variable for this test
+		t.Setenv("ALLOWED_ORIGINS", "https://desirelines-dev.web.app,http://localhost:5173")
+
+		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
+		req.Header.Set("Origin", "https://evil.com")
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("expected status 204, got %d", w.Code)
+		}
+
+		// Should NOT set CORS header for disallowed origin
+		allowedOrigin := w.Header().Get("Access-Control-Allow-Origin")
+		if allowedOrigin != "" {
+			t.Errorf("expected no CORS origin for disallowed origin, got %s", allowedOrigin)
+		}
+	})
+
+	t.Run("localhost origin for dev", func(t *testing.T) {
+		// Set environment variable for this test
+		t.Setenv("ALLOWED_ORIGINS", "https://desirelines-dev.web.app,http://localhost:5173")
+
+		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
+		req.Header.Set("Origin", "http://localhost:5173")
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		allowedOrigin := w.Header().Get("Access-Control-Allow-Origin")
+		if allowedOrigin != "http://localhost:5173" {
+			t.Errorf("expected CORS origin to be http://localhost:5173, got %s", allowedOrigin)
+		}
+	})
+
+	t.Run("no ALLOWED_ORIGINS env var blocks all origins", func(t *testing.T) {
+		// Ensure ALLOWED_ORIGINS is not set
+		t.Setenv("ALLOWED_ORIGINS", "")
+
+		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
+		req.Header.Set("Origin", "https://any-origin.com")
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		// Should NOT set any CORS header (secure by default)
+		allowedOrigin := w.Header().Get("Access-Control-Allow-Origin")
+		if allowedOrigin != "" {
+			t.Errorf("expected no CORS origin when ALLOWED_ORIGINS not set, got %s", allowedOrigin)
+		}
+	})
 }
 
 func TestHandlerActivities(t *testing.T) {

@@ -31,3 +31,14 @@ output "dev_service_accounts" {
   description = "Development service account emails for Docker Compose"
   value       = module.desirelines.dev_service_accounts
 }
+
+# Firebase Hosting outputs
+output "firebase_hosting_site_id" {
+  description = "Firebase Hosting site ID"
+  value       = module.desirelines.firebase_hosting_site_id
+}
+
+output "firebase_hosting_url" {
+  description = "Firebase Hosting URL"
+  value       = module.desirelines.firebase_hosting_url
+}

@@ -29,10 +29,9 @@ describe("fetchDistanceData", () => {
   });
 
   describe("API URL resolution", () => {
-    it("should use window.ENV.REACT_APP_API_URL if available", async () => {
-      // Set up window.ENV
-      (window as any).ENV = { REACT_APP_API_URL: "https://window-env.example.com" };
-
+    it("should use configured API_BASE_URL from config", async () => {
+      // API_BASE_URL is set from import.meta.env.VITE_API_GATEWAY_URL at module load time
+      // In tests, it will use the default fallback (localhost:8084)
       const mockData = {
         distance_traveled: [{ x: "2025-01-01", y: 10 }],
       };
@@ -41,16 +40,15 @@ describe("fetchDistanceData", () => {
 
       await fetchDistanceData(2025);
 
+      // Verify the URL was called (exact URL depends on env configuration)
       expect(axios.get).toHaveBeenCalledWith(
-        "https://window-env.example.com/activities/2025/distances",
+        expect.stringContaining("/activities/2025/distances"),
         expect.any(Object)
       );
     });
 
-    it("should fall back to import.meta.env if window.ENV is not available", async () => {
-      // window.ENV is undefined (cleared in beforeEach)
-      // import.meta.env.REACT_APP_API_URL will be used (Vite default or test env)
-
+    it("should fall back to localhost:8084 when API_BASE_URL is not configured", async () => {
+      // When VITE_API_GATEWAY_URL is not set, defaults to localhost:8084
       const mockData = {
         distance_traveled: [{ x: "2025-01-01", y: 10 }],
       };
@@ -59,9 +57,11 @@ describe("fetchDistanceData", () => {
 
       await fetchDistanceData(2025);
 
-      // Since we can't easily mock import.meta.env in tests, we just verify it was called
-      // In a real environment, it would use import.meta.env or default to localhost:8084
-      expect(axios.get).toHaveBeenCalled();
+      // In test environment without env vars, should use default
+      expect(axios.get).toHaveBeenCalledWith(
+        "http://localhost:8084/activities/2025/distances",
+        expect.any(Object)
+      );
     });
   });
 

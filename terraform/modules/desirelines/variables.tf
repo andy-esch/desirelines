@@ -133,3 +133,9 @@ variable "artifact_registry_location" {
   type        = string
   default     = "us-central1"
 }
+
+variable "api_gateway_allowed_origins" {
+  description = "Comma-separated list of allowed CORS origins for API Gateway (e.g., 'https://example.com,http://localhost:5173')"
+  type        = string
+  default     = ""
+}

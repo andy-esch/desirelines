@@ -1,4 +1,5 @@
 import Logo from "../Logo";
+import AuthButton from "../AuthButton";
 
 export default function Header() {
   const currentDate = new Date().toLocaleDateString("en-US", {
@@ -20,6 +21,7 @@ export default function Header() {
 
       <div className="d-flex align-items-center gap-3 px-3 ms-auto">
         <div className="navbar-text text-white-50 small d-none d-lg-block">{currentDate}</div>
+        <AuthButton />
       </div>
 
       {/* Mobile sidebar toggle */}

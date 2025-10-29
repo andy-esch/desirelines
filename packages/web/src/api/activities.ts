@@ -1,11 +1,12 @@
 import axios, { AxiosError } from "axios";
 import type { RideBlobType } from "../types/activity";
 import { EMPTY_RIDE_DATA } from "../constants";
+import { API_BASE_URL } from "../config";
 
 const getApiBaseUrl = (): string => {
-  return (
-    window.ENV?.REACT_APP_API_URL || import.meta.env.REACT_APP_API_URL || "http://localhost:8084"
-  );
+  const url = API_BASE_URL || "http://localhost:8084";
+  console.log("API Base URL:", url);
+  return url;
 };
 
 export const fetchDistanceData = async (

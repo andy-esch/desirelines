@@ -196,6 +196,9 @@ jobs:
       - name: Generate user config from protobuf
         run: npm run proto:gen
 
+      - name: Copy fixture data
+        run: npm run copy-fixtures
+
       - name: Run linting
         run: npm run lint
 

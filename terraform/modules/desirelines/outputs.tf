@@ -127,3 +127,19 @@ output "deployed_function_source_tag" {
   description = "SHA tag of deployed function sources"
   value       = var.function_source_tag
 }
+
+# Firebase Hosting outputs
+output "firebase_hosting_site_id" {
+  description = "Firebase Hosting site ID for web application"
+  value       = google_firebase_hosting_site.web_app.site_id
+}
+
+output "firebase_hosting_url" {
+  description = "Default Firebase Hosting URL for web application"
+  value       = "https://${google_firebase_hosting_site.web_app.site_id}.web.app"
+}
+
+output "firebase_custom_domain" {
+  description = "Custom domain for Firebase Hosting (production only)"
+  value       = var.environment == "prod" ? google_firebase_hosting_custom_domain.app_subdomain[0].custom_domain : null
+}

@@ -14,8 +14,11 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Python lib directories (but not packages/web/src/lib/)
+/lib/
 lib64/
+**/lib/python*/
+**/lib64/
 parts/
 sdist/
 var/
@@ -122,12 +125,14 @@ celerybeat.pid
 
 # Environments
 .env
+.env.local
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+# Note: .env.development and .env.production are NOT ignored (contain non-sensitive defaults)
 
 # Spyder project settings
 .spyderproject
@@ -252,3 +257,10 @@ packages/web/src/types/generated/
 
 # Testing
 coverage/
+
+# Firebase
+.firebase
+
+# AI
+.claude
+CLAUDE.md

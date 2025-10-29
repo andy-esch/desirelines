@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { fetchDistanceData } from "../api/activities";
 import type { DistanceEntry } from "../types/activity";
+import { USE_FIXTURE_DATA } from "../config";
+import { FIXTURE_ACTIVITIES } from "../data/fixtures";
+import { useAuth } from "./useAuth";
 
 /**
  * Extends distance data from the last activity date through today
@@ -69,8 +72,29 @@ export function useDistanceData(year: number) {
   const [distanceData, setDistanceData] = useState<DistanceEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
+    // Smart mode: Use fixtures if:
+    // 1. Environment is configured for fixture-only mode (USE_FIXTURE_DATA=true), OR
+    // 2. User is not authenticated (anonymous users see demo)
+    // Note: USE_FIXTURE_DATA takes precedence (important for testing)
+    const shouldUseFixtures = USE_FIXTURE_DATA || !user;
+
+    if (shouldUseFixtures) {
+      const fixtureData = FIXTURE_ACTIVITIES[year];
+      if (fixtureData?.distance_traveled) {
+        const extended = extendDistanceDataToToday(fixtureData.distance_traveled, year);
+        setDistanceData(extended);
+      } else {
+        setDistanceData([]);
+      }
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    // Otherwise, fetch from API
     const abortController = new AbortController();
 
     const fetchData = async () => {
@@ -103,11 +127,11 @@ export function useDistanceData(year: number) {
 
     fetchData();
 
-    // Cleanup: abort fetch on unmount or year change
+    // Cleanup: abort fetch on unmount or year/user change
     return () => {
       abortController.abort();
     };
-  }, [year]);
+  }, [year, user]);
 
   return {
     distanceData,
