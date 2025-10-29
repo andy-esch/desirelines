@@ -48,6 +48,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+BATCH_SIZE = 100
+
 
 class StravaBackfiller:
     """Handles backfilling activities from Strava API to production"""
@@ -156,7 +158,6 @@ class StravaBackfiller:
 
         # BigQuery insert_rows_json supports up to 10,000 rows per call
         # We'll use smaller chunks for better error handling and progress reporting
-        BATCH_SIZE = 100
         total_batches = (len(activities) + BATCH_SIZE - 1) // BATCH_SIZE
 
         for batch_num, i in enumerate(range(0, len(activities), BATCH_SIZE), 1):
