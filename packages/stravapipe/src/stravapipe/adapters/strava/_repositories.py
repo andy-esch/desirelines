@@ -10,6 +10,7 @@ from stravapipe.domain import (
     DetailedStravaActivity,
     MinimalStravaActivity,
     StravaTokenSet,
+    SummaryStravaActivity,
 )
 from stravapipe.exceptions import (
     ActivityNotFoundError,
@@ -166,9 +167,14 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities):
 
     def _read_activities(
         self, *, before: int, after: int, page: int, per_page: int = 100
-    ) -> list[DetailedStravaActivity]:
-        """Gather activities according to params"""
-        activities_endpoint = f"{self._api_config.api_base_url}/activities"
+    ) -> list[SummaryStravaActivity]:
+        """Fetch activities from list endpoint (returns SummaryActivity objects)
+
+        The /athlete/activities endpoint returns SummaryActivity, not DetailedActivity.
+        This is missing some fields like segment_efforts, splits, laps, photos, etc.
+        but has all the core activity data we need for most use cases.
+        """
+        activities_endpoint = f"{self._api_config.api_base_url}/athlete/activities"
         resp = requests.get(
             url=activities_endpoint,
             headers=self._headers,
@@ -182,11 +188,26 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities):
         )
         if not resp.ok:
             resp.raise_for_status()
-        activities = [DetailedStravaActivity(**activity) for activity in resp.json()]
+        activities = [SummaryStravaActivity(**activity) for activity in resp.json()]
         return activities
 
-    def read_activities_by_year(self, year: int) -> list[DetailedStravaActivity]:
-        """Read all Strava activities in a year"""
+    def read_activities_by_year(self, year: int) -> list[SummaryStravaActivity]:
+        """Read all Strava activities in a year using the list endpoint.
+
+        Returns SummaryActivity objects (not DetailedActivity). This is much more
+        efficient for bulk operations: 1 API call per 100 activities vs 1 per activity.
+
+        Missing fields (will be NULL in BigQuery):
+        - segment_efforts, splits_metric, splits_standard, laps, best_efforts
+        - hide_from_home, photos, embed_token
+        - stats_visibility, display_hide_heartrate_option, available_zones
+
+        Has all the important fields:
+        - Core: id, name, type, distance, moving_time, dates, location
+        - Performance: speeds, cadence, watts, heartrate, elevation
+        - Social: kudos_count, comment_count, photo_count
+        - Map: summary_polyline (not full polyline)
+        """
         date_start = int(datetime(year, 1, 1, tzinfo=UTC).strftime("%s"))
         date_end = int(datetime(year + 1, 1, 1, tzinfo=UTC).strftime("%s"))
 

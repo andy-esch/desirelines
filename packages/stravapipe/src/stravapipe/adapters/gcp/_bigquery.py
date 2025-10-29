@@ -3,7 +3,11 @@
 from google.cloud import bigquery
 
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
-from stravapipe.domain import DetailedStravaActivity, MinimalStravaActivity
+from stravapipe.domain import (
+    DetailedStravaActivity,
+    MinimalStravaActivity,
+    SummaryStravaActivity,
+)
 from stravapipe.exceptions import ActivityNotFoundError
 from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
@@ -37,11 +41,13 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         # Step 2: MERGE from staging to main table
         return self._merge_from_staging(activity.id)
 
-    def write_activities_batch(self, activities: list[DetailedStravaActivity]) -> dict:
+    def write_activities_batch(
+        self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
+    ) -> dict:
         """Batch upsert: stage all activities, then merge all at once
 
         Args:
-            activities: List of activities to insert
+            activities: List of activities to insert (DetailedActivity or SummaryActivity)
 
         Returns:
             dict: Statistics from the MERGE operation
@@ -50,6 +56,8 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             - BigQuery supports up to 10,000 rows per insert_rows_json call
             - If you have more than 10,000 activities, chunk them before calling
             - Much faster than individual inserts (1 API call vs N calls)
+            - Accepts both DetailedActivity and SummaryActivity models
+            - Missing fields in SummaryActivity will be NULL in BigQuery
         """
         if not activities:
             return {"rows_affected": 0, "execution_time_ms": 0}
@@ -70,9 +78,40 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             table_name=self._staging_table_name,
         )
 
-    def _write_batch_to_staging(self, activities: list[DetailedStravaActivity]) -> None:
-        """Insert multiple activities to staging table in one API call"""
-        activities_dict = [activity.model_dump(mode="json") for activity in activities]
+    def _write_batch_to_staging(
+        self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
+    ) -> None:
+        """Insert multiple activities to staging table in one API call
+
+        Accepts both DetailedActivity and SummaryActivity models.
+
+        For SummaryActivity, excludes fields not in BigQuery schema:
+        - resource_state (top-level, conflicts with nested athlete.resource_state)
+        - location_city/state/country (not in schema)
+        - from_accepted_tag (not in schema)
+        - utc_offset (not in schema, we have timezone)
+        - calories when None (BigQuery rejects empty numeric fields)
+        """
+        activities_dict = []
+        for activity in activities:
+            data = activity.model_dump(mode="json")
+
+            # If this is a SummaryActivity, remove fields not in BQ schema
+            if isinstance(activity, SummaryStravaActivity):
+                # Fields that exist in SummaryActivity but not in BigQuery schema
+                fields_to_remove = {
+                    "resource_state",  # Conflicts with athlete.resource_state
+                    "location_city",
+                    "location_state",
+                    "location_country",
+                    "from_accepted_tag",
+                    "utc_offset",
+                }
+                for field in fields_to_remove:
+                    data.pop(field, None)
+
+            activities_dict.append(data)
+
         self._client.insert_rows_json(
             activities_dict,
             dataset_name=self._dataset_name,

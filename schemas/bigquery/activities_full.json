@@ -169,10 +169,10 @@
           "description": "Map ID"
         },
         {
-          "mode": "REQUIRED",
+          "mode": "NULLABLE",
           "name": "polyline",
           "type": "STRING",
-          "description": "Encoded polyline"
+          "description": "Encoded polyline (not available from list endpoint)"
         },
         {
           "mode": "REQUIRED",
@@ -187,10 +187,10 @@
           "description": "Summary encoded polyline"
         }
       ],
-      "mode": "REQUIRED",
+      "mode": "NULLABLE",
       "name": "map",
       "type": "RECORD",
-      "description": "Map data with polylines"
+      "description": "Map data with polylines (polyline field not available from list endpoint)"
     },
     {
       "mode": "REQUIRED",
@@ -253,10 +253,10 @@
       "description": "Whether user has kudoed this activity"
     },
     {
-      "mode": "REQUIRED",
+      "mode": "NULLABLE",
       "name": "hide_from_home",
       "type": "BOOLEAN",
-      "description": "Whether to hide from home feed"
+      "description": "Whether to hide from home feed (not available from list endpoint)"
     },
     {
       "mode": "NULLABLE",
@@ -347,10 +347,10 @@
           "description": "Total photo count"
         }
       ],
-      "mode": "REQUIRED",
+      "mode": "NULLABLE",
       "name": "photos",
       "type": "RECORD",
-      "description": "Photo information"
+      "description": "Photo information (not available from list endpoint)"
     },
     {
       "fields": [
@@ -391,10 +391,10 @@
       "description": "Gear information"
     },
     {
-      "mode": "REQUIRED",
+      "mode": "NULLABLE",
       "name": "calories",
       "type": "FLOAT",
-      "description": "Calories burned"
+      "description": "Calories burned (may be null from list endpoint)"
     },
     {
       "mode": "REPEATED",
@@ -622,10 +622,10 @@
       "description": "Device name"
     },
     {
-      "mode": "REQUIRED",
+      "mode": "NULLABLE",
       "name": "embed_token",
       "type": "STRING",
-      "description": "Embed token"
+      "description": "Embed token (not available from list endpoint)"
     },
     {
       "mode": "REPEATED",

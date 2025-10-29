@@ -33,11 +33,15 @@ import time
 # Add stravapipe to path
 # sys.path.insert(0, "packages/stravapipe/src")
 from stravapipe.adapters.gcp import ActivitiesRepo, BigQueryClientWrapper
-from stravapipe.adapters.strava import DetailedStravaActivitiesRepo, StravaApiConfig
+from stravapipe.adapters.strava import (
+    DetailedStravaActivitiesRepo,
+    StravaApiConfig,
+    StravaTokenRepo,
+)
 from stravapipe.application.aggregator.usecases import make_update_summary_use_case
 from stravapipe.config.aggregator import load_aggregator_config
 from stravapipe.config.bq_inserter import load_bq_inserter_config
-from stravapipe.domain import DetailedStravaActivity
+from stravapipe.domain import MinimalStravaActivity, SummaryStravaActivity
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -62,13 +66,22 @@ class StravaBackfiller:
         return self._config
 
     def _initialize_strava_repo(self) -> DetailedStravaActivitiesRepo:
-        """Lazy initialize Strava repository"""
+        """Lazy initialize Strava repository with token refresh"""
         if self._strava_repo is None:
             logger.info("Initializing Strava API client...")
             config = self._get_config()
+
+            # Refresh the access token before making API calls
+            # The token repo handles OAuth refresh flow with the refresh token
+            logger.info("Refreshing Strava access token...")
+            token_repo = StravaTokenRepo(config.tokens, StravaApiConfig())
+            refreshed_tokens = token_repo.refresh()
+
+            # Create activities repo with the refreshed tokens
             self._strava_repo = DetailedStravaActivitiesRepo(
-                tokens=config.tokens, api_config=StravaApiConfig()
+                tokens=refreshed_tokens, api_config=StravaApiConfig()
             )
+            logger.info("Strava API client initialized with fresh access token")
         return self._strava_repo
 
     def _initialize_bq_repo(self) -> ActivitiesRepo:
@@ -77,11 +90,12 @@ class StravaBackfiller:
             logger.info("Initializing BigQuery client...")
             config = self._get_config()
             client = BigQueryClientWrapper(project_id=config.project_id)
-            self._bq_repo = ActivitiesRepo(client=client, dataset_name=config.bq_dataset)
+            self._bq_repo = ActivitiesRepo(
+                client=client, dataset_name=config.bq_dataset
+            )
         return self._bq_repo
 
-
-    def fetch_activities_for_year(self, year: int) -> list[DetailedStravaActivity]:
+    def fetch_activities_for_year(self, year: int) -> list[SummaryStravaActivity]:
         """
         Fetch all activities for a given year from Strava API
 
@@ -89,10 +103,11 @@ class StravaBackfiller:
             year: The year to fetch activities for
 
         Returns:
-            List of DetailedStravaActivity objects
+            List of SummaryStravaActivity objects (from list endpoint)
 
         Note:
             - Uses Strava API pagination (100 activities per request)
+            - Returns SummaryActivity (missing some fields like segments, splits)
             - Respects Strava rate limits (handled by repository)
             - Only returns current activities (deleted activities excluded)
         """
@@ -108,20 +123,21 @@ class StravaBackfiller:
             raise
 
     def insert_activities_to_bigquery(
-        self, activities: list[DetailedStravaActivity]
+        self, activities: list[SummaryStravaActivity]
     ) -> tuple[int, int, int]:
         """
         Insert activities to BigQuery using batch insertion
 
         Args:
-            activities: List of activities to insert
+            activities: List of activities to insert (SummaryActivity from list endpoint)
 
         Returns:
             Tuple of (inserted_count, skipped_count, error_count)
 
         Note:
-            Uses batch insertion (write_activities_batch) for efficiency.
-            BigQuery supports up to 10,000 rows per batch, so we chunk if needed.
+            - Uses batch insertion (write_activities_batch) for efficiency
+            - BigQuery supports up to 10,000 rows per batch, we use chunks of 100
+            - Missing fields (segments, splits, etc.) will be NULL in BigQuery
         """
         if self.dry_run:
             logger.info("DRY RUN - would insert to BigQuery:")
@@ -159,7 +175,9 @@ class StravaBackfiller:
                 error_msg = str(e).lower()
                 if "already exists" in error_msg or "duplicate" in error_msg:
                     skipped_count += len(batch)
-                    logger.debug(f"Skipped batch {batch_num} (activities already exist)")
+                    logger.debug(
+                        f"Skipped batch {batch_num} (activities already exist)"
+                    )
                 else:
                     error_count += len(batch)
                     logger.error(f"Error inserting batch {batch_num}: {e}")
@@ -170,18 +188,19 @@ class StravaBackfiller:
         )
         return (inserted_count, skipped_count, error_count)
 
-    def generate_aggregations(self, year: int) -> None:
+    def generate_aggregations(
+        self, year: int, activities: list[SummaryStravaActivity]
+    ) -> None:
         """
-        Generate aggregation files for a given year
+        Generate aggregation files for a given year using already-fetched activities
 
         Args:
             year: The year to generate aggregations for
+            activities: Activities already fetched from Strava (to avoid re-fetching)
 
         Note:
-            Uses UpdateSummaryUseCase.run_batch() which:
-            - Reads all activities from Strava API for the year
-            - Regenerates summary from scratch
-            - Exports distance and pacing data to Cloud Storage/Firestore
+            Converts SummaryStravaActivity to MinimalStravaActivity (only needs 4 fields)
+            and passes them to UpdateSummaryUseCase.run_batch() to avoid duplicate API calls.
         """
         if self.dry_run:
             logger.info(f"DRY RUN - would generate aggregations for {year}")
@@ -190,14 +209,30 @@ class StravaBackfiller:
         logger.info(f"Generating aggregation files for {year}...")
 
         try:
+            # Convert SummaryStravaActivity → MinimalStravaActivity
+            # Aggregator only needs: id, type, start_date_local, distance
+            minimal_activities = [
+                MinimalStravaActivity(
+                    id=activity.id,
+                    type=activity.type,
+                    start_date_local=activity.start_date_local,
+                    distance=activity.distance,
+                )
+                for activity in activities
+            ]
+
+            logger.info(
+                f"Converted {len(minimal_activities)} activities to minimal format"
+            )
+
             # Load aggregator config (needs GCP bucket for storage)
             aggregator_config = load_aggregator_config()
 
             # Create use case with all dependencies wired up
             update_summary_use_case = make_update_summary_use_case(aggregator_config)
 
-            # Run batch aggregation for the year
-            update_summary_use_case.run_batch(year)
+            # Run batch aggregation with pre-fetched activities (avoids re-fetching)
+            update_summary_use_case.run_batch(year, activities=minimal_activities)
 
             logger.info(f"Aggregation complete for {year}")
         except Exception as e:
@@ -242,8 +277,8 @@ class StravaBackfiller:
         # Step 2: Insert to BigQuery
         inserted, skipped, errors = self.insert_activities_to_bigquery(activities)
 
-        # Step 3: Generate aggregations
-        self.generate_aggregations(year)
+        # Step 3: Generate aggregations (pass activities to avoid re-fetching)
+        self.generate_aggregations(year, activities)
 
         duration = time.time() - start_time
 

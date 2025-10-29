@@ -129,6 +129,125 @@ class StatsVisibility(BaseModel):
     visibility: str
 
 
+class SummaryMap(BaseModel):
+    """Map for SummaryActivity - only has summary_polyline, not full polyline"""
+
+    id: str
+    summary_polyline: str
+    resource_state: int
+
+
+class SummaryStravaActivity(BaseModel):
+    """Summary Strava activity from GET /athlete/activities list endpoint.
+
+    This matches Strava's SummaryActivity model. It has most fields from DetailedActivity
+    but is missing: segment_efforts, splits, laps, photos, hide_from_home, embed_token.
+
+    Suitable for:
+    - Bulk backfilling (1 API call per 100 activities vs 1 per activity)
+    - BigQuery insertion (missing fields will be NULL)
+    - Aggregation calculations (has distance, date, type, etc.)
+    """
+
+    # Core identification
+    id: int
+    resource_state: int
+    external_id: str | None = None
+    upload_id: int | None = None
+    upload_id_str: str | None = None
+
+    # Athlete info
+    athlete: MetaAthlete
+
+    # Activity metadata
+    name: str
+    type: str
+    sport_type: str
+    workout_type: int | None = None
+
+    # Distance and time
+    distance: float
+    moving_time: int
+    elapsed_time: int
+
+    # Elevation
+    total_elevation_gain: float
+    elev_high: float | None = None
+    elev_low: float | None = None
+
+    # Date/time
+    start_date: datetime
+    start_date_local: datetime
+    timezone: str
+    utc_offset: float | None = None
+
+    # Location
+    start_latlng: list[float]
+    end_latlng: list[float]
+    location_city: str | None = None
+    location_state: str | None = None
+    location_country: str | None = None
+
+    # Social metrics
+    achievement_count: int
+    kudos_count: int
+    comment_count: int
+    athlete_count: int
+    photo_count: int
+    total_photo_count: int | None = None
+    has_kudoed: bool
+
+    # Map data (summary only - no full polyline)
+    map: SummaryMap
+
+    # Activity flags
+    trainer: bool
+    commute: bool
+    manual: bool
+    private: bool
+    flagged: bool
+    from_accepted_tag: bool | None = None
+
+    # Performance metrics
+    average_speed: float
+    max_speed: float
+    average_cadence: float | None = None
+    average_watts: float | None = None
+    weighted_average_watts: int | None = None
+    kilojoules: float | None = None
+    device_watts: bool | None = None
+    max_watts: int | None = None
+    has_heartrate: bool | None = None
+    average_heartrate: float | None = None
+    max_heartrate: float | None = None
+    pr_count: int | None = None
+    suffer_score: float | None = None
+
+    # Gear
+    gear_id: str | None = None
+    gear: SummaryGear | None = None
+
+    # Misc
+    device_name: str | None = None
+    calories: float | None = None
+    description: str | None = None
+    visibility: str | None = None
+    heartrate_opt_out: bool | None = None
+
+    # Fields NOT in SummaryActivity (only in DetailedActivity):
+    # - hide_from_home: bool
+    # - photos: PhotosSummary
+    # - embed_token: str
+    # - segment_efforts: list[DetailedSegmentEffort]
+    # - splits_metric: list[Split]
+    # - splits_standard: list[Split]
+    # - laps: list[Lap]
+    # - best_efforts: list[DetailedSegmentEffort]
+    # - stats_visibility: list[StatsVisibility]
+    # - display_hide_heartrate_option: bool
+    # - available_zones: list[str]
+
+
 class MinimalStravaActivity(BaseModel):
     """Minimal Strava activity model for aggregation use cases.
 
