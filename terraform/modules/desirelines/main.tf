@@ -745,7 +745,7 @@ resource "google_cloudfunctions2_function" "api_gateway" {
     available_memory               = "128Mi"
     timeout_seconds                = 60
     service_account_email          = var.create_dev_service_accounts ? google_service_account.api_gateway_dev[0].email : var.service_account_email
-    ingress_settings               = "ALLOW_ALL"  # TODO: Harden with Load Balancer
+    ingress_settings               = "ALLOW_ALL" # TODO: Harden with Load Balancer
     all_traffic_on_latest_revision = true
 
     environment_variables = {

@@ -75,7 +75,7 @@ export function useUserConfig(
   // Parse overloaded parameters
   let year: number | undefined;
   let defaultValue: GoalsForYear | AnnotationsForYear | Preferences | undefined;
-  let userId: string = user?.uid || "default";  // Use authenticated user's ID
+  let userId: string = user?.uid || "default"; // Use authenticated user's ID
   let version: string = "v1";
 
   if (configType === "preferences") {

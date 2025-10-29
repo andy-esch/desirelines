@@ -6,15 +6,15 @@
  * - With user → Show backend data (authenticated mode)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   onAuthStateChanged,
   signInWithPopup,
   signOut as firebaseSignOut,
   GoogleAuthProvider,
-  type User as FirebaseUser
-} from 'firebase/auth';
-import { getFirebaseAuth } from '../lib/firebase';
+  type User as FirebaseUser,
+} from "firebase/auth";
+import { getFirebaseAuth } from "../lib/firebase";
 
 export interface User {
   uid: string;
@@ -81,7 +81,7 @@ export function useAuth(): AuthState {
       await signInWithPopup(auth, provider);
       // User state will be updated by onAuthStateChanged
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error("Sign in error:", error);
       throw error;
     }
   };
@@ -93,7 +93,7 @@ export function useAuth(): AuthState {
       await firebaseSignOut(auth);
       // User state will be updated by onAuthStateChanged
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error("Sign out error:", error);
       throw error;
     }
   };

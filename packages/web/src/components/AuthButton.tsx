@@ -27,10 +27,7 @@ export default function AuthButton() {
 
   // Show sign in button for anonymous users
   return (
-    <button
-      onClick={signIn}
-      className="btn btn-sm btn-primary"
-    >
+    <button onClick={signIn} className="btn btn-sm btn-primary">
       Sign In
     </button>
   );
