@@ -1,9 +1,9 @@
-import activities2023 from './activities/2023/distances.json';
-import activities2024 from './activities/2024/distances.json';
-import activities2025 from './activities/2025/distances.json';
-import activities2026 from './activities/2026/distances.json';
-import type { RideBlobType } from '../../types/activity';
-import type { GoalsForYear } from '../../types/generated/user_config';
+import activities2023 from "./activities/2023/distances.json";
+import activities2024 from "./activities/2024/distances.json";
+import activities2025 from "./activities/2025/distances.json";
+import activities2026 from "./activities/2026/distances.json";
+import type { RideBlobType } from "../../types/activity";
+import type { GoalsForYear } from "../../types/generated/user_config";
 
 // Map of year -> fixture data
 export const FIXTURE_ACTIVITIES: Record<number, RideBlobType> = {
@@ -17,25 +17,25 @@ export const FIXTURE_ACTIVITIES: Record<number, RideBlobType> = {
 export const FIXTURE_GOALS: GoalsForYear = {
   goals: [
     {
-      id: '1',
+      id: "1",
       value: 2000,
-      label: 'Conservative',
-      createdAt: '2025-01-01T00:00:00Z',
-      updatedAt: '2025-01-01T00:00:00Z',
+      label: "Conservative",
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
     },
     {
-      id: '2',
+      id: "2",
       value: 2500,
-      label: 'Target',
-      createdAt: '2025-01-01T00:00:00Z',
-      updatedAt: '2025-01-01T00:00:00Z',
+      label: "Target",
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
     },
     {
-      id: '3',
+      id: "3",
       value: 3000,
-      label: 'Stretch',
-      createdAt: '2025-01-01T00:00:00Z',
-      updatedAt: '2025-01-01T00:00:00Z',
+      label: "Stretch",
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
     },
   ],
 };
