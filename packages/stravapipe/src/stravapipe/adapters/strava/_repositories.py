@@ -1,5 +1,6 @@
 """Strava read repositories"""
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 import logging
 from typing import Any, NamedTuple
@@ -193,7 +194,7 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities):
 
     def read_activities_by_year(
         self, year: int
-    ) -> list[DetailedStravaActivity | SummaryStravaActivity]:
+    ) -> Sequence[DetailedStravaActivity | SummaryStravaActivity]:
         """Read all Strava activities in a year using the list endpoint.
 
         Returns SummaryActivity objects (not DetailedActivity). This is much more

@@ -2,6 +2,7 @@
 
 # pylint: disable=too-few-public-methods
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
 from stravapipe.domain import (
     DetailedStravaActivity,
@@ -29,7 +30,7 @@ class ReadDetailedActivities(ABC):
     @abstractmethod
     def read_activities_by_year(
         self, year: int
-    ) -> list[DetailedStravaActivity | SummaryStravaActivity]:
+    ) -> Sequence[DetailedStravaActivity | SummaryStravaActivity]:
         """Read all activities in a year
 
         Returns DetailedStravaActivity (from detail endpoint) or
