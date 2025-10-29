@@ -1,1 +1,4 @@
-src/data/fixtures/
+# Fixtures data (JSON copied from ../../data/fixtures/)
+src/data/fixtures/activities/
+# But keep the TypeScript exports file for TypeScript
+!src/data/fixtures/index.ts

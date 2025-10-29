@@ -14,8 +14,11 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Python lib directories (but not packages/web/src/lib/)
+/lib/
 lib64/
+**/lib/python*/
+**/lib64/
 parts/
 sdist/
 var/
@@ -254,3 +257,10 @@ packages/web/src/types/generated/
 
 # Testing
 coverage/
+
+# Firebase
+.firebase
+
+# AI
+.claude
+CLAUDE.md
