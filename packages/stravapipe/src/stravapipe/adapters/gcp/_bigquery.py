@@ -37,9 +37,42 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         # Step 2: MERGE from staging to main table
         return self._merge_from_staging(activity.id)
 
+    def write_activities_batch(self, activities: list[DetailedStravaActivity]) -> dict:
+        """Batch upsert: stage all activities, then merge all at once
+
+        Args:
+            activities: List of activities to insert
+
+        Returns:
+            dict: Statistics from the MERGE operation
+
+        Note:
+            - BigQuery supports up to 10,000 rows per insert_rows_json call
+            - If you have more than 10,000 activities, chunk them before calling
+            - Much faster than individual inserts (1 API call vs N calls)
+        """
+        if not activities:
+            return {"rows_affected": 0, "execution_time_ms": 0}
+
+        # Step 1: Insert all to staging table (single API call)
+        self._write_batch_to_staging(activities)
+
+        # Step 2: MERGE all from staging to main table
+        activity_ids = [activity.id for activity in activities]
+        return self._merge_batch_from_staging(activity_ids)
+
     def _write_to_staging(self, activity: DetailedStravaActivity) -> None:
         """Insert activity to staging table using fast streaming insert"""
         activities_dict = [activity.model_dump(mode="json")]
+        self._client.insert_rows_json(
+            activities_dict,
+            dataset_name=self._dataset_name,
+            table_name=self._staging_table_name,
+        )
+
+    def _write_batch_to_staging(self, activities: list[DetailedStravaActivity]) -> None:
+        """Insert multiple activities to staging table in one API call"""
+        activities_dict = [activity.model_dump(mode="json") for activity in activities]
         self._client.insert_rows_json(
             activities_dict,
             dataset_name=self._dataset_name,
@@ -51,6 +84,11 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         merge_query = self._build_merge_query(activity_id)
         return self._client.execute_merge_query(merge_query)
 
+    def _merge_batch_from_staging(self, activity_ids: list[int]) -> dict:
+        """Execute MERGE operation for multiple activities at once"""
+        merge_query = self._build_batch_merge_query(activity_ids)
+        return self._client.execute_merge_query(merge_query)
+
     def _build_merge_query(self, activity_id: int) -> str:
         """Build MERGE query for upsert operation"""
         return f"""
@@ -60,6 +98,84 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
                 SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY start_date DESC) as row_num
                 FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
                 WHERE id = {activity_id}
+            ) WHERE row_num = 1
+        ) AS source
+        ON target.id = source.id
+        WHEN MATCHED THEN
+            UPDATE SET
+                external_id = source.external_id,
+                upload_id = source.upload_id,
+                athlete = source.athlete,
+                name = source.name,
+                distance = source.distance,
+                moving_time = source.moving_time,
+                elapsed_time = source.elapsed_time,
+                total_elevation_gain = source.total_elevation_gain,
+                elev_high = source.elev_high,
+                elev_low = source.elev_low,
+                type = source.type,
+                sport_type = source.sport_type,
+                start_date = source.start_date,
+                start_date_local = source.start_date_local,
+                timezone = source.timezone,
+                achievement_count = source.achievement_count,
+                athlete_count = source.athlete_count,
+                average_speed = source.average_speed,
+                calories = source.calories,
+                comment_count = source.comment_count,
+                commute = source.commute,
+                embed_token = source.embed_token,
+                flagged = source.flagged,
+                has_heartrate = source.has_heartrate,
+                has_kudoed = source.has_kudoed,
+                hide_from_home = source.hide_from_home,
+                kudos_count = source.kudos_count,
+                manual = source.manual,
+                map = source.map,
+                max_speed = source.max_speed,
+                photo_count = source.photo_count,
+                photos = source.photos,
+                pr_count = source.pr_count,
+                private = source.private,
+                total_photo_count = source.total_photo_count,
+                trainer = source.trainer
+        WHEN NOT MATCHED THEN
+            INSERT (
+                id, external_id, upload_id, athlete, name, distance, moving_time,
+                elapsed_time, total_elevation_gain, elev_high, elev_low, type,
+                sport_type, start_date, start_date_local, timezone,
+                achievement_count, athlete_count, average_speed, calories,
+                comment_count, commute, embed_token, flagged, has_heartrate,
+                has_kudoed, hide_from_home, kudos_count, manual, map,
+                max_speed, photo_count, photos, pr_count, private,
+                total_photo_count, trainer
+            )
+            VALUES (
+                source.id, source.external_id, source.upload_id, source.athlete,
+                source.name, source.distance, source.moving_time, source.elapsed_time,
+                source.total_elevation_gain, source.elev_high, source.elev_low,
+                source.type, source.sport_type, source.start_date, source.start_date_local,
+                source.timezone, source.achievement_count, source.athlete_count,
+                source.average_speed, source.calories, source.comment_count,
+                source.commute, source.embed_token, source.flagged,
+                source.has_heartrate, source.has_kudoed, source.hide_from_home,
+                source.kudos_count, source.manual, source.map, source.max_speed,
+                source.photo_count, source.photos, source.pr_count, source.private,
+                source.total_photo_count, source.trainer
+            )
+        """
+
+    def _build_batch_merge_query(self, activity_ids: list[int]) -> str:
+        """Build MERGE query for batch upsert operation"""
+        ids_str = ",".join(str(id) for id in activity_ids)
+
+        return f"""
+        MERGE `{self._client.project_id}.{self._dataset_name}.{self._table_name}` AS target
+        USING (
+            SELECT * EXCEPT(row_num) FROM (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY start_date DESC) as row_num
+                FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
+                WHERE id IN ({ids_str})
             ) WHERE row_num = 1
         ) AS source
         ON target.id = source.id

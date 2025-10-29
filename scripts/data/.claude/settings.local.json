@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/petereschbacher/git/andy-esch/desirelines/docs/planning/project-master-plan/**)",
+      "Read(//Users/petereschbacher/git/andy-esch/desirelines/docs/planning/**)",
+      "Read(//Users/petereschbacher/git/andy-esch/desirelines/functions/**)",
+      "Read(//Users/petereschbacher/git/andy-esch/desirelines/web/**)",
+      "Read(//Users/petereschbacher/git/andy-esch/desirelines/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
