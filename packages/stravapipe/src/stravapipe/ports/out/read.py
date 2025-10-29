@@ -7,6 +7,7 @@ from stravapipe.domain import (
     DetailedStravaActivity,
     MinimalStravaActivity,
     StravaTokenSet,
+    SummaryStravaActivity,
 )
 
 
@@ -26,8 +27,14 @@ class ReadDetailedActivities(ABC):
         """Read a detailed Strava Activity by ID"""
 
     @abstractmethod
-    def read_activities_by_year(self, year: int) -> list[DetailedStravaActivity]:
-        """Read all detailed activities in a year"""
+    def read_activities_by_year(
+        self, year: int
+    ) -> list[DetailedStravaActivity | SummaryStravaActivity]:
+        """Read all activities in a year
+
+        Returns DetailedStravaActivity (from detail endpoint) or
+        SummaryStravaActivity (from list endpoint).
+        """
 
 
 class ReadMinimalActivities(ABC):

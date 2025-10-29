@@ -191,7 +191,9 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities):
         activities = [SummaryStravaActivity(**activity) for activity in resp.json()]
         return activities
 
-    def read_activities_by_year(self, year: int) -> list[SummaryStravaActivity]:
+    def read_activities_by_year(
+        self, year: int
+    ) -> list[DetailedStravaActivity | SummaryStravaActivity]:
         """Read all Strava activities in a year using the list endpoint.
 
         Returns SummaryActivity objects (not DetailedActivity). This is much more
