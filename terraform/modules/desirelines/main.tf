@@ -219,6 +219,19 @@ resource "google_storage_bucket" "aggregation_bucket" {
       storage_class = "COLDLINE"
     }
   }
+
+  # Version cleanup: Keep last 10 versions OR 7 days, whichever comes first
+  # Rationale: BigQuery is source of truth, aggregations can be regenerated
+  # This prevents version accumulation while allowing recent rollback for debugging
+  lifecycle_rule {
+    condition {
+      days_since_noncurrent_time = 7  # Delete versions older than 7 days
+      num_newer_versions         = 10 # OR keep max 10 versions per object
+    }
+    action {
+      type = "Delete"
+    }
+  }
 }
 
 # Cloud Storage Bucket for function source packages (only created if not using external bucket)
