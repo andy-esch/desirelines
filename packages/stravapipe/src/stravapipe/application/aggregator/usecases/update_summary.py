@@ -87,10 +87,25 @@ class UpdateSummaryUseCase:
         )
         logger.info("Update complete for activity_id = %s", activity.id)
 
-    def run_batch(self, year: int) -> None:
-        """Generate and overwrite (if it exists) a year's summary activities"""
-        # read all activities in a year
-        all_activities = self._read_activities.read_activities_by_year(year)
+    def run_batch(
+        self, year: int, activities: list[MinimalStravaActivity] | None = None
+    ) -> None:
+        """Generate and overwrite (if it exists) a year's summary activities
+
+        Args:
+            year: The year to generate summaries for
+            activities: Optional pre-fetched activities. If provided, uses these instead
+                       of fetching from Strava API. Useful for backfills to avoid
+                       duplicate API calls.
+        """
+        # Use provided activities or fetch from Strava
+        if activities is not None:
+            logger.info("Using %s pre-fetched activities", len(activities))
+            all_activities = activities
+        else:
+            logger.info("Fetching activities from Strava for year %s", year)
+            all_activities = self._read_activities.read_activities_by_year(year)
+
         summary: SummaryObject = {}
         for activity in all_activities:
             temp = self._update_summary(summary, activity)
