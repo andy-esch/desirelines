@@ -12,7 +12,7 @@ __all__ = [
     "AspectType",
     "DetailedStravaActivity",
     "MinimalStravaActivity",
-    "SummaryStravaActivity",
     "StravaTokenSet",
+    "SummaryStravaActivity",
     "WebhookRequest",
 ]

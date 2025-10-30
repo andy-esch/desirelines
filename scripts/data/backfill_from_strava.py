@@ -213,7 +213,9 @@ class StravaBackfiller:
             # Filter for cycling activities only (match production pipeline behavior)
             # Production aggregator only processes Ride and VirtualRide types
             cycling_activities = [
-                activity for activity in activities if activity.type in ("Ride", "VirtualRide")
+                activity
+                for activity in activities
+                if activity.type in ("Ride", "VirtualRide")
             ]
 
             filtered_count = len(activities) - len(cycling_activities)
