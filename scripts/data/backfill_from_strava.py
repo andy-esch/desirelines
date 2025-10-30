@@ -210,6 +210,19 @@ class StravaBackfiller:
         logger.info(f"Generating aggregation files for {year}...")
 
         try:
+            # Filter for cycling activities only (match production pipeline behavior)
+            # Production aggregator only processes Ride and VirtualRide types
+            cycling_activities = [
+                activity for activity in activities if activity.type in ("Ride", "VirtualRide")
+            ]
+
+            filtered_count = len(activities) - len(cycling_activities)
+            if filtered_count > 0:
+                logger.info(
+                    f"Filtered out {filtered_count} non-cycling activities "
+                    f"(keeping {len(cycling_activities)} Ride/VirtualRide)"
+                )
+
             # Convert SummaryStravaActivity → MinimalStravaActivity
             # Aggregator only needs: id, type, start_date_local, distance
             minimal_activities = [
@@ -219,11 +232,11 @@ class StravaBackfiller:
                     start_date_local=activity.start_date_local,
                     distance=activity.distance,
                 )
-                for activity in activities
+                for activity in cycling_activities
             ]
 
             logger.info(
-                f"Converted {len(minimal_activities)} activities to minimal format"
+                f"Converted {len(minimal_activities)} cycling activities to minimal format"
             )
 
             # Load aggregator config (needs GCP bucket for storage)

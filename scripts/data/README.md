@@ -23,6 +23,7 @@ We maintain two backfill approaches for different use cases:
 - ✅ **Efficient rate limit usage** - 100 requests/15min = ~20,000 activities/day
 - ✅ **Handles duplicates** - safe to re-run for same year
 - ✅ **Batch aggregation** - uses `UpdateSummaryUseCase.run_batch()` for efficiency
+- ✅ **Sport type filtering** - processes only cycling activities (Ride/VirtualRide)
 
 **Rate Limits**:
 - Strava: 100 requests/15 minutes, 1000 requests/day
@@ -50,11 +51,20 @@ python scripts/data/backfill_from_strava.py --years 2024 --verbose
 - Cloud Storage write permissions
 - Firestore write permissions (for aggregations)
 
+**Important Notes**:
+- ⚠️ **Currently processes cycling activities only** (Ride and VirtualRide types)
+- If you add support for other sports (running, swimming, yoga), you must:
+  1. Update aggregator pipeline to process new sport types
+  2. Update `backfill_from_strava.py` line 216 to include new types
+  3. Re-run backfill for affected years
+- See task: `docs/planning/tasks/ready-to-start/multi-sport-aggregation.md`
+
 **When to use**:
 - Initial production data backfill
 - Recovering from data issues
 - Migrating between environments
 - Ensuring Strava data is source of truth
+- Re-generating aggregations after adding new sport types
 
 ---
 
