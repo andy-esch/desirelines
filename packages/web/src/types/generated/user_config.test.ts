@@ -10,7 +10,6 @@ import type {
   UserConfig,
   Goal,
   Annotation,
-  AnnotationType,
   Preferences,
   ChartDefaults,
   Metadata,
