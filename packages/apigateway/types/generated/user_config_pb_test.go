@@ -253,7 +253,9 @@ func TestAnnotationType_Enum(t *testing.T) {
 
 			jsonBytes, _ := protojson.Marshal(ann)
 			var data map[string]interface{}
-			json.Unmarshal(jsonBytes, &data)
+			if err := json.Unmarshal(jsonBytes, &data); err != nil {
+				t.Fatalf("Failed to unmarshal: %v", err)
+			}
 
 			if data["type"] != tt.expected {
 				t.Errorf("Expected %s, got %v", tt.expected, data["type"])
