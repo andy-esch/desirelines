@@ -8,9 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   SportMetrics,
-  SportMetadata,
   DailyActivity,
-  MetricsTimeseries,
   MetricTimeseriesEntry,
   YearMetadata,
   SportTotals,
