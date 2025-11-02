@@ -222,37 +222,53 @@ class TestActivitiesProtobuf:
         assert data["date"] == "2024-01-15"
         assert data["value"] == 42.5
 
-    def test_daily_summary(self):
-        """Test DailySummary from activities.proto."""
-        summary = activities_pb2.DailySummary()
-        summary.distance_miles = 26.2
-        summary.activity_ids.extend([123, 456])
+    def test_distances_payload_with_summaries(self):
+        """Test DistancesPayload from activities.proto."""
+        payload = activities_pb2.DistancesPayload()
 
-        json_str = json_format.MessageToJson(summary, preserving_proto_field_name=True)
+        # Add distance traveled entries
+        entry1 = payload.distance_traveled.add()
+        entry1.date = "2024-01-15"
+        entry1.value = 10.5
+
+        entry2 = payload.distance_traveled.add()
+        entry2.date = "2024-01-16"
+        entry2.value = 25.3
+
+        # Add daily summary
+        summary = payload.summaries["2024-01-15"]
+        summary.distance_miles = 10.5
+        summary.activity_ids.extend(["123", "456"])
+
+        json_str = json_format.MessageToJson(payload, preserving_proto_field_name=True)
         data = json.loads(json_str)
 
-        assert data["distance_miles"] == 26.2
-        assert len(data["activity_ids"]) == 2
+        assert len(data["distance_traveled"]) == 2
+        assert data["distance_traveled"][0]["value"] == 10.5
+        assert data["summaries"]["2024-01-15"]["distance_miles"] == 10.5
+        assert len(data["summaries"]["2024-01-15"]["activity_ids"]) == 2
 
-    def test_distance_data_with_map(self):
-        """Test DistanceData with daily map."""
-        distance_data = activities_pb2.DistanceData()
-        distance_data.timeseries.extend([
-            activities_pb2.TimeseriesEntry(date="2024-01-15", value=10.0),
-            activities_pb2.TimeseriesEntry(date="2024-01-16", value=20.0),
-        ])
+    def test_year_summary(self):
+        """Test YearSummary from activities.proto."""
+        year_summary = activities_pb2.YearSummary()
 
-        daily = distance_data.daily["2024-01-15"]
-        daily.distance_miles = 10.0
-        daily.activity_ids.append(999)
+        # Add daily summaries
+        day1 = year_summary.daily_summaries["2024-01-15"]
+        day1.distance_miles = 15.0
+        day1.activity_ids.extend(["111", "222"])
+
+        day2 = year_summary.daily_summaries["2024-01-16"]
+        day2.distance_miles = 20.0
+        day2.activity_ids.append("333")
 
         json_str = json_format.MessageToJson(
-            distance_data, preserving_proto_field_name=True
+            year_summary, preserving_proto_field_name=True
         )
         data = json.loads(json_str)
 
-        assert len(data["timeseries"]) == 2
-        assert data["daily"]["2024-01-15"]["distance_miles"] == 10.0
+        assert len(data["daily_summaries"]) == 2
+        assert data["daily_summaries"]["2024-01-15"]["distance_miles"] == 15.0
+        assert len(data["daily_summaries"]["2024-01-16"]["activity_ids"]) == 1
 
 
 class TestMetricTimeseriesEntry:

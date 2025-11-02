@@ -235,3 +235,28 @@ describe('SportTotals', () => {
     expect(totals.activities).toBe(10);
   });
 });
+
+describe('Activities protobuf types', () => {
+  it('should handle DistancesPayload with timeseries', () => {
+    const payload = {
+      distanceTraveled: [
+        { date: '2024-01-15', value: 10.5 },
+        { date: '2024-01-16', value: 25.3 },
+      ],
+      summaries: {
+        '2024-01-15': {
+          distanceMiles: 10.5,
+          activityIds: ['123', '456'],
+        },
+      },
+      avgDistance: [],
+      lowerDistance: [],
+      upperDistance: [],
+    };
+
+    expect(payload.distanceTraveled).toHaveLength(2);
+    expect(payload.distanceTraveled[0].value).toBe(10.5);
+    expect(payload.summaries['2024-01-15'].distanceMiles).toBe(10.5);
+    expect(payload.summaries['2024-01-15'].activityIds).toHaveLength(2);
+  });
+});
