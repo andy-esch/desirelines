@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package desirelines.sports.v1;
+
+option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/generated/sports";
+
+// Single timeseries entry (date + value)
+message TimeseriesEntry {
+  string date = 1;   // ISO date: "2024-01-15"
+  double value = 2;  // Metric value
+}
+
+// Daily activity summary
+message DailyActivity {
+  // Distance in METERS (optional - not all sports have distance)
+  // SI base unit: matches Strava API, no conversion errors
+  optional double distance_meters = 1;
+
+  // Time in minutes
+  optional double time_minutes = 2;
+
+  // Elevation gain in METERS (optional)
+  optional double elevation_meters = 3;
+
+  // Number of activities on this day
+  int32 activities = 4;
+
+  // Strava activity IDs
+  repeated int64 activity_ids = 5;
+}
+
+// Pre-computed timeseries for efficient chart rendering
+message MetricsTimeseries {
+  repeated TimeseriesEntry distance_meters = 1;
+  repeated TimeseriesEntry time_minutes = 2;
+  repeated TimeseriesEntry elevation_meters = 3;
+}
+
+// Sport metrics file (activities/{year}/metrics/{sport}.json)
+message SportMetrics {
+  // Pre-computed timeseries arrays
+  MetricsTimeseries timeseries = 1;
+
+  // Daily rollups (date-keyed)
+  map<string, DailyActivity> daily = 2;
+
+  // Metadata
+  SportMetadata metadata = 3;
+}
+
+// Metadata about the sport metrics
+message SportMetadata {
+  string sport = 1;          // "cycling", "running", "yoga"
+  int32 year = 2;            // 2024
+  repeated string available_metrics = 3;  // ["distance_meters", "time_minutes", ...]
+  string primary_metric = 4;              // "distance_meters"
+}
+
+// Sport totals for a year
+message SportTotals {
+  optional double distance_meters = 1;
+  optional double time_minutes = 2;
+  optional double elevation_meters = 3;
+  int32 activities = 4;
+}
+
+// Year metadata file (activities/{year}/metadata.json)
+message YearMetadata {
+  int32 year = 1;
+  repeated string sports = 2;                    // ["cycling", "running", "yoga"]
+  map<string, SportTotals> totals = 3;          // Per-sport totals
+  string last_updated = 4;                       // ISO timestamp
+  string aggregation_version = 5;                // "1.0"
+}

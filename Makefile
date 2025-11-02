@@ -115,21 +115,33 @@ js-dev: web-dev
 # ==========================================
 
 # Generate protobuf code for all languages
-proto-gen: proto-gen-go proto-gen-typescript
+proto-gen: proto-gen-python proto-gen-go proto-gen-typescript
 	@echo "✅ Protocol buffer code generation complete"
+
+# Generate Python code from proto files
+proto-gen-python:
+	@echo "🔨 Generating Python code from proto files..."
+	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
+	@mkdir -p packages/stravapipe/src/stravapipe/types/generated
+	protoc --python_out=packages/stravapipe/src/stravapipe/types/generated \
+		--pyi_out=packages/stravapipe/src/stravapipe/types/generated \
+		-I schemas/proto \
+		schemas/proto/*.proto
+	@# Create __init__.py to make it a proper Python package
+	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
+	@echo "✅ Python protobuf code generated in packages/stravapipe/src/stravapipe/types/generated/"
 
 # Generate Go code from proto files
 proto-gen-go:
 	@echo "🔨 Generating Go code from proto files..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
 	@command -v protoc-gen-go >/dev/null 2>&1 || { echo "❌ Error: protoc-gen-go not found. Install with: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest"; exit 1; }
-	@mkdir -p schemas/generated/go
-	protoc --go_out=schemas/generated/go \
+	@mkdir -p packages/apigateway/types/generated
+	protoc --go_out=packages/apigateway/types/generated \
 		--go_opt=paths=source_relative \
-		--go_opt=Muser_config.proto=github.com/andy-esch/desirelines/schemas/generated/go/userconfig \
 		-I schemas/proto \
 		schemas/proto/*.proto
-	@echo "✅ Go protobuf code generated in schemas/generated/go/"
+	@echo "✅ Go protobuf code generated in packages/apigateway/types/generated/"
 
 # Generate TypeScript code from proto files
 proto-gen-typescript:
@@ -147,7 +159,9 @@ proto-gen-typescript:
 # Clean generated protobuf code
 proto-clean:
 	@echo "🧹 Cleaning generated protobuf code..."
-	rm -rf schemas/generated/go schemas/generated/typescript schemas/generated/python
+	rm -rf packages/stravapipe/src/stravapipe/types/generated
+	rm -rf packages/apigateway/types/generated
+	rm -rf packages/web/src/types/generated
 	@echo "✅ Generated protobuf code cleaned"
 
 # ==========================================
@@ -270,7 +284,8 @@ help:
 	@echo "  go-test-coverage - Run Go tests with coverage report"
 	@echo ""
 	@echo "Protocol Buffers:"
-	@echo "  proto-gen            - Generate code for all languages (Go + TypeScript)"
+	@echo "  proto-gen            - Generate code for all languages (Python + Go + TypeScript)"
+	@echo "  proto-gen-python     - Generate Python code from .proto files"
 	@echo "  proto-gen-go         - Generate Go code from .proto files"
 	@echo "  proto-gen-typescript - Generate TypeScript code from .proto files"
 	@echo "  proto-clean          - Clean generated protobuf code"
