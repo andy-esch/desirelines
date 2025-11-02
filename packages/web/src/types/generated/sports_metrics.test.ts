@@ -6,10 +6,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
+import type {
   SportMetrics,
   DailyActivity,
   MetricTimeseriesEntry,
+  MetricsTimeseries,
+  SportMetadata,
   YearMetadata,
   SportTotals,
 } from './sports_metrics';
@@ -206,6 +208,24 @@ describe('MetricTimeseriesEntry', () => {
     expect(entry.date).toBe('2024-01-15');
     expect(entry.value).toBe(10000.0);
   });
+
+  it('should work with negative values', () => {
+    const entry: MetricTimeseriesEntry = {
+      date: '2024-01-15',
+      value: -5.0,
+    };
+
+    expect(entry.value).toBe(-5.0);
+  });
+
+  it('should work with zero values', () => {
+    const entry: MetricTimeseriesEntry = {
+      date: '2024-01-15',
+      value: 0,
+    };
+
+    expect(entry.value).toBe(0);
+  });
 });
 
 describe('SportTotals', () => {
@@ -233,6 +253,121 @@ describe('SportTotals', () => {
     expect(totals.elevationMeters).toBeUndefined();
     expect(totals.timeMinutes).toBe(300.0);
     expect(totals.activities).toBe(10);
+  });
+
+  it('should handle zero activities', () => {
+    const totals: SportTotals = {
+      activities: 0,
+    };
+
+    expect(totals.activities).toBe(0);
+  });
+});
+
+describe('MetricsTimeseries', () => {
+  it('should contain arrays of metric entries', () => {
+    const timeseries: MetricsTimeseries = {
+      distanceMeters: [
+        { date: '2024-01-01', value: 1000 },
+        { date: '2024-01-02', value: 2000 },
+      ],
+      timeMinutes: [
+        { date: '2024-01-01', value: 30 },
+        { date: '2024-01-02', value: 45 },
+      ],
+      elevationMeters: [
+        { date: '2024-01-01', value: 100 },
+        { date: '2024-01-02', value: 150 },
+      ],
+    };
+
+    expect(timeseries.distanceMeters).toHaveLength(2);
+    expect(timeseries.timeMinutes).toHaveLength(2);
+    expect(timeseries.elevationMeters).toHaveLength(2);
+  });
+
+  it('should allow empty arrays', () => {
+    const timeseries: MetricsTimeseries = {
+      distanceMeters: [],
+      timeMinutes: [],
+      elevationMeters: [],
+    };
+
+    expect(timeseries.distanceMeters).toHaveLength(0);
+    expect(timeseries.timeMinutes).toHaveLength(0);
+    expect(timeseries.elevationMeters).toHaveLength(0);
+  });
+});
+
+describe('SportMetadata', () => {
+  it('should contain sport configuration', () => {
+    const metadata: SportMetadata = {
+      sport: 'cycling',
+      year: 2024,
+      availableMetrics: ['distance_meters', 'time_minutes', 'elevation_meters'],
+      primaryMetric: 'distance_meters',
+    };
+
+    expect(metadata.sport).toBe('cycling');
+    expect(metadata.year).toBe(2024);
+    expect(metadata.availableMetrics).toContain('distance_meters');
+    expect(metadata.primaryMetric).toBe('distance_meters');
+  });
+
+  it('should handle single metric sport', () => {
+    const metadata: SportMetadata = {
+      sport: 'yoga',
+      year: 2024,
+      availableMetrics: ['time_minutes'],
+      primaryMetric: 'time_minutes',
+    };
+
+    expect(metadata.availableMetrics).toHaveLength(1);
+    expect(metadata.primaryMetric).toBe('time_minutes');
+  });
+});
+
+describe('Complete SportMetrics workflow', () => {
+  it('should construct a complete sport metrics object', () => {
+    const metrics: SportMetrics = {
+      metadata: {
+        sport: 'running',
+        year: 2024,
+        availableMetrics: ['distance_meters', 'time_minutes'],
+        primaryMetric: 'distance_meters',
+      },
+      timeseries: {
+        distanceMeters: [
+          { date: '2024-01-01', value: 5000 },
+          { date: '2024-01-02', value: 10000 },
+        ],
+        timeMinutes: [
+          { date: '2024-01-01', value: 30 },
+          { date: '2024-01-02', value: 60 },
+        ],
+        elevationMeters: [],
+      },
+      daily: {
+        '2024-01-01': {
+          distanceMeters: 5000,
+          timeMinutes: 30,
+          activities: 1,
+          activityIds: [12345],
+        },
+        '2024-01-02': {
+          distanceMeters: 5000,
+          timeMinutes: 30,
+          activities: 2,
+          activityIds: [12346, 12347],
+        },
+      },
+    };
+
+    // Verify complete structure
+    expect(metrics.metadata?.sport).toBe('running');
+    expect(metrics.timeseries?.distanceMeters).toHaveLength(2);
+    expect(Object.keys(metrics.daily)).toHaveLength(2);
+    expect(metrics.daily['2024-01-02'].activityIds).toHaveLength(2);
   });
 });
 
