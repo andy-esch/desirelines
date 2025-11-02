@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package desirelines.activities.v1;
 
-option go_package = "github.com/andy-esch/desirelines/schemas/generated/go/activities";
+option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/generated";
 
 // Timeseries entry for distance data
 // Represents cumulative distance over time

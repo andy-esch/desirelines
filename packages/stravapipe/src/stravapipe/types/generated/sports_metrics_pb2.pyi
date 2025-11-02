@@ -6,7 +6,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class TimeseriesEntry(_message.Message):
+class MetricTimeseriesEntry(_message.Message):
     __slots__ = ()
     DATE_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -33,10 +33,10 @@ class MetricsTimeseries(_message.Message):
     DISTANCE_METERS_FIELD_NUMBER: _ClassVar[int]
     TIME_MINUTES_FIELD_NUMBER: _ClassVar[int]
     ELEVATION_METERS_FIELD_NUMBER: _ClassVar[int]
-    distance_meters: _containers.RepeatedCompositeFieldContainer[TimeseriesEntry]
-    time_minutes: _containers.RepeatedCompositeFieldContainer[TimeseriesEntry]
-    elevation_meters: _containers.RepeatedCompositeFieldContainer[TimeseriesEntry]
-    def __init__(self, distance_meters: _Optional[_Iterable[_Union[TimeseriesEntry, _Mapping]]] = ..., time_minutes: _Optional[_Iterable[_Union[TimeseriesEntry, _Mapping]]] = ..., elevation_meters: _Optional[_Iterable[_Union[TimeseriesEntry, _Mapping]]] = ...) -> None: ...
+    distance_meters: _containers.RepeatedCompositeFieldContainer[MetricTimeseriesEntry]
+    time_minutes: _containers.RepeatedCompositeFieldContainer[MetricTimeseriesEntry]
+    elevation_meters: _containers.RepeatedCompositeFieldContainer[MetricTimeseriesEntry]
+    def __init__(self, distance_meters: _Optional[_Iterable[_Union[MetricTimeseriesEntry, _Mapping]]] = ..., time_minutes: _Optional[_Iterable[_Union[MetricTimeseriesEntry, _Mapping]]] = ..., elevation_meters: _Optional[_Iterable[_Union[MetricTimeseriesEntry, _Mapping]]] = ...) -> None: ...
 
 class SportMetrics(_message.Message):
     __slots__ = ()

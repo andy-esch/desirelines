@@ -4,7 +4,7 @@
 // 	protoc        v6.33.0
 // source: user_config.proto
 
-package userconfig
+package generated
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -680,7 +680,7 @@ const file_user_config_proto_rawDesc = "" +
 	"\x1bANNOTATION_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15ANNOTATION_TYPE_EVENT\x10\x01\x12\x1a\n" +
 	"\x16ANNOTATION_TYPE_PERIOD\x10\x02\x12\x18\n" +
-	"\x14ANNOTATION_TYPE_NOTE\x10\x03BBZ@github.com/andy-esch/desirelines/schemas/generated/go/userconfigb\x06proto3"
+	"\x14ANNOTATION_TYPE_NOTE\x10\x03BFZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generatedb\x06proto3"
 
 var (
 	file_user_config_proto_rawDescOnce sync.Once

@@ -4,7 +4,7 @@
 // 	protoc        v6.33.0
 // source: sports_metrics.proto
 
-package sports
+package generated
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -22,7 +22,7 @@ const (
 )
 
 // Single timeseries entry (date + value)
-type TimeseriesEntry struct {
+type MetricTimeseriesEntry struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Date          string                 `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`     // ISO date: "2024-01-15"
 	Value         float64                `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"` // Metric value
@@ -30,20 +30,20 @@ type TimeseriesEntry struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TimeseriesEntry) Reset() {
-	*x = TimeseriesEntry{}
+func (x *MetricTimeseriesEntry) Reset() {
+	*x = MetricTimeseriesEntry{}
 	mi := &file_sports_metrics_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TimeseriesEntry) String() string {
+func (x *MetricTimeseriesEntry) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TimeseriesEntry) ProtoMessage() {}
+func (*MetricTimeseriesEntry) ProtoMessage() {}
 
-func (x *TimeseriesEntry) ProtoReflect() protoreflect.Message {
+func (x *MetricTimeseriesEntry) ProtoReflect() protoreflect.Message {
 	mi := &file_sports_metrics_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -55,19 +55,19 @@ func (x *TimeseriesEntry) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TimeseriesEntry.ProtoReflect.Descriptor instead.
-func (*TimeseriesEntry) Descriptor() ([]byte, []int) {
+// Deprecated: Use MetricTimeseriesEntry.ProtoReflect.Descriptor instead.
+func (*MetricTimeseriesEntry) Descriptor() ([]byte, []int) {
 	return file_sports_metrics_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *TimeseriesEntry) GetDate() string {
+func (x *MetricTimeseriesEntry) GetDate() string {
 	if x != nil {
 		return x.Date
 	}
 	return ""
 }
 
-func (x *TimeseriesEntry) GetValue() float64 {
+func (x *MetricTimeseriesEntry) GetValue() float64 {
 	if x != nil {
 		return x.Value
 	}
@@ -159,10 +159,10 @@ func (x *DailyActivity) GetActivityIds() []int64 {
 
 // Pre-computed timeseries for efficient chart rendering
 type MetricsTimeseries struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	DistanceMeters  []*TimeseriesEntry     `protobuf:"bytes,1,rep,name=distance_meters,json=distanceMeters,proto3" json:"distance_meters,omitempty"`
-	TimeMinutes     []*TimeseriesEntry     `protobuf:"bytes,2,rep,name=time_minutes,json=timeMinutes,proto3" json:"time_minutes,omitempty"`
-	ElevationMeters []*TimeseriesEntry     `protobuf:"bytes,3,rep,name=elevation_meters,json=elevationMeters,proto3" json:"elevation_meters,omitempty"`
+	state           protoimpl.MessageState   `protogen:"open.v1"`
+	DistanceMeters  []*MetricTimeseriesEntry `protobuf:"bytes,1,rep,name=distance_meters,json=distanceMeters,proto3" json:"distance_meters,omitempty"`
+	TimeMinutes     []*MetricTimeseriesEntry `protobuf:"bytes,2,rep,name=time_minutes,json=timeMinutes,proto3" json:"time_minutes,omitempty"`
+	ElevationMeters []*MetricTimeseriesEntry `protobuf:"bytes,3,rep,name=elevation_meters,json=elevationMeters,proto3" json:"elevation_meters,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -197,21 +197,21 @@ func (*MetricsTimeseries) Descriptor() ([]byte, []int) {
 	return file_sports_metrics_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *MetricsTimeseries) GetDistanceMeters() []*TimeseriesEntry {
+func (x *MetricsTimeseries) GetDistanceMeters() []*MetricTimeseriesEntry {
 	if x != nil {
 		return x.DistanceMeters
 	}
 	return nil
 }
 
-func (x *MetricsTimeseries) GetTimeMinutes() []*TimeseriesEntry {
+func (x *MetricsTimeseries) GetTimeMinutes() []*MetricTimeseriesEntry {
 	if x != nil {
 		return x.TimeMinutes
 	}
 	return nil
 }
 
-func (x *MetricsTimeseries) GetElevationMeters() []*TimeseriesEntry {
+func (x *MetricsTimeseries) GetElevationMeters() []*MetricTimeseriesEntry {
 	if x != nil {
 		return x.ElevationMeters
 	}
@@ -501,8 +501,8 @@ var File_sports_metrics_proto protoreflect.FileDescriptor
 
 const file_sports_metrics_proto_rawDesc = "" +
 	"\n" +
-	"\x14sports_metrics.proto\x12\x15desirelines.sports.v1\";\n" +
-	"\x0fTimeseriesEntry\x12\x12\n" +
+	"\x14sports_metrics.proto\x12\x15desirelines.sports.v1\"A\n" +
+	"\x15MetricTimeseriesEntry\x12\x12\n" +
 	"\x04date\x18\x01 \x01(\tR\x04date\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value\"\x92\x02\n" +
 	"\rDailyActivity\x12,\n" +
@@ -515,11 +515,11 @@ const file_sports_metrics_proto_rawDesc = "" +
 	"\factivity_ids\x18\x05 \x03(\x03R\vactivityIdsB\x12\n" +
 	"\x10_distance_metersB\x0f\n" +
 	"\r_time_minutesB\x13\n" +
-	"\x11_elevation_meters\"\x82\x02\n" +
-	"\x11MetricsTimeseries\x12O\n" +
-	"\x0fdistance_meters\x18\x01 \x03(\v2&.desirelines.sports.v1.TimeseriesEntryR\x0edistanceMeters\x12I\n" +
-	"\ftime_minutes\x18\x02 \x03(\v2&.desirelines.sports.v1.TimeseriesEntryR\vtimeMinutes\x12Q\n" +
-	"\x10elevation_meters\x18\x03 \x03(\v2&.desirelines.sports.v1.TimeseriesEntryR\x0felevationMeters\"\xc0\x02\n" +
+	"\x11_elevation_meters\"\x94\x02\n" +
+	"\x11MetricsTimeseries\x12U\n" +
+	"\x0fdistance_meters\x18\x01 \x03(\v2,.desirelines.sports.v1.MetricTimeseriesEntryR\x0edistanceMeters\x12O\n" +
+	"\ftime_minutes\x18\x02 \x03(\v2,.desirelines.sports.v1.MetricTimeseriesEntryR\vtimeMinutes\x12W\n" +
+	"\x10elevation_meters\x18\x03 \x03(\v2,.desirelines.sports.v1.MetricTimeseriesEntryR\x0felevationMeters\"\xc0\x02\n" +
 	"\fSportMetrics\x12H\n" +
 	"\n" +
 	"timeseries\x18\x01 \x01(\v2(.desirelines.sports.v1.MetricsTimeseriesR\n" +
@@ -553,7 +553,7 @@ const file_sports_metrics_proto_rawDesc = "" +
 	"\x13aggregation_version\x18\x05 \x01(\tR\x12aggregationVersion\x1a]\n" +
 	"\vTotalsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x128\n" +
-	"\x05value\x18\x02 \x01(\v2\".desirelines.sports.v1.SportTotalsR\x05value:\x028\x01BMZKgithub.com/andy-esch/desirelines/packages/apigateway/types/generated/sportsb\x06proto3"
+	"\x05value\x18\x02 \x01(\v2\".desirelines.sports.v1.SportTotalsR\x05value:\x028\x01BFZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generatedb\x06proto3"
 
 var (
 	file_sports_metrics_proto_rawDescOnce sync.Once
@@ -569,20 +569,20 @@ func file_sports_metrics_proto_rawDescGZIP() []byte {
 
 var file_sports_metrics_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_sports_metrics_proto_goTypes = []any{
-	(*TimeseriesEntry)(nil),   // 0: desirelines.sports.v1.TimeseriesEntry
-	(*DailyActivity)(nil),     // 1: desirelines.sports.v1.DailyActivity
-	(*MetricsTimeseries)(nil), // 2: desirelines.sports.v1.MetricsTimeseries
-	(*SportMetrics)(nil),      // 3: desirelines.sports.v1.SportMetrics
-	(*SportMetadata)(nil),     // 4: desirelines.sports.v1.SportMetadata
-	(*SportTotals)(nil),       // 5: desirelines.sports.v1.SportTotals
-	(*YearMetadata)(nil),      // 6: desirelines.sports.v1.YearMetadata
-	nil,                       // 7: desirelines.sports.v1.SportMetrics.DailyEntry
-	nil,                       // 8: desirelines.sports.v1.YearMetadata.TotalsEntry
+	(*MetricTimeseriesEntry)(nil), // 0: desirelines.sports.v1.MetricTimeseriesEntry
+	(*DailyActivity)(nil),         // 1: desirelines.sports.v1.DailyActivity
+	(*MetricsTimeseries)(nil),     // 2: desirelines.sports.v1.MetricsTimeseries
+	(*SportMetrics)(nil),          // 3: desirelines.sports.v1.SportMetrics
+	(*SportMetadata)(nil),         // 4: desirelines.sports.v1.SportMetadata
+	(*SportTotals)(nil),           // 5: desirelines.sports.v1.SportTotals
+	(*YearMetadata)(nil),          // 6: desirelines.sports.v1.YearMetadata
+	nil,                           // 7: desirelines.sports.v1.SportMetrics.DailyEntry
+	nil,                           // 8: desirelines.sports.v1.YearMetadata.TotalsEntry
 }
 var file_sports_metrics_proto_depIdxs = []int32{
-	0, // 0: desirelines.sports.v1.MetricsTimeseries.distance_meters:type_name -> desirelines.sports.v1.TimeseriesEntry
-	0, // 1: desirelines.sports.v1.MetricsTimeseries.time_minutes:type_name -> desirelines.sports.v1.TimeseriesEntry
-	0, // 2: desirelines.sports.v1.MetricsTimeseries.elevation_meters:type_name -> desirelines.sports.v1.TimeseriesEntry
+	0, // 0: desirelines.sports.v1.MetricsTimeseries.distance_meters:type_name -> desirelines.sports.v1.MetricTimeseriesEntry
+	0, // 1: desirelines.sports.v1.MetricsTimeseries.time_minutes:type_name -> desirelines.sports.v1.MetricTimeseriesEntry
+	0, // 2: desirelines.sports.v1.MetricsTimeseries.elevation_meters:type_name -> desirelines.sports.v1.MetricTimeseriesEntry
 	2, // 3: desirelines.sports.v1.SportMetrics.timeseries:type_name -> desirelines.sports.v1.MetricsTimeseries
 	7, // 4: desirelines.sports.v1.SportMetrics.daily:type_name -> desirelines.sports.v1.SportMetrics.DailyEntry
 	4, // 5: desirelines.sports.v1.SportMetrics.metadata:type_name -> desirelines.sports.v1.SportMetadata

@@ -10,7 +10,7 @@ import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 export const protobufPackage = "desirelines.sports.v1";
 
 /** Single timeseries entry (date + value) */
-export interface TimeseriesEntry {
+export interface MetricTimeseriesEntry {
   /** ISO date: "2024-01-15" */
   date: string;
   /** Metric value */
@@ -42,9 +42,9 @@ export interface DailyActivity {
 
 /** Pre-computed timeseries for efficient chart rendering */
 export interface MetricsTimeseries {
-  distanceMeters: TimeseriesEntry[];
-  timeMinutes: TimeseriesEntry[];
-  elevationMeters: TimeseriesEntry[];
+  distanceMeters: MetricTimeseriesEntry[];
+  timeMinutes: MetricTimeseriesEntry[];
+  elevationMeters: MetricTimeseriesEntry[];
 }
 
 /** Sport metrics file (activities/{year}/metrics/{sport}.json) */
@@ -102,12 +102,12 @@ export interface YearMetadata_TotalsEntry {
   value?: SportTotals | undefined;
 }
 
-function createBaseTimeseriesEntry(): TimeseriesEntry {
+function createBaseMetricTimeseriesEntry(): MetricTimeseriesEntry {
   return { date: "", value: 0 };
 }
 
-export const TimeseriesEntry: MessageFns<TimeseriesEntry> = {
-  encode(message: TimeseriesEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const MetricTimeseriesEntry: MessageFns<MetricTimeseriesEntry> = {
+  encode(message: MetricTimeseriesEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.date !== "") {
       writer.uint32(10).string(message.date);
     }
@@ -117,10 +117,10 @@ export const TimeseriesEntry: MessageFns<TimeseriesEntry> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): TimeseriesEntry {
+  decode(input: BinaryReader | Uint8Array, length?: number): MetricTimeseriesEntry {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseTimeseriesEntry();
+    const message = createBaseMetricTimeseriesEntry();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -256,13 +256,13 @@ function createBaseMetricsTimeseries(): MetricsTimeseries {
 export const MetricsTimeseries: MessageFns<MetricsTimeseries> = {
   encode(message: MetricsTimeseries, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     for (const v of message.distanceMeters) {
-      TimeseriesEntry.encode(v!, writer.uint32(10).fork()).join();
+      MetricTimeseriesEntry.encode(v!, writer.uint32(10).fork()).join();
     }
     for (const v of message.timeMinutes) {
-      TimeseriesEntry.encode(v!, writer.uint32(18).fork()).join();
+      MetricTimeseriesEntry.encode(v!, writer.uint32(18).fork()).join();
     }
     for (const v of message.elevationMeters) {
-      TimeseriesEntry.encode(v!, writer.uint32(26).fork()).join();
+      MetricTimeseriesEntry.encode(v!, writer.uint32(26).fork()).join();
     }
     return writer;
   },
@@ -279,7 +279,7 @@ export const MetricsTimeseries: MessageFns<MetricsTimeseries> = {
             break;
           }
 
-          message.distanceMeters.push(TimeseriesEntry.decode(reader, reader.uint32()));
+          message.distanceMeters.push(MetricTimeseriesEntry.decode(reader, reader.uint32()));
           continue;
         }
         case 2: {
@@ -287,7 +287,7 @@ export const MetricsTimeseries: MessageFns<MetricsTimeseries> = {
             break;
           }
 
-          message.timeMinutes.push(TimeseriesEntry.decode(reader, reader.uint32()));
+          message.timeMinutes.push(MetricTimeseriesEntry.decode(reader, reader.uint32()));
           continue;
         }
         case 3: {
@@ -295,7 +295,7 @@ export const MetricsTimeseries: MessageFns<MetricsTimeseries> = {
             break;
           }
 
-          message.elevationMeters.push(TimeseriesEntry.decode(reader, reader.uint32()));
+          message.elevationMeters.push(MetricTimeseriesEntry.decode(reader, reader.uint32()));
           continue;
         }
       }

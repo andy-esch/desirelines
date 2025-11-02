@@ -2,10 +2,10 @@ syntax = "proto3";
 
 package desirelines.sports.v1;
 
-option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/generated/sports";
+option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/generated";
 
 // Single timeseries entry (date + value)
-message TimeseriesEntry {
+message MetricTimeseriesEntry {
   string date = 1;   // ISO date: "2024-01-15"
   double value = 2;  // Metric value
 }
@@ -31,9 +31,9 @@ message DailyActivity {
 
 // Pre-computed timeseries for efficient chart rendering
 message MetricsTimeseries {
-  repeated TimeseriesEntry distance_meters = 1;
-  repeated TimeseriesEntry time_minutes = 2;
-  repeated TimeseriesEntry elevation_meters = 3;
+  repeated MetricTimeseriesEntry distance_meters = 1;
+  repeated MetricTimeseriesEntry time_minutes = 2;
+  repeated MetricTimeseriesEntry elevation_meters = 3;
 }
 
 // Sport metrics file (activities/{year}/metrics/{sport}.json)

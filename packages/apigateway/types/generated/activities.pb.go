@@ -4,7 +4,7 @@
 // 	protoc        v6.33.0
 // source: activities.proto
 
-package activities
+package generated
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -306,7 +306,7 @@ const file_activities_proto_rawDesc = "" +
 	"\x0fdaily_summaries\x18\x01 \x03(\v2:.desirelines.activities.v1.YearSummary.DailySummariesEntryR\x0edailySummaries\x1aj\n" +
 	"\x13DailySummariesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12=\n" +
-	"\x05value\x18\x02 \x01(\v2'.desirelines.activities.v1.DailySummaryR\x05value:\x028\x01BBZ@github.com/andy-esch/desirelines/schemas/generated/go/activitiesb\x06proto3"
+	"\x05value\x18\x02 \x01(\v2'.desirelines.activities.v1.DailySummaryR\x05value:\x028\x01BFZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generatedb\x06proto3"
 
 var (
 	file_activities_proto_rawDescOnce sync.Once
