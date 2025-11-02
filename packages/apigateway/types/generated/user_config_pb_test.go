@@ -57,12 +57,12 @@ func TestUserConfig_WithAnnotations(t *testing.T) {
 			"2024": {
 				Annotations: []*Annotation{
 					{
-						Id:                "ann-1",
-						StartDate:         "2024-07-14",
-						Label:             "Race Day",
-						Description:       "Big Sur Marathon",
-						Type:              AnnotationType_ANNOTATION_TYPE_EVENT,
-						StravaActivityId:  "123456",
+						Id:               "ann-1",
+						StartDate:        "2024-07-14",
+						Label:            "Race Day",
+						Description:      "Big Sur Marathon",
+						Type:             AnnotationType_ANNOTATION_TYPE_EVENT,
+						StravaActivityId: "123456",
 					},
 					{
 						Id:        "ann-2",
