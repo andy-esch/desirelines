@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package desirelines.config.v1;
 
-option go_package = "github.com/andy-esch/desirelines/schemas/generated/go/userconfig";
+option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/generated";
 
 // Top-level user configuration stored in Firestore
 // Document path: users/{userId}/config/v1

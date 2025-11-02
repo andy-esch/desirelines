@@ -16,17 +16,15 @@ dev = [
     "pytest-cov>=6.2.1",
     "pytest-mock>=3.14.1",
     "requests-mock>=1.12.1",
-
     # Linting & Formatting
     "ruff>=0.12.9",
-
     # Type Checking
     "mypy>=1.17.1",
     "types-pytz>=2025.2.0.20250809",
     "types-requests>=2.32.4.20250809",
-
     # Git Hooks
     "pre-commit>=4.3.0",
+    "types-protobuf>=6.32.1.20250918",
 ]
 
 # ==========================================
@@ -77,6 +75,25 @@ pythonpath = [
     "packages/stravapipe/src",
 ]
 addopts = "--import-mode=importlib"
+
+# ==========================================
+# Coverage Configuration
+# ==========================================
+[tool.coverage.run]
+omit = [
+    # Exclude generated protobuf code - machine-generated, tested via usage
+    "*/types/generated/*_pb2.py",
+    "*/types/generated/*_pb2.pyi",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
 
 # ==========================================
 # MyPy Configuration (Type Checking)
