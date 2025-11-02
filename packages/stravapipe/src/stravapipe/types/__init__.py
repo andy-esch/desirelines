@@ -1,33 +1,18 @@
-"""Shared type definitions for output formats and data structures."""
+"""Type definitions for stravapipe.
 
-from typing_extensions import TypedDict
+This package contains:
+- generated/ - Protocol buffer generated types (NEW - use these for new code)
+- legacy.py - Legacy TypedDict types (DEPRECATED - will be removed)
+"""
 
-
-# Aggregator output formats
-class SummaryEntry(TypedDict):
-    """Entry in daily activity summary.
-
-    Stores cumulative distance and activity IDs for a single day.
-    Used in the summary JSON blob structure.
-    """
-
-    distance_miles: float
-    activity_ids: list[int]
-
-
-class TimeseriesEntry(TypedDict):
-    """Entry in timeseries data for visualization.
-
-    Used for both distance and pacing timeseries charts.
-    """
-
-    x: str  # Date string (YYYY-MM-DD)
-    y: float  # Value (distance or pacing)
-
-
-# Type aliases for aggregator output formats
-SummaryObject = dict[str, SummaryEntry]
-DistanceTimeseries = list[TimeseriesEntry]
+# Re-export legacy types for backward compatibility
+# TODO: Remove these once migration to protobuf types is complete
+from stravapipe.types.legacy import (
+    DistanceTimeseries,
+    SummaryEntry,
+    SummaryObject,
+    TimeseriesEntry,
+)
 
 __all__ = [
     "SummaryEntry",
