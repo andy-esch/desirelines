@@ -9,7 +9,7 @@ import json
 import pytest
 from google.protobuf import json_format
 
-from stravapipe.types.generated import sports_metrics_pb2
+from stravapipe.types.generated import activities_pb2, sports_metrics_pb2
 
 
 class TestSportMetricsProtobuf:
@@ -204,3 +204,81 @@ class TestDailyActivityProtobuf:
         assert "time_minutes" not in data
         assert "elevation_meters" not in data
         assert data["activities"] == 1
+
+
+class TestActivitiesProtobuf:
+    """Test activities.proto generated code."""
+
+    def test_timeseries_entry(self):
+        """Test TimeseriesEntry from activities.proto."""
+        entry = activities_pb2.TimeseriesEntry()
+        entry.date = "2024-01-15"
+        entry.value = 42.5
+
+        # Convert to JSON
+        json_str = json_format.MessageToJson(entry, preserving_proto_field_name=True)
+        data = json.loads(json_str)
+
+        assert data["date"] == "2024-01-15"
+        assert data["value"] == 42.5
+
+    def test_daily_summary(self):
+        """Test DailySummary from activities.proto."""
+        summary = activities_pb2.DailySummary()
+        summary.distance_miles = 26.2
+        summary.activity_ids.extend([123, 456])
+
+        json_str = json_format.MessageToJson(summary, preserving_proto_field_name=True)
+        data = json.loads(json_str)
+
+        assert data["distance_miles"] == 26.2
+        assert len(data["activity_ids"]) == 2
+
+    def test_distance_data_with_map(self):
+        """Test DistanceData with daily map."""
+        distance_data = activities_pb2.DistanceData()
+        distance_data.timeseries.extend([
+            activities_pb2.TimeseriesEntry(date="2024-01-15", value=10.0),
+            activities_pb2.TimeseriesEntry(date="2024-01-16", value=20.0),
+        ])
+
+        daily = distance_data.daily["2024-01-15"]
+        daily.distance_miles = 10.0
+        daily.activity_ids.append(999)
+
+        json_str = json_format.MessageToJson(
+            distance_data, preserving_proto_field_name=True
+        )
+        data = json.loads(json_str)
+
+        assert len(data["timeseries"]) == 2
+        assert data["daily"]["2024-01-15"]["distance_miles"] == 10.0
+
+
+class TestMetricTimeseriesEntry:
+    """Test MetricTimeseriesEntry (renamed from TimeseriesEntry)."""
+
+    def test_metric_timeseries_entry_creation(self):
+        """Test creating MetricTimeseriesEntry."""
+        entry = sports_metrics_pb2.MetricTimeseriesEntry()
+        entry.date = "2024-11-01"
+        entry.value = 5000.0
+
+        assert entry.date == "2024-11-01"
+        assert entry.value == 5000.0
+
+    def test_metric_timeseries_entry_in_list(self):
+        """Test MetricTimeseriesEntry in repeated field."""
+        metrics = sports_metrics_pb2.SportMetrics()
+
+        entry1 = metrics.timeseries.distance_meters.add()
+        entry1.date = "2024-01-01"
+        entry1.value = 1000.0
+
+        entry2 = metrics.timeseries.distance_meters.add()
+        entry2.date = "2024-01-02"
+        entry2.value = 2000.0
+
+        assert len(metrics.timeseries.distance_meters) == 2
+        assert metrics.timeseries.distance_meters[0].date == "2024-01-01"
+        assert metrics.timeseries.distance_meters[1].value == 2000.0
