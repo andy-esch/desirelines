@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean copy-sport-config verify-sport-config
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -173,6 +173,28 @@ proto-clean:
 	@echo "✅ Generated protobuf code cleaned"
 
 # ==========================================
+# Sport Configuration
+# ==========================================
+
+.PHONY: copy-sport-config
+copy-sport-config:
+	@echo "📋 Copying sport config to packages..."
+	@mkdir -p packages/stravapipe/src/stravapipe/config
+	@mkdir -p packages/apigateway/config
+	@cp schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/
+	@cp schemas/sports/sport_types.json packages/apigateway/config/
+	@echo "✅ Sport config copied"
+
+.PHONY: verify-sport-config
+verify-sport-config:
+	@echo "🔍 Verifying sport config..."
+	@diff -q schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/sport_types.json || \
+		(echo "❌ stravapipe config out of sync! Run: make copy-sport-config" && exit 1)
+	@diff -q schemas/sports/sport_types.json packages/apigateway/config/sport_types.json || \
+		(echo "❌ apigateway config out of sync! Run: make copy-sport-config" && exit 1)
+	@echo "✅ Config copies match source"
+
+# ==========================================
 # Service Account Management
 # ==========================================
 
@@ -310,7 +332,7 @@ help:
 	@echo "  Use Terraform for deployment (see terraform/ directory)"
 
 # Combined commands
-test: py-test go-test web-test
+test: verify-sport-config py-test go-test web-test
 lint: py-lint go-lint web-lint
 format: py-format go-format web-format tf-fmt
 typecheck: py-typecheck web-typecheck
