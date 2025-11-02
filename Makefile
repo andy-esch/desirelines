@@ -119,6 +119,7 @@ proto-gen: proto-gen-python proto-gen-go proto-gen-typescript
 	@echo "✅ Protocol buffer code generation complete"
 
 # Generate Python code from proto files
+# stravapipe only needs: activities.proto, sports_metrics.proto (not user_config)
 proto-gen-python:
 	@echo "🔨 Generating Python code from proto files..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
@@ -126,12 +127,14 @@ proto-gen-python:
 	protoc --python_out=packages/stravapipe/src/stravapipe/types/generated \
 		--pyi_out=packages/stravapipe/src/stravapipe/types/generated \
 		-I schemas/proto \
-		schemas/proto/*.proto
+		schemas/proto/activities.proto \
+		schemas/proto/sports_metrics.proto
 	@# Create __init__.py to make it a proper Python package
 	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
 	@echo "✅ Python protobuf code generated in packages/stravapipe/src/stravapipe/types/generated/"
 
 # Generate Go code from proto files
+# apigateway needs all proto files (serves all data types)
 proto-gen-go:
 	@echo "🔨 Generating Go code from proto files..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
@@ -140,10 +143,13 @@ proto-gen-go:
 	protoc --go_out=packages/apigateway/types/generated \
 		--go_opt=paths=source_relative \
 		-I schemas/proto \
-		schemas/proto/*.proto
+		schemas/proto/activities.proto \
+		schemas/proto/sports_metrics.proto \
+		schemas/proto/user_config.proto
 	@echo "✅ Go protobuf code generated in packages/apigateway/types/generated/"
 
 # Generate TypeScript code from proto files
+# web needs all proto files (displays all data types)
 proto-gen-typescript:
 	@echo "🔨 Generating TypeScript code from proto files..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
@@ -153,7 +159,9 @@ proto-gen-typescript:
 		--ts_proto_out=packages/web/src/types/generated \
 		--ts_proto_opt=outputJsonMethods=false,outputPartialMethods=false,useOptionals=messages,oneof=unions \
 		-I schemas/proto \
-		schemas/proto/*.proto
+		schemas/proto/activities.proto \
+		schemas/proto/sports_metrics.proto \
+		schemas/proto/user_config.proto
 	@echo "✅ TypeScript protobuf code generated in packages/web/src/types/generated/"
 
 # Clean generated protobuf code
