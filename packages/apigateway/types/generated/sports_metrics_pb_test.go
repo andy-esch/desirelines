@@ -11,18 +11,18 @@ func TestSportMetrics_CyclingWithDistanceAndElevation(t *testing.T) {
 	// Create metrics for cycling (has distance and elevation)
 	metrics := &SportMetrics{
 		Metadata: &SportMetadata{
-			Sport:             "cycling",
-			Year:              2024,
-			AvailableMetrics:  []string{"distance_meters", "time_minutes", "elevation_meters"},
-			PrimaryMetric:     "distance_meters",
+			Sport:            "cycling",
+			Year:             2024,
+			AvailableMetrics: []string{"distance_meters", "time_minutes", "elevation_meters"},
+			PrimaryMetric:    "distance_meters",
 		},
 		Daily: map[string]*DailyActivity{
 			"2024-01-15": {
-				DistanceMeters:   ptrFloat64(42195.0), // Marathon distance in meters
-				TimeMinutes:      ptrFloat64(120.5),
-				ElevationMeters:  ptrFloat64(450.0),
-				Activities:       2,
-				ActivityIds:      []int64{123456, 123457},
+				DistanceMeters:  ptrFloat64(42195.0), // Marathon distance in meters
+				TimeMinutes:     ptrFloat64(120.5),
+				ElevationMeters: ptrFloat64(450.0),
+				Activities:      2,
+				ActivityIds:     []int64{123456, 123457},
 			},
 		},
 	}
@@ -186,10 +186,10 @@ func TestSportMetrics_Deserialization(t *testing.T) {
 
 func TestYearMetadata_MultipleSports(t *testing.T) {
 	metadata := &YearMetadata{
-		Year:                 2024,
-		Sports:               []string{"cycling", "running", "yoga"},
-		LastUpdated:          "2024-11-01T12:00:00Z",
-		AggregationVersion:   "1.0",
+		Year:               2024,
+		Sports:             []string{"cycling", "running", "yoga"},
+		LastUpdated:        "2024-11-01T12:00:00Z",
+		AggregationVersion: "1.0",
 		Totals: map[string]*SportTotals{
 			"cycling": {
 				DistanceMeters:  ptrFloat64(500000.0),
