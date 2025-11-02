@@ -4,7 +4,11 @@ import json
 
 import pytest
 
-from stravapipe.config.sport_config import SportConfig, load_sport_config
+from stravapipe.config.sport_config import (
+    SUPPORTED_CONFIG_VERSIONS,
+    SportConfig,
+    load_sport_config,
+)
 
 
 def test_categorize_activities():
@@ -83,21 +87,16 @@ def test_unsupported_version_fails(tmp_path):
     config = SportConfig(config_path)
 
     # But version validation should fail
-    with pytest.raises(ValueError, match="Unsupported.*version.*99.0"):
-        from stravapipe.config.sport_config import SUPPORTED_CONFIG_VERSIONS
-
-        if config.version not in SUPPORTED_CONFIG_VERSIONS:
-            raise ValueError(
-                f"Unsupported sport config version: {config.version}\n"
-                f"This code supports: {SUPPORTED_CONFIG_VERSIONS}\n"
-                "Update application code or rollback config version."
-            )
+    assert config.version not in SUPPORTED_CONFIG_VERSIONS, "Unsupported.*version.*99.0"
 
 
 def test_invalid_schema_fails(tmp_path):
     """Test that invalid config schemas are rejected."""
     # Missing required field: strava_types
-    config_data = {"version": "1.0", "sport_categories": {"cycling": {"display_name": "Cycling"}}}
+    config_data = {
+        "version": "1.0",
+        "sport_categories": {"cycling": {"display_name": "Cycling"}},
+    }
     config_path = tmp_path / "sport_types.json"
     with open(config_path, "w") as f:
         json.dump(config_data, f)

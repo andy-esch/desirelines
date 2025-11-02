@@ -6,7 +6,6 @@ for multi-sport support, including optional field behavior and JSON serializatio
 
 import json
 
-import pytest
 from google.protobuf import json_format
 
 from stravapipe.types.generated import activities_pb2, sports_metrics_pb2
@@ -35,9 +34,7 @@ class TestSportMetricsProtobuf:
         daily.activity_ids.extend([123456, 123457])
 
         # Convert to JSON
-        json_str = json_format.MessageToJson(
-            metrics, preserving_proto_field_name=True
-        )
+        json_str = json_format.MessageToJson(metrics, preserving_proto_field_name=True)
         data = json.loads(json_str)
 
         # Verify structure
@@ -63,9 +60,7 @@ class TestSportMetricsProtobuf:
         daily.activity_ids.append(123458)
 
         # Convert to JSON
-        json_str = json_format.MessageToJson(
-            metrics, preserving_proto_field_name=True
-        )
+        json_str = json_format.MessageToJson(metrics, preserving_proto_field_name=True)
         data = json.loads(json_str)
 
         # Verify optional fields are omitted when not set
@@ -89,9 +84,7 @@ class TestSportMetricsProtobuf:
         entry2.value = 15000.0
 
         # Convert to JSON
-        json_str = json_format.MessageToJson(
-            metrics, preserving_proto_field_name=True
-        )
+        json_str = json_format.MessageToJson(metrics, preserving_proto_field_name=True)
         data = json.loads(json_str)
 
         # Verify timeseries structure
@@ -155,9 +148,7 @@ class TestYearMetadataProtobuf:
         yoga_totals.activities = 30
 
         # Convert to JSON
-        json_str = json_format.MessageToJson(
-            metadata, preserving_proto_field_name=True
-        )
+        json_str = json_format.MessageToJson(metadata, preserving_proto_field_name=True)
         data = json.loads(json_str)
 
         # Verify structure
@@ -298,5 +289,3 @@ class TestMetricTimeseriesEntry:
         assert len(metrics.timeseries.distance_meters) == 2
         assert metrics.timeseries.distance_meters[0].date == "2024-01-01"
         assert metrics.timeseries.distance_meters[1].value == 2000.0
-
-

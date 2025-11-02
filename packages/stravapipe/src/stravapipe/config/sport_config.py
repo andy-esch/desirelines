@@ -1,9 +1,8 @@
 """Sport configuration loader with version and schema validation."""
 
-import json
 from functools import lru_cache
+import json
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -46,7 +45,9 @@ class SportCategory:
 
     def matches(self, strava_type: str) -> bool:
         """Check if Strava activity type belongs to this sport."""
-        return strava_type in self.strava_types and strava_type not in self.excluded_types
+        return (
+            strava_type in self.strava_types and strava_type not in self.excluded_types
+        )
 
 
 class SportConfig:
@@ -60,7 +61,7 @@ class SportConfig:
         try:
             validated = SportConfigModel.model_validate(data)
         except ValidationError as e:
-            raise ValueError(f"Invalid sport config schema:\n{e}")
+            raise ValueError(f"Invalid sport config schema:\n{e}") from e
 
         self.version = validated.version
         self.categories = {
@@ -68,14 +69,14 @@ class SportConfig:
             for name, config in validated.sport_categories.items()
         }
 
-    def categorize_activity(self, strava_type: str) -> Optional[str]:
+    def categorize_activity(self, strava_type: str) -> str | None:
         """Map Strava activity type to sport category."""
         for name, category in self.categories.items():
             if category.matches(strava_type):
                 return name
         return None
 
-    def get_category(self, sport: str) -> Optional[SportCategory]:
+    def get_category(self, sport: str) -> SportCategory | None:
         """Get configuration for a sport category."""
         return self.categories.get(sport)
 
@@ -90,7 +91,9 @@ def load_sport_config() -> SportConfig:
     config_path = Path(__file__).parent / "sport_types.json"
 
     if not config_path.exists():
-        raise FileNotFoundError(f"Sport config not found: {config_path}\nRun: make copy-sport-config")
+        raise FileNotFoundError(
+            f"Sport config not found: {config_path}\nRun: make copy-sport-config"
+        )
 
     config = SportConfig(config_path)
 
