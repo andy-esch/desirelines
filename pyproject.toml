@@ -77,6 +77,25 @@ pythonpath = [
 addopts = "--import-mode=importlib"
 
 # ==========================================
+# Coverage Configuration
+# ==========================================
+[tool.coverage.run]
+omit = [
+    # Exclude generated protobuf code - machine-generated, tested via usage
+    "*/types/generated/*_pb2.py",
+    "*/types/generated/*_pb2.pyi",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+# ==========================================
 # MyPy Configuration (Type Checking)
 # ==========================================
 [tool.mypy]

@@ -26,6 +26,8 @@ export default defineConfig({
         "**/*.test.{ts,tsx}",
         "**/*.spec.{ts,tsx}",
         "vite.config.ts",
+        // Exclude generated protobuf code - machine-generated, tested via usage
+        "src/types/generated/**",
       ],
     },
   },

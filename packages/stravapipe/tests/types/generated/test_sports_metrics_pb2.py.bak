@@ -300,3 +300,211 @@ class TestMetricTimeseriesEntry:
         assert metrics.timeseries.distance_meters[1].value == 2000.0
 
 
+class TestUserConfigProtobuf:
+    """Test user_config.proto generated code."""
+
+    def test_user_config_with_goals(self):
+        """Test UserConfig with goals for multiple years."""
+        config = user_config_pb2.UserConfig()
+        config.user_id = "user123"
+        config.schema_version = "1.0"
+        config.last_updated = "2024-11-01T12:00:00Z"
+
+        # Add goals for 2024
+        goals_2024 = config.goals["2024"]
+        goal1 = goals_2024.goals.add()
+        goal1.id = "goal-1"
+        goal1.value = 1000
+        goal1.label = "Ride 1000 miles"
+        goal1.created_at = "2024-01-01T00:00:00Z"
+
+        goal2 = goals_2024.goals.add()
+        goal2.id = "goal-2"
+        goal2.value = 2000
+        goal2.label = "Stretch goal"
+
+        # Convert to JSON
+        json_str = json_format.MessageToJson(config, preserving_proto_field_name=True)
+        data = json.loads(json_str)
+
+        # Verify structure
+        assert data["user_id"] == "user123"
+        assert data["schema_version"] == "1.0"
+        assert len(data["goals"]["2024"]["goals"]) == 2
+        assert data["goals"]["2024"]["goals"][0]["value"] == 1000
+        assert data["goals"]["2024"]["goals"][1]["label"] == "Stretch goal"
+
+    def test_user_config_with_annotations(self):
+        """Test UserConfig with annotations (events, periods, notes)."""
+        config = user_config_pb2.UserConfig()
+        config.user_id = "user456"
+
+        # Add event annotation
+        annotations_2024 = config.annotations["2024"]
+        event = annotations_2024.annotations.add()
+        event.id = "ann-1"
+        event.start_date = "2024-07-14"
+        event.label = "Race Day"
+        event.description = "Big Sur Marathon"
+        event.type = user_config_pb2.ANNOTATION_TYPE_EVENT
+        event.strava_activity_id = "123456"
+
+        # Add period annotation
+        period = annotations_2024.annotations.add()
+        period.id = "ann-2"
+        period.start_date = "2024-01-01"
+        period.end_date = "2024-01-31"
+        period.label = "Training Block"
+        period.type = user_config_pb2.ANNOTATION_TYPE_PERIOD
+
+        # Add note
+        note = annotations_2024.annotations.add()
+        note.id = "ann-3"
+        note.start_date = "2024-06-01"
+        note.label = "Recovery Week"
+        note.type = user_config_pb2.ANNOTATION_TYPE_NOTE
+
+        json_str = json_format.MessageToJson(config, preserving_proto_field_name=True)
+        data = json.loads(json_str)
+
+        annotations = data["annotations"]["2024"]["annotations"]
+        assert len(annotations) == 3
+        assert annotations[0]["type"] == "ANNOTATION_TYPE_EVENT"
+        assert annotations[0]["strava_activity_id"] == "123456"
+        assert annotations[1]["end_date"] == "2024-01-31"
+        assert annotations[2]["type"] == "ANNOTATION_TYPE_NOTE"
+
+    def test_user_config_with_preferences(self):
+        """Test UserConfig with user preferences."""
+        config = user_config_pb2.UserConfig()
+        config.user_id = "user789"
+
+        # Set preferences
+        config.preferences.theme = "dark"
+        config.preferences.default_year = 2024
+        config.preferences.chart_defaults.show_average = True
+        config.preferences.chart_defaults.show_goals = False
+
+        json_str = json_format.MessageToJson(config, preserving_proto_field_name=True)
+        data = json.loads(json_str)
+
+        prefs = data["preferences"]
+        assert prefs["theme"] == "dark"
+        assert prefs["default_year"] == 2024
+        assert prefs["chart_defaults"]["show_average"] is True
+        assert prefs["chart_defaults"]["show_goals"] is False
+
+    def test_user_config_with_metadata(self):
+        """Test UserConfig with metadata."""
+        config = user_config_pb2.UserConfig()
+        config.user_id = "user999"
+
+        config.metadata.created_at = "2024-01-01T00:00:00Z"
+        config.metadata.last_synced_device = "chrome-desktop"
+        config.metadata.config_types.extend(["goals", "annotations", "preferences"])
+
+        json_str = json_format.MessageToJson(config, preserving_proto_field_name=True)
+        data = json.loads(json_str)
+
+        metadata = data["metadata"]
+        assert metadata["created_at"] == "2024-01-01T00:00:00Z"
+        assert metadata["last_synced_device"] == "chrome-desktop"
+        assert len(metadata["config_types"]) == 3
+
+    def test_user_config_complete(self):
+        """Test complete UserConfig with all features."""
+        config = user_config_pb2.UserConfig()
+        config.user_id = "complete-user"
+        config.schema_version = "1.0"
+        config.last_updated = "2024-11-01T12:00:00Z"
+
+        # Add goal
+        goal = config.goals["2024"].goals.add()
+        goal.id = "goal-1"
+        goal.value = 1500
+        goal.label = "Annual goal"
+
+        # Add annotation
+        annotation = config.annotations["2024"].annotations.add()
+        annotation.id = "ann-1"
+        annotation.start_date = "2024-06-01"
+        annotation.label = "Summer training"
+        annotation.type = user_config_pb2.ANNOTATION_TYPE_PERIOD
+
+        # Add preferences
+        config.preferences.theme = "light"
+        config.preferences.default_year = 2024
+
+        # Add metadata
+        config.metadata.created_at = "2024-01-01T00:00:00Z"
+
+        # Verify everything serializes correctly
+        json_str = json_format.MessageToJson(config, preserving_proto_field_name=True)
+        data = json.loads(json_str)
+
+        assert "goals" in data
+        assert "annotations" in data
+        assert "preferences" in data
+        assert "metadata" in data
+
+    def test_annotation_type_enum(self):
+        """Test AnnotationType enum values."""
+        config = user_config_pb2.UserConfig()
+
+        # Test all enum types
+        ann1 = config.annotations["2024"].annotations.add()
+        ann1.type = user_config_pb2.ANNOTATION_TYPE_EVENT
+        
+        ann2 = config.annotations["2024"].annotations.add()
+        ann2.type = user_config_pb2.ANNOTATION_TYPE_PERIOD
+        
+        ann3 = config.annotations["2024"].annotations.add()
+        ann3.type = user_config_pb2.ANNOTATION_TYPE_NOTE
+
+        json_str = json_format.MessageToJson(config, preserving_proto_field_name=True)
+        data = json.loads(json_str)
+
+        types = [a["type"] for a in data["annotations"]["2024"]["annotations"]]
+        assert "ANNOTATION_TYPE_EVENT" in types
+        assert "ANNOTATION_TYPE_PERIOD" in types
+        assert "ANNOTATION_TYPE_NOTE" in types
+
+    def test_user_config_empty_maps(self):
+        """Test UserConfig with empty goals and annotations maps."""
+        config = user_config_pb2.UserConfig()
+        config.user_id = "minimal-user"
+        config.schema_version = "1.0"
+
+        json_str = json_format.MessageToJson(config, preserving_proto_field_name=True)
+        data = json.loads(json_str)
+
+        # Empty maps should not appear in JSON
+        assert "goals" not in data
+        assert "annotations" not in data
+        assert data["user_id"] == "minimal-user"
+
+    def test_user_config_deserialization(self):
+        """Test parsing UserConfig from JSON."""
+        json_data = {
+            "user_id": "parse-test",
+            "schema_version": "1.0",
+            "goals": {
+                "2024": {
+                    "goals": [
+                        {"id": "g1", "value": 1000, "label": "Goal 1"}
+                    ]
+                }
+            },
+            "preferences": {
+                "theme": "dark",
+                "default_year": 2024
+            }
+        }
+
+        config = json_format.ParseDict(json_data, user_config_pb2.UserConfig())
+
+        assert config.user_id == "parse-test"
+        assert config.schema_version == "1.0"
+        assert len(config.goals["2024"].goals) == 1
+        assert config.goals["2024"].goals[0].value == 1000
+        assert config.preferences.theme == "dark"
