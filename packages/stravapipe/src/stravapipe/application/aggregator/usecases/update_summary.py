@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import logging
 
 from stravapipe.adapters import OneArgSupplier, Supplier
@@ -16,7 +16,6 @@ from stravapipe.ports.out.read import (
     ReadSummaries,
 )
 from stravapipe.types.generated.sports_metrics_pb2 import (
-    DailyActivity,
     DailySummary,
     YearMetadata,
 )
@@ -219,7 +218,7 @@ class UpdateSummaryUseCase:
         metadata = YearMetadata()
         metadata.year = year
         metadata.aggregation_version = "1.0"
-        metadata.last_updated = datetime.now(timezone.utc).isoformat()
+        metadata.last_updated = datetime.now(UTC).isoformat()
 
         # Add sports and compute totals
         for sport, activities in sport_activities.items():
@@ -236,7 +235,9 @@ class UpdateSummaryUseCase:
                 totals.distance_meters = total_distance
 
             # Time (convert seconds to minutes)
-            total_time_minutes = sum(a.moving_time / 60.0 for a in activities if a.moving_time)
+            total_time_minutes = sum(
+                a.moving_time / 60.0 for a in activities if a.moving_time
+            )
             totals.time_minutes = total_time_minutes
 
             # Elevation (already in meters from Strava)

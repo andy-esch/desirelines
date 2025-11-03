@@ -4,7 +4,7 @@
 from abc import ABC, abstractmethod
 
 from stravapipe.domain import DetailedStravaActivity
-from stravapipe.types import DistanceTimeseries, SummaryObject
+from stravapipe.types import DistanceTimeseries
 from stravapipe.types.generated.sports_metrics_pb2 import DailySummary, YearMetadata
 
 
@@ -38,7 +38,9 @@ class WriteDistances(ABC):
     """Write distances data to external storage"""
 
     @abstractmethod
-    def update(self, distances: dict[str, DistanceTimeseries], *, year: int, sport: str) -> None:
+    def update(
+        self, distances: dict[str, DistanceTimeseries], *, year: int, sport: str
+    ) -> None:
         """Write distances data to external storage for a specific sport"""
 
 

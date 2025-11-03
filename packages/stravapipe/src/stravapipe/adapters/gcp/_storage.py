@@ -28,7 +28,9 @@ class SummariesRepo(ReadSummaries, WriteSummary):
 
         return summary
 
-    def read_activity_summary_by_year_and_sport(self, year: int, sport: str) -> SummaryObject:
+    def read_activity_summary_by_year_and_sport(
+        self, year: int, sport: str
+    ) -> SummaryObject:
         """Read activity summary for a specific year and sport.
 
         Args:
@@ -86,7 +88,9 @@ class DistancesRepo(WriteDistances):
     def __init__(self, client: CloudStorageClientWrapper):
         self._client = client
 
-    def update(self, distances: dict[str, DistanceTimeseries], *, year: int, sport: str) -> None:
+    def update(
+        self, distances: dict[str, DistanceTimeseries], *, year: int, sport: str
+    ) -> None:
         """Write distances data to external storage for a specific sport"""
         distances_blob_name = f"activities/{year}/metrics/{sport}.json"
 
