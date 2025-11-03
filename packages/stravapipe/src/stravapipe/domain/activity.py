@@ -259,6 +259,8 @@ class MinimalStravaActivity(BaseModel):
     type: str
     start_date_local: datetime
     distance: float
+    moving_time: int  # seconds
+    total_elevation_gain: float  # meters
 
     @computed_field  # type: ignore
     @property
