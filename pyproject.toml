@@ -25,6 +25,7 @@ dev = [
     # Git Hooks
     "pre-commit>=4.3.0",
     "types-protobuf>=6.32.1.20250918",
+    "mypy-protobuf>=3.6.0",
 ]
 
 # ==========================================
@@ -104,10 +105,19 @@ packages = ["stravapipe"]
 explicit_package_bases = true
 namespace_packages = true
 
+# Disable misc errors globally (primarily for protobuf __slots__ false positives)
+# The protoc-generated .pyi stubs show __slots__ = () but fields are dynamically managed
+disable_error_code = ["misc"]
+
 # Ignore import-untyped errors for common untyped libraries
 # disable_error_code = ["import-untyped"]
 
-# Or if you prefer to be more specific, ignore specific modules:
+# Generated protobuf code - disable __slots__ warnings
+[[tool.mypy.overrides]]
+module = "stravapipe.types.generated.*"
+disable_error_code = ["misc"]
+
+# Ignore missing imports for external libraries
 [[tool.mypy.overrides]]
 module = [
     "google.cloud.*",

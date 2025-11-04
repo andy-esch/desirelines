@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean copy-sport-config verify-sport-config
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -172,6 +172,20 @@ proto-clean:
 	rm -rf packages/web/src/types/generated
 	@echo "✅ Generated protobuf code cleaned"
 
+# Format protobuf files with buf
+proto-fmt:
+	@echo "🎨 Formatting protobuf files..."
+	@command -v buf >/dev/null 2>&1 || { echo "❌ Error: buf not found. Install with: brew install bufbuild/buf/buf"; exit 1; }
+	buf format -w schemas/proto
+	@echo "✅ Protobuf files formatted"
+
+# Lint protobuf files with buf
+proto-lint:
+	@echo "🔍 Linting protobuf files..."
+	@command -v buf >/dev/null 2>&1 || { echo "❌ Error: buf not found. Install with: brew install bufbuild/buf/buf"; exit 1; }
+	buf lint schemas/proto
+	@echo "✅ Protobuf files linted"
+
 # ==========================================
 # Sport Configuration
 # ==========================================
@@ -318,6 +332,8 @@ help:
 	@echo "  proto-gen-python     - Generate Python code from .proto files"
 	@echo "  proto-gen-go         - Generate Go code from .proto files"
 	@echo "  proto-gen-typescript - Generate TypeScript code from .proto files"
+	@echo "  proto-fmt            - Format .proto files with buf"
+	@echo "  proto-lint           - Lint .proto files with buf"
 	@echo "  proto-clean          - Clean generated protobuf code"
 	@echo ""
 	@echo "Secret Management & Webhooks (uses current gcloud project):"
@@ -333,8 +349,8 @@ help:
 
 # Combined commands
 test: verify-sport-config py-test go-test web-test
-lint: py-lint go-lint web-lint
-format: py-format go-format web-format tf-fmt
+lint: py-lint go-lint web-lint proto-lint
+format: py-format go-format web-format tf-fmt proto-fmt
 typecheck: py-typecheck web-typecheck
 
 

@@ -7,8 +7,8 @@ option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/
 // Timeseries entry for distance data
 // Represents cumulative distance over time
 message TimeseriesEntry {
-  string date = 1;      // ISO 8601 date string (e.g., "2025-01-15")
-  double value = 2;     // Distance in miles (cumulative)
+  string date = 1; // ISO 8601 date string (e.g., "2025-01-15")
+  double value = 2; // Distance in miles (cumulative)
 }
 
 // Distance data payload consumed by frontend
@@ -40,8 +40,8 @@ message DistancesPayload {
 // Daily summary for a specific date
 // Provides raw activity metadata for a single day
 message DailySummary {
-  repeated string activity_ids = 1;  // Strava activity IDs for this day
-  double distance_miles = 2;         // Total distance for this day (not cumulative)
+  repeated string activity_ids = 1; // Strava activity IDs for this day
+  double distance_miles = 2; // Total distance for this day (not cumulative)
   // Note: activity_count can be derived from len(activity_ids)
 }
 

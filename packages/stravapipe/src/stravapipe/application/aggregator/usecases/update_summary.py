@@ -17,6 +17,7 @@ from stravapipe.ports.out.read import (
 )
 from stravapipe.types.generated.sports_metrics_pb2 import (
     DailySummary,
+    SportTotals,
     YearMetadata,
 )
 
@@ -112,7 +113,7 @@ class UpdateSummaryUseCase:
             return
 
         distances_payload = self._pacing_service.calculate(
-            updated_summary, year=activity.start_date_local.year
+            summary=updated_summary, year=activity.start_date_local.year
         )
 
         # Export updated summary to sport-specific file
@@ -167,7 +168,7 @@ class UpdateSummaryUseCase:
                 if temp is not None:
                     summary = temp
 
-            distances_payload = self._pacing_service.calculate(summary.daily, year=year)
+            distances_payload = self._pacing_service.calculate(summary=summary, year=year)
 
             # Export to sport-specific file
             self._export_service.export(
@@ -225,8 +226,13 @@ class UpdateSummaryUseCase:
             metadata.sports.append(sport)
 
             category = self._sport_config.get_category(sport)
-            totals = metadata.totals[sport]
+            if category is None:
+                # Should never happen - sport was already validated by _categorize_by_sport
+                logger.error("Sport %s has no category config", sport)
+                continue
 
+            # Build SportTotals message (avoids mypy __slots__ issue with map access)
+            totals = SportTotals()
             totals.activities = len(activities)
 
             # Distance (already in meters from Strava)
@@ -246,6 +252,9 @@ class UpdateSummaryUseCase:
                     a.total_elevation_gain for a in activities if a.total_elevation_gain
                 )
                 totals.elevation_meters = total_elevation
+
+            # Copy to metadata map (proper protobuf pattern)
+            metadata.totals[sport].CopyFrom(totals)
 
         # Write metadata file
         self._export_service.export_metadata(metadata, year=year)

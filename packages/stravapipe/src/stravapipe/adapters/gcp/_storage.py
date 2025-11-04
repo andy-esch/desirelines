@@ -30,7 +30,7 @@ class SummariesRepo(ReadSummaries, WriteSummary):
 
     def read_activity_summary_by_year_and_sport(
         self, year: int, sport: str
-    ) -> SummaryObject:
+    ) -> DailySummary:
         """Read activity summary for a specific year and sport.
 
         Args:
@@ -38,15 +38,19 @@ class SummariesRepo(ReadSummaries, WriteSummary):
             sport: Sport name (e.g., "cycling")
 
         Returns:
-            Summary object (date-keyed dict)
+            DailySummary protobuf message
         """
         blob_name = f"activities/{year}/source/{sport}.json"
         try:
-            summary = self._client.read_json_from_bucket(blob_name)
+            json_dict = self._client.read_json_from_bucket(blob_name)
         except NotFound:
             logger.info("No existing summary for year=%s, sport=%s", year, sport)
-            summary = {}
+            json_dict = {}
 
+        # Convert JSON dict to DailySummary protobuf
+        # The stored format is a flat date-keyed dict, wrap it in {"daily": {...}}
+        summary = DailySummary()
+        json_format.ParseDict({"daily": json_dict}, summary)
         return summary
 
     def update(self, summary: DailySummary, *, year: int, sport: str) -> None:
@@ -63,7 +67,6 @@ class SummariesRepo(ReadSummaries, WriteSummary):
         summary_dict = json_format.MessageToDict(
             summary,
             preserving_proto_field_name=True,
-            including_default_value_fields=False,
         )
 
         # Extract just the 'daily' field for backwards compatibility
@@ -111,7 +114,6 @@ class MetadataRepo(WriteMetadata):
         metadata_json = json_format.MessageToJson(
             metadata,
             preserving_proto_field_name=True,
-            including_default_value_fields=False,
         )
 
         # Upload to GCP bucket
