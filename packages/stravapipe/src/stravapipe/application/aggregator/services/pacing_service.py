@@ -57,7 +57,9 @@ class PacingService:
         estimated_distance = (
             num_days_in_year(year) * total_distance / num_days_so_far(year)
         )
-        logger.info("Estimated distance for year %s: %s miles", year, estimated_distance)
+        logger.info(
+            "Estimated distance for year %s: %s miles", year, estimated_distance
+        )
         distance_traveled = self._translate_summary_for_chart(summary, year)
         distance_payload = {"distance_traveled": distance_traveled}
         return distance_payload

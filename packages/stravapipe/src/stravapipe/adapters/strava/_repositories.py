@@ -294,7 +294,7 @@ class MinimalStravaActivitiesRepo(ReadMinimalActivities):
     def read_activity_by_id(self, activity_id: int) -> MinimalStravaActivity:
         """Fetch minimal activity data from Strava
 
-        Only extracts the fields needed for aggregation (id, type, date, distance).
+        Only extracts the fields needed for aggregation.
         Much faster validation than DetailedStravaActivity.
         """
         resp = self._read_raw_activity_by_id(activity_id)
@@ -304,6 +304,8 @@ class MinimalStravaActivitiesRepo(ReadMinimalActivities):
             "type": resp["type"],
             "start_date_local": resp["start_date_local"],
             "distance": resp["distance"],
+            "moving_time": resp["moving_time"],
+            "total_elevation_gain": resp["total_elevation_gain"],
         }
         activity = MinimalStravaActivity(**minimal_data)
         return activity

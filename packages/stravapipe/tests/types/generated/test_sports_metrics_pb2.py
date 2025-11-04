@@ -213,7 +213,7 @@ class TestActivitiesProtobuf:
         assert data["date"] == "2024-01-15"
         assert data["value"] == 42.5
 
-    def test_distances_payload_with_summaries(self):
+    def test_distances_payload(self):
         """Test DistancesPayload from activities.proto."""
         payload = activities_pb2.DistancesPayload()
 
@@ -226,18 +226,14 @@ class TestActivitiesProtobuf:
         entry2.date = "2024-01-16"
         entry2.value = 25.3
 
-        # Add daily summary
-        summary = payload.summaries["2024-01-15"]
-        summary.distance_miles = 10.5
-        summary.activity_ids.extend(["123", "456"])
-
         json_str = json_format.MessageToJson(payload, preserving_proto_field_name=True)
         data = json.loads(json_str)
 
         assert len(data["distance_traveled"]) == 2
+        assert data["distance_traveled"][0]["date"] == "2024-01-15"
         assert data["distance_traveled"][0]["value"] == 10.5
-        assert data["summaries"]["2024-01-15"]["distance_miles"] == 10.5
-        assert len(data["summaries"]["2024-01-15"]["activity_ids"]) == 2
+        assert data["distance_traveled"][1]["date"] == "2024-01-16"
+        assert data["distance_traveled"][1]["value"] == 25.3
 
     def test_year_summary(self):
         """Test YearSummary from activities.proto."""

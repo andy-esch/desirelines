@@ -168,7 +168,9 @@ class UpdateSummaryUseCase:
                 if temp is not None:
                     summary = temp
 
-            distances_payload = self._pacing_service.calculate(summary=summary, year=year)
+            distances_payload = self._pacing_service.calculate(
+                summary=summary, year=year
+            )
 
             # Export to sport-specific file
             self._export_service.export(
