@@ -29,6 +29,9 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 	// Initialize CORS handler (used for both local and production)
 	corsHandler := cors.NewHandler()
 
+	// Parse allowed emails from environment variable (used in both modes)
+	allowedEmails := parseAllowedEmails()
+
 	// Check if running in local mode
 	dataSource := os.Getenv("DATA_SOURCE")
 	if dataSource == "local-fixtures" {
@@ -36,6 +39,7 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 		return &AuthMiddleware{
 			skipValidation: true,
 			corsHandler:    corsHandler,
+			allowedEmails:  allowedEmails,
 		}, nil
 	}
 
@@ -51,30 +55,32 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 		return nil, fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
 	}
 
-	// Parse allowed emails from environment variable
-	allowedEmailsEnv := os.Getenv("ALLOWED_EMAILS")
-	if allowedEmailsEnv == "" {
-		log.Println("Warning: ALLOWED_EMAILS not set - no users will be authorized")
-	}
-
-	allowedEmails := make(map[string]bool)
-	if allowedEmailsEnv != "" {
-		emails := strings.Split(allowedEmailsEnv, ",")
-		for _, email := range emails {
-			email = strings.TrimSpace(email)
-			if email != "" {
-				allowedEmails[email] = true
-			}
-		}
-		log.Printf("Auth: Configured %d authorized email(s)", len(allowedEmails))
-	}
-
 	log.Println("Auth middleware initialized successfully")
 	return &AuthMiddleware{
 		authClient:    authClient,
 		allowedEmails: allowedEmails,
 		corsHandler:   corsHandler,
 	}, nil
+}
+
+// parseAllowedEmails extracts allowed emails from environment variable.
+func parseAllowedEmails() map[string]bool {
+	allowedEmailsEnv := os.Getenv("ALLOWED_EMAILS")
+	if allowedEmailsEnv == "" {
+		log.Println("Warning: ALLOWED_EMAILS not set - no users will be authorized")
+		return make(map[string]bool)
+	}
+
+	allowedEmails := make(map[string]bool)
+	emails := strings.Split(allowedEmailsEnv, ",")
+	for _, email := range emails {
+		email = strings.TrimSpace(email)
+		if email != "" {
+			allowedEmails[email] = true
+		}
+	}
+	log.Printf("Auth: Configured %d authorized email(s)", len(allowedEmails))
+	return allowedEmails
 }
 
 // Middleware is the HTTP middleware function that validates authentication.
