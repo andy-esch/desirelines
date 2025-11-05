@@ -98,7 +98,6 @@ export function useDistanceData(year: number) {
     const abortController = new AbortController();
 
     const fetchData = async () => {
-      console.log("fetchData starting for year:", year, "user:", user?.email);
       setIsLoading(true);
       setError(null);
 
@@ -110,13 +109,10 @@ export function useDistanceData(year: number) {
           const currentUser = auth.currentUser;
           if (currentUser) {
             idToken = await currentUser.getIdToken();
-            console.log("Got Firebase ID token for user:", user.email);
           }
         }
 
-        console.log("Calling fetchDistanceData...");
         const rideData = await fetchDistanceData(year, abortController.signal, idToken);
-        console.log("fetchDistanceData returned data:", rideData.distance_traveled?.length, "entries");
 
         if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
           // IMPORTANT: Extend data to today before setting state
@@ -128,30 +124,24 @@ export function useDistanceData(year: number) {
           setDistanceData([]);
         }
       } catch (err: unknown) {
-        console.log("fetchData caught error:", err);
         // Only set error if request wasn't aborted
         if (err instanceof Error && err.name !== "AbortError") {
-          console.log("Error is not AbortError, checking if auth error...");
           // Check if this is an auth error (403/401)
           // Match the exact error message from activities.ts
           if (err.message.includes("Access denied") || err.message.includes("not authorized")) {
             // Sign out the user and let them see the demo app
-            console.log("User not authorized - signing out to show demo app", err.message);
+            console.log("User not authorized - signing out to show demo app");
             await signOut();
             // After sign out, user will be null and useEffect will re-run with fixtures
             // finally block will handle setIsLoading(false)
             return;
           }
-          console.error("Non-auth error:", err.message);
           setError(err);
           // Clear data on other errors
           setDistanceData([]);
         } else if (!(err instanceof Error)) {
-          console.log("Error is not an Error instance");
           setError(new Error(String(err)));
           setDistanceData([]);
-        } else {
-          console.log("Error was AbortError, ignoring");
         }
       } finally {
         setIsLoading(false);
