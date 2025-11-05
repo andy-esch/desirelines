@@ -11,13 +11,20 @@ const getApiBaseUrl = (): string => {
 
 export const fetchDistanceData = async (
   year: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  idToken?: string
 ): Promise<RideBlobType> => {
   const apiBaseUrl = getApiBaseUrl();
   const url = `${apiBaseUrl}/activities/${year}/distances`;
 
+  // Build headers with optional auth token
+  const headers: Record<string, string> = {};
+  if (idToken) {
+    headers.Authorization = `Bearer ${idToken}`;
+  }
+
   try {
-    const { data } = await axios.get<RideBlobType>(url, { signal });
+    const { data } = await axios.get<RideBlobType>(url, { signal, headers });
     return data;
   } catch (err: unknown) {
     // Request was cancelled - don't treat as error
@@ -29,6 +36,14 @@ export const fetchDistanceData = async (
     if (err instanceof AxiosError && err.response?.status === 404) {
       // Silently return empty data - no data available is a valid state
       return EMPTY_RIDE_DATA;
+    }
+    // 401/403 means authentication/authorization failed
+    if (
+      err instanceof AxiosError &&
+      (err.response?.status === 401 || err.response?.status === 403)
+    ) {
+      console.error("Authentication failed - user not authorized");
+      throw new Error("Access denied. Please sign in with an authorized account.");
     }
     // Real errors (network, 500s, etc.) should propagate
     console.error("Failed to fetch distance data:", err instanceof Error ? err.message : err);

@@ -94,7 +94,7 @@ export function useDistanceData(year: number) {
       return;
     }
 
-    // Otherwise, fetch from API
+    // Otherwise, fetch from API with auth token
     const abortController = new AbortController();
 
     const fetchData = async () => {
@@ -102,7 +102,17 @@ export function useDistanceData(year: number) {
       setError(null);
 
       try {
-        const rideData = await fetchDistanceData(year, abortController.signal);
+        // Get Firebase ID token for authenticated requests
+        let idToken: string | undefined;
+        if (user) {
+          const auth = (await import("../lib/firebase")).getFirebaseAuth();
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            idToken = await currentUser.getIdToken();
+          }
+        }
+
+        const rideData = await fetchDistanceData(year, abortController.signal, idToken);
 
         if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
           // IMPORTANT: Extend data to today before setting state

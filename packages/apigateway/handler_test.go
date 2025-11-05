@@ -21,9 +21,25 @@ func (m *mockStorageClient) ReadJSON(ctx context.Context, blobPath string) (inte
 	return nil, storage.ErrNotFound
 }
 
+// mockAuthMiddleware is a no-op auth middleware for testing
+type mockAuthMiddleware struct{}
+
+func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
+	// Pass through without authentication (like local development mode)
+	return next
+}
+
+// newTestHandler creates a handler with mock dependencies for testing
+func newTestHandler(storageClient storage.Client) *Handler {
+	return &Handler{
+		storage:        storageClient,
+		authMiddleware: &mockAuthMiddleware{},
+	}
+}
+
 func TestHandlerHealth(t *testing.T) {
 	mock := &mockStorageClient{}
-	handler := NewHandlerWithStorage(mock)
+	handler := newTestHandler(mock)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
@@ -42,7 +58,7 @@ func TestHandlerHealth(t *testing.T) {
 
 func TestHandlerCORS(t *testing.T) {
 	mock := &mockStorageClient{}
-	handler := NewHandlerWithStorage(mock)
+	handler := newTestHandler(mock)
 
 	t.Run("preflight with allowed origin", func(t *testing.T) {
 		// Set environment variable for this test
@@ -140,7 +156,7 @@ func TestHandlerActivities(t *testing.T) {
 		},
 	}
 
-	handler := NewHandlerWithStorage(mock)
+	handler := newTestHandler(mock)
 
 	t.Run("successful request", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/distances", nil)

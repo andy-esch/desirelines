@@ -11,13 +11,20 @@ import (
 	"os"
 	"strings"
 
+	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 	"github.com/andy-esch/desirelines/packages/apigateway/types"
 )
 
+// AuthMiddleware defines the interface for authentication middleware.
+type AuthMiddleware interface {
+	Middleware(next http.Handler) http.Handler
+}
+
 // Handler orchestrates API Gateway request processing.
 type Handler struct {
-	storage storage.Client
+	storage        storage.Client
+	authMiddleware AuthMiddleware
 }
 
 // NewHandler creates a new API Gateway handler.
@@ -46,8 +53,15 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		return nil, fmt.Errorf("invalid DATA_SOURCE: %s (expected: local-fixtures or cloud-storage)", dataSource)
 	}
 
+	// Initialize auth middleware
+	authMiddleware, err := middleware.NewAuthMiddleware(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize auth middleware: %w", err)
+	}
+
 	return &Handler{
-		storage: storageClient,
+		storage:        storageClient,
+		authMiddleware: authMiddleware,
 	}, nil
 }
 
@@ -86,9 +100,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Route requests
 	switch {
 	case path == "health":
+		// Health endpoint is public (no auth required)
 		h.handleHealth(w, r)
 	case strings.HasPrefix(path, "activities/"):
-		h.handleActivities(w, r, path)
+		// Activities endpoints require authentication
+		h.authMiddleware.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h.handleActivities(w, r, path)
+		})).ServeHTTP(w, r)
 	default:
 		h.respondError(w, r, http.StatusNotFound, "Not found")
 	}

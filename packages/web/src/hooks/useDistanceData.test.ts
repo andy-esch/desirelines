@@ -22,6 +22,15 @@ vi.mock("./useAuth", () => ({
   }),
 }));
 
+// Mock Firebase lib to provide mock auth and getIdToken
+vi.mock("../lib/firebase", () => ({
+  getFirebaseAuth: () => ({
+    currentUser: {
+      getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+    },
+  }),
+}));
+
 describe("useDistanceData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -261,20 +270,34 @@ describe("useDistanceData", () => {
 
   describe("AbortController cleanup", () => {
     it("should abort fetch on unmount", async () => {
+      // Use real timers for this test to avoid hanging
+      vi.useRealTimers();
+
       let capturedSignal: AbortSignal | undefined;
-      vi.mocked(activitiesApi.fetchDistanceData).mockImplementation(async (_year, signal) => {
-        capturedSignal = signal;
-        // Never resolve to test abort
-        return new Promise(() => {});
-      });
+      vi.mocked(activitiesApi.fetchDistanceData).mockImplementation(
+        async (_year, signal, _idToken) => {
+          capturedSignal = signal;
+          // Never resolve to test abort
+          return new Promise(() => {});
+        }
+      );
 
       const { unmount } = renderHook(() => useDistanceData(2025));
+
+      // Wait for effects to run
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
 
       // Unmount before fetch completes
       unmount();
 
       // Signal should be aborted
       expect(capturedSignal?.aborted).toBe(true);
+
+      // Restore fake timers for other tests
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2025-06-15T12:00:00Z"));
     });
 
     it("should abort previous fetch when year changes", async () => {
@@ -286,12 +309,14 @@ describe("useDistanceData", () => {
       };
 
       const capturedSignals: AbortSignal[] = [];
-      vi.mocked(activitiesApi.fetchDistanceData).mockImplementation(async (year, signal) => {
-        if (signal) {
-          capturedSignals.push(signal);
+      vi.mocked(activitiesApi.fetchDistanceData).mockImplementation(
+        async (year, signal, _idToken) => {
+          if (signal) {
+            capturedSignals.push(signal);
+          }
+          return year === 2023 ? mockData2023 : mockData2024;
         }
-        return year === 2023 ? mockData2023 : mockData2024;
-      });
+      );
 
       const { result, rerender } = renderHook(({ year }) => useDistanceData(year), {
         initialProps: { year: 2023 },
@@ -303,7 +328,11 @@ describe("useDistanceData", () => {
 
       expect(result.current.isLoading).toBe(false);
       expect(result.current.distanceData[0].x).toBe("2023-01-01");
-      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(2023, expect.any(Object));
+      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(
+        2023,
+        expect.any(Object),
+        "mock-id-token"
+      );
 
       // Change year
       rerender({ year: 2024 });
@@ -314,7 +343,11 @@ describe("useDistanceData", () => {
 
       expect(result.current.isLoading).toBe(false);
       expect(result.current.distanceData[0].x).toBe("2024-01-01");
-      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(2024, expect.any(Object));
+      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(
+        2024,
+        expect.any(Object),
+        "mock-id-token"
+      );
       expect(activitiesApi.fetchDistanceData).toHaveBeenCalledTimes(2);
       // First signal should be aborted
       expect(capturedSignals[0].aborted).toBe(true);
@@ -424,7 +457,11 @@ describe("useDistanceData", () => {
 
       expect(result.current.isLoading).toBe(false);
       expect(result.current.distanceData[0].x).toBe("2023-01-01");
-      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(2023, expect.any(Object));
+      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(
+        2023,
+        expect.any(Object),
+        "mock-id-token"
+      );
 
       // Change year
       rerender({ year: 2024 });
@@ -435,7 +472,11 @@ describe("useDistanceData", () => {
 
       expect(result.current.isLoading).toBe(false);
       expect(result.current.distanceData[0].x).toBe("2024-01-01");
-      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(2024, expect.any(Object));
+      expect(activitiesApi.fetchDistanceData).toHaveBeenCalledWith(
+        2024,
+        expect.any(Object),
+        "mock-id-token"
+      );
       expect(activitiesApi.fetchDistanceData).toHaveBeenCalledTimes(2);
     });
   });
