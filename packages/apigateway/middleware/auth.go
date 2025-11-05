@@ -13,6 +13,27 @@ import (
 	"firebase.google.com/go/v4/auth"
 )
 
+// Helper function to send error with CORS headers
+func sendErrorWithCORS(w http.ResponseWriter, r *http.Request, status int, message string) {
+	// Get allowed origins from environment
+	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
+	if allowedOriginsEnv != "" {
+		origin := r.Header.Get("Origin")
+		allowedOrigins := strings.Split(allowedOriginsEnv, ",")
+		for _, allowed := range allowedOrigins {
+			if origin == strings.TrimSpace(allowed) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				break
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	fmt.Fprintf(w, `{"error":"%s"}`, message)
+}
+
 // AuthMiddleware validates Firebase ID tokens and checks email authorization.
 type AuthMiddleware struct {
 	authClient     *auth.Client
@@ -81,7 +102,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			log.Printf("Auth: Missing Authorization header for %s", r.URL.Path)
-			http.Error(w, "Unauthorized: Missing Authorization header", http.StatusUnauthorized)
+			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: Missing Authorization header")
 			return
 		}
 
@@ -89,7 +110,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			log.Printf("Auth: Invalid Authorization header format for %s", r.URL.Path)
-			http.Error(w, "Unauthorized: Invalid Authorization header format", http.StatusUnauthorized)
+			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: Invalid Authorization header format")
 			return
 		}
 
@@ -99,7 +120,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		token, err := m.authClient.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
 			log.Printf("Auth: Token verification failed for %s: %v", r.URL.Path, err)
-			http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
+			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: Invalid token")
 			return
 		}
 
@@ -107,14 +128,14 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		email, ok := token.Claims["email"].(string)
 		if !ok || email == "" {
 			log.Printf("Auth: No email in token claims for %s", r.URL.Path)
-			http.Error(w, "Unauthorized: No email in token", http.StatusUnauthorized)
+			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: No email in token")
 			return
 		}
 
 		// Check if email is in allowlist
 		if !m.allowedEmails[email] {
 			log.Printf("Auth: Email not authorized: %s (path: %s)", email, r.URL.Path)
-			http.Error(w, "Forbidden: Email not authorized", http.StatusForbidden)
+			sendErrorWithCORS(w, r, http.StatusForbidden, "Forbidden: Email not authorized")
 			return
 		}
 
