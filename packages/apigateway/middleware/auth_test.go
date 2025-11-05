@@ -8,6 +8,18 @@ import (
 	"testing"
 )
 
+// mockCORSHandler is a mock CORS handler for testing
+type mockCORSHandler struct{}
+
+func (m *mockCORSHandler) SetHeaders(w http.ResponseWriter, r *http.Request) bool {
+	// Mock implementation - just set a basic CORS header
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
+	return true
+}
+
 // TestAuthMiddleware_LocalDevelopmentMode tests that auth is skipped in local mode
 func TestAuthMiddleware_LocalDevelopmentMode(t *testing.T) {
 	// Set environment to local mode
@@ -51,13 +63,16 @@ func TestAuthMiddleware_MissingAuthorizationHeader(t *testing.T) {
 	// Set CORS origins for test
 	t.Setenv("ALLOWED_ORIGINS", "https://example.com")
 
+	// Create CORS handler for test
+	corsHandler := &mockCORSHandler{}
+
 	// Create middleware with allowed emails but in non-local mode
 	// We can't fully test without Firebase, but we can test header validation
 	middleware := &AuthMiddleware{
 		allowedEmails:  map[string]bool{"test@example.com": true},
 		skipValidation: false,
 		authClient:     nil, // Will fail at token verification, but we test headers first
-		corsHandler:    nil, // Not needed for this test
+		corsHandler:    corsHandler,
 	}
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -87,11 +102,13 @@ func TestAuthMiddleware_MissingAuthorizationHeader(t *testing.T) {
 func TestAuthMiddleware_InvalidAuthorizationHeaderFormat(t *testing.T) {
 	t.Setenv("ALLOWED_ORIGINS", "https://example.com")
 
+	corsHandler := &mockCORSHandler{}
+
 	middleware := &AuthMiddleware{
 		allowedEmails:  map[string]bool{"test@example.com": true},
 		skipValidation: false,
 		authClient:     nil,
-		corsHandler:    nil,
+		corsHandler:    corsHandler,
 	}
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
