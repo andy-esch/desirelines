@@ -102,7 +102,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			log.Printf("Auth: Authentication failed - reason: missing_header")
-			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: Missing Authorization header")
+			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
 			return
 		}
 
@@ -110,7 +110,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			log.Printf("Auth: Authentication failed - reason: invalid_header_format")
-			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: Invalid Authorization header format")
+			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
 			return
 		}
 
@@ -120,7 +120,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		token, err := m.authClient.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
 			log.Printf("Auth: Authentication failed - reason: token_verification_failed")
-			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: Invalid token")
+			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
 			return
 		}
 
@@ -128,14 +128,14 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		email, ok := token.Claims["email"].(string)
 		if !ok || email == "" {
 			log.Printf("Auth: Authentication failed - reason: missing_email_claim")
-			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: No email in token")
+			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
 			return
 		}
 
 		// Check if email is in allowlist
 		if !m.allowedEmails[email] {
 			log.Printf("Auth: Authorization failed - reason: email_not_authorized")
-			sendErrorWithCORS(w, r, http.StatusForbidden, "Forbidden: Email not authorized")
+			sendErrorWithCORS(w, r, http.StatusForbidden, "Access denied")
 			return
 		}
 
