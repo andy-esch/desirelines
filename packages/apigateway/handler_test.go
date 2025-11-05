@@ -46,12 +46,13 @@ func TestHandlerHealth(t *testing.T) {
 }
 
 func TestHandlerCORS(t *testing.T) {
-	mock := &mockStorageClient{}
-	handler := newTestHandler(mock)
-
 	t.Run("preflight with allowed origin", func(t *testing.T) {
 		// Set environment variable for this test
 		t.Setenv("ALLOWED_ORIGINS", "https://desirelines-dev.web.app,http://localhost:5173")
+
+		// Create handler AFTER setting env var so CORS handler reads correct config
+		mock := &mockStorageClient{}
+		handler := newTestHandler(mock)
 
 		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
 		req.Header.Set("Origin", "https://desirelines-dev.web.app")
@@ -78,6 +79,10 @@ func TestHandlerCORS(t *testing.T) {
 		// Set environment variable for this test
 		t.Setenv("ALLOWED_ORIGINS", "https://desirelines-dev.web.app,http://localhost:5173")
 
+		// Create handler AFTER setting env var so CORS handler reads correct config
+		mock := &mockStorageClient{}
+		handler := newTestHandler(mock)
+
 		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
 		req.Header.Set("Origin", "https://evil.com")
 		w := httptest.NewRecorder()
@@ -99,6 +104,10 @@ func TestHandlerCORS(t *testing.T) {
 		// Set environment variable for this test
 		t.Setenv("ALLOWED_ORIGINS", "https://desirelines-dev.web.app,http://localhost:5173")
 
+		// Create handler AFTER setting env var so CORS handler reads correct config
+		mock := &mockStorageClient{}
+		handler := newTestHandler(mock)
+
 		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
 		req.Header.Set("Origin", "http://localhost:5173")
 		w := httptest.NewRecorder()
@@ -114,6 +123,10 @@ func TestHandlerCORS(t *testing.T) {
 	t.Run("no ALLOWED_ORIGINS env var blocks all origins", func(t *testing.T) {
 		// Ensure ALLOWED_ORIGINS is not set
 		t.Setenv("ALLOWED_ORIGINS", "")
+
+		// Create handler AFTER setting env var so CORS handler reads correct config
+		mock := &mockStorageClient{}
+		handler := newTestHandler(mock)
 
 		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
 		req.Header.Set("Origin", "https://any-origin.com")
