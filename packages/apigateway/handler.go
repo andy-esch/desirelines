@@ -13,6 +13,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/errors"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
+	"github.com/andy-esch/desirelines/packages/apigateway/router"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 	"github.com/andy-esch/desirelines/packages/apigateway/types"
 )
@@ -27,6 +28,7 @@ type Handler struct {
 	storage        storage.Client
 	authMiddleware AuthMiddleware
 	corsHandler    *cors.Handler
+	router         *router.Router
 }
 
 // NewHandler creates a new API Gateway handler.
@@ -64,11 +66,20 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 	// Initialize CORS handler
 	corsHandler := cors.NewHandler()
 
-	return &Handler{
+	// Initialize router and register routes
+	rt := router.NewRouter()
+
+	h := &Handler{
 		storage:        storageClient,
 		authMiddleware: authMiddleware,
 		corsHandler:    corsHandler,
-	}, nil
+		router:         rt,
+	}
+
+	// Register routes
+	h.registerRoutes()
+
+	return h, nil
 }
 
 // getEnvOrDefault returns environment variable value or default if not set.
@@ -77,6 +88,20 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// registerRoutes configures all application routes.
+func (h *Handler) registerRoutes() {
+	// Health endpoint (public, no auth required)
+	h.router.RegisterRoute("health", func(w http.ResponseWriter, r *http.Request) {
+		h.handleHealth(w, r)
+	}, false, nil)
+
+	// Activities endpoints (require authentication)
+	h.router.RegisterRoute("activities/*", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		h.handleActivities(w, r, path)
+	}, true, h.authMiddleware.Middleware)
 }
 
 // NewHandlerWithStorage is a constructor for testing that allows injecting a mock storage client.
@@ -101,19 +126,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := strings.TrimPrefix(r.URL.Path, "/")
-	log.Printf("API request: %s %s", r.Method, path)
 
-	// Route requests
-	switch {
-	case path == "health":
-		// Health endpoint is public (no auth required)
-		h.handleHealth(w, r)
-	case strings.HasPrefix(path, "activities/"):
-		// Activities endpoints require authentication
-		h.authMiddleware.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			h.handleActivities(w, r, path)
-		})).ServeHTTP(w, r)
-	default:
+	// Route request to registered handler
+	if !h.router.Route(w, r, path) {
+		// No route matched
 		errors.WriteError(w, r, errors.ErrNotFound, h.corsHandler)
 	}
 }
