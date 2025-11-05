@@ -132,17 +132,3 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-
-// NewAuthMiddlewareWithClient creates an auth middleware with a custom auth client (for testing).
-func NewAuthMiddlewareWithClient(authClient *auth.Client, allowedEmails []string) *AuthMiddleware {
-	emailMap := make(map[string]bool)
-	for _, email := range allowedEmails {
-		emailMap[email] = true
-	}
-
-	return &AuthMiddleware{
-		authClient:    authClient,
-		allowedEmails: emailMap,
-		corsHandler:   cors.NewHandler(),
-	}
-}
