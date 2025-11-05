@@ -4,9 +4,7 @@ import { EMPTY_RIDE_DATA } from "../constants";
 import { API_BASE_URL } from "../config";
 
 const getApiBaseUrl = (): string => {
-  const url = API_BASE_URL || "http://localhost:8084";
-  console.log("API Base URL:", url);
-  return url;
+  return API_BASE_URL || "http://localhost:8084";
 };
 
 export const fetchDistanceData = async (

@@ -130,7 +130,6 @@ export function useDistanceData(year: number) {
           // Match the exact error message from activities.ts
           if (err.message.includes("Access denied") || err.message.includes("not authorized")) {
             // Sign out the user and let them see the demo app
-            console.log("User not authorized - signing out to show demo app");
             await signOut();
             // After sign out, user will be null and useEffect will re-run with fixtures
             // finally block will handle setIsLoading(false)
