@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 )
 
@@ -156,7 +155,7 @@ func TestAuthMiddleware_InvalidAuthorizationHeaderFormat(t *testing.T) {
 // TestNewAuthMiddleware_NoAllowedEmails tests warning when no emails configured
 func TestNewAuthMiddleware_NoAllowedEmails(t *testing.T) {
 	// Clear environment
-	os.Unsetenv("ALLOWED_EMAILS")
+	t.Setenv("ALLOWED_EMAILS", "")
 	t.Setenv("DATA_SOURCE", "local-fixtures")
 
 	middleware, err := NewAuthMiddleware(context.Background())
