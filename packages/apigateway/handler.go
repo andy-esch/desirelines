@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
+	"github.com/andy-esch/desirelines/packages/apigateway/errors"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 	"github.com/andy-esch/desirelines/packages/apigateway/types"
@@ -95,7 +96,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Only allow GET requests
 	if r.Method != http.MethodGet {
-		h.respondError(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		errors.WriteError(w, r, errors.ErrMethodNotAllowed, h.corsHandler)
 		return
 	}
 
@@ -113,7 +114,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.handleActivities(w, r, path)
 		})).ServeHTTP(w, r)
 	default:
-		h.respondError(w, r, http.StatusNotFound, "Not found")
+		errors.WriteError(w, r, errors.ErrNotFound, h.corsHandler)
 	}
 }
 
@@ -130,7 +131,8 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	// Parse path: activities/{year}/{data_type}
 	parts := strings.Split(path, "/")
 	if len(parts) != 3 {
-		h.respondError(w, r, http.StatusBadRequest, "Invalid path format. Expected: /activities/{year}/{type}")
+		err := errors.NewAPIError(http.StatusBadRequest, "Invalid path format. Expected: /activities/{year}/{type}")
+		errors.WriteError(w, r, err, h.corsHandler)
 		return
 	}
 
@@ -145,7 +147,8 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	case "distances":
 		blobPath = fmt.Sprintf("activities/%s/distances.json", year)
 	default:
-		h.respondError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid data type: %s", dataType))
+		err := errors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid data type: %s", dataType))
+		errors.WriteError(w, r, err, h.corsHandler)
 		return
 	}
 
@@ -153,11 +156,16 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	data, err := h.storage.ReadJSON(r.Context(), blobPath)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			h.respondError(w, r, http.StatusNotFound, fmt.Sprintf("Data not found for %s/%s", year, dataType))
+			apiErr := errors.NewAPIError(http.StatusNotFound, fmt.Sprintf("Data not found for %s/%s", year, dataType))
+			errors.WriteError(w, r, apiErr, h.corsHandler)
 			return
 		}
-		log.Printf("Error reading blob %s: %v", blobPath, err)
-		h.respondError(w, r, http.StatusInternalServerError, "Internal server error")
+		apiErr := errors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Internal server error",
+			fmt.Sprintf("Error reading blob %s: %v", blobPath, err),
+		)
+		errors.WriteError(w, r, apiErr, h.corsHandler)
 		return
 	}
 
@@ -196,10 +204,3 @@ func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status 
 	}
 }
 
-// respondError writes an error response with CORS headers.
-func (h *Handler) respondError(w http.ResponseWriter, r *http.Request, status int, message string) {
-	response := types.ErrorResponse{
-		Error: message,
-	}
-	h.respondJSON(w, r, status, response)
-}
