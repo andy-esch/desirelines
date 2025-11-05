@@ -3,6 +3,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,44 +12,42 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 )
-
-// Helper function to send error with CORS headers
-func sendErrorWithCORS(w http.ResponseWriter, r *http.Request, status int, message string) {
-	// Get allowed origins from environment
-	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
-	if allowedOriginsEnv != "" {
-		origin := r.Header.Get("Origin")
-		allowedOrigins := strings.Split(allowedOriginsEnv, ",")
-		for _, allowed := range allowedOrigins {
-			if origin == strings.TrimSpace(allowed) {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-				break
-			}
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	fmt.Fprintf(w, `{"error":"%s"}`, message)
-}
 
 // AuthMiddleware validates Firebase ID tokens and checks email authorization.
 type AuthMiddleware struct {
 	authClient     *auth.Client
 	allowedEmails  map[string]bool
 	skipValidation bool // For local development
+	corsHandler    *cors.Handler
+}
+
+// sendErrorWithCORS sends a JSON error response with appropriate CORS headers.
+func (m *AuthMiddleware) sendErrorWithCORS(w http.ResponseWriter, r *http.Request, status int, message string) {
+	m.corsHandler.SetHeaders(w, r)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	errorResponse := map[string]string{"error": message}
+	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+		log.Printf("Error encoding error response: %v", err)
+	}
 }
 
 // NewAuthMiddleware creates a new authentication middleware.
 func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
+	// Initialize CORS handler (used for both local and production)
+	corsHandler := cors.NewHandler()
+
 	// Check if running in local mode
 	dataSource := os.Getenv("DATA_SOURCE")
 	if dataSource == "local-fixtures" {
 		log.Println("Auth: Running in local mode - skipping Firebase validation")
 		return &AuthMiddleware{
 			skipValidation: true,
+			corsHandler:    corsHandler,
 		}, nil
 	}
 
@@ -86,6 +85,7 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 	return &AuthMiddleware{
 		authClient:    authClient,
 		allowedEmails: allowedEmails,
+		corsHandler:   corsHandler,
 	}, nil
 }
 
@@ -102,7 +102,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			log.Printf("Auth: Authentication failed - reason: missing_header")
-			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
+			m.sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
 			return
 		}
 
@@ -110,7 +110,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			log.Printf("Auth: Authentication failed - reason: invalid_header_format")
-			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
+			m.sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
 			return
 		}
 
@@ -120,7 +120,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		token, err := m.authClient.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
 			log.Printf("Auth: Authentication failed - reason: token_verification_failed")
-			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
+			m.sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
 			return
 		}
 
@@ -128,14 +128,14 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		email, ok := token.Claims["email"].(string)
 		if !ok || email == "" {
 			log.Printf("Auth: Authentication failed - reason: missing_email_claim")
-			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
+			m.sendErrorWithCORS(w, r, http.StatusUnauthorized, "Authentication failed")
 			return
 		}
 
 		// Check if email is in allowlist
 		if !m.allowedEmails[email] {
 			log.Printf("Auth: Authorization failed - reason: email_not_authorized")
-			sendErrorWithCORS(w, r, http.StatusForbidden, "Access denied")
+			m.sendErrorWithCORS(w, r, http.StatusForbidden, "Access denied")
 			return
 		}
 
@@ -155,5 +155,6 @@ func NewAuthMiddlewareWithClient(authClient *auth.Client, allowedEmails []string
 	return &AuthMiddleware{
 		authClient:    authClient,
 		allowedEmails: emailMap,
+		corsHandler:   cors.NewHandler(),
 	}
 }

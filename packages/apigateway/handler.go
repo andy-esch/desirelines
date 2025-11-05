@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
+	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 	"github.com/andy-esch/desirelines/packages/apigateway/types"
@@ -25,6 +25,7 @@ type AuthMiddleware interface {
 type Handler struct {
 	storage        storage.Client
 	authMiddleware AuthMiddleware
+	corsHandler    *cors.Handler
 }
 
 // NewHandler creates a new API Gateway handler.
@@ -59,9 +60,13 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		return nil, fmt.Errorf("failed to initialize auth middleware: %w", err)
 	}
 
+	// Initialize CORS handler
+	corsHandler := cors.NewHandler()
+
 	return &Handler{
 		storage:        storageClient,
 		authMiddleware: authMiddleware,
+		corsHandler:    corsHandler,
 	}, nil
 }
 
@@ -162,55 +167,12 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 
 // handleCORS responds to CORS preflight requests.
 func (h *Handler) handleCORS(w http.ResponseWriter, r *http.Request) {
-	origin := r.Header.Get("Origin")
-
-	// Set CORS headers with origin validation
-	h.setCORSHeaders(w, origin)
-
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	w.Header().Set("Access-Control-Max-Age", "3600")
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// setCORSHeaders sets appropriate CORS headers based on the request origin.
-func (h *Handler) setCORSHeaders(w http.ResponseWriter, origin string) {
-	// Get allowed origins from environment variable (comma-separated)
-	// Example: ALLOWED_ORIGINS="https://desirelines-dev.web.app,http://localhost:5173"
-	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
-
-	if allowedOriginsEnv == "" {
-		// Secure by default: no CORS headers if not configured
-		// This will cause browser to block cross-origin requests
-		log.Printf("CORS: ALLOWED_ORIGINS not set, blocking all cross-origin requests")
-		return
-	}
-
-	// Parse comma-separated origins
-	allowedOrigins := strings.Split(allowedOriginsEnv, ",")
-
-	// Trim whitespace from each origin
-	for i := range allowedOrigins {
-		allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
-	}
-
-	// Check if origin is in whitelist
-	for _, allowed := range allowedOrigins {
-		if origin == allowed {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			return
-		}
-	}
-
-	// No CORS header if origin not allowed (browser will block)
-	log.Printf("CORS: Origin not allowed: %s (allowed: %s)", origin, allowedOriginsEnv)
+	h.corsHandler.HandlePreflight(w, r)
 }
 
 // respondJSON writes a JSON response with CORS headers.
 func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
-	origin := r.Header.Get("Origin")
-	h.setCORSHeaders(w, origin)
+	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -222,8 +184,7 @@ func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int
 
 // respondJSONRaw writes pre-marshaled JSON data with CORS headers.
 func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
-	origin := r.Header.Get("Origin")
-	h.setCORSHeaders(w, origin)
+	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")
 	// Don't cache authenticated data - user-specific content
