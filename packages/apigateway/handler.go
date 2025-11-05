@@ -28,7 +28,7 @@ type AuthMiddleware interface {
 type Handler struct {
 	storage        storage.Client
 	authMiddleware AuthMiddleware
-	corsHandler    *cors.Handler
+	corsHandler    errors.CORSHandler
 	router         *router.Router
 }
 

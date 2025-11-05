@@ -21,20 +21,9 @@ func (m *mockStorageClient) ReadJSON(ctx context.Context, blobPath string) (inte
 	return nil, storage.ErrNotFound
 }
 
-// mockAuthMiddleware is a no-op auth middleware for testing
-type mockAuthMiddleware struct{}
-
-func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
-	// Pass through without authentication (like local development mode)
-	return next
-}
-
 // newTestHandler creates a handler with mock dependencies for testing
 func newTestHandler(storageClient storage.Client) *Handler {
-	return &Handler{
-		storage:        storageClient,
-		authMiddleware: &mockAuthMiddleware{},
-	}
+	return NewHandlerWithStorage(storageClient)
 }
 
 func TestHandlerHealth(t *testing.T) {

@@ -20,7 +20,7 @@ type AuthMiddleware struct {
 	authClient     *auth.Client
 	allowedEmails  map[string]bool
 	skipValidation bool // For local development
-	corsHandler    *cors.Handler
+	corsHandler    errors.CORSHandler
 }
 
 
