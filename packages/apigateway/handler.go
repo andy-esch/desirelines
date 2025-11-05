@@ -226,7 +226,8 @@ func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status 
 	h.setCORSHeaders(w, origin)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=300") // 5 minutes
+	// Don't cache authenticated data - user-specific content
+	w.Header().Set("Cache-Control", "private, no-store, must-revalidate")
 	w.WriteHeader(status)
 
 	if err := json.NewEncoder(w).Encode(data); err != nil {
