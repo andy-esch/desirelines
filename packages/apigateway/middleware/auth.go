@@ -77,9 +77,9 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 			email = strings.TrimSpace(email)
 			if email != "" {
 				allowedEmails[email] = true
-				log.Printf("Auth: Authorized email: %s", email)
 			}
 		}
+		log.Printf("Auth: Configured %d authorized email(s)", len(allowedEmails))
 	}
 
 	log.Println("Auth middleware initialized successfully")
@@ -101,7 +101,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Extract token from Authorization header
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			log.Printf("Auth: Missing Authorization header for %s", r.URL.Path)
+			log.Printf("Auth: Authentication failed - reason: missing_header")
 			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: Missing Authorization header")
 			return
 		}
@@ -109,7 +109,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Parse "Bearer <token>"
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			log.Printf("Auth: Invalid Authorization header format for %s", r.URL.Path)
+			log.Printf("Auth: Authentication failed - reason: invalid_header_format")
 			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: Invalid Authorization header format")
 			return
 		}
@@ -119,7 +119,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Verify the ID token with Firebase
 		token, err := m.authClient.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
-			log.Printf("Auth: Token verification failed for %s: %v", r.URL.Path, err)
+			log.Printf("Auth: Authentication failed - reason: token_verification_failed")
 			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: Invalid token")
 			return
 		}
@@ -127,20 +127,20 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Extract email from token claims
 		email, ok := token.Claims["email"].(string)
 		if !ok || email == "" {
-			log.Printf("Auth: No email in token claims for %s", r.URL.Path)
+			log.Printf("Auth: Authentication failed - reason: missing_email_claim")
 			sendErrorWithCORS(w, r, http.StatusUnauthorized, "Unauthorized: No email in token")
 			return
 		}
 
 		// Check if email is in allowlist
 		if !m.allowedEmails[email] {
-			log.Printf("Auth: Email not authorized: %s (path: %s)", email, r.URL.Path)
+			log.Printf("Auth: Authorization failed - reason: email_not_authorized")
 			sendErrorWithCORS(w, r, http.StatusForbidden, "Forbidden: Email not authorized")
 			return
 		}
 
 		// Email is authorized, proceed
-		log.Printf("Auth: Authorized request for %s (email: %s)", r.URL.Path, email)
+		log.Printf("Auth: Request authorized successfully")
 		next.ServeHTTP(w, r)
 	})
 }
