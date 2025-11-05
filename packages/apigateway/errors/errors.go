@@ -107,4 +107,5 @@ func WriteError(w http.ResponseWriter, r *http.Request, err APIError, corsHandle
 // CORSHandler interface for setting CORS headers.
 type CORSHandler interface {
 	SetHeaders(w http.ResponseWriter, r *http.Request) bool
+	HandlePreflight(w http.ResponseWriter, r *http.Request)
 }

@@ -20,6 +20,14 @@ func (m *mockCORSHandler) SetHeaders(w http.ResponseWriter, r *http.Request) boo
 	return true
 }
 
+func (m *mockCORSHandler) HandlePreflight(w http.ResponseWriter, r *http.Request) {
+	// Mock implementation for preflight requests
+	m.SetHeaders(w, r)
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // TestAuthMiddleware_LocalDevelopmentMode tests that auth is skipped in local mode
 func TestAuthMiddleware_LocalDevelopmentMode(t *testing.T) {
 	// Set environment to local mode
