@@ -245,4 +245,3 @@ func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status 
 		log.Printf("Error encoding JSON response: %v", err)
 	}
 }
-

@@ -23,7 +23,6 @@ type AuthMiddleware struct {
 	corsHandler    errors.CORSHandler
 }
 
-
 // NewAuthMiddleware creates a new authentication middleware.
 func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 	// Initialize CORS handler (used for both local and production)

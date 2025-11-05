@@ -179,9 +179,9 @@ func TestNewAuthMiddleware_WithAllowedEmails(t *testing.T) {
 	}
 
 	expectedEmails := map[string]bool{
-		"user1@example.com":  true,
-		"user2@example.com":  true,
-		"admin@example.com":  true,
+		"user1@example.com": true,
+		"user2@example.com": true,
+		"admin@example.com": true,
 	}
 
 	if len(middleware.allowedEmails) != len(expectedEmails) {
