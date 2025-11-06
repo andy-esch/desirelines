@@ -105,10 +105,24 @@ export function useDistanceData(year: number) {
         // Get Firebase ID token for authenticated requests
         let idToken: string | undefined;
         if (user) {
-          const auth = (await import("../lib/firebase")).getFirebaseAuth();
-          const currentUser = auth.currentUser;
-          if (currentUser) {
-            idToken = await currentUser.getIdToken();
+          try {
+            const auth = (await import("../lib/firebase")).getFirebaseAuth();
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              // Get ID token, forcing refresh if it's close to expiration
+              idToken = await currentUser.getIdToken(/* forceRefresh */ false);
+            } else {
+              // User session expired - sign out and show demo
+              console.warn("User session expired during data fetch");
+              await signOut();
+              return;
+            }
+          } catch (tokenError) {
+            // Token retrieval failed - sign out and show error
+            console.error("Failed to get authentication token:", tokenError);
+            setError(new Error("Authentication failed. Please sign in again."));
+            await signOut();
+            return;
           }
         }
 
