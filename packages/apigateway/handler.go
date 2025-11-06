@@ -11,13 +11,25 @@ import (
 	"os"
 	"strings"
 
+	"github.com/andy-esch/desirelines/packages/apigateway/cors"
+	"github.com/andy-esch/desirelines/packages/apigateway/errors"
+	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
+	"github.com/andy-esch/desirelines/packages/apigateway/router"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 	"github.com/andy-esch/desirelines/packages/apigateway/types"
 )
 
+// AuthMiddleware defines the interface for authentication middleware.
+type AuthMiddleware interface {
+	Middleware(next http.Handler) http.Handler
+}
+
 // Handler orchestrates API Gateway request processing.
 type Handler struct {
-	storage storage.Client
+	storage        storage.Client
+	authMiddleware AuthMiddleware
+	corsHandler    errors.CORSHandler
+	router         *router.Router
 }
 
 // NewHandler creates a new API Gateway handler.
@@ -46,9 +58,29 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		return nil, fmt.Errorf("invalid DATA_SOURCE: %s (expected: local-fixtures or cloud-storage)", dataSource)
 	}
 
-	return &Handler{
-		storage: storageClient,
-	}, nil
+	// Initialize auth middleware
+	authMiddleware, err := middleware.NewAuthMiddleware(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize auth middleware: %w", err)
+	}
+
+	// Initialize CORS handler
+	corsHandler := cors.NewHandler()
+
+	// Initialize router and register routes
+	rt := router.NewRouter()
+
+	h := &Handler{
+		storage:        storageClient,
+		authMiddleware: authMiddleware,
+		corsHandler:    corsHandler,
+		router:         rt,
+	}
+
+	// Register routes
+	h.registerRoutes()
+
+	return h, nil
 }
 
 // getEnvOrDefault returns environment variable value or default if not set.
@@ -59,11 +91,50 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// registerRoutes configures all application routes.
+func (h *Handler) registerRoutes() {
+	// Health endpoint (public, no auth required)
+	h.router.RegisterRoute("health", func(w http.ResponseWriter, r *http.Request) {
+		h.handleHealth(w, r)
+	}, false, nil)
+
+	// Activities endpoints (require authentication)
+	h.router.RegisterRoute("activities/*", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		h.handleActivities(w, r, path)
+	}, true, h.authMiddleware.Middleware)
+}
+
 // NewHandlerWithStorage is a constructor for testing that allows injecting a mock storage client.
 func NewHandlerWithStorage(storageClient storage.Client) *Handler {
-	return &Handler{
-		storage: storageClient,
+	// Create a mock auth middleware for testing
+	mockAuth := &mockAuthMiddleware{}
+
+	// Initialize CORS handler
+	corsHandler := cors.NewHandler()
+
+	// Initialize router
+	rt := router.NewRouter()
+
+	h := &Handler{
+		storage:        storageClient,
+		authMiddleware: mockAuth,
+		corsHandler:    corsHandler,
+		router:         rt,
 	}
+
+	// Register routes
+	h.registerRoutes()
+
+	return h
+}
+
+// mockAuthMiddleware is a no-op auth middleware for testing
+type mockAuthMiddleware struct{}
+
+func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
+	// Pass through without authentication (like local development mode)
+	return next
 }
 
 // ServeHTTP implements http.Handler interface.
@@ -76,21 +147,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Only allow GET requests
 	if r.Method != http.MethodGet {
-		h.respondError(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		errors.WriteError(w, r, errors.ErrMethodNotAllowed, h.corsHandler)
 		return
 	}
 
 	path := strings.TrimPrefix(r.URL.Path, "/")
-	log.Printf("API request: %s %s", r.Method, path)
 
-	// Route requests
-	switch {
-	case path == "health":
-		h.handleHealth(w, r)
-	case strings.HasPrefix(path, "activities/"):
-		h.handleActivities(w, r, path)
-	default:
-		h.respondError(w, r, http.StatusNotFound, "Not found")
+	// Route request to registered handler
+	if !h.router.Route(w, r, path) {
+		// No route matched
+		errors.WriteError(w, r, errors.ErrNotFound, h.corsHandler)
 	}
 }
 
@@ -107,7 +173,8 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	// Parse path: activities/{year}/{data_type}
 	parts := strings.Split(path, "/")
 	if len(parts) != 3 {
-		h.respondError(w, r, http.StatusBadRequest, "Invalid path format. Expected: /activities/{year}/{type}")
+		err := errors.NewAPIError(http.StatusBadRequest, "Invalid path format. Expected: /activities/{year}/{type}")
+		errors.WriteError(w, r, err, h.corsHandler)
 		return
 	}
 
@@ -122,7 +189,8 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	case "distances":
 		blobPath = fmt.Sprintf("activities/%s/distances.json", year)
 	default:
-		h.respondError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid data type: %s", dataType))
+		err := errors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid data type: %s", dataType))
+		errors.WriteError(w, r, err, h.corsHandler)
 		return
 	}
 
@@ -130,11 +198,16 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	data, err := h.storage.ReadJSON(r.Context(), blobPath)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			h.respondError(w, r, http.StatusNotFound, fmt.Sprintf("Data not found for %s/%s", year, dataType))
+			apiErr := errors.NewAPIError(http.StatusNotFound, fmt.Sprintf("Data not found for %s/%s", year, dataType))
+			errors.WriteError(w, r, apiErr, h.corsHandler)
 			return
 		}
-		log.Printf("Error reading blob %s: %v", blobPath, err)
-		h.respondError(w, r, http.StatusInternalServerError, "Internal server error")
+		apiErr := errors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Internal server error",
+			fmt.Sprintf("Error reading blob %s: %v", blobPath, err),
+		)
+		errors.WriteError(w, r, apiErr, h.corsHandler)
 		return
 	}
 
@@ -144,55 +217,12 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 
 // handleCORS responds to CORS preflight requests.
 func (h *Handler) handleCORS(w http.ResponseWriter, r *http.Request) {
-	origin := r.Header.Get("Origin")
-
-	// Set CORS headers with origin validation
-	h.setCORSHeaders(w, origin)
-
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	w.Header().Set("Access-Control-Max-Age", "3600")
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// setCORSHeaders sets appropriate CORS headers based on the request origin.
-func (h *Handler) setCORSHeaders(w http.ResponseWriter, origin string) {
-	// Get allowed origins from environment variable (comma-separated)
-	// Example: ALLOWED_ORIGINS="https://desirelines-dev.web.app,http://localhost:5173"
-	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
-
-	if allowedOriginsEnv == "" {
-		// Secure by default: no CORS headers if not configured
-		// This will cause browser to block cross-origin requests
-		log.Printf("CORS: ALLOWED_ORIGINS not set, blocking all cross-origin requests")
-		return
-	}
-
-	// Parse comma-separated origins
-	allowedOrigins := strings.Split(allowedOriginsEnv, ",")
-
-	// Trim whitespace from each origin
-	for i := range allowedOrigins {
-		allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
-	}
-
-	// Check if origin is in whitelist
-	for _, allowed := range allowedOrigins {
-		if origin == allowed {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			return
-		}
-	}
-
-	// No CORS header if origin not allowed (browser will block)
-	log.Printf("CORS: Origin not allowed: %s (allowed: %s)", origin, allowedOriginsEnv)
+	h.corsHandler.HandlePreflight(w, r)
 }
 
 // respondJSON writes a JSON response with CORS headers.
 func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
-	origin := r.Header.Get("Origin")
-	h.setCORSHeaders(w, origin)
+	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -204,22 +234,14 @@ func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int
 
 // respondJSONRaw writes pre-marshaled JSON data with CORS headers.
 func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
-	origin := r.Header.Get("Origin")
-	h.setCORSHeaders(w, origin)
+	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=300") // 5 minutes
+	// Don't cache authenticated data - user-specific content
+	w.Header().Set("Cache-Control", "private, no-store, must-revalidate")
 	w.WriteHeader(status)
 
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Printf("Error encoding JSON response: %v", err)
 	}
-}
-
-// respondError writes an error response with CORS headers.
-func (h *Handler) respondError(w http.ResponseWriter, r *http.Request, status int, message string) {
-	response := types.ErrorResponse{
-		Error: message,
-	}
-	h.respondJSON(w, r, status, response)
 }

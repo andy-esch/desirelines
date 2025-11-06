@@ -93,7 +93,7 @@ describe("fetchDistanceData", () => {
 
       expect(axios.get).toHaveBeenCalledWith(
         expect.stringContaining("/activities/2025/distances"),
-        { signal: abortController.signal }
+        { signal: abortController.signal, headers: {} }
       );
     });
 

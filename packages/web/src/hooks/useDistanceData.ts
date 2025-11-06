@@ -72,7 +72,7 @@ export function useDistanceData(year: number) {
   const [distanceData, setDistanceData] = useState<DistanceEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     // Smart mode: Use fixtures if:
@@ -94,7 +94,7 @@ export function useDistanceData(year: number) {
       return;
     }
 
-    // Otherwise, fetch from API
+    // Otherwise, fetch from API with auth token
     const abortController = new AbortController();
 
     const fetchData = async () => {
@@ -102,7 +102,31 @@ export function useDistanceData(year: number) {
       setError(null);
 
       try {
-        const rideData = await fetchDistanceData(year, abortController.signal);
+        // Get Firebase ID token for authenticated requests
+        let idToken: string | undefined;
+        if (user) {
+          try {
+            const auth = (await import("../lib/firebase")).getFirebaseAuth();
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              // Get ID token, forcing refresh if it's close to expiration
+              idToken = await currentUser.getIdToken(/* forceRefresh */ false);
+            } else {
+              // User session expired - sign out and show demo
+              console.warn("User session expired during data fetch");
+              await signOut();
+              return;
+            }
+          } catch (tokenError) {
+            // Token retrieval failed - sign out and show error
+            console.error("Failed to get authentication token:", tokenError);
+            setError(new Error("Authentication failed. Please sign in again."));
+            await signOut();
+            return;
+          }
+        }
+
+        const rideData = await fetchDistanceData(year, abortController.signal, idToken);
 
         if (rideData.distance_traveled && rideData.distance_traveled.length > 0) {
           // IMPORTANT: Extend data to today before setting state
@@ -116,9 +140,21 @@ export function useDistanceData(year: number) {
       } catch (err: unknown) {
         // Only set error if request wasn't aborted
         if (err instanceof Error && err.name !== "AbortError") {
+          // Check if this is an auth error (403/401)
+          // Match the exact error message from activities.ts
+          if (err.message.includes("Access denied") || err.message.includes("not authorized")) {
+            // Sign out the user and let them see the demo app
+            await signOut();
+            // After sign out, user will be null and useEffect will re-run with fixtures
+            // finally block will handle setIsLoading(false)
+            return;
+          }
           setError(err);
+          // Clear data on other errors
+          setDistanceData([]);
         } else if (!(err instanceof Error)) {
           setError(new Error(String(err)));
+          setDistanceData([]);
         }
       } finally {
         setIsLoading(false);
@@ -131,6 +167,7 @@ export function useDistanceData(year: number) {
     return () => {
       abortController.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, user]);
 
   return {
