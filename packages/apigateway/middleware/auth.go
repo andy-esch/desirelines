@@ -83,6 +83,15 @@ func parseAllowedEmails() map[string]bool {
 }
 
 // Middleware is the HTTP middleware function that validates authentication.
+//
+// Authentication failure reason codes logged for monitoring and debugging:
+//   - missing_header: Authorization header not present in request
+//   - invalid_header_format: Authorization header malformed (not "Bearer <token>")
+//   - token_verification_failed: Firebase ID token verification failed
+//   - missing_email_claim: Token verified but email claim missing or empty
+//   - email_not_authorized: Email not in ALLOWED_EMAILS configuration
+//
+// These reason codes can be used for log aggregation and alerting.
 func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip validation in local mode

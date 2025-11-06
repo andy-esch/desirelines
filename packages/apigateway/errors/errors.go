@@ -85,6 +85,8 @@ func NewAPIErrorWithLog(status int, message, logMessage string) APIError {
 // If corsHandler is provided, CORS headers will be set.
 func WriteError(w http.ResponseWriter, r *http.Request, err APIError, corsHandler CORSHandler) {
 	// Log internal message if provided
+	// Note: Uses r.URL.Path (not r.URL.String()) to avoid logging query parameters
+	// which may contain sensitive data like tokens or user information
 	if err.LogMessage != "" {
 		log.Printf("API Error: %s (path: %s, method: %s)", err.LogMessage, r.URL.Path, r.Method)
 	}
