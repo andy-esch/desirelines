@@ -11,10 +11,10 @@ import (
 
 // mockStorageClient is a mock implementation for testing
 type mockStorageClient struct {
-	ReadJSONFunc func(ctx context.Context, blobPath string) (interface{}, error)
+	ReadJSONFunc func(ctx context.Context, blobPath string) (any, error)
 }
 
-func (m *mockStorageClient) ReadJSON(ctx context.Context, blobPath string) (interface{}, error) {
+func (m *mockStorageClient) ReadJSON(ctx context.Context, blobPath string) (any, error) {
 	if m.ReadJSONFunc != nil {
 		return m.ReadJSONFunc(ctx, blobPath)
 	}
@@ -143,14 +143,14 @@ func TestHandlerCORS(t *testing.T) {
 }
 
 func TestHandlerActivities(t *testing.T) {
-	testData := map[string]interface{}{
-		"distance_traveled": []interface{}{
-			map[string]interface{}{"x": "2024-01-01", "y": 10.5},
+	testData := map[string]any{
+		"distance_traveled": []any{
+			map[string]any{"x": "2024-01-01", "y": 10.5},
 		},
 	}
 
 	mock := &mockStorageClient{
-		ReadJSONFunc: func(ctx context.Context, blobPath string) (interface{}, error) {
+		ReadJSONFunc: func(ctx context.Context, blobPath string) (any, error) {
 			if blobPath == "activities/2024/distances.json" {
 				return testData, nil
 			}

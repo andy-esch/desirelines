@@ -222,7 +222,7 @@ func (h *Handler) handleCORS(w http.ResponseWriter, r *http.Request) {
 }
 
 // respondJSON writes a JSON response with CORS headers.
-func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int, data any) {
 	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -234,7 +234,7 @@ func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int
 }
 
 // respondJSONRaw writes pre-marshaled JSON data with CORS headers.
-func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status int, data any) {
 	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")
