@@ -28,33 +28,55 @@ func TestSportMetrics_CyclingWithDistanceAndElevation(t *testing.T) {
 	}
 
 	// Convert to JSON
-	jsonBytes, err := protojson.Marshal(metrics)
-	if err != nil {
-		t.Fatalf("Failed to marshal to JSON: %v", err)
+	jsonBytes, marshalErr := protojson.Marshal(metrics)
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal to JSON: %v", marshalErr)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &data); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	var data map[string]any
+	if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", unmarshalErr)
 	}
 
 	// Verify structure
-	metadata := data["metadata"].(map[string]interface{})
+	metadata, ok := data["metadata"].(map[string]any)
+	if !ok {
+		t.Fatal("metadata is not a map[string]any")
+	}
 	if metadata["sport"] != "cycling" {
 		t.Errorf("Expected sport to be 'cycling', got %v", metadata["sport"])
 	}
-	if metadata["year"].(float64) != 2024 {
+	year, ok := metadata["year"].(float64)
+	if !ok {
+		t.Fatal("year is not a float64")
+	}
+	if year != 2024 {
 		t.Errorf("Expected year to be 2024, got %v", metadata["year"])
 	}
 
-	daily := data["daily"].(map[string]interface{})["2024-01-15"].(map[string]interface{})
-	if daily["distanceMeters"].(float64) != 42195.0 {
+	daily, ok := data["daily"].(map[string]any)["2024-01-15"].(map[string]any)
+	if !ok {
+		t.Fatal("metadata is not a map[string]any")
+	}
+	distanceMeters, ok := daily["distanceMeters"].(float64)
+	if !ok {
+		t.Fatalf("Expected daily[\"distanceMeters\"] to be float64, got %T", daily["distanceMeters"])
+	}
+	if distanceMeters != 42195.0 {
 		t.Errorf("Expected distanceMeters to be 42195.0, got %v", daily["distanceMeters"])
 	}
-	if daily["elevationMeters"].(float64) != 450.0 {
+	elevationMeters, ok := daily["elevationMeters"].(float64)
+	if !ok {
+		t.Fatalf("Expected daily[\"elevationMeters\"] to be float64, got %T", daily["elevationMeters"])
+	}
+	if elevationMeters != 450.0 {
 		t.Errorf("Expected elevationMeters to be 450.0, got %v", daily["elevationMeters"])
 	}
-	if daily["activities"].(float64) != 2 {
+	activities, ok := daily["activities"].(float64)
+	if !ok {
+		t.Fatalf("Expected activities to be float64, got %T", activities)
+	}
+	if activities != 2 {
 		t.Errorf("Expected activities to be 2, got %v", daily["activities"])
 	}
 }
@@ -78,25 +100,39 @@ func TestSportMetrics_YogaWithoutDistance(t *testing.T) {
 	}
 
 	// Convert to JSON
-	jsonBytes, err := protojson.Marshal(metrics)
-	if err != nil {
-		t.Fatalf("Failed to marshal to JSON: %v", err)
+	jsonBytes, marshalErr := protojson.Marshal(metrics)
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal to JSON: %v", marshalErr)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &data); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	var data map[string]any
+	if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", unmarshalErr)
 	}
 
 	// Verify optional fields are omitted when not set
-	daily := data["daily"].(map[string]interface{})["2024-01-15"].(map[string]interface{})
-	if _, ok := daily["distanceMeters"]; ok {
+	// First level: get "daily"
+	dailyData, ok := data["daily"].(map[string]any)
+	if !ok {
+		t.Fatalf("data[\"daily\"] is %T, want map[string]any", data["daily"])
+	}
+
+	// Second level: get "2024-01-15"
+	daily, ok := dailyData["2024-01-15"].(map[string]any)
+	if !ok {
+		t.Fatalf("data[\"daily\"][\"2024-01-15\"] is %T, want map[string]any", dailyData["2024-01-15"])
+	}
+	if _, exists := daily["distanceMeters"]; exists {
 		t.Error("Expected distanceMeters to be omitted, but it was present")
 	}
-	if _, ok := daily["elevationMeters"]; ok {
+	if _, exists := daily["elevationMeters"]; exists {
 		t.Error("Expected elevationMeters to be omitted, but it was present")
 	}
-	if daily["timeMinutes"].(float64) != 60.0 {
+	timeMinutes, ok := daily["timeMinutes"].(float64)
+	if !ok {
+		t.Fatalf("Expected daily[\"timeMinutes\"] to be float64, got %T", daily["timeMinutes"])
+	}
+	if timeMinutes != 60.0 {
 		t.Errorf("Expected timeMinutes to be 60.0, got %v", daily["timeMinutes"])
 	}
 }
@@ -113,29 +149,42 @@ func TestSportMetrics_TimeseriesData(t *testing.T) {
 	}
 
 	// Convert to JSON
-	jsonBytes, err := protojson.Marshal(metrics)
-	if err != nil {
-		t.Fatalf("Failed to marshal to JSON: %v", err)
+	jsonBytes, marshalErr := protojson.Marshal(metrics)
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal to JSON: %v", marshalErr)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &data); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	var data map[string]any
+	if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", unmarshalErr)
 	}
 
 	// Verify timeseries structure
-	timeseries := data["timeseries"].(map[string]interface{})
-	distanceMeters := timeseries["distanceMeters"].([]interface{})
+	timeseries, ok := data["timeseries"].(map[string]any)
+	if !ok {
+		t.Fatalf("Expected data[\"timeseries\"] to be map[string]any, got %T", data["timeseries"])
+	}
+	distanceMeters, ok := timeseries["distanceMeters"].([]any)
+	if !ok {
+		t.Fatalf("Expected timeseries[\"distanceMeters\"] to be []any, got %T", timeseries["distanceMeters"])
+	}
 
 	if len(distanceMeters) != 2 {
 		t.Fatalf("Expected 2 timeseries entries, got %d", len(distanceMeters))
 	}
 
-	entry1 := distanceMeters[0].(map[string]interface{})
+	entry1, ok := distanceMeters[0].(map[string]any)
+	if !ok {
+		t.Fatalf("Expected distanceMeters[0] to be map[string]any, got %T", distanceMeters[0])
+	}
 	if entry1["date"] != "2024-01-15" {
 		t.Errorf("Expected date to be '2024-01-15', got %v", entry1["date"])
 	}
-	if entry1["value"].(float64) != 10000.0 {
+	entry1Value, ok := entry1["value"].(float64)
+	if !ok {
+		t.Fatalf("Expected entry1[\"value\"] to be float64, got %T", entry1["value"])
+	}
+	if entry1Value != 10000.0 {
 		t.Errorf("Expected value to be 10000.0, got %v", entry1["value"])
 	}
 }
@@ -160,8 +209,8 @@ func TestSportMetrics_Deserialization(t *testing.T) {
 
 	// Parse JSON into protobuf
 	metrics := &SportMetrics{}
-	if err := protojson.Unmarshal([]byte(jsonData), metrics); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	if unmarshalErr := protojson.Unmarshal([]byte(jsonData), metrics); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", unmarshalErr)
 	}
 
 	// Verify fields
@@ -205,37 +254,61 @@ func TestYearMetadata_MultipleSports(t *testing.T) {
 	}
 
 	// Convert to JSON
-	jsonBytes, err := protojson.Marshal(metadata)
-	if err != nil {
-		t.Fatalf("Failed to marshal to JSON: %v", err)
+	jsonBytes, marshalErr := protojson.Marshal(metadata)
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal to JSON: %v", marshalErr)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &data); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	var data map[string]any
+	if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", unmarshalErr)
 	}
 
 	// Verify structure
-	if data["year"].(float64) != 2024 {
+	year, ok := data["year"].(float64)
+	if !ok {
+		t.Fatalf("Expected data[\"year\"] to be float64, got %T", data["year"])
+	}
+	if year != 2024 {
 		t.Errorf("Expected year to be 2024, got %v", data["year"])
 	}
 
-	sports := data["sports"].([]interface{})
+	sports, ok := data["sports"].([]any)
+	if !ok {
+		t.Fatalf("Expected data[\"sports\"] to be []any, got %T", data["sports"])
+	}
 	if len(sports) != 3 {
 		t.Errorf("Expected 3 sports, got %d", len(sports))
 	}
 
-	totals := data["totals"].(map[string]interface{})
-	cycling := totals["cycling"].(map[string]interface{})
-	if cycling["distanceMeters"].(float64) != 500000.0 {
+	totals, ok := data["totals"].(map[string]any)
+	if !ok {
+		t.Fatalf("Expected data[\"total\"] to be map[string]any, got %T", data["total"])
+	}
+	cycling, ok := totals["cycling"].(map[string]any)
+	if !ok {
+		t.Fatal("cycling is not map[string]any")
+	}
+	distanceMeters, ok := cycling["distanceMeters"].(float64)
+	if !ok {
+		t.Fatal("cycling['distanceMeters'] cannot be cast as float64")
+	}
+	if distanceMeters != 500000.0 {
 		t.Errorf("Expected cycling distanceMeters to be 500000.0, got %v", cycling["distanceMeters"])
 	}
 
-	yoga := totals["yoga"].(map[string]interface{})
-	if _, ok := yoga["distanceMeters"]; ok {
+	yoga, ok := totals["yoga"].(map[string]any)
+	if !ok {
+		t.Fatal("yoga is not map[string]any")
+	}
+	if _, exists := yoga["distanceMeters"]; exists {
 		t.Error("Expected yoga distanceMeters to be omitted, but it was present")
 	}
-	if yoga["timeMinutes"].(float64) != 1200.0 {
+	timeMinutes, ok := yoga["timeMinutes"].(float64)
+	if !ok {
+		t.Fatal("timeMinutes is not float64")
+	}
+	if timeMinutes != 1200.0 {
 		t.Errorf("Expected yoga timeMinutes to be 1200.0, got %v", yoga["timeMinutes"])
 	}
 }
@@ -246,24 +319,28 @@ func TestDailyActivity_PartialMetrics(t *testing.T) {
 		Activities:     1,
 	}
 
-	jsonBytes, err := protojson.Marshal(daily)
-	if err != nil {
-		t.Fatalf("Failed to marshal to JSON: %v", err)
+	jsonBytes, marshalErr := protojson.Marshal(daily)
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal to JSON: %v", marshalErr)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &data); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	var data map[string]any
+	if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", unmarshalErr)
 	}
 
 	// Only set fields should appear
-	if data["distanceMeters"].(float64) != 1000.0 {
+	distanceMeters, ok := data["distanceMeters"].(float64)
+	if !ok {
+		t.Fatal("distanceMeters is not float64")
+	}
+	if distanceMeters != 1000.0 {
 		t.Errorf("Expected distanceMeters to be 1000.0, got %v", data["distanceMeters"])
 	}
-	if _, ok := data["timeMinutes"]; ok {
+	if _, exists := data["timeMinutes"]; exists {
 		t.Error("Expected timeMinutes to be omitted, but it was present")
 	}
-	if _, ok := data["elevationMeters"]; ok {
+	if _, exists := data["elevationMeters"]; exists {
 		t.Error("Expected elevationMeters to be omitted, but it was present")
 	}
 }

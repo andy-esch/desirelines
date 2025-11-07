@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -47,7 +48,7 @@ func TestMockStorageClient(t *testing.T) {
 		mock := &MockStorageClient{}
 
 		_, err := mock.ReadJSON(ctx, "test/path.json")
-		if err != ErrNotFound {
+		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("expected ErrNotFound, got %v", err)
 		}
 	})

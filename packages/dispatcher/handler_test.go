@@ -18,8 +18,8 @@ func TestHandler_ServeHTTP_Verification(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
@@ -66,8 +66,8 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 

@@ -15,8 +15,8 @@ func TestSecretCache_GetSecrets(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
@@ -100,8 +100,8 @@ func TestSecretCache_InvalidJSON(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
@@ -127,8 +127,8 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
@@ -153,8 +153,8 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 	}
 
 	// Delete the file to simulate temporary file system issue
-	if err := os.Remove(secretsPath); err != nil {
-		t.Logf("Failed to remove test file: %v", err)
+	if removeErr := os.Remove(secretsPath); removeErr != nil {
+		t.Logf("Failed to remove test file: %v", removeErr)
 	}
 
 	// Wait for TTL to expire
@@ -176,8 +176,8 @@ func TestSecretCache_ContentHashDetection(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 

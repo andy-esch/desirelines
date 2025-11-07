@@ -35,7 +35,7 @@ var (
 )
 
 // Update when code supports new versions
-var SUPPORTED_CONFIG_VERSIONS = []string{"1.0"}
+var SupportedConfigVersions = []string{"1.0"}
 
 func LoadSportConfig(configPath string) (*SportConfig, error) {
 	var err error
@@ -47,6 +47,7 @@ func LoadSportConfig(configPath string) (*SportConfig, error) {
 
 // loadSportConfigInternal is the internal loader (for testing)
 func loadSportConfigInternal(configPath string) (*SportConfig, error) {
+	// #nosec G304 - configPath is a known configuration file path
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read sport config: %w", err)
@@ -65,11 +66,11 @@ func loadSportConfigInternal(configPath string) (*SportConfig, error) {
 	}
 
 	// Validate version (fail fast)
-	if !contains(SUPPORTED_CONFIG_VERSIONS, configData.Version) {
+	if !contains(SupportedConfigVersions, configData.Version) {
 		return nil, fmt.Errorf(
 			"unsupported sport config version: %s (supports: %v). "+
 				"Update application code or rollback config version",
-			configData.Version, SUPPORTED_CONFIG_VERSIONS,
+			configData.Version, SupportedConfigVersions,
 		)
 	}
 

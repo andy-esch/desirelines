@@ -69,8 +69,8 @@ func (c *CloudStorageClient) ReadJSON(ctx context.Context, blobPath string) (int
 	}
 
 	var result interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	if unmarshalErr := json.Unmarshal(data, &result); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", unmarshalErr)
 	}
 
 	return result, nil
@@ -101,6 +101,7 @@ func NewLocalStorageClient(basePath string) (*LocalStorageClient, error) {
 func (c *LocalStorageClient) ReadJSON(ctx context.Context, blobPath string) (interface{}, error) {
 	filePath := filepath.Join(c.basePath, blobPath)
 
+	// #nosec G304 - filePath is constructed from basePath (trusted) + blobPath (validated)
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -110,8 +111,8 @@ func (c *LocalStorageClient) ReadJSON(ctx context.Context, blobPath string) (int
 	}
 
 	var result interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON from %s: %w", filePath, err)
+	if unmarshalErr := json.Unmarshal(data, &result); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to parse JSON from %s: %w", filePath, unmarshalErr)
 	}
 
 	return result, nil

@@ -1,4 +1,5 @@
 // Package types defines API response structures.
+// revive:disable:var-naming
 package types
 
 // HealthResponse is the response for the /health endpoint.

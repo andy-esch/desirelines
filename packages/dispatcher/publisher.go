@@ -22,7 +22,7 @@ type PubSubPublisher struct {
 func NewPubSubPublisher(ctx context.Context, projectID, topicID string) (*PubSubPublisher, error) {
 	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create PubSub client: %v", err)
+		return nil, fmt.Errorf("failed to create PubSub client: %w", err)
 	}
 
 	topicName := fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
@@ -36,7 +36,7 @@ func NewPubSubPublisher(ctx context.Context, projectID, topicID string) (*PubSub
 func (p *PubSubPublisher) Publish(ctx context.Context, webhook WebhookRequest, correlationID string) error {
 	data, err := json.Marshal(webhook)
 	if err != nil {
-		return fmt.Errorf("failed to marshal webhook data: %v", err)
+		return fmt.Errorf("failed to marshal webhook data: %w", err)
 	}
 
 	result := p.publisher.Publish(ctx, &pubsub.Message{
@@ -49,7 +49,7 @@ func (p *PubSubPublisher) Publish(ctx context.Context, webhook WebhookRequest, c
 	// Get blocks until the message is published or an error occurs.
 	_, err = result.Get(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to publish to PubSub: %v", err)
+		return fmt.Errorf("failed to publish to PubSub: %w", err)
 	}
 
 	Logger.Info("Successfully published webhook to PubSub",

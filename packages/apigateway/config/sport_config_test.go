@@ -95,8 +95,11 @@ func TestUnsupportedVersionFails(t *testing.T) {
 			},
 		},
 	}
-	data, _ := json.Marshal(configData)
-	err := os.WriteFile(configPath, data, 0644)
+	data, err := json.Marshal(configData)
+	if err != nil {
+		t.Fatalf("Failed to marshal test config: %v", err)
+	}
+	err = os.WriteFile(configPath, data, 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
@@ -141,8 +144,11 @@ func TestEmptyStravaTypesFails(t *testing.T) {
 			},
 		},
 	}
-	data, _ := json.Marshal(configData)
-	err := os.WriteFile(configPath, data, 0644)
+	data, err := json.Marshal(configData)
+	if err != nil {
+		t.Fatalf("Failed to marshal test config: %v", err)
+	}
+	err = os.WriteFile(configPath, data, 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}

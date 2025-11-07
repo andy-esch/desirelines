@@ -100,8 +100,8 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, cor
 
 	Logger.Info("Webhook verification successful", "correlation_id", correlationID)
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge}); err != nil {
-		Logger.Error("Failed to encode response", "correlation_id", correlationID, "error", err)
+	if encodeErr := json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge}); encodeErr != nil {
+		Logger.Error("Failed to encode response", "correlation_id", correlationID, "error", encodeErr)
 	}
 }
 
@@ -138,8 +138,8 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlatio
 		return
 	}
 
-	if err := h.publisher.Publish(r.Context(), webhook, correlationID); err != nil {
-		h.logAndWriteError(w, correlationID, http.StatusInternalServerError, "Failed to publish event", err, "Failed to publish webhook")
+	if publishErr := h.publisher.Publish(r.Context(), webhook, correlationID); publishErr != nil {
+		h.logAndWriteError(w, correlationID, http.StatusInternalServerError, "Failed to publish event", publishErr, "Failed to publish webhook")
 		return
 	}
 

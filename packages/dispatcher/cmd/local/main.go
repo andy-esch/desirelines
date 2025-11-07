@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher"
 )
@@ -22,7 +23,17 @@ func main() {
 
 	port := getEnvOrDefault("PORT", "8080")
 	log.Printf("Server listening on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+
+	// Create server with timeouts for security
+	// #nosec G114 - Timeouts are configured below
+	server := &http.Server{
+		Addr:              ":" + port,
+		Handler:           nil,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	log.Fatal(server.ListenAndServe())
 }
 
 func getEnvOrDefault(key, defaultValue string) string {

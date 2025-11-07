@@ -64,7 +64,7 @@ func (rt *Router) Route(w http.ResponseWriter, r *http.Request, path string) boo
 }
 
 // handleRoute processes a matched route with optional authentication.
-func (rt *Router) handleRoute(w http.ResponseWriter, r *http.Request, path string, route Route) {
+func (rt *Router) handleRoute(w http.ResponseWriter, r *http.Request, _ string, route Route) {
 	if route.RequiresAuth && route.AuthMiddleware != nil {
 		// Wrap handler with authentication middleware
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -1,5 +1,91 @@
 version: "2"
 
-# Simple golangci-lint v2 configuration
 run:
   timeout: 5m
+  tests: true
+
+linters:
+  default: standard  # Use standard set of linters as baseline
+  enable:
+    # Additional quality linters
+    - misspell        # Find commonly misspelled English words
+    - revive          # Fast, configurable, extensible linter (replaces golint)
+    - gosec           # Security-focused linter
+    - unconvert       # Remove unnecessary type conversions
+    - unparam         # Find unused function parameters
+    - gocyclo         # Check cyclomatic complexity
+    - dupl            # Check for code duplication
+    - goconst         # Find repeated strings that could be constants
+    - bodyclose       # Check HTTP response body is closed
+    - nilerr          # Find code returning nil even if it checks err != nil
+    - errorlint       # Find code that will cause problems with Go 1.13+ error wrapping
+    - copyloopvar     # Check for pointers to loop variables
+  settings:
+    errcheck:
+      check-blank: true
+      check-type-assertions: true
+    govet:
+      enable:
+        - shadow
+      settings:
+        shadow:
+          strict: true
+    gocyclo:
+      min-complexity: 15
+    dupl:
+      threshold: 100
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: var-naming
+        - name: package-comments
+        - name: dot-imports
+        - name: blank-imports
+        - name: exported
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: if-return
+        - name: increment-decrement
+        - name: var-declaration
+        - name: range
+        - name: time-naming
+        - name: indent-error-flow
+        - name: superfluous-else
+  exclusions:
+    presets:
+      - comments             # Exclude comment-related issues
+      - std-error-handling   # Exclude standard error handling patterns
+    rules:
+      - path: _test\.go      # Relax rules for test files
+        linters:
+          - dupl
+          - gosec
+          - gocyclo
+
+formatters:
+  enable:
+    - gofmt           # Check code is gofmt-ed
+    - goimports       # Check imports are formatted
+
+issues:
+  max-issues-per-linter: 0  # Show all issues
+  max-same-issues: 0        # Show all occurrences
+
+  # Exclude some linters from running on tests files
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - dupl
+        - gosec
+        - gocyclo
+    # Exclude errcheck and govet shadow for generated protobuf test files
+    - path: types/generated/.*_test\.go
+      linters:
+        - errcheck
+        - govet

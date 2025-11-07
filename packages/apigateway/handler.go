@@ -5,6 +5,7 @@ package apigateway
 import (
 	"context"
 	"encoding/json"
+	goerrors "errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -197,7 +198,7 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 	// Fetch data from storage
 	data, err := h.storage.ReadJSON(r.Context(), blobPath)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if goerrors.Is(err, storage.ErrNotFound) {
 			apiErr := errors.NewAPIError(http.StatusNotFound, fmt.Sprintf("Data not found for %s/%s", year, dataType))
 			errors.WriteError(w, r, apiErr, h.corsHandler)
 			return

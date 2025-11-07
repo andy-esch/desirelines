@@ -13,6 +13,7 @@ import (
 
 const (
 	// DefaultSecretsPath is the standard secret volume mount path
+	// #nosec G101 - This is a file path, not a credential
 	DefaultSecretsPath = "/etc/secrets/strava_auth.json"
 	// DefaultSecretCacheTTL is the default cache TTL for secret reloading
 	DefaultSecretCacheTTL = 5 * time.Minute
@@ -85,8 +86,8 @@ func (c *SecretCache) GetSecrets() (string, int, error) {
 
 	// Content changed or first load
 	if currentHash != c.contentHash {
-		if err := c.loadSecrets(); err != nil {
-			Logger.Error("Failed to reload secrets", "error", err)
+		if loadErr := c.loadSecrets(); loadErr != nil {
+			Logger.Error("Failed to reload secrets", "error", loadErr)
 			// Return cached values if available
 			if c.verifyToken != "" {
 				return c.verifyToken, c.subscriptionID, nil
@@ -114,8 +115,8 @@ func (c *SecretCache) hashFile() (string, error) {
 	}()
 
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
+	if _, copyErr := io.Copy(hash, file); copyErr != nil {
+		return "", copyErr
 	}
 
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
@@ -134,8 +135,8 @@ func (c *SecretCache) loadSecrets() error {
 	}()
 
 	var secrets StravaSecrets
-	if err := json.NewDecoder(file).Decode(&secrets); err != nil {
-		return err
+	if decodeErr := json.NewDecoder(file).Decode(&secrets); decodeErr != nil {
+		return decodeErr
 	}
 
 	// Direct field access with compile-time type safety
@@ -149,10 +150,10 @@ func (c *SecretCache) loadSecrets() error {
 func LoadConfig() (*Config, error) {
 	// Load webhook secrets from mounted volume if available
 	secretsPath := DefaultSecretsPath
-	if _, err := os.Stat(secretsPath); err == nil {
-		secretsFile, err := os.Open(secretsPath)
-		if err != nil {
-			Logger.Error("Failed to open secrets file", "error", err)
+	if _, statErr := os.Stat(secretsPath); statErr == nil {
+		secretsFile, openErr := os.Open(secretsPath)
+		if openErr != nil {
+			Logger.Error("Failed to open secrets file", "error", openErr)
 		} else {
 			defer func() {
 				if closeErr := secretsFile.Close(); closeErr != nil {
@@ -161,18 +162,18 @@ func LoadConfig() (*Config, error) {
 			}()
 
 			var secrets StravaSecrets
-			if err := json.NewDecoder(secretsFile).Decode(&secrets); err != nil {
-				Logger.Error("Failed to decode secrets file", "error", err)
+			if decodeErr := json.NewDecoder(secretsFile).Decode(&secrets); decodeErr != nil {
+				Logger.Error("Failed to decode secrets file", "error", decodeErr)
 			} else {
 				// Set environment variables from secrets (takes precedence)
 				if secrets.WebhookVerifyToken != "" {
-					if err := os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", secrets.WebhookVerifyToken); err != nil {
-						Logger.Error("Failed to set STRAVA_WEBHOOK_VERIFY_TOKEN", "error", err)
+					if setErr := os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", secrets.WebhookVerifyToken); setErr != nil {
+						Logger.Error("Failed to set STRAVA_WEBHOOK_VERIFY_TOKEN", "error", setErr)
 					}
 				}
 				if secrets.WebhookSubscriptionID != 0 {
-					if err := os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(secrets.WebhookSubscriptionID)); err != nil {
-						Logger.Error("Failed to set STRAVA_WEBHOOK_SUBSCRIPTION_ID", "error", err)
+					if setErr := os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", strconv.Itoa(secrets.WebhookSubscriptionID)); setErr != nil {
+						Logger.Error("Failed to set STRAVA_WEBHOOK_SUBSCRIPTION_ID", "error", setErr)
 					}
 				}
 			}
@@ -182,7 +183,7 @@ func LoadConfig() (*Config, error) {
 	subIDStr := getEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "0")
 	subscriptionID, err := strconv.Atoi(subIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID: %v", err)
+		return nil, fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID: %w", err)
 	}
 
 	return &Config{
