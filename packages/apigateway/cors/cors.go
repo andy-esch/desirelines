@@ -61,7 +61,7 @@ func (h *Handler) SetHeaders(w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	// Origin not allowed
-	log.Printf("CORS: Origin not allowed: %s", origin)
+	log.Printf("CORS: Origin not allowed: %s (allowed origins: %v)", origin, h.allowedOrigins)
 	return false
 }
 
