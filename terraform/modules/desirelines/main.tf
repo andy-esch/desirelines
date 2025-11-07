@@ -768,7 +768,7 @@ resource "google_cloudfunctions2_function" "api_gateway" {
       ALLOWED_ORIGINS = var.api_gateway_allowed_origins
       ALLOWED_EMAILS  = var.developer_email != null ? var.developer_email : ""
       DATA_SOURCE     = "cloud-storage"
-      DEPLOYMENT_ID   = "20251107-001"
+      DEPLOYMENT_ID   = "20251107-002"
     }
   }
 

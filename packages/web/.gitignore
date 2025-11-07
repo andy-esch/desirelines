@@ -2,3 +2,7 @@
 src/data/fixtures/activities/
 # But keep the TypeScript exports file for TypeScript
 !src/data/fixtures/index.ts
+
+# Environment files with secrets (not committed)
+.env.local
+.env.*.local

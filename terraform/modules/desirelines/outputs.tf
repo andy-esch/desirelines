@@ -84,10 +84,19 @@ output "dev_service_accounts" {
 
 # Cloud Function outputs (only available in "full" deployment mode)
 output "cloud_function_urls" {
-  description = "URLs for Cloud Functions"
+  description = "URLs for Cloud Functions (ephemeral - may change on redeploy)"
   value = var.deployment_mode == "full" ? {
     dispatcher_url  = google_cloudfunctions2_function.activity_dispatcher[0].service_config[0].uri
     api_gateway_url = google_cloudfunctions2_function.api_gateway[0].service_config[0].uri
+  } : {}
+}
+
+# Stable Cloud Run URLs (do not change on redeploy)
+output "cloud_run_stable_urls" {
+  description = "Stable Cloud Run URLs for Cloud Functions (use these for frontend configuration)"
+  value = var.deployment_mode == "full" ? {
+    dispatcher_url  = "https://${google_cloudfunctions2_function.activity_dispatcher[0].name}-${var.gcp_project_number}.${var.gcp_region}.run.app"
+    api_gateway_url = "https://${google_cloudfunctions2_function.api_gateway[0].name}-${var.gcp_project_number}.${var.gcp_region}.run.app"
   } : {}
 }
 

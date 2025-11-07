@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
-import { db } from "./firebase";
+import { db } from "../lib/firebase";
 import type {
   UserConfig,
   GoalsForYear,

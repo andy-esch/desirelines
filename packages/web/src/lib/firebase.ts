@@ -2,29 +2,20 @@
  * Firebase initialization and configuration
  *
  * This file initializes Firebase services used by the application.
- * Currently only uses Authentication, but structured to easily add
- * Firestore, Storage, etc. in the future.
+ * Provides Auth and Firestore services.
+ *
+ * Firebase configuration is loaded from src/lib/config.ts with validation.
  */
 
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-
-// Firebase configuration - loaded from environment variables
-// These values are safe to commit - they're public identifiers
-// Set in .env.development, .env.production, etc.
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-};
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getConfig } from "./config";
 
 // Initialize Firebase (singleton pattern - lazy initialization)
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
+let firestore: Firestore | undefined;
 
 export function initializeFirebase(): FirebaseApp {
   // Check if already initialized
@@ -34,9 +25,12 @@ export function initializeFirebase(): FirebaseApp {
     // App already exists, use it
     app = existingApps[0];
   } else {
-    // Initialize new app
-    app = initializeApp(firebaseConfig);
-    console.log("Firebase initialized");
+    // Get validated configuration
+    const config = getConfig();
+
+    // Initialize new app with validated config
+    app = initializeApp(config.firebase);
+    console.log(`✓ Firebase initialized (project: ${config.firebase.projectId})`);
   }
 
   return app;
@@ -51,3 +45,16 @@ export function getFirebaseAuth(): Auth {
 
   return auth;
 }
+
+export function getFirebaseFirestore(): Firestore {
+  if (!firestore) {
+    // Initialize Firebase if not already done
+    initializeFirebase();
+    firestore = getFirestore();
+  }
+
+  return firestore;
+}
+
+// Convenience exports for common usage
+export const db = getFirebaseFirestore();
