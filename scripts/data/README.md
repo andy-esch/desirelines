@@ -204,6 +204,266 @@ If aggregations fail to generate:
 3. Check logs: `gcloud logging read "resource.type=cloud_function"`
 4. Re-run for specific year: `--years 2024`
 
+---
+
+## Multi-Sport Migration Scripts
+
+Scripts for migrating existing cycling-only data to multi-sport format.
+
+### Migration Overview
+
+**Purpose**: Migrate from flat file structure (`activities/2024.json`) to sport-specific structure (`activities/2024/metrics/cycling.json`).
+
+**Key Changes**:
+- Converts miles to meters (Strava standard)
+- Separates data by sport (cycling, running, yoga)
+- Adds metadata files with sport totals
+- Creates both metrics (pre-computed) and source (raw) files
+
+**Storage Structure**:
+```
+BEFORE (current cycling-only format):
+  activities/
+    2024/
+      distances.json           # Cycling data, miles
+      pacings.json
+      summary_activities.json
+    2023/
+      distances.json
+      ...
+
+AFTER (multi-sport format):
+  activities/
+    2024/
+      metadata.json            # NEW - year summary, sport totals
+      metrics/                 # NEW - pre-computed timeseries
+        cycling.json           # Meters, protobuf JSON
+        running.json
+        yoga.json
+      source/                  # NEW - raw daily data
+        cycling.json
+        running.json
+        yoga.json
+      distances.json           # OLD - kept until cleanup
+      pacings.json             # OLD - kept until cleanup
+      summary_activities.json  # OLD - kept until cleanup
+    2023/
+      ...
+  _backups/
+    2025-11-07_migration/
+      distances.json           # Backups (all years)
+      pacings.json
+      summary_activities.json
+```
+
+### Migration Scripts
+
+**1. backup-aggregations.sh**
+```bash
+# Backup existing data before migration
+./scripts/data/backup-aggregations.sh [environment]
+
+# Examples:
+./scripts/data/backup-aggregations.sh dev
+./scripts/data/backup-aggregations.sh prod
+```
+- Creates timestamped backup in `_backups/YYYY-MM-DD_migration/`
+- Verifies all files copied successfully
+- Safe to run multiple times (creates new backup each time)
+
+**2. migrate_aggregations.py** (Python helper script)
+```bash
+# Migration script that reads from BigQuery
+uv run python scripts/data/migrate_aggregations.py --project PROJECT_ID --years YEAR1 YEAR2
+
+# Examples:
+uv run python scripts/data/migrate_aggregations.py --project desirelines-dev --years 2024 --dry-run
+uv run python scripts/data/migrate_aggregations.py --project desirelines-dev --years 2023 2024
+```
+- Reads activities from BigQuery (no Strava API calls)
+- Converts to MinimalStravaActivity format
+- Calls `run_batch()` to generate multi-sport aggregations
+- Dry-run mode for preview
+- Used by `migrate-to-multisport.sh`
+
+**3. migrate-to-multisport.sh**
+```bash
+# Main migration orchestration script
+./scripts/data/migrate-to-multisport.sh [environment]
+
+# Examples:
+./scripts/data/migrate-to-multisport.sh dev   # Test in dev first!
+./scripts/data/migrate-to-multisport.sh prod
+```
+- Runs backup automatically
+- Queries BigQuery for all years with data
+- Runs migration script to regenerate aggregations
+- Runs verification checks
+- Provides detailed status output
+
+**What it does**:
+1. Backs up existing files
+2. Queries BigQuery for all years with data
+3. Runs `migrate_aggregations.py` to regenerate from BigQuery
+   - Reads activities from BigQuery (no Strava API calls)
+   - Calls `run_batch()` which writes multi-sport format
+   - Uses existing data (no external API limits)
+4. Waits for processing to complete
+5. Runs verification script
+6. Provides next steps
+
+**4. verify-migration.sh**
+```bash
+# Verify migration succeeded
+./scripts/data/verify-migration.sh [environment]
+
+# Examples:
+./scripts/data/verify-migration.sh dev
+./scripts/data/verify-migration.sh prod
+```
+
+**Verification Checks**:
+- ✅ Metadata files exist for each year
+- ✅ Metrics directories contain sport-specific files
+- ✅ Distance values are in meters (not miles)
+- ✅ Totals match original data (accounting for conversion)
+- ✅ File structure is correct
+
+**5. cleanup-old-files.sh**
+```bash
+# Remove old files after successful migration
+./scripts/data/cleanup-old-files.sh [environment]
+
+# Examples:
+./scripts/data/cleanup-old-files.sh dev
+./scripts/data/cleanup-old-files.sh prod
+```
+- **WARNING**: Only run after verifying migration!
+- Deletes old `*.json` files from `activities/`
+- Verifies backup exists before deleting
+- Backups remain in `_backups/` directory
+
+**6. rollback-migration.sh**
+```bash
+# Rollback if migration fails
+./scripts/data/rollback-migration.sh [environment] [backup-date]
+
+# Examples:
+./scripts/data/rollback-migration.sh dev
+./scripts/data/rollback-migration.sh prod 2025-11-07
+```
+- Deletes new multi-sport structure
+- Restores files from backup
+- Auto-detects most recent backup if date not specified
+- Verifies restoration succeeded
+
+### Migration Workflow
+
+**Step 1: Test in Dev**
+```bash
+# Run full migration in dev environment
+./scripts/data/migrate-to-multisport.sh dev
+
+# Verify results
+./scripts/data/verify-migration.sh dev
+
+# Check frontend works with new structure
+# Visit: https://dev.desirelines.andyes.ch
+
+# If all looks good, cleanup
+./scripts/data/cleanup-old-files.sh dev
+```
+
+**Step 2: Migrate Production**
+```bash
+# Run production migration
+./scripts/data/migrate-to-multisport.sh prod
+
+# Verify results
+./scripts/data/verify-migration.sh prod
+
+# Test frontend
+# Visit: https://desirelines.andyes.ch
+
+# If verified, cleanup old files
+./scripts/data/cleanup-old-files.sh prod
+```
+
+**Step 3: If Migration Fails**
+```bash
+# Rollback to original format
+./scripts/data/rollback-migration.sh prod
+
+# Check logs for error
+gcloud logging read "resource.type=cloud_function AND textPayload:aggregat*" --limit 50
+```
+
+### Migration Checklist
+
+Before migration:
+- [ ] Aggregator updated to write multi-sport format (Task 3 complete)
+- [ ] Test aggregator in dev environment
+- [ ] Verify protobuf schemas deployed
+- [ ] Verify sport configuration deployed
+
+After migration:
+- [ ] All years have `metadata.json` files
+- [ ] Each year has `metrics/` and `source/` directories
+- [ ] Cycling data exists for all expected years
+- [ ] Distance values in meters (4-6 digits, not 2-3)
+- [ ] Frontend displays correct values
+- [ ] Sport navigation works
+- [ ] No 404 errors on valid sport/year combinations
+
+### Troubleshooting
+
+**Issue: Cloud Function call fails**
+```bash
+# Check function exists
+gcloud functions list --project=desirelines-prod
+
+# Check logs
+gcloud logging read "resource.type=cloud_function" --limit 50
+
+# Trigger manually via PubSub instead
+gcloud pubsub topics publish desirelines_activity_events \
+  --project=desirelines-prod \
+  --message='{"action": "aggregate", "year": 2024}'
+```
+
+**Issue: Distance values still in miles**
+- Check aggregator code deployed correctly
+- Verify protobuf schemas include `distance_meters` field
+- Review Cloud Function logs for errors
+
+**Issue: Missing sport files**
+- Check if activities exist for that sport in BigQuery
+- Verify sport configuration loaded correctly
+- Check aggregator logs for categorization errors
+
+**Issue: Backup not found during cleanup**
+```bash
+# List available backups
+gsutil ls gs://desirelines-prod-desirelines-aggregation/_backups/
+
+# Manually backup if needed
+./scripts/data/backup-aggregations.sh prod
+```
+
+### Estimated Downtime
+
+- **Dev environment**: ~10 minutes (not user-facing)
+- **Production**: ~15-20 minutes
+  - Frontend shows errors during migration
+  - Run during low-traffic period if needed
+
+### Related Documentation
+
+- **Task**: `docs/planning/tasks/in-progress/multi-sport-04-backfill-migration.md`
+- **Epic**: `docs/planning/epics/06-multi-sport-support.md`
+- **Aggregator**: `packages/stravapipe/src/stravapipe/application/aggregator/`
+- **Protobuf Schemas**: `schemas/protobuf/`
+
 ## Support
 
 For issues or questions:
