@@ -5,7 +5,10 @@ import react from "@vitejs/plugin-react";
 export default defineConfig(({ mode }) => {
   // Validate critical environment variables at build time
   // This catches missing config before deployment
-  if (mode === 'production') {
+  // Skip validation in CI environments (set SKIP_ENV_VALIDATION=true)
+  const skipValidation = process.env.SKIP_ENV_VALIDATION === 'true' || process.env.CI === 'true';
+
+  if (mode === 'production' && !skipValidation) {
     const requiredVars = [
       'VITE_FIREBASE_API_KEY',
       'VITE_FIREBASE_AUTH_DOMAIN',
@@ -26,11 +29,14 @@ export default defineConfig(({ mode }) => {
         missing.map(v => `  • ${v}`).join('\n') + '\n\n' +
         `Please ensure these are set in .env.production or .env.production.local\n` +
         `See docs/guides/web-environment-setup.md for setup instructions.\n` +
+        `To skip validation (e.g., in CI), set SKIP_ENV_VALIDATION=true\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
       );
     }
 
     console.log('✓ Production build configuration validated');
+  } else if (mode === 'production' && skipValidation) {
+    console.log('⚠ Production build validation skipped (CI mode)');
   }
 
   return {
