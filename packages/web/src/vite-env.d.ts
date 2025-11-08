@@ -1,8 +1,31 @@
 /// <reference types="vite/client" />
 
+/**
+ * Type definitions for environment variables.
+ * These are loaded from .env files and accessed via import.meta.env
+ */
 interface ImportMetaEnv {
+  // Vite built-in variables
+  readonly DEV: boolean;
+  readonly PROD: boolean;
+  readonly MODE: string;
+
+  // Application configuration
+  readonly VITE_USE_FIXTURES?: "true" | "false";
+  readonly VITE_API_GATEWAY_URL?: string;
+
+  // Firebase configuration (production project)
+  // These are public identifiers, not secrets
+  readonly VITE_FIREBASE_API_KEY: string;
+  readonly VITE_FIREBASE_AUTH_DOMAIN: string;
+  readonly VITE_FIREBASE_PROJECT_ID: string;
+  readonly VITE_FIREBASE_STORAGE_BUCKET?: string;
+  readonly VITE_FIREBASE_MESSAGING_SENDER_ID?: string;
+  readonly VITE_FIREBASE_APP_ID?: string;
+  readonly VITE_FIREBASE_MEASUREMENT_ID?: string;
+
+  // Legacy variable (deprecated, use VITE_API_GATEWAY_URL)
   readonly REACT_APP_API_URL?: string;
-  // Add more env variables as needed
 }
 
 interface ImportMeta {
