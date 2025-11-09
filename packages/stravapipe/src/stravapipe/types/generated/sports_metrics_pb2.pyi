@@ -1,10 +1,8 @@
-from collections.abc import Iterable as _Iterable
-from collections.abc import Mapping as _Mapping
-from typing import ClassVar as _ClassVar
-
+from google.protobuf.internal import containers as _containers
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from google.protobuf.internal import containers as _containers
+from collections.abc import Iterable as _Iterable, Mapping as _Mapping
+from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -14,7 +12,7 @@ class MetricTimeseriesEntry(_message.Message):
     VALUE_FIELD_NUMBER: _ClassVar[int]
     date: str
     value: float
-    def __init__(self, date: str | None = ..., value: float | None = ...) -> None: ...
+    def __init__(self, date: _Optional[str] = ..., value: _Optional[float] = ...) -> None: ...
 
 class DailyActivity(_message.Message):
     __slots__ = ()
@@ -28,14 +26,7 @@ class DailyActivity(_message.Message):
     elevation_meters: float
     activities: int
     activity_ids: _containers.RepeatedScalarFieldContainer[int]
-    def __init__(
-        self,
-        distance_meters: float | None = ...,
-        time_minutes: float | None = ...,
-        elevation_meters: float | None = ...,
-        activities: int | None = ...,
-        activity_ids: _Iterable[int] | None = ...,
-    ) -> None: ...
+    def __init__(self, distance_meters: _Optional[float] = ..., time_minutes: _Optional[float] = ..., elevation_meters: _Optional[float] = ..., activities: _Optional[int] = ..., activity_ids: _Optional[_Iterable[int]] = ...) -> None: ...
 
 class DailySummary(_message.Message):
     __slots__ = ()
@@ -45,53 +36,30 @@ class DailySummary(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: DailyActivity
-        def __init__(
-            self, key: str | None = ..., value: DailyActivity | _Mapping | None = ...
-        ) -> None: ...
-
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[DailyActivity, _Mapping]] = ...) -> None: ...
     DAILY_FIELD_NUMBER: _ClassVar[int]
     daily: _containers.MessageMap[str, DailyActivity]
-    def __init__(self, daily: _Mapping[str, DailyActivity] | None = ...) -> None: ...
+    def __init__(self, daily: _Optional[_Mapping[str, DailyActivity]] = ...) -> None: ...
 
-class MetricsTimeseries(_message.Message):
+class CumulativeMetricsEntry(_message.Message):
     __slots__ = ()
-    DISTANCE_METERS_FIELD_NUMBER: _ClassVar[int]
-    TIME_MINUTES_FIELD_NUMBER: _ClassVar[int]
-    ELEVATION_METERS_FIELD_NUMBER: _ClassVar[int]
-    distance_meters: _containers.RepeatedCompositeFieldContainer[MetricTimeseriesEntry]
-    time_minutes: _containers.RepeatedCompositeFieldContainer[MetricTimeseriesEntry]
-    elevation_meters: _containers.RepeatedCompositeFieldContainer[MetricTimeseriesEntry]
-    def __init__(
-        self,
-        distance_meters: _Iterable[MetricTimeseriesEntry | _Mapping] | None = ...,
-        time_minutes: _Iterable[MetricTimeseriesEntry | _Mapping] | None = ...,
-        elevation_meters: _Iterable[MetricTimeseriesEntry | _Mapping] | None = ...,
-    ) -> None: ...
+    DATE_FIELD_NUMBER: _ClassVar[int]
+    DISTANCE_FIELD_NUMBER: _ClassVar[int]
+    ELEVATION_FIELD_NUMBER: _ClassVar[int]
+    TIME_FIELD_NUMBER: _ClassVar[int]
+    ACTIVITIES_FIELD_NUMBER: _ClassVar[int]
+    date: str
+    distance: float
+    elevation: float
+    time: float
+    activities: int
+    def __init__(self, date: _Optional[str] = ..., distance: _Optional[float] = ..., elevation: _Optional[float] = ..., time: _Optional[float] = ..., activities: _Optional[int] = ...) -> None: ...
 
 class SportMetrics(_message.Message):
     __slots__ = ()
-    class DailyEntry(_message.Message):
-        __slots__ = ()
-        KEY_FIELD_NUMBER: _ClassVar[int]
-        VALUE_FIELD_NUMBER: _ClassVar[int]
-        key: str
-        value: DailyActivity
-        def __init__(
-            self, key: str | None = ..., value: DailyActivity | _Mapping | None = ...
-        ) -> None: ...
-
     TIMESERIES_FIELD_NUMBER: _ClassVar[int]
-    DAILY_FIELD_NUMBER: _ClassVar[int]
-    METADATA_FIELD_NUMBER: _ClassVar[int]
-    timeseries: MetricsTimeseries
-    daily: _containers.MessageMap[str, DailyActivity]
-    metadata: SportMetadata
-    def __init__(
-        self,
-        timeseries: MetricsTimeseries | _Mapping | None = ...,
-        daily: _Mapping[str, DailyActivity] | None = ...,
-        metadata: SportMetadata | _Mapping | None = ...,
-    ) -> None: ...
+    timeseries: _containers.RepeatedCompositeFieldContainer[CumulativeMetricsEntry]
+    def __init__(self, timeseries: _Optional[_Iterable[_Union[CumulativeMetricsEntry, _Mapping]]] = ...) -> None: ...
 
 class SportMetadata(_message.Message):
     __slots__ = ()
@@ -103,13 +71,7 @@ class SportMetadata(_message.Message):
     year: int
     available_metrics: _containers.RepeatedScalarFieldContainer[str]
     primary_metric: str
-    def __init__(
-        self,
-        sport: str | None = ...,
-        year: int | None = ...,
-        available_metrics: _Iterable[str] | None = ...,
-        primary_metric: str | None = ...,
-    ) -> None: ...
+    def __init__(self, sport: _Optional[str] = ..., year: _Optional[int] = ..., available_metrics: _Optional[_Iterable[str]] = ..., primary_metric: _Optional[str] = ...) -> None: ...
 
 class SportTotals(_message.Message):
     __slots__ = ()
@@ -121,13 +83,7 @@ class SportTotals(_message.Message):
     time_minutes: float
     elevation_meters: float
     activities: int
-    def __init__(
-        self,
-        distance_meters: float | None = ...,
-        time_minutes: float | None = ...,
-        elevation_meters: float | None = ...,
-        activities: int | None = ...,
-    ) -> None: ...
+    def __init__(self, distance_meters: _Optional[float] = ..., time_minutes: _Optional[float] = ..., elevation_meters: _Optional[float] = ..., activities: _Optional[int] = ...) -> None: ...
 
 class YearMetadata(_message.Message):
     __slots__ = ()
@@ -137,10 +93,7 @@ class YearMetadata(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: SportTotals
-        def __init__(
-            self, key: str | None = ..., value: SportTotals | _Mapping | None = ...
-        ) -> None: ...
-
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[SportTotals, _Mapping]] = ...) -> None: ...
     YEAR_FIELD_NUMBER: _ClassVar[int]
     SPORTS_FIELD_NUMBER: _ClassVar[int]
     TOTALS_FIELD_NUMBER: _ClassVar[int]
@@ -151,11 +104,4 @@ class YearMetadata(_message.Message):
     totals: _containers.MessageMap[str, SportTotals]
     last_updated: str
     aggregation_version: str
-    def __init__(
-        self,
-        year: int | None = ...,
-        sports: _Iterable[str] | None = ...,
-        totals: _Mapping[str, SportTotals] | None = ...,
-        last_updated: str | None = ...,
-        aggregation_version: str | None = ...,
-    ) -> None: ...
+    def __init__(self, year: _Optional[int] = ..., sports: _Optional[_Iterable[str]] = ..., totals: _Optional[_Mapping[str, SportTotals]] = ..., last_updated: _Optional[str] = ..., aggregation_version: _Optional[str] = ...) -> None: ...

@@ -1,7 +1,10 @@
 from stravapipe.adapters import Supplier
 from stravapipe.ports.out.write import WriteDistances, WriteMetadata, WriteSummary
-from stravapipe.types import DistanceTimeseries
-from stravapipe.types.generated.sports_metrics_pb2 import DailySummary, YearMetadata
+from stravapipe.types.generated.sports_metrics_pb2 import (
+    CumulativeMetricsEntry,
+    DailySummary,
+    YearMetadata,
+)
 
 
 class ExportService:
@@ -19,7 +22,7 @@ class ExportService:
         self,
         *,
         summary: DailySummary,
-        distances_payload: dict[str, DistanceTimeseries],
+        cumulative_metrics: list[CumulativeMetricsEntry],
         year: int,
         sport: str,
     ):
@@ -27,12 +30,12 @@ class ExportService:
 
         Args:
             summary: DailySummary protobuf message
-            distances_payload: Distance timeseries data
+            cumulative_metrics: List of CumulativeMetricsEntry protobuf messages
             year: Year
             sport: Sport name
         """
         self._write_summary().update(summary, year=year, sport=sport)
-        self._write_distances().update(distances_payload, year=year, sport=sport)
+        self._write_distances().update(cumulative_metrics, year=year, sport=sport)
 
     def export_metadata(self, metadata: YearMetadata, *, year: int) -> None:
         """Export year metadata with sport totals.

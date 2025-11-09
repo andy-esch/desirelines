@@ -64,6 +64,7 @@ class SummariesRepo(ReadSummaries, WriteSummary):
         summary_blob_name = f"activities/{year}/source/{sport}.json"
 
         # Convert protobuf to JSON (just the daily map, not the wrapper)
+        # Fields marked 'optional' in proto are omitted if not set (field presence)
         summary_dict = json_format.MessageToDict(
             summary,
             preserving_proto_field_name=True,
@@ -92,14 +93,30 @@ class DistancesRepo(WriteDistances):
         self._client = client
 
     def update(
-        self, distances: dict[str, DistanceTimeseries], *, year: int, sport: str
+        self, metrics: list, *, year: int, sport: str
     ) -> None:
-        """Write distances data to external storage for a specific sport"""
-        distances_blob_name = f"activities/{year}/metrics/{sport}.json"
+        """Write cumulative metrics timeseries to external storage for a specific sport
 
-        # upload data to gcp bucket
-        logger.info("Writing distances to blob: %s", distances_blob_name)
-        self._client.write_json_to_bucket(distances, distances_blob_name)
+        Args:
+            metrics: List of CumulativeMetricsEntry protobuf messages
+            year: Year
+            sport: Sport name
+        """
+        metrics_blob_name = f"activities/{year}/metrics/{sport}.json"
+
+        # Convert list of protobuf messages to JSON array
+        # Fields marked 'optional' are omitted if not set (field presence)
+        metrics_list = [
+            json_format.MessageToDict(
+                entry,
+                preserving_proto_field_name=True,
+            )
+            for entry in metrics
+        ]
+
+        # Upload to GCP bucket as clean JSON array
+        logger.info("Writing metrics to blob: %s", metrics_blob_name)
+        self._client.write_json_to_bucket(metrics_list, metrics_blob_name)
 
 
 class MetadataRepo(WriteMetadata):

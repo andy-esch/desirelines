@@ -45,37 +45,59 @@ class UpdateSummaryUseCase:
     # TODO move to update service
     # TODO update this so the logic is clearer. IMO a none-return doesn't
     #      logically translate that it's not updated it
-    @staticmethod
     def _update_summary(
-        summary: DailySummary, activity: MinimalStravaActivity
+        self, summary: DailySummary, activity: MinimalStravaActivity, sport: str
     ) -> DailySummary | None:
         """Update summary with new activity data.
 
         Args:
             summary: DailySummary protobuf message containing daily map
             activity: Activity to add
+            sport: Sport name (e.g., "cycling", "yoga")
 
         Returns:
             Updated summary protobuf, or None if activity was already logged
         """
-        if activity.date_str in summary.daily:
-            daily = summary.daily[activity.date_str]
-            if activity.id in daily.activity_ids:
-                return None
-            # Update existing day
-            daily.distance_meters += activity.distance
-            daily.time_minutes += activity.moving_time / 60.0
-            daily.elevation_meters += activity.total_elevation_gain
-            daily.activities += 1
-            daily.activity_ids.append(activity.id)
-        else:
-            # Create new day entry
-            daily = summary.daily[activity.date_str]
-            daily.distance_meters = activity.distance
-            daily.time_minutes = activity.moving_time / 60.0
-            daily.elevation_meters = activity.total_elevation_gain
-            daily.activities = 1
-            daily.activity_ids.append(activity.id)
+        # Get sport category to know which fields to set
+        category = self._sport_config.get_category(sport)
+        if category is None:
+            logger.warning("Unknown sport category: %s", sport)
+            return None
+
+        # Get or create daily entry
+        daily = summary.daily[activity.date_str]
+
+        # Skip if activity already logged
+        if activity.id in daily.activity_ids:
+            return None
+
+        # Check if this is a new day (no activities yet)
+        is_new_day = daily.activities == 0
+
+        # Update fields based on sport category
+        if category.has_distance and activity.distance:
+            if is_new_day:
+                daily.distance_meters = activity.distance
+            else:
+                daily.distance_meters += activity.distance
+
+        if activity.moving_time:
+            time_minutes = activity.moving_time / 60.0
+            if is_new_day:
+                daily.time_minutes = time_minutes
+            else:
+                daily.time_minutes += time_minutes
+
+        if category.has_elevation and activity.total_elevation_gain:
+            if is_new_day:
+                daily.elevation_meters = activity.total_elevation_gain
+            else:
+                daily.elevation_meters += activity.total_elevation_gain
+
+        # Always increment activity count and add ID
+        daily.activities += 1
+        daily.activity_ids.append(activity.id)
+
         return summary
 
     def run(self, webhook_request: WebhookRequest) -> None:
@@ -107,19 +129,19 @@ class UpdateSummaryUseCase:
         )
 
         # Merge in activity to summary
-        updated_summary = self._update_summary(summary, activity)
+        updated_summary = self._update_summary(summary, activity, sport)
         if updated_summary is None:
             logger.info("Activity already logged, exiting...")
             return
 
-        distances_payload = self._pacing_service.calculate(
-            summary=updated_summary, year=activity.start_date_local.year
+        cumulative_metrics = self._pacing_service.calculate(
+            summary=updated_summary, year=activity.start_date_local.year, sport=sport
         )
 
         # Export updated summary to sport-specific file
         self._export_service.export(
             summary=updated_summary,
-            distances_payload=distances_payload,
+            cumulative_metrics=cumulative_metrics,
             year=activity.start_date_local.year,
             sport=sport,
         )
@@ -164,18 +186,18 @@ class UpdateSummaryUseCase:
             # Build summary for this sport (DailySummary protobuf)
             summary = DailySummary()
             for activity in sport_acts:
-                temp = self._update_summary(summary, activity)
+                temp = self._update_summary(summary, activity, sport)
                 if temp is not None:
                     summary = temp
 
-            distances_payload = self._pacing_service.calculate(
-                summary=summary, year=year
+            cumulative_metrics = self._pacing_service.calculate(
+                summary=summary, year=year, sport=sport
             )
 
             # Export to sport-specific file
             self._export_service.export(
                 summary=summary,
-                distances_payload=distances_payload,
+                cumulative_metrics=cumulative_metrics,
                 year=year,
                 sport=sport,
             )

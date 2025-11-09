@@ -40,28 +40,48 @@ export interface DailyActivity {
   activityIds: number[];
 }
 
-/** Pre-computed timeseries for efficient chart rendering */
-export interface MetricsTimeseries {
-  distanceMeters: MetricTimeseriesEntry[];
-  timeMinutes: MetricTimeseriesEntry[];
-  elevationMeters: MetricTimeseriesEntry[];
-}
-
-/** Sport metrics file (activities/{year}/metrics/{sport}.json) */
-export interface SportMetrics {
-  /** Pre-computed timeseries arrays */
-  timeseries?:
-    | MetricsTimeseries
-    | undefined;
-  /** Daily rollups (date-keyed) */
+/** Daily summary for source files (activities/{year}/source/{sport}.json) */
+export interface DailySummary {
+  /** Map of date (YYYY-MM-DD) to daily activity data */
   daily: { [key: string]: DailyActivity };
-  /** Metadata */
-  metadata?: SportMetadata | undefined;
 }
 
-export interface SportMetrics_DailyEntry {
+export interface DailySummary_DailyEntry {
   key: string;
   value?: DailyActivity | undefined;
+}
+
+/**
+ * Cumulative metrics entry (single date with all applicable metrics)
+ * Used for chart rendering - combines all metrics for a date
+ * Note: All values are cumulative (totals up to this date)
+ */
+export interface CumulativeMetricsEntry {
+  /** ISO date: "2025-01-01" */
+  date: string;
+  /** Cumulative distance (meters) - optional for sports without distance */
+  distance?:
+    | number
+    | undefined;
+  /** Cumulative elevation (meters) - optional for sports without elevation */
+  elevation?:
+    | number
+    | undefined;
+  /** Cumulative time (minutes) - all sports have time */
+  time?:
+    | number
+    | undefined;
+  /** Number of activities up to this date */
+  activities?: number | undefined;
+}
+
+/**
+ * Sport metrics file (activities/{year}/metrics/{sport}.json)
+ * Now uses clean array structure with combined metrics per date
+ */
+export interface SportMetrics {
+  /** Cumulative metrics timeseries (single array with all metrics combined) */
+  timeseries: CumulativeMetricsEntry[];
 }
 
 /** Metadata about the sport metrics */
@@ -249,87 +269,22 @@ export const DailyActivity: MessageFns<DailyActivity> = {
   },
 };
 
-function createBaseMetricsTimeseries(): MetricsTimeseries {
-  return { distanceMeters: [], timeMinutes: [], elevationMeters: [] };
+function createBaseDailySummary(): DailySummary {
+  return { daily: {} };
 }
 
-export const MetricsTimeseries: MessageFns<MetricsTimeseries> = {
-  encode(message: MetricsTimeseries, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    for (const v of message.distanceMeters) {
-      MetricTimeseriesEntry.encode(v!, writer.uint32(10).fork()).join();
-    }
-    for (const v of message.timeMinutes) {
-      MetricTimeseriesEntry.encode(v!, writer.uint32(18).fork()).join();
-    }
-    for (const v of message.elevationMeters) {
-      MetricTimeseriesEntry.encode(v!, writer.uint32(26).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): MetricsTimeseries {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseMetricsTimeseries();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.distanceMeters.push(MetricTimeseriesEntry.decode(reader, reader.uint32()));
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.timeMinutes.push(MetricTimeseriesEntry.decode(reader, reader.uint32()));
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.elevationMeters.push(MetricTimeseriesEntry.decode(reader, reader.uint32()));
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-};
-
-function createBaseSportMetrics(): SportMetrics {
-  return { timeseries: undefined, daily: {}, metadata: undefined };
-}
-
-export const SportMetrics: MessageFns<SportMetrics> = {
-  encode(message: SportMetrics, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.timeseries !== undefined) {
-      MetricsTimeseries.encode(message.timeseries, writer.uint32(10).fork()).join();
-    }
+export const DailySummary: MessageFns<DailySummary> = {
+  encode(message: DailySummary, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     Object.entries(message.daily).forEach(([key, value]) => {
-      SportMetrics_DailyEntry.encode({ key: key as any, value }, writer.uint32(18).fork()).join();
+      DailySummary_DailyEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join();
     });
-    if (message.metadata !== undefined) {
-      SportMetadata.encode(message.metadata, writer.uint32(26).fork()).join();
-    }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): SportMetrics {
+  decode(input: BinaryReader | Uint8Array, length?: number): DailySummary {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSportMetrics();
+    const message = createBaseDailySummary();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -338,26 +293,10 @@ export const SportMetrics: MessageFns<SportMetrics> = {
             break;
           }
 
-          message.timeseries = MetricsTimeseries.decode(reader, reader.uint32());
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
+          const entry1 = DailySummary_DailyEntry.decode(reader, reader.uint32());
+          if (entry1.value !== undefined) {
+            message.daily[entry1.key] = entry1.value;
           }
-
-          const entry2 = SportMetrics_DailyEntry.decode(reader, reader.uint32());
-          if (entry2.value !== undefined) {
-            message.daily[entry2.key] = entry2.value;
-          }
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.metadata = SportMetadata.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -370,12 +309,12 @@ export const SportMetrics: MessageFns<SportMetrics> = {
   },
 };
 
-function createBaseSportMetrics_DailyEntry(): SportMetrics_DailyEntry {
+function createBaseDailySummary_DailyEntry(): DailySummary_DailyEntry {
   return { key: "", value: undefined };
 }
 
-export const SportMetrics_DailyEntry: MessageFns<SportMetrics_DailyEntry> = {
-  encode(message: SportMetrics_DailyEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const DailySummary_DailyEntry: MessageFns<DailySummary_DailyEntry> = {
+  encode(message: DailySummary_DailyEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.key !== "") {
       writer.uint32(10).string(message.key);
     }
@@ -385,10 +324,10 @@ export const SportMetrics_DailyEntry: MessageFns<SportMetrics_DailyEntry> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): SportMetrics_DailyEntry {
+  decode(input: BinaryReader | Uint8Array, length?: number): DailySummary_DailyEntry {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSportMetrics_DailyEntry();
+    const message = createBaseDailySummary_DailyEntry();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -406,6 +345,124 @@ export const SportMetrics_DailyEntry: MessageFns<SportMetrics_DailyEntry> = {
           }
 
           message.value = DailyActivity.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseCumulativeMetricsEntry(): CumulativeMetricsEntry {
+  return { date: "", distance: undefined, elevation: undefined, time: undefined, activities: undefined };
+}
+
+export const CumulativeMetricsEntry: MessageFns<CumulativeMetricsEntry> = {
+  encode(message: CumulativeMetricsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.date !== "") {
+      writer.uint32(10).string(message.date);
+    }
+    if (message.distance !== undefined) {
+      writer.uint32(17).double(message.distance);
+    }
+    if (message.elevation !== undefined) {
+      writer.uint32(25).double(message.elevation);
+    }
+    if (message.time !== undefined) {
+      writer.uint32(33).double(message.time);
+    }
+    if (message.activities !== undefined) {
+      writer.uint32(40).int32(message.activities);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CumulativeMetricsEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCumulativeMetricsEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.date = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 17) {
+            break;
+          }
+
+          message.distance = reader.double();
+          continue;
+        }
+        case 3: {
+          if (tag !== 25) {
+            break;
+          }
+
+          message.elevation = reader.double();
+          continue;
+        }
+        case 4: {
+          if (tag !== 33) {
+            break;
+          }
+
+          message.time = reader.double();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.activities = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseSportMetrics(): SportMetrics {
+  return { timeseries: [] };
+}
+
+export const SportMetrics: MessageFns<SportMetrics> = {
+  encode(message: SportMetrics, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.timeseries) {
+      CumulativeMetricsEntry.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SportMetrics {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSportMetrics();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.timeseries.push(CumulativeMetricsEntry.decode(reader, reader.uint32()));
           continue;
         }
       }

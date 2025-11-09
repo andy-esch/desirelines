@@ -157,30 +157,29 @@ func (x *DailyActivity) GetActivityIds() []int64 {
 	return nil
 }
 
-// Pre-computed timeseries for efficient chart rendering
-type MetricsTimeseries struct {
-	state           protoimpl.MessageState   `protogen:"open.v1"`
-	DistanceMeters  []*MetricTimeseriesEntry `protobuf:"bytes,1,rep,name=distance_meters,json=distanceMeters,proto3" json:"distance_meters,omitempty"`
-	TimeMinutes     []*MetricTimeseriesEntry `protobuf:"bytes,2,rep,name=time_minutes,json=timeMinutes,proto3" json:"time_minutes,omitempty"`
-	ElevationMeters []*MetricTimeseriesEntry `protobuf:"bytes,3,rep,name=elevation_meters,json=elevationMeters,proto3" json:"elevation_meters,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+// Daily summary for source files (activities/{year}/source/{sport}.json)
+type DailySummary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Map of date (YYYY-MM-DD) to daily activity data
+	Daily         map[string]*DailyActivity `protobuf:"bytes,1,rep,name=daily,proto3" json:"daily,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *MetricsTimeseries) Reset() {
-	*x = MetricsTimeseries{}
+func (x *DailySummary) Reset() {
+	*x = DailySummary{}
 	mi := &file_sports_metrics_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *MetricsTimeseries) String() string {
+func (x *DailySummary) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MetricsTimeseries) ProtoMessage() {}
+func (*DailySummary) ProtoMessage() {}
 
-func (x *MetricsTimeseries) ProtoReflect() protoreflect.Message {
+func (x *DailySummary) ProtoReflect() protoreflect.Message {
 	mi := &file_sports_metrics_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -192,48 +191,114 @@ func (x *MetricsTimeseries) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MetricsTimeseries.ProtoReflect.Descriptor instead.
-func (*MetricsTimeseries) Descriptor() ([]byte, []int) {
+// Deprecated: Use DailySummary.ProtoReflect.Descriptor instead.
+func (*DailySummary) Descriptor() ([]byte, []int) {
 	return file_sports_metrics_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *MetricsTimeseries) GetDistanceMeters() []*MetricTimeseriesEntry {
+func (x *DailySummary) GetDaily() map[string]*DailyActivity {
 	if x != nil {
-		return x.DistanceMeters
+		return x.Daily
 	}
 	return nil
 }
 
-func (x *MetricsTimeseries) GetTimeMinutes() []*MetricTimeseriesEntry {
-	if x != nil {
-		return x.TimeMinutes
-	}
-	return nil
+// Cumulative metrics entry (single date with all applicable metrics)
+// Used for chart rendering - combines all metrics for a date
+// Note: All values are cumulative (totals up to this date)
+type CumulativeMetricsEntry struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Date  string                 `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"` // ISO date: "2025-01-01"
+	// Cumulative distance (meters) - optional for sports without distance
+	Distance *float64 `protobuf:"fixed64,2,opt,name=distance,proto3,oneof" json:"distance,omitempty"`
+	// Cumulative elevation (meters) - optional for sports without elevation
+	Elevation *float64 `protobuf:"fixed64,3,opt,name=elevation,proto3,oneof" json:"elevation,omitempty"`
+	// Cumulative time (minutes) - all sports have time
+	Time *float64 `protobuf:"fixed64,4,opt,name=time,proto3,oneof" json:"time,omitempty"`
+	// Number of activities up to this date
+	Activities    *int32 `protobuf:"varint,5,opt,name=activities,proto3,oneof" json:"activities,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *MetricsTimeseries) GetElevationMeters() []*MetricTimeseriesEntry {
+func (x *CumulativeMetricsEntry) Reset() {
+	*x = CumulativeMetricsEntry{}
+	mi := &file_sports_metrics_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CumulativeMetricsEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CumulativeMetricsEntry) ProtoMessage() {}
+
+func (x *CumulativeMetricsEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_sports_metrics_proto_msgTypes[3]
 	if x != nil {
-		return x.ElevationMeters
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
 	}
-	return nil
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CumulativeMetricsEntry.ProtoReflect.Descriptor instead.
+func (*CumulativeMetricsEntry) Descriptor() ([]byte, []int) {
+	return file_sports_metrics_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CumulativeMetricsEntry) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *CumulativeMetricsEntry) GetDistance() float64 {
+	if x != nil && x.Distance != nil {
+		return *x.Distance
+	}
+	return 0
+}
+
+func (x *CumulativeMetricsEntry) GetElevation() float64 {
+	if x != nil && x.Elevation != nil {
+		return *x.Elevation
+	}
+	return 0
+}
+
+func (x *CumulativeMetricsEntry) GetTime() float64 {
+	if x != nil && x.Time != nil {
+		return *x.Time
+	}
+	return 0
+}
+
+func (x *CumulativeMetricsEntry) GetActivities() int32 {
+	if x != nil && x.Activities != nil {
+		return *x.Activities
+	}
+	return 0
 }
 
 // Sport metrics file (activities/{year}/metrics/{sport}.json)
+// Now uses clean array structure with combined metrics per date
 type SportMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Pre-computed timeseries arrays
-	Timeseries *MetricsTimeseries `protobuf:"bytes,1,opt,name=timeseries,proto3" json:"timeseries,omitempty"`
-	// Daily rollups (date-keyed)
-	Daily map[string]*DailyActivity `protobuf:"bytes,2,rep,name=daily,proto3" json:"daily,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Metadata
-	Metadata      *SportMetadata `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// Cumulative metrics timeseries (single array with all metrics combined)
+	Timeseries    []*CumulativeMetricsEntry `protobuf:"bytes,1,rep,name=timeseries,proto3" json:"timeseries,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SportMetrics) Reset() {
 	*x = SportMetrics{}
-	mi := &file_sports_metrics_proto_msgTypes[3]
+	mi := &file_sports_metrics_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -245,7 +310,7 @@ func (x *SportMetrics) String() string {
 func (*SportMetrics) ProtoMessage() {}
 
 func (x *SportMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_sports_metrics_proto_msgTypes[3]
+	mi := &file_sports_metrics_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -258,26 +323,12 @@ func (x *SportMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SportMetrics.ProtoReflect.Descriptor instead.
 func (*SportMetrics) Descriptor() ([]byte, []int) {
-	return file_sports_metrics_proto_rawDescGZIP(), []int{3}
+	return file_sports_metrics_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *SportMetrics) GetTimeseries() *MetricsTimeseries {
+func (x *SportMetrics) GetTimeseries() []*CumulativeMetricsEntry {
 	if x != nil {
 		return x.Timeseries
-	}
-	return nil
-}
-
-func (x *SportMetrics) GetDaily() map[string]*DailyActivity {
-	if x != nil {
-		return x.Daily
-	}
-	return nil
-}
-
-func (x *SportMetrics) GetMetadata() *SportMetadata {
-	if x != nil {
-		return x.Metadata
 	}
 	return nil
 }
@@ -295,7 +346,7 @@ type SportMetadata struct {
 
 func (x *SportMetadata) Reset() {
 	*x = SportMetadata{}
-	mi := &file_sports_metrics_proto_msgTypes[4]
+	mi := &file_sports_metrics_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -307,7 +358,7 @@ func (x *SportMetadata) String() string {
 func (*SportMetadata) ProtoMessage() {}
 
 func (x *SportMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_sports_metrics_proto_msgTypes[4]
+	mi := &file_sports_metrics_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -320,7 +371,7 @@ func (x *SportMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SportMetadata.ProtoReflect.Descriptor instead.
 func (*SportMetadata) Descriptor() ([]byte, []int) {
-	return file_sports_metrics_proto_rawDescGZIP(), []int{4}
+	return file_sports_metrics_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SportMetadata) GetSport() string {
@@ -364,7 +415,7 @@ type SportTotals struct {
 
 func (x *SportTotals) Reset() {
 	*x = SportTotals{}
-	mi := &file_sports_metrics_proto_msgTypes[5]
+	mi := &file_sports_metrics_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -376,7 +427,7 @@ func (x *SportTotals) String() string {
 func (*SportTotals) ProtoMessage() {}
 
 func (x *SportTotals) ProtoReflect() protoreflect.Message {
-	mi := &file_sports_metrics_proto_msgTypes[5]
+	mi := &file_sports_metrics_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -389,7 +440,7 @@ func (x *SportTotals) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SportTotals.ProtoReflect.Descriptor instead.
 func (*SportTotals) Descriptor() ([]byte, []int) {
-	return file_sports_metrics_proto_rawDescGZIP(), []int{5}
+	return file_sports_metrics_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SportTotals) GetDistanceMeters() float64 {
@@ -434,7 +485,7 @@ type YearMetadata struct {
 
 func (x *YearMetadata) Reset() {
 	*x = YearMetadata{}
-	mi := &file_sports_metrics_proto_msgTypes[6]
+	mi := &file_sports_metrics_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -446,7 +497,7 @@ func (x *YearMetadata) String() string {
 func (*YearMetadata) ProtoMessage() {}
 
 func (x *YearMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_sports_metrics_proto_msgTypes[6]
+	mi := &file_sports_metrics_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -459,7 +510,7 @@ func (x *YearMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use YearMetadata.ProtoReflect.Descriptor instead.
 func (*YearMetadata) Descriptor() ([]byte, []int) {
-	return file_sports_metrics_proto_rawDescGZIP(), []int{6}
+	return file_sports_metrics_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *YearMetadata) GetYear() int32 {
@@ -515,21 +566,30 @@ const file_sports_metrics_proto_rawDesc = "" +
 	"\factivity_ids\x18\x05 \x03(\x03R\vactivityIdsB\x12\n" +
 	"\x10_distance_metersB\x0f\n" +
 	"\r_time_minutesB\x13\n" +
-	"\x11_elevation_meters\"\x94\x02\n" +
-	"\x11MetricsTimeseries\x12U\n" +
-	"\x0fdistance_meters\x18\x01 \x03(\v2,.desirelines.sports.v1.MetricTimeseriesEntryR\x0edistanceMeters\x12O\n" +
-	"\ftime_minutes\x18\x02 \x03(\v2,.desirelines.sports.v1.MetricTimeseriesEntryR\vtimeMinutes\x12W\n" +
-	"\x10elevation_meters\x18\x03 \x03(\v2,.desirelines.sports.v1.MetricTimeseriesEntryR\x0felevationMeters\"\xc0\x02\n" +
-	"\fSportMetrics\x12H\n" +
-	"\n" +
-	"timeseries\x18\x01 \x01(\v2(.desirelines.sports.v1.MetricsTimeseriesR\n" +
-	"timeseries\x12D\n" +
-	"\x05daily\x18\x02 \x03(\v2..desirelines.sports.v1.SportMetrics.DailyEntryR\x05daily\x12@\n" +
-	"\bmetadata\x18\x03 \x01(\v2$.desirelines.sports.v1.SportMetadataR\bmetadata\x1a^\n" +
+	"\x11_elevation_meters\"\xb4\x01\n" +
+	"\fDailySummary\x12D\n" +
+	"\x05daily\x18\x01 \x03(\v2..desirelines.sports.v1.DailySummary.DailyEntryR\x05daily\x1a^\n" +
 	"\n" +
 	"DailyEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12:\n" +
-	"\x05value\x18\x02 \x01(\v2$.desirelines.sports.v1.DailyActivityR\x05value:\x028\x01\"\x8d\x01\n" +
+	"\x05value\x18\x02 \x01(\v2$.desirelines.sports.v1.DailyActivityR\x05value:\x028\x01\"\xe1\x01\n" +
+	"\x16CumulativeMetricsEntry\x12\x12\n" +
+	"\x04date\x18\x01 \x01(\tR\x04date\x12\x1f\n" +
+	"\bdistance\x18\x02 \x01(\x01H\x00R\bdistance\x88\x01\x01\x12!\n" +
+	"\televation\x18\x03 \x01(\x01H\x01R\televation\x88\x01\x01\x12\x17\n" +
+	"\x04time\x18\x04 \x01(\x01H\x02R\x04time\x88\x01\x01\x12#\n" +
+	"\n" +
+	"activities\x18\x05 \x01(\x05H\x03R\n" +
+	"activities\x88\x01\x01B\v\n" +
+	"\t_distanceB\f\n" +
+	"\n" +
+	"_elevationB\a\n" +
+	"\x05_timeB\r\n" +
+	"\v_activities\"]\n" +
+	"\fSportMetrics\x12M\n" +
+	"\n" +
+	"timeseries\x18\x01 \x03(\v2-.desirelines.sports.v1.CumulativeMetricsEntryR\n" +
+	"timeseries\"\x8d\x01\n" +
 	"\rSportMetadata\x12\x14\n" +
 	"\x05sport\x18\x01 \x01(\tR\x05sport\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12+\n" +
@@ -567,33 +627,30 @@ func file_sports_metrics_proto_rawDescGZIP() []byte {
 	return file_sports_metrics_proto_rawDescData
 }
 
-var file_sports_metrics_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_sports_metrics_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_sports_metrics_proto_goTypes = []any{
-	(*MetricTimeseriesEntry)(nil), // 0: desirelines.sports.v1.MetricTimeseriesEntry
-	(*DailyActivity)(nil),         // 1: desirelines.sports.v1.DailyActivity
-	(*MetricsTimeseries)(nil),     // 2: desirelines.sports.v1.MetricsTimeseries
-	(*SportMetrics)(nil),          // 3: desirelines.sports.v1.SportMetrics
-	(*SportMetadata)(nil),         // 4: desirelines.sports.v1.SportMetadata
-	(*SportTotals)(nil),           // 5: desirelines.sports.v1.SportTotals
-	(*YearMetadata)(nil),          // 6: desirelines.sports.v1.YearMetadata
-	nil,                           // 7: desirelines.sports.v1.SportMetrics.DailyEntry
-	nil,                           // 8: desirelines.sports.v1.YearMetadata.TotalsEntry
+	(*MetricTimeseriesEntry)(nil),  // 0: desirelines.sports.v1.MetricTimeseriesEntry
+	(*DailyActivity)(nil),          // 1: desirelines.sports.v1.DailyActivity
+	(*DailySummary)(nil),           // 2: desirelines.sports.v1.DailySummary
+	(*CumulativeMetricsEntry)(nil), // 3: desirelines.sports.v1.CumulativeMetricsEntry
+	(*SportMetrics)(nil),           // 4: desirelines.sports.v1.SportMetrics
+	(*SportMetadata)(nil),          // 5: desirelines.sports.v1.SportMetadata
+	(*SportTotals)(nil),            // 6: desirelines.sports.v1.SportTotals
+	(*YearMetadata)(nil),           // 7: desirelines.sports.v1.YearMetadata
+	nil,                            // 8: desirelines.sports.v1.DailySummary.DailyEntry
+	nil,                            // 9: desirelines.sports.v1.YearMetadata.TotalsEntry
 }
 var file_sports_metrics_proto_depIdxs = []int32{
-	0, // 0: desirelines.sports.v1.MetricsTimeseries.distance_meters:type_name -> desirelines.sports.v1.MetricTimeseriesEntry
-	0, // 1: desirelines.sports.v1.MetricsTimeseries.time_minutes:type_name -> desirelines.sports.v1.MetricTimeseriesEntry
-	0, // 2: desirelines.sports.v1.MetricsTimeseries.elevation_meters:type_name -> desirelines.sports.v1.MetricTimeseriesEntry
-	2, // 3: desirelines.sports.v1.SportMetrics.timeseries:type_name -> desirelines.sports.v1.MetricsTimeseries
-	7, // 4: desirelines.sports.v1.SportMetrics.daily:type_name -> desirelines.sports.v1.SportMetrics.DailyEntry
-	4, // 5: desirelines.sports.v1.SportMetrics.metadata:type_name -> desirelines.sports.v1.SportMetadata
-	8, // 6: desirelines.sports.v1.YearMetadata.totals:type_name -> desirelines.sports.v1.YearMetadata.TotalsEntry
-	1, // 7: desirelines.sports.v1.SportMetrics.DailyEntry.value:type_name -> desirelines.sports.v1.DailyActivity
-	5, // 8: desirelines.sports.v1.YearMetadata.TotalsEntry.value:type_name -> desirelines.sports.v1.SportTotals
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	8, // 0: desirelines.sports.v1.DailySummary.daily:type_name -> desirelines.sports.v1.DailySummary.DailyEntry
+	3, // 1: desirelines.sports.v1.SportMetrics.timeseries:type_name -> desirelines.sports.v1.CumulativeMetricsEntry
+	9, // 2: desirelines.sports.v1.YearMetadata.totals:type_name -> desirelines.sports.v1.YearMetadata.TotalsEntry
+	1, // 3: desirelines.sports.v1.DailySummary.DailyEntry.value:type_name -> desirelines.sports.v1.DailyActivity
+	6, // 4: desirelines.sports.v1.YearMetadata.TotalsEntry.value:type_name -> desirelines.sports.v1.SportTotals
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_sports_metrics_proto_init() }
@@ -602,14 +659,15 @@ func file_sports_metrics_proto_init() {
 		return
 	}
 	file_sports_metrics_proto_msgTypes[1].OneofWrappers = []any{}
-	file_sports_metrics_proto_msgTypes[5].OneofWrappers = []any{}
+	file_sports_metrics_proto_msgTypes[3].OneofWrappers = []any{}
+	file_sports_metrics_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sports_metrics_proto_rawDesc), len(file_sports_metrics_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

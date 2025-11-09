@@ -35,23 +35,30 @@ message DailySummary {
   map<string, DailyActivity> daily = 1;
 }
 
-// Pre-computed timeseries for efficient chart rendering
-message MetricsTimeseries {
-  repeated MetricTimeseriesEntry distance_meters = 1;
-  repeated MetricTimeseriesEntry time_minutes = 2;
-  repeated MetricTimeseriesEntry elevation_meters = 3;
+// Cumulative metrics entry (single date with all applicable metrics)
+// Used for chart rendering - combines all metrics for a date
+// Note: All values are cumulative (totals up to this date)
+message CumulativeMetricsEntry {
+  string date = 1;  // ISO date: "2025-01-01"
+
+  // Cumulative distance (meters) - optional for sports without distance
+  optional double distance = 2;
+
+  // Cumulative elevation (meters) - optional for sports without elevation
+  optional double elevation = 3;
+
+  // Cumulative time (minutes) - all sports have time
+  optional double time = 4;
+
+  // Number of activities up to this date
+  optional int32 activities = 5;
 }
 
 // Sport metrics file (activities/{year}/metrics/{sport}.json)
+// Now uses clean array structure with combined metrics per date
 message SportMetrics {
-  // Pre-computed timeseries arrays
-  MetricsTimeseries timeseries = 1;
-
-  // Daily rollups (date-keyed)
-  map<string, DailyActivity> daily = 2;
-
-  // Metadata
-  SportMetadata metadata = 3;
+  // Cumulative metrics timeseries (single array with all metrics combined)
+  repeated CumulativeMetricsEntry timeseries = 1;
 }
 
 // Metadata about the sport metrics
