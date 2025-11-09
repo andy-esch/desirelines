@@ -100,7 +100,7 @@ func (c *SportConfig) ListSports() []string {
 	return sports
 }
 
-// GetCategory retruns the general category that a sport belongs to
+// GetCategory returns the general category that a sport belongs to
 //
 //	E.g., VirtualRide -> cycling, Ride -> cycling, Run -> running, etc.
 func (c *SportConfig) GetCategory(sport string) (SportCategory, bool) {
