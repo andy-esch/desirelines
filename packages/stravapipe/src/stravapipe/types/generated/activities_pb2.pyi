@@ -1,8 +1,10 @@
-from google.protobuf.internal import containers as _containers
+from collections.abc import Iterable as _Iterable
+from collections.abc import Mapping as _Mapping
+from typing import ClassVar as _ClassVar
+
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from collections.abc import Iterable as _Iterable, Mapping as _Mapping
-from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
+from google.protobuf.internal import containers as _containers
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -12,13 +14,18 @@ class TimeseriesEntry(_message.Message):
     VALUE_FIELD_NUMBER: _ClassVar[int]
     date: str
     value: float
-    def __init__(self, date: _Optional[str] = ..., value: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self, date: str | None = ..., value: float | None = ...
+    ) -> None: ...
 
 class DistancesPayload(_message.Message):
     __slots__ = ()
     DISTANCE_TRAVELED_FIELD_NUMBER: _ClassVar[int]
     distance_traveled: _containers.RepeatedCompositeFieldContainer[TimeseriesEntry]
-    def __init__(self, distance_traveled: _Optional[_Iterable[_Union[TimeseriesEntry, _Mapping]]] = ...) -> None: ...
+    def __init__(
+        self,
+        distance_traveled: _Iterable[TimeseriesEntry | _Mapping] | None = ...,
+    ) -> None: ...
 
 class DailySummary(_message.Message):
     __slots__ = ()
@@ -26,7 +33,11 @@ class DailySummary(_message.Message):
     DISTANCE_MILES_FIELD_NUMBER: _ClassVar[int]
     activity_ids: _containers.RepeatedScalarFieldContainer[str]
     distance_miles: float
-    def __init__(self, activity_ids: _Optional[_Iterable[str]] = ..., distance_miles: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        activity_ids: _Iterable[str] | None = ...,
+        distance_miles: float | None = ...,
+    ) -> None: ...
 
 class YearSummary(_message.Message):
     __slots__ = ()
@@ -36,7 +47,14 @@ class YearSummary(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: DailySummary
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[DailySummary, _Mapping]] = ...) -> None: ...
+        def __init__(
+            self,
+            key: str | None = ...,
+            value: DailySummary | _Mapping | None = ...,
+        ) -> None: ...
+
     DAILY_SUMMARIES_FIELD_NUMBER: _ClassVar[int]
     daily_summaries: _containers.MessageMap[str, DailySummary]
-    def __init__(self, daily_summaries: _Optional[_Mapping[str, DailySummary]] = ...) -> None: ...
+    def __init__(
+        self, daily_summaries: _Mapping[str, DailySummary] | None = ...
+    ) -> None: ...

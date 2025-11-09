@@ -92,9 +92,7 @@ class DistancesRepo(WriteDistances):
     def __init__(self, client: CloudStorageClientWrapper):
         self._client = client
 
-    def update(
-        self, metrics: list, *, year: int, sport: str
-    ) -> None:
+    def update(self, metrics: list, *, year: int, sport: str) -> None:
         """Write cumulative metrics timeseries to external storage for a specific sport
 
         Args:

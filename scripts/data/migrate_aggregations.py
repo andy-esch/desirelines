@@ -29,7 +29,6 @@ Requirements:
 
 import argparse
 import logging
-import os
 import sys
 import time
 
@@ -234,7 +233,9 @@ class AggregationMigrator:
             update_summary_use_case.run_batch(year, activities=activities)
 
             logger.info(f"✅ Aggregation complete for {year}")
-            logger.info(f"   Files should be in: gs://{aggregator_config.gcp_bucket_name}/activities/{year}/")
+            logger.info(
+                f"   Files should be in: gs://{aggregator_config.gcp_bucket_name}/activities/{year}/"
+            )
 
         except Exception as e:
             logger.error(f"Failed to generate aggregations for {year}: {e}")
