@@ -4,8 +4,11 @@
 from abc import ABC, abstractmethod
 
 from stravapipe.domain import DetailedStravaActivity
-from stravapipe.types import DistanceTimeseries
-from stravapipe.types.generated.sports_metrics_pb2 import DailySummary, YearMetadata
+from stravapipe.types.generated.sports_metrics_pb2 import (
+    CumulativeMetricsEntry,
+    DailySummary,
+    YearMetadata,
+)
 
 
 class WriteActivities(ABC):
@@ -35,13 +38,19 @@ class WriteSummary(ABC):
 
 
 class WriteDistances(ABC):
-    """Write distances data to external storage"""
+    """Write cumulative metrics data to external storage"""
 
     @abstractmethod
     def update(
-        self, distances: dict[str, DistanceTimeseries], *, year: int, sport: str
+        self, metrics: list[CumulativeMetricsEntry], *, year: int, sport: str
     ) -> None:
-        """Write distances data to external storage for a specific sport"""
+        """Write cumulative metrics timeseries to external storage for a specific sport
+
+        Args:
+            metrics: List of CumulativeMetricsEntry protobuf messages
+            year: Year
+            sport: Sport name (e.g., "cycling", "running", "yoga")
+        """
 
 
 class WriteMetadata(ABC):

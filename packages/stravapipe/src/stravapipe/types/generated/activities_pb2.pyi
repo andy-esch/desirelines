@@ -14,47 +14,10 @@ class TimeseriesEntry(_message.Message):
     VALUE_FIELD_NUMBER: _ClassVar[int]
     date: str
     value: float
-    def __init__(
-        self, date: str | None = ..., value: float | None = ...
-    ) -> None: ...
+    def __init__(self, date: str | None = ..., value: float | None = ...) -> None: ...
 
 class DistancesPayload(_message.Message):
     __slots__ = ()
     DISTANCE_TRAVELED_FIELD_NUMBER: _ClassVar[int]
     distance_traveled: _containers.RepeatedCompositeFieldContainer[TimeseriesEntry]
-    def __init__(
-        self,
-        distance_traveled: _Iterable[TimeseriesEntry | _Mapping] | None = ...,
-    ) -> None: ...
-
-class DailySummary(_message.Message):
-    __slots__ = ()
-    ACTIVITY_IDS_FIELD_NUMBER: _ClassVar[int]
-    DISTANCE_MILES_FIELD_NUMBER: _ClassVar[int]
-    activity_ids: _containers.RepeatedScalarFieldContainer[str]
-    distance_miles: float
-    def __init__(
-        self,
-        activity_ids: _Iterable[str] | None = ...,
-        distance_miles: float | None = ...,
-    ) -> None: ...
-
-class YearSummary(_message.Message):
-    __slots__ = ()
-    class DailySummariesEntry(_message.Message):
-        __slots__ = ()
-        KEY_FIELD_NUMBER: _ClassVar[int]
-        VALUE_FIELD_NUMBER: _ClassVar[int]
-        key: str
-        value: DailySummary
-        def __init__(
-            self,
-            key: str | None = ...,
-            value: DailySummary | _Mapping | None = ...,
-        ) -> None: ...
-
-    DAILY_SUMMARIES_FIELD_NUMBER: _ClassVar[int]
-    daily_summaries: _containers.MessageMap[str, DailySummary]
-    def __init__(
-        self, daily_summaries: _Mapping[str, DailySummary] | None = ...
-    ) -> None: ...
+    def __init__(self, distance_traveled: _Iterable[TimeseriesEntry | _Mapping] | None = ...) -> None: ...

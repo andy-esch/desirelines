@@ -135,15 +135,15 @@ class DeleteSummaryUseCase:
         # 4. Remove from summary (raises ActivityNotFoundError if not found)
         updated_summary = self._remove_from_summary(summary, activity)
 
-        # 5. Recalculate cumulative distances (PacingService rebuilds from scratch)
-        distances_payload = self._pacing_service.calculate(
-            summary=updated_summary, year=activity.start_date_local.year
+        # 5. Recalculate cumulative metrics (PacingService rebuilds from scratch)
+        cumulative_metrics = self._pacing_service.calculate(
+            summary=updated_summary, year=activity.start_date_local.year, sport=sport
         )
 
         # 6. Export updated sport-specific files
         self._export_service.export(
             summary=updated_summary,
-            distances_payload=distances_payload,
+            cumulative_metrics=cumulative_metrics,
             year=activity.start_date_local.year,
             sport=sport,
         )

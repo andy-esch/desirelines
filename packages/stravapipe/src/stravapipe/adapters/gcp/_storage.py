@@ -8,8 +8,15 @@ from google.protobuf import json_format
 from stravapipe.adapters.gcp._clients import CloudStorageClientWrapper
 from stravapipe.ports.out.read import ReadSummaries
 from stravapipe.ports.out.write import WriteDistances, WriteMetadata, WriteSummary
-from stravapipe.types import DistanceTimeseries, SummaryObject
-from stravapipe.types.generated.sports_metrics_pb2 import DailySummary, YearMetadata
+from stravapipe.types import (  # DistanceTimeseries: legacy
+    DistanceTimeseries,
+    SummaryObject,
+)
+from stravapipe.types.generated.sports_metrics_pb2 import (
+    CumulativeMetricsEntry,
+    DailySummary,
+    YearMetadata,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +99,9 @@ class DistancesRepo(WriteDistances):
     def __init__(self, client: CloudStorageClientWrapper):
         self._client = client
 
-    def update(self, metrics: list, *, year: int, sport: str) -> None:
+    def update(
+        self, metrics: list[CumulativeMetricsEntry], *, year: int, sport: str
+    ) -> None:
         """Write cumulative metrics timeseries to external storage for a specific sport
 
         Args:
