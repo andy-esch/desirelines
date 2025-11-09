@@ -1,5 +1,4 @@
 import datetime
-from functools import lru_cache
 import logging
 
 import pytz
@@ -14,7 +13,6 @@ from stravapipe.utils import date_range
 logger = logging.getLogger(__name__)
 
 
-@lru_cache(maxsize=1)
 def today() -> datetime.datetime:
     """Datetime of today"""
     return datetime.datetime.now(pytz.timezone("America/New_York"))

@@ -189,7 +189,15 @@ class UpdateSummaryUseCase:
             # Build summary for this sport (DailySummary protobuf)
             summary = DailySummary()
             for activity in sport_acts:
-                summary, _ = self._update_summary(summary, activity, sport)
+                try:
+                    summary, _ = self._update_summary(summary, activity, sport)
+                except SportCategoryError as e:
+                    logger.warning(
+                        "Skipping activity %s: %s (this should not happen in run_batch)",
+                        activity.id,
+                        e,
+                    )
+                    continue
 
             cumulative_metrics = self._pacing_service.calculate(
                 summary=summary, year=year, sport=sport
