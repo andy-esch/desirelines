@@ -7,22 +7,28 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+const (
+	testDate20240115 = "2024-01-15"
+	testDate20240116 = "2024-01-16"
+)
+
 func TestSportMetrics_CyclingWithDistanceAndElevation(t *testing.T) {
-	// Create metrics for cycling (has distance and elevation)
+	// Create metrics for cycling with cumulative metrics
 	metrics := &SportMetrics{
-		Metadata: &SportMetadata{
-			Sport:            "cycling",
-			Year:             2024,
-			AvailableMetrics: []string{"distance_meters", "time_minutes", "elevation_meters"},
-			PrimaryMetric:    "distance_meters",
-		},
-		Daily: map[string]*DailyActivity{
-			"2024-01-15": {
-				DistanceMeters:  ptrFloat64(42195.0), // Marathon distance in meters
-				TimeMinutes:     ptrFloat64(120.5),
-				ElevationMeters: ptrFloat64(450.0),
-				Activities:      2,
-				ActivityIds:     []int64{123456, 123457},
+		Timeseries: []*CumulativeMetricsEntry{
+			{
+				Date:       testDate20240115,
+				Distance:   ptrFloat64(10000.0), // 10km cumulative
+				Elevation:  ptrFloat64(200.0),
+				Time:       ptrFloat64(60.0), // 1 hour
+				Activities: ptrInt32(1),
+			},
+			{
+				Date:       testDate20240116,
+				Distance:   ptrFloat64(25000.0), // 25km cumulative (15km added)
+				Elevation:  ptrFloat64(450.0),   // 450m cumulative (250m added)
+				Time:       ptrFloat64(180.5),   // 180.5 minutes cumulative
+				Activities: ptrInt32(2),
 			},
 		},
 	}
@@ -39,62 +45,57 @@ func TestSportMetrics_CyclingWithDistanceAndElevation(t *testing.T) {
 	}
 
 	// Verify structure
-	metadata, ok := data["metadata"].(map[string]any)
+	timeseries, ok := data["timeseries"].([]any)
 	if !ok {
-		t.Fatal("metadata is not a map[string]any")
+		t.Fatalf("Expected data[\"timeseries\"] to be []any, got %T", data["timeseries"])
 	}
-	if metadata["sport"] != "cycling" {
-		t.Errorf("Expected sport to be 'cycling', got %v", metadata["sport"])
-	}
-	year, ok := metadata["year"].(float64)
-	if !ok {
-		t.Fatal("year is not a float64")
-	}
-	if year != 2024 {
-		t.Errorf("Expected year to be 2024, got %v", metadata["year"])
+	if len(timeseries) != 2 {
+		t.Fatalf("Expected 2 timeseries entries, got %d", len(timeseries))
 	}
 
-	daily, ok := data["daily"].(map[string]any)["2024-01-15"].(map[string]any)
+	entry1, ok := timeseries[0].(map[string]any)
 	if !ok {
-		t.Fatal("metadata is not a map[string]any")
+		t.Fatalf("Expected timeseries[0] to be map[string]any, got %T", timeseries[0])
 	}
-	distanceMeters, ok := daily["distanceMeters"].(float64)
+	if entry1["date"] != testDate20240115 {
+		t.Errorf("Expected date to be %q, got %v", testDate20240115, entry1["date"])
+	}
+	distance1, ok := entry1["distance"].(float64)
 	if !ok {
-		t.Fatalf("Expected daily[\"distanceMeters\"] to be float64, got %T", daily["distanceMeters"])
+		t.Fatalf("Expected entry1[\"distance\"] to be float64, got %T", entry1["distance"])
 	}
-	if distanceMeters != 42195.0 {
-		t.Errorf("Expected distanceMeters to be 42195.0, got %v", daily["distanceMeters"])
+	if distance1 != 10000.0 {
+		t.Errorf("Expected distance to be 10000.0, got %v", entry1["distance"])
 	}
-	elevationMeters, ok := daily["elevationMeters"].(float64)
+	elevation1, ok := entry1["elevation"].(float64)
 	if !ok {
-		t.Fatalf("Expected daily[\"elevationMeters\"] to be float64, got %T", daily["elevationMeters"])
+		t.Fatalf("Expected entry1[\"elevation\"] to be float64, got %T", entry1["elevation"])
 	}
-	if elevationMeters != 450.0 {
-		t.Errorf("Expected elevationMeters to be 450.0, got %v", daily["elevationMeters"])
+	if elevation1 != 200.0 {
+		t.Errorf("Expected elevation to be 200.0, got %v", entry1["elevation"])
 	}
-	activities, ok := daily["activities"].(float64)
+
+	entry2, ok := timeseries[1].(map[string]any)
 	if !ok {
-		t.Fatalf("Expected activities to be float64, got %T", activities)
+		t.Fatalf("Expected timeseries[1] to be map[string]any, got %T", timeseries[1])
 	}
-	if activities != 2 {
-		t.Errorf("Expected activities to be 2, got %v", daily["activities"])
+	distance2, ok := entry2["distance"].(float64)
+	if !ok {
+		t.Fatalf("Expected entry2[\"distance\"] to be float64, got %T", entry2["distance"])
+	}
+	if distance2 != 25000.0 {
+		t.Errorf("Expected distance to be 25000.0, got %v", entry2["distance"])
 	}
 }
 
 func TestSportMetrics_YogaWithoutDistance(t *testing.T) {
-	// Create metrics for yoga (no distance or elevation)
+	// Create metrics for yoga (no distance or elevation) with cumulative metrics
 	metrics := &SportMetrics{
-		Metadata: &SportMetadata{
-			Sport:            "yoga",
-			Year:             2024,
-			AvailableMetrics: []string{"time_minutes"},
-			PrimaryMetric:    "time_minutes",
-		},
-		Daily: map[string]*DailyActivity{
-			"2024-01-15": {
-				TimeMinutes: ptrFloat64(60.0),
-				Activities:  1,
-				ActivityIds: []int64{123458},
+		Timeseries: []*CumulativeMetricsEntry{
+			{
+				Date:       testDate20240115,
+				Time:       ptrFloat64(60.0),
+				Activities: ptrInt32(1),
 			},
 		},
 	}
@@ -111,39 +112,45 @@ func TestSportMetrics_YogaWithoutDistance(t *testing.T) {
 	}
 
 	// Verify optional fields are omitted when not set
-	// First level: get "daily"
-	dailyData, ok := data["daily"].(map[string]any)
+	timeseries, ok := data["timeseries"].([]any)
 	if !ok {
-		t.Fatalf("data[\"daily\"] is %T, want map[string]any", data["daily"])
+		t.Fatalf("Expected data[\"timeseries\"] to be []any, got %T", data["timeseries"])
 	}
 
-	// Second level: get "2024-01-15"
-	daily, ok := dailyData["2024-01-15"].(map[string]any)
+	entry, ok := timeseries[0].(map[string]any)
 	if !ok {
-		t.Fatalf("data[\"daily\"][\"2024-01-15\"] is %T, want map[string]any", dailyData["2024-01-15"])
+		t.Fatalf("Expected timeseries[0] to be map[string]any, got %T", timeseries[0])
 	}
-	if _, exists := daily["distanceMeters"]; exists {
-		t.Error("Expected distanceMeters to be omitted, but it was present")
+	if _, exists := entry["distance"]; exists {
+		t.Error("Expected distance to be omitted, but it was present")
 	}
-	if _, exists := daily["elevationMeters"]; exists {
-		t.Error("Expected elevationMeters to be omitted, but it was present")
+	if _, exists := entry["elevation"]; exists {
+		t.Error("Expected elevation to be omitted, but it was present")
 	}
-	timeMinutes, ok := daily["timeMinutes"].(float64)
+	timeMinutes, ok := entry["time"].(float64)
 	if !ok {
-		t.Fatalf("Expected daily[\"timeMinutes\"] to be float64, got %T", daily["timeMinutes"])
+		t.Fatalf("Expected entry[\"time\"] to be float64, got %T", entry["time"])
 	}
 	if timeMinutes != 60.0 {
-		t.Errorf("Expected timeMinutes to be 60.0, got %v", daily["timeMinutes"])
+		t.Errorf("Expected time to be 60.0, got %v", entry["time"])
 	}
 }
 
 func TestSportMetrics_TimeseriesData(t *testing.T) {
-	// Create metrics with timeseries
+	// Create metrics with cumulative metrics timeseries
 	metrics := &SportMetrics{
-		Timeseries: &MetricsTimeseries{
-			DistanceMeters: []*MetricTimeseriesEntry{
-				{Date: "2024-01-15", Value: 10000.0},
-				{Date: "2024-01-16", Value: 15000.0},
+		Timeseries: []*CumulativeMetricsEntry{
+			{
+				Date:       testDate20240115,
+				Distance:   ptrFloat64(10000.0),
+				Time:       ptrFloat64(60.0),
+				Activities: ptrInt32(1),
+			},
+			{
+				Date:       testDate20240116,
+				Distance:   ptrFloat64(15000.0),
+				Time:       ptrFloat64(90.0),
+				Activities: ptrInt32(2),
 			},
 		},
 	}
@@ -160,51 +167,63 @@ func TestSportMetrics_TimeseriesData(t *testing.T) {
 	}
 
 	// Verify timeseries structure
-	timeseries, ok := data["timeseries"].(map[string]any)
+	timeseries, ok := data["timeseries"].([]any)
 	if !ok {
-		t.Fatalf("Expected data[\"timeseries\"] to be map[string]any, got %T", data["timeseries"])
-	}
-	distanceMeters, ok := timeseries["distanceMeters"].([]any)
-	if !ok {
-		t.Fatalf("Expected timeseries[\"distanceMeters\"] to be []any, got %T", timeseries["distanceMeters"])
+		t.Fatalf("Expected data[\"timeseries\"] to be []any, got %T", data["timeseries"])
 	}
 
-	if len(distanceMeters) != 2 {
-		t.Fatalf("Expected 2 timeseries entries, got %d", len(distanceMeters))
+	if len(timeseries) != 2 {
+		t.Fatalf("Expected 2 timeseries entries, got %d", len(timeseries))
 	}
 
-	entry1, ok := distanceMeters[0].(map[string]any)
+	entry1, ok := timeseries[0].(map[string]any)
 	if !ok {
-		t.Fatalf("Expected distanceMeters[0] to be map[string]any, got %T", distanceMeters[0])
+		t.Fatalf("Expected timeseries[0] to be map[string]any, got %T", timeseries[0])
 	}
-	if entry1["date"] != "2024-01-15" {
-		t.Errorf("Expected date to be '2024-01-15', got %v", entry1["date"])
+	if entry1["date"] != testDate20240115 {
+		t.Errorf("Expected date to be %q, got %v", testDate20240115, entry1["date"])
 	}
-	entry1Value, ok := entry1["value"].(float64)
+	entry1Distance, ok := entry1["distance"].(float64)
 	if !ok {
-		t.Fatalf("Expected entry1[\"value\"] to be float64, got %T", entry1["value"])
+		t.Fatalf("Expected entry1[\"distance\"] to be float64, got %T", entry1["distance"])
 	}
-	if entry1Value != 10000.0 {
-		t.Errorf("Expected value to be 10000.0, got %v", entry1["value"])
+	if entry1Distance != 10000.0 {
+		t.Errorf("Expected distance to be 10000.0, got %v", entry1["distance"])
+	}
+
+	entry2, ok := timeseries[1].(map[string]any)
+	if !ok {
+		t.Fatalf("Expected timeseries[1] to be map[string]any, got %T", timeseries[1])
+	}
+	if entry2["date"] != testDate20240116 {
+		t.Errorf("Expected date to be %q, got %v", testDate20240116, entry2["date"])
+	}
+	entry2Distance, ok := entry2["distance"].(float64)
+	if !ok {
+		t.Fatalf("Expected entry2[\"distance\"] to be float64, got %T", entry2["distance"])
+	}
+	if entry2Distance != 15000.0 {
+		t.Errorf("Expected distance to be 15000.0, got %v", entry2["distance"])
 	}
 }
 
 func TestSportMetrics_Deserialization(t *testing.T) {
 	jsonData := `{
-		"metadata": {
-			"sport": "running",
-			"year": 2024,
-			"availableMetrics": ["distanceMeters", "timeMinutes"],
-			"primaryMetric": "distanceMeters"
-		},
-		"daily": {
-			"2024-01-15": {
-				"distanceMeters": 5000.0,
-				"timeMinutes": 30.0,
-				"activities": 1,
-				"activityIds": ["999999"]
+		"timeseries": [
+			{
+				"date": "` + testDate20240115 + `",
+				"distance": 5000.0,
+				"time": 30.0,
+				"activities": 1
+			},
+			{
+				"date": "` + testDate20240116 + `",
+				"distance": 10000.0,
+				"time": 60.0,
+				"elevation": 200.0,
+				"activities": 2
 			}
-		}
+		]
 	}`
 
 	// Parse JSON into protobuf
@@ -214,22 +233,33 @@ func TestSportMetrics_Deserialization(t *testing.T) {
 	}
 
 	// Verify fields
-	if metrics.Metadata.Sport != "running" {
-		t.Errorf("Expected sport to be 'running', got %v", metrics.Metadata.Sport)
-	}
-	if metrics.Metadata.Year != 2024 {
-		t.Errorf("Expected year to be 2024, got %v", metrics.Metadata.Year)
+	if len(metrics.Timeseries) != 2 {
+		t.Fatalf("Expected 2 timeseries entries, got %d", len(metrics.Timeseries))
 	}
 
-	daily := metrics.Daily["2024-01-15"]
-	if *daily.DistanceMeters != 5000.0 {
-		t.Errorf("Expected distanceMeters to be 5000.0, got %v", *daily.DistanceMeters)
+	entry1 := metrics.Timeseries[0]
+	if entry1.Date != testDate20240115 {
+		t.Errorf("Expected date to be %q, got %v", testDate20240115, entry1.Date)
 	}
-	if *daily.TimeMinutes != 30.0 {
-		t.Errorf("Expected timeMinutes to be 30.0, got %v", *daily.TimeMinutes)
+	if *entry1.Distance != 5000.0 {
+		t.Errorf("Expected distance to be 5000.0, got %v", *entry1.Distance)
 	}
-	if daily.Activities != 1 {
-		t.Errorf("Expected activities to be 1, got %v", daily.Activities)
+	if *entry1.Time != 30.0 {
+		t.Errorf("Expected time to be 30.0, got %v", *entry1.Time)
+	}
+	if *entry1.Activities != 1 {
+		t.Errorf("Expected activities to be 1, got %v", *entry1.Activities)
+	}
+
+	entry2 := metrics.Timeseries[1]
+	if entry2.Date != testDate20240116 {
+		t.Errorf("Expected date to be %q, got %v", testDate20240116, entry2.Date)
+	}
+	if *entry2.Distance != 10000.0 {
+		t.Errorf("Expected distance to be 10000.0, got %v", *entry2.Distance)
+	}
+	if *entry2.Elevation != 200.0 {
+		t.Errorf("Expected elevation to be 200.0, got %v", *entry2.Elevation)
 	}
 }
 
@@ -348,4 +378,9 @@ func TestDailyActivity_PartialMetrics(t *testing.T) {
 // Helper function to create pointer to float64
 func ptrFloat64(f float64) *float64 {
 	return &f
+}
+
+// Helper function to create pointer to int32
+func ptrInt32(i int32) *int32 {
+	return &i
 }

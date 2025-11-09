@@ -10,6 +10,7 @@ from stravapipe.application.aggregator.services.export_service import ExportServ
 from stravapipe.application.aggregator.services.pacing_service import PacingService
 from stravapipe.config.sport_config import load_sport_config
 from stravapipe.domain import MinimalStravaActivity, WebhookRequest
+from stravapipe.exceptions import SportCategoryError
 from stravapipe.ports.out.read import (
     ReadMinimalActivities,
     ReadStravaToken,
@@ -43,11 +44,9 @@ class UpdateSummaryUseCase:
         self._sport_config = load_sport_config()
 
     # TODO move to update service
-    # TODO update this so the logic is clearer. IMO a none-return doesn't
-    #      logically translate that it's not updated it
     def _update_summary(
         self, summary: DailySummary, activity: MinimalStravaActivity, sport: str
-    ) -> DailySummary | None:
+    ) -> tuple[DailySummary, bool]:
         """Update summary with new activity data.
 
         Args:
@@ -56,20 +55,24 @@ class UpdateSummaryUseCase:
             sport: Sport name (e.g., "cycling", "yoga")
 
         Returns:
-            Updated summary protobuf, or None if activity was already logged
+            Tuple of (updated summary, was_updated)
+            - was_updated=True: Activity was added to summary
+            - was_updated=False: Activity was already logged (no changes made)
+
+        Raises:
+            SportCategoryError: If sport category is unknown or not configured
         """
         # Get sport category to know which fields to set
         category = self._sport_config.get_category(sport)
         if category is None:
-            logger.warning("Unknown sport category: %s", sport)
-            return None
+            raise SportCategoryError(sport)
 
         # Get or create daily entry
         daily = summary.daily[activity.date_str]
 
         # Skip if activity already logged
         if activity.id in daily.activity_ids:
-            return None
+            return (summary, False)
 
         # Check if this is a new day (no activities yet)
         is_new_day = daily.activities == 0
@@ -98,7 +101,7 @@ class UpdateSummaryUseCase:
         daily.activities += 1
         daily.activity_ids.append(activity.id)
 
-        return summary
+        return (summary, True)
 
     def run(self, webhook_request: WebhookRequest) -> None:
         """Real-time process to update summary data"""
@@ -129,9 +132,9 @@ class UpdateSummaryUseCase:
         )
 
         # Merge in activity to summary
-        updated_summary = self._update_summary(summary, activity, sport)
-        if updated_summary is None:
-            logger.info("Activity already logged, exiting...")
+        updated_summary, was_updated = self._update_summary(summary, activity, sport)
+        if not was_updated:
+            logger.info("Activity %s already logged, skipping update", activity.id)
             return
 
         cumulative_metrics = self._pacing_service.calculate(
@@ -186,9 +189,7 @@ class UpdateSummaryUseCase:
             # Build summary for this sport (DailySummary protobuf)
             summary = DailySummary()
             for activity in sport_acts:
-                temp = self._update_summary(summary, activity, sport)
-                if temp is not None:
-                    summary = temp
+                summary, _ = self._update_summary(summary, activity, sport)
 
             cumulative_metrics = self._pacing_service.calculate(
                 summary=summary, year=year, sport=sport

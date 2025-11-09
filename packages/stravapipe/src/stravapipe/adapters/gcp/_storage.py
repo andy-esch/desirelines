@@ -31,6 +31,7 @@ class SummariesRepo(ReadSummaries, WriteSummary):
         try:
             summary = self._client.read_json_from_bucket(blob_name)
         except NotFound:
+            logger.info("No existing summary for year=%s (legacy format)", year)
             summary = {}
 
         return summary
