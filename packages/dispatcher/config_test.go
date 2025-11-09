@@ -108,7 +108,7 @@ func TestSecretCache_InvalidJSON(t *testing.T) {
 	secretsPath := filepath.Join(tempDir, "invalid.json")
 
 	// Write invalid JSON
-	err = os.WriteFile(secretsPath, []byte("invalid json content"), 0644)
+	err = os.WriteFile(secretsPath, []byte("invalid json content"), 0600)
 	if err != nil {
 		t.Fatalf("Failed to write invalid JSON file: %v", err)
 	}
@@ -231,7 +231,7 @@ func writeSecretsFile(t *testing.T, path string, secrets map[string]any) {
 		t.Fatalf("Failed to marshal secrets: %v", err)
 	}
 
-	err = os.WriteFile(path, data, 0644)
+	err = os.WriteFile(path, data, 0600)
 	if err != nil {
 		t.Fatalf("Failed to write secrets file: %v", err)
 	}

@@ -137,7 +137,7 @@ func writeTestSecretsFile(t *testing.T, path string, secrets map[string]any) {
 		t.Fatalf("Failed to marshal secrets: %v", err)
 	}
 
-	err = os.WriteFile(path, data, 0644)
+	err = os.WriteFile(path, data, 0600)
 	if err != nil {
 		t.Fatalf("Failed to write secrets file: %v", err)
 	}

@@ -20,6 +20,7 @@ linters:
     - nilerr          # Find code returning nil even if it checks err != nil
     - errorlint       # Find code that will cause problems with Go 1.13+ error wrapping
     - copyloopvar     # Check for pointers to loop variables
+
   settings:
     errcheck:
       check-blank: true
@@ -57,17 +58,6 @@ linters:
         - name: time-naming
         - name: indent-error-flow
         - name: superfluous-else
-  exclusions:
-    presets:
-      - comments             # Exclude comment-related issues
-      - std-error-handling   # Exclude standard error handling patterns
-    rules:
-      - path: _test\.go      # Relax rules for test files
-        linters:
-          - dupl
-          - gosec
-          - gocyclo
-
 formatters:
   enable:
     - gofmt           # Check code is gofmt-ed
@@ -76,16 +66,3 @@ formatters:
 issues:
   max-issues-per-linter: 0  # Show all issues
   max-same-issues: 0        # Show all occurrences
-
-  # Exclude some linters from running on tests files
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - dupl
-        - gosec
-        - gocyclo
-    # Exclude errcheck and govet shadow for generated protobuf test files
-    - path: types/generated/.*_test\.go
-      linters:
-        - errcheck
-        - govet

@@ -1,3 +1,4 @@
+// Package main provides a local development server for testing the API Gateway.
 package main
 
 import (

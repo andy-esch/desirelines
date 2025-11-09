@@ -1,3 +1,4 @@
+// Package config provides sport configuration management for the API Gateway.
 package config
 
 import (
@@ -9,6 +10,9 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
+// SportCategory is a struct that contains the the configuration/definition
+//
+//	for a specific sport category
 type SportCategory struct {
 	DisplayName   string   `json:"display_name" validate:"required"`
 	StravaTypes   []string `json:"strava_types" validate:"required,min=1"`
@@ -19,11 +23,15 @@ type SportCategory struct {
 	HasElevation  bool     `json:"has_elevation"`
 }
 
+// SportConfigData is a config that holds the sport config version and
+//
+//	the valid sport categories the application can serve
 type SportConfigData struct {
 	Version         string                   `json:"version" validate:"required"`
 	SportCategories map[string]SportCategory `json:"sport_categories" validate:"required,min=1,dive"`
 }
 
+// SportConfig contains the data as a SportConfigData struct
 type SportConfig struct {
 	data SportConfigData
 }
@@ -34,9 +42,10 @@ var (
 	validate        = validator.New()
 )
 
-// Update when code supports new versions
+// SupportedConfigVersions is a list of supported versions
 var SupportedConfigVersions = []string{"1.0"}
 
+// LoadSportConfig loads available application SportConfig
 func LoadSportConfig(configPath string) (*SportConfig, error) {
 	var err error
 	sportConfigOnce.Do(func() {
@@ -77,10 +86,12 @@ func loadSportConfigInternal(configPath string) (*SportConfig, error) {
 	return &SportConfig{data: configData}, nil
 }
 
+// GetSportConfig returns current SportConfig
 func GetSportConfig() *SportConfig {
 	return sportConfig
 }
 
+// ListSports returns all available sports
 func (c *SportConfig) ListSports() []string {
 	sports := make([]string, 0, len(c.data.SportCategories))
 	for sport := range c.data.SportCategories {
@@ -89,11 +100,17 @@ func (c *SportConfig) ListSports() []string {
 	return sports
 }
 
+// GetCategory retruns the general category that a sport belongs to
+//
+//	E.g., VirtualRide -> cycling, Ride -> cycling, Run -> running, etc.
 func (c *SportConfig) GetCategory(sport string) (SportCategory, bool) {
 	category, ok := c.data.SportCategories[sport]
 	return category, ok
 }
 
+// ValidateSport ensures that an input sport is a sport that
+//
+//	can be served
 func (c *SportConfig) ValidateSport(sport string) bool {
 	_, ok := c.data.SportCategories[sport]
 	return ok

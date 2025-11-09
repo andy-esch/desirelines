@@ -6,14 +6,17 @@ import (
 )
 
 const (
-	// Webhook aspect types
+	// AspectCreate represents a webhook event for creating a new resource
 	AspectCreate = "create"
+	// AspectUpdate represents a webhook event for updating an existing resource
 	AspectUpdate = "update"
+	// AspectDelete represents a webhook event for deleting a resource
 	AspectDelete = "delete"
 
-	// Webhook object types
+	// ObjectActivity represents an activity object in webhook events
 	ObjectActivity = "activity"
-	ObjectAthlete  = "athlete"
+	// ObjectAthlete represents an athlete object in webhook events
+	ObjectAthlete = "athlete"
 )
 
 // WebhookRequest represents the Strava webhook payload structure
