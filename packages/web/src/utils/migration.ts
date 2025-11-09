@@ -26,6 +26,7 @@ export async function migrateGoalsToFirestore(
   try {
     // Check if already migrated
     if (localStorage.getItem(migrationFlagKey)) {
+      // eslint-disable-next-line no-console
       console.log(`Goals for ${year} already migrated to Firestore`);
       return false;
     }
@@ -33,6 +34,7 @@ export async function migrateGoalsToFirestore(
     // Load data from localStorage
     const localData = localStorage.getItem(localStorageKey);
     if (!localData) {
+      // eslint-disable-next-line no-console
       console.log(`No localStorage data to migrate for ${year}`);
       return false;
     }
@@ -42,6 +44,7 @@ export async function migrateGoalsToFirestore(
     // Check if Firestore already has data (avoid overwriting)
     const existingGoals = await configService.getConfigSection("goals", year);
     if (existingGoals && Array.isArray(existingGoals) && existingGoals.length > 0) {
+      // eslint-disable-next-line no-console
       console.log(`Firestore already has goals for ${year}, skipping migration`);
       // Mark as migrated even though we didn't migrate (to avoid repeated checks)
       localStorage.setItem(migrationFlagKey, new Date().toISOString());
@@ -50,6 +53,7 @@ export async function migrateGoalsToFirestore(
 
     // Migrate to Firestore
     await configService.updateConfigSection("goals", goals, year);
+    // eslint-disable-next-line no-console
     console.log(`✓ Successfully migrated goals for ${year} to Firestore`);
 
     // Mark as migrated (but keep localStorage data as backup)

@@ -433,7 +433,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
               x={achievement.date.getTime()}
               y={achievement.actualValue}
               r={0}
-              label={(props: any) => {
+              label={(props: { viewBox: { x: number; y: number } }) => {
                 const { viewBox } = props;
                 return (
                   <g>

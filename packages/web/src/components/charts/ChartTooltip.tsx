@@ -72,38 +72,43 @@ export const ChartTooltip = ({
 
       {/* Data items */}
       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        {payload.map((entry: any, index: number) => {
-          // Get the color - use the stroke color from the entry
-          const color = entry.stroke || entry.color || "#888";
-          const value =
-            typeof entry.value === "number" ? entry.value.toFixed(decimals) : entry.value;
+        {payload.map(
+          (
+            entry: { stroke?: string; color?: string; value?: number | string; name?: string },
+            index: number
+          ) => {
+            // Get the color - use the stroke color from the entry
+            const color = entry.stroke || entry.color || "#888";
+            const value =
+              typeof entry.value === "number" ? entry.value.toFixed(decimals) : (entry.value ?? "");
 
-          return (
-            <div
-              key={index}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                fontSize: "13px",
-              }}
-            >
+            return (
               <div
+                key={index}
                 style={{
-                  width: "12px",
-                  height: "12px",
-                  borderRadius: "2px",
-                  backgroundColor: color,
-                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "13px",
                 }}
-              />
-              <span style={{ color: "#ddd", flex: 1 }}>{entry.name}:</span>
-              <span style={{ color: "#fff", fontWeight: "600" }}>
-                {value} {unit}
-              </span>
-            </div>
-          );
-        })}
+              >
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "2px",
+                    backgroundColor: color,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ color: "#ddd", flex: 1 }}>{entry.name}:</span>
+                <span style={{ color: "#fff", fontWeight: "600" }}>
+                  {value} {unit}
+                </span>
+              </div>
+            );
+          }
+        )}
       </div>
     </div>
   );

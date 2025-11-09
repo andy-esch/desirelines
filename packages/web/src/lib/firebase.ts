@@ -30,6 +30,7 @@ export function initializeFirebase(): FirebaseApp {
 
     // Initialize new app with validated config
     app = initializeApp(config.firebase);
+    // eslint-disable-next-line no-console
     console.log(`✓ Firebase initialized (project: ${config.firebase.projectId})`);
   }
 

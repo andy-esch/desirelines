@@ -152,11 +152,13 @@ export function getConfig(): AppConfig {
 
     // Log configuration summary in development only (without sensitive values)
     if (configInstance.isDevelopment) {
+      /* eslint-disable no-console */
       console.log("✓ Configuration loaded successfully");
       console.log(`  Environment: ${configInstance.isProduction ? "production" : "development"}`);
       console.log(`  Fixture mode: ${configInstance.useFixtures ? "enabled" : "disabled"}`);
       console.log(`  Firebase project: ${configInstance.firebase.projectId}`);
       console.log(`  API Gateway: ${configInstance.apiGatewayUrl || "not configured"}`);
+      /* eslint-enable no-console */
     }
   }
 

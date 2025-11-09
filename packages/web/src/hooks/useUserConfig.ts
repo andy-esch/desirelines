@@ -11,87 +11,53 @@ import { FIXTURE_GOALS } from "../data/fixtures";
 import { useAuth } from "./useAuth";
 
 /**
- * Hook for accessing goals for a specific year with real-time sync
+ * Hook for accessing user config with real-time Firestore sync.
+ *
+ * Type-safe return based on configType:
+ * - "goals" → data is GoalsForYear | null
+ * - "annotations" → data is AnnotationsForYear | null
+ * - "preferences" → data is Preferences | null
+ *
+ * @param configType - Type of config section ("goals", "annotations", or "preferences")
+ * @param year - Required for goals/annotations, not used for preferences
+ * @param defaultValue - Default value if config doesn't exist
+ * @param userId - Firestore userId (defaults to authenticated user)
+ * @param version - Config version (defaults to "v1")
  */
-export function useUserConfig(
-  configType: "goals",
-  year: number,
-  defaultValue?: GoalsForYear,
-  userId?: string,
-  version?: string
+export function useUserConfig<T extends "goals" | "annotations" | "preferences">(
+  configType: T,
+  year?: number,
+  defaultValue?: T extends "goals"
+    ? GoalsForYear
+    : T extends "annotations"
+      ? AnnotationsForYear
+      : Preferences,
+  userId: string = "default",
+  version: string = "v1"
 ): {
-  data: GoalsForYear | null;
+  data:
+    | (T extends "goals"
+        ? GoalsForYear
+        : T extends "annotations"
+          ? AnnotationsForYear
+          : Preferences)
+    | null;
   loading: boolean;
   error: Error | null;
-  updateData: (data: GoalsForYear) => Promise<void>;
-};
-
-/**
- * Hook for accessing annotations for a specific year with real-time sync
- */
-export function useUserConfig(
-  configType: "annotations",
-  year: number,
-  defaultValue?: AnnotationsForYear,
-  userId?: string,
-  version?: string
-): {
-  data: AnnotationsForYear | null;
-  loading: boolean;
-  error: Error | null;
-  updateData: (data: AnnotationsForYear) => Promise<void>;
-};
-
-/**
- * Hook for accessing preferences with real-time sync
- * Note: year parameter is not used for preferences, but kept for signature compatibility
- */
-export function useUserConfig(
-  configType: "preferences",
-  year?: undefined,
-  defaultValue?: Preferences,
-  userId?: string,
-  version?: string
-): {
-  data: Preferences | null;
-  loading: boolean;
-  error: Error | null;
-  updateData: (data: Preferences) => Promise<void>;
-};
-
-/**
- * Implementation
- */
-export function useUserConfig(
-  configType: any,
-  yearOrDefault?: any,
-  defaultValueOrUserId?: any,
-  userIdOrVersion?: any,
-  versionParam?: any
-): any {
+  updateData: (
+    data: T extends "goals"
+      ? GoalsForYear
+      : T extends "annotations"
+        ? AnnotationsForYear
+        : Preferences
+  ) => Promise<void>;
+} {
   // Get authenticated user
   const { user } = useAuth();
 
-  // Parse overloaded parameters
-  let year: number | undefined;
-  let defaultValue: GoalsForYear | AnnotationsForYear | Preferences | undefined;
-  let userId: string = user?.uid || "default"; // Use authenticated user's ID
-  let version: string = "v1";
-
-  if (configType === "preferences") {
-    // preferences(configType, defaultValue?, userId?, version?)
-    defaultValue = yearOrDefault as Preferences | undefined;
-    // Allow override, but default to authenticated user
-    userId = (defaultValueOrUserId as string) || user?.uid || "default";
-    version = (userIdOrVersion as string) || "v1";
-  } else {
-    // goals/annotations(configType, year, defaultValue?, userId?, version?)
-    year = yearOrDefault as number;
-    defaultValue = defaultValueOrUserId as GoalsForYear | AnnotationsForYear | undefined;
-    // Allow override, but default to authenticated user
-    userId = (userIdOrVersion as string) || user?.uid || "default";
-    version = versionParam || "v1";
-  }
+  // Use provided userId or default to authenticated user
+  const effectiveUserId = userId || user?.uid || "default";
+  const effectiveVersion = version || "v1";
 
   const [data, setData] = useState<GoalsForYear | AnnotationsForYear | Preferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,7 +82,10 @@ export function useUserConfig(
   }, [configType, user]);
 
   // Memoize configService to avoid recreating on every render
-  const configService = useMemo(() => new UserConfigService(userId, version), [userId, version]);
+  const configService = useMemo(
+    () => new UserConfigService(effectiveUserId, effectiveVersion),
+    [effectiveUserId, effectiveVersion]
+  );
 
   // Load config and subscribe to real-time updates
   useEffect(() => {
@@ -138,7 +107,8 @@ export function useUserConfig(
             "goals",
             (section) => {
               if (section !== null) {
-                setData(section);
+                // When year is provided, section is GoalsForYear (not dictionary)
+                setData(section as GoalsForYear);
               } else if (defaultValue !== undefined) {
                 setData(defaultValue);
               } else {
@@ -153,7 +123,8 @@ export function useUserConfig(
             "annotations",
             (section) => {
               if (section !== null) {
-                setData(section);
+                // When year is provided, section is AnnotationsForYear (not dictionary)
+                setData(section as AnnotationsForYear);
               } else if (defaultValue !== undefined) {
                 setData(defaultValue);
               } else {
@@ -166,7 +137,7 @@ export function useUserConfig(
         } else if (configType === "preferences") {
           unsubscribe = configService.subscribeToConfigSection("preferences", (section) => {
             if (section !== null) {
-              setData(section);
+              setData(section as Preferences);
             } else if (defaultValue !== undefined) {
               setData(defaultValue);
             } else {
@@ -204,7 +175,7 @@ export function useUserConfig(
     async (newData: GoalsForYear | AnnotationsForYear | Preferences) => {
       // In fixture mode, just update local state (no persistence)
       if (USE_FIXTURE_DATA) {
-        console.log("Fixture mode: Changes not persisted", newData);
+        console.warn("Fixture mode: Changes not persisted", newData);
         setData(newData);
         return;
       }
@@ -234,11 +205,30 @@ export function useUserConfig(
     [configType, year, configService]
   );
 
+  // Type assertion needed because internal state uses union type
+  // but return type uses conditional types for better type safety
   return {
     data,
     loading,
     error,
     updateData,
+  } as {
+    data:
+      | (T extends "goals"
+          ? GoalsForYear
+          : T extends "annotations"
+            ? AnnotationsForYear
+            : Preferences)
+      | null;
+    loading: boolean;
+    error: Error | null;
+    updateData: (
+      data: T extends "goals"
+        ? GoalsForYear
+        : T extends "annotations"
+          ? AnnotationsForYear
+          : Preferences
+    ) => Promise<void>;
   };
 }
 
@@ -304,7 +294,7 @@ export function useFullUserConfig(userId: string = "default", version: string = 
     ): Promise<void> => {
       // In fixture mode, skip persistence
       if (USE_FIXTURE_DATA) {
-        console.log("Fixture mode: Changes not persisted", data);
+        console.warn("Fixture mode: Changes not persisted", data);
         return;
       }
 

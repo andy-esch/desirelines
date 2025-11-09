@@ -4,7 +4,6 @@
 //   protoc               v6.33.0
 // source: activities.proto
 
-/* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
 export const protobufPackage = "desirelines.activities.v1";

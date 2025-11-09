@@ -200,48 +200,26 @@ export class UserConfigService {
   }
 
   /**
-   * Subscribe to goals for a specific year
-   */
-  subscribeToConfigSection(
-    configType: "goals",
-    callback: (data: GoalsForYear | null) => void,
-    year: number
-  ): Unsubscribe;
-  /**
-   * Subscribe to all goals
-   */
-  subscribeToConfigSection(
-    configType: "goals",
-    callback: (data: { [key: string]: GoalsForYear } | null) => void
-  ): Unsubscribe;
-  /**
-   * Subscribe to annotations for a specific year
-   */
-  subscribeToConfigSection(
-    configType: "annotations",
-    callback: (data: AnnotationsForYear | null) => void,
-    year: number
-  ): Unsubscribe;
-  /**
-   * Subscribe to all annotations
-   */
-  subscribeToConfigSection(
-    configType: "annotations",
-    callback: (data: { [key: string]: AnnotationsForYear } | null) => void
-  ): Unsubscribe;
-  /**
-   * Subscribe to preferences
-   */
-  subscribeToConfigSection(
-    configType: "preferences",
-    callback: (data: Preferences | null) => void
-  ): Unsubscribe;
-  /**
-   * Implementation
+   * Subscribe to a specific config section.
+   *
+   * For goals/annotations:
+   * - With year: callback receives GoalsForYear | AnnotationsForYear | null
+   * - Without year: callback receives { [year: string]: GoalsForYear | AnnotationsForYear } | null
+   *
+   * For preferences:
+   * - callback receives Preferences | null
    */
   subscribeToConfigSection(
     configType: "goals" | "annotations" | "preferences",
-    callback: (data: any) => void,
+    callback: (
+      data:
+        | GoalsForYear
+        | AnnotationsForYear
+        | Preferences
+        | { [key: string]: GoalsForYear }
+        | { [key: string]: AnnotationsForYear }
+        | null
+    ) => void,
     year?: number
   ): Unsubscribe {
     return this.subscribeToConfig((config) => {
