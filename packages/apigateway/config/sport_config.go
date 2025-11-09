@@ -38,6 +38,7 @@ type SportConfig struct {
 
 var (
 	sportConfig     *SportConfig
+	sportConfigErr  error
 	sportConfigOnce sync.Once
 	validate        = validator.New()
 )
@@ -47,11 +48,10 @@ var SupportedConfigVersions = []string{"1.0"}
 
 // LoadSportConfig loads available application SportConfig
 func LoadSportConfig(configPath string) (*SportConfig, error) {
-	var err error
 	sportConfigOnce.Do(func() {
-		sportConfig, err = loadSportConfigInternal(configPath)
+		sportConfig, sportConfigErr = loadSportConfigInternal(configPath)
 	})
-	return sportConfig, err
+	return sportConfig, sportConfigErr
 }
 
 // loadSportConfigInternal is the internal loader (for testing)
