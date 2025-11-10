@@ -135,13 +135,12 @@ class MetadataRepo(WriteMetadata):
         """Write year metadata with sport totals"""
         metadata_blob_name = f"activities/{year}/metadata.json"
 
-        # Convert protobuf to JSON
-        metadata_json = json_format.MessageToJson(
+        # Convert protobuf to dict
+        metadata_dict = json_format.MessageToDict(
             metadata,
             preserving_proto_field_name=True,
         )
 
-        # Upload to GCP bucket
+        # Upload to GCP bucket (minified + gzipped)
         logger.info("Writing metadata to blob: %s", metadata_blob_name)
-        blob = self._client._bucket.blob(metadata_blob_name)
-        blob.upload_from_string(data=metadata_json, content_type="application/json")
+        self._client.write_json_to_bucket(metadata_dict, metadata_blob_name)

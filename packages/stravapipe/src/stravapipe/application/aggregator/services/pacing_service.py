@@ -78,13 +78,13 @@ class PacingService:
             # Only set distance/elevation if applicable to sport (omit for yoga)
             # But always set time and activities (even if zero) for all sports
             if category.has_distance:
-                entry.distance = cumulative_distance
+                entry.distance = round(cumulative_distance, 1)
 
             if category.has_elevation:
-                entry.elevation = cumulative_elevation
+                entry.elevation = round(cumulative_elevation, 1)
 
             # Always set time and activities (these apply to all sports)
-            entry.time = cumulative_time
+            entry.time = round(cumulative_time, 1)
             entry.activities = cumulative_activities
 
             entries.append(entry)
