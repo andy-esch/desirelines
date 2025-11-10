@@ -21,6 +21,17 @@ env:
   STRAVA_WEBHOOK_SUBSCRIPTION_ID: "12345"
 
 jobs:
+  sport-config-sync:
+    name: Sport Config Sync Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify sport_types.json copies are in sync
+        run: make verify-sport-config
+
   python-quality:
     name: Python Tests & Quality
     runs-on: ubuntu-latest
