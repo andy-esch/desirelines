@@ -1,0 +1,18 @@
+{
+  "timeseries": [
+    {
+      "date": "2024-01-15",
+      "distance": 68400,
+      "elevation": 450,
+      "time": 120,
+      "activities": 2
+    },
+    {
+      "date": "2024-01-16",
+      "distance": 136800,
+      "elevation": 900,
+      "time": 240,
+      "activities": 4
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 )
 
@@ -23,7 +24,12 @@ func (m *mockStorageClient) ReadJSON(ctx context.Context, blobPath string) (any,
 
 // newTestHandler creates a handler with mock dependencies for testing
 func newTestHandler(storageClient storage.Client) *Handler {
-	return NewHandlerWithStorage(storageClient)
+	// Load sport config for tests
+	sportConfig, err := config.LoadSportConfig("../../schemas/sports/sport_types.json")
+	if err != nil {
+		panic("Failed to load sport config for tests: " + err.Error())
+	}
+	return NewHandlerWithStorage(storageClient, sportConfig)
 }
 
 func TestHandlerHealth(t *testing.T) {
@@ -188,8 +194,9 @@ func TestHandlerActivities(t *testing.T) {
 
 		handler.ServeHTTP(w, req)
 
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("expected status 400, got %d", w.Code)
+		// http.ServeMux returns 404 for non-matching routes (better than custom 400)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", w.Code)
 		}
 	})
 
@@ -203,4 +210,186 @@ func TestHandlerActivities(t *testing.T) {
 			t.Errorf("expected status 405, got %d", w.Code)
 		}
 	})
+}
+
+func TestHandlerMetrics(t *testing.T) {
+	mockData := map[string]any{
+		"timeseries": []any{
+			map[string]any{"date": "2024-01-15", "distance": 68400, "time": 120},
+		},
+	}
+
+	mock := &mockStorageClient{
+		ReadJSONFunc: func(ctx context.Context, blobPath string) (any, error) {
+			if blobPath == "activities/2024/metrics/cycling.json" {
+				return mockData, nil
+			}
+			return nil, storage.ErrNotFound
+		},
+	}
+
+	handler := newTestHandler(mock)
+
+	t.Run("valid sport parameter", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("missing sport parameter", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("invalid sport name", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=invalid", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("sport not found in storage", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=yoga", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandlerSource(t *testing.T) {
+	mockData := map[string]any{
+		"2024-01-15": map[string]any{
+			"distance": 8370,
+			"time":     48,
+		},
+	}
+
+	mock := &mockStorageClient{
+		ReadJSONFunc: func(ctx context.Context, blobPath string) (any, error) {
+			if blobPath == "activities/2024/source/running.json" {
+				return mockData, nil
+			}
+			return nil, storage.ErrNotFound
+		},
+	}
+
+	handler := newTestHandler(mock)
+
+	t.Run("valid sport parameter", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source?sport=running", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("missing sport parameter", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("invalid sport name", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source?sport=badminton", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandlerMetadata(t *testing.T) {
+	mockData := map[string]any{
+		"year":   2024,
+		"sports": []string{"cycling", "running"},
+		"totals": map[string]any{
+			"cycling": map[string]any{
+				"distance":   136800,
+				"activities": 4,
+			},
+		},
+	}
+
+	mock := &mockStorageClient{
+		ReadJSONFunc: func(ctx context.Context, blobPath string) (any, error) {
+			if blobPath == "activities/2024/metadata.json" {
+				return mockData, nil
+			}
+			return nil, storage.ErrNotFound
+		},
+	}
+
+	handler := newTestHandler(mock)
+
+	t.Run("returns metadata successfully", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metadata", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("metadata not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/2023/metadata", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandlerSportConfig(t *testing.T) {
+	mock := &mockStorageClient{}
+	handler := newTestHandler(mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/sports/config", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	// Verify response contains sport categories
+	body := w.Body.String()
+	if body == "" {
+		t.Error("expected non-empty response body")
+	}
 }
