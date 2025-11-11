@@ -1,4 +1,4 @@
-// Recharts implementation of PacingChart
+// Recharts implementation of PacingMetricsChart
 import { useMemo } from "react";
 import {
   LineChart,
@@ -21,8 +21,9 @@ import {
   type Goals,
 } from "../../utils/goalCalculations";
 import ChartTooltip from "./ChartTooltip";
+import { getDistanceLabel, type DistanceUnit, type MetricUnit } from "../../utils/units";
 
-interface PacingChartProps {
+interface PacingMetricsChartProps {
   year: number;
   goals: Goals;
   onGoalsChange?: (goals: Goals) => void;
@@ -31,11 +32,22 @@ interface PacingChartProps {
   error: Error | null;
   showFullYear?: boolean;
   hideHeader?: boolean;
+  unit?: MetricUnit; // Unit for metric display (default: "miles", can be "sessions" for yoga)
 }
 
 // Removed CustomTooltip - now using shared ChartTooltip component
 
-const PacingChartRecharts = (props: PacingChartProps) => {
+// Helper to get unit label for both distance and activity metrics
+function getUnitLabel(unit: MetricUnit): string {
+  // If it's a known distance unit, use getDistanceLabel
+  if (unit === "miles" || unit === "kilometers" || unit === "meters") {
+    return getDistanceLabel(unit as DistanceUnit);
+  }
+  // Otherwise, return as-is (e.g., "sessions" for yoga)
+  return unit;
+}
+
+const PacingMetricsChart = (props: PacingMetricsChartProps) => {
   const {
     year,
     goals,
@@ -44,7 +56,14 @@ const PacingChartRecharts = (props: PacingChartProps) => {
     error,
     showFullYear = true,
     hideHeader = false,
+    unit = "miles", // Default to miles if not provided
   } = props;
+
+  // Determine chart title based on metric type
+  const chartTitle =
+    unit === "sessions"
+      ? "Daily Activity (sessions / day)"
+      : `Daily Pace (${getUnitLabel(unit)} / day)`;
 
   // Derive values from distanceData
   const latestDate = useMemo(() => {
@@ -135,7 +154,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
       <div className={hideHeader ? "" : "mt-4"}>
         {!hideHeader && (
           <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
-            Daily Pace (miles/day)
+            {chartTitle}
           </h3>
         )}
         <LoadingChart />
@@ -148,7 +167,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
       <div className={hideHeader ? "" : "mt-4"}>
         {!hideHeader && (
           <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
-            Daily Pace (miles/day)
+            {chartTitle}
           </h3>
         )}
         <ErrorChart error={error} onRetry={() => window.location.reload()} />
@@ -186,12 +205,16 @@ const PacingChartRecharts = (props: PacingChartProps) => {
             interval="preserveStartEnd"
           />
           <YAxis
-            label={{ value: "Miles/Day", angle: -90, position: "insideLeft" }}
+            label={{
+              value: unit === "sessions" ? "# Sessions / Day" : `${getUnitLabel(unit)} / Day`,
+              angle: -90,
+              position: "insideLeft",
+            }}
             domain={[0, "auto"]}
             stroke={CHART_CONFIG.axis.stroke}
             tickFormatter={(value: number) => value.toFixed(1)}
           />
-          <Tooltip content={<ChartTooltip unit="mi/day" decimals={2} />} />
+          <Tooltip content={<ChartTooltip unit={`${getUnitLabel(unit)}/day`} decimals={2} />} />
 
           {/* Y-axis markers for current values */}
           <ReferenceLine
@@ -284,4 +307,4 @@ const PacingChartRecharts = (props: PacingChartProps) => {
   );
 };
 
-export default PacingChartRecharts;
+export default PacingMetricsChart;

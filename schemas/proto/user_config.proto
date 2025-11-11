@@ -64,6 +64,11 @@ message Preferences {
   string theme = 1;  // "light" or "dark"
   int32 default_year = 2;
   ChartDefaults chart_defaults = 3;
+
+  // Unit preferences (backward-compatible additions - no schema version bump needed)
+  string distance_unit = 4;   // "miles", "kilometers", "meters" (default: "miles")
+  string elevation_unit = 5;  // "feet", "meters" (default: "feet")
+  string default_sport = 6;   // "cycling", "running", "yoga" (default: "cycling")
 }
 
 message ChartDefaults {

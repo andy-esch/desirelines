@@ -98,7 +98,15 @@ export interface Preferences {
   /** "light" or "dark" */
   theme: string;
   defaultYear: number;
-  chartDefaults?: ChartDefaults | undefined;
+  chartDefaults?:
+    | ChartDefaults
+    | undefined;
+  /** Unit preferences (backward-compatible additions - no schema version bump needed) */
+  distanceUnit: string;
+  /** "feet", "meters" (default: "feet") */
+  elevationUnit: string;
+  /** "cycling", "running", "yoga" (default: "cycling") */
+  defaultSport: string;
 }
 
 export interface ChartDefaults {
@@ -707,7 +715,7 @@ export const Annotation: MessageFns<Annotation> = {
 };
 
 function createBasePreferences(): Preferences {
-  return { theme: "", defaultYear: 0, chartDefaults: undefined };
+  return { theme: "", defaultYear: 0, chartDefaults: undefined, distanceUnit: "", elevationUnit: "", defaultSport: "" };
 }
 
 export const Preferences: MessageFns<Preferences> = {
@@ -720,6 +728,15 @@ export const Preferences: MessageFns<Preferences> = {
     }
     if (message.chartDefaults !== undefined) {
       ChartDefaults.encode(message.chartDefaults, writer.uint32(26).fork()).join();
+    }
+    if (message.distanceUnit !== "") {
+      writer.uint32(34).string(message.distanceUnit);
+    }
+    if (message.elevationUnit !== "") {
+      writer.uint32(42).string(message.elevationUnit);
+    }
+    if (message.defaultSport !== "") {
+      writer.uint32(50).string(message.defaultSport);
     }
     return writer;
   },
@@ -753,6 +770,30 @@ export const Preferences: MessageFns<Preferences> = {
           }
 
           message.chartDefaults = ChartDefaults.decode(reader, reader.uint32());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.distanceUnit = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.elevationUnit = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.defaultSport = reader.string();
           continue;
         }
       }

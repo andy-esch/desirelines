@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import GoalControls from "../GoalControls";
 import type { Goals } from "../../utils/goalCalculations";
 import { fetchYearMetadata } from "../../api/activities";
+import type { MetricUnit } from "../../utils/units";
 
 interface SidebarProps {
   currentYear: number;
@@ -12,6 +13,7 @@ interface SidebarProps {
   estimatedYearEnd: number;
   currentDistance: number;
   sport?: string; // Current sport (cycling, running, yoga)
+  unit?: MetricUnit; // Unit label (e.g., "miles", "kilometers", "sessions")
 }
 
 const AVAILABLE_YEARS = [2025, 2024, 2023];
@@ -24,6 +26,7 @@ export default function Sidebar({
   estimatedYearEnd,
   currentDistance,
   sport = "cycling", // Default to cycling if not provided
+  unit = "miles", // Default to miles
 }: SidebarProps) {
   const navigate = useNavigate();
   const [availableSports, setAvailableSports] = useState<string[]>(["cycling"]); // Default fallback
@@ -136,6 +139,8 @@ export default function Sidebar({
               onGoalsChange={onGoalsChange}
               estimatedYearEnd={estimatedYearEnd}
               currentDistance={currentDistance}
+              unit={unit}
+              sport={sport}
             />
           </div>
         </div>

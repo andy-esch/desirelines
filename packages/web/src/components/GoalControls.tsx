@@ -1,12 +1,15 @@
 import React, { useState } from "react";
 import { Goals, Goal, validateGoals, generateDefaultGoals } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
+import type { MetricUnit } from "../utils/units";
 
 interface GoalControlsProps {
   goals: Goals;
   onGoalsChange: (goals: Goals) => void;
   estimatedYearEnd: number;
   currentDistance: number;
+  unit?: MetricUnit; // Unit label (e.g., "mi", "km", "sessions")
+  sport?: string; // Sport name (e.g., "cycling", "running", "yoga")
 }
 
 const GoalControls: React.FC<GoalControlsProps> = ({
@@ -14,15 +17,23 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   onGoalsChange,
   estimatedYearEnd,
   currentDistance,
+  unit = "miles", // Default to miles
+  sport = "cycling", // Default to cycling
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [editingLabel, setEditingLabel] = useState<{ id: string; value: string } | null>(null);
 
   const validation = validateGoals(goals);
 
+  // Determine increment size based on sport type
+  // Cycling: 100, Running: 10, Yoga: 10
+  const incrementSize = sport === "cycling" ? 100 : 10;
+  const roundingFactor = sport === "cycling" ? 100 : 10;
+
   const handleGoalValueChange = (id: string, value: number) => {
-    // Round to nearest 100
-    const rounded = Math.round(value / 100) * 100;
+    // Round based on sport type (100 for cycling, 10 for running/yoga)
+    const rounded = Math.round(value / roundingFactor) * roundingFactor;
     const updated = goals.map((g) => (g.id === id ? { ...g, value: rounded } : g));
     onGoalsChange(updated);
   };
@@ -47,6 +58,17 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     setEditingId(null);
   };
 
+  const handleLabelEdit = (id: string, value: string) => {
+    setEditingLabel({ id, value });
+  };
+
+  const handleLabelSave = (id: string) => {
+    if (editingLabel && editingLabel.id === id) {
+      handleGoalLabelChange(id, editingLabel.value);
+      setEditingLabel(null);
+    }
+  };
+
   const handleGoalLabelChange = (id: string, label: string) => {
     const updated = goals.map((g) => (g.id === id ? { ...g, label } : g));
     onGoalsChange(updated);
@@ -56,10 +78,10 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     if (goals.length >= 5) return;
 
     // Find unique value not in current goals
-    let newValue = Math.ceil(estimatedYearEnd / 100) * 100;
+    let newValue = Math.ceil(estimatedYearEnd / roundingFactor) * roundingFactor;
     const existingValues = new Set(goals.map((g) => g.value));
     while (existingValues.has(newValue)) {
-      newValue += 100;
+      newValue += incrementSize;
     }
 
     const newGoal: Goal = {
@@ -94,8 +116,13 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                 type="text"
                 className="form-control form-control-sm"
                 style={{ fontSize: "0.875rem" }}
-                value={goal.label || ""}
-                onChange={(e) => handleGoalLabelChange(goal.id, e.target.value)}
+                value={editingLabel?.id === goal.id ? editingLabel.value : goal.label || ""}
+                onChange={(e) => handleLabelEdit(goal.id, e.target.value)}
+                onBlur={() => handleLabelSave(goal.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleLabelSave(goal.id);
+                  if (e.key === "Escape") setEditingLabel(null);
+                }}
                 placeholder="Label"
               />
               {goals.length > 1 && (
@@ -112,7 +139,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
             <div className="input-group input-group-sm">
               <button
                 className="btn btn-outline-secondary"
-                onClick={() => handleIncrement(goal.id, -100)}
+                onClick={() => handleIncrement(goal.id, -incrementSize)}
                 disabled={goal.value <= 0}
               >
                 −
@@ -129,21 +156,21 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                     if (e.key === "Escape") setEditingId(null);
                   }}
                   autoFocus
-                  style={{ maxWidth: "80px" }}
+                  style={{ maxWidth: "130px" }}
                 />
               ) : (
                 <input
                   type="text"
                   className="form-control text-center"
-                  value={`${goal.value.toLocaleString()} mi`}
+                  value={`${goal.value.toLocaleString()} ${unit}`}
                   onFocus={() => handleStartEdit(goal.id, goal.value)}
                   readOnly
-                  style={{ maxWidth: "80px", cursor: "pointer" }}
+                  style={{ maxWidth: "130px", cursor: "pointer" }}
                 />
               )}
               <button
                 className="btn btn-outline-secondary"
-                onClick={() => handleIncrement(goal.id, 100)}
+                onClick={() => handleIncrement(goal.id, incrementSize)}
               >
                 +
               </button>
@@ -169,8 +196,12 @@ const GoalControls: React.FC<GoalControlsProps> = ({
       </div>
 
       <div className="mt-2 small text-muted">
-        <div>Current: {currentDistance.toFixed(0)} mi</div>
-        <div>Est. Year-End: {estimatedYearEnd.toFixed(0)} mi</div>
+        <div>
+          Current: {currentDistance.toFixed(0)} {unit}
+        </div>
+        <div>
+          Est. Year-End: {estimatedYearEnd.toFixed(0)} {unit}
+        </div>
       </div>
     </div>
   );

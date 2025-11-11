@@ -116,6 +116,9 @@ describe('UserConfig', () => {
       preferences: {
         theme: 'dark',
         defaultYear: 2024,
+        distanceUnit: '',
+        elevationUnit: '',
+        defaultSport: '',
         chartDefaults: {
           showAverage: true,
           showGoals: false,
@@ -186,6 +189,9 @@ describe('UserConfig', () => {
       preferences: {
         theme: 'light',
         defaultYear: 2024,
+        distanceUnit: '',
+        elevationUnit: '',
+        defaultSport: '',
       },
       metadata: {
         createdAt: '2024-01-01T00:00:00Z',
@@ -288,6 +294,9 @@ describe('Preferences', () => {
     const prefs: Preferences = {
       theme: 'dark',
       defaultYear: 2024,
+      distanceUnit: '',
+      elevationUnit: '',
+      defaultSport: '',
       chartDefaults: {
         showAverage: true,
         showGoals: true,
@@ -303,6 +312,9 @@ describe('Preferences', () => {
     const prefs: Preferences = {
       theme: 'light',
       defaultYear: 2023,
+      distanceUnit: '',
+      elevationUnit: '',
+      defaultSport: '',
     };
 
     expect(prefs.chartDefaults).toBeUndefined();

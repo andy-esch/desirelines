@@ -1,11 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { fetchSportMetrics, type SportMetrics } from "../api/activities";
-import { convertDistance, DEFAULT_USER_SETTINGS } from "../utils/units";
-import DistanceChart from "../components/charts/DistanceChartRecharts";
-import PacingChart from "../components/charts/PacingChartRecharts";
+import {
+  fetchSportMetrics,
+  fetchSportConfig,
+  type SportMetrics,
+  type SportConfig,
+} from "../api/activities";
+import { convertDistance, getUserSettings } from "../utils/units";
+import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
+import PacingMetricsChart from "../components/charts/PacingMetricsChart";
 import Sidebar from "../components/layout/Sidebar";
 import KPICards from "../components/dashboard/KPICards";
+import GoalSummaryTable from "../components/GoalSummaryTable";
 import {
   generateDefaultGoals,
   estimateYearEndDistance,
@@ -27,11 +33,12 @@ export default function SportPage({ sport }: SportPageProps) {
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
 
   const [metrics, setMetrics] = useState<SportMetrics | null>(null);
+  const [sportConfig, setSportConfig] = useState<SportConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [showFullYear, setShowFullYear] = useState(true);
 
-  // Fetch sport metrics
+  // Fetch sport metrics and config
   useEffect(() => {
     const controller = new AbortController();
 
@@ -39,8 +46,15 @@ export default function SportPage({ sport }: SportPageProps) {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await fetchSportMetrics(currentYear, sport, controller.signal);
-        setMetrics(data);
+
+        // Fetch both metrics and config in parallel
+        const [metricsData, configData] = await Promise.all([
+          fetchSportMetrics(currentYear, sport, controller.signal),
+          fetchSportConfig(controller.signal),
+        ]);
+
+        setMetrics(metricsData);
+        setSportConfig(configData);
       } catch (err) {
         if (err instanceof Error && err.message !== "Request cancelled") {
           setError(err);
@@ -57,29 +71,56 @@ export default function SportPage({ sport }: SportPageProps) {
     };
   }, [currentYear, sport]);
 
-  // Convert metrics to DistanceEntry format for charts
-  const distanceData: DistanceEntry[] = useMemo(() => {
-    if (!metrics) return [];
+  // Load user preferences for unit settings (BEFORE using them in calculations)
+  const { data: preferences } = useUserConfig("preferences");
+  const userSettings = useMemo(() => getUserSettings(preferences), [preferences]);
 
+  // Determine sport type and primary metric
+  const sportInfo = useMemo(() => {
+    if (!sportConfig) return null;
+    return sportConfig.sport_categories[sport];
+  }, [sportConfig, sport]);
+
+  // Determine the unit label based on sport type
+  const metricUnit = useMemo(() => {
+    if (!sportInfo) return userSettings.distanceUnit;
+    return sportInfo.has_distance ? userSettings.distanceUnit : "sessions";
+  }, [sportInfo, userSettings.distanceUnit]);
+
+  // Convert metrics to chart data format - use distance or activity count based on sport
+  const chartData: DistanceEntry[] = useMemo(() => {
+    if (!metrics || !sportInfo) return [];
+
+    // For sports with distance (cycling, running), use distance metric
+    if (sportInfo.has_distance) {
+      return metrics
+        .filter((entry) => entry.distance !== undefined)
+        .map((entry) => ({
+          x: entry.date,
+          y: convertDistance(entry.distance!, userSettings.distanceUnit),
+        }));
+    }
+
+    // For sports without distance (yoga), use activity count
     return metrics
-      .filter((entry) => entry.distance !== undefined)
+      .filter((entry) => entry.activities !== undefined)
       .map((entry) => ({
         x: entry.date,
-        y: convertDistance(entry.distance!, DEFAULT_USER_SETTINGS.distanceUnit),
+        y: entry.activities!,
       }));
-  }, [metrics]);
+  }, [metrics, sportInfo, userSettings.distanceUnit]);
 
   // Calculate current values
   const estimatedYearEnd = useMemo(() => {
-    if (distanceData.length === 0) return 2500;
-    return estimateYearEndDistance(distanceData, currentYear);
-  }, [distanceData, currentYear]);
+    if (chartData.length === 0) return 2500;
+    return estimateYearEndDistance(chartData, currentYear);
+  }, [chartData, currentYear]);
 
-  const currentDistance = useMemo(() => {
-    if (distanceData.length === 0) return 0;
-    const lastEntry = distanceData[distanceData.length - 1];
+  const currentValue = useMemo(() => {
+    if (chartData.length === 0) return 0;
+    const lastEntry = chartData[chartData.length - 1];
     return lastEntry?.y || 0;
-  }, [distanceData]);
+  }, [chartData]);
 
   // Goals management - memoize to prevent infinite loop
   const defaultGoalsForYear: GoalsForYear = useMemo(
@@ -131,16 +172,16 @@ export default function SportPage({ sport }: SportPageProps) {
   // Calculate stats for cards
   const yearStats = calculateYearStats(currentYear);
   const { daysElapsed, daysRemaining } = yearStats;
-  const averagePace = calculateAveragePace(currentDistance, currentYear);
+  const averagePace = calculateAveragePace(currentValue, currentYear);
 
   // Custom hooks for complex calculations
   const { nextGoal, nextGoalProgress, nextGoalGap, paceNeededForNextGoal } = useGoalStats(
     goals,
-    currentDistance,
+    currentValue,
     daysRemaining
   );
 
-  const { momentumIndicator } = useTrainingMomentum(distanceData, averagePace);
+  const { momentumIndicator } = useTrainingMomentum(chartData, averagePace);
 
   return (
     <div className="container-fluid">
@@ -155,7 +196,8 @@ export default function SportPage({ sport }: SportPageProps) {
           goals={goals}
           onGoalsChange={handleGoalsChange}
           estimatedYearEnd={estimatedYearEnd}
-          currentDistance={currentDistance}
+          currentDistance={currentValue}
+          unit={metricUnit}
         />
 
         <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
@@ -166,7 +208,7 @@ export default function SportPage({ sport }: SportPageProps) {
           </div>
 
           <KPICards
-            currentDistance={currentDistance}
+            currentDistance={currentValue}
             nextGoal={nextGoal}
             nextGoalProgress={nextGoalProgress}
             nextGoalGap={nextGoalGap}
@@ -175,32 +217,42 @@ export default function SportPage({ sport }: SportPageProps) {
             momentumIndicator={momentumIndicator}
             daysElapsed={daysElapsed}
             daysRemaining={daysRemaining}
+            unit={metricUnit}
+          />
+
+          <GoalSummaryTable
+            goals={goals}
+            currentDistance={currentValue}
+            year={currentYear}
+            unit={metricUnit}
           />
 
           <div className="row">
             <div className="col-12 mb-4">
-              <DistanceChart
+              <CumulativeMetricsChart
                 year={currentYear}
                 goals={goals}
                 onGoalsChange={handleGoalsChange}
-                distanceData={distanceData}
+                distanceData={chartData}
                 isLoading={isLoading}
                 error={error}
                 showFullYear={showFullYear}
                 onViewChange={setShowFullYear}
+                unit={metricUnit}
               />
             </div>
           </div>
 
           <div className="row">
             <div className="col-12 mb-4">
-              <PacingChart
+              <PacingMetricsChart
                 year={currentYear}
                 goals={goals}
-                distanceData={distanceData}
+                distanceData={chartData}
                 isLoading={isLoading}
                 error={error}
                 showFullYear={showFullYear}
+                unit={metricUnit}
               />
             </div>
           </div>

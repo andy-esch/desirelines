@@ -126,6 +126,9 @@ describe("useUserConfig", () => {
     it("should work with 'preferences' configType (no year parameter)", async () => {
       const mockPreferences: Preferences = {
         theme: "dark",
+        distanceUnit: "",
+        elevationUnit: "",
+        defaultSport: "",
         defaultYear: 2025,
       };
 
@@ -407,7 +410,13 @@ describe("useUserConfig", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const newPrefs: Preferences = { theme: "dark", defaultYear: 2025 };
+      const newPrefs: Preferences = {
+        theme: "dark",
+        defaultYear: 2025,
+        distanceUnit: "",
+        elevationUnit: "",
+        defaultSport: "",
+      };
       await result.current.updateData(newPrefs);
 
       expect(setDoc).toHaveBeenCalled();
@@ -848,7 +857,13 @@ describe("useFullUserConfig", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const newPrefs: Preferences = { theme: "dark", defaultYear: 2025 };
+      const newPrefs: Preferences = {
+        theme: "dark",
+        defaultYear: 2025,
+        distanceUnit: "",
+        elevationUnit: "",
+        defaultSport: "",
+      };
       await result.current.updateSection("preferences", newPrefs);
 
       expect(setDoc).toHaveBeenCalled();

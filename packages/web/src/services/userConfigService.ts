@@ -12,6 +12,12 @@ import type {
 } from "../types/generated/user_config";
 
 /**
+ * Current schema version for user config
+ * Increment when making breaking changes to the data structure
+ */
+const CURRENT_SCHEMA_VERSION = "2.0";
+
+/**
  * Service for managing user configuration in Firestore
  * Supports versioned configs with real-time sync
  */
@@ -32,6 +38,23 @@ export class UserConfigService {
   }
 
   /**
+   * Validate schema version and warn if there's a mismatch
+   */
+  private validateSchemaVersion(config: UserConfig): void {
+    if (!config.schemaVersion) {
+      console.warn(`⚠️ User config is missing schema version. Expected: ${CURRENT_SCHEMA_VERSION}`);
+      return;
+    }
+
+    if (config.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+      console.warn(
+        `⚠️ Schema version mismatch! Config has: ${config.schemaVersion}, Code expects: ${CURRENT_SCHEMA_VERSION}. ` +
+          `Data will be auto-upgraded on next write.`
+      );
+    }
+  }
+
+  /**
    * Get the full user configuration
    */
   async getConfig(): Promise<UserConfig | null> {
@@ -40,7 +63,9 @@ export class UserConfigService {
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
-        return docSnap.data() as UserConfig;
+        const config = docSnap.data() as UserConfig;
+        this.validateSchemaVersion(config);
+        return config;
       }
       return null;
     } catch (error) {
@@ -159,12 +184,20 @@ export class UserConfigService {
       const existingConfig = await this.getConfig();
 
       const config: UserConfig = existingConfig || {
-        schemaVersion: "2.0",
+        schemaVersion: CURRENT_SCHEMA_VERSION,
         userId: this.userId,
         lastUpdated: new Date().toISOString(),
         goals: {},
         annotations: {},
       };
+
+      // Ensure schema version is updated for existing configs
+      if (config.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+        console.log(
+          `📝 Auto-upgrading user config schema from ${config.schemaVersion} to ${CURRENT_SCHEMA_VERSION}`
+        );
+        config.schemaVersion = CURRENT_SCHEMA_VERSION;
+      }
 
       // Update specific section
       if (year !== undefined && sport !== undefined && configType === "goals") {
@@ -225,7 +258,9 @@ export class UserConfigService {
       docRef,
       (doc) => {
         if (doc.exists()) {
-          callback(doc.data() as UserConfig);
+          const config = doc.data() as UserConfig;
+          this.validateSchemaVersion(config);
+          callback(config);
         } else {
           callback(null);
         }

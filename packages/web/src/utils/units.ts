@@ -1,5 +1,9 @@
+import type { Preferences } from "../types/generated/user_config";
+
 export type DistanceUnit = "miles" | "kilometers" | "meters";
 export type ElevationUnit = "meters" | "feet";
+export type ActivityUnit = "sessions";
+export type MetricUnit = DistanceUnit | ActivityUnit;
 
 // Conversion constants
 export const METERS_TO_MILES = 0.000621371;
@@ -58,6 +62,15 @@ export function getElevationLabel(unit: ElevationUnit): string {
   }
 }
 
+export function getMetricLabel(unit: MetricUnit): string {
+  // Check if it's a distance unit first
+  if (unit === "miles" || unit === "kilometers" || unit === "meters") {
+    return getDistanceLabel(unit as DistanceUnit);
+  }
+  // Otherwise it's an activity unit
+  return unit; // "sessions" stays as is
+}
+
 // Default user settings (can be loaded from Firestore later)
 export interface UserSettings {
   distanceUnit: DistanceUnit;
@@ -70,3 +83,20 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   elevationUnit: "feet", // US default
   defaultSport: "cycling", // User's main sport
 };
+
+/**
+ * Get user settings from preferences with fallback to defaults
+ * This allows preferences to override hard-coded defaults
+ */
+export function getUserSettings(preferences?: Preferences | null): UserSettings {
+  if (!preferences) {
+    return DEFAULT_USER_SETTINGS;
+  }
+
+  return {
+    distanceUnit: (preferences.distanceUnit as DistanceUnit) || DEFAULT_USER_SETTINGS.distanceUnit,
+    elevationUnit:
+      (preferences.elevationUnit as ElevationUnit) || DEFAULT_USER_SETTINGS.elevationUnit,
+    defaultSport: preferences.defaultSport || DEFAULT_USER_SETTINGS.defaultSport,
+  };
+}

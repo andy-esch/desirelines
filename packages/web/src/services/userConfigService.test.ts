@@ -165,6 +165,9 @@ describe("UserConfigService", () => {
       },
       preferences: {
         theme: "dark",
+        distanceUnit: "",
+        elevationUnit: "",
+        defaultSport: "",
         defaultYear: 2025,
       },
     };
@@ -253,6 +256,9 @@ describe("UserConfigService", () => {
 
       expect(result).toEqual({
         theme: "dark",
+        distanceUnit: "",
+        elevationUnit: "",
+        defaultSport: "",
         defaultYear: 2025,
       });
     });
@@ -471,7 +477,13 @@ describe("UserConfigService", () => {
       };
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
 
-      const newPreferences: Preferences = { theme: "light", defaultYear: 2025 };
+      const newPreferences: Preferences = {
+        theme: "light",
+        defaultYear: 2025,
+        distanceUnit: "",
+        elevationUnit: "",
+        defaultSport: "",
+      };
 
       await service.updateConfigSection("preferences", newPreferences);
 
@@ -772,7 +784,13 @@ describe("UserConfigService", () => {
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {},
         annotations: {},
-        preferences: { theme: "dark", defaultYear: 2025 },
+        preferences: {
+          theme: "dark",
+          defaultYear: 2025,
+          distanceUnit: "",
+          elevationUnit: "",
+          defaultSport: "",
+        },
       };
 
       let capturedOnNext: ((doc: any) => void) | undefined;

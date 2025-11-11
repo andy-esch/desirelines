@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import Sidebar from "../components/layout/Sidebar";
-import DistanceChart from "../components/charts/DistanceChartRecharts";
-import PacingChart from "../components/charts/PacingChartRecharts";
+import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
+import PacingMetricsChart from "../components/charts/PacingMetricsChart";
 import KPICards from "../components/dashboard/KPICards";
 import {
   generateDefaultGoals,
@@ -233,7 +233,7 @@ export default function Dashboard() {
                       <h6 className="mb-0 text-muted text-center">Cumulative Distance</h6>
                     </div>
                     <div className="card-body p-2">
-                      <DistanceChart
+                      <CumulativeMetricsChart
                         year={currentYear}
                         goals={goals}
                         onGoalsChange={handleGoalsChange}
@@ -252,7 +252,7 @@ export default function Dashboard() {
                       <h6 className="mb-0 text-muted text-center">Pacing Analysis</h6>
                     </div>
                     <div className="card-body p-2">
-                      <PacingChart
+                      <PacingMetricsChart
                         year={currentYear}
                         goals={goals}
                         onGoalsChange={handleGoalsChange}
