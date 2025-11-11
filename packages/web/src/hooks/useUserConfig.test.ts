@@ -64,13 +64,13 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": mockGoals } }),
+            data: () => ({ goals: { "2025": { sports: { "cycling": mockGoals } } } }),
           });
         }, 0);
         return vi.fn(); // Return unsubscribe function
       });
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       // Initially loading
       expect(result.current.loading).toBe(true);
@@ -174,13 +174,13 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": mockGoals } }),
+            data: () => ({ goals: { "2025": { sports: { "cycling": mockGoals } } } }),
           });
         }, 0);
         return vi.fn();
       });
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       // Initially loading
       expect(result.current.loading).toBe(true);
@@ -241,7 +241,7 @@ describe("useUserConfig", () => {
         return vi.fn();
       });
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -266,13 +266,13 @@ describe("useUserConfig", () => {
 
         // Initial call
         setTimeout(() => {
-          triggerUpdate({ goals: { "2025": { annualGoal: 500 } } });
+          triggerUpdate({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } });
         }, 0);
 
         return vi.fn();
       });
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -281,7 +281,7 @@ describe("useUserConfig", () => {
       expect(result.current.data).toEqual({ annualGoal: 500 });
 
       // Simulate Firestore update
-      triggerUpdate({ goals: { "2025": { annualGoal: 1000 } } });
+      triggerUpdate({ goals: { "2025": { sports: { "cycling": { annualGoal: 1000 } } } } });
 
       await waitFor(() => {
         expect(result.current.data).toEqual({ annualGoal: 1000 });
@@ -297,7 +297,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { annualGoal: 500 } } }),
+            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
           });
         }, 0);
         return vi.fn();
@@ -306,12 +306,12 @@ describe("useUserConfig", () => {
       // Mock getDoc for updateConfigSection
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: { "2025": { annualGoal: 500 } } }),
+        data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
       } as any);
 
       vi.mocked(setDoc).mockResolvedValue(undefined);
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -349,7 +349,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { annualGoal: 500 } } }),
+            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
           });
         }, 0);
         return vi.fn();
@@ -357,12 +357,12 @@ describe("useUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: { "2025": { annualGoal: 500 } } }),
+        data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
       } as any);
 
       vi.mocked(setDoc).mockResolvedValue(undefined);
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -432,13 +432,13 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { annualGoal: 500 } } }),
+            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
           });
         }, 0);
         return unsubscribeMock;
       });
 
-      const { unmount } = renderHook(() => useUserConfig("goals", 2025));
+      const { unmount } = renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       await waitFor(() => {
         expect(onSnapshot).toHaveBeenCalled();
@@ -464,8 +464,8 @@ describe("useUserConfig", () => {
             exists: () => true,
             data: () => ({
               goals: {
-                "2025": { annualGoal: 500 },
-                "2024": { annualGoal: 400 },
+                "2025": { sports: { "cycling": { annualGoal: 500 } } },
+                "2024": { sports: { "cycling": { annualGoal: 400 } } },
               },
             }),
           });
@@ -473,7 +473,7 @@ describe("useUserConfig", () => {
         return callCount === 1 ? unsubscribeMock1 : unsubscribeMock2;
       });
 
-      const { rerender } = renderHook(({ year }) => useUserConfig("goals", year), {
+      const { rerender } = renderHook(({ year }) => useUserConfig("goals", year, "cycling"), {
         initialProps: { year: 2025 },
       });
 
@@ -503,7 +503,7 @@ describe("useUserConfig", () => {
 
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -556,7 +556,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { annualGoal: 500 } } }),
+            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
           });
         }, 0);
         return vi.fn();
@@ -564,7 +564,7 @@ describe("useUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: { "2025": { annualGoal: 500 } } }),
+        data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
       } as any);
 
       const updateError = new Error("Failed to update Firestore");
@@ -572,7 +572,7 @@ describe("useUserConfig", () => {
 
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -610,7 +610,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { annualGoal: 500 } } }),
+            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
           });
         }, 0);
         return vi.fn();
@@ -649,28 +649,37 @@ describe("useFullUserConfig", () => {
   describe("full config loading", () => {
     it("should load full user config with all sections", async () => {
       const mockFullConfig = {
+        schemaVersion: "2.0",
         goals: {
           "2025": {
-            goals: [
-              {
-                id: "1",
-                value: 1000,
-                label: "2025 Goal",
-                createdAt: "2025-01-01T00:00:00Z",
-                updatedAt: "2025-01-01T00:00:00Z",
+            sports: {
+              cycling: {
+                goals: [
+                  {
+                    id: "1",
+                    value: 1000,
+                    label: "2025 Goal",
+                    createdAt: "2025-01-01T00:00:00Z",
+                    updatedAt: "2025-01-01T00:00:00Z",
+                  },
+                ],
               },
-            ],
+            },
           },
           "2024": {
-            goals: [
-              {
-                id: "2",
-                value: 900,
-                label: "2024 Goal",
-                createdAt: "2024-01-01T00:00:00Z",
-                updatedAt: "2024-01-01T00:00:00Z",
+            sports: {
+              cycling: {
+                goals: [
+                  {
+                    id: "2",
+                    value: 900,
+                    label: "2024 Goal",
+                    createdAt: "2024-01-01T00:00:00Z",
+                    updatedAt: "2024-01-01T00:00:00Z",
+                  },
+                ],
               },
-            ],
+            },
           },
         },
         annotations: {
@@ -727,17 +736,22 @@ describe("useFullUserConfig", () => {
   describe("updateSection method", () => {
     it("should update goals section with year", async () => {
       const mockConfig = {
+        schemaVersion: "2.0",
         goals: {
           "2025": {
-            goals: [
-              {
-                id: "1",
-                value: 1000,
-                label: "Goal",
-                createdAt: "2025-01-01T00:00:00Z",
-                updatedAt: "2025-01-01T00:00:00Z",
+            sports: {
+              cycling: {
+                goals: [
+                  {
+                    id: "1",
+                    value: 1000,
+                    label: "Goal",
+                    createdAt: "2025-01-01T00:00:00Z",
+                    updatedAt: "2025-01-01T00:00:00Z",
+                  },
+                ],
               },
-            ],
+            },
           },
         },
         preferences: { theme: "dark", defaultYear: 2025 },
@@ -779,7 +793,7 @@ describe("useFullUserConfig", () => {
           },
         ],
       };
-      await result.current.updateSection("goals", newGoals, 2025);
+      await result.current.updateSection("goals", newGoals, 2025, "cycling");
 
       expect(setDoc).toHaveBeenCalled();
       expect(result.current.error).toBeNull();
@@ -909,7 +923,7 @@ describe("useFullUserConfig", () => {
           },
         ],
       };
-      await result.current.updateSection("goals", newGoals, 2025);
+      await result.current.updateSection("goals", newGoals, 2025, "cycling");
 
       // Wait for error state to be set
       await waitFor(() => {

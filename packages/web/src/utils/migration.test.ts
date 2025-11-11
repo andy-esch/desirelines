@@ -10,8 +10,7 @@ import type { UserConfigService } from "../services/userConfigService";
 
 describe("migration utilities", () => {
   beforeEach(() => {
-    // Clear localStorage before each test
-    window.localStorage.clear();
+    // localStorage is cleared by global setup.ts
     vi.clearAllMocks();
   });
 

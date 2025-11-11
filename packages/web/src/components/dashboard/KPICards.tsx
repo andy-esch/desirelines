@@ -73,7 +73,7 @@ const KPICards = React.memo(
           value={`${currentDistance.toFixed(0)} ${unit}`}
           subtitle={
             <>
-              {averagePace.toFixed(1)} {unit}/day avg
+              {averagePace.toFixed(1)} {unit} / day avg
               {momentumIndicator && <>{momentumIndicator} · </>}
               {daysElapsed} days
             </>
@@ -99,7 +99,7 @@ const KPICards = React.memo(
           value={paceNeededForNextGoal > 0 ? paceNeededForNextGoal.toFixed(1) : "—"}
           subtitle={
             paceNeededForNextGoal > 0
-              ? `${unit}/day · ${daysRemaining} days left`
+              ? `${unit} / day · ${daysRemaining} days left`
               : `${daysRemaining} days remaining`
           }
         />

@@ -42,7 +42,7 @@ describe("UserConfigService", () => {
   describe("getConfig", () => {
     it("should return config when document exists", async () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "1.0",
+        schemaVersion: "2.0",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
@@ -111,7 +111,7 @@ describe("UserConfigService", () => {
 
   describe("getConfigSection", () => {
     const mockConfig: UserConfig = {
-      schemaVersion: "1.0",
+      schemaVersion: "2.0",
       userId: "test-user",
       lastUpdated: "2025-01-01T00:00:00Z",
       goals: {
@@ -180,8 +180,8 @@ describe("UserConfigService", () => {
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
     });
 
-    it("should return goals for specific year", async () => {
-      const result = await service.getConfigSection("goals", 2025);
+    it("should return goals for specific year and sport", async () => {
+      const result = await service.getConfigSection("goals", 2025, "cycling");
 
       expect(result).toEqual({
         goals: [
@@ -201,26 +201,34 @@ describe("UserConfigService", () => {
 
       expect(result).toEqual({
         "2025": {
-          goals: [
-            {
-              id: "1",
-              value: 1000,
-              label: "2025 Goal",
-              createdAt: "2025-01-01T00:00:00Z",
-              updatedAt: "2025-01-01T00:00:00Z",
+          sports: {
+            cycling: {
+              goals: [
+                {
+                  id: "1",
+                  value: 1000,
+                  label: "2025 Goal",
+                  createdAt: "2025-01-01T00:00:00Z",
+                  updatedAt: "2025-01-01T00:00:00Z",
+                },
+              ],
             },
-          ],
+          },
         },
         "2024": {
-          goals: [
-            {
-              id: "2",
-              value: 800,
-              label: "2024 Goal",
-              createdAt: "2024-01-01T00:00:00Z",
-              updatedAt: "2024-01-01T00:00:00Z",
+          sports: {
+            cycling: {
+              goals: [
+                {
+                  id: "2",
+                  value: 800,
+                  label: "2024 Goal",
+                  createdAt: "2024-01-01T00:00:00Z",
+                  updatedAt: "2024-01-01T00:00:00Z",
+                },
+              ],
             },
-          ],
+          },
         },
       });
     });
@@ -245,8 +253,8 @@ describe("UserConfigService", () => {
       });
     });
 
-    it("should return null for year with no data", async () => {
-      const result = await service.getConfigSection("goals", 2023);
+    it("should return null for year/sport with no data", async () => {
+      const result = await service.getConfigSection("goals", 2023, "cycling");
 
       expect(result).toBeNull();
     });
@@ -276,7 +284,7 @@ describe("UserConfigService", () => {
 
     it("should return null when section does not exist in config", async () => {
       const configWithoutGoals: UserConfig = {
-        schemaVersion: "1.0",
+        schemaVersion: "2.0",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {},
@@ -298,7 +306,7 @@ describe("UserConfigService", () => {
   describe("updateConfigSection", () => {
     it("should update goals for specific year", async () => {
       const mockExistingConfig: UserConfig = {
-        schemaVersion: "1.0",
+        schemaVersion: "2.0",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
@@ -344,30 +352,38 @@ describe("UserConfigService", () => {
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
         expect.objectContaining({
-          schemaVersion: "1.0",
+          schemaVersion: "2.0",
           userId: "test-user",
           goals: {
             "2024": {
-              goals: [
-                {
-                  id: "2024-1",
-                  value: 800,
-                  label: "2024 Goal",
-                  createdAt: "2024-01-01T00:00:00Z",
-                  updatedAt: "2024-01-01T00:00:00Z",
+              sports: {
+                cycling: {
+                  goals: [
+                    {
+                      id: "2024-1",
+                      value: 800,
+                      label: "2024 Goal",
+                      createdAt: "2024-01-01T00:00:00Z",
+                      updatedAt: "2024-01-01T00:00:00Z",
+                    },
+                  ],
                 },
-              ],
+              },
             },
             "2025": {
-              goals: [
-                {
-                  id: "2025-1",
-                  value: 1000,
-                  label: "2025 Goal",
-                  createdAt: "2025-01-01T00:00:00Z",
-                  updatedAt: "2025-01-01T00:00:00Z",
+              sports: {
+                cycling: {
+                  goals: [
+                    {
+                      id: "2025-1",
+                      value: 1000,
+                      label: "2025 Goal",
+                      createdAt: "2025-01-01T00:00:00Z",
+                      updatedAt: "2025-01-01T00:00:00Z",
+                    },
+                  ],
                 },
-              ],
+              },
             },
           },
           annotations: {},
@@ -400,19 +416,23 @@ describe("UserConfigService", () => {
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
         expect.objectContaining({
-          schemaVersion: "1.0",
+          schemaVersion: "2.0",
           userId: "test-user",
           goals: {
             "2025": {
-              goals: [
-                {
-                  id: "2025-new",
-                  value: 1000,
-                  label: "2025 Goal",
-                  createdAt: "2025-01-01T00:00:00Z",
-                  updatedAt: "2025-01-01T00:00:00Z",
+              sports: {
+                cycling: {
+                  goals: [
+                    {
+                      id: "2025-new",
+                      value: 1000,
+                      label: "2025 Goal",
+                      createdAt: "2025-01-01T00:00:00Z",
+                      updatedAt: "2025-01-01T00:00:00Z",
+                    },
+                  ],
                 },
-              ],
+              },
             },
           },
           annotations: {},
@@ -490,7 +510,13 @@ describe("UserConfigService", () => {
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
         expect.objectContaining({
-          preferences: { theme: "light", defaultYear: 2025 },
+          preferences: {
+            theme: "light",
+            defaultYear: 2025,
+            distanceUnit: "",
+            elevationUnit: "",
+            defaultSport: "",
+          },
         }),
         { merge: true }
       );
@@ -592,7 +618,7 @@ describe("UserConfigService", () => {
   describe("subscribeToConfig", () => {
     it("should call callback with config when document exists", () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "1.0",
+        schemaVersion: "2.0",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {},
@@ -680,7 +706,7 @@ describe("UserConfigService", () => {
   describe("subscribeToConfigSection", () => {
     it("should subscribe to goals for specific year", () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "1.0",
+        schemaVersion: "2.0",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
@@ -712,7 +738,7 @@ describe("UserConfigService", () => {
       });
 
       const callback = vi.fn();
-      service.subscribeToConfigSection("goals", callback, 2025);
+      service.subscribeToConfigSection("goals", callback, 2025, "cycling");
 
       const mockDocSnap = {
         exists: () => true,
@@ -735,7 +761,7 @@ describe("UserConfigService", () => {
 
     it("should call callback with null when year has no data", () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "1.0",
+        schemaVersion: "2.0",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
@@ -779,7 +805,7 @@ describe("UserConfigService", () => {
 
     it("should subscribe to preferences", () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "1.0",
+        schemaVersion: "2.0",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {},
@@ -809,7 +835,13 @@ describe("UserConfigService", () => {
       };
       capturedOnNext!(mockDocSnap);
 
-      expect(callback).toHaveBeenCalledWith({ theme: "dark", defaultYear: 2025 });
+      expect(callback).toHaveBeenCalledWith({
+        theme: "dark",
+        distanceUnit: "",
+        elevationUnit: "",
+        defaultSport: "",
+        defaultYear: 2025,
+      });
     });
 
     it("should return unsubscribe function", () => {

@@ -25,8 +25,8 @@ describe("KPICards", () => {
   it("displays current distance with average pace", () => {
     render(<KPICards {...defaultProps} />);
 
-    expect(screen.getByText("2450 mi")).toBeInTheDocument();
-    expect(screen.getByText(/8.3 mi\/day avg/)).toBeInTheDocument();
+    expect(screen.getByText("2450 miles")).toBeInTheDocument();
+    expect(screen.getByText(/8.3 miles \/ day avg/)).toBeInTheDocument();
     expect(screen.getByText(/295 days/)).toBeInTheDocument();
   });
 
@@ -34,14 +34,14 @@ describe("KPICards", () => {
     render(<KPICards {...defaultProps} />);
 
     expect(screen.getByText("82%")).toBeInTheDocument(); // 81.7 rounds to 82
-    expect(screen.getByText(/550 mi to 3,000/)).toBeInTheDocument();
+    expect(screen.getByText(/550 miles to 3,000/)).toBeInTheDocument();
   });
 
   it("displays pace needed to reach goal", () => {
     render(<KPICards {...defaultProps} />);
 
     expect(screen.getByText("7.9")).toBeInTheDocument();
-    expect(screen.getByText(/mi\/day · 70 days left/)).toBeInTheDocument();
+    expect(screen.getByText(/miles \/ day · 70 days left/)).toBeInTheDocument();
   });
 
   it("renders momentum indicator when provided", () => {
@@ -78,7 +78,7 @@ describe("KPICards", () => {
       />
     );
 
-    expect(screen.getByText("3,000 mi reached!")).toBeInTheDocument();
+    expect(screen.getByText("3,000 miles reached!")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument(); // No pace needed
     expect(screen.getByText(/70 days remaining/)).toBeInTheDocument();
   });
@@ -88,6 +88,6 @@ describe("KPICards", () => {
 
     // Should render without indicator
     expect(screen.getByText("Current Distance")).toBeInTheDocument();
-    expect(screen.getByText(/8.3 mi\/day avg/)).toBeInTheDocument();
+    expect(screen.getByText(/8.3 miles \/ day avg/)).toBeInTheDocument();
   });
 });

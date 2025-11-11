@@ -194,7 +194,7 @@ describe("useLocalStorage", () => {
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       // Mock setItem to throw QuotaExceededError
-      const mockSetItem = vi.spyOn(Storage.prototype, "setItem");
+      const mockSetItem = vi.spyOn(window.localStorage, "setItem");
       mockSetItem.mockImplementation(() => {
         const error: any = new Error("QuotaExceededError");
         error.name = "QuotaExceededError";
