@@ -68,7 +68,7 @@ const PacingChartRecharts = (props: PacingChartProps) => {
   // Calculate dynamic pacing goals (must be before early returns per React hooks rules)
   const pacingGoals = useMemo(
     () =>
-      goals.map((goal) => ({
+      (goals || []).map((goal) => ({
         goal,
         pacing: calculateDynamicPacingGoal(distanceData, goal.value, year, displayEndDate),
       })),

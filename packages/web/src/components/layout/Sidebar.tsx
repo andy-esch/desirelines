@@ -1,5 +1,8 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import GoalControls from "../GoalControls";
 import type { Goals } from "../../utils/goalCalculations";
+import { fetchYearMetadata } from "../../api/activities";
 
 interface SidebarProps {
   currentYear: number;
@@ -8,6 +11,7 @@ interface SidebarProps {
   onGoalsChange: (goals: Goals) => void;
   estimatedYearEnd: number;
   currentDistance: number;
+  sport?: string; // Current sport (cycling, running, yoga)
 }
 
 const AVAILABLE_YEARS = [2025, 2024, 2023];
@@ -19,7 +23,41 @@ export default function Sidebar({
   onGoalsChange,
   estimatedYearEnd,
   currentDistance,
+  sport = "cycling", // Default to cycling if not provided
 }: SidebarProps) {
+  const navigate = useNavigate();
+  const [availableSports, setAvailableSports] = useState<string[]>(["cycling"]); // Default fallback
+
+  // Fetch available sports from metadata
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadSports() {
+      try {
+        const metadata = await fetchYearMetadata(currentYear, controller.signal);
+        if (metadata.sports && metadata.sports.length > 0) {
+          setAvailableSports(metadata.sports);
+        }
+      } catch (err) {
+        // Silently fail - keep default sports
+        console.warn("Failed to fetch available sports, using defaults:", err);
+      }
+    }
+
+    loadSports();
+
+    return () => {
+      controller.abort();
+    };
+  }, [currentYear]);
+
+  const handleSportChange = (newSport: string) => {
+    navigate(`/${newSport}`);
+  };
+
+  // Convert sport IDs to display format
+  const capitalizeFirst = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
+
   return (
     <div className="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary">
       <div
@@ -53,12 +91,18 @@ export default function Sidebar({
                 className="form-label small text-muted mb-0 text-start"
                 style={{ minWidth: "65px" }}
               >
-                Activity
+                Sport
               </label>
-              <select className="form-select form-select-sm flex-grow-1" disabled>
-                <option>Ride</option>
-                <option>Run (Soon)</option>
-                <option>Swim (Soon)</option>
+              <select
+                className="form-select form-select-sm flex-grow-1"
+                value={sport}
+                onChange={(e) => handleSportChange(e.target.value)}
+              >
+                {availableSports.map((sportId) => (
+                  <option key={sportId} value={sportId}>
+                    {capitalizeFirst(sportId)}
+                  </option>
+                ))}
               </select>
             </div>
 

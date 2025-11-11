@@ -24,14 +24,10 @@ import { useAuth } from "./useAuth";
  * @param userId - Firestore userId (defaults to authenticated user)
  * @param version - Config version (defaults to "v1")
  */
-export function useUserConfig<T extends "goals" | "annotations" | "preferences">(
+export function useUserConfig<T extends string = "goals" | "annotations" | "preferences">(
   configType: T,
   year?: number,
-  defaultValue?: T extends "goals"
-    ? GoalsForYear
-    : T extends "annotations"
-      ? AnnotationsForYear
-      : Preferences,
+  defaultValue?: GoalsForYear | AnnotationsForYear | Preferences,
   userId: string = "default",
   version: string = "v1"
 ): {
@@ -63,23 +59,43 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences">
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Smart mode: Use fixtures if:
+  // Smart mode: Use fixtures/localStorage if:
   // 1. Environment is configured for fixture-only mode (USE_FIXTURE_DATA=true), OR
   // 2. User is not authenticated (anonymous users see demo)
   useEffect(() => {
     if (USE_FIXTURE_DATA || !user) {
-      if (configType === "goals") {
-        setData(FIXTURE_GOALS);
-      } else if (configType === "annotations") {
-        setData({ annotations: [] } as AnnotationsForYear);
-      } else if (configType === "preferences") {
-        setData({ theme: "light", defaultYear: 2025 } as Preferences);
+      // Build localStorage key
+      const storageKey = year !== undefined
+        ? `userConfig_${effectiveUserId}_${configType}_${year}`
+        : `userConfig_${effectiveUserId}_${configType}`;
+
+      // Try to load from localStorage first
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        try {
+          setData(JSON.parse(stored));
+          setLoading(false);
+          setError(null);
+          return;
+        } catch (err) {
+          console.warn('Failed to parse stored config, using defaults:', err);
+        }
+      }
+
+      // Fall back to defaults
+      if (configType.startsWith("goals")) {
+        setData(defaultValue || FIXTURE_GOALS);
+      } else if (configType.startsWith("annotations")) {
+        setData(defaultValue || ({ annotations: [] } as AnnotationsForYear));
+      } else if (configType.startsWith("preferences")) {
+        setData(defaultValue || ({ theme: "light", defaultYear: 2025 } as Preferences));
       }
       setLoading(false);
       setError(null);
       return;
     }
-  }, [configType, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configType, user, year, effectiveUserId]);
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(
@@ -173,14 +189,24 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences">
    */
   const updateData = useCallback(
     async (newData: GoalsForYear | AnnotationsForYear | Preferences) => {
-      // In fixture mode, just update local state (no persistence)
-      if (USE_FIXTURE_DATA) {
-        console.warn("Fixture mode: Changes not persisted", newData);
-        setData(newData);
+      // In fixture mode, persist to localStorage
+      if (USE_FIXTURE_DATA || !user) {
+        const storageKey = year !== undefined
+          ? `userConfig_${effectiveUserId}_${configType}_${year}`
+          : `userConfig_${effectiveUserId}_${configType}`;
+
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(newData));
+          setData(newData);
+          console.log('Saved to localStorage:', storageKey);
+        } catch (err) {
+          console.error('Failed to save to localStorage:', err);
+          setError(err as Error);
+        }
         return;
       }
 
-      // Optimistic update
+      // Optimistic update for Firestore mode
       setData(newData);
 
       try {
@@ -202,7 +228,7 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences">
         // Real-time listener will revert to correct state from Firestore
       }
     },
-    [configType, year, configService]
+    [configType, year, configService, effectiveUserId, user]
   );
 
   // Type assertion needed because internal state uses union type
