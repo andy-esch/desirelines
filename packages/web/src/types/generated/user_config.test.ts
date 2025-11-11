@@ -23,30 +23,34 @@ describe('UserConfig', () => {
       lastUpdated: '2024-11-01T12:00:00Z',
       goals: {
         '2024': {
-          goals: [
-            {
-              id: 'goal-1',
-              value: 1000,
-              label: 'Ride 1000 miles',
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '',
+          sports: {
+            cycling: {
+              goals: [
+                {
+                  id: 'goal-1',
+                  value: 1000,
+                  label: 'Ride 1000 miles',
+                  createdAt: '2024-01-01T00:00:00Z',
+                  updatedAt: '',
+                },
+                {
+                  id: 'goal-2',
+                  value: 2000,
+                  label: 'Stretch goal',
+                  createdAt: '',
+                  updatedAt: '',
+                },
+              ],
             },
-            {
-              id: 'goal-2',
-              value: 2000,
-              label: 'Stretch goal',
-              createdAt: '',
-              updatedAt: '',
-            },
-          ],
+          },
         },
       },
       annotations: {},
     };
 
     expect(config.userId).toBe('user123');
-    expect(config.goals?.['2024']?.goals).toHaveLength(2);
-    expect(config.goals?.['2024']?.goals?.[0]?.value).toBe(1000);
+    expect(config.goals?.['2024']?.sports?.cycling?.goals).toHaveLength(2);
+    expect(config.goals?.['2024']?.sports?.cycling?.goals?.[0]?.value).toBe(1000);
   });
 
   it('should create config with annotations', () => {
@@ -151,13 +155,17 @@ describe('UserConfig', () => {
       lastUpdated: '2024-11-01T12:00:00Z',
       goals: {
         '2024': {
-          goals: [{
-            id: 'g1',
-            value: 1500,
-            label: 'Annual goal',
-            createdAt: '',
-            updatedAt: '',
-          }],
+          sports: {
+            cycling: {
+              goals: [{
+                id: 'g1',
+                value: 1500,
+                label: 'Annual goal',
+                createdAt: '',
+                updatedAt: '',
+              }],
+            },
+          },
         },
       },
       annotations: {
@@ -199,13 +207,17 @@ describe('UserConfig', () => {
       lastUpdated: '',
       goals: {
         '2024': {
-          goals: [{
-            id: 'g1',
-            value: 1000,
-            label: 'Test goal',
-            createdAt: '',
-            updatedAt: '',
-          }],
+          sports: {
+            cycling: {
+              goals: [{
+                id: 'g1',
+                value: 1000,
+                label: 'Test goal',
+                createdAt: '',
+                updatedAt: '',
+              }],
+            },
+          },
         },
       },
       annotations: {},
@@ -215,7 +227,7 @@ describe('UserConfig', () => {
     const parsed = JSON.parse(json) as UserConfig;
 
     expect(parsed.userId).toBe('json-test');
-    expect(parsed.goals?.['2024']?.goals?.[0]?.value).toBe(1000);
+    expect(parsed.goals?.['2024']?.sports?.cycling?.goals?.[0]?.value).toBe(1000);
   });
 });
 

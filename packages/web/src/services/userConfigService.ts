@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, deleteDoc, onSnapshot, Unsubscribe } from "firebas
 import { db } from "../lib/firebase";
 import type {
   UserConfig,
+  SportGoalsForYear,
   GoalsForYear,
   AnnotationsForYear,
   Preferences,
@@ -49,13 +50,21 @@ export class UserConfigService {
   }
 
   /**
-   * Get goals for a specific year
+   * Get goals for a specific year and sport
    */
-  async getConfigSection(configType: "goals", year: number): Promise<GoalsForYear | null>;
+  async getConfigSection(
+    configType: "goals",
+    year: number,
+    sport: string
+  ): Promise<GoalsForYear | null>;
   /**
-   * Get all goals
+   * Get all sports' goals for a specific year
    */
-  async getConfigSection(configType: "goals"): Promise<{ [key: string]: GoalsForYear } | null>;
+  async getConfigSection(configType: "goals", year: number): Promise<SportGoalsForYear | null>;
+  /**
+   * Get all goals (all years, all sports)
+   */
+  async getConfigSection(configType: "goals"): Promise<{ [key: string]: SportGoalsForYear } | null>;
   /**
    * Get annotations for a specific year
    */
@@ -78,12 +87,14 @@ export class UserConfigService {
    */
   async getConfigSection(
     configType: "goals" | "annotations" | "preferences",
-    year?: number
+    year?: number,
+    sport?: string
   ): Promise<
     | GoalsForYear
+    | SportGoalsForYear
     | AnnotationsForYear
     | Preferences
-    | { [key: string]: GoalsForYear | AnnotationsForYear }
+    | { [key: string]: SportGoalsForYear | AnnotationsForYear }
     | null
   > {
     const config = await this.getConfig();
@@ -92,11 +103,20 @@ export class UserConfigService {
     const section = config[configType];
     if (!section) return null;
 
-    // If year specified and section is year-keyed
-    if (year !== undefined && configType === "goals") {
-      const goalsSection = section as { [key: string]: GoalsForYear };
+    // Handle goals with year and sport
+    if (year !== undefined && sport !== undefined && configType === "goals") {
+      const goalsSection = section as { [key: string]: SportGoalsForYear };
+      const yearGoals = goalsSection[year.toString()];
+      if (!yearGoals) return null;
+      return yearGoals.sports[sport] || null;
+    }
+    // Handle goals with year only (return all sports)
+    else if (year !== undefined && configType === "goals") {
+      const goalsSection = section as { [key: string]: SportGoalsForYear };
       return goalsSection[year.toString()] || null;
-    } else if (year !== undefined && configType === "annotations") {
+    }
+    // Handle annotations with year
+    else if (year !== undefined && configType === "annotations") {
       const annotationsSection = section as { [key: string]: AnnotationsForYear };
       return annotationsSection[year.toString()] || null;
     }
@@ -105,9 +125,14 @@ export class UserConfigService {
   }
 
   /**
-   * Update goals for a specific year
+   * Update goals for a specific year and sport
    */
-  async updateConfigSection(configType: "goals", data: GoalsForYear, year: number): Promise<void>;
+  async updateConfigSection(
+    configType: "goals",
+    data: GoalsForYear,
+    year: number,
+    sport: string
+  ): Promise<void>;
   /**
    * Update annotations for a specific year
    */
@@ -126,14 +151,15 @@ export class UserConfigService {
   async updateConfigSection(
     configType: "goals" | "annotations" | "preferences",
     data: GoalsForYear | AnnotationsForYear | Preferences,
-    year?: number
+    year?: number,
+    sport?: string
   ): Promise<void> {
     try {
       const docRef = this.getDocRef();
       const existingConfig = await this.getConfig();
 
       const config: UserConfig = existingConfig || {
-        schemaVersion: "1.0",
+        schemaVersion: "2.0",
         userId: this.userId,
         lastUpdated: new Date().toISOString(),
         goals: {},
@@ -141,12 +167,24 @@ export class UserConfigService {
       };
 
       // Update specific section
-      if (year !== undefined && configType !== "preferences") {
-        // Year-keyed data (goals, annotations)
-        if (!config[configType]) {
-          config[configType] = {};
+      if (year !== undefined && sport !== undefined && configType === "goals") {
+        // Goals with year and sport - nested structure
+        if (!config.goals) {
+          config.goals = {};
         }
-        config[configType][year.toString()] = data as GoalsForYear | AnnotationsForYear;
+        if (!config.goals[year.toString()]) {
+          config.goals[year.toString()] = { sports: {} };
+        }
+        if (!config.goals[year.toString()].sports) {
+          config.goals[year.toString()].sports = {};
+        }
+        config.goals[year.toString()].sports[sport] = data as GoalsForYear;
+      } else if (year !== undefined && configType === "annotations") {
+        // Annotations with year (no sport dimension)
+        if (!config.annotations) {
+          config.annotations = {};
+        }
+        config.annotations[year.toString()] = data as AnnotationsForYear;
       } else if (configType === "preferences") {
         // Global data (preferences)
         config.preferences = data as Preferences;
@@ -202,9 +240,14 @@ export class UserConfigService {
   /**
    * Subscribe to a specific config section.
    *
-   * For goals/annotations:
-   * - With year: callback receives GoalsForYear | AnnotationsForYear | null
-   * - Without year: callback receives { [year: string]: GoalsForYear | AnnotationsForYear } | null
+   * For goals:
+   * - With year + sport: callback receives GoalsForYear | null
+   * - With year only: callback receives SportGoalsForYear | null (all sports for year)
+   * - Without year: callback receives { [year: string]: SportGoalsForYear } | null (all years, all sports)
+   *
+   * For annotations:
+   * - With year: callback receives AnnotationsForYear | null
+   * - Without year: callback receives { [year: string]: AnnotationsForYear } | null
    *
    * For preferences:
    * - callback receives Preferences | null
@@ -214,13 +257,15 @@ export class UserConfigService {
     callback: (
       data:
         | GoalsForYear
+        | SportGoalsForYear
         | AnnotationsForYear
         | Preferences
-        | { [key: string]: GoalsForYear }
+        | { [key: string]: SportGoalsForYear }
         | { [key: string]: AnnotationsForYear }
         | null
     ) => void,
-    year?: number
+    year?: number,
+    sport?: string
   ): Unsubscribe {
     return this.subscribeToConfig((config) => {
       if (!config) {
@@ -234,14 +279,28 @@ export class UserConfigService {
         return;
       }
 
-      // If year specified and section is year-keyed
-      if (year !== undefined && configType === "goals") {
-        const goalsSection = section as { [key: string]: GoalsForYear };
+      // Handle goals with year and sport
+      if (year !== undefined && sport !== undefined && configType === "goals") {
+        const goalsSection = section as { [key: string]: SportGoalsForYear };
+        const yearGoals = goalsSection[year.toString()];
+        if (!yearGoals) {
+          callback(null);
+          return;
+        }
+        callback(yearGoals.sports[sport] || null);
+      }
+      // Handle goals with year only (return all sports)
+      else if (year !== undefined && configType === "goals") {
+        const goalsSection = section as { [key: string]: SportGoalsForYear };
         callback(goalsSection[year.toString()] || null);
-      } else if (year !== undefined && configType === "annotations") {
+      }
+      // Handle annotations with year
+      else if (year !== undefined && configType === "annotations") {
         const annotationsSection = section as { [key: string]: AnnotationsForYear };
         callback(annotationsSection[year.toString()] || null);
-      } else {
+      }
+      // Return full section (all years)
+      else {
         callback(section);
       }
     });
@@ -254,6 +313,7 @@ export const defaultConfigService = new UserConfigService("default", "v1");
 // Re-export protobuf types for convenience
 export type {
   UserConfig,
+  SportGoalsForYear,
   GoalsForYear,
   AnnotationsForYear,
   Preferences,

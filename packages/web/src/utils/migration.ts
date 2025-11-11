@@ -14,11 +14,13 @@ import { UserConfigService } from "../services/userConfigService";
  *
  * @param configService - UserConfigService instance
  * @param year - Year to migrate goals for
+ * @param sport - Sport to migrate goals for (defaults to "cycling" for legacy data)
  * @returns true if migration was performed, false if skipped
  */
 export async function migrateGoalsToFirestore(
   configService: UserConfigService,
-  year: number
+  year: number,
+  sport: string = "cycling"
 ): Promise<boolean> {
   const localStorageKey = `desirelines_goals_${year}`;
   const migrationFlagKey = `${localStorageKey}_migrated`;
@@ -42,19 +44,19 @@ export async function migrateGoalsToFirestore(
     const goals = JSON.parse(localData);
 
     // Check if Firestore already has data (avoid overwriting)
-    const existingGoals = await configService.getConfigSection("goals", year);
-    if (existingGoals && Array.isArray(existingGoals) && existingGoals.length > 0) {
+    const existingGoals = await configService.getConfigSection("goals", year, sport);
+    if (existingGoals && existingGoals.goals && existingGoals.goals.length > 0) {
       // eslint-disable-next-line no-console
-      console.log(`Firestore already has goals for ${year}, skipping migration`);
+      console.log(`Firestore already has goals for ${year}/${sport}, skipping migration`);
       // Mark as migrated even though we didn't migrate (to avoid repeated checks)
       localStorage.setItem(migrationFlagKey, new Date().toISOString());
       return false;
     }
 
     // Migrate to Firestore
-    await configService.updateConfigSection("goals", goals, year);
+    await configService.updateConfigSection("goals", goals, year, sport);
     // eslint-disable-next-line no-console
-    console.log(`✓ Successfully migrated goals for ${year} to Firestore`);
+    console.log(`✓ Successfully migrated goals for ${year}/${sport} to Firestore`);
 
     // Mark as migrated (but keep localStorage data as backup)
     localStorage.setItem(migrationFlagKey, new Date().toISOString());

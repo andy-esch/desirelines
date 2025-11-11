@@ -217,7 +217,7 @@ describe("useUserConfig", () => {
         return vi.fn();
       });
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025, defaultGoals));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling", defaultGoals));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -528,7 +528,7 @@ describe("useUserConfig", () => {
 
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025, defaultGoals));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling", defaultGoals));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -607,7 +607,7 @@ describe("useUserConfig", () => {
         return vi.fn();
       });
 
-      renderHook(() => useUserConfig("goals", 2025, undefined, "user123", "v2"));
+      renderHook(() => useUserConfig("goals", 2025, "cycling", undefined, "user123", "v2"));
 
       await waitFor(() => {
         expect(doc).toHaveBeenCalled();

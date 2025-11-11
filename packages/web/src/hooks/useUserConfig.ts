@@ -14,19 +14,21 @@ import { useAuth } from "./useAuth";
  * Hook for accessing user config with real-time Firestore sync.
  *
  * Type-safe return based on configType:
- * - "goals" → data is GoalsForYear | null
- * - "annotations" → data is AnnotationsForYear | null
+ * - "goals" → data is GoalsForYear | null (requires year and sport)
+ * - "annotations" → data is AnnotationsForYear | null (requires year)
  * - "preferences" → data is Preferences | null
  *
  * @param configType - Type of config section ("goals", "annotations", or "preferences")
  * @param year - Required for goals/annotations, not used for preferences
+ * @param sport - Required for goals, not used for annotations/preferences
  * @param defaultValue - Default value if config doesn't exist
  * @param userId - Firestore userId (defaults to authenticated user)
  * @param version - Config version (defaults to "v1")
  */
-export function useUserConfig<T extends string = "goals" | "annotations" | "preferences">(
+export function useUserConfig<T extends "goals" | "annotations" | "preferences" = "goals">(
   configType: T,
   year?: number,
+  sport?: string,
   defaultValue?: GoalsForYear | AnnotationsForYear | Preferences,
   userId: string = "default",
   version: string = "v1"
@@ -64,10 +66,15 @@ export function useUserConfig<T extends string = "goals" | "annotations" | "pref
   // 2. User is not authenticated (anonymous users see demo)
   useEffect(() => {
     if (USE_FIXTURE_DATA || !user) {
-      // Build localStorage key
-      const storageKey = year !== undefined
-        ? `userConfig_${effectiveUserId}_${configType}_${year}`
-        : `userConfig_${effectiveUserId}_${configType}`;
+      // Build localStorage key - include sport for goals
+      let storageKey: string;
+      if (configType === "goals" && year !== undefined && sport !== undefined) {
+        storageKey = `userConfig_${effectiveUserId}_${configType}_${year}_${sport}`;
+      } else if (year !== undefined) {
+        storageKey = `userConfig_${effectiveUserId}_${configType}_${year}`;
+      } else {
+        storageKey = `userConfig_${effectiveUserId}_${configType}`;
+      }
 
       // Try to load from localStorage first
       const stored = localStorage.getItem(storageKey);
@@ -78,16 +85,16 @@ export function useUserConfig<T extends string = "goals" | "annotations" | "pref
           setError(null);
           return;
         } catch (err) {
-          console.warn('Failed to parse stored config, using defaults:', err);
+          console.warn("Failed to parse stored config, using defaults:", err);
         }
       }
 
       // Fall back to defaults
-      if (configType.startsWith("goals")) {
+      if (configType === "goals") {
         setData(defaultValue || FIXTURE_GOALS);
-      } else if (configType.startsWith("annotations")) {
+      } else if (configType === "annotations") {
         setData(defaultValue || ({ annotations: [] } as AnnotationsForYear));
-      } else if (configType.startsWith("preferences")) {
+      } else if (configType === "preferences") {
         setData(defaultValue || ({ theme: "light", defaultYear: 2025 } as Preferences));
       }
       setLoading(false);
@@ -95,7 +102,7 @@ export function useUserConfig<T extends string = "goals" | "annotations" | "pref
       return;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configType, user, year, effectiveUserId]);
+  }, [configType, user, year, sport, effectiveUserId]);
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(
@@ -118,12 +125,12 @@ export function useUserConfig<T extends string = "goals" | "annotations" | "pref
         setError(null);
 
         // Subscribe to real-time updates for this specific section
-        if (configType === "goals" && year !== undefined) {
+        if (configType === "goals" && year !== undefined && sport !== undefined) {
           unsubscribe = configService.subscribeToConfigSection(
             "goals",
             (section) => {
               if (section !== null) {
-                // When year is provided, section is GoalsForYear (not dictionary)
+                // When year and sport are provided, section is GoalsForYear
                 setData(section as GoalsForYear);
               } else if (defaultValue !== undefined) {
                 setData(defaultValue);
@@ -132,7 +139,8 @@ export function useUserConfig<T extends string = "goals" | "annotations" | "pref
               }
               setLoading(false);
             },
-            year
+            year,
+            sport
           );
         } else if (configType === "annotations" && year !== undefined) {
           unsubscribe = configService.subscribeToConfigSection(
@@ -180,7 +188,7 @@ export function useUserConfig<T extends string = "goals" | "annotations" | "pref
     };
     // Intentionally omitting defaultValue to avoid re-subscriptions
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configType, year, configService, user]);
+  }, [configType, year, sport, configService, user]);
 
   /**
    * Update the config data
@@ -191,16 +199,22 @@ export function useUserConfig<T extends string = "goals" | "annotations" | "pref
     async (newData: GoalsForYear | AnnotationsForYear | Preferences) => {
       // In fixture mode, persist to localStorage
       if (USE_FIXTURE_DATA || !user) {
-        const storageKey = year !== undefined
-          ? `userConfig_${effectiveUserId}_${configType}_${year}`
-          : `userConfig_${effectiveUserId}_${configType}`;
+        // Build localStorage key - include sport for goals
+        let storageKey: string;
+        if (configType === "goals" && year !== undefined && sport !== undefined) {
+          storageKey = `userConfig_${effectiveUserId}_${configType}_${year}_${sport}`;
+        } else if (year !== undefined) {
+          storageKey = `userConfig_${effectiveUserId}_${configType}_${year}`;
+        } else {
+          storageKey = `userConfig_${effectiveUserId}_${configType}`;
+        }
 
         try {
           localStorage.setItem(storageKey, JSON.stringify(newData));
           setData(newData);
-          console.log('Saved to localStorage:', storageKey);
+          console.log("Saved to localStorage:", storageKey);
         } catch (err) {
-          console.error('Failed to save to localStorage:', err);
+          console.error("Failed to save to localStorage:", err);
           setError(err as Error);
         }
         return;
@@ -210,8 +224,8 @@ export function useUserConfig<T extends string = "goals" | "annotations" | "pref
       setData(newData);
 
       try {
-        if (configType === "goals" && year !== undefined) {
-          await configService.updateConfigSection("goals", newData as GoalsForYear, year);
+        if (configType === "goals" && year !== undefined && sport !== undefined) {
+          await configService.updateConfigSection("goals", newData as GoalsForYear, year, sport);
         } else if (configType === "annotations" && year !== undefined) {
           await configService.updateConfigSection(
             "annotations",
@@ -228,7 +242,7 @@ export function useUserConfig<T extends string = "goals" | "annotations" | "pref
         // Real-time listener will revert to correct state from Firestore
       }
     },
-    [configType, year, configService, effectiveUserId, user]
+    [configType, year, sport, configService, effectiveUserId, user]
   );
 
   // Type assertion needed because internal state uses union type
@@ -316,7 +330,8 @@ export function useFullUserConfig(userId: string = "default", version: string = 
     async (
       configType: "goals" | "annotations" | "preferences",
       data: GoalsForYear | AnnotationsForYear | Preferences,
-      year?: number
+      year?: number,
+      sport?: string
     ): Promise<void> => {
       // In fixture mode, skip persistence
       if (USE_FIXTURE_DATA) {
@@ -325,8 +340,8 @@ export function useFullUserConfig(userId: string = "default", version: string = 
       }
 
       try {
-        if (configType === "goals" && year !== undefined) {
-          await configService.updateConfigSection("goals", data as GoalsForYear, year);
+        if (configType === "goals" && year !== undefined && sport !== undefined) {
+          await configService.updateConfigSection("goals", data as GoalsForYear, year, sport);
         } else if (configType === "annotations" && year !== undefined) {
           await configService.updateConfigSection("annotations", data as AnnotationsForYear, year);
         } else if (configType === "preferences") {

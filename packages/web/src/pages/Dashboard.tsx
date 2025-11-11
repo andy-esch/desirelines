@@ -52,7 +52,7 @@ export default function Dashboard() {
     loading: goalsLoading,
     error: goalsError,
     updateData: updateGoals,
-  } = useUserConfig("goals", currentYear, defaultGoalsForYear);
+  } = useUserConfig("goals", currentYear, "cycling", defaultGoalsForYear);
 
   const goals = goalsData?.goals || [];
 

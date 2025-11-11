@@ -47,15 +47,19 @@ describe("UserConfigService", () => {
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
           "2025": {
-            goals: [
-              {
-                id: "1",
-                value: 1000,
-                label: "Test Goal",
-                createdAt: "2025-01-01T00:00:00Z",
-                updatedAt: "2025-01-01T00:00:00Z",
+            sports: {
+              cycling: {
+                goals: [
+                  {
+                    id: "1",
+                    value: 1000,
+                    label: "Test Goal",
+                    createdAt: "2025-01-01T00:00:00Z",
+                    updatedAt: "2025-01-01T00:00:00Z",
+                  },
+                ],
               },
-            ],
+            },
           },
         },
         annotations: {},
@@ -112,26 +116,34 @@ describe("UserConfigService", () => {
       lastUpdated: "2025-01-01T00:00:00Z",
       goals: {
         "2025": {
-          goals: [
-            {
-              id: "1",
-              value: 1000,
-              label: "2025 Goal",
-              createdAt: "2025-01-01T00:00:00Z",
-              updatedAt: "2025-01-01T00:00:00Z",
+          sports: {
+            cycling: {
+              goals: [
+                {
+                  id: "1",
+                  value: 1000,
+                  label: "2025 Goal",
+                  createdAt: "2025-01-01T00:00:00Z",
+                  updatedAt: "2025-01-01T00:00:00Z",
+                },
+              ],
             },
-          ],
+          },
         },
         "2024": {
-          goals: [
-            {
-              id: "2",
-              value: 800,
-              label: "2024 Goal",
-              createdAt: "2024-01-01T00:00:00Z",
-              updatedAt: "2024-01-01T00:00:00Z",
+          sports: {
+            cycling: {
+              goals: [
+                {
+                  id: "2",
+                  value: 800,
+                  label: "2024 Goal",
+                  createdAt: "2024-01-01T00:00:00Z",
+                  updatedAt: "2024-01-01T00:00:00Z",
+                },
+              ],
             },
-          ],
+          },
         },
       },
       annotations: {
@@ -285,15 +297,19 @@ describe("UserConfigService", () => {
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
           "2024": {
-            goals: [
-              {
-                id: "2024-1",
-                value: 800,
-                label: "2024 Goal",
-                createdAt: "2024-01-01T00:00:00Z",
-                updatedAt: "2024-01-01T00:00:00Z",
+            sports: {
+              cycling: {
+                goals: [
+                  {
+                    id: "2024-1",
+                    value: 800,
+                    label: "2024 Goal",
+                    createdAt: "2024-01-01T00:00:00Z",
+                    updatedAt: "2024-01-01T00:00:00Z",
+                  },
+                ],
               },
-            ],
+            },
           },
         },
         annotations: {},
@@ -317,7 +333,7 @@ describe("UserConfigService", () => {
         ],
       };
 
-      await service.updateConfigSection("goals", newGoals, 2025);
+      await service.updateConfigSection("goals", newGoals, 2025, "cycling");
 
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
@@ -373,7 +389,7 @@ describe("UserConfigService", () => {
         ],
       };
 
-      await service.updateConfigSection("goals", newGoals, 2025);
+      await service.updateConfigSection("goals", newGoals, 2025, "cycling");
 
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
@@ -486,7 +502,7 @@ describe("UserConfigService", () => {
         ],
       };
 
-      await service.updateConfigSection("goals", newGoals, 2025);
+      await service.updateConfigSection("goals", newGoals, 2025, "cycling");
 
       // Verify merge option is used
       expect(firestore.setDoc).toHaveBeenCalledWith(mockDocRef, expect.any(Object), {
@@ -501,7 +517,7 @@ describe("UserConfigService", () => {
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
 
       const beforeUpdate = new Date().toISOString();
-      await service.updateConfigSection("goals", { goals: [] }, 2025);
+      await service.updateConfigSection("goals", { goals: [] }, 2025, "cycling");
       const afterUpdate = new Date().toISOString();
 
       const setDocCall = vi.mocked(firestore.setDoc).mock.calls[0];
@@ -516,9 +532,9 @@ describe("UserConfigService", () => {
       const error = new Error("Firestore write error");
       vi.mocked(firestore.getDoc).mockRejectedValue(error);
 
-      await expect(service.updateConfigSection("goals", { goals: [] }, 2025)).rejects.toThrow(
-        "Firestore write error"
-      );
+      await expect(
+        service.updateConfigSection("goals", { goals: [] }, 2025, "cycling")
+      ).rejects.toThrow("Firestore write error");
     });
 
     it("should log error when update fails", async () => {
@@ -526,7 +542,9 @@ describe("UserConfigService", () => {
       const error = new Error("Update failed");
       vi.mocked(firestore.getDoc).mockRejectedValue(error);
 
-      await expect(service.updateConfigSection("goals", { goals: [] }, 2025)).rejects.toThrow();
+      await expect(
+        service.updateConfigSection("goals", { goals: [] }, 2025, "cycling")
+      ).rejects.toThrow();
 
       expect(consoleErrorSpy).toHaveBeenCalledWith("Error updating user config:", error);
       consoleErrorSpy.mockRestore();
@@ -655,15 +673,19 @@ describe("UserConfigService", () => {
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
           "2025": {
-            goals: [
-              {
-                id: "1",
-                value: 1000,
-                label: "Goal",
-                createdAt: "2025-01-01T00:00:00Z",
-                updatedAt: "2025-01-01T00:00:00Z",
+            sports: {
+              cycling: {
+                goals: [
+                  {
+                    id: "1",
+                    value: 1000,
+                    label: "Goal",
+                    createdAt: "2025-01-01T00:00:00Z",
+                    updatedAt: "2025-01-01T00:00:00Z",
+                  },
+                ],
               },
-            ],
+            },
           },
         },
         annotations: {},
@@ -706,15 +728,19 @@ describe("UserConfigService", () => {
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
           "2024": {
-            goals: [
-              {
-                id: "2",
-                value: 800,
-                label: "Goal",
-                createdAt: "2024-01-01T00:00:00Z",
-                updatedAt: "2024-01-01T00:00:00Z",
+            sports: {
+              cycling: {
+                goals: [
+                  {
+                    id: "2",
+                    value: 800,
+                    label: "Goal",
+                    createdAt: "2024-01-01T00:00:00Z",
+                    updatedAt: "2024-01-01T00:00:00Z",
+                  },
+                ],
               },
-            ],
+            },
           },
         },
         annotations: {},

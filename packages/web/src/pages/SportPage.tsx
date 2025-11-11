@@ -82,31 +82,36 @@ export default function SportPage({ sport }: SportPageProps) {
   }, [distanceData]);
 
   // Goals management - memoize to prevent infinite loop
-  const defaultGoalsForYear: GoalsForYear = useMemo(() => ({
-    goals: generateDefaultGoals(estimatedYearEnd || 2500).map((goal) => ({
-      id: goal.id,
-      value: goal.value,
-      label: goal.label || "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    })),
-  }), [estimatedYearEnd]);
+  const defaultGoalsForYear: GoalsForYear = useMemo(
+    () => ({
+      goals: generateDefaultGoals(estimatedYearEnd || 2500).map((goal) => ({
+        id: goal.id,
+        value: goal.value,
+        label: goal.label || "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })),
+    }),
+    [estimatedYearEnd]
+  );
 
-  const {
-    data: goalsData,
-    updateData: updateGoals,
-  } = useUserConfig(`goals_${sport}`, currentYear, defaultGoalsForYear);
+  const { data: goalsData, updateData: updateGoals } = useUserConfig(
+    "goals",
+    currentYear,
+    sport,
+    defaultGoalsForYear
+  );
 
   const goals = goalsData?.goals || [];
 
   // Debug logging
-  console.log('SportPage goals debug:', {
+  console.log("SportPage goals debug:", {
     sport,
     currentYear,
     estimatedYearEnd,
     defaultGoalsCount: defaultGoalsForYear.goals.length,
     goalsData,
-    goalsCount: goals.length
+    goalsCount: goals.length,
   });
 
   const handleGoalsChange = async (newGoals: Goals) => {
@@ -162,7 +167,6 @@ export default function SportPage({ sport }: SportPageProps) {
 
           <KPICards
             currentDistance={currentDistance}
-            estimatedYearEnd={estimatedYearEnd}
             nextGoal={nextGoal}
             nextGoalProgress={nextGoalProgress}
             nextGoalGap={nextGoalGap}
@@ -192,6 +196,7 @@ export default function SportPage({ sport }: SportPageProps) {
             <div className="col-12 mb-4">
               <PacingChart
                 year={currentYear}
+                goals={goals}
                 distanceData={distanceData}
                 isLoading={isLoading}
                 error={error}

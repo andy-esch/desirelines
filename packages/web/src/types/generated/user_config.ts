@@ -22,13 +22,13 @@ export enum AnnotationType {
  * Document path: users/{userId}/config/v1
  */
 export interface UserConfig {
-  /** "1.0" */
+  /** "2.0" */
   schemaVersion: string;
   userId: string;
   /** RFC3339 timestamp */
   lastUpdated: string;
   /** key = year (e.g., "2025") */
-  goals: { [key: string]: GoalsForYear };
+  goals: { [key: string]: SportGoalsForYear };
   annotations: { [key: string]: AnnotationsForYear };
   preferences?: Preferences | undefined;
   metadata?: Metadata | undefined;
@@ -36,7 +36,7 @@ export interface UserConfig {
 
 export interface UserConfig_GoalsEntry {
   key: string;
-  value?: GoalsForYear | undefined;
+  value?: SportGoalsForYear | undefined;
 }
 
 export interface UserConfig_AnnotationsEntry {
@@ -44,7 +44,18 @@ export interface UserConfig_AnnotationsEntry {
   value?: AnnotationsForYear | undefined;
 }
 
-/** Goals for a specific year */
+/** Goals organized by sport for a specific year */
+export interface SportGoalsForYear {
+  /** key = sport (e.g., "cycling", "running", "yoga") */
+  sports: { [key: string]: GoalsForYear };
+}
+
+export interface SportGoalsForYear_SportsEntry {
+  key: string;
+  value?: GoalsForYear | undefined;
+}
+
+/** Goals for a specific sport in a specific year */
 export interface GoalsForYear {
   goals: Goal[];
 }
@@ -231,7 +242,7 @@ export const UserConfig_GoalsEntry: MessageFns<UserConfig_GoalsEntry> = {
       writer.uint32(10).string(message.key);
     }
     if (message.value !== undefined) {
-      GoalsForYear.encode(message.value, writer.uint32(18).fork()).join();
+      SportGoalsForYear.encode(message.value, writer.uint32(18).fork()).join();
     }
     return writer;
   },
@@ -256,7 +267,7 @@ export const UserConfig_GoalsEntry: MessageFns<UserConfig_GoalsEntry> = {
             break;
           }
 
-          message.value = GoalsForYear.decode(reader, reader.uint32());
+          message.value = SportGoalsForYear.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -305,6 +316,94 @@ export const UserConfig_AnnotationsEntry: MessageFns<UserConfig_AnnotationsEntry
           }
 
           message.value = AnnotationsForYear.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseSportGoalsForYear(): SportGoalsForYear {
+  return { sports: {} };
+}
+
+export const SportGoalsForYear: MessageFns<SportGoalsForYear> = {
+  encode(message: SportGoalsForYear, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    Object.entries(message.sports).forEach(([key, value]) => {
+      SportGoalsForYear_SportsEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join();
+    });
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SportGoalsForYear {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSportGoalsForYear();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          const entry1 = SportGoalsForYear_SportsEntry.decode(reader, reader.uint32());
+          if (entry1.value !== undefined) {
+            message.sports[entry1.key] = entry1.value;
+          }
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseSportGoalsForYear_SportsEntry(): SportGoalsForYear_SportsEntry {
+  return { key: "", value: undefined };
+}
+
+export const SportGoalsForYear_SportsEntry: MessageFns<SportGoalsForYear_SportsEntry> = {
+  encode(message: SportGoalsForYear_SportsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== undefined) {
+      GoalsForYear.encode(message.value, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SportGoalsForYear_SportsEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSportGoalsForYear_SportsEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.value = GoalsForYear.decode(reader, reader.uint32());
           continue;
         }
       }
