@@ -64,7 +64,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { "cycling": mockGoals } } } }),
+            data: () => ({ goals: { "2025": { sports: { cycling: mockGoals } } } }),
           });
         }, 0);
         return vi.fn(); // Return unsubscribe function
@@ -174,7 +174,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { "cycling": mockGoals } } } }),
+            data: () => ({ goals: { "2025": { sports: { cycling: mockGoals } } } }),
           });
         }, 0);
         return vi.fn();
@@ -266,7 +266,7 @@ describe("useUserConfig", () => {
 
         // Initial call
         setTimeout(() => {
-          triggerUpdate({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } });
+          triggerUpdate({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } });
         }, 0);
 
         return vi.fn();
@@ -281,7 +281,7 @@ describe("useUserConfig", () => {
       expect(result.current.data).toEqual({ annualGoal: 500 });
 
       // Simulate Firestore update
-      triggerUpdate({ goals: { "2025": { sports: { "cycling": { annualGoal: 1000 } } } } });
+      triggerUpdate({ goals: { "2025": { sports: { cycling: { annualGoal: 1000 } } } } });
 
       await waitFor(() => {
         expect(result.current.data).toEqual({ annualGoal: 1000 });
@@ -297,7 +297,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
+            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
           });
         }, 0);
         return vi.fn();
@@ -306,7 +306,7 @@ describe("useUserConfig", () => {
       // Mock getDoc for updateConfigSection
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
+        data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
       } as any);
 
       vi.mocked(setDoc).mockResolvedValue(undefined);
@@ -349,7 +349,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
+            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
           });
         }, 0);
         return vi.fn();
@@ -357,7 +357,7 @@ describe("useUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
+        data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
       } as any);
 
       vi.mocked(setDoc).mockResolvedValue(undefined);
@@ -432,7 +432,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
+            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
           });
         }, 0);
         return unsubscribeMock;
@@ -464,8 +464,8 @@ describe("useUserConfig", () => {
             exists: () => true,
             data: () => ({
               goals: {
-                "2025": { sports: { "cycling": { annualGoal: 500 } } },
-                "2024": { sports: { "cycling": { annualGoal: 400 } } },
+                "2025": { sports: { cycling: { annualGoal: 500 } } },
+                "2024": { sports: { cycling: { annualGoal: 400 } } },
               },
             }),
           });
@@ -556,7 +556,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
+            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
           });
         }, 0);
         return vi.fn();
@@ -564,7 +564,7 @@ describe("useUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
+        data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
       } as any);
 
       const updateError = new Error("Failed to update Firestore");
@@ -610,7 +610,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { "cycling": { annualGoal: 500 } } } } }),
+            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
           });
         }, 0);
         return vi.fn();

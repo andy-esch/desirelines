@@ -102,7 +102,12 @@ describe("migration utilities", () => {
 
       expect(result).toBe(true);
       expect(mockService.getConfigSection).toHaveBeenCalledWith("goals", 2025, "cycling");
-      expect(mockService.updateConfigSection).toHaveBeenCalledWith("goals", mockGoals, 2025, "cycling");
+      expect(mockService.updateConfigSection).toHaveBeenCalledWith(
+        "goals",
+        mockGoals,
+        2025,
+        "cycling"
+      );
       expect(consoleLogSpy).toHaveBeenCalledWith(
         "✓ Successfully migrated goals for 2025/cycling to Firestore"
       );
@@ -130,7 +135,12 @@ describe("migration utilities", () => {
       const result = await migrateGoalsToFirestore(mockService, 2025);
 
       expect(result).toBe(true);
-      expect(mockService.updateConfigSection).toHaveBeenCalledWith("goals", mockGoals, 2025, "cycling");
+      expect(mockService.updateConfigSection).toHaveBeenCalledWith(
+        "goals",
+        mockGoals,
+        2025,
+        "cycling"
+      );
 
       consoleLogSpy.mockRestore();
     });
