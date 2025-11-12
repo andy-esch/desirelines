@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchDistanceData } from "../api/activities";
 import type { DistanceEntry } from "../types/activity";
 import { USE_FIXTURE_DATA } from "../config";
-import { FIXTURE_ACTIVITIES } from "../data/fixtures";
+// import { FIXTURE_ACTIVITIES } from "../data/fixtures"; // DEPRECATED: Remove when useDistanceData is removed
 import { useAuth } from "./useAuth";
 
 /**
@@ -75,20 +75,14 @@ export function useDistanceData(year: number) {
   const { user, signOut } = useAuth();
 
   useEffect(() => {
-    // Smart mode: Use fixtures if:
-    // 1. Environment is configured for fixture-only mode (USE_FIXTURE_DATA=true), OR
-    // 2. User is not authenticated (anonymous users see demo)
-    // Note: USE_FIXTURE_DATA takes precedence (important for testing)
+    // DEPRECATED: This hook uses the old legacy API
+    // TODO: Remove this hook entirely and use SportPage for all views
+    // For now, just return empty data if fixtures are requested
     const shouldUseFixtures = USE_FIXTURE_DATA || !user;
 
     if (shouldUseFixtures) {
-      const fixtureData = FIXTURE_ACTIVITIES[year];
-      if (fixtureData?.distance_traveled) {
-        const extended = extendDistanceDataToToday(fixtureData.distance_traveled, year);
-        setDistanceData(extended);
-      } else {
-        setDistanceData([]);
-      }
+      // Return empty data - this hook is deprecated
+      setDistanceData([]);
       setIsLoading(false);
       setError(null);
       return;

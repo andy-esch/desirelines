@@ -1,3 +1,4 @@
+import gzip
 import json
 import logging
 from typing import Any
@@ -92,9 +93,23 @@ class CloudStorageClientWrapper:
         data: dict | list,
         blob_name: str,
     ) -> None:
-        """Write a JSON blob to a bucket"""
+        """Write a JSON blob to a bucket with gzip compression"""
         blob = self._bucket.blob(blob_name)
-        blob.upload_from_string(data=json.dumps(data), content_type="application/json")
+
+        # Minify JSON (no spaces) for smaller payload
+        json_string = json.dumps(data, separators=(',', ':'))
+
+        # Gzip compress the JSON string
+        compressed_data = gzip.compress(json_string.encode('utf-8'))
+
+        # Set content encoding BEFORE upload (property, not parameter)
+        blob.content_encoding = "gzip"
+
+        # Upload compressed data (browser decompresses automatically)
+        blob.upload_from_string(
+            data=compressed_data,
+            content_type="application/json"
+        )
 
     def download_blob_to_file(self, blob_name: str, file_path: str) -> None:
         """Download a blob to a local file"""

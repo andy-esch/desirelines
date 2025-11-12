@@ -23,7 +23,11 @@ func setupCloudLogger() *slog.Logger {
 			case slog.LevelKey:
 				a.Key = "severity"
 				// Map slog levels to Google Cloud severity strings
-				level := a.Value.Any().(slog.Level)
+				level, ok := a.Value.Any().(slog.Level)
+				if !ok {
+					// If type assertion fails, keep original value
+					return a
+				}
 				switch {
 				case level < slog.LevelInfo:
 					a.Value = slog.StringValue("DEBUG")

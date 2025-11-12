@@ -66,6 +66,8 @@ class TestStravaActivitiesRepo:
             "type": "Run",
             "distance": 5000.0,
             "start_date_local": "2025-10-09T10:00:00",
+            "moving_time": 1800,  # 30 minutes in seconds
+            "total_elevation_gain": 100.0,  # meters
         }
 
         # Mock successful response

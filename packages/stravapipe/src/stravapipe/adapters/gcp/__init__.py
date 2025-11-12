@@ -7,11 +7,12 @@ from stravapipe.adapters.gcp._clients import (
 )
 from stravapipe.adapters.gcp._storage import (
     DistancesRepo,
+    MetadataRepo,
     SummariesRepo,
 )
 from stravapipe.config import AggregatorConfig, BQInserterConfig
 from stravapipe.ports.out.read import ReadActivitiesMetadata, ReadSummaries
-from stravapipe.ports.out.write import WriteActivities, WriteSummary
+from stravapipe.ports.out.write import WriteActivities, WriteMetadata, WriteSummary
 
 
 def make_bigquery_client_wrapper(config: BQInserterConfig) -> BigQueryClientWrapper:
@@ -65,17 +66,27 @@ def make_write_distances(config: AggregatorConfig) -> DistancesRepo:
     return DistancesRepo(client=client)
 
 
+def make_write_metadata(config: AggregatorConfig) -> WriteMetadata:
+    """Create a MetadataRepo for writing year metadata."""
+    client = CloudStorageClientWrapper(
+        project_id=config.gcp_project_id,
+        bucket_name=config.gcp_bucket_name,
+    )
+    return MetadataRepo(client=client)
+
+
 __all__ = [
     "ActivitiesRepo",
     "BigQueryClientWrapper",
     "CloudStorageClientWrapper",
     "DistancesRepo",
+    "MetadataRepo",
     "SummariesRepo",
     "make_bigquery_client_wrapper",
     "make_read_activities",
     "make_read_summaries",
     "make_write_activities",
     "make_write_distances",
-    "make_write_pacings",
+    "make_write_metadata",
     "make_write_summary",
 ]

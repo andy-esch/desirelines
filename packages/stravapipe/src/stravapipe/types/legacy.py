@@ -41,8 +41,8 @@ SummaryObject = dict[str, SummaryEntry]
 DistanceTimeseries = list[TimeseriesEntry]
 
 __all__ = [
-    "SummaryEntry",
-    "TimeseriesEntry",
-    "SummaryObject",
     "DistanceTimeseries",
+    "SummaryEntry",
+    "SummaryObject",
+    "TimeseriesEntry",
 ]

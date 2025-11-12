@@ -85,3 +85,24 @@ class DataValidationError(StravaPipeError):
     """Raised when data validation fails."""
 
     pass
+
+
+class SportCategoryError(ConfigurationError):
+    """Raised when a sport category is unknown or misconfigured.
+
+    This typically occurs when:
+    - Activity has a Strava type not in sport configuration
+    - Sport string doesn't map to any configured category
+    - Sport configuration file is missing or invalid
+    """
+
+    def __init__(self, sport_or_type: str, message: str | None = None):
+        """Initialize SportCategoryError.
+
+        Args:
+            sport_or_type: The sport name or Strava activity type that was not found
+            message: Optional custom error message
+        """
+        error_message = message or f"Unknown sport category: {sport_or_type}"
+        super().__init__(error_message)
+        self.sport_or_type = sport_or_type

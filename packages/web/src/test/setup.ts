@@ -9,7 +9,44 @@ import "@testing-library/jest-dom";
 
 // Mock Firebase to avoid initialization errors in tests
 // Tests should mock Firebase services as needed
-import { vi } from "vitest";
+import { vi, beforeEach } from "vitest";
+
+// Setup localStorage mock for tests
+class LocalStorageMock {
+  private store: Record<string, string> = {};
+
+  clear() {
+    this.store = {};
+  }
+
+  getItem(key: string) {
+    return this.store[key] || null;
+  }
+
+  setItem(key: string, value: string) {
+    this.store[key] = value.toString();
+  }
+
+  removeItem(key: string) {
+    delete this.store[key];
+  }
+
+  get length() {
+    return Object.keys(this.store).length;
+  }
+
+  key(index: number) {
+    const keys = Object.keys(this.store);
+    return keys[index] || null;
+  }
+}
+
+global.localStorage = new LocalStorageMock() as Storage;
+
+// Clear localStorage before each test
+beforeEach(() => {
+  global.localStorage.clear();
+});
 
 // Mock the config module to return test values
 // Note: apiGatewayUrl is undefined by default to match test expectations

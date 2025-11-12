@@ -30,21 +30,24 @@ func TestUserConfig_WithGoals(t *testing.T) {
 		},
 	}
 
-	jsonBytes, err := protojson.Marshal(config)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
+	jsonBytes, marshalErr := protojson.Marshal(config)
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal: %v", marshalErr)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &data); err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
+	var data map[string]any
+	if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal: %v", unmarshalErr)
 	}
 
 	if data["userId"] != "user123" {
 		t.Errorf("Expected userId user123, got %v", data["userId"])
 	}
 
-	goals := data["goals"].(map[string]interface{})["2024"].(map[string]interface{})["goals"].([]interface{})
+	goals, ok := data["goals"].(map[string]any)["2024"].(map[string]any)["goals"].([]any)
+	if !ok {
+		t.Fatal("goals is not a []any")
+	}
 	if len(goals) != 2 {
 		t.Errorf("Expected 2 goals, got %d", len(goals))
 	}
@@ -82,22 +85,28 @@ func TestUserConfig_WithAnnotations(t *testing.T) {
 		},
 	}
 
-	jsonBytes, err := protojson.Marshal(config)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
+	jsonBytes, marshalErr := protojson.Marshal(config)
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal: %v", marshalErr)
 	}
 
-	var data map[string]interface{}
+	var data map[string]any
 	if err := json.Unmarshal(jsonBytes, &data); err != nil {
 		t.Fatalf("Failed to unmarshal: %v", err)
 	}
 
-	annotations := data["annotations"].(map[string]interface{})["2024"].(map[string]interface{})["annotations"].([]interface{})
+	annotations, ok := data["annotations"].(map[string]any)["2024"].(map[string]any)["annotations"].([]any)
+	if !ok {
+		t.Fatal("annotations is not a []any")
+	}
 	if len(annotations) != 3 {
 		t.Errorf("Expected 3 annotations, got %d", len(annotations))
 	}
 
-	ann1 := annotations[0].(map[string]interface{})
+	ann1, ok := annotations[0].(map[string]any)
+	if !ok {
+		t.Fatal("ann1 is not a map[string]any")
+	}
 	if ann1["type"] != "ANNOTATION_TYPE_EVENT" {
 		t.Errorf("Expected EVENT type, got %v", ann1["type"])
 	}
@@ -124,20 +133,30 @@ func TestUserConfig_WithPreferences(t *testing.T) {
 		t.Fatalf("Failed to marshal: %v", err)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &data); err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
+	var data map[string]any
+	if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal: %v", unmarshalErr)
 	}
 
-	prefs := data["preferences"].(map[string]interface{})
+	prefs, ok := data["preferences"].(map[string]any)
+	if !ok {
+		t.Fatal("prefs is not map[str]any")
+	}
 	if prefs["theme"] != "dark" {
 		t.Errorf("Expected theme dark, got %v", prefs["theme"])
 	}
-	if prefs["defaultYear"].(float64) != 2024 {
+	defaultYear, ok := prefs["defaultYear"].(float64)
+	if !ok {
+		t.Fatal("defaultYear cannot be cast to float")
+	}
+	if defaultYear != 2024 {
 		t.Errorf("Expected year 2024, got %v", prefs["defaultYear"])
 	}
 
-	chartDefaults := prefs["chartDefaults"].(map[string]interface{})
+	chartDefaults, ok := prefs["chartDefaults"].(map[string]any)
+	if !ok {
+		t.Fatal("chartDefaults is not map[str]any")
+	}
 	if chartDefaults["showAverage"] != true {
 		t.Error("Expected showAverage true")
 	}
@@ -158,12 +177,15 @@ func TestUserConfig_WithMetadata(t *testing.T) {
 		t.Fatalf("Failed to marshal: %v", err)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &data); err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
+	var data map[string]any
+	if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal: %v", unmarshalErr)
 	}
 
-	metadata := data["metadata"].(map[string]interface{})
+	metadata, ok := data["metadata"].(map[string]any)
+	if !ok {
+		t.Fatal("metadata is not a map[str]any")
+	}
 	if metadata["createdAt"] != "2024-01-01T00:00:00Z" {
 		t.Errorf("Unexpected createdAt: %v", metadata["createdAt"])
 	}
@@ -171,7 +193,10 @@ func TestUserConfig_WithMetadata(t *testing.T) {
 		t.Errorf("Unexpected device: %v", metadata["lastSyncedDevice"])
 	}
 
-	configTypes := metadata["configTypes"].([]interface{})
+	configTypes, ok := metadata["configTypes"].([]any)
+	if !ok {
+		t.Fatal("configTypes is not a []any")
+	}
 	if len(configTypes) != 3 {
 		t.Errorf("Expected 3 config types, got %d", len(configTypes))
 	}
@@ -208,12 +233,12 @@ func TestUserConfig_Complete(t *testing.T) {
 		},
 	}
 
-	jsonBytes, err := protojson.Marshal(config)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
+	jsonBytes, marshalErr := protojson.Marshal(config)
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal: %v", marshalErr)
 	}
 
-	var data map[string]interface{}
+	var data map[string]any
 	if err := json.Unmarshal(jsonBytes, &data); err != nil {
 		t.Fatalf("Failed to unmarshal: %v", err)
 	}
@@ -251,9 +276,12 @@ func TestAnnotationType_Enum(t *testing.T) {
 				Type: tt.annType,
 			}
 
-			jsonBytes, _ := protojson.Marshal(ann)
-			var data map[string]interface{}
-			if err := json.Unmarshal(jsonBytes, &data); err != nil {
+			jsonBytes, err := protojson.Marshal(ann)
+			if err != nil {
+				t.Fatalf("Failed to marshal: %v", err)
+			}
+			var data map[string]any
+			if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
 				t.Fatalf("Failed to unmarshal: %v", err)
 			}
 

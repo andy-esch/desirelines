@@ -1,4 +1,4 @@
-// Recharts implementation of DistanceChart
+// Recharts implementation of CumulativeMetricsChart
 import { useMemo } from "react";
 import {
   LineChart,
@@ -23,8 +23,9 @@ import {
   type Goals,
 } from "../../utils/goalCalculations";
 import ChartTooltip from "./ChartTooltip";
+import { getDistanceLabel, type DistanceUnit, type MetricUnit } from "../../utils/units";
 
-interface DistanceChartProps {
+interface CumulativeMetricsChartProps {
   year: number;
   goals: Goals;
   onGoalsChange?: (goals: Goals) => void;
@@ -34,11 +35,22 @@ interface DistanceChartProps {
   showFullYear?: boolean;
   onViewChange?: (showFullYear: boolean) => void;
   hideHeader?: boolean;
+  unit?: MetricUnit; // Unit for metric display (default: "miles", can be "sessions" for yoga)
 }
 
 // Removed CustomTooltip - now using shared ChartTooltip component
 
-const DistanceChartRecharts = (props: DistanceChartProps) => {
+// Helper to get unit label for both distance and activity metrics
+function getUnitLabel(unit: MetricUnit): string {
+  // If it's a known distance unit, use getDistanceLabel
+  if (unit === "miles" || unit === "kilometers" || unit === "meters") {
+    return getDistanceLabel(unit as DistanceUnit);
+  }
+  // Otherwise, return as-is (e.g., "sessions" for yoga)
+  return unit;
+}
+
+const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
   const {
     year,
     goals,
@@ -48,7 +60,11 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
     showFullYear = true,
     onViewChange,
     hideHeader = false,
+    unit = "miles", // Default to miles if not provided
   } = props;
+
+  // Determine chart title based on metric type
+  const chartTitle = unit === "sessions" ? "Cumulative Sessions" : "Cumulative Distance";
 
   // Derive values from distanceData
   const latestDate = useMemo(() => {
@@ -228,7 +244,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
       <div>
         {!hideHeader && (
           <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
-            Cumulative Distance
+            {chartTitle}
           </h3>
         )}
         <LoadingChart />
@@ -241,7 +257,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
       <div>
         {!hideHeader && (
           <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
-            Cumulative Distance
+            {chartTitle}
           </h3>
         )}
         <ErrorChart error={error} onRetry={() => window.location.reload()} />
@@ -254,7 +270,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
       {!hideHeader && (
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h3 className="text-muted mb-0" style={{ fontSize: "1rem", fontWeight: "500" }}>
-            Cumulative Distance
+            {chartTitle}
           </h3>
 
           {onViewChange && (
@@ -312,7 +328,11 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
             interval="preserveStartEnd"
           />
           <YAxis
-            label={{ value: "Miles", angle: -90, position: "insideLeft" }}
+            label={{
+              value: unit === "sessions" ? "# Sessions" : getUnitLabel(unit),
+              angle: -90,
+              position: "insideLeft",
+            }}
             stroke={CHART_CONFIG.axis.stroke}
             domain={[
               0,
@@ -326,7 +346,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
             ]}
             ticks={yAxisTicks}
           />
-          <Tooltip content={<ChartTooltip unit="mi" decimals={1} />} />
+          <Tooltip content={<ChartTooltip unit={getUnitLabel(unit)} decimals={1} />} />
 
           {/* Y-axis markers for current values */}
           <ReferenceLine
@@ -433,7 +453,7 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
               x={achievement.date.getTime()}
               y={achievement.actualValue}
               r={0}
-              label={(props: any) => {
+              label={(props: { viewBox: { x: number; y: number } }) => {
                 const { viewBox } = props;
                 return (
                   <g>
@@ -475,4 +495,4 @@ const DistanceChartRecharts = (props: DistanceChartProps) => {
   );
 };
 
-export default DistanceChartRecharts;
+export default CumulativeMetricsChart;

@@ -5,18 +5,20 @@ package apigateway
 import (
 	"context"
 	"encoding/json"
+	goerrors "errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"strings"
+	"strconv"
 
+	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/errors"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
-	"github.com/andy-esch/desirelines/packages/apigateway/router"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 	"github.com/andy-esch/desirelines/packages/apigateway/types"
+	"github.com/go-chi/chi/v5"
 )
 
 // AuthMiddleware defines the interface for authentication middleware.
@@ -29,7 +31,8 @@ type Handler struct {
 	storage        storage.Client
 	authMiddleware AuthMiddleware
 	corsHandler    errors.CORSHandler
-	router         *router.Router
+	router         chi.Router
+	sportConfig    *config.SportConfig
 }
 
 // NewHandler creates a new API Gateway handler.
@@ -64,17 +67,26 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		return nil, fmt.Errorf("failed to initialize auth middleware: %w", err)
 	}
 
+	// Load sport configuration
+	configPath := getEnvOrDefault("SPORT_CONFIG_PATH", "config/sport_types.json")
+	sportConfig, err := config.LoadSportConfig(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load sport config: %w", err)
+	}
+	log.Printf("Loaded sport config with %d sports", len(sportConfig.ListSports()))
+
 	// Initialize CORS handler
 	corsHandler := cors.NewHandler()
 
-	// Initialize router and register routes
-	rt := router.NewRouter()
+	// Initialize chi router
+	r := chi.NewRouter()
 
 	h := &Handler{
 		storage:        storageClient,
 		authMiddleware: authMiddleware,
 		corsHandler:    corsHandler,
-		router:         rt,
+		router:         r,
+		sportConfig:    sportConfig,
 	}
 
 	// Register routes
@@ -93,34 +105,62 @@ func getEnvOrDefault(key, defaultValue string) string {
 
 // registerRoutes configures all application routes.
 func (h *Handler) registerRoutes() {
-	// Health endpoint (public, no auth required)
-	h.router.RegisterRoute("health", func(w http.ResponseWriter, r *http.Request) {
-		h.handleHealth(w, r)
-	}, false, nil)
+	// CORS middleware for all routes
+	h.router.Use(h.corsMiddleware)
 
-	// Activities endpoints (require authentication)
-	h.router.RegisterRoute("activities/*", func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		h.handleActivities(w, r, path)
-	}, true, h.authMiddleware.Middleware)
+	// Public endpoints (no auth required)
+	h.router.Get("/health", h.handleHealth)
+	h.router.Get("/sports/config", h.handleSportConfig)
+
+	// Authenticated route group
+	h.router.Group(func(r chi.Router) {
+		r.Use(h.authMiddleware.Middleware)
+
+		// Multi-sport endpoints
+		r.Get("/activities/{year}/metadata", h.handleMetadataWithParam)
+		r.Get("/activities/{year}/metrics", h.handleMetricsWithParam)
+		r.Get("/activities/{year}/source", h.handleSourceWithParam)
+
+		// Legacy endpoints (backward compatibility)
+		r.Get("/activities/{year}/summary", h.handleSummaryWithParam)
+		r.Get("/activities/{year}/distances", h.handleDistancesWithParam)
+	})
+}
+
+// corsMiddleware wraps the CORS handler as chi middleware
+func (h *Handler) corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Handle CORS preflight
+		if r.Method == http.MethodOptions {
+			h.corsHandler.HandlePreflight(w, r)
+			return
+		}
+
+		// Set CORS headers for all requests
+		h.corsHandler.SetHeaders(w, r)
+
+		// Continue to next handler
+		next.ServeHTTP(w, r)
+	})
 }
 
 // NewHandlerWithStorage is a constructor for testing that allows injecting a mock storage client.
-func NewHandlerWithStorage(storageClient storage.Client) *Handler {
+func NewHandlerWithStorage(storageClient storage.Client, sportConfig *config.SportConfig) *Handler {
 	// Create a mock auth middleware for testing
 	mockAuth := &mockAuthMiddleware{}
 
 	// Initialize CORS handler
 	corsHandler := cors.NewHandler()
 
-	// Initialize router
-	rt := router.NewRouter()
+	// Initialize chi router
+	r := chi.NewRouter()
 
 	h := &Handler{
 		storage:        storageClient,
 		authMiddleware: mockAuth,
 		corsHandler:    corsHandler,
-		router:         rt,
+		router:         r,
+		sportConfig:    sportConfig,
 	}
 
 	// Register routes
@@ -139,25 +179,8 @@ func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 // ServeHTTP implements http.Handler interface.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Handle CORS preflight
-	if r.Method == http.MethodOptions {
-		h.handleCORS(w, r)
-		return
-	}
-
-	// Only allow GET requests
-	if r.Method != http.MethodGet {
-		errors.WriteError(w, r, errors.ErrMethodNotAllowed, h.corsHandler)
-		return
-	}
-
-	path := strings.TrimPrefix(r.URL.Path, "/")
-
-	// Route request to registered handler
-	if !h.router.Route(w, r, path) {
-		// No route matched
-		errors.WriteError(w, r, errors.ErrNotFound, h.corsHandler)
-	}
+	// Delegate to chi router (CORS handled by middleware)
+	h.router.ServeHTTP(w, r)
 }
 
 // handleHealth returns API health status.
@@ -168,37 +191,156 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	h.respondJSON(w, r, http.StatusOK, response)
 }
 
-// handleActivities routes activity data requests.
-func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path string) {
-	// Parse path: activities/{year}/{data_type}
-	parts := strings.Split(path, "/")
-	if len(parts) != 3 {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid path format. Expected: /activities/{year}/{type}")
+// Wrapper handlers that extract path parameters and validate year
+
+func (h *Handler) handleMetadataWithParam(w http.ResponseWriter, r *http.Request) {
+	year := chi.URLParam(r, "year")
+	if !isValidYear(year) {
+		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
 		errors.WriteError(w, r, err, h.corsHandler)
 		return
 	}
+	h.handleMetadata(w, r, year)
+}
 
-	year := parts[1]
-	dataType := parts[2]
-
-	// Validate data type
-	var blobPath string
-	switch dataType {
-	case "summary":
-		blobPath = fmt.Sprintf("activities/%s/summary_activities.json", year)
-	case "distances":
-		blobPath = fmt.Sprintf("activities/%s/distances.json", year)
-	default:
-		err := errors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid data type: %s", dataType))
+func (h *Handler) handleMetricsWithParam(w http.ResponseWriter, r *http.Request) {
+	year := chi.URLParam(r, "year")
+	if !isValidYear(year) {
+		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
 		errors.WriteError(w, r, err, h.corsHandler)
 		return
 	}
+	h.handleMetrics(w, r, year)
+}
 
-	// Fetch data from storage
+func (h *Handler) handleSourceWithParam(w http.ResponseWriter, r *http.Request) {
+	year := chi.URLParam(r, "year")
+	if !isValidYear(year) {
+		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		errors.WriteError(w, r, err, h.corsHandler)
+		return
+	}
+	h.handleSource(w, r, year)
+}
+
+func (h *Handler) handleSummaryWithParam(w http.ResponseWriter, r *http.Request) {
+	year := chi.URLParam(r, "year")
+	if !isValidYear(year) {
+		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		errors.WriteError(w, r, err, h.corsHandler)
+		return
+	}
+	blobPath := fmt.Sprintf("activities/%s/summary_activities.json", year)
+	h.fetchAndRespond(w, r, blobPath, year, "summary")
+}
+
+func (h *Handler) handleDistancesWithParam(w http.ResponseWriter, r *http.Request) {
+	year := chi.URLParam(r, "year")
+	if !isValidYear(year) {
+		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		errors.WriteError(w, r, err, h.corsHandler)
+		return
+	}
+	blobPath := fmt.Sprintf("activities/%s/distances.json", year)
+	h.fetchAndRespond(w, r, blobPath, year, "distances")
+}
+
+// isValidYear validates that the year string is a 4-digit number between 2000-2100
+func isValidYear(s string) bool {
+	if len(s) != 4 {
+		return false
+	}
+	year, err := strconv.Atoi(s)
+	return err == nil && year >= 2000 && year <= 2100
+}
+
+// validateAndGetSport extracts and validates the sport query parameter.
+// Returns the sport name and true if valid, or writes an error response and returns false.
+func (h *Handler) validateAndGetSport(w http.ResponseWriter, r *http.Request) (string, bool) {
+	sport := r.URL.Query().Get("sport")
+	if sport == "" {
+		err := errors.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
+		errors.WriteError(w, r, err, h.corsHandler)
+		return "", false
+	}
+
+	if !h.sportConfig.ValidateSport(sport) {
+		err := errors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
+		errors.WriteError(w, r, err, h.corsHandler)
+		return "", false
+	}
+
+	return sport, true
+}
+
+// handleMetrics serves sport-specific metrics data.
+func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year string) {
+	sport, ok := h.validateAndGetSport(w, r)
+	if !ok {
+		return
+	}
+
+	blobPath := fmt.Sprintf("activities/%s/metrics/%s.json", year, sport)
+	h.fetchAndRespond(w, r, blobPath, year, sport)
+}
+
+// handleSource serves sport-specific source data.
+func (h *Handler) handleSource(w http.ResponseWriter, r *http.Request, year string) {
+	sport, ok := h.validateAndGetSport(w, r)
+	if !ok {
+		return
+	}
+
+	blobPath := fmt.Sprintf("activities/%s/source/%s.json", year, sport)
+	h.fetchAndRespond(w, r, blobPath, year, sport)
+}
+
+// handleMetadata serves year metadata (all sports).
+func (h *Handler) handleMetadata(w http.ResponseWriter, r *http.Request, year string) {
+	blobPath := fmt.Sprintf("activities/%s/metadata.json", year)
+	h.fetchAndRespond(w, r, blobPath, year, "metadata")
+}
+
+// handleSportConfig serves the sport configuration JSON.
+func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
+	configPath := getEnvOrDefault("SPORT_CONFIG_PATH", "config/sport_types.json")
+
+	// Read and serve the raw JSON file
+	// #nosec G304 - configPath is from environment variable, not user input
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		log.Printf("Error reading sport config: %v", err)
+		apiErr := errors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Failed to load sport config",
+			fmt.Sprintf("Error reading %s: %v", configPath, err),
+		)
+		errors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	// Parse to validate it's valid JSON
+	var configData map[string]any
+	if unmarshalErr := json.Unmarshal(data, &configData); unmarshalErr != nil {
+		log.Printf("Error parsing sport config: %v", unmarshalErr)
+		apiErr := errors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Invalid sport config",
+			fmt.Sprintf("JSON parse error: %v", unmarshalErr),
+		)
+		errors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	h.respondJSON(w, r, http.StatusOK, configData)
+}
+
+// fetchAndRespond is a helper to fetch blob and respond (DRY).
+func (h *Handler) fetchAndRespond(w http.ResponseWriter, r *http.Request, blobPath, year, dataType string) {
 	data, err := h.storage.ReadJSON(r.Context(), blobPath)
 	if err != nil {
-		if err == storage.ErrNotFound {
-			apiErr := errors.NewAPIError(http.StatusNotFound, fmt.Sprintf("Data not found for %s/%s", year, dataType))
+		if goerrors.Is(err, storage.ErrNotFound) {
+			apiErr := errors.NewAPIError(http.StatusNotFound, fmt.Sprintf("No data for %s/%s", year, dataType))
 			errors.WriteError(w, r, apiErr, h.corsHandler)
 			return
 		}
@@ -211,17 +353,11 @@ func (h *Handler) handleActivities(w http.ResponseWriter, r *http.Request, path 
 		return
 	}
 
-	// Respond with data (already parsed JSON)
 	h.respondJSONRaw(w, r, http.StatusOK, data)
 }
 
-// handleCORS responds to CORS preflight requests.
-func (h *Handler) handleCORS(w http.ResponseWriter, r *http.Request) {
-	h.corsHandler.HandlePreflight(w, r)
-}
-
 // respondJSON writes a JSON response with CORS headers.
-func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int, data any) {
 	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -233,7 +369,7 @@ func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int
 }
 
 // respondJSONRaw writes pre-marshaled JSON data with CORS headers.
-func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status int, data any) {
 	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")

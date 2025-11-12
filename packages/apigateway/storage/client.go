@@ -18,7 +18,7 @@ var ErrNotFound = errors.New("blob not found")
 
 // Client defines the interface for storage operations.
 type Client interface {
-	ReadJSON(ctx context.Context, blobPath string) (interface{}, error)
+	ReadJSON(ctx context.Context, blobPath string) (any, error)
 }
 
 // CloudStorageClient implements Client using Google Cloud Storage.
@@ -46,7 +46,7 @@ func NewCloudStorageClient(ctx context.Context) (*CloudStorageClient, error) {
 }
 
 // ReadJSON reads a JSON blob from Cloud Storage and returns parsed data.
-func (c *CloudStorageClient) ReadJSON(ctx context.Context, blobPath string) (interface{}, error) {
+func (c *CloudStorageClient) ReadJSON(ctx context.Context, blobPath string) (any, error) {
 	bucket := c.client.Bucket(c.bucketName)
 	obj := bucket.Object(blobPath)
 
@@ -68,9 +68,9 @@ func (c *CloudStorageClient) ReadJSON(ctx context.Context, blobPath string) (int
 		return nil, fmt.Errorf("failed to read blob contents: %w", err)
 	}
 
-	var result interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	var result any
+	if unmarshalErr := json.Unmarshal(data, &result); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", unmarshalErr)
 	}
 
 	return result, nil
@@ -98,9 +98,10 @@ func NewLocalStorageClient(basePath string) (*LocalStorageClient, error) {
 }
 
 // ReadJSON reads a JSON file from local filesystem and returns parsed data.
-func (c *LocalStorageClient) ReadJSON(ctx context.Context, blobPath string) (interface{}, error) {
+func (c *LocalStorageClient) ReadJSON(ctx context.Context, blobPath string) (any, error) {
 	filePath := filepath.Join(c.basePath, blobPath)
 
+	// #nosec G304 - filePath is constructed from basePath (trusted) + blobPath (validated)
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -109,9 +110,9 @@ func (c *LocalStorageClient) ReadJSON(ctx context.Context, blobPath string) (int
 		return nil, fmt.Errorf("failed to read file %s: %w", filePath, err)
 	}
 
-	var result interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON from %s: %w", filePath, err)
+	var result any
+	if unmarshalErr := json.Unmarshal(data, &result); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to parse JSON from %s: %w", filePath, unmarshalErr)
 	}
 
 	return result, nil

@@ -18,8 +18,8 @@ func TestHandler_ServeHTTP_Verification(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
@@ -66,8 +66,8 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
@@ -137,7 +137,7 @@ func writeTestSecretsFile(t *testing.T, path string, secrets map[string]any) {
 		t.Fatalf("Failed to marshal secrets: %v", err)
 	}
 
-	err = os.WriteFile(path, data, 0644)
+	err = os.WriteFile(path, data, 0600)
 	if err != nil {
 		t.Fatalf("Failed to write secrets file: %v", err)
 	}

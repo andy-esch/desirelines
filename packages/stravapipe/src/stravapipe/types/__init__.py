@@ -15,8 +15,8 @@ from stravapipe.types.legacy import (
 )
 
 __all__ = [
-    "SummaryEntry",
-    "TimeseriesEntry",
-    "SummaryObject",
     "DistanceTimeseries",
+    "SummaryEntry",
+    "SummaryObject",
+    "TimeseriesEntry",
 ]

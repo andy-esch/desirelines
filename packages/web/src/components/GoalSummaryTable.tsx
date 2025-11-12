@@ -1,14 +1,21 @@
 import React from "react";
 import { Goals } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
+import type { MetricUnit } from "../utils/units";
 
 interface GoalSummaryTableProps {
   goals: Goals;
   currentDistance: number;
   year: number;
+  unit?: MetricUnit; // Unit label (e.g., "mi", "km", "sessions")
 }
 
-const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDistance, year }) => {
+const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
+  goals,
+  currentDistance,
+  year,
+  unit = "miles",
+}) => {
   const today = new Date();
   const isCurrentYear = year === today.getFullYear();
 
@@ -87,7 +94,9 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDista
                     <td>
                       <strong>{goal.label || "Unnamed"}</strong>
                     </td>
-                    <td>{goal.value.toLocaleString()} mi</td>
+                    <td>
+                      {goal.value.toLocaleString()} {unit}
+                    </td>
                     <td>
                       <div className="progress" style={{ height: "20px", minWidth: "100px" }}>
                         <div
@@ -105,8 +114,14 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({ goals, currentDista
                         </div>
                       </div>
                     </td>
-                    <td>{remaining.toFixed(0)} mi</td>
-                    {isCurrentYear && daysRemaining > 0 && <td>{paceNeeded.toFixed(1)} mi/day</td>}
+                    <td>
+                      {remaining.toFixed(0)} {unit}
+                    </td>
+                    {isCurrentYear && daysRemaining > 0 && (
+                      <td>
+                        {paceNeeded.toFixed(1)} {unit}/day
+                      </td>
+                    )}
                     <td>
                       <span className="badge" style={{ backgroundColor: goalColor }}>
                         {status}

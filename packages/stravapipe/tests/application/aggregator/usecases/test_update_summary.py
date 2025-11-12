@@ -68,26 +68,44 @@ def mock_read_activities(tokens: StravaTokenSet):
             id=1,
             type="Ride",
             start_date_local=datetime(2023, 1, 1, 12, 34, 56, tzinfo=UTC),
-            distance=10 * 1000.0 / 0.62137,  # ~10 miles
+            distance=10 * 1000.0 / 0.62137,  # ~10 miles in meters
+            moving_time=3600,  # 1 hour
+            total_elevation_gain=100.0,  # meters
         ),
         2: MinimalStravaActivity(
             id=2,
             type="VirtualRide",
             start_date_local=datetime(2023, 1, 2, 12, 34, 56, tzinfo=UTC),
-            distance=10 * 1000.0 / 0.62137,  # ~10 miles
+            distance=10 * 1000.0 / 0.62137,  # ~10 miles in meters
+            moving_time=3600,  # 1 hour
+            total_elevation_gain=100.0,  # meters
         ),
         3: MinimalStravaActivity(
             id=3,
             type="Run",
             start_date_local=datetime(2023, 1, 2, 12, 34, 56, tzinfo=UTC),
-            distance=10 * 1000.0 / 0.62137,  # ~10 miles
+            distance=10 * 1000.0 / 0.62137,  # ~10 miles in meters
+            moving_time=3600,  # 1 hour
+            total_elevation_gain=100.0,  # meters
         ),
     }
     return MockReadActivities(activities=activities)
 
 
 def mock_read_summaries():
-    summaries = {2023: {"2023-01-01": {"distance_miles": 10, "activity_ids": [1]}}}
+    summaries = {
+        2023: {
+            "cycling": {
+                "2023-01-01": {
+                    "distance_meters": 16093.44,  # ~10 miles in meters
+                    "time_minutes": 60.0,
+                    "elevation_meters": 100.0,
+                    "activities": 1,
+                    "activity_ids": [1],
+                }
+            }
+        }
+    }
     return MockReadSummaries(summaries=summaries)
 
 
@@ -114,11 +132,19 @@ def usecase(mock_aggregator_config):
 class TestUpdateSummaryUseCase:
     def test_new_activity(self, usecase, webhook_request_new):
         usecase.run(webhook_request_new)
-        expected = {
-            "2023-01-01": {"distance_miles": 10.0, "activity_ids": [1]},
-            "2023-01-02": {"distance_miles": 10.0, "activity_ids": [2]},
-        }
-        assert usecase._export_service.results == expected
+
+        # Check that export was called with updated summary
+        summary = usecase._export_service.results
+        assert summary is not None, "Export should be called for new activity"
+
+        # Check that both dates exist in the summary
+        assert "2023-01-01" in summary.daily
+        assert "2023-01-02" in summary.daily
+
+        # Check activity IDs
+        assert 1 in summary.daily["2023-01-01"].activity_ids
+        assert 2 in summary.daily["2023-01-02"].activity_ids
+
         mock_export_service.cache_clear()
 
     def test_existing_activity(self, usecase, webhook_request_existing):
@@ -128,8 +154,16 @@ class TestUpdateSummaryUseCase:
             "in the summary"
         )
 
-    def test_untracked_activity(self, usecase, webhook_request_unsupported):
+    def test_run_activity_creates_running_summary(
+        self, usecase, webhook_request_unsupported
+    ):
+        """Test that Run activities create a running summary (multi-sport support)"""
         usecase.run(webhook_request_unsupported)
-        assert usecase._export_service.results is None, (
-            "Unsupported activity should not be tracked"
-        )
+
+        # Check that export was called for running activity
+        summary = usecase._export_service.results
+        assert summary is not None, "Run activities should be tracked in multi-sport"
+
+        # Check that the run activity was added
+        assert "2023-01-02" in summary.daily
+        assert 3 in summary.daily["2023-01-02"].activity_ids

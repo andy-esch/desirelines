@@ -1,3 +1,4 @@
+// Package main provides a local development server for testing the API Gateway.
 package main
 
 import (
@@ -5,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway"
 )
@@ -22,7 +24,16 @@ func main() {
 
 	port := getEnvOrDefault("PORT", "8080")
 	log.Printf("Server listening on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+
+	// Create server with timeouts for security
+	server := &http.Server{
+		Addr:              ":" + port,
+		Handler:           nil,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	log.Fatal(server.ListenAndServe())
 }
 
 func getEnvOrDefault(key, defaultValue string) string {

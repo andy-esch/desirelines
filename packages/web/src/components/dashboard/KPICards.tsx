@@ -1,10 +1,11 @@
 import React from "react";
 import KPICard from "./KPICard";
+import type { MetricUnit } from "../../utils/units";
 
 export interface KPICardsProps {
-  /** Current total distance */
+  /** Current total distance or count */
   currentDistance: number;
-  /** Average pace (miles per day) */
+  /** Average pace (miles per day or sessions per day) */
   averagePace: number;
   /** Days elapsed in the year */
   daysElapsed: number;
@@ -17,12 +18,14 @@ export interface KPICardsProps {
   } | null;
   /** Progress towards next goal (0-100%) */
   nextGoalProgress: number;
-  /** Gap to next goal in miles */
+  /** Gap to next goal */
   nextGoalGap: number;
   /** Pace needed to reach next goal */
   paceNeededForNextGoal: number;
   /** Optional momentum indicator component */
   momentumIndicator?: React.ReactNode;
+  /** Unit label (e.g., "mi", "km", "sessions") */
+  unit?: MetricUnit;
 }
 
 /**
@@ -57,16 +60,20 @@ const KPICards = React.memo(
     nextGoalGap,
     paceNeededForNextGoal,
     momentumIndicator,
+    unit = "miles", // Default to miles
   }: KPICardsProps) => {
+    // Determine appropriate title based on unit
+    const metricTitle = unit === "sessions" ? "Current # Sessions" : "Current Distance";
+
     return (
       <div className="row g-3 mb-4">
-        {/* Current Distance Card */}
+        {/* Current Distance/Sessions Card */}
         <KPICard
-          title="Current Distance"
-          value={`${currentDistance.toFixed(0)} mi`}
+          title={metricTitle}
+          value={`${currentDistance.toFixed(0)} ${unit}`}
           subtitle={
             <>
-              {averagePace.toFixed(1)} mi/day avg
+              {averagePace.toFixed(1)} {unit} / day avg
               {momentumIndicator && <>{momentumIndicator} · </>}
               {daysElapsed} days
             </>
@@ -79,9 +86,9 @@ const KPICards = React.memo(
           value={`${nextGoalProgress.toFixed(0)}%`}
           subtitle={
             nextGoalGap > 0
-              ? `${nextGoalGap.toFixed(0)} mi to ${nextGoal?.value.toLocaleString()}`
+              ? `${nextGoalGap.toFixed(0)} ${unit} to ${nextGoal?.value.toLocaleString()}`
               : nextGoal
-                ? `${nextGoal.value.toLocaleString()} mi reached!`
+                ? `${nextGoal.value.toLocaleString()} ${unit} reached!`
                 : "No goal set"
           }
         />
@@ -92,7 +99,7 @@ const KPICards = React.memo(
           value={paceNeededForNextGoal > 0 ? paceNeededForNextGoal.toFixed(1) : "—"}
           subtitle={
             paceNeededForNextGoal > 0
-              ? `mi/day · ${daysRemaining} days left`
+              ? `${unit} / day · ${daysRemaining} days left`
               : `${daysRemaining} days remaining`
           }
         />

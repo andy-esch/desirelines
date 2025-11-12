@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -172,6 +172,42 @@ proto-clean:
 	rm -rf packages/web/src/types/generated
 	@echo "✅ Generated protobuf code cleaned"
 
+# Format protobuf files with buf
+proto-fmt:
+	@echo "🎨 Formatting protobuf files..."
+	@command -v buf >/dev/null 2>&1 || { echo "❌ Error: buf not found. Install with: brew install bufbuild/buf/buf"; exit 1; }
+	buf format -w schemas/proto
+	@echo "✅ Protobuf files formatted"
+
+# Lint protobuf files with buf
+proto-lint:
+	@echo "🔍 Linting protobuf files..."
+	@command -v buf >/dev/null 2>&1 || { echo "❌ Error: buf not found. Install with: brew install bufbuild/buf/buf"; exit 1; }
+	buf lint schemas/proto
+	@echo "✅ Protobuf files linted"
+
+# ==========================================
+# Sport Configuration
+# ==========================================
+
+.PHONY: copy-sport-config
+copy-sport-config:
+	@echo "📋 Copying sport config to packages..."
+	@mkdir -p packages/stravapipe/src/stravapipe/config
+	@mkdir -p packages/apigateway/config
+	@cp schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/
+	@cp schemas/sports/sport_types.json packages/apigateway/config/
+	@echo "✅ Sport config copied"
+
+.PHONY: verify-sport-config
+verify-sport-config:
+	@echo "🔍 Verifying sport config..."
+	@diff -q schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/sport_types.json || \
+		(echo "❌ stravapipe config out of sync! Run: make copy-sport-config" && exit 1)
+	@diff -q schemas/sports/sport_types.json packages/apigateway/config/sport_types.json || \
+		(echo "❌ apigateway config out of sync! Run: make copy-sport-config" && exit 1)
+	@echo "✅ Config copies match source"
+
 # ==========================================
 # Service Account Management
 # ==========================================
@@ -296,6 +332,8 @@ help:
 	@echo "  proto-gen-python     - Generate Python code from .proto files"
 	@echo "  proto-gen-go         - Generate Go code from .proto files"
 	@echo "  proto-gen-typescript - Generate TypeScript code from .proto files"
+	@echo "  proto-fmt            - Format .proto files with buf"
+	@echo "  proto-lint           - Lint .proto files with buf"
 	@echo "  proto-clean          - Clean generated protobuf code"
 	@echo ""
 	@echo "Secret Management & Webhooks (uses current gcloud project):"
@@ -310,9 +348,9 @@ help:
 	@echo "  Use Terraform for deployment (see terraform/ directory)"
 
 # Combined commands
-test: py-test go-test web-test
-lint: py-lint go-lint web-lint
-format: py-format go-format web-format tf-fmt
+test: verify-sport-config py-test go-test web-test
+lint: py-lint go-lint web-lint proto-lint
+format: py-format go-format web-format tf-fmt proto-fmt
 typecheck: py-typecheck web-typecheck
 
 

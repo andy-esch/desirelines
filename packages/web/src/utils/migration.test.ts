@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   migrateGoalsToFirestore,
@@ -9,8 +10,7 @@ import type { UserConfigService } from "../services/userConfigService";
 
 describe("migration utilities", () => {
   beforeEach(() => {
-    // Clear localStorage before each test
-    window.localStorage.clear();
+    // localStorage is cleared by global setup.ts
     vi.clearAllMocks();
   });
 
@@ -66,7 +66,9 @@ describe("migration utilities", () => {
       localStorage.setItem("desirelines_goals_2025", JSON.stringify(mockGoals));
 
       const mockService = {
-        getConfigSection: vi.fn().mockResolvedValue([{ distance: 1000, label: "Existing Goal" }]),
+        getConfigSection: vi
+          .fn()
+          .mockResolvedValue({ goals: [{ distance: 1000, label: "Existing Goal" }] }),
         updateConfigSection: vi.fn(),
       } as unknown as UserConfigService;
 
@@ -74,7 +76,7 @@ describe("migration utilities", () => {
 
       expect(result).toBe(false);
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        "Firestore already has goals for 2025, skipping migration"
+        "Firestore already has goals for 2025/cycling, skipping migration"
       );
       expect(mockService.updateConfigSection).not.toHaveBeenCalled();
 
@@ -99,10 +101,15 @@ describe("migration utilities", () => {
       const result = await migrateGoalsToFirestore(mockService, 2025);
 
       expect(result).toBe(true);
-      expect(mockService.getConfigSection).toHaveBeenCalledWith("goals", 2025);
-      expect(mockService.updateConfigSection).toHaveBeenCalledWith("goals", mockGoals, 2025);
+      expect(mockService.getConfigSection).toHaveBeenCalledWith("goals", 2025, "cycling");
+      expect(mockService.updateConfigSection).toHaveBeenCalledWith(
+        "goals",
+        mockGoals,
+        2025,
+        "cycling"
+      );
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        "✓ Successfully migrated goals for 2025 to Firestore"
+        "✓ Successfully migrated goals for 2025/cycling to Firestore"
       );
 
       // Should set migration flag
@@ -128,7 +135,12 @@ describe("migration utilities", () => {
       const result = await migrateGoalsToFirestore(mockService, 2025);
 
       expect(result).toBe(true);
-      expect(mockService.updateConfigSection).toHaveBeenCalledWith("goals", mockGoals, 2025);
+      expect(mockService.updateConfigSection).toHaveBeenCalledWith(
+        "goals",
+        mockGoals,
+        2025,
+        "cycling"
+      );
 
       consoleLogSpy.mockRestore();
     });
@@ -363,7 +375,7 @@ describe("migration utilities", () => {
     it("should handle storage quota exceeded error", () => {
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      const mockSetItem = vi.spyOn(Storage.prototype, "setItem");
+      const mockSetItem = vi.spyOn(window.localStorage, "setItem");
       mockSetItem.mockImplementation(() => {
         const error: any = new Error("QuotaExceededError");
         error.name = "QuotaExceededError";

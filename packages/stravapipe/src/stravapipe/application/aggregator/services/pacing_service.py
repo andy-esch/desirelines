@@ -1,48 +1,99 @@
 import datetime
-from functools import lru_cache
 import logging
 
 import pytz
 
-from stravapipe.types import DistanceTimeseries, SummaryObject
-from stravapipe.utils import date_range, num_days_in_year, num_days_so_far
+from stravapipe.config.sport_config import load_sport_config
+from stravapipe.types.generated.sports_metrics_pb2 import (
+    CumulativeMetricsEntry,
+    DailySummary,
+)
+from stravapipe.utils import date_range
 
 logger = logging.getLogger(__name__)
 
 
-@lru_cache(maxsize=1)
 def today() -> datetime.datetime:
     """Datetime of today"""
     return datetime.datetime.now(pytz.timezone("America/New_York"))
 
 
 class PacingService:
-    """Generate pacing time series data based on targets"""
+    """Generate cumulative metrics timeseries for chart rendering"""
 
-    @staticmethod
-    def _translate_summary_for_chart(
-        summary: SummaryObject, year: int
-    ) -> DistanceTimeseries:
-        cumulative_sum: float = 0.0
-        chart_data: DistanceTimeseries = []
+    def __init__(self):
+        self._sport_config = load_sport_config()
+
+    def calculate(
+        self, summary: DailySummary, *, year: int, sport: str
+    ) -> list[CumulativeMetricsEntry]:
+        """Build cumulative metrics timeseries from daily summary data
+
+        Args:
+            summary: DailySummary protobuf message with daily activity data
+            year: Year to calculate for
+            sport: Sport name (e.g., "cycling", "yoga")
+
+        Returns:
+            List of CumulativeMetricsEntry protobuf messages with cumulative totals
+            Optional fields omitted if not applicable to sport
+        """
+        category = self._sport_config.get_category(sport)
+        if category is None:
+            logger.warning("Unknown sport category: %s", sport)
+            return []
+
+        entries: list[CumulativeMetricsEntry] = []
+
+        # Track cumulative values
+        cumulative_distance = 0.0
+        cumulative_elevation = 0.0
+        cumulative_time = 0.0
+        cumulative_activities = 0
+
+        # Build cumulative timeseries for each date in year (up to today)
         for date, date_str in date_range(year):
             if date > today().date():
                 break
-            if date_str in summary:
-                cumulative_sum += summary[date_str]["distance_miles"]
-            chart_data.append({"x": date_str, "y": cumulative_sum})
 
-        return chart_data
+            # Add daily values if they exist
+            if date_str in summary.daily:
+                daily = summary.daily[date_str]
 
-    def calculate(
-        self, summary: SummaryObject, *, year: int, pacing_granularity: int = 500
-    ) -> dict[str, DistanceTimeseries]:
-        """Calculate pacings data from year summary data"""
-        total_distance = sum(val["distance_miles"] for val in summary.values())
-        estimated_distance = (
-            num_days_in_year(year) * total_distance / num_days_so_far(year)
+                if category.has_distance and daily.distance_meters:
+                    cumulative_distance += daily.distance_meters
+
+                if category.has_elevation and daily.elevation_meters:
+                    cumulative_elevation += daily.elevation_meters
+
+                if daily.time_minutes:
+                    cumulative_time += daily.time_minutes
+
+                cumulative_activities += daily.activities
+
+            # Create entry for this date
+            entry = CumulativeMetricsEntry()
+            entry.date = date_str
+
+            # Only set distance/elevation if applicable to sport (omit for yoga)
+            # But always set time and activities (even if zero) for all sports
+            if category.has_distance:
+                entry.distance = round(cumulative_distance, 1)
+
+            if category.has_elevation:
+                entry.elevation = round(cumulative_elevation, 1)
+
+            # Always set time and activities (these apply to all sports)
+            entry.time = round(cumulative_time, 1)
+            entry.activities = cumulative_activities
+
+            entries.append(entry)
+
+        logger.info(
+            "Generated %s cumulative metrics entries for sport=%s, year=%s",
+            len(entries),
+            sport,
+            year,
         )
-        logger.info("Estimated distance for year %s: %s", year, estimated_distance)
-        distance_traveled = self._translate_summary_for_chart(summary, year)
-        distance_payload = {"distance_traveled": distance_traveled}
-        return distance_payload
+
+        return entries

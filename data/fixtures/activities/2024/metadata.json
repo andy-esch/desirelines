@@ -1,0 +1,28 @@
+{
+  "year": 2024,
+  "sports": [
+    "cycling",
+    "running",
+    "yoga"
+  ],
+  "totals": {
+    "cycling": {
+      "time_minutes": 12835.55,
+      "activities": 128,
+      "distance_meters": 4312625.5,
+      "elevation_meters": 59890.0
+    },
+    "running": {
+      "time_minutes": 691.75,
+      "activities": 16,
+      "distance_meters": 111047.3,
+      "elevation_meters": 1121.2
+    },
+    "yoga": {
+      "time_minutes": 370,
+      "activities": 8
+    }
+  },
+  "last_updated": "2025-11-11T20:11:46.083488+00:00",
+  "aggregation_version": "1.0"
+}

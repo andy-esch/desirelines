@@ -15,8 +15,8 @@ func TestSecretCache_GetSecrets(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
@@ -100,15 +100,15 @@ func TestSecretCache_InvalidJSON(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
 	secretsPath := filepath.Join(tempDir, "invalid.json")
 
 	// Write invalid JSON
-	err = os.WriteFile(secretsPath, []byte("invalid json content"), 0644)
+	err = os.WriteFile(secretsPath, []byte("invalid json content"), 0600)
 	if err != nil {
 		t.Fatalf("Failed to write invalid JSON file: %v", err)
 	}
@@ -127,8 +127,8 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
@@ -153,8 +153,8 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 	}
 
 	// Delete the file to simulate temporary file system issue
-	if err := os.Remove(secretsPath); err != nil {
-		t.Logf("Failed to remove test file: %v", err)
+	if removeErr := os.Remove(secretsPath); removeErr != nil {
+		t.Logf("Failed to remove test file: %v", removeErr)
 	}
 
 	// Wait for TTL to expire
@@ -176,8 +176,8 @@ func TestSecretCache_ContentHashDetection(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to clean up temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
 		}
 	}()
 
@@ -231,7 +231,7 @@ func writeSecretsFile(t *testing.T, path string, secrets map[string]any) {
 		t.Fatalf("Failed to marshal secrets: %v", err)
 	}
 
-	err = os.WriteFile(path, data, 0644)
+	err = os.WriteFile(path, data, 0600)
 	if err != nil {
 		t.Fatalf("Failed to write secrets file: %v", err)
 	}

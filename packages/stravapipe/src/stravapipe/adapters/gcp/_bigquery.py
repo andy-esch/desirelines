@@ -338,10 +338,12 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
 
         row = rows[0]
 
-        # MinimalStravaActivity.distance expects meters (converts to miles via computed property)
+        # MinimalStravaActivity expects all fields in meters/seconds
         return MinimalStravaActivity(
             id=row.id,
             type=row.type,
             start_date_local=row.start_date_local,
-            distance=row.distance,  # Pass through as meters from BigQuery
+            distance=row.distance,  # meters from BigQuery
+            moving_time=row.moving_time,  # seconds from BigQuery
+            total_elevation_gain=row.total_elevation_gain,  # meters from BigQuery
         )
