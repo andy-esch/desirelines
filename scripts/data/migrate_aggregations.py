@@ -29,6 +29,7 @@ Requirements:
 
 import argparse
 import logging
+import subprocess
 import sys
 import time
 
@@ -342,7 +343,6 @@ Examples:
         project_id = args.project
     else:
         # Try to get from gcloud config
-        import subprocess
 
         try:
             result = subprocess.run(
