@@ -60,9 +60,11 @@ services:
       - DATA_SOURCE=local-fixtures
       # Allow CORS from local web dev server
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+      # Explicit path to sport config
+      - SPORT_CONFIG_PATH=/app/config/sport_types.json
     volumes:
       # Add sport config
-      - ./packages/apigateway/config/sport_types.json:/root/config/sport_types.json:ro
+      - ./packages/apigateway/config/sport_types.json:/app/config/sport_types.json:ro
 
   # API Gateway - Go implementation with live Cloud Storage (manual start only)
   api-gateway-live:
@@ -82,13 +84,15 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
       # Allow CORS from local web dev server
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+      # Explicit path to sport config
+      - SPORT_CONFIG_PATH=/app/config/sport_types.json
     env_file:
       - .env
     volumes:
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
       # Mount sport config
-      - ./packages/apigateway/config/sport_types.json:/root/config/sport_types.json:ro
+      - ./packages/apigateway/config/sport_types.json:/app/config/sport_types.json:ro
     healthcheck:
       test:
         [

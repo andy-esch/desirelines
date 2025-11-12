@@ -23,6 +23,8 @@ import { useGoalStats } from "../hooks/useGoalStats";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateYearStats, calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
+import { USE_FIXTURE_DATA } from "../config";
+import { FIXTURE_SPORT_METRICS, FIXTURE_SPORT_CONFIG } from "../data/fixtures";
 
 interface SportPageProps {
   sport: string;
@@ -47,14 +49,24 @@ export default function SportPage({ sport }: SportPageProps) {
         setIsLoading(true);
         setError(null);
 
-        // Fetch both metrics and config in parallel
-        const [metricsData, configData] = await Promise.all([
-          fetchSportMetrics(currentYear, sport, controller.signal),
-          fetchSportConfig(controller.signal),
-        ]);
+        // Use fixtures if configured or fallback to API
+        if (USE_FIXTURE_DATA) {
+          // Load from fixtures (synchronous)
+          const metricsData = FIXTURE_SPORT_METRICS[sport]?.[currentYear] || [];
+          const configData = FIXTURE_SPORT_CONFIG;
 
-        setMetrics(metricsData);
-        setSportConfig(configData);
+          setMetrics(metricsData);
+          setSportConfig(configData);
+        } else {
+          // Fetch from API
+          const [metricsData, configData] = await Promise.all([
+            fetchSportMetrics(currentYear, sport, controller.signal),
+            fetchSportConfig(controller.signal),
+          ]);
+
+          setMetrics(metricsData);
+          setSportConfig(configData);
+        }
       } catch (err) {
         if (err instanceof Error && err.message !== "Request cancelled") {
           setError(err);
