@@ -125,7 +125,11 @@ rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
       --exclude='Makefile' --exclude='README.md' \
       packages/apigateway/ "$TEMP_API_GO/packages/apigateway/"
 
-# 3. Create go.mod with correct replace directive
+# 3. Copy sport config to function root (where handler expects it)
+mkdir -p "$TEMP_API_GO/config"
+cp packages/apigateway/config/sport_types.json "$TEMP_API_GO/config/"
+
+# 4. Create go.mod with correct replace directive
 cat > "$TEMP_API_GO/go.mod" << 'EOF'
 module github.com/andy-esch/desirelines/api-gateway-function
 

@@ -762,13 +762,14 @@ resource "google_cloudfunctions2_function" "api_gateway" {
     all_traffic_on_latest_revision = true
 
     environment_variables = {
-      GCP_PROJECT_ID  = var.gcp_project_id
-      GCP_BUCKET_NAME = google_storage_bucket.aggregation_bucket.name
-      ENVIRONMENT     = var.environment
-      ALLOWED_ORIGINS = var.api_gateway_allowed_origins
-      ALLOWED_EMAILS  = var.developer_email != null ? var.developer_email : ""
-      DATA_SOURCE     = "cloud-storage"
-      DEPLOYMENT_ID   = "20251107-002"
+      GCP_PROJECT_ID     = var.gcp_project_id
+      GCP_BUCKET_NAME    = google_storage_bucket.aggregation_bucket.name
+      ENVIRONMENT        = var.environment
+      ALLOWED_ORIGINS    = var.api_gateway_allowed_origins
+      ALLOWED_EMAILS     = var.developer_email != null ? var.developer_email : ""
+      DATA_SOURCE        = "cloud-storage"
+      DEPLOYMENT_ID      = "20251107-002"
+      SPORT_CONFIG_PATH  = "config/sport_types.json"
     }
   }
 
