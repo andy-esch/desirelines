@@ -6,7 +6,9 @@ import running2024 from "./activities/2024/metrics/running.json";
 import running2025 from "./activities/2025/metrics/running.json";
 import yoga2024 from "./activities/2024/metrics/yoga.json";
 import yoga2025 from "./activities/2025/metrics/yoga.json";
-import type { SportMetrics, SportConfig } from "../../api/activities";
+import metadata2024 from "./activities/2024/metadata.json";
+import metadata2025 from "./activities/2025/metadata.json";
+import type { SportMetrics, SportConfig, YearMetadata } from "../../api/activities";
 import type { GoalsForYear } from "../../types/generated/user_config";
 
 // Multi-sport fixture data matching API format: SportMetrics
@@ -99,4 +101,10 @@ export const FIXTURE_GOALS: GoalsForYear = {
       updatedAt: "2025-01-01T00:00:00Z",
     },
   ],
+};
+
+// Year metadata fixture matching API format: YearMetadata
+export const FIXTURE_METADATA: Record<number, YearMetadata> = {
+  2024: metadata2024 as YearMetadata,
+  2025: metadata2025 as YearMetadata,
 };

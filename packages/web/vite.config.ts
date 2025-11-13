@@ -27,8 +27,7 @@ export default defineConfig(({ mode }) => {
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `Missing required environment variables for production build:\n\n` +
         missing.map(v => `  • ${v}`).join('\n') + '\n\n' +
-        `Please ensure these are set in .env.production or .env.production.local\n` +
-        `See docs/guides/web-environment-setup.md for setup instructions.\n` +
+        `Create .env.production.local with your credentials (see README.md)\n` +
         `To skip validation (e.g., in CI), set SKIP_ENV_VALIDATION=true\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
       );

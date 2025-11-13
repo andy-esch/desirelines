@@ -4,6 +4,8 @@ import GoalControls from "../GoalControls";
 import type { Goals } from "../../utils/goalCalculations";
 import { fetchYearMetadata } from "../../api/activities";
 import type { MetricUnit } from "../../utils/units";
+import { USE_FIXTURE_DATA } from "../../config";
+import { FIXTURE_METADATA } from "../../data/fixtures";
 
 interface SidebarProps {
   currentYear: number;
@@ -37,9 +39,18 @@ export default function Sidebar({
 
     async function loadSports() {
       try {
-        const metadata = await fetchYearMetadata(currentYear, controller.signal);
-        if (metadata.sports && metadata.sports.length > 0) {
-          setAvailableSports(metadata.sports);
+        // Use fixtures if configured
+        if (USE_FIXTURE_DATA) {
+          const metadata = FIXTURE_METADATA[currentYear];
+          if (metadata?.sports && metadata.sports.length > 0) {
+            setAvailableSports(metadata.sports);
+          }
+        } else {
+          // Fetch from API
+          const metadata = await fetchYearMetadata(currentYear, controller.signal);
+          if (metadata.sports && metadata.sports.length > 0) {
+            setAvailableSports(metadata.sports);
+          }
         }
       } catch (err) {
         // Silently fail - keep default sports

@@ -1,149 +1,108 @@
-# Desire Lines Web Interface
+# Desirelines Web Frontend
 
-React-based web application for visualizing Strava fitness data and tracking progress against personal goals. The primary user-facing interface for the desirelines platform.
+React + TypeScript frontend for multi-sport activity visualization (cycling, running, yoga).
 
-## Features
-
-- **Goal Visualization**: Track yearly distance goals with "desire line" progress charts
-- **Distance Charts**: Cumulative distance tracking with goal comparison
-- **Pacing Analytics**: Monitor daily pace and required effort to meet goals
-- **Year Selector**: Browse historical years and compare performance over time
-- **Responsive Design**: Clean, modern interface optimized for desktop and mobile
-
-## Architecture
-
-**Tech Stack:**
-- React 18 with TypeScript
-- Recharts for data visualization
-- Axios for API communication
-- Create React App build tooling
-
-**Project Structure:**
-```
-web/
-├── src/
-│   ├── components/        # React components
-│   │   ├── DistanceChart.tsx
-│   │   ├── PacingChart.tsx
-│   │   └── ...
-│   ├── api/              # API client functions
-│   │   └── activities.ts
-│   ├── types/            # TypeScript type definitions
-│   │   └── activity.ts
-│   ├── constants/        # App constants
-│   │   └── index.ts
-│   └── App.tsx           # Main application component
-└── public/               # Static assets
-```
-
-## Development
-
-### Prerequisites
-- Node.js 18+
-- npm or yarn
-
-### Local Development
+## Quick Start
 
 ```bash
-cd web
-
-# Install dependencies
 npm install
-
-# Start development server
-npm start
+cp .env.development.local.example .env.development.local
+# Edit .env.development.local with Firebase credentials
+npm run dev  # http://localhost:5173
 ```
 
-The app will open at [http://localhost:3000](http://localhost:3000).
+## Environment Files
 
-**API Configuration:**
-The web app connects to the API Gateway backend. Set the API URL via environment variable:
+**Pattern**: `.env.{mode}` = template (committed) + `.env.{mode}.local` = your credentials (gitignored)
 
+| Mode | Template (committed) | Your credentials (gitignored) | When used |
+|------|---------------------|-------------------------------|-----------|
+| `development` | `.env.development` | `.env.development.local` ✅ | `npm run dev` |
+| `staging` | `.env.staging` | `.env.staging.local` ✅ | `deploy-web.sh dev` |
+| `production` | `.env.production` | `.env.production.local` ✅ | `deploy-web.sh prod` |
+| `test` | `.env.test` | None (uses mocks) | `npm test` |
+
+**Setup**:
 ```bash
-# .env.local
-REACT_APP_API_BASE_URL=http://localhost:8084  # Local API Gateway
-# or
-REACT_APP_API_BASE_URL=https://your-api-gateway-url.run.app  # Cloud API Gateway
+# Local dev
+cp .env.development.local.example .env.development.local
+# Edit with Firebase credentials from Firebase Console
+
+# Staging deployment
+cp .env.staging.local.example .env.staging.local
+# Edit with staging credentials
+
+# Production deployment  
+cp .env.production.local.example .env.production.local
+# Edit with production credentials
 ```
 
-### Full Stack Development
+Get Firebase credentials: [Firebase Console](https://console.firebase.google.com/) → Project → Settings → Your apps
 
-To run the complete stack locally (backend + frontend):
+## Scripts
 
-```bash
-# From project root - start backend services
-docker compose up
-
-# In a separate terminal - start web app
-cd web && npm start
-```
-
-See [docs/guides/frontend-local-dev.md](../docs/guides/frontend-local-dev.md) for comprehensive setup instructions.
-
-### Testing
-
-```bash
-# Run tests
-npm test
-
-# Run tests with coverage
-npm test -- --coverage
-```
-
-### Building for Production
-
-```bash
-# Create optimized production build
-npm run build
-
-# The build output will be in the build/ directory
-# Deploy this directory to your static hosting provider
-```
-
-## Available Scripts
-
-- `npm start` - Start development server (port 3000)
-- `npm test` - Run test suite in watch mode
-- `npm run build` - Build production-optimized bundle
-- `npm run eject` - Eject from Create React App (irreversible)
-
-## API Integration
-
-The web app consumes data from the API Gateway:
-
-**Endpoints:**
-- `GET /activities/{year}/distances` - Distance chart data
-- `GET /activities/{year}/pacings` - Pacing chart data
-- `GET /activities/{year}/summary` - Activity summary statistics
-
-**Data Flow:**
-```
-API Gateway (Go) → Cloud Storage (JSON) → Web App (TypeScript)
-```
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Dev server (localhost:5173) |
+| `npm run build` | Production build |
+| `npm test` | Run tests (watch mode) |
+| `npm run test:ci` | Run tests once (CI) |
+| `npm run typecheck` | TypeScript check |
+| `npm run lint` | Lint code |
+| `npm run format` | Format code |
 
 ## Deployment
 
-### Docker Deployment
-
-The web app can be deployed via Docker:
-
 ```bash
-# Build Docker image
-docker build -f Dockerfile.react -t desirelines-web .
+# Dev/staging
+./scripts/infrastructure/deploy-web.sh dev
 
-# Run container
-docker run -p 3000:3000 desirelines-web
+# Production
+./scripts/infrastructure/deploy-web.sh prod
 ```
 
-### Static Hosting
+Deploy script checks for required `.env.*.local` files and fails with helpful error if missing.
 
-Build and deploy to any static hosting provider (Netlify, Vercel, Firebase Hosting, etc.):
+## Tech Stack
 
-```bash
-npm run build
-# Deploy the build/ directory
+React 18 • TypeScript • Vite • Firebase Auth • Firestore • Recharts • Bootstrap 5 • Vitest
+
+## Architecture
+
+```
+User → Components → API Layer → API Gateway (Go) → Cloud Storage (JSON)
 ```
 
-## Contributing
+**Modes**:
+- **Fixture mode**: Local data, no API calls (anonymous users, tests)
+- **Smart mode**: Fixtures for anonymous, API for authenticated (production)
 
-See the main project [README](../README.md) for contribution guidelines.
+## Structure
+
+```
+src/
+├── api/              # API client
+├── components/       # React components  
+├── data/fixtures/    # Demo data
+├── hooks/            # Custom hooks
+├── lib/              # Config, auth utilities
+├── pages/            # Route components
+├── services/         # Business logic
+├── types/            # TypeScript types
+└── utils/            # Helpers (units, dates, goals)
+```
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `auth/invalid-api-key` | Check `.env.*.local` exists with correct Firebase credentials |
+| CORS errors | Use stable Cloud Run URL (format: `https://[function]-[number].[region].run.app`) |
+| Env vars not updating | Restart dev server or delete `dist/` and rebuild |
+| Missing `.env.*.local` | Deploy script will fail - copy from `.example` file |
+
+## Docs
+
+- **Environment setup**: See table above + `.env.*.local.example` files
+- **Deployment**: `./scripts/infrastructure/deploy-web.sh --help`
+- **Architecture**: `docs/architecture/`

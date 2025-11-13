@@ -25,6 +25,7 @@ import { calculateYearStats, calculateAveragePace } from "../utils/dateCalculati
 import type { DistanceEntry } from "../types/activity";
 import { USE_FIXTURE_DATA } from "../config";
 import { FIXTURE_SPORT_METRICS, FIXTURE_SPORT_CONFIG } from "../data/fixtures";
+import { useAuth } from "../hooks/useAuth";
 
 interface SportPageProps {
   sport: string;
@@ -40,6 +41,9 @@ export default function SportPage({ sport }: SportPageProps) {
   const [error, setError] = useState<Error | null>(null);
   const [showFullYear, setShowFullYear] = useState(true);
 
+  // Get auth state for smart mode
+  const { user } = useAuth();
+
   // Fetch sport metrics and config
   useEffect(() => {
     const controller = new AbortController();
@@ -49,8 +53,11 @@ export default function SportPage({ sport }: SportPageProps) {
         setIsLoading(true);
         setError(null);
 
-        // Use fixtures if configured or fallback to API
-        if (USE_FIXTURE_DATA) {
+        // Smart mode: Use fixtures for anonymous users when USE_FIXTURE_DATA=true
+        // Authenticated users always fetch from API (even if USE_FIXTURE_DATA=true)
+        const shouldUseFixtures = USE_FIXTURE_DATA && !user;
+
+        if (shouldUseFixtures) {
           // Load from fixtures (synchronous)
           const metricsData = FIXTURE_SPORT_METRICS[sport]?.[currentYear] || [];
           const configData = FIXTURE_SPORT_CONFIG;
@@ -58,10 +65,21 @@ export default function SportPage({ sport }: SportPageProps) {
           setMetrics(metricsData);
           setSportConfig(configData);
         } else {
-          // Fetch from API
+          // Fetch from API (authenticated user or USE_FIXTURE_DATA=false)
+          // Get Firebase ID token if user is authenticated
+          let idToken: string | undefined;
+          if (user) {
+            const { getFirebaseAuth } = await import("../lib/firebase");
+            const auth = getFirebaseAuth();
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              idToken = await currentUser.getIdToken();
+            }
+          }
+
           const [metricsData, configData] = await Promise.all([
-            fetchSportMetrics(currentYear, sport, controller.signal),
-            fetchSportConfig(controller.signal),
+            fetchSportMetrics(currentYear, sport, controller.signal, idToken),
+            fetchSportConfig(controller.signal, idToken),
           ]);
 
           setMetrics(metricsData);
@@ -81,7 +99,7 @@ export default function SportPage({ sport }: SportPageProps) {
     return () => {
       controller.abort();
     };
-  }, [currentYear, sport]);
+  }, [currentYear, sport, user]);
 
   // Load user preferences for unit settings (BEFORE using them in calculations)
   const { data: preferences } = useUserConfig("preferences");
@@ -156,16 +174,6 @@ export default function SportPage({ sport }: SportPageProps) {
   );
 
   const goals = goalsData?.goals || [];
-
-  // Debug logging
-  console.log("SportPage goals debug:", {
-    sport,
-    currentYear,
-    estimatedYearEnd,
-    defaultGoalsCount: defaultGoalsForYear.goals.length,
-    goalsData,
-    goalsCount: goals.length,
-  });
 
   const handleGoalsChange = async (newGoals: Goals) => {
     const updatedGoalsForYear: GoalsForYear = {

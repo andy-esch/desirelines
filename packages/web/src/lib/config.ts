@@ -120,10 +120,9 @@ export function loadConfig(): AppConfig {
         `The following configuration errors were found:\n\n` +
         `${issues}\n\n` +
         `Please check your environment configuration files:\n` +
-        `  • .env.development (for development)\n` +
-        `  • .env.production (for production)\n` +
-        `  • .env.local (for local overrides)\n\n` +
-        `See docs/guides/web-environment-setup.md for setup instructions.\n` +
+        `  • .env.{mode} (template with defaults)\n` +
+        `  • .env.{mode}.local (your credentials)\n\n` +
+        `See README.md for setup instructions.\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
       throw new Error(errorMessage);

@@ -82,6 +82,25 @@ if [ ! -f "package.json" ]; then
     exit 1
 fi
 
+# Check for required environment file
+if [ "$ENVIRONMENT" = "dev" ]; then
+    if [ ! -f ".env.staging.local" ]; then
+        echo "❌ Error: .env.staging.local not found"
+        echo "   This file is required for staging deployments"
+        echo "   Create it with: cp .env.staging.local.example .env.staging.local"
+        echo "   Then add your staging credentials"
+        exit 1
+    fi
+elif [ "$ENVIRONMENT" = "prod" ]; then
+    if [ ! -f ".env.production.local" ]; then
+        echo "❌ Error: .env.production.local not found"
+        echo "   This file is required for production deployments"
+        echo "   Create it with: cp .env.production.local.example .env.production.local"
+        echo "   Then add your production credentials"
+        exit 1
+    fi
+fi
+
 # Build web application with environment-specific mode
 echo "📦 Building web application..."
 if [ "$ENVIRONMENT" = "local" ]; then
@@ -92,9 +111,10 @@ if [ "$ENVIRONMENT" = "local" ]; then
         exit 1
     fi
 elif [ "$ENVIRONMENT" = "dev" ]; then
-    # Dev uses development mode (smart mode with dev API Gateway)
-    echo "   Running: npm run build -- --mode development"
-    if ! npm run build -- --mode development; then
+    # Dev uses staging mode (deployed dev with Cloud Run URLs)
+    # Note: "development" mode is for local dev (npm run dev with localhost)
+    echo "   Running: npm run build -- --mode staging"
+    if ! npm run build -- --mode staging; then
         echo "❌ Error: Build failed"
         exit 1
     fi
