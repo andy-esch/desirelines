@@ -24,8 +24,8 @@ func (m *mockStorageClient) ReadJSON(ctx context.Context, blobPath string) (any,
 
 // newTestHandler creates a handler with mock dependencies for testing
 func newTestHandler(storageClient storage.Client) *Handler {
-	// Load sport config for tests
-	sportConfig, err := config.LoadSportConfig("../../schemas/sports/sport_types.json")
+	// Load sport config for tests (uses embedded config)
+	sportConfig, err := config.LoadSportConfig("")
 	if err != nil {
 		panic("Failed to load sport config for tests: " + err.Error())
 	}

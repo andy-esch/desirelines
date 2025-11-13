@@ -2,6 +2,7 @@
 package config
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,9 @@ import (
 
 	"github.com/go-playground/validator/v10"
 )
+
+//go:embed sport_types.json
+var embeddedSportConfig []byte
 
 // SportCategory is a struct that contains the the configuration/definition
 //
@@ -56,10 +60,22 @@ func LoadSportConfig(configPath string) (*SportConfig, error) {
 
 // loadSportConfigInternal is the internal loader (for testing)
 func loadSportConfigInternal(configPath string) (*SportConfig, error) {
-	// #nosec G304 - configPath is a known configuration file path
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read sport config: %w", err)
+	var data []byte
+	var err error
+
+	// If no path provided or embedded config available, use embedded
+	if configPath == "" || len(embeddedSportConfig) > 0 {
+		if len(embeddedSportConfig) == 0 {
+			return nil, fmt.Errorf("embedded sport config not available and no path provided")
+		}
+		data = embeddedSportConfig
+	} else {
+		// Use file system path (for development/testing with custom configs)
+		// #nosec G304 - configPath is a known configuration file path
+		data, err = os.ReadFile(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read sport config: %w", err)
+		}
 	}
 
 	var configData SportConfigData
@@ -114,6 +130,12 @@ func (c *SportConfig) GetCategory(sport string) (SportCategory, bool) {
 func (c *SportConfig) ValidateSport(sport string) bool {
 	_, ok := c.data.SportCategories[sport]
 	return ok
+}
+
+// GetRawConfigJSON returns the raw embedded sport config JSON
+// Used for serving the config via API endpoint
+func GetRawConfigJSON() []byte {
+	return embeddedSportConfig
 }
 
 func contains(slice []string, value string) bool {

@@ -67,9 +67,8 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		return nil, fmt.Errorf("failed to initialize auth middleware: %w", err)
 	}
 
-	// Load sport configuration
-	configPath := getEnvOrDefault("SPORT_CONFIG_PATH", "config/sport_types.json")
-	sportConfig, err := config.LoadSportConfig(configPath)
+	// Load sport configuration (embedded in binary via go:embed)
+	sportConfig, err := config.LoadSportConfig("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load sport config: %w", err)
 	}
@@ -303,17 +302,14 @@ func (h *Handler) handleMetadata(w http.ResponseWriter, r *http.Request, year st
 
 // handleSportConfig serves the sport configuration JSON.
 func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
-	configPath := getEnvOrDefault("SPORT_CONFIG_PATH", "config/sport_types.json")
-
-	// Read and serve the raw JSON file
-	// #nosec G304 - configPath is from environment variable, not user input
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		log.Printf("Error reading sport config: %v", err)
+	// Get embedded sport config JSON
+	data := config.GetRawConfigJSON()
+	if len(data) == 0 {
+		log.Printf("Error: embedded sport config is empty")
 		apiErr := errors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to load sport config",
-			fmt.Sprintf("Error reading %s: %v", configPath, err),
+			"Embedded sport config is not available",
 		)
 		errors.WriteError(w, r, apiErr, h.corsHandler)
 		return

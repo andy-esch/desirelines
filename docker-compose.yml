@@ -140,8 +140,6 @@ services:
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE:-local-dev}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE:-desirelines_local_testing}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
-      # Sport configuration
-      - SPORT_CONFIG_PATH=/app/config/sport_types.json
     env_file:
       - .env
     volumes:
@@ -149,8 +147,6 @@ services:
       - ./data/fixtures:/app/data/fixtures:ro
       # Mount gcloud credentials for bucket access (used when DATA_SOURCE=cloud-storage)
       - ~/.config/gcloud:/app/.config/gcloud:ro
-      # Mount sport config
-      - ./packages/apigateway/config/sport_types.json:/app/config/sport_types.json:ro
     # Resource limits for low-memory systems
     deploy:
       resources:
