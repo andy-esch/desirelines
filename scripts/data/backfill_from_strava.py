@@ -30,8 +30,6 @@ import logging
 import sys
 import time
 
-# Add stravapipe to path
-# sys.path.insert(0, "packages/stravapipe/src")
 from stravapipe.adapters.gcp import ActivitiesRepo, BigQueryClientWrapper
 from stravapipe.adapters.strava import (
     DetailedStravaActivitiesRepo,
@@ -226,13 +224,15 @@ class StravaBackfiller:
                 )
 
             # Convert SummaryStravaActivity → MinimalStravaActivity
-            # Aggregator only needs: id, type, start_date_local, distance
+            # Aggregator needs: id, type, start_date_local, distance, moving_time, total_elevation_gain
             minimal_activities = [
                 MinimalStravaActivity(
                     id=activity.id,
                     type=activity.type,
                     start_date_local=activity.start_date_local,
                     distance=activity.distance,
+                    moving_time=activity.moving_time,
+                    total_elevation_gain=activity.total_elevation_gain,
                 )
                 for activity in cycling_activities
             ]

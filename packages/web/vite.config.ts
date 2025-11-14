@@ -1,12 +1,16 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
+  // Load env files for the current mode
+  // This loads .env, .env.local, .env.[mode], .env.[mode].local
+  const env = loadEnv(mode, process.cwd(), '');
+
   // Validate critical environment variables at build time
   // This catches missing config before deployment
   // Skip validation in CI environments (set SKIP_ENV_VALIDATION=true)
-  const skipValidation = process.env.SKIP_ENV_VALIDATION === 'true' || process.env.CI === 'true';
+  const skipValidation = env.SKIP_ENV_VALIDATION === 'true' || env.CI === 'true';
 
   if (mode === 'production' && !skipValidation) {
     const requiredVars = [
@@ -17,7 +21,7 @@ export default defineConfig(({ mode }) => {
     ];
 
     const missing = requiredVars.filter(
-      (key) => !process.env[key] || process.env[key] === ''
+      (key) => !env[key] || env[key] === ''
     );
 
     if (missing.length > 0) {
