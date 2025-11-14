@@ -158,6 +158,8 @@ export default function SportPage({ sport }: SportPageProps) {
   }, [chartData]);
 
   // Goals management - memoize to prevent infinite loop
+  // IMPORTANT: Must depend on both estimatedYearEnd AND sport to regenerate
+  // defaults when switching sports (prevents stale goal values from previous sport)
   const defaultGoalsForYear: GoalsForYear = useMemo(
     () => ({
       goals: generateDefaultGoals(estimatedYearEnd || 2500).map((goal) => ({
@@ -168,7 +170,7 @@ export default function SportPage({ sport }: SportPageProps) {
         updatedAt: new Date().toISOString(),
       })),
     }),
-    [estimatedYearEnd]
+    [estimatedYearEnd, sport]
   );
 
   const { data: goalsData, updateData: updateGoals } = useUserConfig(
