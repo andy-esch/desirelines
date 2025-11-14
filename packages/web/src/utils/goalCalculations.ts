@@ -144,8 +144,29 @@ export function generateDefaultGoals(estimatedDistance: number, granularity: num
 }
 
 /**
+ * Validate a single goal value
+ * Returns error message if invalid, null if valid
+ *
+ * Only validates that value is a positive integer.
+ * Increment buttons use sport-specific granularity, but manual text entry
+ * allows any positive value for flexibility.
+ */
+export function validateGoalValue(value: number): string | null {
+  if (!Number.isInteger(value)) {
+    return "Goal must be a whole number";
+  }
+
+  if (value <= 0) {
+    return "Goal must be greater than 0";
+  }
+
+  return null;
+}
+
+/**
  * Validate goals array
  * - Must have 1-5 goals
+ * - All goal values must be greater than 0
  * - All goal values must be unique
  */
 export function validateGoals(goals: Goals): { valid: boolean; error?: string } {
@@ -154,6 +175,12 @@ export function validateGoals(goals: Goals): { valid: boolean; error?: string } 
   }
   if (goals.length > 5) {
     return { valid: false, error: "Maximum 5 goals allowed" };
+  }
+
+  // Check for zero or negative values
+  const invalidValue = goals.find((g) => g.value <= 0);
+  if (invalidValue) {
+    return { valid: false, error: "Goal values must be greater than 0" };
   }
 
   const values = goals.map((g) => g.value);

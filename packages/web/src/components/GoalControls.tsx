@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { Goals, Goal, validateGoals, generateDefaultGoals } from "../utils/goalCalculations";
+import {
+  Goals,
+  Goal,
+  validateGoals,
+  validateGoalValue,
+  generateDefaultGoals,
+} from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
 
@@ -41,7 +47,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   const handleIncrement = (id: string, delta: number) => {
     const goal = goals.find((g) => g.id === id);
     if (!goal) return;
-    const newValue = Math.max(0, goal.value + delta);
+    const newValue = Math.max(incrementSize, goal.value + delta); // Prevent going below minimum
     handleGoalValueChange(id, newValue);
   };
 
@@ -52,9 +58,22 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
   const handleSaveEdit = (id: string) => {
     const value = parseInt(editValue);
-    if (!isNaN(value) && value >= 0) {
-      handleGoalValueChange(id, value);
+    if (isNaN(value)) {
+      setEditingId(null);
+      return;
     }
+
+    // Validate the goal value (allows any positive integer)
+    const validationError = validateGoalValue(value);
+    if (validationError) {
+      // Show error (keep editing mode open)
+      alert(validationError);
+      return;
+    }
+
+    // Don't round manual text entry - allow any positive integer
+    const updated = goals.map((g) => (g.id === id ? { ...g, value } : g));
+    onGoalsChange(updated);
     setEditingId(null);
   };
 
