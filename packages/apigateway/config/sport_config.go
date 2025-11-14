@@ -51,6 +51,7 @@ var (
 var SupportedConfigVersions = []string{"1.0"}
 
 // LoadSportConfig loads available application SportConfig
+// Uses sync.Once to ensure it's only loaded once in production
 func LoadSportConfig(configPath string) (*SportConfig, error) {
 	sportConfigOnce.Do(func() {
 		sportConfig, sportConfigErr = loadSportConfigInternal(configPath)
@@ -63,19 +64,21 @@ func loadSportConfigInternal(configPath string) (*SportConfig, error) {
 	var data []byte
 	var err error
 
-	// If no path provided or embedded config available, use embedded
-	if configPath == "" || len(embeddedSportConfig) > 0 {
-		if len(embeddedSportConfig) == 0 {
-			return nil, fmt.Errorf("embedded sport config not available and no path provided")
-		}
-		data = embeddedSportConfig
-	} else {
+	// If path provided, use it (for testing with custom configs)
+	// Otherwise, use embedded config
+	if configPath != "" {
 		// Use file system path (for development/testing with custom configs)
 		// #nosec G304 - configPath is a known configuration file path
 		data, err = os.ReadFile(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read sport config: %w", err)
 		}
+	} else {
+		// Use embedded config (production default)
+		if len(embeddedSportConfig) == 0 {
+			return nil, fmt.Errorf("embedded sport config not available and no path provided")
+		}
+		data = embeddedSportConfig
 	}
 
 	var configData SportConfigData
