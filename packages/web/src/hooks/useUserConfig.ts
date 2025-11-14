@@ -212,7 +212,6 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
         try {
           localStorage.setItem(storageKey, JSON.stringify(newData));
           setData(newData);
-          console.log("Saved to localStorage:", storageKey);
         } catch (err) {
           console.error("Failed to save to localStorage:", err);
           setError(err as Error);

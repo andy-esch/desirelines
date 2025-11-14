@@ -32,11 +32,16 @@ export default function Sidebar({
   unit = "miles", // Default to miles
 }: SidebarProps) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [availableSports, setAvailableSports] = useState<string[]>(["cycling"]); // Default fallback
 
   // Fetch available sports from metadata
   useEffect(() => {
+    // Don't make API calls while auth is still loading
+    if (loading) {
+      return;
+    }
+
     const controller = new AbortController();
 
     async function loadSports() {
@@ -75,10 +80,12 @@ export default function Sidebar({
     return () => {
       controller.abort();
     };
-  }, [currentYear, user]);
+  }, [currentYear, user, loading]);
 
   const handleSportChange = (newSport: string) => {
-    navigate(`/${newSport}`);
+    // Use currentYear prop (source of truth from parent component)
+    // Preserves year when switching sports
+    navigate(`/${newSport}/${currentYear}`);
   };
 
   // Convert sport IDs to display format

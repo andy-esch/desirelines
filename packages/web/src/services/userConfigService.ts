@@ -193,9 +193,6 @@ export class UserConfigService {
 
       // Ensure schema version is updated for existing configs
       if (config.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-        console.log(
-          `📝 Auto-upgrading user config schema from ${config.schemaVersion} to ${CURRENT_SCHEMA_VERSION}`
-        );
         config.schemaVersion = CURRENT_SCHEMA_VERSION;
       }
 

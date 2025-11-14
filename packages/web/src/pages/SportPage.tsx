@@ -42,10 +42,15 @@ export default function SportPage({ sport }: SportPageProps) {
   const [showFullYear, setShowFullYear] = useState(true);
 
   // Get auth state for smart mode
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   // Fetch sport metrics and config
   useEffect(() => {
+    // Don't make API calls while auth is still loading
+    if (authLoading) {
+      return;
+    }
+
     const controller = new AbortController();
 
     async function loadData() {
@@ -99,7 +104,7 @@ export default function SportPage({ sport }: SportPageProps) {
     return () => {
       controller.abort();
     };
-  }, [currentYear, sport, user]);
+  }, [currentYear, sport, user, authLoading]);
 
   // Load user preferences for unit settings (BEFORE using them in calculations)
   const { data: preferences } = useUserConfig("preferences");
