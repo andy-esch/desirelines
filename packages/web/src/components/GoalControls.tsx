@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { Goals, Goal, validateGoals, validateGoalValue, generateDefaultGoals } from "../utils/goalCalculations";
+import {
+  Goals,
+  Goal,
+  validateGoals,
+  validateGoalValue,
+  generateDefaultGoals,
+} from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
 
