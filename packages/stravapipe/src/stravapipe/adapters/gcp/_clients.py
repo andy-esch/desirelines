@@ -97,19 +97,16 @@ class CloudStorageClientWrapper:
         blob = self._bucket.blob(blob_name)
 
         # Minify JSON (no spaces) for smaller payload
-        json_string = json.dumps(data, separators=(',', ':'))
+        json_string = json.dumps(data, separators=(",", ":"))
 
         # Gzip compress the JSON string
-        compressed_data = gzip.compress(json_string.encode('utf-8'))
+        compressed_data = gzip.compress(json_string.encode("utf-8"))
 
         # Set content encoding BEFORE upload (property, not parameter)
         blob.content_encoding = "gzip"
 
         # Upload compressed data (browser decompresses automatically)
-        blob.upload_from_string(
-            data=compressed_data,
-            content_type="application/json"
-        )
+        blob.upload_from_string(data=compressed_data, content_type="application/json")
 
     def download_blob_to_file(self, blob_name: str, file_path: str) -> None:
         """Download a blob to a local file"""

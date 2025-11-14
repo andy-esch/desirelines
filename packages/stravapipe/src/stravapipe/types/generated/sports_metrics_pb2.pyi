@@ -28,7 +28,14 @@ class DailyActivity(_message.Message):
     elevation_meters: float
     activities: int
     activity_ids: _containers.RepeatedScalarFieldContainer[int]
-    def __init__(self, distance_meters: float | None = ..., time_minutes: float | None = ..., elevation_meters: float | None = ..., activities: int | None = ..., activity_ids: _Iterable[int] | None = ...) -> None: ...
+    def __init__(
+        self,
+        distance_meters: float | None = ...,
+        time_minutes: float | None = ...,
+        elevation_meters: float | None = ...,
+        activities: int | None = ...,
+        activity_ids: _Iterable[int] | None = ...,
+    ) -> None: ...
 
 class DailySummary(_message.Message):
     __slots__ = ()
@@ -38,7 +45,10 @@ class DailySummary(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: DailyActivity
-        def __init__(self, key: str | None = ..., value: DailyActivity | _Mapping | None = ...) -> None: ...
+        def __init__(
+            self, key: str | None = ..., value: DailyActivity | _Mapping | None = ...
+        ) -> None: ...
+
     DAILY_FIELD_NUMBER: _ClassVar[int]
     daily: _containers.MessageMap[str, DailyActivity]
     def __init__(self, daily: _Mapping[str, DailyActivity] | None = ...) -> None: ...
@@ -55,13 +65,22 @@ class CumulativeMetricsEntry(_message.Message):
     elevation: float
     time: float
     activities: int
-    def __init__(self, date: str | None = ..., distance: float | None = ..., elevation: float | None = ..., time: float | None = ..., activities: int | None = ...) -> None: ...
+    def __init__(
+        self,
+        date: str | None = ...,
+        distance: float | None = ...,
+        elevation: float | None = ...,
+        time: float | None = ...,
+        activities: int | None = ...,
+    ) -> None: ...
 
 class SportMetrics(_message.Message):
     __slots__ = ()
     TIMESERIES_FIELD_NUMBER: _ClassVar[int]
     timeseries: _containers.RepeatedCompositeFieldContainer[CumulativeMetricsEntry]
-    def __init__(self, timeseries: _Iterable[CumulativeMetricsEntry | _Mapping] | None = ...) -> None: ...
+    def __init__(
+        self, timeseries: _Iterable[CumulativeMetricsEntry | _Mapping] | None = ...
+    ) -> None: ...
 
 class SportMetadata(_message.Message):
     __slots__ = ()
@@ -73,7 +92,13 @@ class SportMetadata(_message.Message):
     year: int
     available_metrics: _containers.RepeatedScalarFieldContainer[str]
     primary_metric: str
-    def __init__(self, sport: str | None = ..., year: int | None = ..., available_metrics: _Iterable[str] | None = ..., primary_metric: str | None = ...) -> None: ...
+    def __init__(
+        self,
+        sport: str | None = ...,
+        year: int | None = ...,
+        available_metrics: _Iterable[str] | None = ...,
+        primary_metric: str | None = ...,
+    ) -> None: ...
 
 class SportTotals(_message.Message):
     __slots__ = ()
@@ -85,7 +110,13 @@ class SportTotals(_message.Message):
     time_minutes: float
     elevation_meters: float
     activities: int
-    def __init__(self, distance_meters: float | None = ..., time_minutes: float | None = ..., elevation_meters: float | None = ..., activities: int | None = ...) -> None: ...
+    def __init__(
+        self,
+        distance_meters: float | None = ...,
+        time_minutes: float | None = ...,
+        elevation_meters: float | None = ...,
+        activities: int | None = ...,
+    ) -> None: ...
 
 class YearMetadata(_message.Message):
     __slots__ = ()
@@ -95,7 +126,10 @@ class YearMetadata(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: SportTotals
-        def __init__(self, key: str | None = ..., value: SportTotals | _Mapping | None = ...) -> None: ...
+        def __init__(
+            self, key: str | None = ..., value: SportTotals | _Mapping | None = ...
+        ) -> None: ...
+
     YEAR_FIELD_NUMBER: _ClassVar[int]
     SPORTS_FIELD_NUMBER: _ClassVar[int]
     TOTALS_FIELD_NUMBER: _ClassVar[int]
@@ -106,4 +140,11 @@ class YearMetadata(_message.Message):
     totals: _containers.MessageMap[str, SportTotals]
     last_updated: str
     aggregation_version: str
-    def __init__(self, year: int | None = ..., sports: _Iterable[str] | None = ..., totals: _Mapping[str, SportTotals] | None = ..., last_updated: str | None = ..., aggregation_version: str | None = ...) -> None: ...
+    def __init__(
+        self,
+        year: int | None = ...,
+        sports: _Iterable[str] | None = ...,
+        totals: _Mapping[str, SportTotals] | None = ...,
+        last_updated: str | None = ...,
+        aggregation_version: str | None = ...,
+    ) -> None: ...

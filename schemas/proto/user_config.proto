@@ -7,11 +7,11 @@ option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/
 // Top-level user configuration stored in Firestore
 // Document path: users/{userId}/config/v1
 message UserConfig {
-  string schema_version = 1;  // "2.0"
+  string schema_version = 1; // "2.0"
   string user_id = 2;
-  string last_updated = 3;  // RFC3339 timestamp
+  string last_updated = 3; // RFC3339 timestamp
 
-  map<string, SportGoalsForYear> goals = 10;  // key = year (e.g., "2025")
+  map<string, SportGoalsForYear> goals = 10; // key = year (e.g., "2025")
   map<string, AnnotationsForYear> annotations = 11;
   Preferences preferences = 12;
   Metadata metadata = 13;
@@ -19,7 +19,7 @@ message UserConfig {
 
 // Goals organized by sport for a specific year
 message SportGoalsForYear {
-  map<string, GoalsForYear> sports = 1;  // key = sport (e.g., "cycling", "running", "yoga")
+  map<string, GoalsForYear> sports = 1; // key = sport (e.g., "cycling", "running", "yoga")
 }
 
 // Goals for a specific sport in a specific year
@@ -29,10 +29,10 @@ message GoalsForYear {
 
 message Goal {
   string id = 1;
-  int32 value = 2;  // Distance in miles
+  int32 value = 2; // Distance in miles
   string label = 3;
-  string created_at = 4;  // RFC3339 timestamp
-  string updated_at = 5;  // RFC3339 timestamp
+  string created_at = 4; // RFC3339 timestamp
+  string updated_at = 5; // RFC3339 timestamp
 }
 
 // Annotations for a specific year
@@ -42,14 +42,14 @@ message AnnotationsForYear {
 
 message Annotation {
   string id = 1;
-  string start_date = 2;  // ISO date: "2025-07-14"
-  string end_date = 3;    // Optional, empty for single-day
+  string start_date = 2; // ISO date: "2025-07-14"
+  string end_date = 3; // Optional, empty for single-day
   string label = 4;
   string description = 5;
-  string strava_activity_id = 6;  // Optional link
+  string strava_activity_id = 6; // Optional link
   AnnotationType type = 7;
-  string created_at = 8;  // RFC3339 timestamp
-  string updated_at = 9;  // RFC3339 timestamp
+  string created_at = 8; // RFC3339 timestamp
+  string updated_at = 9; // RFC3339 timestamp
 }
 
 enum AnnotationType {
@@ -61,14 +61,14 @@ enum AnnotationType {
 
 // User preferences (global, not year-specific)
 message Preferences {
-  string theme = 1;  // "light" or "dark"
+  string theme = 1; // "light" or "dark"
   int32 default_year = 2;
   ChartDefaults chart_defaults = 3;
 
   // Unit preferences (backward-compatible additions - no schema version bump needed)
-  string distance_unit = 4;   // "miles", "kilometers", "meters" (default: "miles")
-  string elevation_unit = 5;  // "feet", "meters" (default: "feet")
-  string default_sport = 6;   // "cycling", "running", "yoga" (default: "cycling")
+  string distance_unit = 4; // "miles", "kilometers", "meters" (default: "miles")
+  string elevation_unit = 5; // "feet", "meters" (default: "feet")
+  string default_sport = 6; // "cycling", "running", "yoga" (default: "cycling")
 }
 
 message ChartDefaults {
@@ -78,7 +78,7 @@ message ChartDefaults {
 
 // Metadata about the config itself
 message Metadata {
-  string created_at = 1;  // RFC3339 timestamp
+  string created_at = 1; // RFC3339 timestamp
   string last_synced_device = 2;
-  repeated string config_types = 3;  // ["goals", "annotations", "preferences"]
+  repeated string config_types = 3; // ["goals", "annotations", "preferences"]
 }

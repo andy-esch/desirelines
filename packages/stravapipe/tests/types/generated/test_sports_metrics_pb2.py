@@ -243,7 +243,6 @@ class TestActivitiesProtobuf:
         assert data["distance_traveled"][1]["value"] == 25.3
 
 
-
 class TestMetricTimeseriesEntry:
     """Test MetricTimeseriesEntry (renamed from TimeseriesEntry)."""
 

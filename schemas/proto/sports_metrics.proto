@@ -6,8 +6,8 @@ option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/
 
 // Single timeseries entry (date + value)
 message MetricTimeseriesEntry {
-  string date = 1;   // ISO date: "2024-01-15"
-  double value = 2;  // Metric value
+  string date = 1; // ISO date: "2024-01-15"
+  double value = 2; // Metric value
 }
 
 // Daily activity summary
@@ -39,7 +39,7 @@ message DailySummary {
 // Used for chart rendering - combines all metrics for a date
 // Note: All values are cumulative (totals up to this date)
 message CumulativeMetricsEntry {
-  string date = 1;  // ISO date: "2025-01-01"
+  string date = 1; // ISO date: "2025-01-01"
 
   // Cumulative distance (meters) - optional for sports without distance
   optional double distance = 2;
@@ -63,10 +63,10 @@ message SportMetrics {
 
 // Metadata about the sport metrics
 message SportMetadata {
-  string sport = 1;          // "cycling", "running", "yoga"
-  int32 year = 2;            // 2024
-  repeated string available_metrics = 3;  // ["distance_meters", "time_minutes", ...]
-  string primary_metric = 4;              // "distance_meters"
+  string sport = 1; // "cycling", "running", "yoga"
+  int32 year = 2; // 2024
+  repeated string available_metrics = 3; // ["distance_meters", "time_minutes", ...]
+  string primary_metric = 4; // "distance_meters"
 }
 
 // Sport totals for a year
@@ -80,8 +80,8 @@ message SportTotals {
 // Year metadata file (activities/{year}/metadata.json)
 message YearMetadata {
   int32 year = 1;
-  repeated string sports = 2;                    // ["cycling", "running", "yoga"]
-  map<string, SportTotals> totals = 3;          // Per-sport totals
-  string last_updated = 4;                       // ISO timestamp
-  string aggregation_version = 5;                // "1.0"
+  repeated string sports = 2; // ["cycling", "running", "yoga"]
+  map<string, SportTotals> totals = 3; // Per-sport totals
+  string last_updated = 4; // ISO timestamp
+  string aggregation_version = 5; // "1.0"
 }

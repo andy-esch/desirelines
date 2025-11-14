@@ -3,6 +3,7 @@
 # source: activities.proto
 # Protobuf Python Version: 6.33.0
 """Generated protocol buffer code."""
+
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import runtime_version as _runtime_version
@@ -10,30 +11,29 @@ from google.protobuf import symbol_database as _symbol_database
 from google.protobuf.internal import builder as _builder
 
 _runtime_version.ValidateProtobufRuntimeVersion(
-    _runtime_version.Domain.PUBLIC,
-    6,
-    33,
-    0,
-    '',
-    'activities.proto'
+    _runtime_version.Domain.PUBLIC, 6, 33, 0, "", "activities.proto"
 )
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
 
 
-
-
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x61\x63tivities.proto\x12\x19\x64\x65sirelines.activities.v1\".\n\x0fTimeseriesEntry\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01\"Y\n\x10\x44istancesPayload\x12\x45\n\x11\x64istance_traveled\x18\x01 \x03(\x0b\x32*.desirelines.activities.v1.TimeseriesEntryBFZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generatedb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
+    b'\n\x10\x61\x63tivities.proto\x12\x19\x64\x65sirelines.activities.v1".\n\x0fTimeseriesEntry\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01"Y\n\x10\x44istancesPayload\x12\x45\n\x11\x64istance_traveled\x18\x01 \x03(\x0b\x32*.desirelines.activities.v1.TimeseriesEntryBFZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generatedb\x06proto3'
+)
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
-_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'activities_pb2', _globals)
+_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, "activities_pb2", _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-  _globals['DESCRIPTOR']._loaded_options = None
-  _globals['DESCRIPTOR']._serialized_options = b'ZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generated'
-  _globals['_TIMESERIESENTRY']._serialized_start=47
-  _globals['_TIMESERIESENTRY']._serialized_end=93
-  _globals['_DISTANCESPAYLOAD']._serialized_start=95
-  _globals['_DISTANCESPAYLOAD']._serialized_end=184
+    _globals["DESCRIPTOR"]._loaded_options = None
+    _globals[
+        "DESCRIPTOR"
+    ]._serialized_options = (
+        b"ZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generated"
+    )
+    _globals["_TIMESERIESENTRY"]._serialized_start = 47
+    _globals["_TIMESERIESENTRY"]._serialized_end = 93
+    _globals["_DISTANCESPAYLOAD"]._serialized_start = 95
+    _globals["_DISTANCESPAYLOAD"]._serialized_end = 184
 # @@protoc_insertion_point(module_scope)
