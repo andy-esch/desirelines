@@ -24,12 +24,12 @@ describe("GoalSummaryTable", () => {
     // Mock Date to a fixed point in time for predictable testing
     // June 30, 2024 (middle of the year)
     const mockDate = new Date(2024, 5, 30, 12, 0, 0);
-    vi.spyOn(global, "Date").mockImplementation(((...args: any[]) => {
+    vi.spyOn(global, "Date").mockImplementation(((...args: unknown[]) => {
       if (args.length === 0) {
         return mockDate;
       }
-      return new RealDate(...args);
-    }) as any);
+      return new RealDate(...(args as ConstructorParameters<typeof Date>));
+    }) as DateConstructor);
   });
 
   afterEach(() => {

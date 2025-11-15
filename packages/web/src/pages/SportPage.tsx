@@ -170,6 +170,7 @@ export default function SportPage({ sport }: SportPageProps) {
         updatedAt: new Date().toISOString(),
       })),
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [estimatedYearEnd, sport]
   );
 
