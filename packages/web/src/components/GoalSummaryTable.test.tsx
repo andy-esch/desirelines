@@ -4,7 +4,8 @@ import GoalSummaryTable from "./GoalSummaryTable";
 import type { Goals } from "../utils/goalCalculations";
 
 // Mock the date for consistent testing
-const mockCurrentDate = new Date("2025-06-15"); // Mid-year
+// Use UTC to avoid timezone issues in CI
+const mockCurrentDate = new Date(Date.UTC(2025, 5, 15)); // Mid-year (June 15)
 
 describe("GoalSummaryTable", () => {
   beforeEach(() => {
@@ -154,7 +155,6 @@ describe("GoalSummaryTable", () => {
         />
       );
 
-      const tbody = container.querySelector("tbody");
       // Check for "0 miles" in remaining column (4th td)
       const rows = container.querySelectorAll("tbody tr");
       const cells = rows[0]?.querySelectorAll("td");

@@ -27,9 +27,11 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
 
   const calculateDaysRemaining = (): number => {
     if (!isCurrentYear) return 0;
+    // Normalize to start of day to avoid timezone/time-of-day issues
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfYear = new Date(year, 11, 31);
     const msPerDay = 1000 * 60 * 60 * 24;
-    return Math.ceil((endOfYear.getTime() - today.getTime()) / msPerDay);
+    return Math.ceil((endOfYear.getTime() - todayStart.getTime()) / msPerDay);
   };
 
   const calculateDailyPaceNeeded = (goalValue: number): number => {
