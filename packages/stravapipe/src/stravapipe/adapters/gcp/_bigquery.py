@@ -303,17 +303,19 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             id,
             type,
             start_date_local,
-            distance
+            distance,
+            moving_time,
+            total_elevation_gain
         FROM (
             -- Check active activities table
-            SELECT id, type, start_date_local, distance
+            SELECT id, type, start_date_local, distance, moving_time, total_elevation_gain
             FROM `{self._client.project_id}.{self._dataset_name}.{self._table_name}`
             WHERE id = @activity_id
 
             UNION ALL
 
             -- Also check deleted activities (handles race condition)
-            SELECT id, type, start_date_local, distance
+            SELECT id, type, start_date_local, distance, moving_time, total_elevation_gain
             FROM `{self._client.project_id}.{self._dataset_name}.deleted_activities`
             WHERE id = @activity_id
         )
