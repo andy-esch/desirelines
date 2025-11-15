@@ -158,20 +158,21 @@ export default function SportPage({ sport }: SportPageProps) {
   }, [chartData]);
 
   // Goals management - memoize to prevent infinite loop
-  // IMPORTANT: Must depend on both estimatedYearEnd AND sport to regenerate
-  // defaults when switching sports (prevents stale goal values from previous sport)
-  const defaultGoalsForYear: GoalsForYear = useMemo(
-    () => ({
-      goals: generateDefaultGoals(estimatedYearEnd || 2500).map((goal) => ({
+  // Sport-specific fallback values ensure appropriate defaults when no data exists yet
+  const defaultGoalsForYear: GoalsForYear = useMemo(() => {
+    // Use sport-specific fallback values when estimatedYearEnd is not available
+    const fallbackValue = sport === "yoga" ? 100 : sport === "running" ? 1000 : 2500;
+
+    return {
+      goals: generateDefaultGoals(estimatedYearEnd || fallbackValue).map((goal) => ({
         id: goal.id,
         value: goal.value,
         label: goal.label || "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })),
-    }),
-    [estimatedYearEnd, sport]
-  );
+    };
+  }, [estimatedYearEnd, sport]);
 
   const { data: goalsData, updateData: updateGoals } = useUserConfig(
     "goals",
@@ -252,6 +253,7 @@ export default function SportPage({ sport }: SportPageProps) {
             currentDistance={currentValue}
             year={currentYear}
             unit={metricUnit}
+            sport={sport}
           />
 
           <div className="row">
@@ -280,6 +282,7 @@ export default function SportPage({ sport }: SportPageProps) {
                 error={error}
                 showFullYear={showFullYear}
                 unit={metricUnit}
+                sport={sport}
               />
             </div>
           </div>

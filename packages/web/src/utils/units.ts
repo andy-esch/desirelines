@@ -3,7 +3,8 @@ import type { Preferences } from "../types/generated/user_config";
 export type DistanceUnit = "miles" | "kilometers" | "meters";
 export type ElevationUnit = "meters" | "feet";
 export type ActivityUnit = "sessions";
-export type MetricUnit = DistanceUnit | ActivityUnit;
+export type DurationUnit = "minutes" | "hours";
+export type MetricUnit = DistanceUnit | ActivityUnit | DurationUnit;
 
 // Conversion constants
 export const METERS_TO_MILES = 0.000621371;
