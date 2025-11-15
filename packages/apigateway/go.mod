@@ -1,6 +1,6 @@
 module github.com/andy-esch/desirelines/packages/apigateway
 
-go 1.25
+go 1.24
 
 require (
 	cloud.google.com/go/storage v1.53.0
