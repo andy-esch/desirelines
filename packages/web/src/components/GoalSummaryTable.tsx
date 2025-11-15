@@ -2,12 +2,14 @@ import React from "react";
 import { Goals } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
+import { getDangerThreshold } from "../constants/dangerZoneThresholds";
 
 interface GoalSummaryTableProps {
   goals: Goals;
   currentDistance: number;
   year: number;
   unit?: MetricUnit; // Unit label (e.g., "mi", "km", "sessions")
+  sport?: string; // Sport type for danger zone threshold lookup
 }
 
 const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
@@ -15,9 +17,13 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   currentDistance,
   year,
   unit = "miles",
+  sport = "cycling",
 }) => {
   const today = new Date();
   const isCurrentYear = year === today.getFullYear();
+
+  // Get danger threshold for this sport
+  const dangerThreshold = getDangerThreshold(sport);
 
   const calculateDaysRemaining = (): number => {
     if (!isCurrentYear) return 0;
@@ -32,6 +38,11 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
 
     const distanceRemaining = Math.max(0, goalValue - currentDistance);
     return distanceRemaining / daysRemaining;
+  };
+
+  // Helper to check if pace is in danger zone
+  const isPaceDangerous = (paceNeeded: number): boolean => {
+    return paceNeeded > dangerThreshold;
   };
 
   const calculateProgress = (goalValue: number): number => {
@@ -77,13 +88,14 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                 const remaining = Math.max(0, goal.value - currentDistance);
                 const paceNeeded = calculateDailyPaceNeeded(goal.value);
                 const status = getStatusText(goal.value);
+                const isDangerous = isPaceDangerous(paceNeeded);
 
                 // Find the original index in the unsorted goals array to get the correct color
                 const originalIndex = goals.findIndex((g) => g.id === goal.id);
                 const goalColor = GOAL_COLORS[originalIndex % GOAL_COLORS.length];
 
                 return (
-                  <tr key={goal.id}>
+                  <tr key={goal.id} className={isDangerous ? "table-warning" : ""}>
                     <td
                       style={{
                         borderLeft: `4px solid ${goalColor}`,
@@ -119,7 +131,18 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                     </td>
                     {isCurrentYear && daysRemaining > 0 && (
                       <td>
-                        {paceNeeded.toFixed(1)} {unit}/day
+                        <span className={isDangerous ? "fw-bold text-danger" : ""}>
+                          {paceNeeded.toFixed(1)} {unit}/day
+                          {isDangerous && (
+                            <span
+                              className="ms-2"
+                              title="This pace exceeds sustainable limits"
+                              style={{ cursor: "help" }}
+                            >
+                              ⚠️
+                            </span>
+                          )}
+                        </span>
                       </td>
                     )}
                     <td>
@@ -133,6 +156,20 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Warning banner - only if dangerous goals exist */}
+        {sortedGoals.some((g) => isPaceDangerous(calculateDailyPaceNeeded(g.value))) && (
+          <div className="alert alert-warning mt-3 mb-0" role="alert">
+            <small>
+              <strong>⚠️ Warning:</strong> Goals marked with ⚠️ require a pace exceeding{" "}
+              <strong>
+                {dangerThreshold} {unit}/day
+              </strong>
+              , which may be unsustainable. Consider adjusting your targets.
+            </small>
+          </div>
+        )}
+
         {isCurrentYear && daysRemaining > 0 && (
           <p className="text-muted mt-2 mb-0">
             <small>

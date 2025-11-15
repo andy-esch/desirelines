@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
 } from "recharts";
 import type { DistanceEntry } from "../../types/activity";
 import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
@@ -22,6 +23,7 @@ import {
 } from "../../utils/goalCalculations";
 import ChartTooltip from "./ChartTooltip";
 import { getDistanceLabel, type DistanceUnit, type MetricUnit } from "../../utils/units";
+import { getDangerThreshold } from "../../constants/dangerZoneThresholds";
 
 interface PacingMetricsChartProps {
   year: number;
@@ -33,6 +35,7 @@ interface PacingMetricsChartProps {
   showFullYear?: boolean;
   hideHeader?: boolean;
   unit?: MetricUnit; // Unit for metric display (default: "miles", can be "sessions" for yoga)
+  sport?: string; // Sport type for danger zone threshold lookup
 }
 
 // Removed CustomTooltip - now using shared ChartTooltip component
@@ -57,6 +60,7 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     showFullYear = true,
     hideHeader = false,
     unit = "miles", // Default to miles if not provided
+    sport = "cycling", // Default to cycling if not provided
   } = props;
 
   // Determine chart title based on metric type
@@ -148,6 +152,33 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     }),
   };
 
+  // Danger zone logic - adaptive visibility based on natural Y-axis range
+  const dangerThreshold = useMemo(() => getDangerThreshold(sport), [sport]);
+
+  // Calculate natural Y-axis max from data only (don't force zone visibility)
+  // Cap at reasonable max to prevent infinite Y-axis expansion for unrealistic goals
+  const naturalYMax = useMemo(() => {
+    const maxPace = Math.max(
+      ...pacingGoals.flatMap((pg) => pg.pacing.map((p) => p.y)),
+      currentValues.actual,
+      0 // Ensure at least 0 if no data
+    );
+
+    // Cap the Y-axis at 3x the danger threshold
+    // This prevents the chart from expanding infinitely for unrealistic goals
+    // while still showing goals that are challenging but potentially achievable
+    const reasonableMax = dangerThreshold * 3;
+    const cappedMax = Math.min(maxPace, reasonableMax);
+
+    return cappedMax * 1.1; // 10% padding above highest data point
+  }, [pacingGoals, currentValues.actual, dangerThreshold]);
+
+  // Only show danger zone if threshold is within natural range
+  // (let zone "emerge" as goal lines approach threshold)
+  const shouldShowDangerZone = useMemo(() => {
+    return dangerThreshold <= naturalYMax;
+  }, [dangerThreshold, naturalYMax]);
+
   // Early returns for loading/error states (must be after all hooks)
   if (isLoading) {
     return (
@@ -210,11 +241,42 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
               angle: -90,
               position: "insideLeft",
             }}
-            domain={[0, "auto"]}
+            domain={[0, naturalYMax]}
             stroke={CHART_CONFIG.axis.stroke}
             tickFormatter={(value: number) => value.toFixed(1)}
           />
           <Tooltip content={<ChartTooltip unit={`${getUnitLabel(unit)}/day`} decimals={2} />} />
+
+          {/* ZONE OF UNACHIEVABILITY - Only visible when threshold is within natural range */}
+          {shouldShowDangerZone && (
+            <ReferenceArea
+              y1={dangerThreshold}
+              y2={naturalYMax}
+              fill="rgba(255, 152, 0, 0.08)"
+              fillOpacity={0.5}
+              stroke="rgba(255, 152, 0, 0.3)"
+              strokeDasharray="3 3"
+            />
+          )}
+
+          {/* Threshold line at danger zone boundary with label */}
+          {shouldShowDangerZone && (
+            <ReferenceLine
+              y={dangerThreshold}
+              stroke="#ff9800"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              label={{
+                value: `Zone of Unachievability (${dangerThreshold} ${getUnitLabel(unit)}/day)`,
+                position: "insideTopLeft",
+                fill: "#e65100",
+                fontSize: 12,
+                fontWeight: 600,
+                fontStyle: "italic",
+                offset: 5,
+              }}
+            />
+          )}
 
           {/* Y-axis markers for current values */}
           <ReferenceLine

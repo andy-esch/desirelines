@@ -1,0 +1,504 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import GoalSummaryTable from "./GoalSummaryTable";
+import type { Goals } from "../utils/goalCalculations";
+
+// Mock the date for consistent testing
+const mockCurrentDate = new Date("2025-06-15"); // Mid-year
+
+describe("GoalSummaryTable", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(mockCurrentDate);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const baseGoals: Goals = [
+    { id: "1", value: 1000, label: "Conservative" },
+    { id: "2", value: 2000, label: "Target" },
+    { id: "3", value: 3000, label: "Stretch" },
+  ];
+
+  describe("Rendering", () => {
+    it("renders table with all goals", () => {
+      const { container } = render(
+        <GoalSummaryTable
+          goals={baseGoals}
+          currentDistance={1500}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      const tbody = container.querySelector("tbody");
+      expect(tbody).toHaveTextContent("Conservative");
+      expect(tbody).toHaveTextContent("Target");
+      expect(tbody).toHaveTextContent("Stretch");
+    });
+
+    it("displays correct target values with units", () => {
+      const { container } = render(
+        <GoalSummaryTable
+          goals={baseGoals}
+          currentDistance={1500}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      const tbody = container.querySelector("tbody");
+      expect(tbody).toHaveTextContent("1,000 miles");
+      expect(tbody).toHaveTextContent("2,000 miles");
+      expect(tbody).toHaveTextContent("3,000 miles");
+    });
+
+    it("uses provided unit label", () => {
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 100, label: "Yoga Goal" }]}
+          currentDistance={50}
+          year={2025}
+          unit="sessions"
+          sport="yoga"
+        />
+      );
+
+      const tbody = container.querySelector("tbody");
+      expect(tbody).toHaveTextContent("100 sessions");
+    });
+
+    it("sorts goals by value", () => {
+      const unsortedGoals: Goals = [
+        { id: "1", value: 3000, label: "Third" },
+        { id: "2", value: 1000, label: "First" },
+        { id: "3", value: 2000, label: "Second" },
+      ];
+
+      const { container } = render(
+        <GoalSummaryTable
+          goals={unsortedGoals}
+          currentDistance={1500}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      const rows = container.querySelectorAll("tbody tr");
+      expect(rows[0]).toHaveTextContent("First");
+      expect(rows[1]).toHaveTextContent("Second");
+      expect(rows[2]).toHaveTextContent("Third");
+    });
+  });
+
+  describe("Progress Calculation", () => {
+    it("calculates progress percentage correctly", () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          currentDistance={1000}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      // 1000/2000 = 50%
+      expect(screen.getByText("50%")).toBeInTheDocument();
+    });
+
+    it("caps progress at 100%", () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={1500}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      // Progress should show 150% but be capped visually
+      const progressBar = screen.getByRole("progressbar");
+      expect(progressBar).toHaveStyle({ width: "100%" });
+    });
+
+    it("calculates remaining distance correctly", () => {
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          currentDistance={1500}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      const tbody = container.querySelector("tbody");
+      expect(tbody).toHaveTextContent("500 miles");
+    });
+
+    it("shows 0 remaining when goal is exceeded", () => {
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={1500}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      const tbody = container.querySelector("tbody");
+      // Check for "0 miles" in remaining column (4th td)
+      const rows = container.querySelectorAll("tbody tr");
+      const cells = rows[0]?.querySelectorAll("td");
+      expect(cells?.[4]).toHaveTextContent("0 miles");
+    });
+  });
+
+  describe("Status Text", () => {
+    it('shows "Achieved ✓" for completed goals', () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={1000}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("Achieved ✓")).toBeInTheDocument();
+    });
+
+    it('shows "Nearly There" for 90-99% progress', () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={950}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("Nearly There")).toBeInTheDocument();
+    });
+
+    it('shows "On Track" for 75-89% progress', () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={800}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("On Track")).toBeInTheDocument();
+    });
+
+    it('shows "Behind" for 50-74% progress', () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={600}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("Behind")).toBeInTheDocument();
+    });
+
+    it('shows "Far Behind" for <50% progress', () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={400}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("Far Behind")).toBeInTheDocument();
+    });
+  });
+
+  describe("Danger Zone Warning", () => {
+    it("highlights row for dangerous pace (cycling)", () => {
+      // Cycling danger threshold: 20 mi/day
+      // Need 4100 miles, have 0, with 200 days remaining (mid-June to end of year)
+      // Pace needed: 4100 / 200 = 20.5 mi/day (exceeds threshold)
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 4100, label: "Dangerous Goal" }]}
+          currentDistance={0}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      const row = container.querySelector("tbody tr");
+      expect(row).toHaveClass("table-warning");
+    });
+
+    it("highlights row for dangerous pace (running)", () => {
+      // Running danger threshold: 10 mi/day
+      // Need 2100 miles, have 0, with 200 days remaining
+      // Pace needed: 2100 / 200 = 10.5 mi/day (exceeds threshold)
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 2100, label: "Dangerous Goal" }]}
+          currentDistance={0}
+          year={2025}
+          unit="miles"
+          sport="running"
+        />
+      );
+
+      const row = container.querySelector("tbody tr");
+      expect(row).toHaveClass("table-warning");
+    });
+
+    it("highlights row for dangerous pace (yoga)", () => {
+      // Yoga danger threshold: 120 min/day
+      // Need 24100 minutes, have 0, with 200 days remaining
+      // Pace needed: 24100 / 200 = 120.5 min/day (exceeds threshold)
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 24100, label: "Dangerous Goal" }]}
+          currentDistance={0}
+          year={2025}
+          unit="minutes"
+          sport="yoga"
+        />
+      );
+
+      const row = container.querySelector("tbody tr");
+      expect(row).toHaveClass("table-warning");
+    });
+
+    it("does not highlight row for safe pace", () => {
+      // Need 1000 miles, have 0, with 200 days remaining
+      // Pace needed: 1000 / 200 = 5 mi/day (safe for cycling)
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Safe Goal" }]}
+          currentDistance={0}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      const row = container.querySelector("tbody tr");
+      expect(row).not.toHaveClass("table-warning");
+    });
+
+    it("shows warning icon for dangerous goals", () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 4100, label: "Dangerous Goal" }]}
+          currentDistance={0}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("⚠️")).toBeInTheDocument();
+    });
+
+    it("shows warning banner when dangerous goals exist", () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 4100, label: "Dangerous Goal" }]}
+          currentDistance={0}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText(/⚠️ Warning:/)).toBeInTheDocument();
+      expect(screen.getByText(/20 miles\/day/)).toBeInTheDocument();
+      expect(screen.getByText(/may be unsustainable/)).toBeInTheDocument();
+    });
+
+    it("does not show warning banner when all goals are safe", () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Safe Goal" }]}
+          currentDistance={0}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.queryByText(/⚠️ Warning:/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Daily Pace Needed", () => {
+    it("shows daily pace column for current year", () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          currentDistance={1000}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("Daily Pace Needed")).toBeInTheDocument();
+    });
+
+    it("hides daily pace column for past years", () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          currentDistance={1000}
+          year={2024}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.queryByText("Daily Pace Needed")).not.toBeInTheDocument();
+      expect(screen.getByText(/Historical year/)).toBeInTheDocument();
+    });
+
+    it("calculates daily pace correctly", () => {
+      // Need 2000 miles, have 1000, with 200 days remaining (Jun 15 to Dec 31)
+      // Pace needed: 1000 / 200 = 5.0 mi/day
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          currentDistance={1000}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      const tbody = container.querySelector("tbody");
+      expect(tbody).toHaveTextContent(/5\.0 miles\/day/);
+    });
+
+    it("shows 0 pace when goal is already achieved", () => {
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={1500}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      const tbody = container.querySelector("tbody");
+      expect(tbody).toHaveTextContent("0.0 miles/day");
+    });
+  });
+
+  describe("Days Remaining", () => {
+    it("shows correct days remaining for current year", () => {
+      render(
+        <GoalSummaryTable
+          goals={baseGoals}
+          currentDistance={1000}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      // June 15 to Dec 31 = 200 days (ceiling calculation)
+      expect(screen.getByText(/200 days remaining in 2025/)).toBeInTheDocument();
+    });
+
+    it("shows 0 days remaining for past years", () => {
+      render(
+        <GoalSummaryTable
+          goals={baseGoals}
+          currentDistance={1000}
+          year={2024}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.queryByText(/days remaining/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Edge Cases", () => {
+    it("handles goals with no label", () => {
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000 }]}
+          currentDistance={500}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("Unnamed")).toBeInTheDocument();
+    });
+
+    it("handles zero current distance", () => {
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={0}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("0%")).toBeInTheDocument();
+      const tbody = container.querySelector("tbody");
+      expect(tbody).toHaveTextContent("1,000 miles"); // remaining
+    });
+
+    it("handles zero goal value", () => {
+      const { container } = render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 0, label: "Test Goal" }]}
+          currentDistance={0}
+          year={2025}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      // Should not crash, renders with 0 values
+      const tbody = container.querySelector("tbody");
+      expect(tbody).toHaveTextContent("0 miles");
+    });
+
+    it("uses default sport when not provided", () => {
+      render(
+        <GoalSummaryTable goals={baseGoals} currentDistance={1000} year={2025} unit="miles" />
+      );
+
+      // Should use default (cycling = 20 mi/day threshold)
+      expect(screen.queryByText(/⚠️ Warning:/)).not.toBeInTheDocument();
+    });
+  });
+});
