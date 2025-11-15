@@ -1,6 +1,6 @@
 module github.com/andy-esch/desirelines/packages/dispatcher
 
-go 1.25
+go 1.24
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.0.0
