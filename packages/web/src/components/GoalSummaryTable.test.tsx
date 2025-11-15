@@ -4,8 +4,8 @@ import GoalSummaryTable from "./GoalSummaryTable";
 import type { Goals } from "../utils/goalCalculations";
 
 // Mock the date for consistent testing
-// Use UTC to avoid timezone issues in CI
-const mockCurrentDate = new Date(Date.UTC(2025, 5, 15)); // Mid-year (June 15)
+// Use ISO string to ensure consistent interpretation across timezones
+const mockCurrentDate = new Date("2025-06-15T00:00:00.000Z"); // Mid-year (June 15 UTC)
 
 describe("GoalSummaryTable", () => {
   beforeEach(() => {
