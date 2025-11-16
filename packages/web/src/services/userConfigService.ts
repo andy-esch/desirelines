@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { db, auth } from "../lib/firebase";
 import type {
   UserConfig,
   SportGoalsForYear,
@@ -28,6 +28,19 @@ export class UserConfigService {
   constructor(userId: string = "default", version: string = "v1") {
     this.userId = userId;
     this.version = version;
+
+    // CRITICAL: Validate userId matches authenticated user when not in fixture mode
+    const currentUser = auth.currentUser;
+    if (currentUser && userId !== "default") {
+      if (currentUser.uid !== userId) {
+        throw new Error(
+          `UserConfigService: userId mismatch! ` +
+          `Attempted to access config for userId="${userId}" ` +
+          `but authenticated user is "${currentUser.uid}". ` +
+          `This likely indicates a bug in how userId is being passed to UserConfigService.`
+        );
+      }
+    }
   }
 
   /**
