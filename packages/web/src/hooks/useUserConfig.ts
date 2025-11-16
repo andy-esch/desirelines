@@ -54,18 +54,25 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
   const { user } = useAuth();
 
   // Use provided userId or default to authenticated user
-  const effectiveUserId = userId || user?.uid || "default";
+  // If userId is explicitly provided (not the default "default"), use it
+  // Otherwise, use the authenticated user's UID, or fall back to "default"
+  const effectiveUserId = (userId !== "default" ? userId : user?.uid) || "default";
   const effectiveVersion = version || "v1";
 
   const [data, setData] = useState<GoalsForYear | AnnotationsForYear | Preferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Smart mode: Use fixtures/localStorage if:
-  // 1. Environment is configured for fixture-only mode (USE_FIXTURE_DATA=true), OR
-  // 2. User is not authenticated (anonymous users see demo)
+  // For demo/fixture mode, immediately set loading to false if not authenticated
+  // This prevents the loading spinner from showing indefinitely
+  // NOTE: isFixtureMode is based ONLY on auth state, not build-time config
+  // This allows authenticated users to use Firestore even when VITE_USE_FIXTURES=true
+  const isFixtureMode = !user;
+
+  // Fixture mode: Use fixtures/localStorage for unauthenticated users only
+  // Authenticated users ALWAYS use Firestore, regardless of VITE_USE_FIXTURES setting
   useEffect(() => {
-    if (USE_FIXTURE_DATA || !user) {
+    if (isFixtureMode) {
       // Build localStorage key - include sport for goals
       let storageKey: string;
       if (configType === "goals" && year !== undefined && sport !== undefined) {
@@ -102,7 +109,7 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
       return;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configType, user, year, sport, effectiveUserId]);
+  }, [configType, isFixtureMode, year, sport, effectiveUserId]);
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(
@@ -113,7 +120,7 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
   // Load config and subscribe to real-time updates
   useEffect(() => {
     // Skip Firestore if using fixtures or not authenticated
-    if (USE_FIXTURE_DATA || !user) {
+    if (isFixtureMode) {
       return;
     }
 
@@ -123,6 +130,28 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
       try {
         setLoading(true);
         setError(null);
+
+        // CRITICAL: Wait for Firebase Auth initial state to be determined
+        // This prevents "Missing or insufficient permissions" errors when
+        // the subscription is set up before auth state is loaded from storage
+        const { waitForAuthReady } = await import("../lib/firebase");
+        await waitForAuthReady();
+
+        // ADDITIONAL: If user just signed in, wait for auth token to be ready
+        // This prevents race condition when isFixtureMode changes from true->false
+        if (user) {
+          const { auth } = await import("../lib/firebase");
+          const firebaseUser = auth.currentUser;
+          if (firebaseUser) {
+            try {
+              await firebaseUser.getIdToken();
+              console.log('✅ Auth token ready for user:', user.uid);
+            } catch (err) {
+              console.error('❌ Failed to get auth token:', err);
+              throw err;
+            }
+          }
+        }
 
         // Subscribe to real-time updates for this specific section
         if (configType === "goals" && year !== undefined && sport !== undefined) {
@@ -188,7 +217,7 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
     };
     // Intentionally omitting defaultValue to avoid re-subscriptions
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configType, year, sport, configService, user]);
+  }, [configType, year, sport, configService, isFixtureMode]);
 
   /**
    * Update the config data
@@ -198,7 +227,7 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
   const updateData = useCallback(
     async (newData: GoalsForYear | AnnotationsForYear | Preferences) => {
       // In fixture mode, persist to localStorage
-      if (USE_FIXTURE_DATA || !user) {
+      if (isFixtureMode) {
         // Build localStorage key - include sport for goals
         let storageKey: string;
         if (configType === "goals" && year !== undefined && sport !== undefined) {
@@ -241,7 +270,7 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
         // Real-time listener will revert to correct state from Firestore
       }
     },
-    [configType, year, sport, configService, effectiveUserId, user]
+    [configType, year, sport, configService, effectiveUserId, isFixtureMode]
   );
 
   // Type assertion needed because internal state uses union type

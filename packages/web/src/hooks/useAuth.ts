@@ -55,7 +55,15 @@ export function useAuth(): AuthState {
 
     // Subscribe to auth state changes
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      console.log("Auth state changed:", {
+        hasUser: !!firebaseUser,
+        uid: firebaseUser?.uid,
+        email: firebaseUser?.email,
+      });
       if (firebaseUser) {
+        firebaseUser.getIdToken().then((token) => {
+          console.log("ID Token exists:", token.substring(0, 50) + "...");
+        });
         // User is signed in
         setUser({
           uid: firebaseUser.uid,

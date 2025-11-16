@@ -419,6 +419,14 @@ resource "google_storage_bucket_iam_member" "api_gateway_storage" {
   member = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
 }
 
+# Grant Firebase Admin permissions to API Gateway for token verification
+resource "google_project_iam_member" "api_gateway_firebase_admin" {
+  count   = var.create_dev_service_accounts ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/firebase.admin"
+  member  = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
+}
+
 # Service Account Impersonation permissions (allows your user to impersonate the service accounts)
 resource "google_service_account_iam_member" "dispatcher_impersonation" {
   count              = var.create_dev_service_accounts && var.developer_email != null ? 1 : 0
