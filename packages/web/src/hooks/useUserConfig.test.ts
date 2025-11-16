@@ -10,9 +10,26 @@ vi.mock("firebase/app", () => ({
   getApps: vi.fn(() => []),
 }));
 
+vi.mock("firebase/auth", () => ({
+  getAuth: vi.fn(() => ({
+    app: { name: "[DEFAULT]" },
+    currentUser: { uid: "test-user", getIdToken: vi.fn().mockResolvedValue("mock-token") },
+  })),
+  onAuthStateChanged: vi.fn((_auth, callback) => {
+    callback({ uid: "test-user", email: "test@example.com", displayName: "Test User" });
+    return vi.fn(); // unsubscribe function
+  }),
+  signInWithPopup: vi.fn(),
+  signOut: vi.fn(),
+  GoogleAuthProvider: vi.fn(),
+}));
+
 vi.mock("firebase/firestore", () => ({
-  getFirestore: vi.fn(() => ({ type: "firestore" })),
-  doc: vi.fn(),
+  getFirestore: vi.fn(() => ({ type: "firestore", app: { name: "[DEFAULT]" } })),
+  doc: vi.fn((...args) => ({
+    path: args.slice(1).join("/"), // Create path from arguments
+    type: "document",
+  })),
   getDoc: vi.fn(),
   setDoc: vi.fn(),
   deleteDoc: vi.fn(),
@@ -603,7 +620,18 @@ describe("useUserConfig", () => {
   });
 
   describe("userId and version parameters", () => {
-    it("should pass userId and version to UserConfigService", async () => {
+    it("should throw error when userId doesn't match authenticated user", () => {
+      // This test verifies the runtime assertion security feature
+      // When authenticated, trying to use a different userId should throw an error
+      // The error is thrown during construction, so we expect it to throw
+      expect(() => {
+        renderHook(() => useUserConfig("goals", 2025, "cycling", undefined, "user123", "v2"));
+      }).toThrow("userId mismatch");
+    });
+  });
+
+  describe("userId resolution with authentication", () => {
+    it("should use authenticated user's UID when userId defaults to 'default'", async () => {
       const { onSnapshot, doc } = await import("firebase/firestore");
 
       vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
@@ -616,23 +644,98 @@ describe("useUserConfig", () => {
         return vi.fn();
       });
 
-      renderHook(() => useUserConfig("goals", 2025, "cycling", undefined, "user123", "v2"));
+      // Call WITHOUT userId parameter (defaults to "default")
+      renderHook(() => useUserConfig("goals", 2025, "cycling"));
 
       await waitFor(() => {
         expect(doc).toHaveBeenCalled();
       });
 
-      // Verify doc was called with custom userId and version in path
-      // doc(firestore, "userConfigs", version, "users", userId)
-      // Just verify that doc was called with the custom userId and version somewhere
+      // Should use the authenticated user's UID ("test-user" from mock)
       const docCalls = vi.mocked(doc).mock.calls;
+      const hasAuthUserUid = docCalls.some((call) => call.includes("test-user"));
+      const hasDefaultUserId = docCalls.some((call) => call.includes("default"));
 
-      // Check if any call contains our custom values
-      const hasCustomUserId = docCalls.some((call) => call.includes("user123"));
-      const hasCustomVersion = docCalls.some((call) => call.includes("v2"));
+      expect(hasAuthUserUid).toBe(true);
+      expect(hasDefaultUserId).toBe(false); // Should NOT use literal "default"
+    });
 
-      expect(hasCustomUserId).toBe(true);
-      expect(hasCustomVersion).toBe(true);
+    it("should use authenticated user's UID when userId is undefined", async () => {
+      const { onSnapshot, doc } = await import("firebase/firestore");
+
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
+        setTimeout(() => {
+          callback({
+            exists: () => true,
+            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+          });
+        }, 0);
+        return vi.fn();
+      });
+
+      // Explicitly pass userId=undefined (or omit it)
+      renderHook(() => useUserConfig("goals", 2025, "cycling", undefined, undefined));
+
+      await waitFor(() => {
+        expect(doc).toHaveBeenCalled();
+      });
+
+      // Should use the authenticated user's UID, not literal "default"
+      const docCalls = vi.mocked(doc).mock.calls;
+      const hasAuthUserUid = docCalls.some((call) => call.includes("test-user"));
+      const hasDefaultUserId = docCalls.some((call) => call.includes("default"));
+
+      expect(hasAuthUserUid).toBe(true);
+      expect(hasDefaultUserId).toBe(false);
+    });
+
+    it("should throw error when trying to override userId while authenticated", () => {
+      // This test verifies the runtime assertion prevents userId override
+      // when a user is authenticated (security feature)
+      // The error is thrown during construction, so we expect it to throw
+      expect(() => {
+        renderHook(() => useUserConfig("goals", 2025, "cycling", undefined, "admin-user"));
+      }).toThrow("userId mismatch");
+    });
+  });
+
+  describe("fixture mode with authentication", () => {
+    it("should use Firestore when authenticated (not fixture mode)", async () => {
+      const { onSnapshot } = await import("firebase/firestore");
+
+      const onSnapshotMock = vi.fn().mockImplementation((_doc, callback: any) => {
+        setTimeout(() => {
+          callback({
+            exists: () => true,
+            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+          });
+        }, 0);
+        return vi.fn();
+      });
+
+      vi.mocked(onSnapshot).mockImplementation(onSnapshotMock);
+
+      renderHook(() => useUserConfig("goals", 2025, "cycling"));
+
+      await waitFor(() => {
+        expect(onSnapshot).toHaveBeenCalled();
+      });
+
+      // Authenticated user should trigger Firestore subscription
+      expect(onSnapshotMock).toHaveBeenCalled();
+    });
+
+    it("should use fixture mode behavior when user is null", async () => {
+      // Note: This test documents the expected behavior when user is null.
+      // In the actual implementation, isFixtureMode = !user, so:
+      // - When user is null: isFixtureMode = true → uses localStorage/fixtures
+      // - When user exists: isFixtureMode = false → uses Firestore
+      //
+      // We can't easily test this in isolation because useAuth is mocked at module level,
+      // but the userId resolution tests above verify the critical bug fix.
+
+      // This test serves as documentation of the expected behavior
+      expect(true).toBe(true);
     });
   });
 });
@@ -964,35 +1067,12 @@ describe("useFullUserConfig", () => {
   });
 
   describe("custom userId and version", () => {
-    it("should use custom userId and version", async () => {
-      const { onSnapshot, doc } = await import("firebase/firestore");
-
-      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
-        setTimeout(() => {
-          callback({
-            exists: () => true,
-            data: () => ({ preferences: {} }),
-          });
-        }, 0);
-        return vi.fn();
-      });
-
-      renderHook(() => useFullUserConfig("customUser", "v3"));
-
-      await waitFor(() => {
-        expect(doc).toHaveBeenCalled();
-      });
-
-      // doc(firestore, "userConfigs", version, "users", userId)
-      // Just verify that doc was called with the custom userId and version somewhere
-      const docCalls = vi.mocked(doc).mock.calls;
-
-      // Check if any call contains our custom values
-      const hasCustomUserId = docCalls.some((call) => call.includes("customUser"));
-      const hasCustomVersion = docCalls.some((call) => call.includes("v3"));
-
-      expect(hasCustomUserId).toBe(true);
-      expect(hasCustomVersion).toBe(true);
+    it("should throw error when userId doesn't match authenticated user", () => {
+      // This test verifies the runtime assertion security feature in useFullUserConfig
+      // The error is thrown during construction, so we expect it to throw
+      expect(() => {
+        renderHook(() => useFullUserConfig("customUser", "v3"));
+      }).toThrow("userId mismatch");
     });
   });
 

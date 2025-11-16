@@ -146,9 +146,9 @@ if ! firebase use "$FIREBASE_PROJECT" --project "$FIREBASE_PROJECT"; then
 fi
 echo ""
 
-# Deploy to Firebase Hosting
-echo "🚀 Deploying to Firebase Hosting..."
-if ! firebase deploy --only hosting --project "$FIREBASE_PROJECT"; then
+# Deploy to Firebase Hosting and Firestore Rules
+echo "🚀 Deploying to Firebase Hosting and Firestore Rules..."
+if ! firebase deploy --only hosting,firestore:rules --project "$FIREBASE_PROJECT"; then
     echo "❌ Error: Deployment failed"
     exit 1
 fi
