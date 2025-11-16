@@ -32,8 +32,8 @@ vi.mock("firebase/auth", () => ({
 vi.mock("firebase/firestore", () => ({
   getFirestore: vi.fn(() => ({ type: "firestore", app: { name: "[DEFAULT]" } })),
   doc: vi.fn((...args) => ({
-    path: args.slice(1).join('/'), // Create path from arguments
-    type: 'document',
+    path: args.slice(1).join("/"), // Create path from arguments
+    type: "document",
   })),
   getDoc: vi.fn(),
   setDoc: vi.fn(),

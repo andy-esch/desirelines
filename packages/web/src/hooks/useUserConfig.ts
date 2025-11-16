@@ -146,7 +146,7 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
             try {
               await firebaseUser.getIdToken();
             } catch (err) {
-              console.error('Failed to get auth token:', err);
+              console.error("Failed to get auth token:", err);
               throw err;
             }
           }

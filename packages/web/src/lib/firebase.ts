@@ -30,12 +30,12 @@ export const db: Firestore = getFirestore(app);
 
 // Promise that resolves when initial auth state is determined
 // CRITICAL: Firestore subscriptions MUST wait for this to avoid permission errors
-let authReadyPromise: Promise<void> | undefined;
 let authReadyResolved = false;
 let unsubscribeAuthReady: (() => void) | undefined;
 
 // Set up one-time listener for initial auth state
-unsubscribeAuthReady = onAuthStateChanged(auth, (user) => {
+// eslint-disable-next-line prefer-const -- Cannot use const due to callback accessing it before initialization
+unsubscribeAuthReady = onAuthStateChanged(auth, (_user) => {
   if (!authReadyResolved) {
     authReadyResolved = true;
     if (unsubscribeAuthReady) {
@@ -44,7 +44,7 @@ unsubscribeAuthReady = onAuthStateChanged(auth, (user) => {
   }
 });
 
-authReadyPromise = new Promise<void>((resolve) => {
+const authReadyPromise = new Promise<void>((resolve) => {
   const checkReady = () => {
     if (authReadyResolved) {
       resolve();

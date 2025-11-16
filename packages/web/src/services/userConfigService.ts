@@ -35,9 +35,9 @@ export class UserConfigService {
       if (currentUser.uid !== userId) {
         throw new Error(
           `UserConfigService: userId mismatch! ` +
-          `Attempted to access config for userId="${userId}" ` +
-          `but authenticated user is "${currentUser.uid}". ` +
-          `This likely indicates a bug in how userId is being passed to UserConfigService.`
+            `Attempted to access config for userId="${userId}" ` +
+            `but authenticated user is "${currentUser.uid}". ` +
+            `This likely indicates a bug in how userId is being passed to UserConfigService.`
         );
       }
     }
