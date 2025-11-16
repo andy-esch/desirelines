@@ -660,7 +660,7 @@ describe("useUserConfig", () => {
       expect(hasDefaultUserId).toBe(false); // Should NOT use literal "default"
     });
 
-    it("should use authenticated user's UID even when userId explicitly set to 'default'", async () => {
+    it("should use authenticated user's UID when userId is undefined", async () => {
       const { onSnapshot, doc } = await import("firebase/firestore");
 
       vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
@@ -673,14 +673,14 @@ describe("useUserConfig", () => {
         return vi.fn();
       });
 
-      // Explicitly pass userId="default"
-      renderHook(() => useUserConfig("goals", 2025, "cycling", undefined, "default"));
+      // Explicitly pass userId=undefined (or omit it)
+      renderHook(() => useUserConfig("goals", 2025, "cycling", undefined, undefined));
 
       await waitFor(() => {
         expect(doc).toHaveBeenCalled();
       });
 
-      // Should still use the authenticated user's UID, not literal "default"
+      // Should use the authenticated user's UID, not literal "default"
       const docCalls = vi.mocked(doc).mock.calls;
       const hasAuthUserUid = docCalls.some((call) => call.includes("test-user"));
       const hasDefaultUserId = docCalls.some((call) => call.includes("default"));

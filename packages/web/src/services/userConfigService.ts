@@ -25,13 +25,25 @@ export class UserConfigService {
   private userId: string;
   private version: string;
 
-  constructor(userId: string = "default", version: string = "v1") {
-    this.userId = userId;
+  /**
+   * @param userId - Optional userId to use for Firestore operations.
+   *   - If not provided: uses authenticated user's UID, or "default" if not authenticated
+   *   - If provided: uses the specified userId
+   *   WARNING: Providing an explicit userId when authenticated will throw an error
+   *   unless it matches the authenticated user's UID. This prevents accidental
+   *   cross-user data access.
+   * @param version - Config version (defaults to "v1")
+   */
+  constructor(userId?: string, version: string = "v1") {
+    const currentUser = auth.currentUser;
+
+    // Resolve userId: explicit > auth user > "default"
+    this.userId = userId ?? currentUser?.uid ?? "default";
     this.version = version;
 
-    // CRITICAL: Validate userId matches authenticated user when not in fixture mode
-    const currentUser = auth.currentUser;
-    if (currentUser && userId !== "default") {
+    // CRITICAL: Validate userId matches authenticated user when explicitly provided
+    // This prevents bugs where an explicit userId doesn't match the auth state
+    if (currentUser && userId !== undefined) {
       if (currentUser.uid !== userId) {
         throw new Error(
           `UserConfigService: userId mismatch! ` +
@@ -352,8 +364,8 @@ export class UserConfigService {
   }
 }
 
-// Default instance for convenience
-export const defaultConfigService = new UserConfigService("default", "v1");
+// Default instance for convenience (uses authenticated user's UID, or "default" if not authenticated)
+export const defaultConfigService = new UserConfigService();
 
 // Re-export protobuf types for convenience
 export type {

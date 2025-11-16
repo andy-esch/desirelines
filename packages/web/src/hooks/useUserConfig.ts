@@ -22,7 +22,9 @@ import { useAuth } from "./useAuth";
  * @param year - Required for goals/annotations, not used for preferences
  * @param sport - Required for goals, not used for annotations/preferences
  * @param defaultValue - Default value if config doesn't exist
- * @param userId - Firestore userId (defaults to authenticated user)
+ * @param userId - Optional userId override. If not provided, uses authenticated user's UID
+ *   (or "default" for unauthenticated users). Providing an explicit userId when authenticated
+ *   will throw an error unless it matches the authenticated user's UID.
  * @param version - Config version (defaults to "v1")
  */
 export function useUserConfig<T extends "goals" | "annotations" | "preferences" = "goals">(
@@ -30,7 +32,7 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
   year?: number,
   sport?: string,
   defaultValue?: GoalsForYear | AnnotationsForYear | Preferences,
-  userId: string = "default",
+  userId?: string,
   version: string = "v1"
 ): {
   data:
@@ -53,10 +55,9 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
   // Get authenticated user
   const { user } = useAuth();
 
-  // Use provided userId or default to authenticated user
-  // If userId is explicitly provided (not the default "default"), use it
-  // Otherwise, use the authenticated user's UID, or fall back to "default"
-  const effectiveUserId = (userId !== "default" ? userId : user?.uid) || "default";
+  // Resolve userId: explicit > auth user > "default"
+  // This matches the logic in UserConfigService constructor
+  const effectiveUserId = userId ?? user?.uid ?? "default";
   const effectiveVersion = version || "v1";
 
   const [data, setData] = useState<GoalsForYear | AnnotationsForYear | Preferences | null>(null);
@@ -303,6 +304,11 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
  * Hook for accessing the full user configuration
  * Use this when you need access to multiple config sections
  *
+ * @param userId - Optional userId override. If not provided, uses authenticated user's UID
+ *   (or "default" for unauthenticated users). Providing an explicit userId when authenticated
+ *   will throw an error unless it matches the authenticated user's UID.
+ * @param version - Config version (defaults to "v1")
+ *
  * @example
  * ```tsx
  * const { config, loading, error, updateSection } = useFullUserConfig();
@@ -315,7 +321,7 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
  * await updateSection('goals', newGoals, 2025);
  * ```
  */
-export function useFullUserConfig(userId: string = "default", version: string = "v1") {
+export function useFullUserConfig(userId?: string, version: string = "v1") {
   const [config, setConfig] = useState<UserConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
