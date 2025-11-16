@@ -15,9 +15,26 @@ vi.mock("firebase/app", () => ({
   getApps: vi.fn(() => []),
 }));
 
+vi.mock("firebase/auth", () => ({
+  getAuth: vi.fn(() => ({
+    app: { name: "[DEFAULT]" },
+    currentUser: { uid: "test-user", getIdToken: vi.fn().mockResolvedValue("mock-token") },
+  })),
+  onAuthStateChanged: vi.fn((auth, callback) => {
+    callback({ uid: "test-user", email: "test@example.com", displayName: "Test User" });
+    return vi.fn(); // unsubscribe function
+  }),
+  signInWithPopup: vi.fn(),
+  signOut: vi.fn(),
+  GoogleAuthProvider: vi.fn(),
+}));
+
 vi.mock("firebase/firestore", () => ({
-  getFirestore: vi.fn(() => ({ type: "firestore" })),
-  doc: vi.fn(),
+  getFirestore: vi.fn(() => ({ type: "firestore", app: { name: "[DEFAULT]" } })),
+  doc: vi.fn((...args) => ({
+    path: args.slice(1).join('/'), // Create path from arguments
+    type: 'document',
+  })),
   getDoc: vi.fn(),
   setDoc: vi.fn(),
   deleteDoc: vi.fn(),
