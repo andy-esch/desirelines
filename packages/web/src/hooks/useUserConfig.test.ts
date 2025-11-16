@@ -15,7 +15,7 @@ vi.mock("firebase/auth", () => ({
     app: { name: "[DEFAULT]" },
     currentUser: { uid: "test-user", getIdToken: vi.fn().mockResolvedValue("mock-token") },
   })),
-  onAuthStateChanged: vi.fn((auth, callback) => {
+  onAuthStateChanged: vi.fn((_auth, callback) => {
     callback({ uid: "test-user", email: "test@example.com", displayName: "Test User" });
     return vi.fn(); // unsubscribe function
   }),
