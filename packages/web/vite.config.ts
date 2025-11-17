@@ -57,15 +57,20 @@ export default defineConfig(({ mode }) => {
       environment: "jsdom", // DOM environment for React component testing
       setupFiles: "./src/test/setup.ts",
       css: true, // Support CSS imports in tests
+      // Exclude integration tests from regular test runs
+      exclude: ["**/*.integration.test.{ts,tsx}", "node_modules/**"],
       coverage: {
         provider: "v8",
         reporter: ["text", "json", "html", "lcov"],
         exclude: [
           "node_modules/",
           "src/test/setup.ts",
+          "src/test/integration-setup.ts",
           "**/*.test.{ts,tsx}",
           "**/*.spec.{ts,tsx}",
+          "**/*.integration.test.{ts,tsx}",
           "vite.config.ts",
+          "vitest.integration.config.ts",
           // Exclude generated protobuf code - machine-generated, tested via usage
           "src/types/generated/**",
         ],

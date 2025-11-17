@@ -77,6 +77,10 @@ web-test:
 	@echo "🧪 Running React tests..."
 	cd packages/web && npm test -- --coverage
 
+web-test-integration:
+	@echo "🧪 Running React integration tests..."
+	cd packages/web && npm run test:integration
+
 web-lint:
 	@echo "🔍 Running ESLint..."
 	cd packages/web && npm run lint
@@ -104,11 +108,6 @@ web-build:
 web-dev:
 	@echo "⚡ Starting Vite dev server..."
 	cd packages/web && npm run dev
-
-# Legacy aliases
-js-lint: web-lint
-js-format: web-format
-js-dev: web-dev
 
 # ==========================================
 # Protocol Buffer Code Generation
