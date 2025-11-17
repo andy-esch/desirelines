@@ -29,7 +29,10 @@
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "firebase emulators:exec --only firestore,auth 'vitest run --config vitest.integration.config.ts'",
+    "test:integration:watch": "firebase emulators:exec --only firestore,auth 'vitest --config vitest.integration.config.ts'",
+    "emulators": "firebase emulators:start --only firestore,auth"
   },
   "devDependencies": {
     "@eslint/compat": "^1.4.0",
