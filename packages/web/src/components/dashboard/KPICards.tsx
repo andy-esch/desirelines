@@ -71,13 +71,25 @@ const KPICards = React.memo(
         {/* Current Distance/Sessions Card */}
         <KPICard
           title={metricTitle}
-          value={isLoading ? "--" : `${currentDistance.toFixed(0)} ${unit}`}
+          value={
+            isLoading
+              ? "--"
+              : currentDistance === 0
+                ? "--"
+                : `${currentDistance.toFixed(0)} ${unit}`
+          }
           subtitle={
             isLoading ? (
               "Loading..."
+            ) : currentDistance === 0 ? (
+              <>
+                {yearContext.isPastYear
+                  ? `${yearContext.year} complete · No data available`
+                  : `${yearContext.daysElapsed} days elapsed · No data available`}
+              </>
             ) : (
               <>
-                {averagePace.toFixed(1)} {unit} / day avg
+                {averagePace.toFixed(1)} {unit} / day avg ·{" "}
                 {momentumIndicator && <>{momentumIndicator} · </>}
                 {yearContext.isPastYear
                   ? `${yearContext.year} complete`
@@ -90,15 +102,19 @@ const KPICards = React.memo(
         {/* Next Goal Card */}
         <KPICard
           title={nextGoal?.label || "Next Goal"}
-          value={isLoading ? "--" : `${nextGoalProgress.toFixed(0)}%`}
+          value={
+            isLoading ? "--" : currentDistance === 0 ? "--" : `${nextGoalProgress.toFixed(0)}%`
+          }
           subtitle={
             isLoading
               ? "Loading..."
-              : nextGoalGap > 0
-                ? `${nextGoalGap.toFixed(0)} ${unit} to ${nextGoal?.value.toLocaleString()}`
-                : nextGoal
-                  ? `${nextGoal.value.toLocaleString()} ${unit} reached!`
-                  : "No goal set"
+              : currentDistance === 0
+                ? "No data available"
+                : nextGoalGap > 0
+                  ? `${nextGoalGap.toFixed(0)} ${unit} to ${nextGoal?.value.toLocaleString()}`
+                  : nextGoal
+                    ? `${nextGoal.value.toLocaleString()} ${unit} reached!`
+                    : "No goal set"
           }
         />
 

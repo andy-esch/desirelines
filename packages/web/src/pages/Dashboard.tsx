@@ -14,7 +14,8 @@ import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
 import type { GoalsForYear } from "../services/userConfigService";
 import { GOAL_COLORS } from "../constants/chartColors";
-import { calculateYearStats, calculateAveragePace } from "../utils/dateCalculations";
+import { calculateAveragePace } from "../utils/dateCalculations";
+import { createYearContext } from "../utils/yearContext";
 
 export default function Dashboard() {
   const [currentYear, setCurrentYear] = useState(2025);
@@ -73,9 +74,9 @@ export default function Dashboard() {
     [goalsData, updateGoals]
   );
 
-  // Calculate stats for cards
-  const yearStats = calculateYearStats(currentYear);
-  const { daysElapsed, daysRemaining } = yearStats;
+  // Create year context (encapsulates current/past/future year logic)
+  const yearContext = useMemo(() => createYearContext(currentYear), [currentYear]);
+  const { daysRemaining } = yearContext;
   const averagePace = calculateAveragePace(currentDistance, currentYear);
 
   // Custom hooks for complex calculations
@@ -116,8 +117,7 @@ export default function Dashboard() {
               <KPICards
                 currentDistance={currentDistance}
                 averagePace={averagePace}
-                daysElapsed={daysElapsed}
-                daysRemaining={daysRemaining}
+                yearContext={yearContext}
                 nextGoal={nextGoal}
                 nextGoalProgress={nextGoalProgress}
                 nextGoalGap={nextGoalGap}
@@ -131,7 +131,7 @@ export default function Dashboard() {
                   <thead className="table-light">
                     <tr>
                       <th
-                        colSpan={daysRemaining > 0 ? 6 : 5}
+                        colSpan={yearContext.shouldShowPacing ? 6 : 5}
                         className="bg-transparent border-0 pb-2"
                       >
                         <h6 className="mb-0 text-muted">Goal Achievability</h6>
@@ -143,14 +143,16 @@ export default function Dashboard() {
                       <th>Target</th>
                       <th>Progress</th>
                       <th>Remaining</th>
-                      {daysRemaining > 0 && <th>Daily Pace</th>}
+                      {yearContext.shouldShowPacing && <th>Daily Pace</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {goals.map((goal, index) => {
                       const progress = (currentDistance / goal.value) * 100;
                       const remaining = Math.max(0, goal.value - currentDistance);
-                      const paceNeeded = daysRemaining > 0 ? remaining / daysRemaining : 0;
+                      const paceNeeded = yearContext.shouldShowPacing
+                        ? remaining / yearContext.daysRemaining
+                        : 0;
                       const goalColor = GOAL_COLORS[index % GOAL_COLORS.length];
 
                       return (
@@ -181,7 +183,7 @@ export default function Dashboard() {
                             </div>
                           </td>
                           <td>{remaining.toFixed(0)} mi</td>
-                          {daysRemaining > 0 && <td>{paceNeeded.toFixed(1)} mi/day</td>}
+                          {yearContext.shouldShowPacing && <td>{paceNeeded.toFixed(1)} mi/day</td>}
                         </tr>
                       );
                     })}

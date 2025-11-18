@@ -15,25 +15,26 @@
   text-align: center;
 }
 
+/* Using NEON colors from GOAL_COLORS palette (chartColors.ts) */
 .neon-pink {
-  color: #ff006e;
+  color: rgb(255, 0, 255); /* Bright Magenta - matches logo */
   text-shadow:
-    0 0 10px #ff006e,
-    0 0 20px rgba(255, 0, 110, 0.5);
+    0 0 10px rgb(255, 0, 255),
+    0 0 20px rgba(255, 0, 255, 0.5);
 }
 
 .neon-cyan {
-  color: #00f5ff;
+  color: rgb(0, 255, 255); /* Electric Cyan - matches logo */
   text-shadow:
-    0 0 10px #00f5ff,
-    0 0 20px rgba(0, 245, 255, 0.5);
+    0 0 10px rgb(0, 255, 255),
+    0 0 20px rgba(0, 255, 255, 0.5);
 }
 
 .neon-green {
-  color: #39ff14;
+  color: rgb(0, 255, 128); /* Neon Green-Cyan - matches logo */
   text-shadow:
-    0 0 10px #39ff14,
-    0 0 20px rgba(57, 255, 20, 0.5);
+    0 0 10px rgb(0, 255, 128),
+    0 0 20px rgba(0, 255, 128, 0.5);
 }
 
 .empty-state-subtitle {
@@ -43,16 +44,16 @@
   margin: 0;
 }
 
-/* Optional: Subtle gradient background */
+/* Optional: Subtle gradient background - matches NEON palette */
 .empty-state-container::before {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(
     135deg,
-    rgba(255, 0, 110, 0.05),
-    rgba(0, 245, 255, 0.05),
-    rgba(57, 255, 20, 0.05)
+    /* Magenta */ rgba(255, 0, 255, 0.05),
+    /* Cyan */ rgba(0, 255, 255, 0.05),
+    /* Green-Cyan */ rgba(0, 255, 128, 0.05)
   );
   border-radius: 8px;
   z-index: -1;

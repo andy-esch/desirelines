@@ -22,7 +22,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   sport = "cycling",
   isLoading = false,
 }) => {
-  const { year, isCurrentYear, isPastYear, daysRemaining } = yearContext;
+  const { year, isPastYear, daysRemaining } = yearContext;
 
   // Get danger threshold for this sport
   const dangerThreshold = getDangerThreshold(sport);

@@ -1,4 +1,3 @@
-import React from "react";
 import type { MetricUnit } from "../utils/units";
 import styles from "./EmptyState.module.css";
 

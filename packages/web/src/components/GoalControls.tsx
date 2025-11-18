@@ -217,8 +217,22 @@ const GoalControls: React.FC<GoalControlsProps> = ({
       </div>
 
       <div className="mt-2 small text-muted">
-        <div>Current: {isLoading ? "--" : `${currentDistance.toFixed(0)} ${unit}`}</div>
-        <div>Est. Year-End: {isLoading ? "--" : `${estimatedYearEnd.toFixed(0)} ${unit}`}</div>
+        <div>
+          Current:{" "}
+          {isLoading
+            ? "--"
+            : currentDistance === 0
+              ? "--"
+              : `${currentDistance.toFixed(0)} ${unit}`}
+        </div>
+        <div>
+          Est. Year-End:{" "}
+          {isLoading
+            ? "--"
+            : estimatedYearEnd === 0
+              ? "--"
+              : `${estimatedYearEnd.toFixed(0)} ${unit}`}
+        </div>
       </div>
     </div>
   );

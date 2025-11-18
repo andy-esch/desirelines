@@ -27,7 +27,7 @@ import type { DistanceEntry } from "../types/activity";
 import { USE_FIXTURE_DATA } from "../config";
 import { FIXTURE_SPORT_METRICS, FIXTURE_SPORT_CONFIG } from "../data/fixtures";
 import { useAuth } from "../hooks/useAuth";
-import { createYearContext, type YearContext } from "../utils/yearContext";
+import { createYearContext } from "../utils/yearContext";
 
 interface SportPageProps {
   sport: string;
@@ -201,7 +201,7 @@ export default function SportPage({ sport }: SportPageProps) {
 
   // Create year context (encapsulates current/past/future year logic)
   const yearContext = useMemo(() => createYearContext(currentYear), [currentYear]);
-  const { daysElapsed, daysRemaining } = yearContext;
+  const { daysRemaining } = yearContext;
   const averagePace = calculateAveragePace(currentValue, currentYear);
 
   // Custom hooks for complex calculations
