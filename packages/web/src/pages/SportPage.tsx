@@ -12,6 +12,7 @@ import PacingMetricsChart from "../components/charts/PacingMetricsChart";
 import Sidebar from "../components/layout/Sidebar";
 import KPICards from "../components/dashboard/KPICards";
 import GoalSummaryTable from "../components/GoalSummaryTable";
+import EmptyState from "../components/EmptyState";
 import {
   generateDefaultGoals,
   estimateYearEndDistance,
@@ -21,11 +22,12 @@ import { useUserConfig } from "../hooks/useUserConfig";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
 import type { GoalsForYear } from "../services/userConfigService";
-import { calculateYearStats, calculateAveragePace } from "../utils/dateCalculations";
+import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
 import { USE_FIXTURE_DATA } from "../config";
 import { FIXTURE_SPORT_METRICS, FIXTURE_SPORT_CONFIG } from "../data/fixtures";
 import { useAuth } from "../hooks/useAuth";
+import { createYearContext, type YearContext } from "../utils/yearContext";
 
 interface SportPageProps {
   sport: string;
@@ -197,9 +199,9 @@ export default function SportPage({ sport }: SportPageProps) {
     await updateGoals(updatedGoalsForYear);
   };
 
-  // Calculate stats for cards
-  const yearStats = calculateYearStats(currentYear);
-  const { daysElapsed, daysRemaining } = yearStats;
+  // Create year context (encapsulates current/past/future year logic)
+  const yearContext = useMemo(() => createYearContext(currentYear), [currentYear]);
+  const { daysElapsed, daysRemaining } = yearContext;
   const averagePace = calculateAveragePace(currentValue, currentYear);
 
   // Custom hooks for complex calculations
@@ -226,6 +228,7 @@ export default function SportPage({ sport }: SportPageProps) {
           estimatedYearEnd={estimatedYearEnd}
           currentDistance={currentValue}
           unit={metricUnit}
+          isLoading={isLoading || !!error}
         />
 
         <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
@@ -243,18 +246,23 @@ export default function SportPage({ sport }: SportPageProps) {
             paceNeededForNextGoal={paceNeededForNextGoal}
             averagePace={averagePace}
             momentumIndicator={momentumIndicator}
-            daysElapsed={daysElapsed}
-            daysRemaining={daysRemaining}
+            yearContext={yearContext}
             unit={metricUnit}
+            isLoading={isLoading || !!error}
           />
 
-          <GoalSummaryTable
-            goals={goals}
-            currentDistance={currentValue}
-            year={currentYear}
-            unit={metricUnit}
-            sport={sport}
-          />
+          {!isLoading && !error && chartData.length === 0 ? (
+            <EmptyState sport={sport} year={currentYear} unit={metricUnit} />
+          ) : (
+            <GoalSummaryTable
+              goals={goals}
+              currentDistance={currentValue}
+              yearContext={yearContext}
+              unit={metricUnit}
+              sport={sport}
+              isLoading={isLoading || !!error}
+            />
+          )}
 
           <div className="row">
             <div className="col-12 mb-4">
@@ -268,6 +276,7 @@ export default function SportPage({ sport }: SportPageProps) {
                 showFullYear={showFullYear}
                 onViewChange={setShowFullYear}
                 unit={metricUnit}
+                sport={sport}
               />
             </div>
           </div>

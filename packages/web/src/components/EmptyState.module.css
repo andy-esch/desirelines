@@ -1,0 +1,81 @@
+.empty-state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 2rem;
+  position: relative;
+}
+
+.neon-text {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.neon-pink {
+  color: #ff006e;
+  text-shadow:
+    0 0 10px #ff006e,
+    0 0 20px rgba(255, 0, 110, 0.5);
+}
+
+.neon-cyan {
+  color: #00f5ff;
+  text-shadow:
+    0 0 10px #00f5ff,
+    0 0 20px rgba(0, 245, 255, 0.5);
+}
+
+.neon-green {
+  color: #39ff14;
+  text-shadow:
+    0 0 10px #39ff14,
+    0 0 20px rgba(57, 255, 20, 0.5);
+}
+
+.empty-state-subtitle {
+  color: var(--bs-secondary);
+  font-size: 1rem;
+  text-align: center;
+  margin: 0;
+}
+
+/* Optional: Subtle gradient background */
+.empty-state-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 0, 110, 0.05),
+    rgba(0, 245, 255, 0.05),
+    rgba(57, 255, 20, 0.05)
+  );
+  border-radius: 8px;
+  z-index: -1;
+}
+
+/* Responsive font sizes */
+@media (max-width: 768px) {
+  .neon-text {
+    font-size: 2rem;
+  }
+
+  .empty-state-subtitle {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .neon-text {
+    font-size: 1.5rem;
+  }
+
+  .empty-state-container {
+    min-height: 200px;
+    padding: 1rem;
+  }
+}

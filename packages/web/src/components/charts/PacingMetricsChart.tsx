@@ -16,6 +16,7 @@ import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
 import { CHART_CONFIG } from "../../constants/chartConfig";
 import LoadingChart from "./LoadingChart";
 import ErrorChart from "./ErrorChart";
+import EmptyState from "../EmptyState";
 import {
   calculateActualPacing,
   calculateDynamicPacingGoal,
@@ -202,6 +203,20 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
           </h3>
         )}
         <ErrorChart error={error} onRetry={() => window.location.reload()} />
+      </div>
+    );
+  }
+
+  // Empty state - no data available (not loading, no error)
+  if (distanceData.length === 0) {
+    return (
+      <div className={hideHeader ? "" : "mt-4"}>
+        {!hideHeader && (
+          <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            {chartTitle}
+          </h3>
+        )}
+        <EmptyState sport={sport} year={year} unit={unit} message="No pacing data available" />
       </div>
     );
   }
