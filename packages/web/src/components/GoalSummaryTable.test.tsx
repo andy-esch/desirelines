@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import GoalSummaryTable from "./GoalSummaryTable";
 import type { Goals } from "../utils/goalCalculations";
+import { createYearContext } from "../utils/yearContext";
 
 // Mock the date for consistent testing
 // Use ISO string to ensure consistent interpretation across timezones
@@ -29,7 +30,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={baseGoals}
           currentDistance={1500}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -46,7 +47,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={baseGoals}
           currentDistance={1500}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -63,7 +64,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 100, label: "Yoga Goal" }]}
           currentDistance={50}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="sessions"
           sport="yoga"
         />
@@ -84,7 +85,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={unsortedGoals}
           currentDistance={1500}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -103,7 +104,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
           currentDistance={1000}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -118,7 +119,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
           currentDistance={1500}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -134,7 +135,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
           currentDistance={1500}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -149,7 +150,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
           currentDistance={1500}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -168,7 +169,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
           currentDistance={1000}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -182,7 +183,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
           currentDistance={950}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -196,7 +197,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
           currentDistance={800}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -210,7 +211,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
           currentDistance={600}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -224,7 +225,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
           currentDistance={400}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -243,7 +244,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 4100, label: "Dangerous Goal" }]}
           currentDistance={0}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -261,7 +262,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 2100, label: "Dangerous Goal" }]}
           currentDistance={0}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="running"
         />
@@ -273,13 +274,13 @@ describe("GoalSummaryTable", () => {
 
     it("highlights row for dangerous pace (yoga)", () => {
       // Yoga danger threshold: 120 min/day
-      // Need 24100 minutes, have 0, with 200 days remaining
+      // Need 24100 minutes, have 0, with 200 days remaining (Jun 15 to Dec 31 UTC)
       // Pace needed: 24100 / 200 = 120.5 min/day (exceeds threshold)
       const { container } = render(
         <GoalSummaryTable
           goals={[{ id: "1", value: 24100, label: "Dangerous Goal" }]}
           currentDistance={0}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="minutes"
           sport="yoga"
         />
@@ -296,7 +297,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Safe Goal" }]}
           currentDistance={0}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -311,7 +312,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 4100, label: "Dangerous Goal" }]}
           currentDistance={0}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -325,7 +326,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 4100, label: "Dangerous Goal" }]}
           currentDistance={0}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -341,7 +342,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Safe Goal" }]}
           currentDistance={0}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -357,7 +358,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
           currentDistance={1000}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -371,7 +372,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
           currentDistance={1000}
-          year={2024}
+          yearContext={createYearContext(2024)}
           unit="miles"
           sport="cycling"
         />
@@ -388,7 +389,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
           currentDistance={1000}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -403,7 +404,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
           currentDistance={1500}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -420,14 +421,20 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={baseGoals}
           currentDistance={1000}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
       );
 
-      // June 15 to Dec 31 = 200 days (ceiling calculation)
-      expect(screen.getByText(/200 days remaining in 2025/)).toBeInTheDocument();
+      // June 15 to Dec 31 = 200 days (UTC calculation)
+      expect(
+        screen.getByText((_content, element) => {
+          return (
+            element?.tagName === "SMALL" && element?.textContent === "200 days remaining in 2025"
+          );
+        })
+      ).toBeInTheDocument();
     });
 
     it("shows 0 days remaining for past years", () => {
@@ -435,7 +442,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={baseGoals}
           currentDistance={1000}
-          year={2024}
+          yearContext={createYearContext(2024)}
           unit="miles"
           sport="cycling"
         />
@@ -451,7 +458,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000 }]}
           currentDistance={500}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -465,7 +472,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
           currentDistance={0}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -481,7 +488,7 @@ describe("GoalSummaryTable", () => {
         <GoalSummaryTable
           goals={[{ id: "1", value: 0, label: "Test Goal" }]}
           currentDistance={0}
-          year={2025}
+          yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
@@ -494,7 +501,12 @@ describe("GoalSummaryTable", () => {
 
     it("uses default sport when not provided", () => {
       render(
-        <GoalSummaryTable goals={baseGoals} currentDistance={1000} year={2025} unit="miles" />
+        <GoalSummaryTable
+          goals={baseGoals}
+          currentDistance={1000}
+          yearContext={createYearContext(2025)}
+          unit="miles"
+        />
       );
 
       // Should use default (cycling = 20 mi/day threshold)

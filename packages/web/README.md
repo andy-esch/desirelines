@@ -71,11 +71,19 @@ React 18 • TypeScript • Vite • Firebase Auth • Firestore • Recharts �
 
 ```
 User → Components → API Layer → API Gateway (Go) → Cloud Storage (JSON)
+                  ↓
+            Firestore (User Config)
 ```
 
 **Modes**:
 - **Fixture mode**: Local data, no API calls (anonymous users, tests)
 - **Smart mode**: Fixtures for anonymous, API for authenticated (production)
+
+**User Data**:
+- User configuration (goals, annotations, preferences) stored in Firestore
+- Document path: `users/{userId}/config/v1`
+- Firestore Security Rules enforce per-user isolation
+- See `docs/architecture/authentication.md` for complete authentication architecture
 
 ## Structure
 

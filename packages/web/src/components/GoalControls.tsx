@@ -16,6 +16,7 @@ interface GoalControlsProps {
   currentDistance: number;
   unit?: MetricUnit; // Unit label (e.g., "mi", "km", "sessions")
   sport?: string; // Sport name (e.g., "cycling", "running", "yoga")
+  isLoading?: boolean; // Whether data is still loading
 }
 
 const GoalControls: React.FC<GoalControlsProps> = ({
@@ -25,6 +26,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   currentDistance,
   unit = "miles", // Default to miles
   sport = "cycling", // Default to cycling
+  isLoading = false,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -216,10 +218,20 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
       <div className="mt-2 small text-muted">
         <div>
-          Current: {currentDistance.toFixed(0)} {unit}
+          Current:{" "}
+          {isLoading
+            ? "--"
+            : currentDistance === 0
+              ? "--"
+              : `${currentDistance.toFixed(0)} ${unit}`}
         </div>
         <div>
-          Est. Year-End: {estimatedYearEnd.toFixed(0)} {unit}
+          Est. Year-End:{" "}
+          {isLoading
+            ? "--"
+            : estimatedYearEnd === 0
+              ? "--"
+              : `${estimatedYearEnd.toFixed(0)} ${unit}`}
         </div>
       </div>
     </div>

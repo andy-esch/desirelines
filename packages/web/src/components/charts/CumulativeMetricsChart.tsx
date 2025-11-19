@@ -16,6 +16,7 @@ import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
 import { CHART_CONFIG } from "../../constants/chartConfig";
 import LoadingChart from "./LoadingChart";
 import ErrorChart from "./ErrorChart";
+import EmptyState from "../EmptyState";
 import {
   calculateDesireLine,
   calculateCurrentAverageLine,
@@ -36,6 +37,7 @@ interface CumulativeMetricsChartProps {
   onViewChange?: (showFullYear: boolean) => void;
   hideHeader?: boolean;
   unit?: MetricUnit; // Unit for metric display (default: "miles", can be "sessions" for yoga)
+  sport?: string; // Sport name for empty state message
 }
 
 // Removed CustomTooltip - now using shared ChartTooltip component
@@ -61,6 +63,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     onViewChange,
     hideHeader = false,
     unit = "miles", // Default to miles if not provided
+    sport,
   } = props;
 
   // Determine chart title based on metric type
@@ -261,6 +264,20 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
           </h3>
         )}
         <ErrorChart error={error} onRetry={() => window.location.reload()} />
+      </div>
+    );
+  }
+
+  // Empty state - no data available (not loading, no error)
+  if (distanceData.length === 0) {
+    return (
+      <div>
+        {!hideHeader && (
+          <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            {chartTitle}
+          </h3>
+        )}
+        <EmptyState sport={sport} year={year} unit={unit} message="No chart data available" />
       </div>
     );
   }

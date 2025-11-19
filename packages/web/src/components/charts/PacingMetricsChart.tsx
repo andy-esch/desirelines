@@ -16,6 +16,7 @@ import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
 import { CHART_CONFIG } from "../../constants/chartConfig";
 import LoadingChart from "./LoadingChart";
 import ErrorChart from "./ErrorChart";
+import EmptyState from "../EmptyState";
 import {
   calculateActualPacing,
   calculateDynamicPacingGoal,
@@ -155,23 +156,22 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
   // Danger zone logic - adaptive visibility based on natural Y-axis range
   const dangerThreshold = useMemo(() => getDangerThreshold(sport), [sport]);
 
-  // Calculate natural Y-axis max from data only (don't force zone visibility)
+  // Calculate natural Y-axis max from visible data only (exclude end-of-year spikes)
   // Cap at reasonable max to prevent infinite Y-axis expansion for unrealistic goals
   const naturalYMax = useMemo(() => {
-    const maxPace = Math.max(
-      ...pacingGoals.flatMap((pg) => pg.pacing.map((p) => p.y)),
+    // Get max from actual pacing data
+    const maxActualPace = Math.max(
+      ...actualPacing.map((p) => p.y),
       currentValues.actual,
       0 // Ensure at least 0 if no data
     );
 
-    // Cap the Y-axis at 3x the danger threshold
-    // This prevents the chart from expanding infinitely for unrealistic goals
-    // while still showing goals that are challenging but potentially achievable
-    const reasonableMax = dangerThreshold * 3;
-    const cappedMax = Math.min(maxPace, reasonableMax);
+    // Cap the Y-axis at 3x the actual data max
+    // This keeps the chart readable - goal lines above this will be clipped
+    const cap = maxActualPace * 3;
 
-    return cappedMax * 1.1; // 10% padding above highest data point
-  }, [pacingGoals, currentValues.actual, dangerThreshold]);
+    return cap * 1.1; // 10% padding above cap
+  }, [actualPacing, currentValues.actual]);
 
   // Only show danger zone if threshold is within natural range
   // (let zone "emerge" as goal lines approach threshold)
@@ -202,6 +202,20 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
           </h3>
         )}
         <ErrorChart error={error} onRetry={() => window.location.reload()} />
+      </div>
+    );
+  }
+
+  // Empty state - no data available (not loading, no error)
+  if (distanceData.length === 0) {
+    return (
+      <div className={hideHeader ? "" : "mt-4"}>
+        {!hideHeader && (
+          <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+            {chartTitle}
+          </h3>
+        )}
+        <EmptyState sport={sport} year={year} unit={unit} message="No pacing data available" />
       </div>
     );
   }
@@ -242,6 +256,7 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
               position: "insideLeft",
             }}
             domain={[0, naturalYMax]}
+            allowDataOverflow={true}
             stroke={CHART_CONFIG.axis.stroke}
             tickFormatter={(value: number) => value.toFixed(1)}
           />

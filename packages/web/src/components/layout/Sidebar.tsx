@@ -17,6 +17,7 @@ interface SidebarProps {
   currentDistance: number;
   sport?: string; // Current sport (cycling, running, yoga)
   unit?: MetricUnit; // Unit label (e.g., "miles", "kilometers", "sessions")
+  isLoading?: boolean; // Whether data is still loading
 }
 
 const AVAILABLE_YEARS = [2025, 2024, 2023];
@@ -30,6 +31,7 @@ export default function Sidebar({
   currentDistance,
   sport = "cycling", // Default to cycling if not provided
   unit = "miles", // Default to miles
+  isLoading = false,
 }: SidebarProps) {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
@@ -171,6 +173,7 @@ export default function Sidebar({
               currentDistance={currentDistance}
               unit={unit}
               sport={sport}
+              isLoading={isLoading}
             />
           </div>
         </div>

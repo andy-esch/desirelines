@@ -3,40 +3,31 @@ import { Goals } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
 import { getDangerThreshold } from "../constants/dangerZoneThresholds";
+import type { YearContext } from "../utils/yearContext";
 
 interface GoalSummaryTableProps {
   goals: Goals;
   currentDistance: number;
-  year: number;
+  yearContext: YearContext;
   unit?: MetricUnit; // Unit label (e.g., "mi", "km", "sessions")
   sport?: string; // Sport type for danger zone threshold lookup
+  isLoading?: boolean; // Whether data is still loading
 }
 
 const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   goals,
   currentDistance,
-  year,
+  yearContext,
   unit = "miles",
   sport = "cycling",
+  isLoading = false,
 }) => {
-  const today = new Date();
-  const isCurrentYear = year === today.getFullYear();
+  const { year, isPastYear, daysRemaining } = yearContext;
 
   // Get danger threshold for this sport
   const dangerThreshold = getDangerThreshold(sport);
 
-  const calculateDaysRemaining = (): number => {
-    if (!isCurrentYear) return 0;
-    // Use UTC to avoid timezone issues
-    const todayStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-    const endOfYear = Date.UTC(year, 11, 31);
-    const msPerDay = 1000 * 60 * 60 * 24;
-    // Add 1 to include today in the count (inclusive of both start and end dates)
-    return Math.ceil((endOfYear - todayStart) / msPerDay) + 1;
-  };
-
   const calculateDailyPaceNeeded = (goalValue: number): number => {
-    const daysRemaining = calculateDaysRemaining();
     if (daysRemaining <= 0) return 0;
 
     const distanceRemaining = Math.max(0, goalValue - currentDistance);
@@ -54,14 +45,19 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
 
   const getStatusText = (goalValue: number): string => {
     const progress = calculateProgress(goalValue);
+
+    // Past tense labels for historical years - binary: achieved or not
+    if (isPastYear) {
+      return progress >= 100 ? "Achieved ✓" : "Not Met";
+    }
+
+    // Present tense labels for current year - more granular for in-progress tracking
     if (progress >= 100) return "Achieved ✓";
     if (progress >= 90) return "Nearly There";
     if (progress >= 75) return "On Track";
     if (progress >= 50) return "Behind";
     return "Far Behind";
   };
-
-  const daysRemaining = calculateDaysRemaining();
 
   // Sort goals by value for display
   const sortedGoals = [...goals].sort((a, b) => a.value - b.value);
@@ -81,17 +77,17 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                 <th>Target</th>
                 <th>Progress</th>
                 <th>Remaining</th>
-                {isCurrentYear && daysRemaining > 0 && <th>Daily Pace Needed</th>}
+                {yearContext.shouldShowPacing && <th>Daily Pace Needed</th>}
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {sortedGoals.map((goal) => {
-                const progress = calculateProgress(goal.value);
-                const remaining = Math.max(0, goal.value - currentDistance);
-                const paceNeeded = calculateDailyPaceNeeded(goal.value);
-                const status = getStatusText(goal.value);
-                const isDangerous = isPaceDangerous(paceNeeded);
+                const progress = isLoading ? 0 : calculateProgress(goal.value);
+                const remaining = isLoading ? 0 : Math.max(0, goal.value - currentDistance);
+                const paceNeeded = isLoading ? 0 : calculateDailyPaceNeeded(goal.value);
+                const status = isLoading ? "Loading..." : getStatusText(goal.value);
+                const isDangerous = !isLoading && isPaceDangerous(paceNeeded);
 
                 // Find the original index in the unsorted goals array to get the correct color
                 const originalIndex = goals.findIndex((g) => g.id === goal.id);
@@ -125,27 +121,29 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                           aria-valuemin={0}
                           aria-valuemax={100}
                         >
-                          {progress.toFixed(0)}%
+                          {isLoading ? "--" : `${progress.toFixed(0)}%`}
                         </div>
                       </div>
                     </td>
-                    <td>
-                      {remaining.toFixed(0)} {unit}
-                    </td>
-                    {isCurrentYear && daysRemaining > 0 && (
+                    <td>{isLoading ? "--" : `${remaining.toFixed(0)} ${unit}`}</td>
+                    {yearContext.shouldShowPacing && (
                       <td>
-                        <span className={isDangerous ? "fw-bold text-danger" : ""}>
-                          {paceNeeded.toFixed(1)} {unit}/day
-                          {isDangerous && (
-                            <span
-                              className="ms-2"
-                              title="This pace exceeds sustainable limits"
-                              style={{ cursor: "help" }}
-                            >
-                              ⚠️
-                            </span>
-                          )}
-                        </span>
+                        {isLoading ? (
+                          "--"
+                        ) : (
+                          <span className={isDangerous ? "fw-bold text-danger" : ""}>
+                            {paceNeeded.toFixed(1)} {unit}/day
+                            {isDangerous && (
+                              <span
+                                className="ms-2"
+                                title="This pace exceeds sustainable limits"
+                                style={{ cursor: "help" }}
+                              >
+                                ⚠️
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </td>
                     )}
                     <td>
@@ -160,29 +158,35 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
           </table>
         </div>
 
-        {/* Warning banner - only if dangerous goals exist */}
-        {sortedGoals.some((g) => isPaceDangerous(calculateDailyPaceNeeded(g.value))) && (
-          <div className="alert alert-warning mt-3 mb-0" role="alert">
-            <small>
-              <strong>⚠️ Warning:</strong> Goals marked with ⚠️ require a pace exceeding{" "}
-              <strong>
-                {dangerThreshold} {unit}/day
-              </strong>
-              , which may be unsustainable. Consider adjusting your targets.
-            </small>
-          </div>
-        )}
+        {/* Warning banner - only if dangerous goals exist and data is loaded */}
+        {!isLoading &&
+          sortedGoals.some((g) => isPaceDangerous(calculateDailyPaceNeeded(g.value))) && (
+            <div className="alert alert-warning mt-3 mb-0" role="alert">
+              <small>
+                <strong>⚠️ Warning:</strong> Goals marked with ⚠️ require a pace exceeding{" "}
+                <strong>
+                  {dangerThreshold} {unit}/day
+                </strong>
+                , which may be unsustainable. Consider adjusting your targets.
+              </small>
+            </div>
+          )}
 
-        {isCurrentYear && daysRemaining > 0 && (
+        {yearContext.shouldShowPacing && (
           <p className="text-muted mt-2 mb-0">
             <small>
-              {daysRemaining} days remaining in {year}
+              {yearContext.daysRemaining} days remaining in {year}
             </small>
           </p>
         )}
-        {!isCurrentYear && (
+        {isPastYear && (
           <p className="text-muted mt-2 mb-0">
-            <small>Historical year - pace calculations not applicable</small>
+            <small>Historical year - {year} complete</small>
+          </p>
+        )}
+        {yearContext.isFutureYear && (
+          <p className="text-muted mt-2 mb-0">
+            <small>Future year - planning mode</small>
           </p>
         )}
       </div>

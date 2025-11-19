@@ -114,13 +114,14 @@ export const fetchSportMetrics = async (
     const { data } = await axios.get<SportMetrics>(url, { signal, headers });
     return data;
   } catch (err: unknown) {
-    // Request was cancelled - don't treat as error
+    // Request was cancelled - return empty data (expected behavior)
     if (axios.isCancel(err)) {
-      throw new Error("Request cancelled");
+      return [];
     }
-    // 404 means no data for this sport/year - propagate error
+    // 404 means no data for this sport/year - return empty array (not an error)
     if (err instanceof AxiosError && err.response?.status === 404) {
-      throw new Error(`No data available for ${sport} in ${year}`);
+      // Silently return empty data - no data available is a valid state
+      return [];
     }
     // 401/403 means authentication/authorization failed
     if (
