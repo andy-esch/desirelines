@@ -105,7 +105,7 @@ resource "google_bigquery_dataset" "activities_dataset" {
 
   # Aggregator service account access (read-only for delete operations)
   dynamic "access" {
-    for_each = var.create_dev_service_accounts ? [google_service_account.aggregator_dev[0].email] : [var.service_account_email]
+    for_each = var.create_dedicated_service_accounts ? [google_service_account.aggregator_dev[0].email] : [var.service_account_email]
     content {
       role          = "READER"
       user_by_email = access.value
@@ -328,28 +328,28 @@ resource "google_pubsub_topic_iam_member" "dead_letter_publisher" {
 
 # Development Service Accounts (only created if enabled)
 resource "google_service_account" "dispatcher_dev" {
-  count        = var.create_dev_service_accounts ? 1 : 0
+  count        = var.create_dedicated_service_accounts ? 1 : 0
   account_id   = "dispatcher"
   display_name = "Desirelines Dispatcher (${title(var.environment)})"
   description  = "Service account for dispatcher function in ${var.environment} environment"
 }
 
 resource "google_service_account" "aggregator_dev" {
-  count        = var.create_dev_service_accounts ? 1 : 0
+  count        = var.create_dedicated_service_accounts ? 1 : 0
   account_id   = "aggregator"
   display_name = "Desirelines Aggregator (${title(var.environment)})"
   description  = "Service account for aggregator function in ${var.environment} environment"
 }
 
 resource "google_service_account" "bq_inserter_dev" {
-  count        = var.create_dev_service_accounts ? 1 : 0
+  count        = var.create_dedicated_service_accounts ? 1 : 0
   account_id   = "bq-inserter"
   display_name = "Desirelines BQ Inserter (${title(var.environment)})"
   description  = "Service account for BQ inserter function in ${var.environment} environment"
 }
 
 resource "google_service_account" "api_gateway_dev" {
-  count        = var.create_dev_service_accounts ? 1 : 0
+  count        = var.create_dedicated_service_accounts ? 1 : 0
   account_id   = "api-gateway"
   display_name = "Desirelines API Gateway (${title(var.environment)})"
   description  = "Service account for API gateway function in ${var.environment} environment"
@@ -357,7 +357,7 @@ resource "google_service_account" "api_gateway_dev" {
 
 # IAM permissions for dispatcher (PubSub Publisher only)
 resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
-  count  = var.create_dev_service_accounts ? 1 : 0
+  count  = var.create_dedicated_service_accounts ? 1 : 0
   topic  = google_pubsub_topic.activity_events.name
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:${google_service_account.dispatcher_dev[0].email}"
@@ -366,7 +366,7 @@ resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
 # IAM permissions for aggregator (Storage Admin + BigQuery read access - PubSub permissions handled by Eventarc)
 
 resource "google_storage_bucket_iam_member" "aggregator_storage" {
-  count  = var.create_dev_service_accounts ? 1 : 0
+  count  = var.create_dedicated_service_accounts ? 1 : 0
   bucket = google_storage_bucket.aggregation_bucket.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
@@ -379,33 +379,33 @@ resource "google_storage_bucket_iam_member" "aggregator_storage" {
 resource "google_bigquery_dataset_iam_member" "aggregator_data_viewer" {
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
   role       = "roles/bigquery.dataViewer"
-  member     = var.create_dev_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
+  member     = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
 }
 
 resource "google_project_iam_member" "aggregator_bigquery_job_user" {
   project = var.gcp_project_id
   role    = "roles/bigquery.jobUser"
-  member  = var.create_dev_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
+  member  = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
 }
 
 # IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)
 
 resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
-  count      = var.create_dev_service_accounts ? 1 : 0
+  count      = var.create_dedicated_service_accounts ? 1 : 0
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
 }
 
 resource "google_project_iam_member" "bq_inserter_bigquery_data_editor" {
-  count   = var.create_dev_service_accounts ? 1 : 0
+  count   = var.create_dedicated_service_accounts ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/bigquery.dataEditor"
   member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
 }
 
 resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
-  count   = var.create_dev_service_accounts ? 1 : 0
+  count   = var.create_dedicated_service_accounts ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
@@ -413,7 +413,7 @@ resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
 
 # IAM permissions for API Gateway (Storage Object Viewer only - read aggregated data)
 resource "google_storage_bucket_iam_member" "api_gateway_storage" {
-  count  = var.create_dev_service_accounts ? 1 : 0
+  count  = var.create_dedicated_service_accounts ? 1 : 0
   bucket = google_storage_bucket.aggregation_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
@@ -421,7 +421,7 @@ resource "google_storage_bucket_iam_member" "api_gateway_storage" {
 
 # Grant Firebase Admin permissions to API Gateway for token verification
 resource "google_project_iam_member" "api_gateway_firebase_admin" {
-  count   = var.create_dev_service_accounts ? 1 : 0
+  count   = var.create_dedicated_service_accounts ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/firebase.admin"
   member  = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
@@ -429,28 +429,28 @@ resource "google_project_iam_member" "api_gateway_firebase_admin" {
 
 # Service Account Impersonation permissions (allows your user to impersonate the service accounts)
 resource "google_service_account_iam_member" "dispatcher_impersonation" {
-  count              = var.create_dev_service_accounts && var.developer_email != null ? 1 : 0
+  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
   service_account_id = google_service_account.dispatcher_dev[0].name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
 
 resource "google_service_account_iam_member" "aggregator_impersonation" {
-  count              = var.create_dev_service_accounts && var.developer_email != null ? 1 : 0
+  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
   service_account_id = google_service_account.aggregator_dev[0].name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
 
 resource "google_service_account_iam_member" "bq_inserter_impersonation" {
-  count              = var.create_dev_service_accounts && var.developer_email != null ? 1 : 0
+  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
   service_account_id = google_service_account.bq_inserter_dev[0].name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
 
 resource "google_service_account_iam_member" "api_gateway_impersonation" {
-  count              = var.create_dev_service_accounts && var.developer_email != null ? 1 : 0
+  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
   service_account_id = google_service_account.api_gateway_dev[0].name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
@@ -462,12 +462,12 @@ resource "google_service_account_iam_member" "api_gateway_impersonation" {
 resource "google_secret_manager_secret_iam_member" "dispatcher_strava_auth_access" {
   secret_id = "strava-auth-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
-  member    = var.create_dev_service_accounts ? "serviceAccount:${google_service_account.dispatcher_dev[0].email}" : "serviceAccount:${var.service_account_email}"
+  member    = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.dispatcher_dev[0].email}" : "serviceAccount:${var.service_account_email}"
 }
 
 # Aggregator access to Strava auth secret
 resource "google_secret_manager_secret_iam_member" "aggregator_strava_auth_access" {
-  count     = var.create_dev_service_accounts ? 1 : 0
+  count     = var.create_dedicated_service_accounts ? 1 : 0
   secret_id = "strava-auth-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
@@ -475,7 +475,7 @@ resource "google_secret_manager_secret_iam_member" "aggregator_strava_auth_acces
 
 # BQ Inserter access to Strava auth secret
 resource "google_secret_manager_secret_iam_member" "bq_inserter_strava_auth_access" {
-  count     = var.create_dev_service_accounts ? 1 : 0
+  count     = var.create_dedicated_service_accounts ? 1 : 0
   secret_id = "strava-auth-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
@@ -573,7 +573,7 @@ resource "google_cloudfunctions2_function" "activity_dispatcher" {
     min_instance_count    = 0
     available_memory      = "128Mi"
     timeout_seconds       = 60
-    service_account_email = var.create_dev_service_accounts ? google_service_account.dispatcher_dev[0].email : var.service_account_email
+    service_account_email = var.create_dedicated_service_accounts ? google_service_account.dispatcher_dev[0].email : var.service_account_email
 
     environment_variables = {
       GCP_PROJECT_ID   = var.gcp_project_id
@@ -647,7 +647,7 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
     min_instance_count    = 0
     available_memory      = "256Mi"
     timeout_seconds       = 540
-    service_account_email = var.create_dev_service_accounts ? google_service_account.bq_inserter_dev[0].email : var.service_account_email
+    service_account_email = var.create_dedicated_service_accounts ? google_service_account.bq_inserter_dev[0].email : var.service_account_email
     ingress_settings      = "ALLOW_INTERNAL_ONLY"
 
     environment_variables = {
@@ -706,7 +706,7 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
     min_instance_count    = 0
     available_memory      = "512Mi"
     timeout_seconds       = 540
-    service_account_email = var.create_dev_service_accounts ? google_service_account.aggregator_dev[0].email : var.service_account_email
+    service_account_email = var.create_dedicated_service_accounts ? google_service_account.aggregator_dev[0].email : var.service_account_email
     ingress_settings      = "ALLOW_INTERNAL_ONLY"
 
 
@@ -765,7 +765,7 @@ resource "google_cloudfunctions2_function" "api_gateway" {
     min_instance_count             = 0
     available_memory               = "128Mi"
     timeout_seconds                = 60
-    service_account_email          = var.create_dev_service_accounts ? google_service_account.api_gateway_dev[0].email : var.service_account_email
+    service_account_email          = var.create_dedicated_service_accounts ? google_service_account.api_gateway_dev[0].email : var.service_account_email
     ingress_settings               = "ALLOW_ALL" # TODO: Harden with Load Balancer
     all_traffic_on_latest_revision = true
 

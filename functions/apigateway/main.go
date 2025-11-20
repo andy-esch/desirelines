@@ -2,10 +2,10 @@ package apigateway
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/andy-esch/desirelines/packages/apigateway"
+	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
 var httpHandler http.Handler
@@ -14,7 +14,8 @@ func init() {
 	ctx := context.Background()
 	handler, err := apigateway.NewHandler(ctx)
 	if err != nil {
-		log.Fatalf("Failed to initialize apigateway.NewHandler: %v", err)
+		logger.Logger.Error("Failed to initialize apigateway.NewHandler", "error", err)
+		panic(err) // Fatal error during initialization
 	}
 	httpHandler = handler
 }

@@ -103,10 +103,22 @@ variable "create_service_accounts" {
   default     = true
 }
 
-variable "create_dev_service_accounts" {
-  description = "Whether to create development service accounts for local development"
+variable "create_dedicated_service_accounts" {
+  description = <<-EOT
+    Whether to create dedicated service accounts per function (recommended for least privilege).
+
+    When true: Creates separate service accounts for each function:
+      - dispatcher_dev / dispatcher_prod
+      - bq_inserter_dev / bq_inserter_prod
+      - aggregator_dev / aggregator_prod
+      - api_gateway_dev / api_gateway_prod
+
+    When false: All functions use var.service_account_email (shared, less secure)
+
+    Recommended: true in all environments (dev and prod)
+  EOT
   type        = bool
-  default     = false
+  default     = true
 }
 
 # Container image variables for Cloud Functions

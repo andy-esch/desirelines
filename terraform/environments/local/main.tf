@@ -45,9 +45,9 @@ module "desirelines" {
   service_account_email = "${var.gcp_project_number}-compute@developer.gserviceaccount.com"
 
   # Enable APIs but skip service accounts for local development
-  enable_apis                 = true
-  create_service_accounts     = false # Not needed - using user credentials
-  create_dev_service_accounts = false # Not needed - using user credentials
+  enable_apis                       = true
+  create_service_accounts           = false # Not needed - using user credentials
+  create_dedicated_service_accounts = false # Not needed - using user credentials
 
   # Function deployment configuration
   function_source_tag = var.function_source_tag
