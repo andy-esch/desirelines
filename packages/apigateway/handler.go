@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/errors"
+	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 	"github.com/andy-esch/desirelines/packages/apigateway/types"
@@ -50,13 +50,13 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create local storage client: %w", err)
 		}
-		log.Printf("Using local fixtures from: %s", basePath)
+		logger.Logger.Info("Using local fixtures", "base_path", basePath, "data_source", "local-fixtures")
 	case "cloud-storage":
 		storageClient, err = storage.NewCloudStorageClient(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create cloud storage client: %w", err)
 		}
-		log.Println("Using Cloud Storage")
+		logger.Logger.Info("Using Cloud Storage", "data_source", "cloud-storage")
 	default:
 		return nil, fmt.Errorf("invalid DATA_SOURCE: %s (expected: local-fixtures or cloud-storage)", dataSource)
 	}
@@ -72,7 +72,7 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load sport config: %w", err)
 	}
-	log.Printf("Loaded sport config with %d sports", len(sportConfig.ListSports()))
+	logger.Logger.Info("Loaded sport config", "sport_count", len(sportConfig.ListSports()))
 
 	// Initialize CORS handler
 	corsHandler := cors.NewHandler()
@@ -305,7 +305,7 @@ func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
 	// Get embedded sport config JSON
 	data := config.GetRawConfigJSON()
 	if len(data) == 0 {
-		log.Printf("Error: embedded sport config is empty")
+		logger.Logger.Error("Embedded sport config is empty")
 		apiErr := errors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to load sport config",
@@ -318,7 +318,7 @@ func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
 	// Parse to validate it's valid JSON
 	var configData map[string]any
 	if unmarshalErr := json.Unmarshal(data, &configData); unmarshalErr != nil {
-		log.Printf("Error parsing sport config: %v", unmarshalErr)
+		logger.Logger.Error("Error parsing sport config", "error", unmarshalErr)
 		apiErr := errors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Invalid sport config",
@@ -360,7 +360,7 @@ func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int
 	w.WriteHeader(status)
 
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("Error encoding JSON response: %v", err)
+		logger.Logger.Error("Error encoding JSON response", "error", err)
 	}
 }
 
@@ -374,6 +374,6 @@ func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status 
 	w.WriteHeader(status)
 
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("Error encoding JSON response: %v", err)
+		logger.Logger.Error("Error encoding JSON response", "error", err)
 	}
 }

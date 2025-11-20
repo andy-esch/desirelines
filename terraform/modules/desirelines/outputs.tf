@@ -75,7 +75,7 @@ output "application_config" {
 # Development service account outputs (only when created)
 output "dev_service_accounts" {
   description = "Development service account emails for Docker Compose"
-  value = var.create_dev_service_accounts ? {
+  value = var.create_dedicated_service_accounts ? {
     dispatcher_email  = google_service_account.dispatcher_dev[0].email
     aggregator_email  = google_service_account.aggregator_dev[0].email
     bq_inserter_email = google_service_account.bq_inserter_dev[0].email

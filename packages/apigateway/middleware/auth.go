@@ -4,7 +4,6 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/errors"
+	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
 // AuthMiddleware validates Firebase ID tokens and checks email authorization.
@@ -34,7 +34,7 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 	// Check if running in local mode
 	dataSource := os.Getenv("DATA_SOURCE")
 	if dataSource == "local-fixtures" {
-		log.Println("Auth: Running in local mode - skipping Firebase validation")
+		logger.Logger.Info("Auth: Running in local mode", "validation", "skip")
 		return &AuthMiddleware{
 			skipValidation: true,
 			corsHandler:    corsHandler,
@@ -54,7 +54,7 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 		return nil, fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
 	}
 
-	log.Println("Auth middleware initialized successfully")
+	logger.Logger.Info("Auth middleware initialized successfully")
 	return &AuthMiddleware{
 		authClient:    authClient,
 		allowedEmails: allowedEmails,
@@ -66,7 +66,7 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 func parseAllowedEmails() map[string]bool {
 	allowedEmailsEnv := os.Getenv("ALLOWED_EMAILS")
 	if allowedEmailsEnv == "" {
-		log.Println("Warning: ALLOWED_EMAILS not set - no users will be authorized")
+		logger.Logger.Warn("ALLOWED_EMAILS not set - no users will be authorized")
 		return make(map[string]bool)
 	}
 
@@ -78,7 +78,7 @@ func parseAllowedEmails() map[string]bool {
 			allowedEmails[email] = true
 		}
 	}
-	log.Printf("Auth: Configured %d authorized email(s)", len(allowedEmails))
+	logger.Logger.Info("Auth: Configured authorized emails", "count", len(allowedEmails))
 	return allowedEmails
 }
 
@@ -103,7 +103,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Extract token from Authorization header
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			log.Printf("Auth: Authentication failed - reason: missing_header")
+			logger.Logger.Warn("Auth: Authentication failed", "reason", "missing_header")
 			errors.WriteError(w, r, errors.ErrUnauthorized, m.corsHandler)
 			return
 		}
@@ -111,7 +111,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Parse "Bearer <token>"
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			log.Printf("Auth: Authentication failed - reason: invalid_header_format")
+			logger.Logger.Warn("Auth: Authentication failed", "reason", "invalid_header_format")
 			errors.WriteError(w, r, errors.ErrUnauthorized, m.corsHandler)
 			return
 		}
@@ -121,7 +121,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Verify the ID token with Firebase
 		token, err := m.authClient.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
-			log.Printf("Auth: Authentication failed - reason: token_verification_failed")
+			logger.Logger.Warn("Auth: Authentication failed", "reason", "token_verification_failed", "error", err)
 			errors.WriteError(w, r, errors.ErrUnauthorized, m.corsHandler)
 			return
 		}
@@ -129,20 +129,20 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Extract email from token claims
 		email, ok := token.Claims["email"].(string)
 		if !ok || email == "" {
-			log.Printf("Auth: Authentication failed - reason: missing_email_claim")
+			logger.Logger.Warn("Auth: Authentication failed", "reason", "missing_email_claim")
 			errors.WriteError(w, r, errors.ErrUnauthorized, m.corsHandler)
 			return
 		}
 
 		// Check if email is in allowlist
 		if !m.allowedEmails[email] {
-			log.Printf("Auth: Authorization failed - reason: email_not_authorized")
+			logger.Logger.Warn("Auth: Authorization failed", "reason", "email_not_authorized", "email", email)
 			errors.WriteError(w, r, errors.ErrForbidden, m.corsHandler)
 			return
 		}
 
 		// Email is authorized, proceed
-		log.Printf("Auth: Request authorized successfully")
+		logger.Logger.Info("Auth: Request authorized successfully", "email", email)
 		next.ServeHTTP(w, r)
 	})
 }

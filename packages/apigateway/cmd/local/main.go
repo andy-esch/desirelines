@@ -3,27 +3,28 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway"
+	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
 func main() {
-	log.Println("Starting API Gateway local development server...")
+	logger.Logger.Info("Starting API Gateway local development server")
 
 	ctx := context.Background()
 	handler, err := apigateway.NewHandler(ctx)
 	if err != nil {
-		log.Fatalf("Failed to initialize API Gateway handler: %v", err)
+		logger.Logger.Error("Failed to initialize API Gateway handler", "error", err)
+		os.Exit(1)
 	}
 
 	http.Handle("/", handler)
 
 	port := getEnvOrDefault("PORT", "8080")
-	log.Printf("Server listening on port %s", port)
+	logger.Logger.Info("Server listening", "port", port)
 
 	// Create server with timeouts for security
 	server := &http.Server{
@@ -33,7 +34,13 @@ func main() {
 		WriteTimeout:      30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	log.Fatal(server.ListenAndServe())
+
+	// Use different variable name to avoid shadowing err from line 18
+	serverErr := server.ListenAndServe()
+	if serverErr != nil {
+		logger.Logger.Error("Server failed", "error", serverErr)
+		os.Exit(1)
+	}
 }
 
 func getEnvOrDefault(key, defaultValue string) string {

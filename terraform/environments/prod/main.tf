@@ -45,9 +45,9 @@ module "desirelines" {
   service_account_email = "${var.gcp_project_number}-compute@developer.gserviceaccount.com"
 
   # Enable APIs and create service accounts
-  enable_apis                 = true
-  create_service_accounts     = true # Create terraform and infrastructure service accounts
-  create_dev_service_accounts = true # Create dedicated per-function service accounts (least privilege)
+  enable_apis                       = true
+  create_service_accounts           = true # Create terraform and infrastructure service accounts
+  create_dedicated_service_accounts = true # Use dedicated SAs per function (least privilege)
 
   # Function deployment configuration (uses dev-built sources)
   function_source_tag = var.function_source_tag
