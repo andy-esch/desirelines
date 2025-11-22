@@ -322,9 +322,13 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
  * ```
  */
 export function useFullUserConfig(userId?: string, version: string = "v1") {
+  const { user } = useAuth();
   const [config, setConfig] = useState<UserConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  // Determine if we're in fixture mode based on auth state
+  const isFixtureMode = !user;
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(() => new UserConfigService(userId, version), [userId, version]);
@@ -366,8 +370,8 @@ export function useFullUserConfig(userId?: string, version: string = "v1") {
       year?: number,
       sport?: string
     ): Promise<void> => {
-      // In fixture mode, skip persistence
-      if (USE_FIXTURE_DATA) {
+      // In fixture mode (unauthenticated), skip persistence
+      if (isFixtureMode) {
         console.warn("Fixture mode: Changes not persisted", data);
         return;
       }
@@ -386,7 +390,7 @@ export function useFullUserConfig(userId?: string, version: string = "v1") {
         setError(err as Error);
       }
     },
-    [configService]
+    [configService, isFixtureMode]
   );
 
   return {
