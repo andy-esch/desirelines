@@ -1100,4 +1100,125 @@ describe("useFullUserConfig", () => {
       consoleErrorSpy.mockRestore();
     });
   });
+
+  describe("fixture mode consistency", () => {
+    it("should use auth state to determine fixture mode, not build flag", async () => {
+      // Mock useAuth to return authenticated user
+      const mockAuthUser = {
+        uid: "auth-user-123",
+        email: "auth@example.com",
+        displayName: "Auth User",
+      };
+
+      vi.doMock("./useAuth", () => ({
+        useAuth: () => ({
+          user: mockAuthUser,
+          loading: false,
+          signIn: vi.fn(),
+          signOut: vi.fn(),
+        }),
+      }));
+
+      // Mock USE_FIXTURE_DATA as true
+      vi.doMock("../config", () => ({
+        USE_FIXTURE_DATA: true,
+        API_BASE_URL: "http://localhost:8080",
+      }));
+
+      const { setDoc, onSnapshot } = await import("firebase/firestore");
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
+        setTimeout(() => {
+          callback({
+            exists: () => true,
+            data: () => ({ goals: {} }),
+          });
+        }, 0);
+        return vi.fn();
+      });
+
+      vi.mocked(setDoc).mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useFullUserConfig());
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      // Try to update - should NOT skip because user is authenticated
+      const mockGoals: GoalsForYear = {
+        goals: [{ id: "1", value: 1000, label: "Test", createdAt: "", updatedAt: "" }],
+      };
+
+      await result.current.updateSection("goals", mockGoals, 2025, "cycling");
+
+      // Should have called setDoc (not skipped due to fixture mode)
+      expect(setDoc).toHaveBeenCalled();
+
+      // Should NOT have warned about fixture mode
+      expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("Fixture mode"),
+        expect.anything()
+      );
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    it("should skip persistence when user is not authenticated (fixture mode)", async () => {
+      // Mock useAuth to return no user
+      vi.doMock("./useAuth", () => ({
+        useAuth: () => ({
+          user: null,
+          loading: false,
+          signIn: vi.fn(),
+          signOut: vi.fn(),
+        }),
+      }));
+
+      const { setDoc, onSnapshot } = await import("firebase/firestore");
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
+        setTimeout(() => {
+          callback({
+            exists: () => true,
+            data: () => ({ goals: {} }),
+          });
+        }, 0);
+        return vi.fn();
+      });
+
+      vi.mocked(setDoc).mockResolvedValue(undefined);
+
+      // Need to reload the hook module to pick up new useAuth mock
+      const { useFullUserConfig: reloadedHook } = await import("./useUserConfig");
+      const { result } = renderHook(() => reloadedHook());
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      // Clear previous setDoc calls
+      vi.mocked(setDoc).mockClear();
+
+      // Try to update - should skip because user is not authenticated
+      const mockGoals: GoalsForYear = {
+        goals: [{ id: "1", value: 1000, label: "Test", createdAt: "", updatedAt: "" }],
+      };
+
+      await result.current.updateSection("goals", mockGoals, 2025, "cycling");
+
+      // Should NOT have called setDoc (skipped due to fixture mode)
+      expect(setDoc).not.toHaveBeenCalled();
+
+      // Should have warned about fixture mode
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Fixture mode"),
+        expect.anything()
+      );
+
+      consoleWarnSpy.mockRestore();
+    });
+  });
 });
