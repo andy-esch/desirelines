@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   fetchSportMetrics,
   fetchSportConfig,
@@ -35,6 +35,7 @@ interface SportPageProps {
 
 export default function SportPage({ sport }: SportPageProps) {
   const { year } = useParams<{ year?: string }>();
+  const navigate = useNavigate();
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
 
   const [metrics, setMetrics] = useState<SportMetrics | null>(null);
@@ -220,8 +221,7 @@ export default function SportPage({ sport }: SportPageProps) {
           currentYear={currentYear}
           sport={sport}
           onYearClick={(newYear) => {
-            // TODO: Use router navigation when we add year routes
-            window.location.href = `/${sport}/${newYear}`;
+            navigate(`/${sport}/${newYear}`);
           }}
           goals={goals}
           onGoalsChange={handleGoalsChange}
