@@ -76,7 +76,7 @@ export default function Sidebar({
     return () => {
       controller.abort();
     };
-  }, [currentYear, user, loading]);
+  }, [currentYear, user, loading, getToken]);
 
   const handleSportChange = (newSport: string) => {
     // Use currentYear prop (source of truth from parent component)

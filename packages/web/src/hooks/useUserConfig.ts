@@ -6,7 +6,6 @@ import {
   type AnnotationsForYear,
   type Preferences,
 } from "../services/userConfigService";
-import { USE_FIXTURE_DATA } from "../config";
 import { FIXTURE_GOALS } from "../data/fixtures";
 import { useAuth } from "./useAuth";
 

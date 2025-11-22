@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { useAuthToken } from "./useAuthToken";
 import * as useAuthModule from "./useAuth";
 
