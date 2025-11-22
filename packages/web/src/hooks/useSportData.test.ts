@@ -80,7 +80,17 @@ describe("useSportData", () => {
     const mockMetrics = [{ date: "2025-01-01", distance: 50 }];
     const mockConfig = {
       version: "1.0",
-      sport_categories: { cycling: {} },
+      sport_categories: {
+        cycling: {
+          display_name: "Cycling",
+          strava_types: ["Ride"],
+          excluded_types: [],
+          primary_metric: "distance_meters",
+          metrics: ["distance_meters"],
+          has_distance: true,
+          has_elevation: true,
+        },
+      },
     };
 
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
@@ -185,7 +195,17 @@ describe("useSportData", () => {
 
     vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue({
       version: "1.0",
-      sport_categories: {},
+      sport_categories: {
+        cycling: {
+          display_name: "Cycling",
+          strava_types: ["Ride"],
+          excluded_types: [],
+          primary_metric: "distance_meters",
+          metrics: ["distance_meters"],
+          has_distance: true,
+          has_elevation: true,
+        },
+      },
     });
 
     const { result } = renderHook(() => useSportData(2025, "cycling"));
