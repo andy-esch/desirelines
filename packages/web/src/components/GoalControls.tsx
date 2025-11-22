@@ -32,6 +32,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   const [editValue, setEditValue] = useState("");
   const [editingLabel, setEditingLabel] = useState<{ id: string; value: string } | null>(null);
 
+  const [editValidationError, setEditValidationError] = useState<string | null>(null);
   const validation = validateGoals(goals);
 
   // Determine increment size based on sport type
@@ -56,20 +57,21 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   const handleStartEdit = (id: string, currentValue: number) => {
     setEditingId(id);
     setEditValue(currentValue.toString());
+    setEditValidationError(null);
   };
 
   const handleSaveEdit = (id: string) => {
     const value = parseInt(editValue);
     if (isNaN(value)) {
       setEditingId(null);
+      setEditValidationError(null);
       return;
     }
 
     // Validate the goal value (allows any positive integer)
     const validationError = validateGoalValue(value);
     if (validationError) {
-      // Show error (keep editing mode open)
-      alert(validationError);
+      setEditValidationError(validationError);
       return;
     }
 
@@ -77,6 +79,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     const updated = goals.map((g) => (g.id === id ? { ...g, value } : g));
     onGoalsChange(updated);
     setEditingId(null);
+    setEditValidationError(null);
   };
 
   const handleLabelEdit = (id: string, value: string) => {
@@ -170,14 +173,21 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   type="number"
                   className="form-control text-center"
                   value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
+                  onChange={(e) => {
+                    setEditValue(e.target.value);
+                    setEditValidationError(null);
+                  }}
                   onBlur={() => handleSaveEdit(goal.id)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSaveEdit(goal.id);
-                    if (e.key === "Escape") setEditingId(null);
+                    if (e.key === "Escape") {
+                      setEditingId(null);
+                      setEditValidationError(null);
+                    }
                   }}
                   autoFocus
                   style={{ maxWidth: "130px" }}
+                  aria-describedby={editValidationError ? `goal-error-${goal.id}` : undefined}
                 />
               ) : (
                 <input
@@ -196,6 +206,15 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                 +
               </button>
             </div>
+            {editingId === goal.id && editValidationError && (
+              <div
+                id={`goal-error-${goal.id}`}
+                className="alert alert-danger py-1 px-2 small mt-1"
+                role="alert"
+              >
+                {editValidationError}
+              </div>
+            )}
           </div>
         ))}
       </div>
