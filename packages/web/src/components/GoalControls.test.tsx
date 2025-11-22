@@ -176,9 +176,7 @@ describe("GoalControls", () => {
       fireEvent.blur(editInput);
 
       expect(defaultProps.onGoalsChange).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ id: "1", value: 1200 }),
-        ])
+        expect.arrayContaining([expect.objectContaining({ id: "1", value: 1200 })])
       );
     });
 

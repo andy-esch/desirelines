@@ -215,12 +215,9 @@ describe("useSportData", () => {
       signOut: vi.fn(),
     });
 
-    const { result, rerender } = renderHook(
-      ({ year, sport }) => useSportData(year, sport),
-      {
-        initialProps: { year: 2025, sport: "cycling" },
-      }
-    );
+    const { result, rerender } = renderHook(({ year, sport }) => useSportData(year, sport), {
+      initialProps: { year: 2025, sport: "cycling" },
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -247,12 +244,9 @@ describe("useSportData", () => {
       signOut: vi.fn(),
     });
 
-    const { result, rerender } = renderHook(
-      ({ year, sport }) => useSportData(year, sport),
-      {
-        initialProps: { year: 2025, sport: "cycling" },
-      }
-    );
+    const { result, rerender } = renderHook(({ year, sport }) => useSportData(year, sport), {
+      initialProps: { year: 2025, sport: "cycling" },
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
