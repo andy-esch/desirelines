@@ -38,6 +38,7 @@ interface CumulativeMetricsChartProps {
   hideHeader?: boolean;
   unit?: MetricUnit; // Unit for metric display (default: "miles", can be "sessions" for yoga)
   sport?: string; // Sport name for empty state message
+  onRetry?: () => void; // Callback to retry loading data after error
 }
 
 // Removed CustomTooltip - now using shared ChartTooltip component
@@ -64,6 +65,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     hideHeader = false,
     unit = "miles", // Default to miles if not provided
     sport,
+    onRetry,
   } = props;
 
   // Determine chart title based on metric type
@@ -263,7 +265,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
             {chartTitle}
           </h3>
         )}
-        <ErrorChart error={error} onRetry={() => window.location.reload()} />
+        <ErrorChart error={error} onRetry={onRetry} />
       </div>
     );
   }
