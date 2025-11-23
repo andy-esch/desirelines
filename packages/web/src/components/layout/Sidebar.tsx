@@ -48,14 +48,17 @@ export default function Sidebar({
 
     async function loadSports() {
       try {
-        // Use fixtures if configured
-        if (USE_FIXTURE_DATA) {
+        // Smart mode: Use fixtures for anonymous users when USE_FIXTURE_DATA=true
+        // Authenticated users always fetch from API (even if USE_FIXTURE_DATA=true)
+        const shouldUseFixtures = USE_FIXTURE_DATA && !user;
+
+        if (shouldUseFixtures) {
           const metadata = FIXTURE_METADATA[currentYear];
           if (metadata?.sports && metadata.sports.length > 0) {
             setAvailableSports(metadata.sports);
           }
         } else {
-          // Fetch from API with authentication
+          // Fetch from API (authenticated user or USE_FIXTURE_DATA=false)
           let idToken: string | undefined;
           if (user) {
             const { getFirebaseAuth } = await import("../../lib/firebase");
