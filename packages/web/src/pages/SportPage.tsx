@@ -1,11 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  fetchSportMetrics,
-  fetchSportConfig,
-  type SportMetrics,
-  type SportConfig,
-} from "../api/activities";
 import { convertDistance, getUserSettings } from "../utils/units";
 import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
 import PacingMetricsChart from "../components/charts/PacingMetricsChart";
@@ -21,13 +15,10 @@ import {
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
-import { useAuthToken } from "../hooks/useAuthToken";
+import { useSportData } from "../hooks/useSportData";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
-import { USE_FIXTURE_DATA } from "../config";
-import { FIXTURE_SPORT_METRICS, FIXTURE_SPORT_CONFIG } from "../data/fixtures";
-import { useAuth } from "../hooks/useAuth";
 import { createYearContext } from "../utils/yearContext";
 
 interface SportPageProps {
@@ -38,77 +29,10 @@ export default function SportPage({ sport }: SportPageProps) {
   const { year } = useParams<{ year?: string }>();
   const navigate = useNavigate();
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
-
-  const [metrics, setMetrics] = useState<SportMetrics | null>(null);
-  const [sportConfig, setSportConfig] = useState<SportConfig | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
   const [showFullYear, setShowFullYear] = useState(true);
-  const [retryCount, setRetryCount] = useState(0);
-
-  // Get auth state for smart mode
-  const { user, loading: authLoading } = useAuth();
-  const { getToken } = useAuthToken();
-
-  // Retry handler for error recovery
-  const handleRetry = () => {
-    setError(null);
-    setIsLoading(true);
-    setRetryCount((prev) => prev + 1);
-  };
 
   // Fetch sport metrics and config
-  useEffect(() => {
-    // Don't make API calls while auth is still loading
-    if (authLoading) {
-      return;
-    }
-
-    const controller = new AbortController();
-
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // Smart mode: Use fixtures for anonymous users when USE_FIXTURE_DATA=true
-        // Authenticated users always fetch from API (even if USE_FIXTURE_DATA=true)
-        const shouldUseFixtures = USE_FIXTURE_DATA && !user;
-
-        if (shouldUseFixtures) {
-          // Load from fixtures (synchronous)
-          const metricsData = FIXTURE_SPORT_METRICS[sport]?.[currentYear] || [];
-          const configData = FIXTURE_SPORT_CONFIG;
-
-          setMetrics(metricsData);
-          setSportConfig(configData);
-        } else {
-          // Fetch from API (authenticated user or USE_FIXTURE_DATA=false)
-          const idToken = await getToken();
-
-          const [metricsData, configData] = await Promise.all([
-            fetchSportMetrics(currentYear, sport, controller.signal, idToken),
-            fetchSportConfig(controller.signal, idToken),
-          ]);
-
-          setMetrics(metricsData);
-          setSportConfig(configData);
-        }
-      } catch (err) {
-        if (err instanceof Error && err.message !== "Request cancelled") {
-          setError(err);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadData();
-
-    return () => {
-      controller.abort();
-    };
-  }, [currentYear, sport, user, authLoading, retryCount]);
+  const { metrics, sportConfig, isLoading, error, retry } = useSportData(currentYear, sport);
 
   // Load user preferences for unit settings (BEFORE using them in calculations)
   const { data: preferences } = useUserConfig("preferences");
@@ -278,7 +202,7 @@ export default function SportPage({ sport }: SportPageProps) {
                 onViewChange={setShowFullYear}
                 unit={metricUnit}
                 sport={sport}
-                onRetry={handleRetry}
+                onRetry={retry}
               />
             </div>
           </div>
@@ -294,7 +218,7 @@ export default function SportPage({ sport }: SportPageProps) {
                 showFullYear={showFullYear}
                 unit={metricUnit}
                 sport={sport}
-                onRetry={handleRetry}
+                onRetry={retry}
               />
             </div>
           </div>
