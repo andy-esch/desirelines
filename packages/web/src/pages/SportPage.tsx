@@ -21,6 +21,7 @@ import {
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
+import { useAuthToken } from "../hooks/useAuthToken";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
@@ -47,6 +48,7 @@ export default function SportPage({ sport }: SportPageProps) {
 
   // Get auth state for smart mode
   const { user, loading: authLoading } = useAuth();
+  const { getToken } = useAuthToken();
 
   // Retry handler for error recovery
   const handleRetry = () => {
@@ -82,16 +84,7 @@ export default function SportPage({ sport }: SportPageProps) {
           setSportConfig(configData);
         } else {
           // Fetch from API (authenticated user or USE_FIXTURE_DATA=false)
-          // Get Firebase ID token if user is authenticated
-          let idToken: string | undefined;
-          if (user) {
-            const { getFirebaseAuth } = await import("../lib/firebase");
-            const auth = getFirebaseAuth();
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-              idToken = await currentUser.getIdToken();
-            }
-          }
+          const idToken = await getToken();
 
           const [metricsData, configData] = await Promise.all([
             fetchSportMetrics(currentYear, sport, controller.signal, idToken),

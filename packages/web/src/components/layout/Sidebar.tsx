@@ -7,6 +7,7 @@ import type { MetricUnit } from "../../utils/units";
 import { USE_FIXTURE_DATA } from "../../config";
 import { FIXTURE_METADATA } from "../../data/fixtures";
 import { useAuth } from "../../hooks/useAuth";
+import { useAuthToken } from "../../hooks/useAuthToken";
 
 interface SidebarProps {
   currentYear: number;
@@ -35,6 +36,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { getToken } = useAuthToken();
   const [availableSports, setAvailableSports] = useState<string[]>(["cycling"]); // Default fallback
 
   // Fetch available sports from metadata
@@ -58,16 +60,8 @@ export default function Sidebar({
             setAvailableSports(metadata.sports);
           }
         } else {
-          // Fetch from API (authenticated user or USE_FIXTURE_DATA=false)
-          let idToken: string | undefined;
-          if (user) {
-            const { getFirebaseAuth } = await import("../../lib/firebase");
-            const auth = getFirebaseAuth();
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-              idToken = await currentUser.getIdToken();
-            }
-          }
+          // Fetch from API with authentication
+          const idToken = await getToken();
 
           const metadata = await fetchYearMetadata(currentYear, controller.signal, idToken);
           if (metadata.sports && metadata.sports.length > 0) {
