@@ -65,80 +65,98 @@ const KPICards = React.memo(
   }: KPICardsProps) => {
     // Determine appropriate title based on unit
     const metricTitle = unit === "sessions" ? "Current # Sessions" : "Current Distance";
+    const hasData = !isLoading && currentDistance > 0;
+
+    // Helper functions for cleaner rendering
+    const getCurrentDistanceValue = () => {
+      if (isLoading || currentDistance === 0) return "--";
+      return `${currentDistance.toFixed(0)} ${unit}`;
+    };
+
+    const getCurrentDistanceSubtitle = () => {
+      if (isLoading) return "Loading...";
+
+      if (currentDistance === 0) {
+        const yearStatus = yearContext.isPastYear
+          ? `${yearContext.year} complete · No data available`
+          : `${yearContext.daysElapsed} days elapsed · No data available`;
+        return <>{yearStatus}</>;
+      }
+
+      const yearStatus = yearContext.isPastYear
+        ? `${yearContext.year} complete`
+        : `${yearContext.daysElapsed} days elapsed`;
+
+      return (
+        <>
+          {averagePace.toFixed(1)} {unit} / day avg ·{" "}
+          {momentumIndicator && <>{momentumIndicator} · </>}
+          {yearStatus}
+        </>
+      );
+    };
+
+    const getNextGoalValue = () => {
+      if (!hasData) return "--";
+      return `${nextGoalProgress.toFixed(0)}%`;
+    };
+
+    const getNextGoalSubtitle = () => {
+      if (isLoading) return "Loading...";
+      if (currentDistance === 0) return "No data available";
+
+      if (nextGoalGap > 0) {
+        return `${nextGoalGap.toFixed(0)} ${unit} to ${nextGoal?.value.toLocaleString()}`;
+      }
+
+      if (nextGoal) {
+        return `${nextGoal.value.toLocaleString()} ${unit} reached!`;
+      }
+
+      return "No goal set";
+    };
+
+    const getPaceToGoalValue = () => {
+      if (isLoading) return "--";
+      if (yearContext.shouldShowPacing && paceNeededForNextGoal > 0) {
+        return paceNeededForNextGoal.toFixed(1);
+      }
+      return "—";
+    };
+
+    const getPaceToGoalSubtitle = () => {
+      if (isLoading) return "Loading...";
+      if (yearContext.isPastYear) return "Historical data";
+      if (yearContext.isFutureYear) return "Future year";
+
+      if (paceNeededForNextGoal > 0) {
+        return `${unit} / day · ${yearContext.daysRemaining} days left`;
+      }
+
+      return `${yearContext.daysRemaining} days remaining`;
+    };
 
     return (
       <div className="row g-3 mb-4">
         {/* Current Distance/Sessions Card */}
         <KPICard
           title={metricTitle}
-          value={
-            isLoading
-              ? "--"
-              : currentDistance === 0
-                ? "--"
-                : `${currentDistance.toFixed(0)} ${unit}`
-          }
-          subtitle={
-            isLoading ? (
-              "Loading..."
-            ) : currentDistance === 0 ? (
-              <>
-                {yearContext.isPastYear
-                  ? `${yearContext.year} complete · No data available`
-                  : `${yearContext.daysElapsed} days elapsed · No data available`}
-              </>
-            ) : (
-              <>
-                {averagePace.toFixed(1)} {unit} / day avg ·{" "}
-                {momentumIndicator && <>{momentumIndicator} · </>}
-                {yearContext.isPastYear
-                  ? `${yearContext.year} complete`
-                  : `${yearContext.daysElapsed} days elapsed`}
-              </>
-            )
-          }
+          value={getCurrentDistanceValue()}
+          subtitle={getCurrentDistanceSubtitle()}
         />
 
         {/* Next Goal Card */}
         <KPICard
           title={nextGoal?.label || "Next Goal"}
-          value={
-            isLoading ? "--" : currentDistance === 0 ? "--" : `${nextGoalProgress.toFixed(0)}%`
-          }
-          subtitle={
-            isLoading
-              ? "Loading..."
-              : currentDistance === 0
-                ? "No data available"
-                : nextGoalGap > 0
-                  ? `${nextGoalGap.toFixed(0)} ${unit} to ${nextGoal?.value.toLocaleString()}`
-                  : nextGoal
-                    ? `${nextGoal.value.toLocaleString()} ${unit} reached!`
-                    : "No goal set"
-          }
+          value={getNextGoalValue()}
+          subtitle={getNextGoalSubtitle()}
         />
 
         {/* Pace to Goal Card */}
         <KPICard
           title={`Pace to ${nextGoal?.label || "Goal"}`}
-          value={
-            isLoading
-              ? "--"
-              : yearContext.shouldShowPacing && paceNeededForNextGoal > 0
-                ? paceNeededForNextGoal.toFixed(1)
-                : "—"
-          }
-          subtitle={
-            isLoading
-              ? "Loading..."
-              : yearContext.isPastYear
-                ? `Historical data`
-                : yearContext.isFutureYear
-                  ? `Future year`
-                  : paceNeededForNextGoal > 0
-                    ? `${unit} / day · ${yearContext.daysRemaining} days left`
-                    : `${yearContext.daysRemaining} days remaining`
-          }
+          value={getPaceToGoalValue()}
+          subtitle={getPaceToGoalSubtitle()}
         />
       </div>
     );
