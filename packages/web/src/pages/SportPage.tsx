@@ -43,9 +43,17 @@ export default function SportPage({ sport }: SportPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [showFullYear, setShowFullYear] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Get auth state for smart mode
   const { user, loading: authLoading } = useAuth();
+
+  // Retry handler for error recovery
+  const handleRetry = () => {
+    setError(null);
+    setIsLoading(true);
+    setRetryCount((prev) => prev + 1);
+  };
 
   // Fetch sport metrics and config
   useEffect(() => {
@@ -107,7 +115,7 @@ export default function SportPage({ sport }: SportPageProps) {
     return () => {
       controller.abort();
     };
-  }, [currentYear, sport, user, authLoading]);
+  }, [currentYear, sport, user, authLoading, retryCount]);
 
   // Load user preferences for unit settings (BEFORE using them in calculations)
   const { data: preferences } = useUserConfig("preferences");
@@ -277,6 +285,7 @@ export default function SportPage({ sport }: SportPageProps) {
                 onViewChange={setShowFullYear}
                 unit={metricUnit}
                 sport={sport}
+                onRetry={handleRetry}
               />
             </div>
           </div>
@@ -292,6 +301,7 @@ export default function SportPage({ sport }: SportPageProps) {
                 showFullYear={showFullYear}
                 unit={metricUnit}
                 sport={sport}
+                onRetry={handleRetry}
               />
             </div>
           </div>
