@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -169,6 +170,35 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 	}
 	if len(mockPub.Published) != 1 {
 		t.Errorf("expected 1 message to be published with charset, got %d", len(mockPub.Published))
+	}
+}
+
+func TestHandler_Close(t *testing.T) {
+	// Create a handler with mock publisher
+	cfg := &Config{}
+	mockPub := &MockPublisher{}
+	handler := NewHandlerWithPublisher(cfg, mockPub, nil)
+
+	// Close should delegate to publisher
+	err := handler.Close(context.Background())
+	if err != nil {
+		t.Errorf("Handler.Close() returned error: %v", err)
+	}
+}
+
+func TestHandler_Close_WithContext(t *testing.T) {
+	// Test that context parameter is accepted (even if not currently used)
+	cfg := &Config{}
+	mockPub := &MockPublisher{}
+	handler := NewHandlerWithPublisher(cfg, mockPub, nil)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := handler.Close(ctx)
+	if err != nil {
+		t.Errorf("Handler.Close() with context returned error: %v", err)
 	}
 }
 
