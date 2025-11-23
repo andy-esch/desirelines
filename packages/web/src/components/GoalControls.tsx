@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Goals,
   Goal,
@@ -34,6 +34,9 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
   const [editValidationError, setEditValidationError] = useState<string | null>(null);
   const validation = validateGoals(goals);
+
+  // Debounce timer for label changes
+  const labelDebounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Determine increment size based on sport type
   // Cycling: 100, Running: 10, Yoga: 10
@@ -84,14 +87,40 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
   const handleLabelEdit = (id: string, value: string) => {
     setEditingLabel({ id, value });
+
+    // Clear existing timer
+    if (labelDebounceTimer.current) {
+      clearTimeout(labelDebounceTimer.current);
+    }
+
+    // Debounce label save - only save after user stops typing for 500ms
+    labelDebounceTimer.current = setTimeout(() => {
+      handleGoalLabelChange(id, value);
+    }, 500);
   };
 
   const handleLabelSave = (id: string) => {
+    // Clear debounce timer
+    if (labelDebounceTimer.current) {
+      clearTimeout(labelDebounceTimer.current);
+      labelDebounceTimer.current = null;
+    }
+
+    // Immediately save current value on blur
     if (editingLabel && editingLabel.id === id) {
       handleGoalLabelChange(id, editingLabel.value);
       setEditingLabel(null);
     }
   };
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (labelDebounceTimer.current) {
+        clearTimeout(labelDebounceTimer.current);
+      }
+    };
+  }, []);
 
   const handleGoalLabelChange = (id: string, label: string) => {
     const updated = goals.map((g) => (g.id === id ? { ...g, label } : g));
