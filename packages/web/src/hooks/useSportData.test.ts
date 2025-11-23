@@ -48,6 +48,7 @@ describe("useSportData", () => {
       loading: true,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
@@ -67,6 +68,7 @@ describe("useSportData", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
@@ -88,7 +90,17 @@ describe("useSportData", () => {
     const mockMetrics = [{ date: "2025-01-01", distance: 50 }];
     const mockConfig = {
       version: "1.0",
-      sport_categories: { cycling: {} },
+      sport_categories: {
+        cycling: {
+          display_name: "Cycling",
+          strava_types: ["Ride"],
+          excluded_types: [],
+          primary_metric: "distance_meters",
+          metrics: ["distance_meters"],
+          has_distance: true,
+          has_elevation: true,
+        },
+      },
     };
 
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
@@ -96,6 +108,7 @@ describe("useSportData", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
@@ -129,6 +142,7 @@ describe("useSportData", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
@@ -154,6 +168,7 @@ describe("useSportData", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
@@ -180,6 +195,7 @@ describe("useSportData", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
@@ -221,6 +237,7 @@ describe("useSportData", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
@@ -254,6 +271,7 @@ describe("useSportData", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({

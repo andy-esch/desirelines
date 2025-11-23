@@ -26,6 +26,7 @@ describe("useAuthToken", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     const { result } = renderHook(() => useAuthToken());
@@ -40,6 +41,7 @@ describe("useAuthToken", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     const { result } = renderHook(() => useAuthToken());
@@ -54,6 +56,7 @@ describe("useAuthToken", () => {
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
+      error: null,
     });
 
     const { result, rerender } = renderHook(() => useAuthToken());

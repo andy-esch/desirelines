@@ -25,6 +25,7 @@ export interface User {
 export interface AuthState {
   user: User | null;
   loading: boolean;
+  error: Error | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -49,6 +50,7 @@ export interface AuthState {
 export function useAuth(): AuthState {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -78,10 +80,13 @@ export function useAuth(): AuthState {
     const provider = new GoogleAuthProvider();
 
     try {
+      setError(null); // Clear previous errors
       await signInWithPopup(auth, provider);
       // User state will be updated by onAuthStateChanged
-    } catch (error) {
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Sign in failed");
       console.error("Sign in error:", error);
+      setError(error);
       throw error;
     }
   };
@@ -90,10 +95,13 @@ export function useAuth(): AuthState {
     const auth = getFirebaseAuth();
 
     try {
+      setError(null); // Clear previous errors
       await firebaseSignOut(auth);
       // User state will be updated by onAuthStateChanged
-    } catch (error) {
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Sign out failed");
       console.error("Sign out error:", error);
+      setError(error);
       throw error;
     }
   };
@@ -101,6 +109,7 @@ export function useAuth(): AuthState {
   return {
     user,
     loading,
+    error,
     signIn,
     signOut,
   };

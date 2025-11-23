@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 
 /**
@@ -5,30 +6,69 @@ import { useAuth } from "../hooks/useAuth";
  * Shows "Sign In" for anonymous users, "Sign Out" for authenticated users
  */
 export default function AuthButton() {
-  const { user, loading, signIn, signOut } = useAuth();
+  const { user, loading, error, signIn, signOut } = useAuth();
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Don't show anything while loading
   if (loading) {
     return null;
   }
 
+  const handleSignIn = async () => {
+    setActionLoading(true);
+    try {
+      await signIn();
+    } catch {
+      // Error is already set in useAuth state
+      // Component will re-render with error state
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setActionLoading(true);
+    try {
+      await signOut();
+    } catch {
+      // Error is already set in useAuth state
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Show sign out button for authenticated users
   if (user) {
     return (
-      <button
-        onClick={signOut}
-        className="btn btn-sm btn-outline-light"
-        title={`Signed in as ${user.email}`}
-      >
-        Sign Out
-      </button>
+      <div>
+        <button
+          onClick={handleSignOut}
+          className="btn btn-sm btn-outline-light"
+          title={`Signed in as ${user.email}`}
+          disabled={actionLoading}
+        >
+          {actionLoading ? "Signing out..." : "Sign Out"}
+        </button>
+        {error && (
+          <div className="text-danger small mt-1" role="alert">
+            {error.message}
+          </div>
+        )}
+      </div>
     );
   }
 
   // Show sign in button for anonymous users
   return (
-    <button onClick={signIn} className="btn btn-sm btn-primary">
-      Sign In
-    </button>
+    <div>
+      <button onClick={handleSignIn} className="btn btn-sm btn-primary" disabled={actionLoading}>
+        {actionLoading ? "Signing in..." : "Sign In"}
+      </button>
+      {error && (
+        <div className="text-danger small mt-1" role="alert">
+          {error.message}
+        </div>
+      )}
+    </div>
   );
 }

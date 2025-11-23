@@ -36,19 +36,13 @@ export default function SportPage({ sport }: SportPageProps) {
 
   // Load user preferences for unit settings (BEFORE using them in calculations)
   const { data: preferences } = useUserConfig("preferences");
-  const userSettings = useMemo(() => getUserSettings(preferences), [preferences]);
+  const userSettings = getUserSettings(preferences);
 
   // Determine sport type and primary metric
-  const sportInfo = useMemo(() => {
-    if (!sportConfig) return null;
-    return sportConfig.sport_categories[sport];
-  }, [sportConfig, sport]);
+  const sportInfo = sportConfig?.sport_categories[sport] ?? null;
 
   // Determine the unit label based on sport type
-  const metricUnit = useMemo(() => {
-    if (!sportInfo) return userSettings.distanceUnit;
-    return sportInfo.has_distance ? userSettings.distanceUnit : "sessions";
-  }, [sportInfo, userSettings.distanceUnit]);
+  const metricUnit = sportInfo?.has_distance ? userSettings.distanceUnit : "sessions";
 
   // Convert metrics to chart data format - use distance or activity count based on sport
   const chartData: DistanceEntry[] = useMemo(() => {
@@ -79,11 +73,7 @@ export default function SportPage({ sport }: SportPageProps) {
     return estimateYearEndDistance(chartData, currentYear);
   }, [chartData, currentYear]);
 
-  const currentValue = useMemo(() => {
-    if (chartData.length === 0) return 0;
-    const lastEntry = chartData[chartData.length - 1];
-    return lastEntry?.y || 0;
-  }, [chartData]);
+  const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
   // Goals management - memoize to prevent infinite loop
   // Sport-specific fallback values ensure appropriate defaults when no data exists yet
@@ -126,7 +116,7 @@ export default function SportPage({ sport }: SportPageProps) {
   };
 
   // Create year context (encapsulates current/past/future year logic)
-  const yearContext = useMemo(() => createYearContext(currentYear), [currentYear]);
+  const yearContext = createYearContext(currentYear);
   const { daysRemaining } = yearContext;
   const averagePace = calculateAveragePace(currentValue, currentYear);
 
