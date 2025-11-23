@@ -7,6 +7,7 @@ import type { MetricUnit } from "../../utils/units";
 import { USE_FIXTURE_DATA } from "../../config";
 import { FIXTURE_METADATA } from "../../data/fixtures";
 import { useAuth } from "../../hooks/useAuth";
+import { useAuthToken } from "../../hooks/useAuthToken";
 
 interface SidebarProps {
   currentYear: number;
@@ -35,6 +36,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { getToken } = useAuthToken();
   const [availableSports, setAvailableSports] = useState<string[]>(["cycling"]); // Default fallback
 
   // Fetch available sports from metadata
@@ -48,23 +50,18 @@ export default function Sidebar({
 
     async function loadSports() {
       try {
-        // Use fixtures if configured
-        if (USE_FIXTURE_DATA) {
+        // Smart mode: Use fixtures for anonymous users when USE_FIXTURE_DATA=true
+        // Authenticated users always fetch from API (even if USE_FIXTURE_DATA=true)
+        const shouldUseFixtures = USE_FIXTURE_DATA && !user;
+
+        if (shouldUseFixtures) {
           const metadata = FIXTURE_METADATA[currentYear];
           if (metadata?.sports && metadata.sports.length > 0) {
             setAvailableSports(metadata.sports);
           }
         } else {
           // Fetch from API with authentication
-          let idToken: string | undefined;
-          if (user) {
-            const { getFirebaseAuth } = await import("../../lib/firebase");
-            const auth = getFirebaseAuth();
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-              idToken = await currentUser.getIdToken();
-            }
-          }
+          const idToken = await getToken();
 
           const metadata = await fetchYearMetadata(currentYear, controller.signal, idToken);
           if (metadata.sports && metadata.sports.length > 0) {
@@ -82,7 +79,7 @@ export default function Sidebar({
     return () => {
       controller.abort();
     };
-  }, [currentYear, user, loading]);
+  }, [currentYear, user, loading, getToken]);
 
   const handleSportChange = (newSport: string) => {
     // Use currentYear prop (source of truth from parent component)

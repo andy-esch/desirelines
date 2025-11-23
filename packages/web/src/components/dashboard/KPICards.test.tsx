@@ -107,4 +107,79 @@ describe("KPICards", () => {
     expect(screen.getByText("Current Distance")).toBeInTheDocument();
     expect(screen.getByText(/8.3 miles \/ day avg/)).toBeInTheDocument();
   });
+
+  describe("loading states", () => {
+    it("shows loading placeholders when isLoading is true", () => {
+      render(<KPICards {...getDefaultProps()} isLoading={true} />);
+
+      // All values should show "--"
+      expect(screen.getAllByText("--")).toHaveLength(3);
+      // All subtitles should show "Loading..."
+      expect(screen.getAllByText("Loading...")).toHaveLength(3);
+    });
+  });
+
+  describe("no data states", () => {
+    it("shows no data message for current year when currentDistance is 0", () => {
+      render(<KPICards {...getDefaultProps()} currentDistance={0} />);
+
+      // Current distance and next goal show "--", pace to goal shows em dash
+      expect(screen.getAllByText("--")).toHaveLength(2);
+      expect(screen.getByText("—")).toBeInTheDocument(); // Em dash for pace
+      expect(screen.getByText(/295 days elapsed · No data available/)).toBeInTheDocument();
+      expect(screen.getByText("No data available")).toBeInTheDocument();
+    });
+
+    it("shows year complete message for past year when currentDistance is 0", () => {
+      const pastYearContext = createYearContext(2024);
+      render(<KPICards {...getDefaultProps()} currentDistance={0} yearContext={pastYearContext} />);
+
+      expect(screen.getByText(/2024 complete · No data available/)).toBeInTheDocument();
+    });
+
+    it("shows year complete status for past year with data", () => {
+      const pastYearContext = createYearContext(2024);
+      render(<KPICards {...getDefaultProps()} yearContext={pastYearContext} />);
+
+      expect(screen.getByText(/2024 complete/)).toBeInTheDocument();
+      expect(screen.getByText("Historical data")).toBeInTheDocument();
+    });
+  });
+
+  describe("future year handling", () => {
+    it("shows future year message in pace card", () => {
+      const futureYearContext = createYearContext(2026);
+      render(<KPICards {...getDefaultProps()} yearContext={futureYearContext} />);
+
+      expect(screen.getByText("Future year")).toBeInTheDocument();
+    });
+  });
+
+  describe("sessions unit", () => {
+    it("displays correct title and unit for sessions", () => {
+      render(<KPICards {...getDefaultProps()} unit="sessions" currentDistance={100} />);
+
+      expect(screen.getByText("Current # Sessions")).toBeInTheDocument();
+      expect(screen.getByText("100 sessions")).toBeInTheDocument();
+      expect(screen.getByText(/sessions \/ day avg/)).toBeInTheDocument();
+    });
+  });
+
+  describe("pace to goal variations", () => {
+    it("hides pace value when shouldShowPacing is false", () => {
+      const pastYearContext = createYearContext(2024);
+      render(
+        <KPICards {...getDefaultProps()} yearContext={pastYearContext} paceNeededForNextGoal={10} />
+      );
+
+      expect(screen.getByText("—")).toBeInTheDocument(); // Em dash, not pace value
+      expect(screen.getByText("Historical data")).toBeInTheDocument();
+    });
+
+    it("shows days remaining when no pace needed", () => {
+      render(<KPICards {...getDefaultProps()} paceNeededForNextGoal={0} nextGoalGap={0} />);
+
+      expect(screen.getByText(/70 days remaining/)).toBeInTheDocument();
+    });
+  });
 });

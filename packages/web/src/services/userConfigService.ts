@@ -1,4 +1,12 @@
-import { doc, getDoc, setDoc, deleteDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  Unsubscribe,
+  FirestoreError,
+} from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import type {
   UserConfig,
@@ -10,6 +18,43 @@ import type {
   Goal,
   Annotation,
 } from "../types/generated/user_config";
+
+/**
+ * Convert Firestore errors to user-friendly error messages
+ */
+function createUserFriendlyError(error: unknown, operation: string): Error {
+  // Check if it's a Firestore error
+  if (error && typeof error === "object" && "code" in error) {
+    const firestoreError = error as FirestoreError;
+
+    switch (firestoreError.code) {
+      case "permission-denied":
+        return new Error(
+          "You do not have permission to access this data. Please sign in with an authorized account."
+        );
+      case "unauthenticated":
+        return new Error("You must be signed in to save your data. Please sign in and try again.");
+      case "not-found":
+        return new Error("The requested data could not be found. It may have been deleted.");
+      case "unavailable":
+        return new Error(
+          "Unable to connect to the server. Please check your internet connection and try again."
+        );
+      case "deadline-exceeded":
+        return new Error("The operation took too long. Please try again.");
+      case "resource-exhausted":
+        return new Error("Too many requests. Please wait a moment and try again.");
+      default:
+        // For unknown Firestore errors, include the code for debugging
+        return new Error(
+          `Failed to ${operation}: ${firestoreError.message} (${firestoreError.code})`
+        );
+    }
+  }
+
+  // For non-Firestore errors, return generic message
+  return error instanceof Error ? error : new Error(`Failed to ${operation}: Unknown error`);
+}
 
 /**
  * Current schema version for user config
@@ -95,7 +140,7 @@ export class UserConfigService {
       return null;
     } catch (error) {
       console.error("Error fetching user config:", error);
-      throw error;
+      throw createUserFriendlyError(error, "load your settings");
     }
   }
 
@@ -252,7 +297,7 @@ export class UserConfigService {
       await setDoc(docRef, config, { merge: true });
     } catch (error) {
       console.error("Error updating user config:", error);
-      throw error;
+      throw createUserFriendlyError(error, "save your changes");
     }
   }
 
@@ -265,7 +310,7 @@ export class UserConfigService {
       await deleteDoc(docRef);
     } catch (error) {
       console.error("Error deleting user config:", error);
-      throw error;
+      throw createUserFriendlyError(error, "delete your settings");
     }
   }
 

@@ -37,6 +37,7 @@ interface PacingMetricsChartProps {
   hideHeader?: boolean;
   unit?: MetricUnit; // Unit for metric display (default: "miles", can be "sessions" for yoga)
   sport?: string; // Sport type for danger zone threshold lookup
+  onRetry?: () => void; // Callback to retry loading data after error
 }
 
 // Removed CustomTooltip - now using shared ChartTooltip component
@@ -62,6 +63,7 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     hideHeader = false,
     unit = "miles", // Default to miles if not provided
     sport = "cycling", // Default to cycling if not provided
+    onRetry,
   } = props;
 
   // Determine chart title based on metric type
@@ -201,7 +203,7 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
             {chartTitle}
           </h3>
         )}
-        <ErrorChart error={error} onRetry={() => window.location.reload()} />
+        <ErrorChart error={error} onRetry={onRetry} />
       </div>
     );
   }
