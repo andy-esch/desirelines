@@ -15,10 +15,10 @@ import (
 
 // Handler orchestrates the webhook processing.
 type Handler struct {
-	secretCache *SecretCache
-	config      *Config
-	publisher   Publisher
-	logger      Logger
+	secretProvider SecretProvider
+	config         *Config
+	publisher      Publisher
+	logger         Logger
 }
 
 // NewHandler creates a new webhook handler.
@@ -33,21 +33,38 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		return nil, fmt.Errorf("failed to create publisher: %w", err)
 	}
 
-	// Create secret cache with default settings
-	secretCache := NewDefaultSecretCache()
+	// Create secret provider with default settings
+	secretProvider := NewDefaultSecretCache()
 
 	return &Handler{
-		secretCache: secretCache,
-		config:      cfg,
-		publisher:   publisher,
-		logger:      DefaultLogger, // Use default logger for production
+		secretProvider: secretProvider,
+		config:         cfg,
+		publisher:      publisher,
+		logger:         DefaultLogger, // Use default logger for production
 	}, nil
 }
 
+// NewHandlerWithDeps is a constructor that allows injecting all dependencies.
+// This is the recommended constructor for testing and dependency injection.
+func NewHandlerWithDeps(cfg *Config, publisher Publisher, secretProvider SecretProvider, logger Logger) *Handler {
+	// Use default logger if none provided
+	if logger == nil {
+		logger = DefaultLogger
+	}
+
+	return &Handler{
+		secretProvider: secretProvider,
+		config:         cfg,
+		publisher:      publisher,
+		logger:         logger,
+	}
+}
+
 // NewHandlerWithPublisher is a constructor for testing that allows injecting a mock publisher and logger.
+// Deprecated: Use NewHandlerWithDeps instead for full dependency injection.
 func NewHandlerWithPublisher(cfg *Config, publisher Publisher, logger Logger) *Handler {
 	// Create secret cache with default settings for testing
-	secretCache := NewDefaultSecretCache()
+	secretProvider := NewDefaultSecretCache()
 
 	// Use default logger if none provided
 	if logger == nil {
@@ -55,10 +72,10 @@ func NewHandlerWithPublisher(cfg *Config, publisher Publisher, logger Logger) *H
 	}
 
 	return &Handler{
-		secretCache: secretCache,
-		config:      cfg,
-		publisher:   publisher,
-		logger:      logger,
+		secretProvider: secretProvider,
+		config:         cfg,
+		publisher:      publisher,
+		logger:         logger,
 	}
 }
 
@@ -95,8 +112,8 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, cor
 		return
 	}
 
-	// Get current verify token from secret cache
-	verifyToken, _, err := h.secretCache.GetSecrets()
+	// Get current verify token from secret provider
+	verifyToken, _, err := h.secretProvider.GetSecrets()
 	if err != nil {
 		h.logAndWriteError(w, correlationID, http.StatusInternalServerError, "Configuration error", err, "Failed to get verify token")
 		return
@@ -140,8 +157,8 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlatio
 		return
 	}
 
-	// Get current subscription ID from secret cache
-	_, subscriptionID, err := h.secretCache.GetSecrets()
+	// Get current subscription ID from secret provider
+	_, subscriptionID, err := h.secretProvider.GetSecrets()
 	if err != nil {
 		h.logAndWriteError(w, correlationID, http.StatusInternalServerError, "Configuration error", err, "Failed to get subscription ID")
 		return

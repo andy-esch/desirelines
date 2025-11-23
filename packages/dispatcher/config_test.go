@@ -501,3 +501,18 @@ func stringContains(s, substr string) bool {
 	}
 	return false
 }
+
+// MockSecretProvider is a mock implementation of SecretProvider for testing.
+type MockSecretProvider struct {
+	VerifyToken    string
+	SubscriptionID int
+	Err            error
+}
+
+// GetSecrets implements the SecretProvider interface.
+func (m *MockSecretProvider) GetSecrets() (string, int, error) {
+	if m.Err != nil {
+		return "", 0, m.Err
+	}
+	return m.VerifyToken, m.SubscriptionID, nil
+}

@@ -34,7 +34,14 @@ type StravaSecrets struct {
 	WebhookSubscriptionID int    `json:"webhook_subscription_id"`
 }
 
+// SecretProvider provides webhook secrets for validation.
+// This interface allows for dependency injection and easier testing.
+type SecretProvider interface {
+	GetSecrets() (verifyToken string, subscriptionID int, err error)
+}
+
 // SecretCache provides TTL-based caching with content hash validation for secrets.
+// It implements the SecretProvider interface.
 type SecretCache struct {
 	lastCheck      time.Time
 	contentHash    string
@@ -44,6 +51,9 @@ type SecretCache struct {
 	subscriptionID int
 	mu             sync.RWMutex
 }
+
+// Compile-time check that SecretCache implements SecretProvider.
+var _ SecretProvider = (*SecretCache)(nil)
 
 // NewSecretCache creates a new secret cache with the specified TTL.
 func NewSecretCache(secretsPath string, ttl time.Duration) *SecretCache {

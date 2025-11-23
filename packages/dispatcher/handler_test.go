@@ -2,41 +2,21 @@ package dispatcher
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestHandler_ServeHTTP_Verification(t *testing.T) {
-	// Create temporary secrets file
-	tempDir, err := os.MkdirTemp("", "handler_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	secretsPath := filepath.Join(tempDir, "strava_auth.json")
-	secrets := map[string]any{
-		"webhook_verify_token":    "test-token",
-		"webhook_subscription_id": 12345,
-	}
-	writeTestSecretsFile(t, secretsPath, secrets)
-
 	cfg := &Config{}
 	mockPub := &MockPublisher{}
-	handler := NewHandlerWithPublisher(cfg, mockPub, nil) // nil uses global logger
-
-	// Override the secret cache path for testing
-	handler.secretCache = NewSecretCache(secretsPath, time.Minute)
+	mockSecrets := &MockSecretProvider{
+		VerifyToken:    "test-token",
+		SubscriptionID: 12345,
+	}
+	handler := NewHandlerWithDeps(cfg, mockPub, mockSecrets, nil) // nil uses global logger
 
 	// Valid request
 	req := httptest.NewRequest("GET", "/?hub.mode=subscribe&hub.challenge=test-challenge&hub.verify_token=test-token", nil)
@@ -61,30 +41,13 @@ func TestHandler_ServeHTTP_Verification(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_Event(t *testing.T) {
-	// Create temporary secrets file
-	tempDir, err := os.MkdirTemp("", "handler_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	secretsPath := filepath.Join(tempDir, "strava_auth.json")
-	secrets := map[string]any{
-		"webhook_verify_token":    "test-token",
-		"webhook_subscription_id": 12345,
-	}
-	writeTestSecretsFile(t, secretsPath, secrets)
-
 	cfg := &Config{}
 	mockPub := &MockPublisher{}
-	handler := NewHandlerWithPublisher(cfg, mockPub, nil) // nil uses global logger
-
-	// Override the secret cache path for testing
-	handler.secretCache = NewSecretCache(secretsPath, time.Minute)
+	mockSecrets := &MockSecretProvider{
+		VerifyToken:    "test-token",
+		SubscriptionID: 12345,
+	}
+	handler := NewHandlerWithDeps(cfg, mockPub, mockSecrets, nil) // nil uses global logger
 
 	// Valid event payload (reused across tests)
 	const validEventJSON = `{"aspect_type":"create","object_type":"activity","object_id":1,"owner_id":1,"event_time":1,"subscription_id":12345}`
@@ -199,18 +162,5 @@ func TestHandler_Close_WithContext(t *testing.T) {
 	err := handler.Close(ctx)
 	if err != nil {
 		t.Errorf("Handler.Close() with context returned error: %v", err)
-	}
-}
-
-// Helper function to write test secrets file
-func writeTestSecretsFile(t *testing.T, path string, secrets map[string]any) {
-	data, err := json.Marshal(secrets)
-	if err != nil {
-		t.Fatalf("Failed to marshal secrets: %v", err)
-	}
-
-	err = os.WriteFile(path, data, 0600)
-	if err != nil {
-		t.Fatalf("Failed to write secrets file: %v", err)
 	}
 }
