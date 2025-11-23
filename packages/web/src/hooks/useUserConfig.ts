@@ -16,49 +16,73 @@ import { useAuth } from "./useAuth";
  * - "goals" → data is GoalsForYear | null (requires year and sport)
  * - "annotations" → data is AnnotationsForYear | null (requires year)
  * - "preferences" → data is Preferences | null
- *
- * @param configType - Type of config section ("goals", "annotations", or "preferences")
- * @param year - Required for goals/annotations, not used for preferences
- * @param sport - Required for goals, not used for annotations/preferences
- * @param defaultValue - Default value if config doesn't exist
- * @param userId - Optional userId override. If not provided, uses authenticated user's UID
- *   (or "default" for unauthenticated users). Providing an explicit userId when authenticated
- *   will throw an error unless it matches the authenticated user's UID.
- * @param version - Config version (defaults to "v1")
  */
-export function useUserConfig<T extends "goals" | "annotations" | "preferences" = "goals">(
-  configType: T,
-  year?: number,
-  sport?: string,
-  defaultValue?: GoalsForYear | AnnotationsForYear | Preferences,
+
+// Overload for "goals" - year and sport are required
+export function useUserConfig(
+  configType: "goals",
+  year: number,
+  sport: string,
+  defaultValue?: GoalsForYear,
   userId?: string,
-  version: string = "v1"
+  version?: string
 ): {
-  data:
-    | (T extends "goals"
-        ? GoalsForYear
-        : T extends "annotations"
-          ? AnnotationsForYear
-          : Preferences)
-    | null;
+  data: GoalsForYear | null;
   loading: boolean;
   error: Error | null;
-  updateData: (
-    data: T extends "goals"
-      ? GoalsForYear
-      : T extends "annotations"
-        ? AnnotationsForYear
-        : Preferences
-  ) => Promise<void>;
-} {
+  updateData: (data: GoalsForYear) => Promise<void>;
+};
+
+// Overload for "annotations" - year is required, sport is optional but unused
+export function useUserConfig(
+  configType: "annotations",
+  year: number,
+  sport?: string,
+  defaultValue?: AnnotationsForYear,
+  userId?: string,
+  version?: string
+): {
+  data: AnnotationsForYear | null;
+  loading: boolean;
+  error: Error | null;
+  updateData: (data: AnnotationsForYear) => Promise<void>;
+};
+
+// Overload for "preferences" - year and sport are optional but unused
+export function useUserConfig(
+  configType: "preferences",
+  year?: number,
+  sport?: string,
+  defaultValue?: Preferences,
+  userId?: string,
+  version?: string
+): {
+  data: Preferences | null;
+  loading: boolean;
+  error: Error | null;
+  updateData: (data: Preferences) => Promise<void>;
+};
+
+// Implementation - parameters must be compatible with ALL overloads
+// This means all parameters except configType must be optional
+export function useUserConfig(
+  configType: string,
+  year?: number,
+  sport?: string,
+  defaultValue?: any,
+  userId?: string,
+  version?: string
+): any {
   // Get authenticated user
   const { user } = useAuth();
 
   // Resolve userId: explicit > auth user > "default"
   // This matches the logic in UserConfigService constructor
   const effectiveUserId = userId ?? user?.uid ?? "default";
-  const effectiveVersion = version || "v1";
+  const effectiveVersion = version ?? "v1";
 
+  // Internal state uses union type, return type uses conditional types
+  // This is necessary because TypeScript can't narrow generic types at runtime
   const [data, setData] = useState<GoalsForYear | AnnotationsForYear | Preferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -272,30 +296,11 @@ export function useUserConfig<T extends "goals" | "annotations" | "preferences" 
     [configType, year, sport, configService, effectiveUserId, isFixtureMode]
   );
 
-  // Type assertion needed because internal state uses union type
-  // but return type uses conditional types for better type safety
   return {
     data,
     loading,
     error,
     updateData,
-  } as {
-    data:
-      | (T extends "goals"
-          ? GoalsForYear
-          : T extends "annotations"
-            ? AnnotationsForYear
-            : Preferences)
-      | null;
-    loading: boolean;
-    error: Error | null;
-    updateData: (
-      data: T extends "goals"
-        ? GoalsForYear
-        : T extends "annotations"
-          ? AnnotationsForYear
-          : Preferences
-    ) => Promise<void>;
   };
 }
 
