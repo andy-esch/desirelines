@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -17,6 +18,7 @@ type Handler struct {
 	secretCache *SecretCache
 	config      *Config
 	publisher   Publisher
+	logger      Logger
 }
 
 // NewHandler creates a new webhook handler.
@@ -38,18 +40,25 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 		secretCache: secretCache,
 		config:      cfg,
 		publisher:   publisher,
+		logger:      DefaultLogger, // Use default logger for production
 	}, nil
 }
 
-// NewHandlerWithPublisher is a constructor for testing that allows injecting a mock publisher.
-func NewHandlerWithPublisher(cfg *Config, publisher Publisher) *Handler {
+// NewHandlerWithPublisher is a constructor for testing that allows injecting a mock publisher and logger.
+func NewHandlerWithPublisher(cfg *Config, publisher Publisher, logger Logger) *Handler {
 	// Create secret cache with default settings for testing
 	secretCache := NewDefaultSecretCache()
+
+	// Use default logger if none provided
+	if logger == nil {
+		logger = DefaultLogger
+	}
 
 	return &Handler{
 		secretCache: secretCache,
 		config:      cfg,
 		publisher:   publisher,
+		logger:      logger,
 	}
 }
 
@@ -64,16 +73,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		h.handleEvent(w, r, correlationID)
 	case http.MethodHead:
-		Logger.Info("Health check request", "correlation_id", correlationID)
+		h.logger.Info("Health check request", "correlation_id", correlationID)
 		w.WriteHeader(http.StatusOK)
 	default:
-		Logger.Warn("Invalid request method", "correlation_id", correlationID, "method", r.Method)
-		writeError(w, http.StatusMethodNotAllowed, "Method not allowed", "", correlationID)
+		h.logger.Warn("Invalid request method", "correlation_id", correlationID, "method", r.Method)
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed", "", correlationID, h.logger)
 	}
 }
 
 func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, correlationID string) {
-	Logger.Info("Processing webhook verification request", "correlation_id", correlationID)
+	h.logger.Info("Processing webhook verification request", "correlation_id", correlationID)
 
 	mode := r.URL.Query().Get("hub.mode")
 	challenge := r.URL.Query().Get("hub.challenge")
@@ -81,8 +90,8 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, cor
 
 	if mode != "subscribe" {
 		msg := fmt.Sprintf("invalid hub.mode: %s", mode)
-		Logger.Warn("Invalid hub.mode", "correlation_id", correlationID, "hub_mode", mode)
-		writeError(w, http.StatusBadRequest, msg, "", correlationID)
+		h.logger.Warn("Invalid hub.mode", "correlation_id", correlationID, "hub_mode", mode)
+		writeError(w, http.StatusBadRequest, msg, "", correlationID, h.logger)
 		return
 	}
 
@@ -98,16 +107,28 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request, cor
 		return
 	}
 
-	Logger.Info("Webhook verification successful", "correlation_id", correlationID)
+	h.logger.Info("Webhook verification successful", "correlation_id", correlationID)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge}); encodeErr != nil {
-		Logger.Error("Failed to encode response", "correlation_id", correlationID, "error", encodeErr)
+		h.logger.Error("Failed to encode response", "correlation_id", correlationID, "error", encodeErr)
 	}
 }
 
-func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlationID string) {
-	Logger.Info("Processing webhook event", "correlation_id", correlationID)
+const maxRequestBodySize = 1 << 20 // 1MB
 
+func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlationID string) {
+	h.logger.Info("Processing webhook event", "correlation_id", correlationID)
+
+	// Validate Content-Type header
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "" || !strings.Contains(contentType, "application/json") {
+		h.logAndWriteError(w, correlationID, http.StatusUnsupportedMediaType,
+			"Content-Type must be application/json", nil, "Invalid Content-Type")
+		return
+	}
+
+	// Check that request is under maxRequestBodySize
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 	var webhook WebhookRequest
 	if err := json.NewDecoder(r.Body).Decode(&webhook); err != nil {
 		h.logAndWriteError(w, correlationID, http.StatusBadRequest, "Invalid JSON payload", err, "Invalid JSON payload")
@@ -133,8 +154,8 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlatio
 	}
 
 	if webhook.ObjectType != ObjectActivity {
-		Logger.Info("Ignoring non-activity webhook", "correlation_id", correlationID, "object_type", webhook.ObjectType)
-		writeSuccess(w, correlationID)
+		h.logger.Info("Ignoring non-activity webhook", "correlation_id", correlationID, "object_type", webhook.ObjectType)
+		writeSuccess(w, correlationID, h.logger)
 		return
 	}
 
@@ -143,11 +164,11 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request, correlatio
 		return
 	}
 
-	Logger.Info("Webhook processing successful", "correlation_id", correlationID)
-	writeSuccess(w, correlationID)
+	h.logger.Info("Webhook processing successful", "correlation_id", correlationID)
+	writeSuccess(w, correlationID, h.logger)
 }
 
-func writeError(w http.ResponseWriter, code int, msg, details, correlationID string) {
+func writeError(w http.ResponseWriter, code int, msg, details, correlationID string, logger Logger) {
 	w.WriteHeader(code)
 	response := map[string]string{
 		"error":          msg,
@@ -157,29 +178,42 @@ func writeError(w http.ResponseWriter, code int, msg, details, correlationID str
 		response["details"] = details
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		Logger.Error("Failed to encode error response", "correlation_id", correlationID, "error", err)
+		logger.Error("Failed to encode error response", "correlation_id", correlationID, "error", err)
 	}
 }
 
-func writeSuccess(w http.ResponseWriter, correlationID string) {
+func writeSuccess(w http.ResponseWriter, correlationID string, logger Logger) {
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(map[string]string{
 		"success":        "true",
 		"correlation_id": correlationID,
 	}); err != nil {
-		Logger.Error("Failed to encode success response", "correlation_id", correlationID, "error", err)
+		logger.Error("Failed to encode success response", "correlation_id", correlationID, "error", err)
 	}
+}
+
+// Close releases resources held by the handler (PubSub client, etc.).
+// This is optional in Cloud Functions where the platform handles cleanup,
+// but useful for graceful shutdown in long-running services.
+//
+// The context parameter allows for cancellation during cleanup.
+// Pass context.Background() if no timeout is needed.
+func (h *Handler) Close(ctx context.Context) error {
+	// Currently PubSub client Close() doesn't use context,
+	// but we accept it for future extensibility and consistency with Go idioms.
+	_ = ctx
+	return h.publisher.Close()
 }
 
 // logAndWriteError logs an error and writes an HTTP error response in one call.
 func (h *Handler) logAndWriteError(w http.ResponseWriter, correlationID string,
-	statusCode int, userMsg string, err error, logMsg string) {
-
+	statusCode int, userMsg string, err error, logMsg string,
+) {
 	if err != nil {
-		Logger.Error(logMsg, "correlation_id", correlationID, "error", err, "status_code", statusCode)
-		writeError(w, statusCode, userMsg, err.Error(), correlationID)
+		h.logger.Error(logMsg, "correlation_id", correlationID, "error", err, "status_code", statusCode)
+		writeError(w, statusCode, userMsg, err.Error(), correlationID, h.logger)
 	} else {
-		Logger.Warn(logMsg, "correlation_id", correlationID, "status_code", statusCode)
-		writeError(w, statusCode, userMsg, "", correlationID)
+		h.logger.Warn(logMsg, "correlation_id", correlationID, "status_code", statusCode)
+		writeError(w, statusCode, userMsg, "", correlationID, h.logger)
 	}
 }

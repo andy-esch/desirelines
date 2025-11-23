@@ -32,7 +32,7 @@ func TestHandler_ServeHTTP_Verification(t *testing.T) {
 
 	cfg := &Config{}
 	mockPub := &MockPublisher{}
-	handler := NewHandlerWithPublisher(cfg, mockPub)
+	handler := NewHandlerWithPublisher(cfg, mockPub, nil) // nil uses global logger
 
 	// Override the secret cache path for testing
 	handler.secretCache = NewSecretCache(secretsPath, time.Minute)
@@ -80,14 +80,17 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 
 	cfg := &Config{}
 	mockPub := &MockPublisher{}
-	handler := NewHandlerWithPublisher(cfg, mockPub)
+	handler := NewHandlerWithPublisher(cfg, mockPub, nil) // nil uses global logger
 
 	// Override the secret cache path for testing
 	handler.secretCache = NewSecretCache(secretsPath, time.Minute)
 
-	// Valid event
-	body := `{"aspect_type":"create","object_type":"activity","object_id":1,"owner_id":1,"event_time":1,"subscription_id":12345}`
+	// Valid event payload (reused across tests)
+	const validEventJSON = `{"aspect_type":"create","object_type":"activity","object_id":1,"owner_id":1,"event_time":1,"subscription_id":12345}`
+
+	body := validEventJSON
 	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -105,6 +108,7 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 	mockPub.Published = nil // Reset mock
 	body = `{"aspect_type":"create","object_type":"activity","object_id":1,"owner_id":1,"event_time":1,"subscription_id":99999}`
 	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -119,6 +123,7 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 	mockPub.Published = nil // Reset mock
 	body = `{"aspect_type":"update","object_type":"athlete","object_id":1,"owner_id":1,"event_time":1,"subscription_id":12345}`
 	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -127,6 +132,43 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 	}
 	if len(mockPub.Published) != 0 {
 		t.Errorf("expected 0 messages to be published for ignored event, got %d", len(mockPub.Published))
+	}
+
+	// Missing Content-Type header
+	body = validEventJSON
+	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	// Don't set Content-Type
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnsupportedMediaType {
+		t.Errorf("handler returned wrong status code for missing Content-Type: got %v want %v", status, http.StatusUnsupportedMediaType)
+	}
+
+	// Wrong Content-Type header
+	body = validEventJSON
+	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/xml")
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnsupportedMediaType {
+		t.Errorf("handler returned wrong status code for wrong Content-Type: got %v want %v", status, http.StatusUnsupportedMediaType)
+	}
+
+	// Content-Type with charset (should work)
+	mockPub.Published = nil // Reset mock
+	body = validEventJSON
+	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusCreated {
+		t.Errorf("handler returned wrong status code for Content-Type with charset: got %v want %v", status, http.StatusCreated)
+	}
+	if len(mockPub.Published) != 1 {
+		t.Errorf("expected 1 message to be published with charset, got %d", len(mockPub.Published))
 	}
 }
 

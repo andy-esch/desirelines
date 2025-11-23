@@ -11,10 +11,16 @@ import (
 // Publisher defines the interface for publishing webhook events.
 type Publisher interface {
 	Publish(ctx context.Context, webhook WebhookRequest, correlationID string) error
+	// Close releases resources held by the publisher.
+	// In Cloud Functions, this is typically unnecessary as the platform
+	// cleans up resources on instance termination. However, it's useful
+	// for graceful shutdown in long-running services.
+	Close() error
 }
 
 // PubSubPublisher is a Pub/Sub adapter that implements the Publisher interface.
 type PubSubPublisher struct {
+	client    *pubsub.Client
 	publisher *pubsub.Publisher
 }
 
@@ -27,9 +33,12 @@ func NewPubSubPublisher(ctx context.Context, projectID, topicID string) (*PubSub
 
 	topicName := fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
 	publisher := client.Publisher(topicName)
-	Logger.Info("PubSub publisher initialized", "topic", topicName)
+	DefaultLogger.Info("PubSub publisher initialized", "topic", topicName)
 
-	return &PubSubPublisher{publisher: publisher}, nil
+	return &PubSubPublisher{
+		client:    client,
+		publisher: publisher,
+	}, nil
 }
 
 // Publish implements the Publisher interface.
@@ -52,11 +61,20 @@ func (p *PubSubPublisher) Publish(ctx context.Context, webhook WebhookRequest, c
 		return fmt.Errorf("failed to publish to PubSub: %w", err)
 	}
 
-	Logger.Info("Successfully published webhook to PubSub",
+	DefaultLogger.Info("Successfully published webhook to PubSub",
 		"correlation_id", correlationID,
 		"object_id", webhook.ObjectID,
 		"aspect_type", webhook.AspectType,
 		"owner_id", webhook.OwnerID)
+	return nil
+}
+
+// Close releases resources held by the PubSub client.
+// This should be called when shutting down gracefully.
+func (p *PubSubPublisher) Close() error {
+	if p.client != nil {
+		return p.client.Close()
+	}
 	return nil
 }
 
@@ -72,4 +90,10 @@ func (m *MockPublisher) Publish(ctx context.Context, webhook WebhookRequest, cor
 		m.Published = append(m.Published, webhook)
 	}
 	return m.PublishErr
+}
+
+// Close implements the Publisher interface for MockPublisher.
+// No-op for testing.
+func (m *MockPublisher) Close() error {
+	return nil
 }

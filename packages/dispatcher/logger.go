@@ -5,6 +5,14 @@ import (
 	"os"
 )
 
+// Logger interface for testability and dependency injection.
+type Logger interface {
+	Info(msg string, args ...any)
+	Error(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Debug(msg string, args ...any)
+}
+
 // setupCloudLogger configures slog for Google Cloud structured logging.
 // Maps slog keys to Google Cloud Logging expected field names and severity levels.
 func setupCloudLogger() *slog.Logger {
@@ -48,5 +56,6 @@ func setupCloudLogger() *slog.Logger {
 	return slog.New(handler)
 }
 
-// Logger is the package-level structured logger for Cloud Functions
-var Logger = setupCloudLogger()
+// DefaultLogger is the package-level structured logger for Cloud Functions.
+// Deprecated: Use dependency injection via Handler constructors instead.
+var DefaultLogger Logger = setupCloudLogger()
