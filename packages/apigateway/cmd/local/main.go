@@ -26,10 +26,10 @@ func main() {
 	port := getEnvOrDefault("PORT", "8080")
 	logger.Logger.Info("Server listening", "port", port)
 
-	// Create server with timeouts for security
+	// Create server with configured handler and timeouts for security
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           nil,
+		Handler:           handler,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
