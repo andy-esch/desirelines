@@ -226,6 +226,10 @@ tmp/
 # Delve debugger
 __debug_bin
 
+# Local Go binaries
+packages/*/cmd/local/*
+packages/*/local
+
 # Frontend configuration (contains deployment URLs)
 packages/web/public/config.js
 
