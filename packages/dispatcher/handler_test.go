@@ -1,41 +1,22 @@
 package dispatcher
 
 import (
-	"encoding/json"
+	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestHandler_ServeHTTP_Verification(t *testing.T) {
-	// Create temporary secrets file
-	tempDir, err := os.MkdirTemp("", "handler_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	secretsPath := filepath.Join(tempDir, "strava_auth.json")
-	secrets := map[string]any{
-		"webhook_verify_token":    "test-token",
-		"webhook_subscription_id": 12345,
-	}
-	writeTestSecretsFile(t, secretsPath, secrets)
-
 	cfg := &Config{}
 	mockPub := &MockPublisher{}
-	handler := NewHandlerWithPublisher(cfg, mockPub)
-
-	// Override the secret cache path for testing
-	handler.secretCache = NewSecretCache(secretsPath, time.Minute)
+	mockSecrets := &MockSecretProvider{
+		VerifyToken:    "test-token",
+		SubscriptionID: 12345,
+	}
+	handler := NewHandlerWithDeps(cfg, mockPub, mockSecrets, nil) // nil uses global logger
 
 	// Valid request
 	req := httptest.NewRequest("GET", "/?hub.mode=subscribe&hub.challenge=test-challenge&hub.verify_token=test-token", nil)
@@ -60,34 +41,20 @@ func TestHandler_ServeHTTP_Verification(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_Event(t *testing.T) {
-	// Create temporary secrets file
-	tempDir, err := os.MkdirTemp("", "handler_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	secretsPath := filepath.Join(tempDir, "strava_auth.json")
-	secrets := map[string]any{
-		"webhook_verify_token":    "test-token",
-		"webhook_subscription_id": 12345,
-	}
-	writeTestSecretsFile(t, secretsPath, secrets)
-
 	cfg := &Config{}
 	mockPub := &MockPublisher{}
-	handler := NewHandlerWithPublisher(cfg, mockPub)
+	mockSecrets := &MockSecretProvider{
+		VerifyToken:    "test-token",
+		SubscriptionID: 12345,
+	}
+	handler := NewHandlerWithDeps(cfg, mockPub, mockSecrets, nil) // nil uses global logger
 
-	// Override the secret cache path for testing
-	handler.secretCache = NewSecretCache(secretsPath, time.Minute)
+	// Valid event payload (reused across tests)
+	const validEventJSON = `{"aspect_type":"create","object_type":"activity","object_id":1,"owner_id":1,"event_time":1,"subscription_id":12345}`
 
-	// Valid event
-	body := `{"aspect_type":"create","object_type":"activity","object_id":1,"owner_id":1,"event_time":1,"subscription_id":12345}`
+	body := validEventJSON
 	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -105,6 +72,7 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 	mockPub.Published = nil // Reset mock
 	body = `{"aspect_type":"create","object_type":"activity","object_id":1,"owner_id":1,"event_time":1,"subscription_id":99999}`
 	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -119,6 +87,7 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 	mockPub.Published = nil // Reset mock
 	body = `{"aspect_type":"update","object_type":"athlete","object_id":1,"owner_id":1,"event_time":1,"subscription_id":12345}`
 	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -128,17 +97,70 @@ func TestHandler_ServeHTTP_Event(t *testing.T) {
 	if len(mockPub.Published) != 0 {
 		t.Errorf("expected 0 messages to be published for ignored event, got %d", len(mockPub.Published))
 	}
-}
 
-// Helper function to write test secrets file
-func writeTestSecretsFile(t *testing.T, path string, secrets map[string]any) {
-	data, err := json.Marshal(secrets)
-	if err != nil {
-		t.Fatalf("Failed to marshal secrets: %v", err)
+	// Missing Content-Type header
+	body = validEventJSON
+	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	// Don't set Content-Type
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnsupportedMediaType {
+		t.Errorf("handler returned wrong status code for missing Content-Type: got %v want %v", status, http.StatusUnsupportedMediaType)
 	}
 
-	err = os.WriteFile(path, data, 0600)
+	// Wrong Content-Type header
+	body = validEventJSON
+	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/xml")
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnsupportedMediaType {
+		t.Errorf("handler returned wrong status code for wrong Content-Type: got %v want %v", status, http.StatusUnsupportedMediaType)
+	}
+
+	// Content-Type with charset (should work)
+	mockPub.Published = nil // Reset mock
+	body = validEventJSON
+	req = httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusCreated {
+		t.Errorf("handler returned wrong status code for Content-Type with charset: got %v want %v", status, http.StatusCreated)
+	}
+	if len(mockPub.Published) != 1 {
+		t.Errorf("expected 1 message to be published with charset, got %d", len(mockPub.Published))
+	}
+}
+
+func TestHandler_Close(t *testing.T) {
+	// Create a handler with mock publisher
+	cfg := &Config{}
+	mockPub := &MockPublisher{}
+	handler := NewHandlerWithPublisher(cfg, mockPub, nil)
+
+	// Close should delegate to publisher
+	err := handler.Close(context.Background())
 	if err != nil {
-		t.Fatalf("Failed to write secrets file: %v", err)
+		t.Errorf("Handler.Close() returned error: %v", err)
+	}
+}
+
+func TestHandler_Close_WithContext(t *testing.T) {
+	// Test that context parameter is accepted (even if not currently used)
+	cfg := &Config{}
+	mockPub := &MockPublisher{}
+	handler := NewHandlerWithPublisher(cfg, mockPub, nil)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := handler.Close(ctx)
+	if err != nil {
+		t.Errorf("Handler.Close() with context returned error: %v", err)
 	}
 }
