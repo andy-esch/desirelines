@@ -282,20 +282,20 @@ func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse to validate it's valid JSON
-	var configData map[string]any
-	if unmarshalErr := json.Unmarshal(data, &configData); unmarshalErr != nil {
-		logger.Logger.Error("Error parsing sport config", "error", unmarshalErr)
+	// Validate it's valid JSON without unmarshaling
+	if !json.Valid(data) {
+		logger.Logger.Error("Embedded sport config is invalid JSON")
 		apiErr := errors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Invalid sport config",
-			fmt.Sprintf("JSON parse error: %v", unmarshalErr),
+			"JSON validation failed",
 		)
 		errors.WriteError(w, r, apiErr, h.corsHandler)
 		return
 	}
 
-	h.respondJSON(w, r, http.StatusOK, configData)
+	// Write raw JSON directly (no marshal/unmarshal cycle)
+	h.respondRawJSON(w, r, http.StatusOK, data)
 }
 
 // fetchAndRespond is a helper to fetch blob and respond (DRY).
@@ -316,7 +316,7 @@ func (h *Handler) fetchAndRespond(w http.ResponseWriter, r *http.Request, blobPa
 		return
 	}
 
-	h.respondJSONRaw(w, r, http.StatusOK, data)
+	h.respondJSON(w, r, http.StatusOK, data)
 }
 
 // respondJSON writes a JSON response with CORS headers.
@@ -331,16 +331,15 @@ func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int
 	}
 }
 
-// respondJSONRaw writes pre-marshaled JSON data with CORS headers.
-func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status int, data any) {
+// respondRawJSON writes raw JSON bytes with CORS headers.
+// Use this for pre-marshaled JSON data to avoid double encoding.
+func (h *Handler) respondRawJSON(w http.ResponseWriter, r *http.Request, status int, data []byte) {
 	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")
-	// Don't cache authenticated data - user-specific content
-	w.Header().Set("Cache-Control", "private, no-store, must-revalidate")
 	w.WriteHeader(status)
 
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		logger.Logger.Error("Error encoding JSON response", "error", err)
+	if _, err := w.Write(data); err != nil {
+		logger.Logger.Error("Error writing raw JSON response", "error", err)
 	}
 }
