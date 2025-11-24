@@ -160,40 +160,32 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 // Wrapper handlers that extract path parameters and validate year
 
 func (h *Handler) handleMetadataWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	h.handleMetadata(w, r, year)
 }
 
 func (h *Handler) handleMetricsWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	h.handleMetrics(w, r, year)
 }
 
 func (h *Handler) handleSourceWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	h.handleSource(w, r, year)
 }
 
 func (h *Handler) handleSummaryWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	blobPath := fmt.Sprintf("activities/%s/summary_activities.json", year)
@@ -201,10 +193,8 @@ func (h *Handler) handleSummaryWithParam(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) handleDistancesWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	blobPath := fmt.Sprintf("activities/%s/distances.json", year)
@@ -218,6 +208,18 @@ func isValidYear(s string) bool {
 	}
 	year, err := strconv.Atoi(s)
 	return err == nil && year >= 2000 && year <= 2100
+}
+
+// validateAndGetYear extracts and validates the year path parameter.
+// Returns the year string and true if valid, or writes an error response and returns false.
+func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (string, bool) {
+	year := chi.URLParam(r, "year")
+	if !isValidYear(year) {
+		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		errors.WriteError(w, r, err, h.corsHandler)
+		return "", false
+	}
+	return year, true
 }
 
 // validateAndGetSport extracts and validates the sport query parameter.
