@@ -39,8 +39,8 @@ func main() {
 	// Start server in goroutine to allow graceful shutdown
 	go func() {
 		logger.Logger.Info("Server listening", "port", port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Logger.Error("Server failed", "error", err)
+		if serverErr := server.ListenAndServe(); serverErr != nil && serverErr != http.ErrServerClosed {
+			logger.Logger.Error("Server failed", "error", serverErr)
 			os.Exit(1)
 		}
 	}()
@@ -53,11 +53,11 @@ func main() {
 	logger.Logger.Info("Shutting down server...")
 
 	// Give server 30 seconds to finish in-flight requests
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Logger.Error("Server forced to shutdown", "error", err)
+	if shutdownErr := server.Shutdown(shutdownCtx); shutdownErr != nil {
+		logger.Logger.Error("Server forced to shutdown", "error", shutdownErr)
 		os.Exit(1)
 	}
 
