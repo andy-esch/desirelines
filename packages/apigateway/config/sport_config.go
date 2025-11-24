@@ -105,11 +105,6 @@ func loadSportConfigInternal(configPath string) (*SportConfig, error) {
 	return &SportConfig{data: configData}, nil
 }
 
-// GetSportConfig returns current SportConfig
-func GetSportConfig() *SportConfig {
-	return sportConfig
-}
-
 // ListSports returns all available sports
 func (c *SportConfig) ListSports() []string {
 	sports := make([]string, 0, len(c.data.SportCategories))
