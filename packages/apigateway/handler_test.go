@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
+	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
+	"github.com/go-chi/chi/v5"
 )
 
 // mockStorageClient is a mock implementation for testing
@@ -22,6 +24,39 @@ func (m *mockStorageClient) ReadJSON(ctx context.Context, blobPath string) (any,
 	return nil, storage.ErrNotFound
 }
 
+// mockAuthMiddleware is a no-op auth middleware for testing
+type mockAuthMiddleware struct{}
+
+func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
+	// Pass through without authentication (like local development mode)
+	return next
+}
+
+// newHandlerWithStorage creates a handler with injected dependencies for testing
+func newHandlerWithStorage(storageClient storage.Client, sportConfig *config.SportConfig) *Handler {
+	// Create a mock auth middleware for testing
+	mockAuth := &mockAuthMiddleware{}
+
+	// Initialize CORS handler
+	corsHandler := cors.NewHandler()
+
+	// Initialize chi router
+	r := chi.NewRouter()
+
+	h := &Handler{
+		storage:        storageClient,
+		authMiddleware: mockAuth,
+		corsHandler:    corsHandler,
+		router:         r,
+		sportConfig:    sportConfig,
+	}
+
+	// Register routes
+	h.registerRoutes()
+
+	return h
+}
+
 // newTestHandler creates a handler with mock dependencies for testing
 func newTestHandler(storageClient storage.Client) *Handler {
 	// Load sport config for tests (uses embedded config)
@@ -29,7 +64,7 @@ func newTestHandler(storageClient storage.Client) *Handler {
 	if err != nil {
 		panic("Failed to load sport config for tests: " + err.Error())
 	}
-	return NewHandlerWithStorage(storageClient, sportConfig)
+	return newHandlerWithStorage(storageClient, sportConfig)
 }
 
 func TestHandlerHealth(t *testing.T) {

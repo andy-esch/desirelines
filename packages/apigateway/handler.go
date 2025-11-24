@@ -143,39 +143,6 @@ func (h *Handler) corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// NewHandlerWithStorage is a constructor for testing that allows injecting a mock storage client.
-func NewHandlerWithStorage(storageClient storage.Client, sportConfig *config.SportConfig) *Handler {
-	// Create a mock auth middleware for testing
-	mockAuth := &mockAuthMiddleware{}
-
-	// Initialize CORS handler
-	corsHandler := cors.NewHandler()
-
-	// Initialize chi router
-	r := chi.NewRouter()
-
-	h := &Handler{
-		storage:        storageClient,
-		authMiddleware: mockAuth,
-		corsHandler:    corsHandler,
-		router:         r,
-		sportConfig:    sportConfig,
-	}
-
-	// Register routes
-	h.registerRoutes()
-
-	return h
-}
-
-// mockAuthMiddleware is a no-op auth middleware for testing
-type mockAuthMiddleware struct{}
-
-func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
-	// Pass through without authentication (like local development mode)
-	return next
-}
-
 // ServeHTTP implements http.Handler interface.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Delegate to chi router (CORS handled by middleware)
