@@ -3,8 +3,9 @@ package errors
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
+
+	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
 // APIError represents a standardized API error with HTTP status and message.
@@ -88,7 +89,11 @@ func WriteError(w http.ResponseWriter, r *http.Request, err APIError, corsHandle
 	// Note: Uses r.URL.Path (not r.URL.String()) to avoid logging query parameters
 	// which may contain sensitive data like tokens or user information
 	if err.LogMessage != "" {
-		log.Printf("API Error: %s (path: %s, method: %s)", err.LogMessage, r.URL.Path, r.Method)
+		logger.Logger.Error("API Error",
+			"message", err.LogMessage,
+			"path", r.URL.Path,
+			"method", r.Method,
+			"status", err.Status)
 	}
 
 	// Set CORS headers if handler provided
@@ -102,7 +107,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err APIError, corsHandle
 
 	response := ErrorResponse{Error: err.Message}
 	if encErr := json.NewEncoder(w).Encode(response); encErr != nil {
-		log.Printf("Error encoding error response: %v", encErr)
+		logger.Logger.Error("Failed to encode error response", "error", encErr)
 	}
 }
 

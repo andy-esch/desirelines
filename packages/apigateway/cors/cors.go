@@ -2,10 +2,11 @@
 package cors
 
 import (
-	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
 // Handler manages CORS configuration and header setting.
@@ -19,7 +20,7 @@ func NewHandler() *Handler {
 	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
 
 	if allowedOriginsEnv == "" {
-		log.Println("CORS: ALLOWED_ORIGINS not set, blocking all cross-origin requests")
+		logger.Logger.Warn("CORS: ALLOWED_ORIGINS not set, blocking all cross-origin requests")
 		return &Handler{
 			allowedOrigins: []string{},
 		}
@@ -35,7 +36,7 @@ func NewHandler() *Handler {
 		}
 	}
 
-	log.Printf("CORS: Configured %d allowed origin(s)", len(allowedOrigins))
+	logger.Logger.Info("CORS: Configured allowed origins", "count", len(allowedOrigins))
 	return &Handler{
 		allowedOrigins: allowedOrigins,
 	}
@@ -61,7 +62,9 @@ func (h *Handler) SetHeaders(w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	// Origin not allowed
-	log.Printf("CORS: Origin not allowed: %s (allowed origins: %v)", origin, h.allowedOrigins)
+	logger.Logger.Warn("CORS: Origin not allowed",
+		"origin", origin,
+		"allowed_origins", h.allowedOrigins)
 	return false
 }
 
