@@ -5,6 +5,8 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway"
@@ -24,7 +26,6 @@ func main() {
 	http.Handle("/", handler)
 
 	port := getEnvOrDefault("PORT", "8080")
-	logger.Logger.Info("Server listening", "port", port)
 
 	// Create server with configured handler and timeouts for security
 	server := &http.Server{
@@ -35,12 +36,32 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	// Use different variable name to avoid shadowing err from line 18
-	serverErr := server.ListenAndServe()
-	if serverErr != nil {
-		logger.Logger.Error("Server failed", "error", serverErr)
+	// Start server in goroutine to allow graceful shutdown
+	go func() {
+		logger.Logger.Info("Server listening", "port", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Logger.Error("Server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Logger.Info("Shutting down server...")
+
+	// Give server 30 seconds to finish in-flight requests
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		logger.Logger.Error("Server forced to shutdown", "error", err)
 		os.Exit(1)
 	}
+
+	logger.Logger.Info("Server exited gracefully")
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
