@@ -201,13 +201,23 @@ func (h *Handler) handleDistancesWithParam(w http.ResponseWriter, r *http.Reques
 	h.fetchAndRespond(w, r, blobPath, year, "distances")
 }
 
-// isValidYear validates that the year string is a 4-digit number between 2000-2100
+const (
+	// MinValidYear is the earliest year for which activity data can be requested.
+	// Set to 2000 to allow pre-Strava historical data imports.
+	MinValidYear = 2000
+
+	// MaxValidYear is the latest year for which activity data can be requested.
+	// Set to 2050 as a reasonable planning horizon (approximately one generation).
+	MaxValidYear = 2050
+)
+
+// isValidYear validates that the year string is a 4-digit number within valid bounds.
 func isValidYear(s string) bool {
 	if len(s) != 4 {
 		return false
 	}
 	year, err := strconv.Atoi(s)
-	return err == nil && year >= 2000 && year <= 2100
+	return err == nil && year >= MinValidYear && year <= MaxValidYear
 }
 
 // validateAndGetYear extracts and validates the year path parameter.
