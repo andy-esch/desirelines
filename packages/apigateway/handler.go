@@ -143,39 +143,6 @@ func (h *Handler) corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// NewHandlerWithStorage is a constructor for testing that allows injecting a mock storage client.
-func NewHandlerWithStorage(storageClient storage.Client, sportConfig *config.SportConfig) *Handler {
-	// Create a mock auth middleware for testing
-	mockAuth := &mockAuthMiddleware{}
-
-	// Initialize CORS handler
-	corsHandler := cors.NewHandler()
-
-	// Initialize chi router
-	r := chi.NewRouter()
-
-	h := &Handler{
-		storage:        storageClient,
-		authMiddleware: mockAuth,
-		corsHandler:    corsHandler,
-		router:         r,
-		sportConfig:    sportConfig,
-	}
-
-	// Register routes
-	h.registerRoutes()
-
-	return h
-}
-
-// mockAuthMiddleware is a no-op auth middleware for testing
-type mockAuthMiddleware struct{}
-
-func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
-	// Pass through without authentication (like local development mode)
-	return next
-}
-
 // ServeHTTP implements http.Handler interface.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Delegate to chi router (CORS handled by middleware)
@@ -193,40 +160,32 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 // Wrapper handlers that extract path parameters and validate year
 
 func (h *Handler) handleMetadataWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	h.handleMetadata(w, r, year)
 }
 
 func (h *Handler) handleMetricsWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	h.handleMetrics(w, r, year)
 }
 
 func (h *Handler) handleSourceWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	h.handleSource(w, r, year)
 }
 
 func (h *Handler) handleSummaryWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	blobPath := fmt.Sprintf("activities/%s/summary_activities.json", year)
@@ -234,23 +193,43 @@ func (h *Handler) handleSummaryWithParam(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) handleDistancesWithParam(w http.ResponseWriter, r *http.Request) {
-	year := chi.URLParam(r, "year")
-	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+	year, ok := h.validateAndGetYear(w, r)
+	if !ok {
 		return
 	}
 	blobPath := fmt.Sprintf("activities/%s/distances.json", year)
 	h.fetchAndRespond(w, r, blobPath, year, "distances")
 }
 
-// isValidYear validates that the year string is a 4-digit number between 2000-2100
+const (
+	// MinValidYear is the earliest year for which activity data can be requested.
+	// Set to 2000 to allow pre-Strava historical data imports.
+	MinValidYear = 2000
+
+	// MaxValidYear is the latest year for which activity data can be requested.
+	// Set to 2050 as a reasonable planning horizon (approximately one generation).
+	MaxValidYear = 2050
+)
+
+// isValidYear validates that the year string is a 4-digit number within valid bounds.
 func isValidYear(s string) bool {
 	if len(s) != 4 {
 		return false
 	}
 	year, err := strconv.Atoi(s)
-	return err == nil && year >= 2000 && year <= 2100
+	return err == nil && year >= MinValidYear && year <= MaxValidYear
+}
+
+// validateAndGetYear extracts and validates the year path parameter.
+// Returns the year string and true if valid, or writes an error response and returns false.
+func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (string, bool) {
+	year := chi.URLParam(r, "year")
+	if !isValidYear(year) {
+		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		errors.WriteError(w, r, err, h.corsHandler)
+		return "", false
+	}
+	return year, true
 }
 
 // validateAndGetSport extracts and validates the sport query parameter.
@@ -315,20 +294,20 @@ func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse to validate it's valid JSON
-	var configData map[string]any
-	if unmarshalErr := json.Unmarshal(data, &configData); unmarshalErr != nil {
-		logger.Logger.Error("Error parsing sport config", "error", unmarshalErr)
+	// Validate it's valid JSON without unmarshaling
+	if !json.Valid(data) {
+		logger.Logger.Error("Embedded sport config is invalid JSON")
 		apiErr := errors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Invalid sport config",
-			fmt.Sprintf("JSON parse error: %v", unmarshalErr),
+			"JSON validation failed",
 		)
 		errors.WriteError(w, r, apiErr, h.corsHandler)
 		return
 	}
 
-	h.respondJSON(w, r, http.StatusOK, configData)
+	// Write raw JSON directly (no marshal/unmarshal cycle)
+	h.respondRawJSON(w, r, http.StatusOK, data)
 }
 
 // fetchAndRespond is a helper to fetch blob and respond (DRY).
@@ -349,7 +328,7 @@ func (h *Handler) fetchAndRespond(w http.ResponseWriter, r *http.Request, blobPa
 		return
 	}
 
-	h.respondJSONRaw(w, r, http.StatusOK, data)
+	h.respondJSON(w, r, http.StatusOK, data)
 }
 
 // respondJSON writes a JSON response with CORS headers.
@@ -364,16 +343,15 @@ func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int
 	}
 }
 
-// respondJSONRaw writes pre-marshaled JSON data with CORS headers.
-func (h *Handler) respondJSONRaw(w http.ResponseWriter, r *http.Request, status int, data any) {
+// respondRawJSON writes raw JSON bytes with CORS headers.
+// Use this for pre-marshaled JSON data to avoid double encoding.
+func (h *Handler) respondRawJSON(w http.ResponseWriter, r *http.Request, status int, data []byte) {
 	h.corsHandler.SetHeaders(w, r)
 
 	w.Header().Set("Content-Type", "application/json")
-	// Don't cache authenticated data - user-specific content
-	w.Header().Set("Cache-Control", "private, no-store, must-revalidate")
 	w.WriteHeader(status)
 
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		logger.Logger.Error("Error encoding JSON response", "error", err)
+	if _, err := w.Write(data); err != nil {
+		logger.Logger.Error("Error writing raw JSON response", "error", err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
@@ -94,7 +95,7 @@ func loadSportConfigInternal(configPath string) (*SportConfig, error) {
 	}
 
 	// Validate version (fail fast)
-	if !contains(SupportedConfigVersions, configData.Version) {
+	if !slices.Contains(SupportedConfigVersions, configData.Version) {
 		return nil, fmt.Errorf(
 			"unsupported sport config version: %s (supports: %v). "+
 				"Update application code or rollback config version",
@@ -103,11 +104,6 @@ func loadSportConfigInternal(configPath string) (*SportConfig, error) {
 	}
 
 	return &SportConfig{data: configData}, nil
-}
-
-// GetSportConfig returns current SportConfig
-func GetSportConfig() *SportConfig {
-	return sportConfig
 }
 
 // ListSports returns all available sports
@@ -139,13 +135,4 @@ func (c *SportConfig) ValidateSport(sport string) bool {
 // Used for serving the config via API endpoint
 func GetRawConfigJSON() []byte {
 	return embeddedSportConfig
-}
-
-func contains(slice []string, value string) bool {
-	for _, item := range slice {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }

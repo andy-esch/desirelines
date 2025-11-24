@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 
 	"cloud.google.com/go/storage"
+
+	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
 // ErrNotFound is returned when a blob is not found.
@@ -58,8 +60,10 @@ func (c *CloudStorageClient) ReadJSON(ctx context.Context, blobPath string) (any
 		return nil, fmt.Errorf("failed to read object %s: %w", blobPath, err)
 	}
 	defer func() {
-		if closeErr := reader.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close reader: %w", closeErr)
+		if closeErr := reader.Close(); closeErr != nil {
+			logger.Logger.Warn("Failed to close storage reader",
+				"blob_path", blobPath,
+				"error", closeErr)
 		}
 	}()
 
