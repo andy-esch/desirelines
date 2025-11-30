@@ -1,0 +1,95 @@
+[GLOBAL]
+pants_version = "2.29.1"  # Use latest stable version
+
+# Enable backends for polyglot monorepo
+backend_packages = [
+  # Python ecosystem
+  "pants.backend.python",
+  "pants.backend.experimental.python.lint.ruff.check",
+  "pants.backend.experimental.python.lint.ruff.format",
+  "pants.backend.python.typecheck.mypy",
+
+  # Go ecosystem (experimental as of 2.29)
+  "pants.backend.experimental.go",
+  "pants.backend.experimental.go.lint.golangci_lint",
+
+  # # Protobuf code generation
+  "pants.backend.codegen.protobuf.python",
+  "pants.backend.experimental.codegen.protobuf.go",
+  "pants.backend.codegen.protobuf.lint.buf",
+
+  # # Shell scripts
+  "pants.backend.shell",
+  "pants.backend.shell.lint.shellcheck",
+  "pants.backend.shell.lint.shfmt",
+
+  # # Google Cloud Functions
+  "pants.backend.google_cloud_function.python",
+
+  # # Docker coordination
+  "pants.backend.docker",
+]
+
+# Directories to ignore
+pants_ignore = [
+  "/.git/",
+  "/.pants.d/",
+  "/dist/",
+  "/node_modules/",
+  "/__pycache__/",
+  "*.pyc",
+  "/.venv/",
+  "/.terraform/",
+  "/.pytest_cache/",
+]
+
+# Python configuration
+[python]
+# Match project's Python version constraint
+interpreter_constraints = [">=3.12,<=3.14"]
+enable_resolves = true
+
+# Python dependency management
+[python.resolves]
+# Root pyproject.toml uses [dependency-groups] which Pants doesn't support yet
+# python-default = "pyproject.toml"
+
+# Stravapipe package resolve - points to LOCKFILE, not source
+stravapipe = "packages/stravapipe/stravapipe.lock"
+
+# Go configuration
+[golang]
+minimum_expected_version = "1.25"
+
+# Protobuf configuration
+# [protobuf]
+# # Use buf for better error messages
+# use_buf = true
+
+[python-protobuf]
+# Generate .pyi stub files for mypy type checking
+mypy_plugin = true
+
+# Source root patterns
+[source]
+root_patterns = [
+  "/packages/*",
+  "/functions",
+  "/schemas",
+  "/scripts",
+]
+
+# Python dependency inference
+[python-infer]
+# Automatically infer dependencies from imports
+imports = true
+string_imports = true
+
+# Go dependency inference
+# [golang-infer]
+# imports = true
+
+# Build caching (local only for now, remote in Phase 7)
+# [GLOBAL.cache]
+# # Local cache directory
+# local_store_dir = ".pants.d/cache"

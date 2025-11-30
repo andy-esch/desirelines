@@ -261,6 +261,18 @@ coverage/
 # Firebase
 .firebase
 
+# Pants build system
+/.pants.d/
+/.pids/
+/dist/
+/.pants.workdir.file_lock*
+
+# Pants cache (local only, not remote)
+.pants.d/cache/
+
+# Developer-specific Pants config
+.pants.rc
+
 # AI
 .claude
 CLAUDE.md
