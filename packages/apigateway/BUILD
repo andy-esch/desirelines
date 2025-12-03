@@ -1,10 +1,12 @@
-go_mod()
+# API Gateway Go package
+# Serves aggregated data to web frontend
 
-go_package(
-    name="apigateway0",
+go_mod(
+    name="mod",
 )
 
-protobuf_sources(
-    name="user_config",
-    sources=["user_config.proto"],
+go_package(
+    name="lib",
+    # Protobuf imports will be auto-inferred from schemas/proto
+    # Generated .pb.go files are in types/generated/
 )

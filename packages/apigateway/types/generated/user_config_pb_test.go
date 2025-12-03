@@ -12,18 +12,22 @@ func TestUserConfig_WithGoals(t *testing.T) {
 		UserId:        "user123",
 		SchemaVersion: "1.0",
 		LastUpdated:   "2024-11-01T12:00:00Z",
-		Goals: map[string]*GoalsForYear{
+		Goals: map[string]*SportGoalsForYear{
 			"2024": {
-				Goals: []*Goal{
-					{
-						Id:    "goal-1",
-						Value: 1000,
-						Label: "Ride 1000 miles",
-					},
-					{
-						Id:    "goal-2",
-						Value: 2000,
-						Label: "Stretch goal",
+				Sports: map[string]*GoalsForYear{
+					"cycling": {
+						Goals: []*Goal{
+							{
+								Id:    "goal-1",
+								Value: 1000,
+								Label: "Ride 1000 miles",
+							},
+							{
+								Id:    "goal-2",
+								Value: 2000,
+								Label: "Stretch goal",
+							},
+						},
 					},
 				},
 			},
@@ -44,7 +48,7 @@ func TestUserConfig_WithGoals(t *testing.T) {
 		t.Errorf("Expected userId user123, got %v", data["userId"])
 	}
 
-	goals, ok := data["goals"].(map[string]any)["2024"].(map[string]any)["goals"].([]any)
+	goals, ok := data["goals"].(map[string]any)["2024"].(map[string]any)["sports"].(map[string]any)["cycling"].(map[string]any)["goals"].([]any)
 	if !ok {
 		t.Fatal("goals is not a []any")
 	}
@@ -207,9 +211,13 @@ func TestUserConfig_Complete(t *testing.T) {
 		UserId:        "complete-user",
 		SchemaVersion: "1.0",
 		LastUpdated:   "2024-11-01T12:00:00Z",
-		Goals: map[string]*GoalsForYear{
+		Goals: map[string]*SportGoalsForYear{
 			"2024": {
-				Goals: []*Goal{{Id: "g1", Value: 1500, Label: "Annual goal"}},
+				Sports: map[string]*GoalsForYear{
+					"cycling": {
+						Goals: []*Goal{{Id: "g1", Value: 1500, Label: "Annual goal"}},
+					},
+				},
 			},
 		},
 		Annotations: map[string]*AnnotationsForYear{
@@ -298,9 +306,13 @@ func TestUserConfig_Deserialization(t *testing.T) {
 		"schemaVersion": "1.0",
 		"goals": {
 			"2024": {
-				"goals": [
-					{"id": "g1", "value": 1000, "label": "Goal 1"}
-				]
+				"sports": {
+					"cycling": {
+						"goals": [
+							{"id": "g1", "value": 1000, "label": "Goal 1"}
+						]
+					}
+				}
 			}
 		},
 		"preferences": {
@@ -320,11 +332,11 @@ func TestUserConfig_Deserialization(t *testing.T) {
 	if config.SchemaVersion != "1.0" {
 		t.Errorf("Expected version 1.0, got %s", config.SchemaVersion)
 	}
-	if len(config.Goals["2024"].Goals) != 1 {
-		t.Errorf("Expected 1 goal, got %d", len(config.Goals["2024"].Goals))
+	if len(config.Goals["2024"].Sports["cycling"].Goals) != 1 {
+		t.Errorf("Expected 1 goal, got %d", len(config.Goals["2024"].Sports["cycling"].Goals))
 	}
-	if config.Goals["2024"].Goals[0].Value != 1000 {
-		t.Errorf("Expected goal value 1000, got %d", config.Goals["2024"].Goals[0].Value)
+	if config.Goals["2024"].Sports["cycling"].Goals[0].Value != 1000 {
+		t.Errorf("Expected goal value 1000, got %d", config.Goals["2024"].Sports["cycling"].Goals[0].Value)
 	}
 	if config.Preferences.Theme != "dark" {
 		t.Errorf("Expected theme dark, got %s", config.Preferences.Theme)

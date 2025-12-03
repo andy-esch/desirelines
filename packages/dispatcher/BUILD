@@ -1,9 +1,13 @@
-go_mod()
+# Webhook dispatcher Go package
+# Routes Strava webhooks to PubSub
+
+go_mod(
+    name="mod",
+)
 
 go_package(
-    name="dispatcher0",
+    name="lib",
 )
 
-docker_image(
-    name="docker",
-)
+# Docker builds handled by docker-compose for local dev
+# docker_image(name="docker")
