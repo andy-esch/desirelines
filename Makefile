@@ -117,6 +117,28 @@ web-dev:
 proto-gen: proto-gen-python proto-gen-go proto-gen-typescript
 	@echo "✅ Protocol buffer code generation complete"
 
+# Generate protobuf code using Pants (hybrid approach: Pants generates, shell copies to source tree)
+# This provides Pants dependency tracking while keeping generated code in source tree for observability
+proto-gen-pants:
+	@echo "🔨 Generating protobuf code with Pants..."
+	@command -v pants >/dev/null 2>&1 || { echo "❌ Error: pants not found. Install with: ./pants --version"; exit 1; }
+	pants export-codegen schemas/proto::
+	@echo "📋 Copying Python generated code to stravapipe..."
+	@mkdir -p packages/stravapipe/src/stravapipe/types/generated
+	cp dist/codegen/schemas/proto/activities_pb2.py packages/stravapipe/src/stravapipe/types/generated/
+	cp dist/codegen/schemas/proto/activities_pb2.pyi packages/stravapipe/src/stravapipe/types/generated/
+	cp dist/codegen/schemas/proto/sports_metrics_pb2.py packages/stravapipe/src/stravapipe/types/generated/
+	cp dist/codegen/schemas/proto/sports_metrics_pb2.pyi packages/stravapipe/src/stravapipe/types/generated/
+	@# Note: user_config not needed by stravapipe (only apigateway uses it)
+	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
+	@echo "📋 Copying Go generated code to apigateway..."
+	@mkdir -p packages/apigateway/types/generated
+	cp dist/codegen/schemas/proto/activities.pb.go packages/apigateway/types/generated/
+	cp dist/codegen/schemas/proto/sports_metrics.pb.go packages/apigateway/types/generated/
+	cp dist/codegen/schemas/proto/user_config.pb.go packages/apigateway/types/generated/
+	@echo "✅ Pants-generated code copied to source tree (Python + Go)"
+	@echo "ℹ️  TypeScript still uses npm (run 'make proto-gen-typescript' separately if needed)"
+
 # Generate Python code from proto files
 # stravapipe only needs: activities.proto, sports_metrics.proto (not user_config)
 proto-gen-python:

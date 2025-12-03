@@ -50,6 +50,7 @@ pants_ignore = [
 # Match project's Python version constraint
 interpreter_constraints = [">=3.12,<=3.14"]
 enable_resolves = true
+default_resolve = "stravapipe"
 
 # Python dependency management
 [python.resolves]
@@ -64,18 +65,16 @@ stravapipe = "packages/stravapipe/stravapipe.lock"
 minimum_expected_version = "1.25"
 
 # Protobuf configuration
-# [protobuf]
-# # Use buf for better error messages
-# use_buf = true
-
 [python-protobuf]
 # Generate .pyi stub files for mypy type checking
-mypy_plugin = true
+# Using modern generate_type_stubs (preferred over mypy_plugin)
+generate_type_stubs = true
 
 # Source root patterns
 [source]
 root_patterns = [
-  "/packages/*",
+  "/packages/*/src",  # src-layout packages (stravapipe)
+  "/packages/*",      # flat-layout packages
   "/functions",
   "/schemas",
   "/scripts",
@@ -86,6 +85,16 @@ root_patterns = [
 # Automatically infer dependencies from imports
 imports = true
 string_imports = true
+
+# Ruff linting configuration
+[ruff]
+# Use ruff config from stravapipe's pyproject.toml
+config = "packages/stravapipe/pyproject.toml"
+
+# Mypy type checking configuration
+[mypy]
+# Use mypy config from stravapipe's pyproject.toml
+config = "packages/stravapipe/pyproject.toml"
 
 # Go dependency inference
 # [golang-infer]

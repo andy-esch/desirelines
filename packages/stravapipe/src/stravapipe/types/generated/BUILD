@@ -3,9 +3,15 @@
 #   - packages/stravapipe/src/stravapipe/types/generated/activities_pb2.py:../../../../lib
 #   - packages/stravapipe/src/stravapipe/types/generated/sports_metrics_pb2.py:../../../../lib
 #   - packages/stravapipe:lib
+# The .py files are already covered by packages/stravapipe:lib (src/**/*.py)
+# This target only includes .pyi stubs to avoid duplication
 python_sources(
+    name="generated",
     sources=[
         "activities_pb2.pyi",
         "sports_metrics_pb2.pyi",
     ],
+    resolve="stravapipe",
+    skip_ruff=True,  # Generated files, don't lint
+    skip_mypy=True,  # Generated files, don't type-check
 )

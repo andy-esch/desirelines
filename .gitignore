@@ -264,7 +264,7 @@ coverage/
 # Pants build system
 /.pants.d/
 /.pids/
-/dist/
+/dist/  # Includes dist/codegen/ from 'pants export-codegen'
 /.pants.workdir.file_lock*
 
 # Pants cache (local only, not remote)

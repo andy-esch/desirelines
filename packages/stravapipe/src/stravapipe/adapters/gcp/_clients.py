@@ -5,7 +5,7 @@ from typing import Any
 
 from google.cloud.bigquery import Client as BigQueryClient
 from google.cloud.bigquery import QueryJobConfig
-from google.cloud.storage import Client as StorageClient
+from google.cloud.storage import Client as StorageClient  # type: ignore[import-untyped]
 
 from stravapipe.exceptions import BigQueryError
 

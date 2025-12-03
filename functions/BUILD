@@ -18,4 +18,6 @@ docker_image(
     source="Dockerfile.apigateway",
 )
 
-python_sources()
+# Python Cloud Function wrappers - will be configured in Phase 5
+# For now, these are packaged via scripts/operations/package-functions.sh
+# python_sources()

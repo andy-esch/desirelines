@@ -68,10 +68,6 @@ class ReadSummaries(ABC):
     """Read activity summaries"""
 
     @abstractmethod
-    def read_activity_summary_by_year(self, year: int) -> dict:
-        """Read Activity summaries by year (legacy, cycling only)"""
-
-    @abstractmethod
     def read_activity_summary_by_year_and_sport(
         self, year: int, sport: str
     ) -> DailySummary:

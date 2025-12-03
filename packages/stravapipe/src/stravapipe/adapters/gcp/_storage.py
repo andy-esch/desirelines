@@ -2,16 +2,12 @@
 
 import logging
 
-from google.cloud.storage.client import NotFound
+from google.cloud.storage.client import NotFound  # type: ignore[import-untyped]
 from google.protobuf import json_format
 
 from stravapipe.adapters.gcp._clients import CloudStorageClientWrapper
 from stravapipe.ports.out.read import ReadSummaries
 from stravapipe.ports.out.write import WriteDistances, WriteMetadata, WriteSummary
-from stravapipe.types import (  # DistanceTimeseries: legacy
-    DistanceTimeseries,
-    SummaryObject,
-)
 from stravapipe.types.generated.sports_metrics_pb2 import (
     CumulativeMetricsEntry,
     DailySummary,
@@ -24,17 +20,6 @@ logger = logging.getLogger(__name__)
 class SummariesRepo(ReadSummaries, WriteSummary):
     def __init__(self, client: CloudStorageClientWrapper):
         self._client = client
-
-    def read_activity_summary_by_year(self, year: int) -> SummaryObject:
-        """Read Activity summaries by year (legacy, cycling only)"""
-        blob_name = f"activities/{year}/summary_activities.json"
-        try:
-            summary = self._client.read_json_from_bucket(blob_name)
-        except NotFound:
-            logger.info("No existing summary for year=%s (legacy format)", year)
-            summary = {}
-
-        return summary
 
     def read_activity_summary_by_year_and_sport(
         self, year: int, sport: str
@@ -85,15 +70,6 @@ class SummariesRepo(ReadSummaries, WriteSummary):
         # Upload to GCP bucket
         logger.info("Writing summary to blob: %s", summary_blob_name)
         self._client.write_json_to_bucket(json_dict, summary_blob_name)
-
-    def update_chart_distances(
-        self, distances: DistanceTimeseries, *, year: int
-    ) -> None:
-        """Update chart distances object"""
-        distances_blob_name = f"activities/{year}/chart_distances.json"
-
-        logger.info("Writing chart distances to blob: %s", distances_blob_name)
-        self._client.write_json_to_bucket(distances, distances_blob_name)
 
 
 class DistancesRepo(WriteDistances):

@@ -9,7 +9,11 @@ class MockReadActivities(ReadMinimalActivities):
         self.activities = activities
 
     def read_activity_by_id(self, activity_id: int) -> MinimalStravaActivity:
-        return self.activities.get(activity_id)
+        activity = self.activities.get(activity_id)
+        if activity is None:
+            raise KeyError(f"Activity {activity_id} not found in mock")
+        return activity
 
     def read_activities_by_year(self, year: int) -> list[MinimalStravaActivity]:
-        pass
+        # Not used in current tests - return empty list
+        return []

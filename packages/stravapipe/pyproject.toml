@@ -21,6 +21,25 @@ dependencies = [
     "requests>=2.32.4",
 ]
 
+# Development dependencies - Pants-compatible format (PEP 621)
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "requests-mock>=1.12.1",
+    # Linting & Formatting
+    "ruff>=0.12.9",
+    # Type Checking
+    "mypy>=1.17.1",
+    "types-pytz>=2025.2.0.20250809",
+    "types-requests>=2.32.4.20250809",
+    "types-protobuf>=6.32.1.20250918",
+    "mypy-protobuf>=3.6.0",
+    # Git Hooks (optional - may not need in Pants lockfile)
+    "pre-commit>=4.3.0",
+]
+
 [build-system]
 requires = ["uv_build>=0.8.4,<0.9.0"]
 build-backend = "uv_build"
