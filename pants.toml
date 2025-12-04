@@ -114,7 +114,8 @@ known_versions = [
   "2.6.2|linux_arm64|a2f9c6fe1800d0a6ba2a94ada95debe2c498a636ffc12308ee03022f97be1f33|13159338",
 ]
 # If there's a .golangci.yml config file, it will be used automatically
-# args = []  # Add custom args if needed
+# NOTE: golangci-lint backend doesn't support multi-module repos - use `make go-lint` instead
+# args = []  # Custom args if needed
 
 # Go dependency inference
 # [golang-infer]
