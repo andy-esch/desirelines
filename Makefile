@@ -26,19 +26,19 @@ endef
 
 # Python commands
 py-test:
-	uv run pytest packages/stravapipe/tests/
+	cd packages/stravapipe && uv run pytest tests/
 
 py-test-coverage:
-	uv run pytest packages/stravapipe/tests/ --cov=packages/stravapipe/src --cov-report=xml --cov-report=term
+	cd packages/stravapipe && uv run pytest tests/ --cov=src --cov-report=xml --cov-report=term
 
 py-lint:
-	uv run ruff check . --fix
+	cd packages/stravapipe && uv run ruff check . --fix
 
 py-format:
-	uv run ruff format .
+	cd packages/stravapipe && uv run ruff format .
 
 py-typecheck:
-	uv run mypy packages/stravapipe/src/
+	cd packages/stravapipe && uv run mypy src/
 
 # Go commands
 go-test:
