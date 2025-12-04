@@ -51,7 +51,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install Python dependencies
-        run: uv sync --all-packages
+        run: cd packages/stravapipe && uv sync --extra dev
 
       - name: Run Python tests with coverage
         run: make py-test-coverage
@@ -83,18 +83,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.25'
+          cache-dependency-path: go.work.sum
 
-      - name: Install Go dependencies (dispatcher)
-        run: cd packages/dispatcher && go mod download
-
-      - name: Install Go dependencies (apigateway)
-        run: cd packages/apigateway && go mod download
-
-      - name: Tidy Go modules (dispatcher)
-        run: cd packages/dispatcher && go mod tidy
-
-      - name: Tidy Go modules (apigateway)
-        run: cd packages/apigateway && go mod tidy
+      - name: Download Go workspace dependencies
+        run: go work sync && go mod download
 
       - name: Run Go tests with coverage
         run: make go-test-coverage
@@ -117,6 +109,9 @@ jobs:
           name: go-apigateway-coverage
           fail_ci_if_error: false
 
+      # Run golangci-lint per-module for PR annotations
+      # Note: We have a go.work workspace, but run linting separately per module
+      # to get inline PR annotations from golangci-lint-action
       - name: Run Go linting - dispatcher
         uses: golangci/golangci-lint-action@v8
         with:
