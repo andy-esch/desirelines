@@ -1,6 +1,15 @@
 [GLOBAL]
 pants_version = "2.29.1"  # Use latest stable version
 
+# Enable colors for better readability
+colors = true
+
+# Dynamic UI shows progress (disable in CI if needed)
+dynamic_ui = true
+
+# Streaming output for real-time feedback
+streaming_workunits_report_interval = 1.0
+
 # Enable backends for polyglot monorepo
 backend_packages = [
   # Python ecosystem
@@ -125,3 +134,41 @@ known_versions = [
 # [GLOBAL.cache]
 # # Local cache directory
 # local_store_dir = ".pants.d/cache"
+
+# ==========================================
+# Test Configuration
+# ==========================================
+
+[test]
+# Run tests in parallel (adjust based on CPU cores)
+use_coverage = false  # Enable with --use-coverage flag when needed
+
+# Test timeouts
+timeout_default = 60  # seconds (default timeout for each test)
+timeout_maximum = 300  # seconds (maximum allowed timeout)
+
+# Output mode: all (show everything), failed (only failures), none (summary only)
+output = "failed"  # Only show failed test output for cleaner CI logs
+
+# Pytest-specific configuration
+[pytest]
+args = [
+  "-v",           # Verbose output
+  "--tb=short",   # Short traceback format
+]
+# Note: pytest-xdist for parallel execution ("-n", "auto") requires it in dependencies
+
+# Go test settings
+[go-test]
+args = [
+  "-v",     # Verbose output
+]
+# Note: -race flag not supported by Pants Go backend test runner
+
+# Python coverage configuration
+[coverage-py]
+report = ["console", "xml"]  # Generate console output and XML for CI
+output_dir = "{distdir}/coverage/python"  # Coverage reports go to dist/coverage/python/
+
+# Fail build if coverage below threshold (optional - disabled for now)
+# fail_under = 70
