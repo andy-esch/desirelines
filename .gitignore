@@ -193,10 +193,6 @@ build/
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Go workspace file
-go.work
-go.work.sum
-
 # Build output
 /bin/
 /pkg/
@@ -260,6 +256,18 @@ coverage/
 
 # Firebase
 .firebase
+
+# Pants build system
+/.pants.d/
+/.pids/
+/dist/  # Includes dist/codegen/ from 'pants export-codegen'
+/.pants.workdir.file_lock*
+
+# Pants cache (local only, not remote)
+.pants.d/cache/
+
+# Developer-specific Pants config
+.pants.rc
 
 # AI
 .claude

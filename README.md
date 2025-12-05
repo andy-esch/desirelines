@@ -99,6 +99,34 @@ Run tests with
 $ make test
 ```
 
+## Build System
+
+This project uses [Pants](https://www.pantsbuild.org/) for build orchestration across Python, Go, and TypeScript.
+
+### Quick Commands
+
+```bash
+# Run all tests
+pants test ::
+
+# Run tests for specific package
+pants test packages/stravapipe::
+
+# Lint all code
+pants lint ::
+
+# Format all code
+pants fmt ::
+
+# Type check
+pants check ::
+
+# Test only what changed
+pants --changed-since=main test
+```
+
+**Note:** Pants is currently being integrated. Some features (like Cloud Function packaging) will be available in later phases.
+
 ## Architecture
 
 - **Frontend**: React web application (`web/`)

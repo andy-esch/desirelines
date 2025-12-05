@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Andy Eschbacher", email = "andyesch@protonmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "cloudevents>=1.11.0",
     "functions-framework>=3.8.3",
@@ -21,6 +21,131 @@ dependencies = [
     "requests>=2.32.4",
 ]
 
+# Development dependencies - Pants-compatible format (PEP 621)
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "requests-mock>=1.12.1",
+    # Linting & Formatting
+    "ruff>=0.12.9",
+    # Type Checking
+    "mypy>=1.17.1",
+    "types-pytz>=2025.2.0.20250809",
+    "types-requests>=2.32.4.20250809",
+    "types-protobuf>=6.32.1.20250918",
+    "mypy-protobuf>=3.6.0",
+    # Git Hooks (optional - may not need in Pants lockfile)
+    "pre-commit>=4.3.0",
+]
+
 [build-system]
 requires = ["uv_build>=0.8.4,<0.9.0"]
 build-backend = "uv_build"
+
+[tool.uv_build]
+# Include py.typed marker for PEP 561 compliance
+include = ["src/stravapipe/py.typed"]
+
+# ==========================================
+# Ruff Configuration (Linting & Formatting)
+# ==========================================
+[tool.ruff]
+src = ["src"]
+extend-exclude = [
+    "*.ipynb",
+    "src/stravapipe/types/generated/",  # Exclude generated protobuf code
+]
+line-length = 88
+target-version = "py313"
+
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "DTZ", # flake8-datetimez
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "RUF", # ruff-specific rules
+    "PT",  # flake8-pytest-style
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["stravapipe"]
+force-sort-within-sections = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# ==========================================
+# Pytest Configuration
+# ==========================================
+[tool.pytest.ini_options]
+testpaths = [
+    "packages/stravapipe/tests",
+]
+pythonpath = [
+    "packages/stravapipe/src",
+]
+addopts = "--import-mode=importlib"
+
+# ==========================================
+# Coverage Configuration
+# ==========================================
+[tool.coverage.run]
+omit = [
+    # Exclude generated protobuf code - machine-generated, tested via usage
+    "*/types/generated/*_pb2.py",
+    "*/types/generated/*_pb2.pyi",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+# ==========================================
+# MyPy Configuration (Type Checking)
+# ==========================================
+[tool.mypy]
+mypy_path = ["src"]
+packages = ["stravapipe"]
+explicit_package_bases = true
+namespace_packages = true
+
+# Disable misc errors globally (primarily for protobuf __slots__ false positives)
+# The protoc-generated .pyi stubs show __slots__ = () but fields are dynamically managed
+disable_error_code = ["misc"]
+
+# Ignore import-untyped errors for common untyped libraries
+# disable_error_code = ["import-untyped"]
+
+# Generated protobuf code - disable __slots__ warnings
+[[tool.mypy.overrides]]
+module = "stravapipe.types.generated.*"
+disable_error_code = ["misc"]
+
+# Ignore missing imports for external libraries
+[[tool.mypy.overrides]]
+module = [
+    "google.cloud.*",
+    "google.auth.*",
+    "google.api_core.*",
+]
+ignore_missing_imports = true

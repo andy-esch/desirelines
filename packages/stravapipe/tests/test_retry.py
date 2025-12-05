@@ -269,7 +269,7 @@ class TestRetryOnFailure:
         # Should log warning about retry
         mock_logger.warning.assert_called_once()
         # Check that warning was called with the format string and correct arguments
-        args, kwargs = mock_logger.warning.call_args
+        args, _ = mock_logger.warning.call_args
         format_string = args[0]
         format_args = args[1:]
         assert "Request failed (attempt %d/%d)" in format_string

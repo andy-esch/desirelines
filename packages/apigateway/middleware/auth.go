@@ -10,8 +10,8 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/apigateway/apierrors"
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
-	"github.com/andy-esch/desirelines/packages/apigateway/errors"
 	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
@@ -20,7 +20,7 @@ type AuthMiddleware struct {
 	authClient     *auth.Client
 	allowedEmails  map[string]bool
 	skipValidation bool // For local development
-	corsHandler    errors.CORSHandler
+	corsHandler    apierrors.CORSHandler
 }
 
 // NewAuthMiddleware creates a new authentication middleware.
@@ -104,7 +104,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			logger.Logger.Warn("Auth: Authentication failed", "reason", "missing_header")
-			errors.WriteError(w, r, errors.ErrUnauthorized, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.corsHandler)
 			return
 		}
 
@@ -112,7 +112,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			logger.Logger.Warn("Auth: Authentication failed", "reason", "invalid_header_format")
-			errors.WriteError(w, r, errors.ErrUnauthorized, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.corsHandler)
 			return
 		}
 
@@ -122,7 +122,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		token, err := m.authClient.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
 			logger.Logger.Warn("Auth: Authentication failed", "reason", "token_verification_failed", "error", err)
-			errors.WriteError(w, r, errors.ErrUnauthorized, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.corsHandler)
 			return
 		}
 
@@ -130,14 +130,14 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		email, ok := token.Claims["email"].(string)
 		if !ok || email == "" {
 			logger.Logger.Warn("Auth: Authentication failed", "reason", "missing_email_claim")
-			errors.WriteError(w, r, errors.ErrUnauthorized, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.corsHandler)
 			return
 		}
 
 		// Check if email is in allowlist
 		if !m.allowedEmails[email] {
 			logger.Logger.Warn("Auth: Authorization failed", "reason", "email_not_authorized", "email", email)
-			errors.WriteError(w, r, errors.ErrForbidden, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrForbidden, m.corsHandler)
 			return
 		}
 

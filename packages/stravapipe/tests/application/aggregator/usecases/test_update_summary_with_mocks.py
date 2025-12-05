@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from unittest.mock import Mock
 
 from google.protobuf import json_format
 import pytest
@@ -51,14 +52,14 @@ def webhook_request_unsupported():
 
 
 @pytest.fixture
-def mock_dependencies(mocker):
+def mock_dependencies():
     """Reusable mock dependencies for UpdateSummaryUseCase"""
     mocks = {
-        "read_strava_token": mocker.Mock(),
-        "read_activities": mocker.Mock(),
-        "read_summaries": mocker.Mock(),
-        "export_service": mocker.Mock(),
-        "pacing_service": mocker.Mock(),
+        "read_strava_token": Mock(),
+        "read_activities": Mock(),
+        "read_summaries": Mock(),
+        "export_service": Mock(),
+        "pacing_service": Mock(),
     }
 
     # Set up common return values

@@ -1,5 +1,5 @@
-// Package errors provides standardized error handling for the API Gateway.
-package errors
+// Package apierrors provides standardized error handling for the API Gateway.
+package apierrors
 
 import (
 	"encoding/json"

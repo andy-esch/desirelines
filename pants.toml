@@ -1,0 +1,174 @@
+[GLOBAL]
+pants_version = "2.29.1"  # Use latest stable version
+
+# Enable colors for better readability
+colors = true
+
+# Dynamic UI shows progress (disable in CI if needed)
+dynamic_ui = true
+
+# Streaming output for real-time feedback
+streaming_workunits_report_interval = 1.0
+
+# Enable backends for polyglot monorepo
+backend_packages = [
+  # Python ecosystem
+  "pants.backend.python",
+  "pants.backend.experimental.python.lint.ruff.check",
+  "pants.backend.experimental.python.lint.ruff.format",
+  "pants.backend.python.typecheck.mypy",
+
+  # Go ecosystem (experimental as of 2.29)
+  "pants.backend.experimental.go",
+  "pants.backend.experimental.go.lint.golangci_lint",
+
+  # # Protobuf code generation
+  "pants.backend.codegen.protobuf.python",
+  "pants.backend.experimental.codegen.protobuf.go",
+  "pants.backend.codegen.protobuf.lint.buf",
+
+  # # Shell scripts
+  "pants.backend.shell",
+  "pants.backend.shell.lint.shellcheck",
+  "pants.backend.shell.lint.shfmt",
+
+  # # Google Cloud Functions
+  "pants.backend.google_cloud_function.python",
+
+  # # Docker coordination
+  "pants.backend.docker",
+]
+
+# Directories to ignore
+pants_ignore = [
+  "/.git/",
+  "/.pants.d/",
+  "/dist/",
+  "/node_modules/",
+  "/__pycache__/",
+  "*.pyc",
+  "/.venv/",
+  "/.terraform/",
+  "/.pytest_cache/",
+  # TEMPORARY: Ignore until go.sum validation issue resolved (Phase 6)
+  "/functions/activity_dispatcher",
+]
+
+# Python configuration
+[python]
+# Match project's Python version constraint
+interpreter_constraints = [">=3.12,<=3.14"]
+enable_resolves = true
+default_resolve = "stravapipe"
+
+# Python dependency management
+[python.resolves]
+# Root pyproject.toml uses [dependency-groups] which Pants doesn't support yet
+# python-default = "pyproject.toml"
+
+# Stravapipe package resolve - points to LOCKFILE, not source
+stravapipe = "packages/stravapipe/stravapipe.lock"
+
+# Go configuration
+[golang]
+minimum_expected_version = "1.25"
+
+# Protobuf configuration
+[python-protobuf]
+# Generate .pyi stub files for mypy type checking
+# Using modern generate_type_stubs (preferred over mypy_plugin)
+generate_type_stubs = true
+
+# Source root patterns
+[source]
+root_patterns = [
+  "/packages/*/src",  # src-layout packages (stravapipe)
+  "/packages/*",      # flat-layout packages
+  "/functions",
+  "/schemas",
+  "/scripts",
+]
+
+# Python dependency inference
+[python-infer]
+# Automatically infer dependencies from imports
+imports = true
+string_imports = true
+
+# Ruff linting configuration
+[ruff]
+# Use ruff config from stravapipe's pyproject.toml
+config = "packages/stravapipe/pyproject.toml"
+
+# Mypy type checking configuration
+[mypy]
+# Use mypy config from stravapipe's pyproject.toml
+config = "packages/stravapipe/pyproject.toml"
+
+# golangci-lint configuration
+[golangci-lint]
+# Use 2.6.2 which supports Go 1.25+
+version = "2.6.2"
+# Allow using a version not in Pants' built-in list
+use_unsupported_version = "warning"
+# URL template for downloading golangci-lint
+url_template = "https://github.com/golangci/golangci-lint/releases/download/v{version}/golangci-lint-{version}-{platform}.tar.gz"
+# Map Pants platform names to golangci-lint platform names (inline table must be single line)
+url_platform_mapping = { "macos_x86_64" = "darwin-amd64", "macos_arm64" = "darwin-arm64", "linux_x86_64" = "linux-amd64", "linux_arm64" = "linux-arm64" }
+# Tell Pants how to download v2.6.2 (not in Pants' built-in known versions)
+known_versions = [
+  "2.6.2|macos_x86_64|ad9ad19db485d224441a77453d2a18c009184408eea92ab479d3ee5c975889f8|14757442",
+  "2.6.2|macos_arm64|6164de2b9a9e6b4b8deea57c5072ada5d6d41bf5cca0b2f744e7b3d6e818fe0d|13801291",
+  "2.6.2|linux_x86_64|499c864b5fd9841c4fa8e80b5e2be30f73f085cf186f1b111ff81a2783b7de12|14406341",
+  "2.6.2|linux_arm64|a2f9c6fe1800d0a6ba2a94ada95debe2c498a636ffc12308ee03022f97be1f33|13159338",
+]
+# If there's a .golangci.yml config file, it will be used automatically
+# NOTE: golangci-lint backend doesn't support multi-module repos - use `make go-lint` instead
+# args = []  # Custom args if needed
+
+# Go dependency inference
+# [golang-infer]
+# imports = true
+
+# Build caching (local only for now, remote in Phase 7)
+# [GLOBAL.cache]
+# # Local cache directory
+# local_store_dir = ".pants.d/cache"
+
+# ==========================================
+# Test Configuration
+# ==========================================
+
+[test]
+# Run tests in parallel (adjust based on CPU cores)
+use_coverage = false  # Enable with --use-coverage flag when needed
+
+# Test timeouts
+timeout_default = 60  # seconds (default timeout for each test)
+timeout_maximum = 300  # seconds (maximum allowed timeout)
+
+# Output mode: all (show everything), failed (only failures), none (summary only)
+output = "failed"  # Only show failed test output for cleaner CI logs
+
+# Pytest-specific configuration
+[pytest]
+args = [
+  "-v",           # Verbose output
+  "--tb=short",   # Short traceback format
+]
+# Note: pytest-xdist for parallel execution ("-n", "auto") requires it in dependencies
+
+# Go test settings
+[go-test]
+args = [
+  "-v",     # Verbose output
+]
+# Note: -race flag not supported by Pants Go backend test runner
+
+# Python coverage configuration
+[coverage-py]
+report = ["console", "xml"]  # Generate console output and XML for CI
+output_dir = "{distdir}/coverage/python"  # Coverage reports go to dist/coverage/python/
+
+# Fail build if coverage below threshold (optional - disabled for now)
+# fail_under = 70

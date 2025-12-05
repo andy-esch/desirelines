@@ -5,15 +5,15 @@ package apigateway
 import (
 	"context"
 	"encoding/json"
-	goerrors "errors"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 
+	"github.com/andy-esch/desirelines/packages/apigateway/apierrors"
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
-	"github.com/andy-esch/desirelines/packages/apigateway/errors"
 	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
@@ -30,7 +30,7 @@ type AuthMiddleware interface {
 type Handler struct {
 	storage        storage.Client
 	authMiddleware AuthMiddleware
-	corsHandler    errors.CORSHandler
+	corsHandler    apierrors.CORSHandler
 	router         chi.Router
 	sportConfig    *config.SportConfig
 }
@@ -225,8 +225,8 @@ func isValidYear(s string) bool {
 func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (string, bool) {
 	year := chi.URLParam(r, "year")
 	if !isValidYear(year) {
-		err := errors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		errors.WriteError(w, r, err, h.corsHandler)
+		err := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		apierrors.WriteError(w, r, err, h.corsHandler)
 		return "", false
 	}
 	return year, true
@@ -237,14 +237,14 @@ func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (st
 func (h *Handler) validateAndGetSport(w http.ResponseWriter, r *http.Request) (string, bool) {
 	sport := r.URL.Query().Get("sport")
 	if sport == "" {
-		err := errors.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
-		errors.WriteError(w, r, err, h.corsHandler)
+		err := apierrors.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
+		apierrors.WriteError(w, r, err, h.corsHandler)
 		return "", false
 	}
 
 	if !h.sportConfig.ValidateSport(sport) {
-		err := errors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
-		errors.WriteError(w, r, err, h.corsHandler)
+		err := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
+		apierrors.WriteError(w, r, err, h.corsHandler)
 		return "", false
 	}
 
@@ -285,24 +285,24 @@ func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
 	data := config.GetRawConfigJSON()
 	if len(data) == 0 {
 		logger.Logger.Error("Embedded sport config is empty")
-		apiErr := errors.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to load sport config",
 			"Embedded sport config is not available",
 		)
-		errors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
 		return
 	}
 
 	// Validate it's valid JSON without unmarshaling
 	if !json.Valid(data) {
 		logger.Logger.Error("Embedded sport config is invalid JSON")
-		apiErr := errors.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Invalid sport config",
 			"JSON validation failed",
 		)
-		errors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
 		return
 	}
 
@@ -314,17 +314,17 @@ func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) fetchAndRespond(w http.ResponseWriter, r *http.Request, blobPath, year, dataType string) {
 	data, err := h.storage.ReadJSON(r.Context(), blobPath)
 	if err != nil {
-		if goerrors.Is(err, storage.ErrNotFound) {
-			apiErr := errors.NewAPIError(http.StatusNotFound, fmt.Sprintf("No data for %s/%s", year, dataType))
-			errors.WriteError(w, r, apiErr, h.corsHandler)
+		if errors.Is(err, storage.ErrNotFound) {
+			apiErr := apierrors.NewAPIError(http.StatusNotFound, fmt.Sprintf("No data for %s/%s", year, dataType))
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
 			return
 		}
-		apiErr := errors.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Internal server error",
 			fmt.Sprintf("Error reading blob %s: %v", blobPath, err),
 		)
-		errors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
 		return
 	}
 
