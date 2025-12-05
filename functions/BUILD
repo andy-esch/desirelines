@@ -9,12 +9,12 @@
 # Python function Docker images (optional - primarily use python_google_cloud_function)
 docker_image(
     name="aggregator-docker",
-    source="Dockerfile.activity_aggregator",
+    source="Dockerfile.aggregator",
 )
 
 docker_image(
     name="bq-inserter-docker",
-    source="Dockerfile.activity_bq_inserter",
+    source="Dockerfile.bq_inserter",
 )
 
 # Go service Docker images - reference Dockerfiles in package directories

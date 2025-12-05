@@ -318,9 +318,9 @@ help:
 	@echo "  start-backend-local - Start backend with Terraform-managed GCP resources"
 	@echo "  start-backend-debug - Start backend with PubSub UI for debugging (port 4200)"
 	@echo "  logs                - View logs from all backend functions"
-	@echo "  logs-dispatcher     - View activity-dispatcher logs"
-	@echo "  logs-aggregator     - View activity-aggregator logs"
-	@echo "  logs-bq             - View activity-bq-inserter logs"
+	@echo "  logs-dispatcher     - View dispatcher logs"
+	@echo "  logs-aggregator     - View aggregator logs"
+	@echo "  logs-bq             - View bq-inserter logs"
 	@echo "  test-full-flow      - Test complete webhook flow"
 	@echo ""
 	@echo "Frontend Development (Docker):"
@@ -457,13 +457,13 @@ logs:
 	docker compose logs -f
 
 logs-dispatcher:
-	docker compose logs -f activity-dispatcher
+	docker compose logs -f dispatcher
 
 logs-aggregator:
-	docker compose logs -f activity-aggregator
+	docker compose logs -f aggregator
 
 logs-bq:
-	docker compose logs -f activity-bq-inserter
+	docker compose logs -f bq-inserter
 
 # Test the full end-to-end flow
 test-full-flow:

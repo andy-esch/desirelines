@@ -4,7 +4,7 @@ services:
   # Start with: make start (or docker compose up)
   # ==========================================
 
-  activity-dispatcher:
+  dispatcher:
     profiles: ["backend"] # Backend pipeline only
     build:
       context: ./packages/dispatcher
@@ -37,11 +37,11 @@ services:
       timeout: 10s
       retries: 3
 
-  activity-aggregator:
+  aggregator:
     profiles: ["backend"] # Backend pipeline only
     build:
       context: .
-      dockerfile: functions/Dockerfile.activity_aggregator
+      dockerfile: functions/Dockerfile.aggregator
     ports:
       - "8082:8080"
     environment:
@@ -57,11 +57,11 @@ services:
       pubsub-bootstrap:
         condition: service_completed_successfully
 
-  activity-bq-inserter:
+  bq-inserter:
     profiles: ["backend"] # Backend pipeline only
     build:
       context: .
-      dockerfile: functions/Dockerfile.activity_bq_inserter
+      dockerfile: functions/Dockerfile.bq_inserter
     ports:
       - "8083:8080"
     environment:

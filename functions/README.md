@@ -31,7 +31,7 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 
 ### Python Functions (Event-Driven)
 
-#### `activity_bq_inserter.py`
+#### `bq_inserter.py`
 **Purpose**: Syncs Strava activities to BigQuery
 
 **Package**: `packages/stravapipe/`
@@ -55,7 +55,7 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 
 ---
 
-#### `activity_aggregator.py`
+#### `aggregator.py`
 **Purpose**: Builds JSON summary documents for web UI consumption
 
 **Package**: `packages/stravapipe/`
@@ -85,7 +85,7 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 
 ### Go Services (Cloud Run)
 
-#### `activity_dispatcher`
+#### `dispatcher`
 **Purpose**: Receives Strava webhook events, publishes to Pub/Sub
 
 **Package**: `packages/dispatcher/`
