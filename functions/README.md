@@ -83,13 +83,14 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 
 ---
 
-### Go Functions (HTTP Handlers)
+### Go Services (Cloud Run)
 
-#### `activity_dispatcher/`
+#### `activity_dispatcher`
 **Purpose**: Receives Strava webhook events, publishes to Pub/Sub
 
 **Package**: `packages/dispatcher/`
-- Thin wrapper that calls `dispatcher.NewHandler()`
+**Deployment**: Cloud Run (Docker image)
+**Dockerfile**: `packages/dispatcher/Dockerfile`
 
 **Trigger**: HTTP (webhook endpoint)
 
@@ -99,17 +100,18 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 3. Publishes to Pub/Sub topic `desirelines_activity_events`
 4. Returns 200 OK to Strava
 
-**Entry Point**: `ActivityDispatcher(w http.ResponseWriter, r *http.Request)`
+**Entry Point**: `cmd/local/main.go` (standalone HTTP server)
 
 **Why Go**: Optimized for cold starts (~100ms vs ~1-2s for Python), low memory footprint
 
 ---
 
-#### `apigateway/`
+#### `apigateway`
 **Purpose**: Serves activity data to web UI
 
 **Package**: `packages/apigateway/`
-- Thin wrapper that calls `apigateway.NewHandler()`
+**Deployment**: Cloud Run (Docker image)
+**Dockerfile**: `packages/apigateway/Dockerfile`
 
 **Trigger**: HTTP (REST API)
 
@@ -119,7 +121,7 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 - `GET /api/v1/activities/pacings/{year}` - Pacing timeseries for year
 - `GET /health` - Health check
 
-**Entry Point**: `APIGateway(w http.ResponseWriter, r *http.Request)`
+**Entry Point**: `cmd/local/main.go` (standalone HTTP server)
 
 **Why Go**: Better performance for serving JSON payloads, simpler CORS handling
 
@@ -127,39 +129,48 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 
 ## Packaging and Dependencies
 
-### Python Functions
-- **Requirements**: Generated from `packages/stravapipe/pyproject.toml`
-  - `requirements.txt` (for both aggregator and bq_inserter)
-- **Build**: Packaging script (`scripts/operations/package-functions.sh`) copies stravapipe package into deployment archives
+### Python Functions (Cloud Functions v2)
+- **Dependencies**: Defined in `packages/stravapipe/pyproject.toml`
+- **Build**: Pants packages functions as zip archives with pre-resolved dependencies
+- **Deployment**: Cloud Functions v2 (source-based deployment)
 - **Package Structure**:
   - `stravapipe/` - Core business logic (domain models, use cases, repositories, configuration)
   - `stravapipe/cfutils/` - Cloud Function infrastructure utilities (CloudEvent processing, response helpers, logging)
 
-### Go Functions
-- **Dependencies**: Managed via `go.mod` in each function directory
-- **Build**: Dockerfiles compile Go binaries from packages
-- **Shared Code**: Both Go functions import from `packages/dispatcher/` and `packages/apigateway/`
+### Go Services (Cloud Run)
+- **Dependencies**: Managed via `go.mod` in each package directory
+- **Build**: Multi-stage Dockerfiles compile Go binaries (see `packages/*/Dockerfile`)
+- **Deployment**: Cloud Run (Docker images pushed to Artifact Registry)
+- **Shared Code**: Each service is self-contained in its package directory
 
 ---
 
 ## Deployment
 
-### Packaging
+### Python Functions (Cloud Functions v2)
 ```bash
-./scripts/package-functions.sh
-```
-Creates deployment archives for all functions:
-- `aggregator-{git-sha}.zip`
-- `bq-inserter-{git-sha}.zip`
-- `dispatcher-{git-sha}.zip`
-- `api-gateway-{git-sha}.zip`
+# Package functions using Pants
+pants package functions:aggregator functions:bq-inserter
 
-### Terraform Deployment
-```bash
+# Deploy via Terraform
 cd terraform/environments/dev
 terraform apply
 ```
-Deploys all functions from packaged archives. See `terraform/modules/desirelines/functions.tf`.
+Pants creates zip archives with pre-resolved dependencies. Terraform deploys to Cloud Functions v2.
+
+### Go Services (Cloud Run)
+```bash
+# Build and push Docker images
+docker build -t us-central1-docker.pkg.dev/desirelines-dev/desirelines/dispatcher:latest packages/dispatcher
+docker push us-central1-docker.pkg.dev/desirelines-dev/desirelines/dispatcher:latest
+
+# Deploy via Terraform
+cd terraform/environments/dev
+terraform apply
+```
+Alternatively, use Pants to build Docker images: `pants package functions::dispatcher-image`
+
+See `terraform/modules/desirelines/functions.tf` for infrastructure configuration.
 
 ---
 
@@ -187,6 +198,7 @@ logger.info("Message", extra={"correlation_id": correlation_id, "activity_id": a
 ## Development
 
 ### Local Testing
+
 **Python functions**:
 ```bash
 # Install package in development mode
@@ -196,22 +208,36 @@ uv sync
 # Run tests
 uv run pytest
 
-# Test function locally (requires emulators)
-cd functions
-python -c "from activity_aggregator import main; main(test_event)"
+# Test locally with docker-compose
+docker compose --profile backend up
 ```
 
-**Go functions**:
+**Go services**:
 ```bash
-cd functions/activity_dispatcher
+# Test dispatcher
+cd packages/dispatcher
 go test ./...
-go run main.go  # Starts local HTTP server
+go run cmd/local/main.go  # Starts local HTTP server on :8080
+
+# Test apigateway
+cd packages/apigateway
+go test ./...
+go run cmd/local/main.go  # Starts local HTTP server on :8080
+```
+
+**Full pipeline testing**:
+```bash
+# Start all backend services (PubSub emulator + all functions)
+docker compose --profile backend up
+
+# Or start frontend services (apigateway only)
+docker compose --profile frontend up
 ```
 
 ### Deployment Flow
 1. Make changes in `packages/`
 2. Run tests
-3. Package functions: `./scripts/package-functions.sh`
+3. Package: `pants package functions::`
 4. Deploy to dev: `cd terraform/environments/dev && terraform apply`
 5. Test in dev environment
 6. Deploy to prod: `cd terraform/environments/prod && terraform apply`

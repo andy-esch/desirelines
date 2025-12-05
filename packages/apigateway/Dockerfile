@@ -32,7 +32,7 @@ COPY --from=builder /app/config ./config
 # Grant execute permissions
 RUN chmod +x ./apigateway
 
-# Cloud Functions expect the service to run on PORT
+# Service listens on PORT environment variable
 ENV PORT=8080
 EXPOSE 8080
 

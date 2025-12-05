@@ -27,7 +27,7 @@ COPY --from=builder /app/dispatcher ./
 # Grant execute permissions
 RUN chmod +x ./dispatcher
 
-# Cloud Functions expect the service to run on PORT
+# Service listens on PORT environment variable
 ENV PORT=8080
 EXPOSE 8080
 

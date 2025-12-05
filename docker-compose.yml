@@ -47,12 +47,11 @@ services:
     environment:
       - FUNCTION_TARGET=main
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=local-dev
+      - GCP_BUCKET_NAME=desirelines_local_testing
     env_file:
       - .env
     volumes:
-      - ./.env:/app/.env
-      - ./functions/activity_aggregator.py:/app/main.py
-      - ./packages/stravapipe/src/stravapipe:/app/stravapipe
       - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
       pubsub-bootstrap:
@@ -68,12 +67,11 @@ services:
     environment:
       - FUNCTION_TARGET=main
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=local-dev
+      - GCP_BIGQUERY_DATASET=local_dev_dataset
     env_file:
       - .env
     volumes:
-      - ./.env:/app/.env
-      - ./functions/activity_bq_inserter.py:/app/main.py
-      - ./packages/stravapipe/src/stravapipe:/app/stravapipe
       - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
       pubsub-bootstrap:
