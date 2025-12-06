@@ -17,16 +17,7 @@ docker_image(
     source="Dockerfile.bq_inserter",
 )
 
-# Go service Docker images - reference Dockerfiles in package directories
-docker_image(
-    name="dispatcher-image",
-    source="../packages/dispatcher/Dockerfile",
-)
-
-docker_image(
-    name="apigateway-image",
-    source="../packages/apigateway/Dockerfile",
-)
+# Go service Docker images for Cloud Run are defined in each package's BUILD file
 
 # =============================================================================
 # Python Cloud Functions
@@ -39,7 +30,6 @@ docker_image(
 python_google_cloud_function(
     name="aggregator",
     type="event",
-    # runtime="python312",
     handler="aggregator.py:main",
     dependencies=[
         "packages/stravapipe:lib",
