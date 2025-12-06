@@ -19,48 +19,6 @@ rm -f "$DIST_DIR"/*-"$SHA".zip
 echo "📦 Creating source packages..."
 
 # =============================================================================
-# Go Dispatcher Function
-# =============================================================================
-echo "  → dispatcher-$SHA.zip"
-
-# Create temporary directory for Go dispatcher
-TEMP_GO=$(mktemp -d)
-trap "rm -rf $TEMP_GO" EXIT
-
-# 1. Copy function wrapper (as function.go for Cloud Functions)
-cp functions/activity_dispatcher/main.go "$TEMP_GO/function.go"
-
-# 2. Copy complete business logic package
-mkdir -p "$TEMP_GO/packages"
-rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
-      --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
-      --exclude='coverage.html' --exclude='coverage.out' \
-      --exclude='*_test.go' --exclude='test_*.sh' \
-      --exclude='local_dispatcher' --exclude='activity_dispatcher_function' \
-      --exclude='Makefile' --exclude='README.md' \
-      packages/dispatcher/ "$TEMP_GO/packages/dispatcher/"
-
-# 3. Create go.mod with correct replace directive
-cat > "$TEMP_GO/go.mod" << 'EOF'
-module github.com/andy-esch/desirelines/dispatcher-function
-
-go 1.25
-
-require (
-	cloud.google.com/go/pubsub/v2 v2.0.0
-	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
-	github.com/google/uuid v1.6.0
-	github.com/andy-esch/desirelines/packages/dispatcher v0.0.0
-)
-
-replace github.com/andy-esch/desirelines/packages/dispatcher => ./packages/dispatcher
-EOF
-
-# Create the zip from temp directory
-cd "$TEMP_GO" && zip -r - . > "$OLDPWD/$DIST_DIR/dispatcher-$SHA.zip"
-cd "$OLDPWD"
-
-# =============================================================================
 # Python BQ Inserter Function
 # =============================================================================
 echo "  → bq-inserter-$SHA.zip"
@@ -69,7 +27,7 @@ echo "  → bq-inserter-$SHA.zip"
 TEMP_BQ=$(mktemp -d)
 
 # Copy Python function wrapper
-cp functions/activity_bq_inserter.py "$TEMP_BQ/main.py"
+cp functions/bq_inserter.py "$TEMP_BQ/main.py"
 
 # Copy stravapipe business logic (includes cfutils)
 rsync -av --exclude-from='.gitignore' --exclude='.git' \
@@ -91,7 +49,7 @@ echo "  → aggregator-$SHA.zip"
 TEMP_AGG=$(mktemp -d)
 
 # Copy Python function wrapper
-cp functions/activity_aggregator.py "$TEMP_AGG/main.py"
+cp functions/aggregator.py "$TEMP_AGG/main.py"
 
 # Copy stravapipe business logic (includes cfutils)
 rsync -av --exclude-from='.gitignore' --exclude='.git' \
@@ -105,59 +63,13 @@ cd "$TEMP_AGG" && zip -r - . > "$OLDPWD/$DIST_DIR/aggregator-$SHA.zip"
 cd "$OLDPWD"
 
 # =============================================================================
-# Go API Gateway Function
-# =============================================================================
-echo "  → api-gateway-$SHA.zip"
-
-# Create temporary directory for Go API Gateway
-TEMP_API_GO=$(mktemp -d)
-trap "rm -rf $TEMP_API_GO" EXIT
-
-# 1. Copy function wrapper
-cp functions/apigateway/main.go "$TEMP_API_GO/function.go"
-
-# 2. Copy complete business logic package
-mkdir -p "$TEMP_API_GO/packages"
-rsync -av --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
-      --exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.git' \
-      --exclude='coverage.html' --exclude='coverage.out' \
-      --exclude='*_test.go' --exclude='test_*.sh' \
-      --exclude='Makefile' --exclude='README.md' \
-      packages/apigateway/ "$TEMP_API_GO/packages/apigateway/"
-
-# 3. Copy sport config to function root (where handler expects it)
-mkdir -p "$TEMP_API_GO/config"
-cp packages/apigateway/config/sport_types.json "$TEMP_API_GO/config/"
-
-# 4. Create go.mod with correct replace directive
-cat > "$TEMP_API_GO/go.mod" << 'EOF'
-module github.com/andy-esch/desirelines/api-gateway-function
-
-go 1.25
-
-require (
-	cloud.google.com/go/storage v1.49.0
-	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
-	github.com/andy-esch/desirelines/packages/apigateway v0.0.0
-)
-
-replace github.com/andy-esch/desirelines/packages/apigateway => ./packages/apigateway
-EOF
-
-# Create the zip from temp directory
-cd "$TEMP_API_GO" && zip -r - . > "$OLDPWD/$DIST_DIR/api-gateway-$SHA.zip"
-cd "$OLDPWD"
-
-# =============================================================================
 # Create "latest" tagged packages for convenient deployment
 # =============================================================================
 echo "📦 Creating 'latest' tagged packages..."
 
 # Copy SHA packages to "latest" versions for terraform default support
-cp "$DIST_DIR/dispatcher-$SHA.zip" "$DIST_DIR/dispatcher-latest.zip"
 cp "$DIST_DIR/bq-inserter-$SHA.zip" "$DIST_DIR/bq-inserter-latest.zip"
 cp "$DIST_DIR/aggregator-$SHA.zip" "$DIST_DIR/aggregator-latest.zip"
-cp "$DIST_DIR/api-gateway-$SHA.zip" "$DIST_DIR/api-gateway-latest.zip"
 
 # =============================================================================
 # Summary

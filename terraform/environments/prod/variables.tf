@@ -16,8 +16,8 @@ variable "gcp_region" {
   default     = "us-central1"
 }
 
-variable "function_source_tag" {
-  description = "Git SHA tag for function source packages (e.g., git SHA)"
+variable "deployment_version" {
+  description = "Version tag for all deployed code (typically a git SHA for code provenance)"
   type        = string
   default     = "latest"
 }

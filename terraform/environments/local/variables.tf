@@ -22,8 +22,8 @@ variable "developer_email" {
   default     = null
 }
 
-variable "function_source_tag" {
-  description = "Git SHA or tag for function source packages"
+variable "deployment_version" {
+  description = "Version tag for all deployed code (typically a git SHA for code provenance)"
   type        = string
   default     = "latest"
 }

@@ -121,15 +121,9 @@ variable "create_dedicated_service_accounts" {
   default     = true
 }
 
-# Container image variables for Cloud Functions
-variable "function_image_tag" {
-  description = "Tag for function container images (e.g., 'latest', 'v1.0.0', git SHA) - DEPRECATED: Use function_source_tag"
-  type        = string
-  default     = "latest"
-}
-
-variable "function_source_tag" {
-  description = "Git SHA tag for function source packages (e.g., git SHA)"
+# Deployment version tracking for code provenance and observability
+variable "deployment_version" {
+  description = "Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest')"
   type        = string
   default     = "latest"
 }
