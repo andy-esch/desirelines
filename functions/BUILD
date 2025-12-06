@@ -3,25 +3,29 @@
 
 # =============================================================================
 # Docker Images (for Cloud Run deployments)
+# Note: Dockerfiles now live in each package directory for cleaner organization
 # =============================================================================
+
+# Python function Docker images (optional - primarily use python_google_cloud_function)
 docker_image(
-    name="docker",
-    source="Dockerfile.activity_aggregator",
+    name="aggregator-docker",
+    source="Dockerfile.aggregator",
 )
 
 docker_image(
-    name="docker0",
-    source="Dockerfile.activity_bq_inserter",
+    name="bq-inserter-docker",
+    source="Dockerfile.bq_inserter",
+)
+
+# Go service Docker images - reference Dockerfiles in package directories
+docker_image(
+    name="dispatcher-image",
+    source="../packages/dispatcher/Dockerfile",
 )
 
 docker_image(
-    name="docker1",
-    source="Dockerfile.activity_dispatcher",
-)
-
-docker_image(
-    name="docker2",
-    source="Dockerfile.apigateway",
+    name="apigateway-image",
+    source="../packages/apigateway/Dockerfile",
 )
 
 # =============================================================================

@@ -1,7 +1,6 @@
-# Go API Gateway - Docker Compose Local Development
+# Go API Gateway - Cloud Run Service
 # Multi-stage build for optimal container size
-# NOTE: This builds from cmd/local for standalone HTTP server
-# For Cloud Functions deployment, see packages/apigateway (packaged by scripts/operations/package-functions.sh)
+# Builds from cmd/local for standalone HTTP server
 
 # Build stage
 FROM golang:1.25-alpine AS builder
@@ -9,15 +8,15 @@ FROM golang:1.25-alpine AS builder
 WORKDIR /app
 
 # Copy go module files
-COPY packages/apigateway/go.mod ./
-COPY packages/apigateway/go.sum* ./
+COPY go.mod ./
+COPY go.sum* ./
 
 # Download dependencies
 RUN go mod download
 RUN go mod verify
 
 # Copy source code
-COPY packages/apigateway/ ./
+COPY . ./
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o apigateway ./cmd/local
@@ -33,7 +32,7 @@ COPY --from=builder /app/config ./config
 # Grant execute permissions
 RUN chmod +x ./apigateway
 
-# Cloud Functions expect the service to run on PORT
+# Service listens on PORT environment variable
 ENV PORT=8080
 EXPOSE 8080
 

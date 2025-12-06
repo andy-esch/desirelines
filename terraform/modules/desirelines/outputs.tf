@@ -82,31 +82,32 @@ output "dev_service_accounts" {
   } : {}
 }
 
+# Cloud Run Service URLs (for Go services deployed as containers)
+output "cloud_run_urls" {
+  description = "Cloud Run service URLs (stable, do not change on redeploy)"
+  value = var.deployment_mode == "full" ? {
+    dispatcher_url  = google_cloud_run_v2_service.dispatcher[0].uri
+    api_gateway_url = google_cloud_run_v2_service.api_gateway[0].uri
+  } : {}
+}
+
 # Cloud Function outputs (only available in "full" deployment mode)
+# Python functions still use Cloud Functions v2
 output "cloud_function_urls" {
-  description = "URLs for Cloud Functions (ephemeral - may change on redeploy)"
+  description = "URLs for Python Cloud Functions (ephemeral - may change on redeploy)"
   value = var.deployment_mode == "full" ? {
-    dispatcher_url  = google_cloudfunctions2_function.activity_dispatcher[0].service_config[0].uri
-    api_gateway_url = google_cloudfunctions2_function.api_gateway[0].service_config[0].uri
+    bq_inserter_url = google_cloudfunctions2_function.activity_bq_inserter[0].service_config[0].uri
+    aggregator_url  = google_cloudfunctions2_function.activity_aggregator[0].service_config[0].uri
   } : {}
 }
 
-# Stable Cloud Run URLs (do not change on redeploy)
-output "cloud_run_stable_urls" {
-  description = "Stable Cloud Run URLs for Cloud Functions (use these for frontend configuration)"
+output "service_names" {
+  description = "Names of deployed services (Cloud Run + Cloud Functions)"
   value = var.deployment_mode == "full" ? {
-    dispatcher_url  = "https://${google_cloudfunctions2_function.activity_dispatcher[0].name}-${var.gcp_project_number}.${var.gcp_region}.run.app"
-    api_gateway_url = "https://${google_cloudfunctions2_function.api_gateway[0].name}-${var.gcp_project_number}.${var.gcp_region}.run.app"
-  } : {}
-}
-
-output "cloud_function_names" {
-  description = "Names of deployed Cloud Functions"
-  value = var.deployment_mode == "full" ? {
-    dispatcher  = google_cloudfunctions2_function.activity_dispatcher[0].name
+    dispatcher  = google_cloud_run_v2_service.dispatcher[0].name
+    api_gateway = google_cloud_run_v2_service.api_gateway[0].name
     bq_inserter = google_cloudfunctions2_function.activity_bq_inserter[0].name
     aggregator  = google_cloudfunctions2_function.activity_aggregator[0].name
-    api_gateway = google_cloudfunctions2_function.api_gateway[0].name
   } : {}
 }
 
@@ -126,15 +127,15 @@ output "deployment_info" {
   description = "Information needed for CI/CD deployment"
   value = {
     artifact_registry_repo = google_artifact_registry_repository.functions.name
-    image_base_url         = "${var.artifact_registry_location}-docker.pkg.dev/${var.gcp_project_id}/${var.project_name}-functions"
-    current_image_tag      = var.function_image_tag
+    image_base_url         = "${var.artifact_registry_location}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}"
+    deployment_version     = var.deployment_version
   }
 }
 
-# Deployed function source SHA (for observability)
-output "deployed_function_source_tag" {
-  description = "SHA tag of deployed function sources"
-  value       = var.function_source_tag
+# Deployed version tag (for code provenance and observability)
+output "deployed_version" {
+  description = "Version tag for all deployed code (Cloud Run images and Cloud Function source packages)"
+  value       = var.deployment_version
 }
 
 # Firebase Hosting outputs

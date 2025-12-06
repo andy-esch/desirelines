@@ -4,7 +4,7 @@ services:
   # Start with: make start (or docker compose up)
   # ==========================================
 
-  activity-dispatcher:
+  dispatcher:
     profiles: ["backend"] # Backend pipeline only
     build:
       context: ./packages/dispatcher
@@ -37,43 +37,41 @@ services:
       timeout: 10s
       retries: 3
 
-  activity-aggregator:
+  aggregator:
     profiles: ["backend"] # Backend pipeline only
     build:
       context: .
-      dockerfile: functions/Dockerfile.activity_aggregator
+      dockerfile: functions/Dockerfile.aggregator
     ports:
       - "8082:8080"
     environment:
       - FUNCTION_TARGET=main
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=local-dev
+      - GCP_BUCKET_NAME=desirelines_local_testing
     env_file:
       - .env
     volumes:
-      - ./.env:/app/.env
-      - ./functions/activity_aggregator.py:/app/main.py
-      - ./packages/stravapipe/src/stravapipe:/app/stravapipe
       - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
       pubsub-bootstrap:
         condition: service_completed_successfully
 
-  activity-bq-inserter:
+  bq-inserter:
     profiles: ["backend"] # Backend pipeline only
     build:
       context: .
-      dockerfile: functions/Dockerfile.activity_bq_inserter
+      dockerfile: functions/Dockerfile.bq_inserter
     ports:
       - "8083:8080"
     environment:
       - FUNCTION_TARGET=main
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=local-dev
+      - GCP_BIGQUERY_DATASET=local_dev_dataset
     env_file:
       - .env
     volumes:
-      - ./.env:/app/.env
-      - ./functions/activity_bq_inserter.py:/app/main.py
-      - ./packages/stravapipe/src/stravapipe:/app/stravapipe
       - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
       pubsub-bootstrap:
@@ -124,9 +122,8 @@ services:
   api-gateway:
     profiles: ["frontend"] # Only starts with --profile frontend
     build:
-      context: .
-      dockerfile: functions/Dockerfile.apigateway
-      # Note: This builds from packages/apigateway/cmd/local for Docker development
+      context: ./packages/apigateway
+      dockerfile: Dockerfile
     ports:
       - "8084:8080"
     environment:

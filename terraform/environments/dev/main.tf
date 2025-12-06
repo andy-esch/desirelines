@@ -46,8 +46,8 @@ module "desirelines" {
   create_service_accounts           = true # Enabled for clean dev environment setup
   create_dedicated_service_accounts = true # Use dedicated SAs per function (least privilege)
 
-  # Function deployment configuration
-  function_source_tag = var.function_source_tag
+  # Deployment version configuration (used for both Cloud Run images and Cloud Function source packages)
+  deployment_version = var.deployment_version
 
   # Use "full" mode for complete cloud deployment
   # This creates all resources: Cloud Functions, PubSub, BigQuery, Storage, etc.

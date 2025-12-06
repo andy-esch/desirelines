@@ -49,8 +49,8 @@ module "desirelines" {
   create_service_accounts           = false # Not needed - using user credentials
   create_dedicated_service_accounts = false # Not needed - using user credentials
 
-  # Function deployment configuration
-  function_source_tag = var.function_source_tag
+  # Deployment version configuration (used for both Cloud Run images and Cloud Function source packages)
+  deployment_version = var.deployment_version
 
   # Use "data-only" mode for hybrid local development
   # This creates only BigQuery + Storage resources that Docker containers write to

@@ -42,11 +42,9 @@ locals {
   # Function source configuration (local or external bucket)
   function_source_bucket = var.external_function_source_bucket != null ? var.external_function_source_bucket : google_storage_bucket.function_source[0].name
 
-  # Function source object names
-  dispatcher_object_name  = "dispatcher-${var.function_source_tag}.zip"
-  bq_inserter_object_name = "bq-inserter-${var.function_source_tag}.zip"
-  aggregator_object_name  = "aggregator-${var.function_source_tag}.zip"
-  api_gateway_object_name = "api-gateway-${var.function_source_tag}.zip"
+  # Function source object names (Python Cloud Functions only - Go services use Docker images)
+  bq_inserter_object_name = "bq-inserter-${var.deployment_version}.zip"
+  aggregator_object_name  = "aggregator-${var.deployment_version}.zip"
 }
 
 # ==============================================================================
@@ -60,6 +58,7 @@ resource "google_project_service" "required_apis" {
     "storage.googleapis.com",
     "pubsub.googleapis.com",
     "cloudfunctions.googleapis.com",
+    "run.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "firestore.googleapis.com"
@@ -506,121 +505,31 @@ resource "google_artifact_registry_repository" "functions" {
 }
 
 # ==============================================================================
-# Function Source Storage Objects
+# Function Source Storage Objects (Python Cloud Functions only)
 # ==============================================================================
+# Note: dispatcher and api-gateway are now deployed as Cloud Run services using
+# Docker images from Artifact Registry, so they don't need source packages
 
 # Upload function source packages to Cloud Storage (only when using local bucket)
-resource "google_storage_bucket_object" "dispatcher_source" {
-  count = var.external_function_source_bucket == null ? 1 : 0
-
-  name   = "dispatcher-${var.function_source_tag}.zip"
-  bucket = google_storage_bucket.function_source[0].name
-  source = "${path.module}/../../../dist/dispatcher-${var.function_source_tag}.zip"
-}
-
 resource "google_storage_bucket_object" "bq_inserter_source" {
   count = var.external_function_source_bucket == null ? 1 : 0
 
-  name   = "bq-inserter-${var.function_source_tag}.zip"
+  name   = "bq-inserter-${var.deployment_version}.zip"
   bucket = google_storage_bucket.function_source[0].name
-  source = "${path.module}/../../../dist/bq-inserter-${var.function_source_tag}.zip"
+  source = "${path.module}/../../../dist/bq-inserter-${var.deployment_version}.zip"
 }
 
 resource "google_storage_bucket_object" "aggregator_source" {
   count = var.external_function_source_bucket == null ? 1 : 0
 
-  name   = "aggregator-${var.function_source_tag}.zip"
+  name   = "aggregator-${var.deployment_version}.zip"
   bucket = google_storage_bucket.function_source[0].name
-  source = "${path.module}/../../../dist/aggregator-${var.function_source_tag}.zip"
-}
-
-resource "google_storage_bucket_object" "api_gateway_source" {
-  count = var.external_function_source_bucket == null ? 1 : 0
-
-  name   = "api-gateway-${var.function_source_tag}.zip"
-  bucket = google_storage_bucket.function_source[0].name
-  source = "${path.module}/../../../dist/api-gateway-${var.function_source_tag}.zip"
+  source = "${path.module}/../../../dist/aggregator-${var.deployment_version}.zip"
 }
 
 # ==============================================================================
 # CLOUD FUNCTIONS (Only created in "full" deployment mode)
 # ==============================================================================
-
-# Activity Dispatcher (Go Function - Source Package)
-# Only created when deployment_mode = "full"
-# In "data-only" mode, functions run locally in Docker containers
-resource "google_cloudfunctions2_function" "activity_dispatcher" {
-  count       = var.deployment_mode == "full" ? 1 : 0
-  name        = "${var.project_name}_dispatcher"
-  location    = var.gcp_region
-  description = "Activity dispatcher - webhook receiver (${var.environment})"
-
-  build_config {
-    runtime           = "go125"
-    entry_point       = "ActivityDispatcher"
-    docker_repository = google_artifact_registry_repository.functions.id
-
-    source {
-      storage_source {
-        bucket = local.function_source_bucket
-        object = local.dispatcher_object_name
-      }
-    }
-  }
-
-  service_config {
-    max_instance_count    = 1
-    min_instance_count    = 0
-    available_memory      = "128Mi"
-    timeout_seconds       = 60
-    service_account_email = var.create_dedicated_service_accounts ? google_service_account.dispatcher_dev[0].email : var.service_account_email
-
-    environment_variables = {
-      GCP_PROJECT_ID   = var.gcp_project_id
-      GCP_PUBSUB_TOPIC = google_pubsub_topic.activity_events.name
-      ENVIRONMENT      = var.environment
-      LOG_LEVEL        = "INFO"
-      FORCE_DEPLOY     = "20250925-secret-update-v1"
-    }
-
-    # Mount Strava secrets as volume
-    secret_volumes {
-      mount_path = "/etc/secrets"
-      project_id = var.gcp_project_id
-      secret     = "strava-auth-${var.environment}"
-      versions {
-        version = "latest"
-        path    = "strava_auth.json"
-      }
-    }
-  }
-
-  labels = local.common_labels
-}
-
-# Allow unauthenticated access to dispatcher (required for Strava webhooks)
-resource "google_cloud_run_service_iam_member" "dispatcher_public_access" {
-  count    = var.deployment_mode == "full" ? 1 : 0
-  project  = var.gcp_project_id
-  location = var.gcp_region
-  service  = google_cloudfunctions2_function.activity_dispatcher[0].service_config[0].service
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-
-  depends_on = [google_cloudfunctions2_function.activity_dispatcher]
-}
-
-# Allow unauthenticated access to API Gateway (required for web app access)
-resource "google_cloud_run_service_iam_member" "api_gateway_public_access" {
-  count    = var.deployment_mode == "full" ? 1 : 0
-  project  = var.gcp_project_id
-  location = var.gcp_region
-  service  = google_cloudfunctions2_function.api_gateway[0].service_config[0].service
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-
-  depends_on = [google_cloudfunctions2_function.api_gateway]
-}
 
 # Activity BQ Inserter (Python Function - Source Package)
 resource "google_cloudfunctions2_function" "activity_bq_inserter" {
@@ -739,48 +648,3 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
 
   labels = local.common_labels
 }
-
-# API Gateway (Go Function - Source Package)
-resource "google_cloudfunctions2_function" "api_gateway" {
-  count       = var.deployment_mode == "full" ? 1 : 0
-  name        = "${var.project_name}_api_gateway"
-  location    = var.gcp_region
-  description = "API gateway for serving activity data (${var.environment})"
-
-  build_config {
-    runtime           = "go125"
-    entry_point       = "APIGateway"
-    docker_repository = google_artifact_registry_repository.functions.id
-
-    source {
-      storage_source {
-        bucket = local.function_source_bucket
-        object = local.api_gateway_object_name
-      }
-    }
-  }
-
-  service_config {
-    max_instance_count             = 10
-    min_instance_count             = 0
-    available_memory               = "128Mi"
-    timeout_seconds                = 60
-    service_account_email          = var.create_dedicated_service_accounts ? google_service_account.api_gateway_dev[0].email : var.service_account_email
-    ingress_settings               = "ALLOW_ALL" # TODO: Harden with Load Balancer
-    all_traffic_on_latest_revision = true
-
-    environment_variables = {
-      GCP_PROJECT_ID  = var.gcp_project_id
-      GCP_BUCKET_NAME = google_storage_bucket.aggregation_bucket.name
-      ENVIRONMENT     = var.environment
-      ALLOWED_ORIGINS = var.api_gateway_allowed_origins
-      ALLOWED_EMAILS  = var.developer_email != null ? var.developer_email : ""
-      DATA_SOURCE     = "cloud-storage"
-      DEPLOYMENT_ID   = "20251107-002"
-    }
-  }
-
-  labels = local.common_labels
-}
-
-# NOTE: Function source packages managed by google_storage_bucket_object resources above
