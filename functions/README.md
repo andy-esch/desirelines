@@ -11,7 +11,7 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
          │ HTTP POST
          ▼
 ┌─────────────────────────┐
-│ activity_dispatcher     │  (Go)
+│ dispatcher (Cloud Run)  │  (Go Docker image)
 │ Entry point for webhooks│
 └────────┬────────────────┘
          │ Pub/Sub publish
@@ -22,7 +22,7 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
          │             │
          ▼             ▼
 ┌────────────────┐  ┌─────────────────┐
-│ bq_inserter    │  │ aggregator      │  (Python)
+│ bq_inserter    │  │ aggregator      │  (Python Cloud Functions)
 │ BigQuery sync  │  │ JSON summaries  │
 └────────────────┘  └─────────────────┘
 ```
@@ -147,30 +147,59 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 
 ## Deployment
 
-### Python Functions (Cloud Functions v2)
+### Quick Start
+
 ```bash
-# Package functions using Pants
-pants package functions:aggregator functions:bq-inserter
+# 1. Build Cloud Run images
+make build-push-images
+
+# 2. Package Python Cloud Functions
+./scripts/operations/package-functions.sh
+
+# 3. Deploy to dev
+cd terraform/environments/dev
+terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
+
+# 4. Configure Strava webhook
+make create-webhook dev
+```
+
+See [Deployment Guide](../docs/guides/deployment.md) for complete instructions.
+
+### Python Functions (Cloud Functions v2)
+
+Deployed as source packages:
+
+```bash
+# Package functions
+./scripts/operations/package-functions.sh
+
+# Creates zip files in dist/:
+# - bq-inserter-{SHA}.zip
+# - aggregator-{SHA}.zip
 
 # Deploy via Terraform
 cd terraform/environments/dev
-terraform apply
+terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
 ```
-Pants creates zip archives with pre-resolved dependencies. Terraform deploys to Cloud Functions v2.
 
 ### Go Services (Cloud Run)
+
+Deployed as Docker images:
+
 ```bash
-# Build and push Docker images
-docker build -t us-central1-docker.pkg.dev/desirelines-dev/desirelines/dispatcher:latest packages/dispatcher
-docker push us-central1-docker.pkg.dev/desirelines-dev/desirelines/dispatcher:latest
+# Build and push images with current git SHA
+make build-push-images
+
+# Or with specific tag
+make build-push-images-tag TAG=v1.2.3
 
 # Deploy via Terraform
 cd terraform/environments/dev
-terraform apply
+terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
 ```
-Alternatively, use Pants to build Docker images: `pants package functions::dispatcher-image`
 
-See `terraform/modules/desirelines/functions.tf` for infrastructure configuration.
+See [Docker Architecture](../docs/DOCKER.md) for build details and `terraform/modules/desirelines/` for infrastructure configuration.
 
 ---
 

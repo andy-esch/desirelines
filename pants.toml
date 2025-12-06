@@ -172,3 +172,25 @@ output_dir = "{distdir}/coverage/python"  # Coverage reports go to dist/coverage
 
 # Fail build if coverage below threshold (optional - disabled for now)
 # fail_under = 70
+
+# ==========================================
+# Docker Configuration
+# ==========================================
+
+[docker]
+# Default registry for docker_image targets
+# REQUIRES environment variable GCP_PROJECT_ID to be set (no default for safety)
+# Format: {registry}/{project}/{repository}/{name}:{tag}
+# Example: export GCP_PROJECT_ID=$(gcloud config get-value project)
+default_repository = "us-central1-docker.pkg.dev/{env.GCP_PROJECT_ID}/desirelines-functions/{name}"
+
+# Build arguments (inline cache for better layer reuse)
+build_args = ["BUILDKIT_INLINE_CACHE=1"]
+
+# Verbose output for debugging
+build_verbose = false
+
+[docker.registries."us-central1-docker.pkg.dev"]
+# Artifact Registry configuration
+# Authentication: gcloud auth configure-docker us-central1-docker.pkg.dev
+# Pants uses gcloud credentials automatically once configured

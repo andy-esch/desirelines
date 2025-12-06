@@ -355,6 +355,10 @@ help:
 	@echo "  proto-lint           - Lint .proto files with buf"
 	@echo "  proto-clean          - Clean generated protobuf code"
 	@echo ""
+	@echo "Cloud Run Images:"
+	@echo "  build-push-images                    - Build and push images with current git SHA"
+	@echo "  build-push-images-tag TAG=abc1234    - Build and push images with specific tag"
+	@echo ""
 	@echo "Secret Management & Webhooks (uses current gcloud project):"
 	@echo "  deploy-secrets SECRET_FILE=file.json - Deploy secrets from JSON file with IAM bindings"
 	@echo "  create-webhook                - Create webhook subscription"
@@ -485,6 +489,25 @@ clean:
 
 
 
+
+# ==========================================
+# Cloud Run Image Management
+# ==========================================
+
+# Build and push Cloud Run images to Artifact Registry
+.PHONY: build-push-images
+build-push-images:
+	@./scripts/operations/build-push-images.sh
+
+# Build and push with specific tag
+.PHONY: build-push-images-tag
+build-push-images-tag:
+	@if [ -z "$(TAG)" ]; then \
+		echo "❌ Error: Please specify TAG"; \
+		echo "Usage: make build-push-images-tag TAG=abc1234"; \
+		exit 1; \
+	fi
+	@./scripts/operations/build-push-images.sh $(TAG)
 
 # ==========================================
 # Secret Management & Webhooks
