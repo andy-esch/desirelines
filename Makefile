@@ -355,9 +355,9 @@ help:
 	@echo "  proto-lint           - Lint .proto files with buf"
 	@echo "  proto-clean          - Clean generated protobuf code"
 	@echo ""
-	@echo "Cloud Run Images:"
-	@echo "  build-push-images                    - Build and push images with current git SHA"
-	@echo "  build-push-images-tag TAG=abc1234    - Build and push images with specific tag"
+	@echo "Build and Publish (Pants):"
+	@echo "  build-publish                        - Build and publish all artifacts (Cloud Functions + Cloud Run)"
+	@echo "  build-publish-tag TAG=abc1234        - Build and publish with specific git SHA"
 	@echo ""
 	@echo "Secret Management & Webhooks (uses current gcloud project):"
 	@echo "  deploy-secrets SECRET_FILE=file.json - Deploy secrets from JSON file with IAM bindings"
@@ -491,23 +491,23 @@ clean:
 
 
 # ==========================================
-# Cloud Run Image Management
+# Build and Publish (Pants)
 # ==========================================
 
-# Build and push Cloud Run images to Artifact Registry
-.PHONY: build-push-images
-build-push-images:
-	@./scripts/operations/build-push-images.sh
+# Build and publish all artifacts via Pants (Cloud Functions + Cloud Run)
+.PHONY: build-publish
+build-publish:
+	@./scripts/operations/build-and-publish.sh
 
-# Build and push with specific tag
-.PHONY: build-push-images-tag
-build-push-images-tag:
+# Build and publish with specific tag
+.PHONY: build-publish-tag
+build-publish-tag:
 	@if [ -z "$(TAG)" ]; then \
 		echo "❌ Error: Please specify TAG"; \
-		echo "Usage: make build-push-images-tag TAG=abc1234"; \
+		echo "Usage: make build-publish-tag TAG=abc1234"; \
 		exit 1; \
 	fi
-	@./scripts/operations/build-push-images.sh $(TAG)
+	@./scripts/operations/build-and-publish.sh $(TAG)
 
 # ==========================================
 # Secret Management & Webhooks
