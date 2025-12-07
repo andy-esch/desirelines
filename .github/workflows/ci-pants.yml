@@ -1,0 +1,216 @@
+name: CI (Pants)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  # Test environment variables (needed for Python tests)
+  GCP_PROJECT_ID: "test-project"
+  GCP_BIGQUERY_DATASET: "test_dataset"
+  GCP_BUCKET_NAME: "test-bucket"
+  GCP_PUBSUB_TOPIC: "test-topic"
+  STRAVA_CLIENT_ID: "123"
+  STRAVA_CLIENT_SECRET: "test_secret"
+  STRAVA_REFRESH_TOKEN: "test_token"
+  STRAVA_WEBHOOK_VERIFY_TOKEN: "test_verify_token"
+  STRAVA_WEBHOOK_SUBSCRIPTION_ID: "12345"
+
+jobs:
+  # ===========================================================================
+  # Pants: Test & Lint (Python + Go)
+  # Parallelized by package for clear failure isolation
+  # ===========================================================================
+  pants-test:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # Run all jobs even if one fails
+      matrix:
+        include:
+          - name: "Python (stravapipe)"
+            target: "packages/stravapipe::"
+          - name: "Go (dispatcher)"
+            target: "packages/dispatcher::"
+          - name: "Go (apigateway)"
+            target: "packages/apigateway::"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # For --changed-since support (if needed later)
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Pants
+        uses: pantsbuild/actions/init-pants@v10
+        with:
+          gha-cache-key: v1-ci-${{ matrix.name }}
+          named-caches-hash: ${{ hashFiles('packages/stravapipe/uv.lock', 'packages/*/go.sum', 'go.work.sum', 'pants.toml') }}
+          cache-lmdb-store: true
+          base-branch: main
+
+      # Decision: Run all tests (not --changed-since) because tests are fast
+      # To enable changed-only: pants --changed-since=origin/main test ${{ matrix.target }}
+      - name: Test
+        run: pants test ${{ matrix.target }}
+
+      - name: Lint
+        run: pants lint ${{ matrix.target }}
+
+      - name: Type check
+        run: pants check ${{ matrix.target }}
+
+  # ===========================================================================
+  # Go Linting (golangci-lint-action)
+  # Kept separate for inline PR annotations
+  # ===========================================================================
+  go-lint-annotations:
+    name: Go Lint (PR annotations)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [dispatcher, apigateway]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: packages/${{ matrix.package }}
+          args: --timeout=5m
+
+  # ===========================================================================
+  # Web/React (Node ecosystem)
+  # Kept separate - Pants Node support is experimental
+  # ===========================================================================
+  web-quality:
+    name: Web/React
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./packages/web
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: packages/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Copy fixture data
+        run: npm run copy-fixtures
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/web/coverage/lcov.info
+          flags: web
+          name: web-coverage
+          fail_ci_if_error: false
+
+      - name: Build
+        run: npm run build
+
+  # ===========================================================================
+  # Terraform Validation
+  # Infrastructure as Code checks
+  # ===========================================================================
+  terraform-validate:
+    name: Terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.12"
+
+      - name: Validate all environments
+        run: |
+          for env in local dev prod; do
+            echo "Validating $env environment..."
+            cd terraform/environments/$env
+            terraform fmt -check
+            terraform init -backend=false
+            terraform validate
+            cd ../../..
+          done
+
+      - name: Validate module
+        run: |
+          cd terraform/modules/desirelines
+          terraform fmt -check
+          terraform init -backend=false
+          terraform validate
+
+  # ===========================================================================
+  # BUILD file validation
+  # Ensures Pants BUILD files are up to date
+  # ===========================================================================
+  pants-build-files:
+    name: BUILD files up to date
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Pants
+        uses: pantsbuild/actions/init-pants@v10
+        with:
+          gha-cache-key: v1-tailor
+          named-caches-hash: ${{ hashFiles('pants.toml') }}
+
+      - name: Verify BUILD files
+        run: pants tailor --check '::'

@@ -2,6 +2,53 @@
 
 This directory contains the Cloud Functions (v2) that make up the Desirelines event processing pipeline. All functions are deployed as individual Cloud Run services via Cloud Functions v2.
 
+## Cloud Run Migration (Phase 6b - December 2024)
+
+**Status:** Dispatcher and API Gateway migrated to Cloud Run ✅
+
+### Current Architecture
+
+- **Cloud Run Services** (Go, Docker images):
+  - `dispatcher` - Pre-compiled Go binary for instant cold starts
+  - `apigateway` - Pre-compiled Go binary for optimal performance
+
+- **Cloud Functions v2** (Python, source packages):
+  - `bq-inserter` - Event-driven BigQuery sync
+  - `aggregator` - Event-driven summary generation
+
+### Why Cloud Run for Go Services?
+
+**Performance:**
+- Instant cold starts (~100ms vs ~1-2s for Cloud Functions)
+- Pre-compiled binaries (no build step at runtime)
+- Minimal memory footprint (128Mi vs 256Mi+ for Cloud Functions)
+
+**Cost:**
+- Pay per request (not per 100ms)
+- Scale to zero when idle
+- 0.25 vCPU allocation (minimum cost tier)
+
+**Development:**
+- Package-centric Dockerfiles (`packages/*/Dockerfile`)
+- Standard Go HTTP server patterns
+- Future Pants `docker_image` integration (Phase 6d)
+
+### Migration Notes
+
+**What Changed:**
+- Dispatcher: Cloud Functions → Cloud Run (Dec 2025)
+- API Gateway: Cloud Functions → Cloud Run (Dec 2025)
+- BQ Inserter: Remains Cloud Functions v2 (Python, event-driven)
+- Aggregator: Remains Cloud Functions v2 (Python, event-driven)
+
+**Deployment:**
+- Cloud Run: Docker images in Artifact Registry
+- Cloud Functions: Zip packages from Pants builds
+
+See [Deployment Guide](../docs/guides/deployment.md) for details.
+
+---
+
 ## Overview
 
 ```
@@ -147,59 +194,28 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 
 ## Deployment
 
-### Quick Start
+**All builds via Pants:**
 
 ```bash
-# 1. Build Cloud Run images
-make build-push-images
+# Package Python Cloud Functions
+pants package functions:aggregator functions:bq-inserter
 
-# 2. Package Python Cloud Functions
-./scripts/operations/package-functions.sh
+# Build and publish Go Docker images
+GIT_COMMIT=$(git rev-parse --short HEAD) pants publish packages/dispatcher:dispatcher packages/apigateway:apigateway
 
-# 3. Deploy to dev
+# Deploy to dev (local)
 cd terraform/environments/dev
-terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
+terraform apply \
+  -target=module.desirelines.google_cloudfunctions2_function.activity_aggregator \
+  -target=module.desirelines.google_cloudfunctions2_function.activity_bq_inserter
 
-# 4. Configure Strava webhook
-make create-webhook dev
+# Deploy via GitHub Actions (auto on push to main)
+git push origin main
 ```
 
-See [Deployment Guide](../docs/guides/deployment.md) for complete instructions.
-
-### Python Functions (Cloud Functions v2)
-
-Deployed as source packages:
-
-```bash
-# Package functions
-./scripts/operations/package-functions.sh
-
-# Creates zip files in dist/:
-# - bq-inserter-{SHA}.zip
-# - aggregator-{SHA}.zip
-
-# Deploy via Terraform
-cd terraform/environments/dev
-terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
-```
-
-### Go Services (Cloud Run)
-
-Deployed as Docker images:
-
-```bash
-# Build and push images with current git SHA
-make build-push-images
-
-# Or with specific tag
-make build-push-images-tag TAG=v1.2.3
-
-# Deploy via Terraform
-cd terraform/environments/dev
-terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
-```
-
-See [Docker Architecture](../docs/DOCKER.md) for build details and `terraform/modules/desirelines/` for infrastructure configuration.
+**Outputs:**
+- Python: `dist/functions/aggregator.zip`, `dist/functions/bq-inserter.zip`
+- Go: Images in `us-central1-docker.pkg.dev/desirelines-{env}/desirelines-functions/`
 
 ---
 
@@ -265,11 +281,8 @@ docker compose --profile frontend up
 
 ### Deployment Flow
 1. Make changes in `packages/`
-2. Run tests
-3. Package: `pants package functions::`
-4. Deploy to dev: `cd terraform/environments/dev && terraform apply`
-5. Test in dev environment
-6. Deploy to prod: `cd terraform/environments/prod && terraform apply`
+2. Run tests: `pants test ::`
+3. Push to main → GitHub Actions deploys automatically
 
 ---
 

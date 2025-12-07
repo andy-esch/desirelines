@@ -125,9 +125,10 @@ known_versions = [
 # [golang-infer]
 # imports = true
 
-# Build caching (local only for now, remote in Phase 7)
+# Build caching configuration
+# Using GitHub Actions cache (configured by pantsbuild/setup-action)
+# Local cache for development
 # [GLOBAL.cache]
-# # Local cache directory
 # local_store_dir = ".pants.d/cache"
 
 # ==========================================

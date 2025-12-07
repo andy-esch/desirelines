@@ -2,6 +2,15 @@
 # Replaces scripts/operations/package-functions.sh (180 lines → ~40 lines)
 
 # =============================================================================
+# Python Source Files
+# =============================================================================
+
+python_sources(
+    name="sources",
+    sources=["*.py"],
+)
+
+# =============================================================================
 # Docker Images (for Cloud Run deployments)
 # Note: Dockerfiles now live in each package directory for cleaner organization
 # =============================================================================
@@ -32,6 +41,7 @@ python_google_cloud_function(
     type="event",
     handler="aggregator.py:main",
     dependencies=[
+        ":sources",
         "packages/stravapipe:lib",
     ],
     complete_platforms=[
@@ -42,9 +52,9 @@ python_google_cloud_function(
 python_google_cloud_function(
     name="bq-inserter",
     type="event",
-    # runtime="python312",
     handler="bq_inserter.py:main",
     dependencies=[
+        ":sources",
         "packages/stravapipe:lib",
     ],
     complete_platforms=[
