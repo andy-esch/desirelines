@@ -80,7 +80,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["stravapipe"]
+known-first-party = ["stravapipe", "tests"]
 force-sort-within-sections = true
 
 [tool.ruff.format]

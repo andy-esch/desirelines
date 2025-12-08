@@ -68,7 +68,9 @@ jobs:
         run: pants test ${{ matrix.target }}
 
       - name: Lint
-        run: pants lint ${{ matrix.target }}
+        # Skip golangci-lint for Go packages - Pants doesn't support multi-module repos
+        # Go linting handled by separate go-lint-annotations job
+        run: pants lint --skip=golangci-lint ${{ matrix.target }}
 
       - name: Type check
         run: pants check ${{ matrix.target }}
@@ -201,6 +203,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -213,4 +221,4 @@ jobs:
           named-caches-hash: ${{ hashFiles('pants.toml') }}
 
       - name: Verify BUILD files
-        run: pants tailor --check '::'
+        run: "pants tailor --check ::"
