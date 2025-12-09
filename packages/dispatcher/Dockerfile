@@ -1,9 +1,12 @@
+# Go Dispatcher - Cloud Run Service
+# Multi-stage build for optimal container size
+
 # Build stage
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-# Copy go module files
+# Copy go module files (context is packages/dispatcher)
 COPY go.mod ./
 COPY go.sum* ./
 
@@ -11,17 +14,18 @@ COPY go.sum* ./
 RUN go mod download
 RUN go mod verify
 
-# Copy source code
-COPY . ./
+# Copy all source code
+COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o dispatcher ./cmd/local
+# Build the application from cmd/dispatcher (package main)
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o /app/dispatcher ./cmd/dispatcher
 
 # Runtime stage
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates tzdata wget
 WORKDIR /root/
 
+# Copy binary from builder (built to /app/dispatcher)
 COPY --from=builder /app/dispatcher ./
 
 # Grant execute permissions

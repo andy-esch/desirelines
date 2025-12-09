@@ -1,0 +1,321 @@
+name: Deploy
+
+on:
+  # Auto-deploy to dev when PR is merged to main
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/README.md"
+      - "docs/**"
+
+  # Manual deployment (choose dev or prod)
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+
+jobs:
+  # ===========================================================================
+  # Job 1: Package Cloud Functions (Python)
+  # ===========================================================================
+  # Note: Tests are NOT run here - branch protection ensures tests pass before merge
+  package-functions:
+    name: Package Cloud Functions
+    runs-on: ubuntu-latest
+
+    outputs:
+      git_sha: ${{ steps.metadata.outputs.git_sha }}
+      environment: ${{ steps.metadata.outputs.environment }}
+      timestamp: ${{ steps.metadata.outputs.timestamp }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set deployment metadata
+        id: metadata
+        run: |
+          echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "environment=${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date -u +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Pants
+        uses: pantsbuild/actions/init-pants@v10
+        with:
+          gha-cache-key: v1-py3.12-functions
+          named-caches-hash: ${{ hashFiles('packages/stravapipe/uv.lock', 'pants.toml') }}
+          cache-lmdb-store: true
+          base-branch: main
+
+      - name: Package Cloud Functions
+        run: |
+          echo "📦 Packaging Cloud Functions via Pants..."
+          pants package functions:aggregator functions:bq-inserter
+          echo "📁 Pants output:"
+          ls -lh dist/functions/
+
+      - name: Prepare artifacts
+        run: |
+          SHA=${{ steps.metadata.outputs.git_sha }}
+
+          # Copy to dist root with SHA suffix (what Terraform expects)
+          cp dist/functions/aggregator.zip dist/aggregator-${SHA}.zip
+          cp dist/functions/bq-inserter.zip dist/bq-inserter-${SHA}.zip
+
+          echo "✅ Cloud Functions packaged:"
+          ls -lh dist/aggregator-${SHA}.zip dist/bq-inserter-${SHA}.zip
+
+      - name: Upload Cloud Function artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-functions
+          path: |
+            dist/aggregator-${{ steps.metadata.outputs.git_sha }}.zip
+            dist/bq-inserter-${{ steps.metadata.outputs.git_sha }}.zip
+          retention-days: 1
+
+  # ===========================================================================
+  # Job 2: Build and Publish Docker Images (Go)
+  # ===========================================================================
+  build-images:
+    name: Build & Publish Docker Images
+    runs-on: ubuntu-latest
+
+    # Required for Workload Identity Federation
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set deployment metadata
+        id: metadata
+        run: |
+          echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
+      - name: Set up Pants
+        uses: pantsbuild/actions/init-pants@v10
+        with:
+          gha-cache-key: v1-go1.25-docker
+          named-caches-hash: ${{ hashFiles('packages/*/go.sum', 'go.work.sum', 'pants.toml') }}
+          cache-lmdb-store: true
+          base-branch: main
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Build and publish Docker images
+        run: |
+          echo "🐳 Building and publishing Cloud Run images..."
+          GIT_COMMIT=${{ steps.metadata.outputs.git_sha }} pants publish \
+            packages/dispatcher:dispatcher \
+            packages/apigateway:apigateway
+
+          echo "✅ Docker images published to Artifact Registry"
+
+  # ===========================================================================
+  # Job 3: Terraform Deployment
+  # ===========================================================================
+  deploy:
+    name: Deploy to ${{ needs.package-functions.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [package-functions, build-images]
+
+    # Required for Workload Identity Federation
+    permissions:
+      contents: read
+      id-token: write
+
+    # Use GitHub Environment for protection rules
+    environment: ${{ needs.package-functions.outputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Cloud Function artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cloud-functions
+          path: dist/
+
+      - name: Verify artifacts
+        run: |
+          echo "📦 Downloaded artifacts:"
+          ls -lh dist/
+
+          SHA=${{ needs.package-functions.outputs.git_sha }}
+          test -f dist/aggregator-${SHA}.zip || (echo "❌ Missing aggregator-${SHA}.zip" && exit 1)
+          test -f dist/bq-inserter-${SHA}.zip || (echo "❌ Missing bq-inserter-${SHA}.zip" && exit 1)
+
+          echo "✅ All artifacts present"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.12"
+
+      - name: Terraform Init
+        run: |
+          cd terraform/environments/${{ needs.package-functions.outputs.environment }}
+
+          # Configure backend bucket based on environment
+          BACKEND_BUCKET="desirelines-${{ needs.package-functions.outputs.environment }}-terraform-state"
+
+          terraform init \
+            -backend-config="bucket=${BACKEND_BUCKET}" \
+            -input=false
+
+      - name: Upload Cloud Function ZIPs to GCS
+        run: |
+          SHA=${{ needs.package-functions.outputs.git_sha }}
+          ENV=${{ needs.package-functions.outputs.environment }}
+          BUCKET="desirelines-${ENV}-function-source"
+
+          echo "📤 Uploading Cloud Function source to GCS..."
+          # Artifacts were downloaded to dist/ with SHA suffix
+          gsutil cp dist/aggregator-${SHA}.zip gs://${BUCKET}/aggregator-${SHA}.zip
+          gsutil cp dist/bq-inserter-${SHA}.zip gs://${BUCKET}/bq-inserter-${SHA}.zip
+
+          echo "✅ Function sources uploaded to gs://${BUCKET}/"
+
+      - name: Terraform Plan (Deployment Resources Only)
+        id: plan
+        run: |
+          cd terraform/environments/${{ needs.package-functions.outputs.environment }}
+
+          # Set environment-specific variables
+          ENV="${{ needs.package-functions.outputs.environment }}"
+
+          # Only plan changes to deployment resources (Cloud Functions, Cloud Run)
+          # Excludes infrastructure: BigQuery IAM, monitoring dashboards, etc.
+          terraform plan \
+            -var="deployment_version=${{ needs.package-functions.outputs.git_sha }}" \
+            -var="gcp_project_id=desirelines-${ENV}" \
+            -var="gcp_project_number=${{ secrets.GCP_PROJECT_NUMBER }}" \
+            -var="developer_email=${{ secrets.DEVELOPER_EMAIL }}" \
+            -var="gcp_region=us-central1" \
+            -target="module.desirelines.google_cloudfunctions2_function.activity_bq_inserter" \
+            -target="module.desirelines.google_cloudfunctions2_function.activity_aggregator" \
+            -target="module.desirelines.google_cloud_run_v2_service.dispatcher" \
+            -target="module.desirelines.google_cloud_run_v2_service.api_gateway" \
+            -input=false \
+            -out=tfplan
+
+      - name: Terraform Apply (Deployment Resources Only)
+        run: |
+          cd terraform/environments/${{ needs.package-functions.outputs.environment }}
+          terraform apply -auto-approve tfplan
+
+      # =======================================================================
+      # Deployment Verification
+      # =======================================================================
+
+      - name: Wait for services to be ready
+        run: sleep 10
+
+      - name: Verify Cloud Run - Dispatcher
+        if: ${{ !inputs.skip_tests }}
+        run: |
+          DISPATCHER_URL=$(gcloud run services describe desirelines-dispatcher \
+            --region=us-central1 \
+            --format='value(status.url)')
+
+          echo "Testing dispatcher at: $DISPATCHER_URL/webhook"
+
+          # Expect 400 (validation error) for incomplete webhook data
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "$DISPATCHER_URL/webhook" \
+            -H "Content-Type: application/json" \
+            -d '{"object_type": "activity", "aspect_type": "create"}')
+
+          if [ "$STATUS" = "400" ]; then
+            echo "✅ Dispatcher responding correctly (400 validation error)"
+          else
+            echo "❌ Unexpected status: $STATUS"
+            exit 1
+          fi
+
+      - name: Verify Cloud Run - API Gateway
+        if: ${{ !inputs.skip_tests }}
+        run: |
+          GATEWAY_URL=$(gcloud run services describe desirelines-api-gateway \
+            --region=us-central1 \
+            --format='value(status.url)')
+
+          echo "Testing API Gateway at: $GATEWAY_URL/health"
+
+          RESPONSE=$(curl -s "$GATEWAY_URL/health")
+
+          if echo "$RESPONSE" | grep -q '"status":"healthy"'; then
+            echo "✅ API Gateway health check passed"
+          else
+            echo "❌ Unexpected response: $RESPONSE"
+            exit 1
+          fi
+
+      # =======================================================================
+      # Deployment Summary
+      # =======================================================================
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 Deployment Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Environment:       ${{ needs.package-functions.outputs.environment }}"
+          echo "Git SHA:           ${{ needs.package-functions.outputs.git_sha }}"
+          echo "Timestamp:         ${{ needs.package-functions.outputs.timestamp }}"
+          echo "Triggered by:      ${{ github.event_name }}"
+          echo "Actor:             ${{ github.actor }}"
+          echo ""
+          echo "📦 Artifacts:"
+          echo "  - aggregator:${{ needs.package-functions.outputs.git_sha }}"
+          echo "  - bq-inserter:${{ needs.package-functions.outputs.git_sha }}"
+          echo "  - dispatcher:${{ needs.package-functions.outputs.git_sha }}"
+          echo "  - apigateway:${{ needs.package-functions.outputs.git_sha }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

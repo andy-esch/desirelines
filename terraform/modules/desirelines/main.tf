@@ -499,6 +499,16 @@ resource "google_artifact_registry_repository" "functions" {
   description   = "Container registry for desirelines functions (all environments)"
   format        = "DOCKER"
 
+  # Cleanup policy: keep only last 5 versions of each image
+  cleanup_policy_dry_run = false
+  cleanup_policies {
+    id     = "keep-recent-versions"
+    action = "KEEP"
+    most_recent_versions {
+      keep_count = 5
+    }
+  }
+
   labels = merge(local.common_labels, {
     shared_resource = "true"
   })
@@ -511,12 +521,13 @@ resource "google_artifact_registry_repository" "functions" {
 # Docker images from Artifact Registry, so they don't need source packages
 
 # Upload function source packages to Cloud Storage (only when using local bucket)
+# Packages are built by Pants: pants package functions:bq-inserter functions:aggregator
 resource "google_storage_bucket_object" "bq_inserter_source" {
   count = var.external_function_source_bucket == null ? 1 : 0
 
   name   = "bq-inserter-${var.deployment_version}.zip"
   bucket = google_storage_bucket.function_source[0].name
-  source = "${path.module}/../../../dist/bq-inserter-${var.deployment_version}.zip"
+  source = "${path.module}/../../../dist/functions/bq-inserter.zip"
 }
 
 resource "google_storage_bucket_object" "aggregator_source" {
@@ -524,7 +535,7 @@ resource "google_storage_bucket_object" "aggregator_source" {
 
   name   = "aggregator-${var.deployment_version}.zip"
   bucket = google_storage_bucket.function_source[0].name
-  source = "${path.module}/../../../dist/aggregator-${var.deployment_version}.zip"
+  source = "${path.module}/../../../dist/functions/aggregator.zip"
 }
 
 # ==============================================================================
@@ -539,8 +550,8 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
   description = "Activity BigQuery inserter (${var.environment})"
 
   build_config {
-    runtime           = "python313"
-    entry_point       = "main"
+    runtime           = "python312"
+    entry_point       = "handler"
     docker_repository = google_artifact_registry_repository.functions.id
 
     source {
@@ -565,7 +576,6 @@ resource "google_cloudfunctions2_function" "activity_bq_inserter" {
       GCP_BIGQUERY_TABLE   = google_bigquery_table.activities.table_id
       ENVIRONMENT          = var.environment
       LOG_LEVEL            = "INFO"
-      FORCE_REDEPLOY       = "2025-09-19-new-strava-scope-v1"
     }
 
     # Mount Strava secrets as volume
@@ -598,8 +608,8 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
   description = "Activity aggregator and storage writer (${var.environment})"
 
   build_config {
-    runtime           = "python313"
-    entry_point       = "main"
+    runtime           = "python312"
+    entry_point       = "handler"
     docker_repository = google_artifact_registry_repository.functions.id
 
     source {

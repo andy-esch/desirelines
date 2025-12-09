@@ -39,29 +39,54 @@ case "$COMMAND" in
     "create")
         echo "🔗 Creating Strava webhook subscription for $ENV_NAME environment..."
 
-        FUNCTION_NAME=$(gcloud functions list --regions=$REGION --filter="name~dispatcher" --format="value(name)" --project="$GCP_PROJECT_ID" | head -1)
+        # Try Cloud Run first (new architecture), fallback to Cloud Functions (legacy)
+        SERVICE_NAME=$(gcloud run services list \
+            --region=$REGION \
+            --filter="metadata.name~dispatcher" \
+            --format="value(metadata.name)" \
+            --project="$GCP_PROJECT_ID" 2>/dev/null | head -1)
 
-        if [ -z "$FUNCTION_NAME" ]; then
-            echo "❌ Error: Could not find dispatcher function in $REGION"
-            echo "Make sure the function is deployed and region is correct"
-            exit 1
+        if [ -n "$SERVICE_NAME" ]; then
+            # Cloud Run service found
+            CALLBACK_URL=$(gcloud run services describe "$SERVICE_NAME" \
+                --region=$REGION \
+                --project="$GCP_PROJECT_ID" \
+                --format="value(status.url)")
+            echo "📍 Found Cloud Run service: $SERVICE_NAME"
+            echo "📍 Using Cloud Run URL: $CALLBACK_URL"
+        else
+            # Fallback to Cloud Functions (legacy)
+            FUNCTION_NAME=$(gcloud functions list \
+                --regions=$REGION \
+                --filter="name~dispatcher" \
+                --format="value(name)" \
+                --project="$GCP_PROJECT_ID" 2>/dev/null | head -1)
+
+            if [ -z "$FUNCTION_NAME" ]; then
+                echo "❌ Error: Could not find dispatcher (Cloud Run or Cloud Functions) in $REGION"
+                echo "Make sure the service is deployed and region is correct"
+                exit 1
+            fi
+
+            CALLBACK_URL="https://$REGION-$GCP_PROJECT_ID.cloudfunctions.net/$FUNCTION_NAME"
+            echo "📍 Found Cloud Functions: $FUNCTION_NAME (legacy)"
+            echo "📍 Using Cloud Functions URL: $CALLBACK_URL"
         fi
 
-        echo "📍 Found dispatcher function: $FUNCTION_NAME"
         STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth-$ENV_NAME" --project="$GCP_PROJECT_ID")
         CLIENT_ID=$(echo "$STRAVA_AUTH" | jq -r '.client_id')
         CLIENT_SECRET=$(echo "$STRAVA_AUTH" | jq -r '.client_secret')
         VERIFY_TOKEN=$(echo "$STRAVA_AUTH" | jq -r '.webhook_verify_token')
-        CALLBACK_URL="https://$REGION-$GCP_PROJECT_ID.cloudfunctions.net/$FUNCTION_NAME"
 
-        echo "📍 Using callback URL: $CALLBACK_URL"
-
+        echo ""
+        echo "Creating webhook subscription..."
         curl -X POST \
             https://www.strava.com/api/v3/push_subscriptions \
             -F client_id="$CLIENT_ID" \
             -F client_secret="$CLIENT_SECRET" \
             -F callback_url="$CALLBACK_URL" \
             -F verify_token="$VERIFY_TOKEN"
+        echo ""
         ;;
 
     "view")

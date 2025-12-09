@@ -1,4 +1,5 @@
-// Package main provides a local development server for testing the API Gateway.
+// Package main provides the HTTP server entrypoint for the Strava webhook apigateway.
+// Designed for Cloud Run deployment with graceful shutdown support.
 package main
 
 import (

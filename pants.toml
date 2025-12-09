@@ -50,8 +50,6 @@ pants_ignore = [
   "/.venv/",
   "/.terraform/",
   "/.pytest_cache/",
-  # TEMPORARY: Ignore until go.sum validation issue resolved (Phase 6)
-  "/functions/activity_dispatcher",
 ]
 
 # Python configuration
@@ -63,9 +61,6 @@ default_resolve = "stravapipe"
 
 # Python dependency management
 [python.resolves]
-# Root pyproject.toml uses [dependency-groups] which Pants doesn't support yet
-# python-default = "pyproject.toml"
-
 # Stravapipe package resolve - points to LOCKFILE, not source
 stravapipe = "packages/stravapipe/stravapipe.lock"
 
@@ -130,9 +125,10 @@ known_versions = [
 # [golang-infer]
 # imports = true
 
-# Build caching (local only for now, remote in Phase 7)
+# Build caching configuration
+# Using GitHub Actions cache (configured by pantsbuild/setup-action)
+# Local cache for development
 # [GLOBAL.cache]
-# # Local cache directory
 # local_store_dir = ".pants.d/cache"
 
 # ==========================================
@@ -172,3 +168,30 @@ output_dir = "{distdir}/coverage/python"  # Coverage reports go to dist/coverage
 
 # Fail build if coverage below threshold (optional - disabled for now)
 # fail_under = 70
+
+# ==========================================
+# Docker Configuration
+# ==========================================
+
+[docker]
+# Default registry for docker_image targets
+# All artifacts (dev + prod) stored in desirelines-dev Artifact Registry
+# Terraform uses deployment_version variable to pull correct image tag
+# Note: Registry address is added by [docker.registries] config below
+default_repository = "desirelines-dev/desirelines-functions/{name}"
+
+# Build arguments (inline cache for better layer reuse)
+build_args = ["BUILDKIT_INLINE_CACHE=1"]
+
+# Verbose output for debugging
+build_verbose = false
+
+# Pass environment variables needed for gcloud credential helper
+env_vars = ["HOME", "PATH"]
+
+[docker.registries."us-central1-docker.pkg.dev"]
+# Artifact Registry configuration
+address = "us-central1-docker.pkg.dev"
+default = true  # Mark as default registry for publishing
+# Authentication: gcloud auth configure-docker us-central1-docker.pkg.dev
+# Pants uses gcloud credentials automatically once configured

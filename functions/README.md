@@ -2,6 +2,53 @@
 
 This directory contains the Cloud Functions (v2) that make up the Desirelines event processing pipeline. All functions are deployed as individual Cloud Run services via Cloud Functions v2.
 
+## Cloud Run Migration (Phase 6b - December 2024)
+
+**Status:** Dispatcher and API Gateway migrated to Cloud Run ✅
+
+### Current Architecture
+
+- **Cloud Run Services** (Go, Docker images):
+  - `dispatcher` - Pre-compiled Go binary for instant cold starts
+  - `apigateway` - Pre-compiled Go binary for optimal performance
+
+- **Cloud Functions v2** (Python, source packages):
+  - `bq-inserter` - Event-driven BigQuery sync
+  - `aggregator` - Event-driven summary generation
+
+### Why Cloud Run for Go Services?
+
+**Performance:**
+- Instant cold starts (~100ms vs ~1-2s for Cloud Functions)
+- Pre-compiled binaries (no build step at runtime)
+- Minimal memory footprint (128Mi vs 256Mi+ for Cloud Functions)
+
+**Cost:**
+- Pay per request (not per 100ms)
+- Scale to zero when idle
+- 0.25 vCPU allocation (minimum cost tier)
+
+**Development:**
+- Package-centric Dockerfiles (`packages/*/Dockerfile`)
+- Standard Go HTTP server patterns
+- Future Pants `docker_image` integration (Phase 6d)
+
+### Migration Notes
+
+**What Changed:**
+- Dispatcher: Cloud Functions → Cloud Run (Dec 2025)
+- API Gateway: Cloud Functions → Cloud Run (Dec 2025)
+- BQ Inserter: Remains Cloud Functions v2 (Python, event-driven)
+- Aggregator: Remains Cloud Functions v2 (Python, event-driven)
+
+**Deployment:**
+- Cloud Run: Docker images in Artifact Registry
+- Cloud Functions: Zip packages from Pants builds
+
+See [Deployment Guide](../docs/guides/deployment.md) for details.
+
+---
+
 ## Overview
 
 ```
@@ -11,7 +58,7 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
          │ HTTP POST
          ▼
 ┌─────────────────────────┐
-│ activity_dispatcher     │  (Go)
+│ dispatcher (Cloud Run)  │  (Go Docker image)
 │ Entry point for webhooks│
 └────────┬────────────────┘
          │ Pub/Sub publish
@@ -22,7 +69,7 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
          │             │
          ▼             ▼
 ┌────────────────┐  ┌─────────────────┐
-│ bq_inserter    │  │ aggregator      │  (Python)
+│ bq_inserter    │  │ aggregator      │  (Python Cloud Functions)
 │ BigQuery sync  │  │ JSON summaries  │
 └────────────────┘  └─────────────────┘
 ```
@@ -147,30 +194,28 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 
 ## Deployment
 
-### Python Functions (Cloud Functions v2)
+**All builds via Pants:**
+
 ```bash
-# Package functions using Pants
+# Package Python Cloud Functions
 pants package functions:aggregator functions:bq-inserter
 
-# Deploy via Terraform
+# Build and publish Go Docker images
+GIT_COMMIT=$(git rev-parse --short HEAD) pants publish packages/dispatcher:dispatcher packages/apigateway:apigateway
+
+# Deploy to dev (local)
 cd terraform/environments/dev
-terraform apply
+terraform apply \
+  -target=module.desirelines.google_cloudfunctions2_function.activity_aggregator \
+  -target=module.desirelines.google_cloudfunctions2_function.activity_bq_inserter
+
+# Deploy via GitHub Actions (auto on push to main)
+git push origin main
 ```
-Pants creates zip archives with pre-resolved dependencies. Terraform deploys to Cloud Functions v2.
 
-### Go Services (Cloud Run)
-```bash
-# Build and push Docker images
-docker build -t us-central1-docker.pkg.dev/desirelines-dev/desirelines/dispatcher:latest packages/dispatcher
-docker push us-central1-docker.pkg.dev/desirelines-dev/desirelines/dispatcher:latest
-
-# Deploy via Terraform
-cd terraform/environments/dev
-terraform apply
-```
-Alternatively, use Pants to build Docker images: `pants package functions::dispatcher-image`
-
-See `terraform/modules/desirelines/functions.tf` for infrastructure configuration.
+**Outputs:**
+- Python: `dist/functions/aggregator.zip`, `dist/functions/bq-inserter.zip`
+- Go: Images in `us-central1-docker.pkg.dev/desirelines-{env}/desirelines-functions/`
 
 ---
 
@@ -236,11 +281,8 @@ docker compose --profile frontend up
 
 ### Deployment Flow
 1. Make changes in `packages/`
-2. Run tests
-3. Package: `pants package functions::`
-4. Deploy to dev: `cd terraform/environments/dev && terraform apply`
-5. Test in dev environment
-6. Deploy to prod: `cd terraform/environments/prod && terraform apply`
+2. Run tests: `pants test ::`
+3. Push to main → GitHub Actions deploys automatically
 
 ---
 

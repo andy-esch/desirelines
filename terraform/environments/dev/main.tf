@@ -65,6 +65,22 @@ data "google_project" "project" {
   project_id = var.gcp_project_id
 }
 
+# ==============================================================================
+# GitHub Actions CI/CD Infrastructure
+# ==============================================================================
+
+module "github_actions" {
+  source = "../../modules/github-actions-wif"
+
+  project_id        = var.gcp_project_id
+  environment       = "dev"
+  github_repository = var.github_repository
+
+  # Use different pool name to avoid soft-deleted resource
+  pool_id     = "github-actions-cicd"
+  provider_id = "github-oidc-provider"
+}
+
 # Dead Letter Queue Configuration for Eventarc-created subscriptions
 # Eventarc creates subscriptions automatically - we create separate DLQ subscriptions
 

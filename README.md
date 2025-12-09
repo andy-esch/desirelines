@@ -75,21 +75,24 @@ make test-full-flow
 make logs
 ```
 
-### Cloud Development
+### Cloud Deployment
 
 ```bash
-# Package functions with current git SHA (required for deployment)
-make package-functions
+# Build and push Cloud Run images
+make build-push-images
 
-# Deploy to dev environment with SHA-tagged functions
+# Package Python Cloud Functions
+./scripts/operations/package-functions.sh
+
+# Deploy to dev environment
 cd terraform/environments/dev
-terraform apply -var="function_source_tag=$(git rev-parse --short HEAD)"
+terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
 
-# Test with real Strava webhooks
-# (requires OAuth2 authorization as described above)
+# Setup Strava webhook
+make create-webhook
 ```
 
-For comprehensive setup instructions, see [`docs/guides/strava-webhook.md`](./docs/guides/strava-webhook.md).
+See [Deployment Guide](./docs/guides/deployment.md) for complete instructions.
 
 ### Testing
 
@@ -129,22 +132,28 @@ pants --changed-since=main test
 
 ## Architecture
 
-- **Frontend**: React web application (`web/`)
-- **Backend**: Serverless Google Cloud Functions (`functions/`)
-- **Data**: BigQuery for analytics storage
+- **Frontend**: React web application (`packages/web/`)
+- **Backend**:
+  - Cloud Run: Go services for HTTP endpoints (dispatcher, api-gateway)
+  - Cloud Functions: Python services for event processing (bq-inserter, aggregator)
+- **Data**: BigQuery for analytics storage, Cloud Storage for aggregations
 - **Integration**: Strava API webhooks for real-time activity updates
 - **Infrastructure**: Terraform for cloud resource management
+
+See [Architecture Documentation](./docs/architecture/) for detailed design.
 
 ## Documentation
 
 ### Essential Guides
 
 - **[Bootstrap Guide](./docs/guides/bootstrap.md)** - Complete environment setup (dev/prod)
+- **[Deployment Guide](./docs/guides/deployment.md)** - Cloud deployment procedures
 - **[Strava Webhook Setup](./docs/guides/strava-webhook.md)** - OAuth2 and webhook configuration
 - **[Local Development Scripts](./scripts/development/local-dev/README.md)** - Script organization and usage
 
 ### Project Reference
 
+- **[Docker Architecture](./docs/DOCKER.md)** - Docker build setup and container management
 - **[Frontend Development](./docs/guides/frontend-local-dev.md)** - React app development guide
 - **[Local Testing](./docs/guides/local-testing.md)** - Testing the full pipeline locally
 

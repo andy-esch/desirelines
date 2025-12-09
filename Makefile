@@ -355,6 +355,10 @@ help:
 	@echo "  proto-lint           - Lint .proto files with buf"
 	@echo "  proto-clean          - Clean generated protobuf code"
 	@echo ""
+	@echo "Build and Publish (Pants):"
+	@echo "  build-publish                        - Build and publish all artifacts (Cloud Functions + Cloud Run)"
+	@echo "  build-publish-tag TAG=abc1234        - Build and publish with specific git SHA"
+	@echo ""
 	@echo "Secret Management & Webhooks (uses current gcloud project):"
 	@echo "  deploy-secrets SECRET_FILE=file.json - Deploy secrets from JSON file with IAM bindings"
 	@echo "  create-webhook                - Create webhook subscription"
@@ -485,6 +489,25 @@ clean:
 
 
 
+
+# ==========================================
+# Build and Publish (Pants)
+# ==========================================
+
+# Build and publish all artifacts via Pants (Cloud Functions + Cloud Run)
+.PHONY: build-publish
+build-publish:
+	@./scripts/operations/build-and-publish.sh
+
+# Build and publish with specific tag
+.PHONY: build-publish-tag
+build-publish-tag:
+	@if [ -z "$(TAG)" ]; then \
+		echo "❌ Error: Please specify TAG"; \
+		echo "Usage: make build-publish-tag TAG=abc1234"; \
+		exit 1; \
+	fi
+	@./scripts/operations/build-and-publish.sh $(TAG)
 
 # ==========================================
 # Secret Management & Webhooks

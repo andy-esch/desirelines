@@ -1,6 +1,13 @@
 """Desire Lines listener - builds JSON documents that are consumed by the desire lines
 web app"""
 
+# CRITICAL: Fix Python import path for Cloud Functions Gen2
+# Must be FIRST executable code before any imports
+import sys
+if "/workspace" in sys.path:
+    sys.path.remove("/workspace")
+sys.path.insert(0, "/workspace")
+
 import uuid
 
 from cloudevents.http import CloudEvent

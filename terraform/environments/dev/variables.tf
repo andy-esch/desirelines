@@ -26,3 +26,9 @@ variable "developer_email" {
   type        = string
   sensitive   = true
 }
+
+variable "github_repository" {
+  description = "GitHub repository for CI/CD (format: owner/repo)"
+  type        = string
+  default     = "andy-esch/desirelines"
+}
