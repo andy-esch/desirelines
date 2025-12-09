@@ -20,6 +20,20 @@ env:
 
 jobs:
   # ===========================================================================
+  # Sport Config Sync Check
+  # ===========================================================================
+  sport-config-sync:
+    name: Sport Config Sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify sport_types.json copies are in sync
+        run: make verify-sport-config
+
+  # ===========================================================================
   # Pants: Test & Lint (Python only)
   # Go uses native tooling (faster, better multi-module support)
   # ===========================================================================
@@ -36,6 +50,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Go needed for pants
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
       - name: Set up Pants
         uses: pantsbuild/actions/init-pants@v10
         with:
@@ -44,8 +65,17 @@ jobs:
           cache-lmdb-store: true
           base-branch: main
 
-      - name: Test
-        run: "pants test packages/stravapipe::"
+      - name: Test with coverage
+        run: "pants test --use-coverage packages/stravapipe::"
+
+      - name: Upload Python coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./dist/coverage/python/coverage.xml
+          flags: python
+          name: python-coverage
+          fail_ci_if_error: false
 
       - name: Lint
         run: "pants lint packages/stravapipe::"
@@ -119,6 +149,16 @@ jobs:
           version: latest
           working-directory: packages/${{ matrix.package }}
           args: --timeout=5m
+
+      - name: Check Go formatting
+        run: |
+          cd packages/${{ matrix.package }}
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "❌ The following files need formatting:"
+            echo "$unformatted"
+            exit 1
+          fi
 
   # ===========================================================================
   # Web/React (Node ecosystem)
