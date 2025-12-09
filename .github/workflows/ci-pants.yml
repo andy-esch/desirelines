@@ -68,9 +68,16 @@ jobs:
         run: pants test ${{ matrix.target }}
 
       - name: Lint
-        # Skip golangci-lint for Go packages - Pants doesn't support multi-module repos
+        # Note: Go packages skip golangci-lint (multi-module repo issue)
         # Go linting handled by separate go-lint-annotations job
-        run: pants lint --skip=golangci-lint ${{ matrix.target }}
+        # Python uses ruff-check + ruff-format
+        run: |
+          if [[ "${{ matrix.target }}" == *"stravapipe"* ]]; then
+            pants lint ${{ matrix.target }}
+          else
+            # Go packages: only run gofmt (golangci-lint handled separately)
+            pants lint --only=gofmt ${{ matrix.target }}
+          fi
 
       - name: Type check
         run: pants check ${{ matrix.target }}
