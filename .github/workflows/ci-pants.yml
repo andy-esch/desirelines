@@ -20,34 +20,16 @@ env:
 
 jobs:
   # ===========================================================================
-  # Pants: Test & Lint (Python + Go)
-  # Parallelized by package for clear failure isolation
+  # Pants: Test & Lint (Python only)
+  # Go uses native tooling (faster, better multi-module support)
   # ===========================================================================
-  pants-test:
-    name: ${{ matrix.name }}
+  pants-python:
+    name: Python (Pants)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false  # Run all jobs even if one fails
-      matrix:
-        include:
-          - name: "Python (stravapipe)"
-            target: "packages/stravapipe::"
-          - name: "Go (dispatcher)"
-            target: "packages/dispatcher::"
-          - name: "Go (apigateway)"
-            target: "packages/apigateway::"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # For --changed-since support (if needed later)
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
-          cache-dependency-path: go.work.sum
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -57,37 +39,64 @@ jobs:
       - name: Set up Pants
         uses: pantsbuild/actions/init-pants@v10
         with:
-          gha-cache-key: v1-ci-${{ matrix.name }}
-          named-caches-hash: ${{ hashFiles('packages/stravapipe/uv.lock', 'packages/*/go.sum', 'go.work.sum', 'pants.toml') }}
+          gha-cache-key: v1-ci-python
+          named-caches-hash: ${{ hashFiles('packages/stravapipe/uv.lock', 'pants.toml') }}
           cache-lmdb-store: true
           base-branch: main
 
-      # Decision: Run all tests (not --changed-since) because tests are fast
-      # To enable changed-only: pants --changed-since=origin/main test ${{ matrix.target }}
       - name: Test
-        run: pants test ${{ matrix.target }}
+        run: "pants test packages/stravapipe::"
 
       - name: Lint
-        # Note: Go packages skip golangci-lint (multi-module repo issue)
-        # Go linting handled by separate go-lint-annotations job
-        # Python uses ruff-check + ruff-format
-        run: |
-          if [[ "${{ matrix.target }}" == *"stravapipe"* ]]; then
-            pants lint ${{ matrix.target }}
-          else
-            # Go packages: only run gofmt (golangci-lint handled separately)
-            pants lint --only=gofmt ${{ matrix.target }}
-          fi
+        run: "pants lint packages/stravapipe::"
 
       - name: Type check
-        run: pants check ${{ matrix.target }}
+        run: "pants check packages/stravapipe::"
+
+  # ===========================================================================
+  # Go Testing (native go test - faster than Pants)
+  # ===========================================================================
+  go-test:
+    name: Go Tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [dispatcher, apigateway]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
+      - name: Download dependencies
+        run: go work sync && go mod download
+
+      - name: Run tests
+        run: |
+          cd packages/${{ matrix.package }}
+          go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/${{ matrix.package }}/coverage.out
+          flags: go-${{ matrix.package }}
+          name: go-${{ matrix.package }}-coverage
+          fail_ci_if_error: false
 
   # ===========================================================================
   # Go Linting (golangci-lint-action)
   # Kept separate for inline PR annotations
   # ===========================================================================
-  go-lint-annotations:
-    name: Go Lint (PR annotations)
+  go-lint:
+    name: Go Lint
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
