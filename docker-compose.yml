@@ -124,7 +124,7 @@ services:
     profiles: ["backend", "frontend"]
     image: postgis/postgis:17-3.6-alpine # PostgreSQL 17 with PostGIS 3.6 extension
     ports:
-      - "5432:5432"
+      - "15430:5432"
     environment:
       - POSTGRES_DB=desirelines_local
       - POSTGRES_USER=desirelines

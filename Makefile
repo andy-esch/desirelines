@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config db-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-admin db-connect-prod-admin db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config db-connect-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-admin db-connect-prod-admin db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info db-clean-dev
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -633,6 +633,10 @@ db-migrate-prod:
 # Run migrations against prod (dry-run only - shows status)
 db-migrate-prod-info:
 	@./scripts/database/migrate.sh prod --dry-run
+
+# Clean dev database (drops all objects in desirelines schema)
+db-clean-dev:
+	@./scripts/database/migrate.sh dev clean
 
 # Legacy site commands (direct npm, no Docker)
 site-start:
