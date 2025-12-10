@@ -118,6 +118,42 @@ services:
   # Start with: make start-frontend
   # ==========================================
 
+  # PostgreSQL database (local development)
+  # Available in both backend and frontend profiles
+  postgres:
+    profiles: ["backend", "frontend"]
+    image: postgis/postgis:17-3.6-alpine # PostgreSQL 17 with PostGIS 3.6 extension
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=desirelines_local
+      - POSTGRES_USER=desirelines
+      - POSTGRES_PASSWORD=local_dev_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U desirelines -d desirelines_local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Database migrations (runs on startup)
+  # Available in both backend and frontend profiles
+  flyway:
+    profiles: ["backend", "frontend"]
+    build:
+      context: ./schemas/database
+      dockerfile: Dockerfile
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=desirelines_local
+      - DB_USER=desirelines
+      - DB_PASSWORD=local_dev_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # API Gateway - serves data to web UI (Go implementation)
   api-gateway:
     profiles: ["frontend"] # Only starts with --profile frontend
@@ -137,6 +173,9 @@ services:
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE:-local-dev}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE:-desirelines_local_testing}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
+      # Database configuration (optional - enables postgres backend)
+      - ENABLE_DATABASE=${ENABLE_DATABASE:-false}
+      - POSTGRES_CONNECTION_STRING=postgres://desirelines:local_dev_password@postgres:5432/desirelines_local?sslmode=disable
     env_file:
       - .env
     volumes:
@@ -144,6 +183,9 @@ services:
       - ./data/fixtures:/app/data/fixtures:ro
       # Mount gcloud credentials for bucket access (used when DATA_SOURCE=cloud-storage)
       - ~/.config/gcloud:/app/.config/gcloud:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
     # Resource limits for low-memory systems
     deploy:
       resources:
@@ -164,3 +206,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+# Named volumes for data persistence
+volumes:
+  postgres_data:

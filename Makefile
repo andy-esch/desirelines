@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config db-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-admin db-connect-prod-admin db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -332,6 +332,11 @@ help:
 	@echo "  site-start     - Start Web UI directly (npm, no Docker)"
 	@echo "  site-build     - Build Web UI for production"
 	@echo ""
+	@echo "Database:"
+	@echo "  db-connect-local       - Connect to local PostgreSQL database (psql)"
+	@echo "  db-migrate-local     - Run database migrations (Flyway)"
+	@echo "  db-clean-local       - Clean local database (drops all objects, with confirmation)"
+	@echo ""
 	@echo "General:"
 	@echo "  stop  - Stop all services (backend + frontend)"
 	@echo "  build - Build all Docker images"
@@ -437,7 +442,6 @@ start-backend-debug: generate-requirements
 stop:
 	@echo "🛑 Stopping all services..."
 	docker compose --profile backend --profile debug --profile frontend down
-	rm -f functions/requirements-*.txt
 
 # Generate function-specific requirements files
 generate-requirements:
@@ -455,19 +459,6 @@ generate-requirements:
 build: generate-requirements
 	@echo "🔨 Building all Docker images..."
 	docker compose build
-
-# View logs
-logs:
-	docker compose logs -f
-
-logs-dispatcher:
-	docker compose logs -f dispatcher
-
-logs-aggregator:
-	docker compose logs -f aggregator
-
-logs-bq:
-	docker compose logs -f bq-inserter
 
 # Test the full end-to-end flow
 test-full-flow:
@@ -565,7 +556,7 @@ rotate-webhook-verify-token:
 # ==========================================
 
 # Start frontend development stack (API Gateway + Web UI with local fixtures)
-start-frontend: generate-requirements
+start-frontend:
 	@echo "🎨 Starting frontend development stack (API Gateway + Web UI with local fixtures)..."
 	docker compose --profile frontend up --build --detach
 	@echo "✅ Frontend development stack is running!"
@@ -582,15 +573,66 @@ stop-frontend:
 	@echo "🛑 Stopping frontend services..."
 	docker compose --profile frontend down
 
-# View frontend logs
-logs-frontend:
-	docker compose logs -f api-gateway web
+# ==========================================
+# Database Management
+# ==========================================
 
-logs-api:
-	docker compose logs -f api-gateway
+# Connect to local PostgreSQL database
+db-connect-local:
+	@echo "🔌 Connecting to local PostgreSQL database..."
+	docker compose --profile backend exec postgres psql -U desirelines -d desirelines_local
 
-logs-web:
-	docker compose logs -f web
+# Run database migrations
+db-migrate-local:
+	@echo "🚀 Running database migrations..."
+	docker compose build flyway
+	docker compose --profile backend run --rm flyway migrate
+
+# Clean local database (drops all objects in desirelines schema)
+db-clean-local:
+	@echo "🧹 Cleaning local PostgreSQL database..."
+	@echo "⚠️  This will drop all objects in the desirelines schema!"
+	@read -p "Are you sure? (y/N): " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		docker compose --profile backend run --rm flyway clean; \
+	else \
+		echo "❌ Database clean cancelled"; \
+	fi
+
+# Production Database Operations
+# ==========================================
+
+# Connect to dev database (read-only)
+db-connect-dev:
+	@./scripts/database/connect.sh dev --readonly
+
+# Connect to prod database (read-only)
+db-connect-prod:
+	@./scripts/database/connect.sh prod --readonly
+
+# Connect to dev database (admin)
+db-connect-dev-admin:
+	@./scripts/database/connect.sh dev --admin
+
+# Connect to prod database (admin)
+db-connect-prod-admin:
+	@./scripts/database/connect.sh prod --admin
+
+# Run migrations against dev (with dry-run first)
+db-migrate-dev:
+	@./scripts/database/migrate.sh dev
+
+# Run migrations against dev (dry-run only - shows status)
+db-migrate-dev-info:
+	@./scripts/database/migrate.sh dev --dry-run
+
+# Run migrations against prod (requires confirmation)
+db-migrate-prod:
+	@./scripts/database/migrate.sh prod
+
+# Run migrations against prod (dry-run only - shows status)
+db-migrate-prod-info:
+	@./scripts/database/migrate.sh prod --dry-run
 
 # Legacy site commands (direct npm, no Docker)
 site-start:
