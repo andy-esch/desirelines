@@ -45,7 +45,7 @@ output "service_account_unique_id" {
 
 output "github_secrets_instructions" {
   description = "Instructions for adding GitHub secrets"
-  value = <<-EOT
+  value       = <<-EOT
 
   Add these secrets to your GitHub repository:
 

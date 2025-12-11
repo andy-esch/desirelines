@@ -20,6 +20,10 @@ data "google_secret_manager_secret_version" "strava_auth" {
   secret = "strava-auth-${var.environment}"
 }
 
+data "google_secret_manager_secret_version" "postgres_connection" {
+  secret = "postgres-connection-string-${var.environment}"
+}
+
 # Local variables for resource naming
 locals {
   # Consistent naming conventions using project ID for global uniqueness
@@ -484,6 +488,24 @@ resource "google_secret_manager_secret_iam_member" "bq_inserter_strava_auth_acce
 resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access" {
   count     = var.developer_email != null ? 1 : 0
   secret_id = "strava-auth-${var.environment}"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "user:${var.developer_email}"
+}
+
+# PostgreSQL secret access permissions
+
+# API Gateway access to PostgreSQL connection string
+resource "google_secret_manager_secret_iam_member" "api_gateway_postgres_access" {
+  count     = var.create_dedicated_service_accounts ? 1 : 0
+  secret_id = "postgres-connection-string-${var.environment}"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
+}
+
+# Grant developer access to PostgreSQL secret for local development
+resource "google_secret_manager_secret_iam_member" "postgres_developer_access" {
+  count     = var.developer_email != null ? 1 : 0
+  secret_id = "postgres-connection-string-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
   member    = "user:${var.developer_email}"
 }

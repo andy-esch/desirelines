@@ -153,6 +153,25 @@ resource "google_cloud_run_v2_service" "api_gateway" {
         name  = "DATA_SOURCE"
         value = "cloud-storage"
       }
+
+      # Mount PostgreSQL secrets as volume
+      volume_mounts {
+        name       = "postgres-secrets"
+        mount_path = "/etc/secrets/postgres"
+      }
+    }
+
+    volumes {
+      name = "postgres-secrets"
+      secret {
+        secret       = "postgres-connection-string-${var.environment}"
+        default_mode = 292 # 0444 in octal (read-only)
+        items {
+          version = "latest"
+          path    = "connection_string"
+          mode    = 292 # 0444
+        }
+      }
     }
 
     timeout = "60s"

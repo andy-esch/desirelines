@@ -147,6 +147,7 @@ See [Architecture Documentation](./docs/architecture/) for detailed design.
 ### Essential Guides
 
 - **[Bootstrap Guide](./docs/guides/bootstrap.md)** - Complete environment setup (dev/prod)
+- **[CI Guide](./docs/guides/ci.md)** - Continuous Integration workflow and testing
 - **[Deployment Guide](./docs/guides/deployment.md)** - Cloud deployment procedures
 - **[Strava Webhook Setup](./docs/guides/strava-webhook.md)** - OAuth2 and webhook configuration
 - **[Local Development Scripts](./scripts/development/local-dev/README.md)** - Script organization and usage
