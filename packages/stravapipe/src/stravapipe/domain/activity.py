@@ -3,7 +3,7 @@
 from datetime import datetime
 import json
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 
 class MetaAthlete(BaseModel):
@@ -253,6 +253,9 @@ class MinimalStravaActivity(BaseModel):
 
     Contains only the fields needed for summary calculations and aggregations.
     Faster validation and lower memory footprint than DetailedStravaActivity.
+
+    DEPRECATED: Use StandardActivity for new code. This will be removed
+    when the aggregator is deprecated (see postgresql-07-deprecate-aggregator).
     """
 
     id: int
@@ -273,6 +276,75 @@ class MinimalStravaActivity(BaseModel):
     def date_str(self) -> str:
         """Get date string in YYYY-MM-DD format"""
         return self.start_date_local.date().strftime("%Y-%m-%d")
+
+
+class StandardActivity(BaseModel):
+    """Standard activity model matching PostgreSQL schema.
+
+    Parses directly from Strava API using extra='ignore' to validate
+    only fields we care about. More efficient than DetailedActivity
+    validation + conversion.
+
+    This is the primary model for PostgreSQL storage and application logic.
+    Uses Pydantic v2 with Field descriptions for self-documenting schema.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    # Core identification
+    id: int = Field(description="Strava activity ID (primary key)")
+    athlete: MetaAthlete = Field(description="Athlete metadata containing user ID")
+
+    # Activity metadata
+    name: str = Field(description="Activity name/title")
+    type: str = Field(description="Strava activity type (Run, Ride, Swim, etc.)")
+    sport_type: str = Field(description="Strava sport type, normalized to 'sport' column")
+
+    # Date/time
+    start_date_local: datetime = Field(description="Local start time of activity")
+
+    # Performance metrics
+    distance: float = Field(description="Distance in meters")
+    moving_time: int = Field(description="Moving time in seconds")
+    elapsed_time: int = Field(description="Total elapsed time in seconds")
+    total_elevation_gain: float | None = Field(
+        default=None, description="Elevation gain in meters"
+    )
+    average_speed: float | None = Field(default=None, description="Average speed in m/s")
+    max_speed: float | None = Field(default=None, description="Maximum speed in m/s")
+
+    # Health metrics
+    average_heartrate: float | None = Field(
+        default=None, description="Average heart rate in bpm"
+    )
+    max_heartrate: float | None = Field(default=None, description="Maximum heart rate in bpm")
+
+    # Geospatial (for postgresql-08-geospatial-tables)
+    map: PolylineMap | None = Field(default=None, description="Polyline map data (route)")
+    start_latlng: list[float] = Field(
+        default_factory=list, description="Start coordinates [lat, lng]"
+    )
+    end_latlng: list[float] = Field(
+        default_factory=list, description="End coordinates [lat, lng]"
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def user_id(self) -> str:
+        """Extract user_id from athlete.id for database storage."""
+        return str(self.athlete.id)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def sport(self) -> str:
+        """Normalize sport_type to lowercase snake_case for sport column."""
+        return self.sport_type.lower().replace(" ", "_")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def year(self) -> int:
+        """Extract year from start_date_local for partitioning."""
+        return self.start_date_local.year
 
 
 class DetailedStravaActivity(BaseModel):
