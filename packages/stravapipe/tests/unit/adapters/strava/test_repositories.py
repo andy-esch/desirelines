@@ -31,7 +31,7 @@ def api_config():
 
 @pytest.fixture
 def activity_json():
-    fixture_path = Path(__file__).parent.parent.parent / "fixtures" / "activity_1.json"
+    fixture_path = Path(__file__).parent.parent.parent.parent / "fixtures" / "activity_1.json"
     with open(fixture_path, encoding="utf-8") as fin:
         activity_json = json.load(fin)
     # NOTE: id = 12345678987654321
