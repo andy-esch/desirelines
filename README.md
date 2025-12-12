@@ -128,7 +128,64 @@ pants check ::
 pants --changed-since=main test
 ```
 
-**Note:** Pants is currently being integrated. Some features (like Cloud Function packaging) will be available in later phases.
+### Python Package Development
+
+The stravapipe package uses **pyproject.toml as the single source of truth** for dependencies. Both `uv` and Pants read this file directly - no sync needed!
+
+#### Adding Dependencies
+
+```bash
+# 1. Add dependency using uv (updates pyproject.toml)
+cd packages/stravapipe
+uv add requests
+
+# 2. Regenerate Pants lockfile (one command from repo root)
+pants generate-lockfiles --resolve=stravapipe
+
+# 3. Done! Both uv and Pants see the new dependency
+```
+
+#### Development Workflows
+
+**Option 1: Using Pants (recommended for CI/testing):**
+```bash
+# From repo root
+pants test packages/stravapipe::
+pants lint packages/stravapipe::
+pants check packages/stravapipe::
+```
+
+**Option 2: Using uv (for local iterative development):**
+```bash
+cd packages/stravapipe
+uv sync
+uv run pytest
+uv run ruff check
+uv run mypy src/
+```
+
+Both workflows produce identical results - use whichever fits your workflow.
+
+### Protobuf Code Generation
+
+Generate Python and Go code from `.proto` schemas:
+
+```bash
+# Generate protobuf code (Python + Go) using Pants
+make proto-gen-pants
+
+# Lint protobuf schemas with buf
+pants lint schemas/proto::
+```
+
+**Note:** Generated code is committed to git for code review observability. TypeScript protobuf generation still uses npm (see `make proto-gen-typescript`).
+
+**Build System Status:**
+- ✅ Phase 1: Setup and configuration (complete)
+- ✅ Phase 2: Protobuf backend integration (complete)
+- ✅ Phase 3: Python packages (stravapipe) integration (complete)
+- 🚧 Phase 4: Go packages integration (planned)
+- 🚧 Phase 5: Cloud Function packaging (planned)
 
 ## Architecture
 

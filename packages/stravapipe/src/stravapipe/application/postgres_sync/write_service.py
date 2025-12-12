@@ -6,8 +6,7 @@ using the Unit of Work pattern for transaction management.
 
 import logging
 
-from stravapipe.domain import StandardActivity
-from stravapipe.ports.out.read import ReadDetailedActivities
+from stravapipe.ports.out.read import ReadStandardActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
 
 logger = logging.getLogger(__name__)
@@ -27,53 +26,98 @@ class PostgresWriteService:
         service.sync_activity(activity_id)
     """
 
-    def __init__(
-        self,
-        uow: AbstractUnitOfWork,
-        strava_reader: ReadDetailedActivities,
-    ):
+    def __init__(self, uow: AbstractUnitOfWork, strava_reader: ReadStandardActivities):
         """Initialize service with dependencies.
 
         Args:
             uow: Unit of Work for PostgreSQL transactions
-            strava_reader: Reader for fetching activities from Strava API
+            strava_reader: Reader for fetching standard activities from Strava API
         """
         self._uow = uow
         self._strava_reader = strava_reader
 
-    def sync_activity(self, activity_id: int) -> dict:
-        """Sync a single activity from Strava to PostgreSQL.
+    def create_activity(self, activity_id: int) -> bool:
+        """Create a new activity in PostgreSQL.
 
-        Fetches the activity from Strava API and upserts to PostgreSQL.
+        Fetches the activity from Strava API and inserts to PostgreSQL.
+        Uses INSERT with ON CONFLICT DO NOTHING - duplicates log warning but don't fail.
 
         Args:
             activity_id: Strava activity ID
 
         Returns:
-            dict: Operation result with "inserted" or "updated" key
+            True if inserted, False if already existed
         """
         # Fetch from Strava API
-        detailed_activity = self._strava_reader.read_activity_by_id(activity_id)
+        activity = self._strava_reader.read_standard_activity_by_id(activity_id)
 
-        # Parse to StandardActivity (only validates fields we care about)
-        activity = StandardActivity.model_validate(detailed_activity.model_dump())
-
-        # Write to PostgreSQL within transaction
+        # Insert to PostgreSQL within transaction
         with self._uow:
-            result = self._uow.activities.upsert(activity)
+            inserted = self._uow.activities.insert(activity)
             self._uow.commit()
 
-        operation = "inserted" if result.get("inserted") else "updated"
-        logger.info(
-            f"Activity {operation} successfully",
-            extra={
-                "activity_id": activity_id,
-                "operation": operation,
-                "user_id": activity.user_id,
-            },
-        )
+        if inserted:
+            logger.info(
+                "Activity created successfully",
+                extra={
+                    "activity_id": activity_id,
+                    "user_id": activity.user_id,
+                },
+            )
+        else:
+            logger.warning(
+                "Activity already exists (duplicate CREATE event)",
+                extra={
+                    "activity_id": activity_id,
+                },
+            )
 
-        return result
+        return inserted
+
+    def activity_exists(self, activity_id: int) -> bool:
+        """Check if activity exists in PostgreSQL.
+
+        Used by UPDATE handler to determine if we need to fetch from Strava
+        (for activities that predate our PostgreSQL setup).
+
+        Args:
+            activity_id: Strava activity ID
+
+        Returns:
+            True if exists, False otherwise
+        """
+        with self._uow:
+            return self._uow.activities.exists(activity_id)
+
+    def update_activity_metadata(self, activity_id: int, updates: dict) -> bool:
+        """Update only metadata fields from UPDATE webhook.
+
+        Does NOT fetch from Strava API - uses updates hash directly.
+        Only updates fields that changed (title → name, type → type/sport).
+
+        Args:
+            activity_id: Strava activity ID
+            updates: Dict from webhook with 'title' and/or 'type' keys
+
+        Returns:
+            True if updated, False if activity not found
+        """
+        with self._uow:
+            updated = self._uow.activities.update_metadata(activity_id, updates)
+            self._uow.commit()
+
+        if updated:
+            logger.info(
+                "Activity metadata updated",
+                extra={"activity_id": activity_id, "updates": updates},
+            )
+        else:
+            logger.warning(
+                "Activity not found for metadata update",
+                extra={"activity_id": activity_id},
+            )
+
+        return updated
 
     def delete_activity(self, activity_id: int) -> bool:
         """Delete an activity from PostgreSQL.

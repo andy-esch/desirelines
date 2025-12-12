@@ -10,6 +10,7 @@ import requests
 from stravapipe.domain import (
     DetailedStravaActivity,
     MinimalStravaActivity,
+    StandardActivity,
     StravaTokenSet,
     SummaryStravaActivity,
 )
@@ -21,6 +22,7 @@ from stravapipe.exceptions import (
 from stravapipe.ports.out.read import (
     ReadDetailedActivities,
     ReadMinimalActivities,
+    ReadStandardActivities,
     ReadStravaToken,
 )
 from stravapipe.retry import retry_on_failure
@@ -96,8 +98,12 @@ class StravaTokenRepo(ReadStravaToken):
         )
 
 
-class DetailedStravaActivitiesRepo(ReadDetailedActivities):
-    """Repository for fetching detailed Strava Activities (for BQ inserter)"""
+class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivities):
+    """Repository for fetching Strava Activities.
+
+    Implements both ReadDetailedActivities (for BQ inserter) and
+    ReadStandardActivities (for PostgreSQL writer).
+    """
 
     def __init__(
         self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None
@@ -158,13 +164,21 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities):
         return resp.json()
 
     def read_activity_by_id(self, activity_id: int) -> DetailedStravaActivity:
-        """Fetch an Activity from Strava. An activity is roughly Strava's
-        DetailedActivity model:
-          https://developers.strava.com/docs/reference/#api-models-DetailedActivity
+        """Fetch a detailed Activity from Strava (all ~60 fields).
+
+        Used by BQ inserter for full activity storage.
+        https://developers.strava.com/docs/reference/#api-models-DetailedActivity
         """
-        resp = self._read_raw_activity_by_id(activity_id)
-        activity = DetailedStravaActivity(**resp)
-        return activity
+        raw = self._read_raw_activity_by_id(activity_id)
+        return DetailedStravaActivity(**raw)
+
+    def read_standard_activity_by_id(self, activity_id: int) -> StandardActivity:
+        """Fetch a standard Activity from Strava (only PostgreSQL-relevant fields).
+
+        Used by PostgreSQL writer. Validates only the fields we store.
+        """
+        raw = self._read_raw_activity_by_id(activity_id)
+        return StandardActivity.model_validate(raw)
 
     def _read_activities(
         self, *, before: int, after: int, page: int, per_page: int = 100

@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
-    from stravapipe.ports.out.postgres import WriteStandardActivities
+    from stravapipe.ports.out.postgres import ActivityRepository
 
 
 class AbstractUnitOfWork(ABC):
@@ -28,7 +28,7 @@ class AbstractUnitOfWork(ABC):
     If no commit is called, rollback happens automatically on __exit__.
     """
 
-    activities: "WriteStandardActivities"
+    activities: "ActivityRepository"
 
     def __enter__(self) -> Self:
         return self
