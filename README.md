@@ -78,11 +78,14 @@ make logs
 ### Cloud Deployment
 
 ```bash
-# Build and push Cloud Run images
-make build-push-images
+# Build and push Cloud Run images and function sources
+make build-publish
 
-# Package Python Cloud Functions
-./scripts/operations/package-functions.sh
+# Use pants to package Python Cloud Functions
+pants package functions:aggregator functions:bq-inserter functions:postgres-writer
+
+# Use pants to package Cloud Run docker images and push to artifact registry
+GIT_COMMIT=$(git rev-parse --short HEAD) pants package packages/dispatcher:dispatcher packages/apigateway:apigateway
 
 # Deploy to dev environment
 cd terraform/environments/dev
@@ -179,13 +182,6 @@ pants lint schemas/proto::
 ```
 
 **Note:** Generated code is committed to git for code review observability. TypeScript protobuf generation still uses npm (see `make proto-gen-typescript`).
-
-**Build System Status:**
-- ✅ Phase 1: Setup and configuration (complete)
-- ✅ Phase 2: Protobuf backend integration (complete)
-- ✅ Phase 3: Python packages (stravapipe) integration (complete)
-- 🚧 Phase 4: Go packages integration (planned)
-- 🚧 Phase 5: Cloud Function packaging (planned)
 
 ## Architecture
 
