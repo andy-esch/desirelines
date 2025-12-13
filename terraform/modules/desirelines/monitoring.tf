@@ -23,8 +23,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         # Section Header: Dead Letter Queues (CRITICAL) - Row 0
         # ====================================================================
         {
-          xPos   = 0
-          yPos   = 0
           width  = 12
           height = 2
           widget = {
@@ -32,13 +30,13 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
             text = {
               content = "Messages in DLQ indicate pipeline failures. Should always be 0 in healthy system."
               format  = "MARKDOWN"
+              style   = {}
             }
           }
         },
 
         # BQ Inserter DLQ - Row 2, Left
         {
-          xPos   = 0
           yPos   = 2
           width  = 6
           height = 4
@@ -56,7 +54,8 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     }
                   }
                 }
-                plotType = "LINE"
+                plotType   = "LINE"
+                targetAxis = "Y1"
               }]
               timeshiftDuration = "0s"
               yAxis = {
@@ -65,8 +64,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
               thresholds = [{
                 value = 1
-                # direction = "ABOVE"
-                # label removed
               }]
             }
           }
@@ -92,7 +89,8 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     }
                   }
                 }
-                plotType = "LINE"
+                plotType   = "LINE"
+                targetAxis = "Y1"
               }]
               timeshiftDuration = "0s"
               yAxis = {
@@ -101,8 +99,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
               thresholds = [{
                 value = 1
-                # direction = "ABOVE"
-                # label removed
               }]
             }
           }
@@ -112,7 +108,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         # Section Header: Cloud Functions Performance - Row 6
         # ====================================================================
         {
-          xPos   = 0
           yPos   = 6
           width  = 12
           height = 2
@@ -121,13 +116,13 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
             text = {
               content = "Monitor execution counts, error rates, and performance across all functions:\n- **dispatcher** (webhook entry point)\n- **api_gateway** (web UI backend)\n- **bq_inserter** (BigQuery writer)\n- **aggregator** (summary aggregator)"
               format  = "MARKDOWN"
+              style   = {}
             }
           }
         },
 
         # Function Execution Counts - Row 8
         {
-          xPos   = 0
           yPos   = 8
           width  = 12
           height = 4
@@ -148,6 +143,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     }
                   }
                   plotType       = "LINE"
+                  targetAxis     = "Y1"
                   legendTemplate = "$${resource.labels.function_name}"
                 }
               ]
@@ -162,7 +158,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
 
         # Function 4xx Errors - Row 12, Left
         {
-          xPos   = 0
           yPos   = 12
           width  = 6
           height = 4
@@ -182,6 +177,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                   }
                 }
                 plotType       = "LINE"
+                targetAxis     = "Y1"
                 legendTemplate = "$${resource.labels.function_name}"
               }]
               timeshiftDuration = "0s"
@@ -215,6 +211,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                   }
                 }
                 plotType       = "LINE"
+                targetAxis     = "Y1"
                 legendTemplate = "$${resource.labels.function_name}"
               }]
               timeshiftDuration = "0s"
@@ -224,7 +221,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
               thresholds = [{
                 value = 0.05
-                # 5xx should be rare
               }]
             }
           }
@@ -232,7 +228,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
 
         # Function Execution Times (P95) - Row 16, Full Width
         {
-          xPos   = 0
           yPos   = 16
           width  = 12
           height = 4
@@ -252,6 +247,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                   }
                 }
                 plotType       = "LINE"
+                targetAxis     = "Y1"
                 legendTemplate = "$${resource.labels.function_name}"
               }]
               timeshiftDuration = "0s"
@@ -261,8 +257,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
               thresholds = [{
                 value = 5000
-                # direction = "ABOVE"
-                # label removed
               }]
             }
           }
@@ -270,7 +264,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
 
         # Function Active Instances - Row 20
         {
-          xPos   = 0
           yPos   = 20
           width  = 12
           height = 4
@@ -290,6 +283,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                   }
                 }
                 plotType       = "LINE"
+                targetAxis     = "Y1"
                 legendTemplate = "$${resource.labels.function_name}"
               }]
               timeshiftDuration = "0s"
@@ -305,7 +299,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         # Section Header: PubSub Message Flow - Row 24
         # ====================================================================
         {
-          xPos   = 0
           yPos   = 24
           width  = 12
           height = 2
@@ -314,13 +307,13 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
             text = {
               content = "Monitor message throughput and detect backlogs."
               format  = "MARKDOWN"
+              style   = {}
             }
           }
         },
 
         # Messages Published - Row 26, Left
         {
-          xPos   = 0
           yPos   = 26
           width  = 6
           height = 4
@@ -338,7 +331,8 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     }
                   }
                 }
-                plotType = "LINE"
+                plotType   = "LINE"
+                targetAxis = "Y1"
               }]
               timeshiftDuration = "0s"
               yAxis = {
@@ -371,6 +365,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                   }
                 }
                 plotType       = "LINE"
+                targetAxis     = "Y1"
                 legendTemplate = "$${resource.labels.subscription_id}"
               }]
               timeshiftDuration = "0s"
@@ -380,8 +375,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
               thresholds = [{
                 value = 100
-                # direction = "ABOVE"
-                # label removed
               }]
             }
           }
@@ -389,7 +382,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
 
         # Oldest Unacked Message Age - Row 30
         {
-          xPos   = 0
           yPos   = 30
           width  = 12
           height = 4
@@ -409,6 +401,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                   }
                 }
                 plotType       = "LINE"
+                targetAxis     = "Y1"
                 legendTemplate = "$${resource.labels.subscription_id}"
               }]
               timeshiftDuration = "0s"
@@ -418,8 +411,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
               thresholds = [{
                 value = 300
-                # direction = "ABOVE"
-                # label removed
               }]
             }
           }
@@ -429,7 +420,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         # Section Header: Storage & Data Pipeline - Row 34
         # ====================================================================
         {
-          xPos   = 0
           yPos   = 34
           width  = 12
           height = 2
@@ -438,13 +428,13 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
             text = {
               content = "Monitor Cloud Storage operations and aggregation file health."
               format  = "MARKDOWN"
+              style   = {}
             }
           }
         },
 
         # Storage Object Count - Row 36, Left
         {
-          xPos   = 0
           yPos   = 36
           width  = 6
           height = 4
@@ -464,6 +454,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                   }
                 }
                 plotType       = "LINE"
+                targetAxis     = "Y1"
                 legendTemplate = "$${resource.labels.bucket_name}"
               }]
               timeshiftDuration = "0s"
@@ -497,6 +488,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                   }
                 }
                 plotType       = "LINE"
+                targetAxis     = "Y1"
                 legendTemplate = "$${resource.labels.bucket_name}"
               }]
               timeshiftDuration = "0s"

@@ -181,6 +181,10 @@ resource "google_cloud_run_v2_service" "api_gateway" {
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
     percent = 100
   }
+
+  depends_on = [
+    google_secret_manager_secret_iam_member.api_gateway_postgres_access
+  ]
 }
 
 # Allow unauthenticated access to API Gateway (required for web app access)

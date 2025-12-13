@@ -399,7 +399,7 @@ resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access
 
 # PostgreSQL secret access permissions
 
-# TODO (CLAUDE): add postgresql connection string access for postgres writer too
+# TODO : add postgresql connection string access for postgres writer too
 
 # API Gateway access to PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "api_gateway_postgres_access" {
