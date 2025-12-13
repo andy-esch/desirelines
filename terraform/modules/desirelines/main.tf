@@ -15,23 +15,11 @@ terraform {
   }
 }
 
-# Data sources for secrets
-data "google_secret_manager_secret_version" "strava_auth" {
-  secret = "strava-auth-${var.environment}"
-}
-
-data "google_secret_manager_secret_version" "postgres_connection" {
-  secret = "postgres-connection-string-${var.environment}"
-}
-
 # Local variables for resource naming
 locals {
   # Consistent naming conventions using project ID for global uniqueness
   dataset_name = var.project_name
   bucket_name  = "${var.gcp_project_id}-${var.project_name}-aggregation"
-
-  # Parse Strava auth JSON secret
-  strava_auth = jsondecode(data.google_secret_manager_secret_version.strava_auth.secret_data)
 
   # Common resource labels (GCP labels only allow lowercase letters, numbers, hyphens, underscores)
   common_labels = {
@@ -42,13 +30,6 @@ locals {
     repository  = "andy-esch-desirelines"
     team        = "platform"
   }
-
-  # Function source configuration (local or external bucket)
-  function_source_bucket = var.external_function_source_bucket != null ? var.external_function_source_bucket : google_storage_bucket.function_source[0].name
-
-  # Function source object names (Python Cloud Functions only - Go services use Docker images)
-  bq_inserter_object_name = "bq-inserter-${var.deployment_version}.zip"
-  aggregator_object_name  = "aggregator-${var.deployment_version}.zip"
 }
 
 # ==============================================================================
@@ -183,82 +164,6 @@ resource "google_bigquery_table" "deleted_activities" {
 
   # Clustering for query optimization (by when deleted and original activity date)
   clustering = ["deleted_at", "start_date"]
-}
-
-# Cloud Storage Bucket for aggregated data
-# Available in both "full" and "data-only" modes for storing chart data
-resource "google_storage_bucket" "aggregation_bucket" {
-  name          = local.bucket_name
-  location      = var.storage_location
-  force_destroy = var.environment != "prod"
-
-  labels = local.common_labels
-
-  # Uniform bucket-level access (no ACLs)
-  uniform_bucket_level_access = true
-
-  # Versioning for data protection
-  versioning {
-    enabled = var.environment == "prod"
-  }
-
-  # Lifecycle rules for cost optimization
-  lifecycle_rule {
-    condition {
-      age = 90
-    }
-    action {
-      type          = "SetStorageClass"
-      storage_class = "NEARLINE"
-    }
-  }
-
-  lifecycle_rule {
-    condition {
-      age = 365
-    }
-    action {
-      type          = "SetStorageClass"
-      storage_class = "COLDLINE"
-    }
-  }
-
-  # Version cleanup: Keep last 10 versions OR 7 days, whichever comes first
-  # Rationale: BigQuery is source of truth, aggregations can be regenerated
-  # This prevents version accumulation while allowing recent rollback for debugging
-  lifecycle_rule {
-    condition {
-      days_since_noncurrent_time = 7  # Delete versions older than 7 days
-      num_newer_versions         = 10 # OR keep max 10 versions per object
-    }
-    action {
-      type = "Delete"
-    }
-  }
-}
-
-# Cloud Storage Bucket for function source packages (only created if not using external bucket)
-resource "google_storage_bucket" "function_source" {
-  count = var.external_function_source_bucket == null ? 1 : 0
-
-  name          = "${var.gcp_project_id}-function-source"
-  location      = var.storage_location
-  force_destroy = var.environment != "prod"
-
-  labels = local.common_labels
-
-  # Uniform bucket-level access (no ACLs)
-  uniform_bucket_level_access = true
-
-  # Lifecycle rules for source package cleanup
-  lifecycle_rule {
-    condition {
-      age = 30 # Keep source packages for 30 days
-    }
-    action {
-      type = "Delete"
-    }
-  }
 }
 
 # ==============================================================================
@@ -494,6 +399,8 @@ resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access
 
 # PostgreSQL secret access permissions
 
+# TODO (CLAUDE): add postgresql connection string access for postgres writer too
+
 # API Gateway access to PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "api_gateway_postgres_access" {
   count     = var.create_dedicated_service_accounts ? 1 : 0
@@ -536,147 +443,3 @@ resource "google_artifact_registry_repository" "functions" {
   })
 }
 
-# ==============================================================================
-# Function Source Storage Objects (Python Cloud Functions only)
-# ==============================================================================
-# Note: dispatcher and api-gateway are now deployed as Cloud Run services using
-# Docker images from Artifact Registry, so they don't need source packages
-
-# Upload function source packages to Cloud Storage (only when using local bucket)
-# Packages are built by Pants: pants package functions:bq-inserter functions:aggregator
-resource "google_storage_bucket_object" "bq_inserter_source" {
-  count = var.external_function_source_bucket == null ? 1 : 0
-
-  name   = "bq-inserter-${var.deployment_version}.zip"
-  bucket = google_storage_bucket.function_source[0].name
-  source = "${path.module}/../../../dist/functions/bq-inserter.zip"
-}
-
-resource "google_storage_bucket_object" "aggregator_source" {
-  count = var.external_function_source_bucket == null ? 1 : 0
-
-  name   = "aggregator-${var.deployment_version}.zip"
-  bucket = google_storage_bucket.function_source[0].name
-  source = "${path.module}/../../../dist/functions/aggregator.zip"
-}
-
-# ==============================================================================
-# CLOUD FUNCTIONS (Only created in "full" deployment mode)
-# ==============================================================================
-
-# Activity BQ Inserter (Python Function - Source Package)
-resource "google_cloudfunctions2_function" "activity_bq_inserter" {
-  count       = var.deployment_mode == "full" ? 1 : 0
-  name        = "${var.project_name}_bq_inserter"
-  location    = var.gcp_region
-  description = "Activity BigQuery inserter (${var.environment})"
-
-  build_config {
-    runtime           = "python312"
-    entry_point       = "handler"
-    docker_repository = google_artifact_registry_repository.functions.id
-
-    source {
-      storage_source {
-        bucket = local.function_source_bucket
-        object = local.bq_inserter_object_name
-      }
-    }
-  }
-
-  service_config {
-    max_instance_count    = 1
-    min_instance_count    = 0
-    available_memory      = "256Mi"
-    timeout_seconds       = 540
-    service_account_email = var.create_dedicated_service_accounts ? google_service_account.bq_inserter_dev[0].email : var.service_account_email
-    ingress_settings      = "ALLOW_INTERNAL_ONLY"
-
-    environment_variables = {
-      GCP_PROJECT_ID       = var.gcp_project_id
-      GCP_BIGQUERY_DATASET = google_bigquery_dataset.activities_dataset.dataset_id
-      GCP_BIGQUERY_TABLE   = google_bigquery_table.activities.table_id
-      ENVIRONMENT          = var.environment
-      LOG_LEVEL            = "INFO"
-    }
-
-    # Mount Strava secrets as volume
-    secret_volumes {
-      mount_path = "/etc/secrets"
-      project_id = var.gcp_project_id
-      secret     = "strava-auth-${var.environment}"
-      versions {
-        version = "latest"
-        path    = "strava_auth.json"
-      }
-    }
-  }
-
-  event_trigger {
-    trigger_region = var.gcp_region
-    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
-    pubsub_topic   = google_pubsub_topic.activity_events.id
-    retry_policy   = "RETRY_POLICY_RETRY"
-  }
-
-  labels = local.common_labels
-}
-
-# Activity Aggregator (Python Function - Source Package)
-resource "google_cloudfunctions2_function" "activity_aggregator" {
-  count       = var.deployment_mode == "full" ? 1 : 0
-  name        = "${var.project_name}_aggregator"
-  location    = var.gcp_region
-  description = "Activity aggregator and storage writer (${var.environment})"
-
-  build_config {
-    runtime           = "python312"
-    entry_point       = "handler"
-    docker_repository = google_artifact_registry_repository.functions.id
-
-    source {
-      storage_source {
-        bucket = local.function_source_bucket
-        object = local.aggregator_object_name
-      }
-    }
-  }
-
-  service_config {
-    max_instance_count    = 1
-    min_instance_count    = 0
-    available_memory      = "512Mi"
-    timeout_seconds       = 540
-    service_account_email = var.create_dedicated_service_accounts ? google_service_account.aggregator_dev[0].email : var.service_account_email
-    ingress_settings      = "ALLOW_INTERNAL_ONLY"
-
-
-    environment_variables = {
-      GCP_PROJECT_ID  = var.gcp_project_id
-      GCP_BUCKET_NAME = google_storage_bucket.aggregation_bucket.name
-      ENVIRONMENT     = var.environment
-      LOG_LEVEL       = "INFO"
-      FORCE_REDEPLOY  = "2025-09-19-new-strava-scope-v1"
-    }
-
-    # Mount Strava secrets as volume
-    secret_volumes {
-      mount_path = "/etc/secrets"
-      project_id = var.gcp_project_id
-      secret     = "strava-auth-${var.environment}"
-      versions {
-        version = "latest"
-        path    = "strava_auth.json"
-      }
-    }
-  }
-
-  event_trigger {
-    trigger_region = var.gcp_region
-    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
-    pubsub_topic   = google_pubsub_topic.activity_events.id
-    retry_policy   = "RETRY_POLICY_RETRY"
-  }
-
-  labels = local.common_labels
-}
