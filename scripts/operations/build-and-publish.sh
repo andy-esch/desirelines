@@ -18,7 +18,7 @@ echo ""
 # Cloud Functions - Package source code
 # =============================================================================
 echo "📦 Packaging Cloud Functions..."
-pants package functions:aggregator functions:bq-inserter
+pants package functions:aggregator functions:bq-inserter functions:postgres-writer
 
 echo "✅ Cloud Functions packaged to dist/"
 echo ""
@@ -44,6 +44,7 @@ echo ""
 echo "📁 Cloud Function source packages (in dist/):"
 echo "   - aggregator-${SHA}.zip"
 echo "   - bq-inserter-${SHA}.zip"
+echo "   - postgres-writer-${SHA}.zip"
 echo "   → Terraform will upload these to GCS during apply"
 echo ""
 echo "🐳 Docker images (in Artifact Registry):"
