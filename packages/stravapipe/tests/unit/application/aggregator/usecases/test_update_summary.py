@@ -8,10 +8,10 @@ from stravapipe.application.aggregator.usecases.update_summary import (
     UpdateSummaryUseCase,
 )
 from stravapipe.domain import MinimalStravaActivity, StravaTokenSet, WebhookRequest
-from tests.mocks.export_service import MockExportService
-from tests.mocks.read_activities import MockReadActivities
-from tests.mocks.read_strava_token import MockReadStravaToken
-from tests.mocks.read_summaries import MockReadSummaries
+from tests.unit.mocks.export_service import MockExportService
+from tests.unit.mocks.read_activities import MockReadActivities
+from tests.unit.mocks.read_strava_token import MockReadStravaToken
+from tests.unit.mocks.read_summaries import MockReadSummaries
 
 
 @pytest.fixture

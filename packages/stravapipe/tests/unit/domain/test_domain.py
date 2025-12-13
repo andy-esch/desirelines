@@ -8,7 +8,7 @@ from stravapipe.domain import DetailedStravaActivity
 
 @pytest.fixture
 def activity_json_1():
-    fixture_path = Path(__file__).parent.parent / "fixtures" / "activity_1.json"
+    fixture_path = Path(__file__).parent.parent.parent / "fixtures" / "activity_1.json"
     with open(fixture_path, encoding="utf-8") as fin:
         activity = json.load(fin)
     return activity
@@ -16,7 +16,7 @@ def activity_json_1():
 
 @pytest.fixture
 def activity_json_2():
-    fixture_path = Path(__file__).parent.parent / "fixtures" / "activity_2.json"
+    fixture_path = Path(__file__).parent.parent.parent / "fixtures" / "activity_2.json"
     with open(fixture_path, encoding="utf-8") as fin:
         activity = json.load(fin)
     return activity

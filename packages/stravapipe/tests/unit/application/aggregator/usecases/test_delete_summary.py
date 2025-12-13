@@ -12,9 +12,9 @@ from stravapipe.application.aggregator.usecases.delete_summary import (
 from stravapipe.domain import MinimalStravaActivity, WebhookRequest
 from stravapipe.exceptions import ActivityNotFoundError
 from stravapipe.types.generated.sports_metrics_pb2 import DailySummary
-from tests.mocks.export_service import MockExportService
-from tests.mocks.read_activities_metadata import MockReadActivitiesMetadata
-from tests.mocks.read_summaries import MockReadSummaries
+from tests.unit.mocks.export_service import MockExportService
+from tests.unit.mocks.read_activities_metadata import MockReadActivitiesMetadata
+from tests.unit.mocks.read_summaries import MockReadSummaries
 
 
 @pytest.fixture

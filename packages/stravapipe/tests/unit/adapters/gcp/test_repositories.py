@@ -5,7 +5,7 @@ import pytest
 
 from stravapipe.adapters.gcp._bigquery import ActivitiesRepo
 from stravapipe.domain import DetailedStravaActivity
-from tests.mocks.bigquery_client_wrapper import MockBigQueryClientWrapper
+from tests.unit.mocks.bigquery_client_wrapper import MockBigQueryClientWrapper
 
 
 @pytest.fixture
@@ -15,7 +15,9 @@ def bq_client():
 
 @pytest.fixture
 def activity2():
-    fixture_path = Path(__file__).parent.parent.parent / "fixtures" / "activity_2.json"
+    fixture_path = (
+        Path(__file__).parent.parent.parent.parent / "fixtures" / "activity_2.json"
+    )
     with open(fixture_path, encoding="utf-8") as fin:
         activity = json.load(fin)
     return DetailedStravaActivity(**activity)
@@ -29,7 +31,7 @@ def bigquery_schema():
     for self-contained testing. If the BigQuery schema changes, update this fixture file.
     """
     schema_path = (
-        Path(__file__).parent.parent.parent
+        Path(__file__).parent.parent.parent.parent
         / "fixtures"
         / "bigquery_activities_schema.json"
     )

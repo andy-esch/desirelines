@@ -26,6 +26,11 @@ docker_image(
     source="Dockerfile.bq_inserter",
 )
 
+docker_image(
+    name="postgres-writer-docker",
+    source="Dockerfile.postgres_writer",
+)
+
 # Go service Docker images for Cloud Run are defined in each package's BUILD file
 
 # =============================================================================
@@ -53,6 +58,19 @@ python_google_cloud_function(
     name="bq-inserter",
     type="event",
     handler="bq_inserter.py:main",
+    dependencies=[
+        ":sources",
+        "packages/stravapipe:lib",
+    ],
+    complete_platforms=[
+        "build-support:cloud-functions-python312-x86_64",
+    ],
+)
+
+python_google_cloud_function(
+    name="postgres-writer",
+    type="event",
+    handler="postgres_writer.py:main",
     dependencies=[
         ":sources",
         "packages/stravapipe:lib",

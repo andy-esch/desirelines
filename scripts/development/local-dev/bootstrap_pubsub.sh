@@ -48,6 +48,16 @@ curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/d
         }
     }'
 
+echo "📫 Creating subscription for PostgreSQL writer"
+curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/desirelines_postgres_writer_subscription" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "topic": "projects/'$PROJECT_ID'/topics/'$TOPIC_NAME'",
+        "pushConfig": {
+            "pushEndpoint": "http://postgres-writer:8080"
+        }
+    }'
+
 echo "✅ PubSub setup complete!"
 echo ""
 echo "📋 Summary:"
@@ -56,6 +66,7 @@ echo "  Topic Path: projects/$PROJECT_ID/topics/$TOPIC_NAME"
 echo "  Subscriptions:"
 echo "    - desirelines_aggregator_subscription → http://activity-aggregator:8080"
 echo "    - desirelines_bq_inserter_subscription → http://activity-bq-inserter:8080"
+echo "    - desirelines_postgres_writer_subscription → http://postgres-writer:8080"
 echo ""
 echo "🔧 Make sure your docker-compose environment contains:"
 echo "  GCP_PUBSUB_TOPIC=$TOPIC_NAME"

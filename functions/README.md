@@ -65,13 +65,13 @@ See [Deployment Guide](../docs/guides/deployment.md) for details.
          ▼
 ┌────────────────────────────────┐
 │ desirelines_activity_events    │  (Pub/Sub Topic)
-└────────┬─────────────┬─────────┘
-         │             │
-         ▼             ▼
-┌────────────────┐  ┌─────────────────┐
-│ bq_inserter    │  │ aggregator      │  (Python Cloud Functions)
-│ BigQuery sync  │  │ JSON summaries  │
-└────────────────┘  └─────────────────┘
+└────────┬─────────┬─────────────┘
+         │         │             │
+         ▼         ▼             ▼
+┌──────────────┐ ┌───────────┐ ┌─────────────────┐
+│ bq_inserter  │ │ aggregator│ │ postgres_writer │  (Python Cloud Functions)
+│ BigQuery     │ │ JSON files│ │ PostgreSQL      │
+└──────────────┘ └───────────┘ └─────────────────┘
 ```
 
 ## Functions
@@ -126,6 +126,30 @@ See [Deployment Guide](../docs/guides/deployment.md) for details.
 **Configuration**: Environment variables (see `stravapipe.config.load_aggregator_config()`)
 - `GCP_PROJECT_ID`
 - `GCP_STORAGE_BUCKET`
+- `STRAVA_SECRET_PATH` (volume mount)
+
+---
+
+#### `postgres_writer.py`
+**Purpose**: Syncs Strava activities to PostgreSQL (primary data store for web app)
+
+**Package**: `packages/stravapipe/`
+- Uses: `stravapipe.application.postgres_sync` (service + factory)
+- Uses: `stravapipe.domain` (StandardActivity model)
+- Uses: `stravapipe.adapters.postgres` (Unit of Work + Repository)
+
+**Trigger**: Pub/Sub topic `desirelines_activity_events`
+
+**Handles**:
+- `create` events: Fetches from Strava API, INSERT with ON CONFLICT DO NOTHING
+- `update` events: Updates metadata (title/type) or backfills if activity missing
+- `delete` events: Hard deletes from PostgreSQL
+
+**Entry Point**: `main(event: CloudEvent)`
+
+**Configuration**: Environment variables (see `stravapipe.config.load_postgres_writer_config()`)
+- `GCP_PROJECT_ID`
+- `POSTGRES_CONNECTION_STRING`
 - `STRAVA_SECRET_PATH` (volume mount)
 
 ---
@@ -303,10 +327,11 @@ docker compose --profile frontend up
 ### Event Flow
 ```
 Strava → Dispatcher → Pub/Sub → BQ Inserter (writes to BigQuery)
-                             ↘→ Aggregator (writes to Cloud Storage)
+                             ├→ Aggregator (writes to Cloud Storage)
+                             ↘→ Postgres Writer (writes to PostgreSQL)
 ```
 
-Both consumers process the same event independently, allowing parallel execution.
+All consumers process the same event independently, allowing parallel execution.
 
 ---
 

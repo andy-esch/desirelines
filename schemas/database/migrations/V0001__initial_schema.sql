@@ -79,7 +79,7 @@ SET ROLE desirelines_ddl_grp;
 -- =============================================================================
 
 -- PostGIS: Geospatial extension for future map-based features
--- Install in extensions schema to keep 900+ functions out of app namespace
+-- Install in extensions schema to keep extension's functions out of app namespace
 CREATE EXTENSION IF NOT EXISTS postgis SCHEMA extensions;
 
 -- =============================================================================
