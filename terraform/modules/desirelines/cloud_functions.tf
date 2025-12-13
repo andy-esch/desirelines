@@ -316,7 +316,8 @@ resource "google_cloudfunctions2_function" "postgres_writer" {
 
   depends_on = [
     google_secret_manager_secret_iam_member.postgres_writer_strava_auth_access,
-    google_secret_manager_secret_iam_member.postgres_writer_postgres_access
+    google_secret_manager_secret_iam_member.postgres_writer_postgres_access,
+    google_storage_bucket_object.postgres_writer_source
   ]
 
   labels = local.common_labels

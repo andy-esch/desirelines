@@ -39,7 +39,7 @@ logger = setup_cloud_function_logging(__name__)
 
 
 @functions_framework.cloud_event
-def main(event: CloudEvent, context: Any) -> dict:
+def main(event: CloudEvent) -> dict:
     """Process CloudEvent and update activity summaries"""
 
     # Generate correlation ID for request tracing

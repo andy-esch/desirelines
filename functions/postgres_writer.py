@@ -49,7 +49,7 @@ except Exception as e:
 
 
 @functions_framework.cloud_event
-def main(event: CloudEvent, context: Any) -> dict:
+def main(event: CloudEvent) -> dict:
     """Process CloudEvent and sync Strava activity to PostgreSQL"""
 
     # Generate correlation ID for request tracing
