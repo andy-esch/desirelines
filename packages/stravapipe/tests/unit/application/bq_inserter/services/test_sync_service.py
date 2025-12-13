@@ -14,7 +14,9 @@ from tests.unit.mocks.write_activities import MockWriteActivitesRepo
 def _load_activity():
     """Load activity data from fixture file."""
     fixture_path = (
-        Path(__file__).parent.parent.parent.parent.parent / "fixtures" / "activity_2.json"
+        Path(__file__).parent.parent.parent.parent.parent
+        / "fixtures"
+        / "activity_2.json"
     )
     with open(fixture_path, encoding="utf-8") as fin:
         activity_data = json.load(fin)

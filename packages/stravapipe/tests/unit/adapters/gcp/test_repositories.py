@@ -15,7 +15,9 @@ def bq_client():
 
 @pytest.fixture
 def activity2():
-    fixture_path = Path(__file__).parent.parent.parent.parent / "fixtures" / "activity_2.json"
+    fixture_path = (
+        Path(__file__).parent.parent.parent.parent / "fixtures" / "activity_2.json"
+    )
     with open(fixture_path, encoding="utf-8") as fin:
         activity = json.load(fin)
     return DetailedStravaActivity(**activity)

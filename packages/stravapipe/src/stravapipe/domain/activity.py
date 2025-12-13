@@ -298,7 +298,9 @@ class StandardActivity(BaseModel):
     # Activity metadata
     name: str = Field(description="Activity name/title")
     type: str = Field(description="Strava activity type (Run, Ride, Swim, etc.)")
-    sport_type: str = Field(description="Strava sport type, normalized to 'sport' column")
+    sport_type: str = Field(
+        description="Strava sport type, normalized to 'sport' column"
+    )
 
     # Date/time
     start_date_local: datetime = Field(description="Local start time of activity")
@@ -310,17 +312,23 @@ class StandardActivity(BaseModel):
     total_elevation_gain: float | None = Field(
         default=None, description="Elevation gain in meters"
     )
-    average_speed: float | None = Field(default=None, description="Average speed in m/s")
+    average_speed: float | None = Field(
+        default=None, description="Average speed in m/s"
+    )
     max_speed: float | None = Field(default=None, description="Maximum speed in m/s")
 
     # Health metrics
     average_heartrate: float | None = Field(
         default=None, description="Average heart rate in bpm"
     )
-    max_heartrate: float | None = Field(default=None, description="Maximum heart rate in bpm")
+    max_heartrate: float | None = Field(
+        default=None, description="Maximum heart rate in bpm"
+    )
 
     # Geospatial (for postgresql-08-geospatial-tables)
-    map: PolylineMap | None = Field(default=None, description="Polyline map data (route)")
+    map: PolylineMap | None = Field(
+        default=None, description="Polyline map data (route)"
+    )
     start_latlng: list[float] = Field(
         default_factory=list, description="Start coordinates [lat, lng]"
     )

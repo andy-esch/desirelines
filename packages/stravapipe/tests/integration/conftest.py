@@ -58,7 +58,7 @@ def engine(db_url):
     return engine
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def db_session(engine):
     """Each test gets its own transaction that rolls back automatically.
 
