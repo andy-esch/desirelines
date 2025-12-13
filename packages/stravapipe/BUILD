@@ -5,6 +5,12 @@ python_requirements(
     resolve="stravapipe",
 )
 
+# Expose pyproject.toml as a file target for Docker builds
+file(
+    name="pyproject",
+    source="pyproject.toml",
+)
+
 python_sources(
     name="lib",
     sources=["src/**/*.py"],

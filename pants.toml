@@ -64,6 +64,10 @@ default_resolve = "stravapipe"
 # Stravapipe package resolve - points to LOCKFILE, not source
 stravapipe = "packages/stravapipe/stravapipe.lock"
 
+# Exclude greenlet - only needed for async SQLAlchemy, we use sync psycopg
+[python.resolves_to_constraints_file]
+stravapipe = "build-support/constraints.txt"
+
 # Go configuration
 [golang]
 minimum_expected_version = "1.25"

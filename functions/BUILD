@@ -19,16 +19,31 @@ python_sources(
 docker_image(
     name="aggregator-docker",
     source="Dockerfile.aggregator",
+    dependencies=[
+        "packages/stravapipe:pyproject",
+        "packages/stravapipe:lib",
+        ":sources",
+    ],
 )
 
 docker_image(
     name="bq-inserter-docker",
     source="Dockerfile.bq_inserter",
+    dependencies=[
+        "packages/stravapipe:pyproject",
+        "packages/stravapipe:lib",
+        ":sources",
+    ],
 )
 
 docker_image(
     name="postgres-writer-docker",
     source="Dockerfile.postgres_writer",
+    dependencies=[
+        "packages/stravapipe:pyproject",
+        "packages/stravapipe:lib",
+        ":sources",
+    ],
 )
 
 # Go service Docker images for Cloud Run are defined in each package's BUILD file

@@ -4,7 +4,7 @@
 # This file contains all Cloud Function resources and their supporting storage.
 # - Function source buckets and objects
 # - Aggregation output bucket
-# - Cloud Functions (bq_inserter, aggregator)
+# - Cloud Functions (bq_inserter, aggregator, postgres_writer)
 
 # Locals for function source configuration
 locals {
@@ -12,8 +12,9 @@ locals {
   function_source_bucket = var.external_function_source_bucket != null ? var.external_function_source_bucket : google_storage_bucket.function_source[0].name
 
   # Function source object names (Python Cloud Functions only - Go services use Docker images)
-  bq_inserter_object_name = "bq-inserter-${var.deployment_version}.zip"
-  aggregator_object_name  = "aggregator-${var.deployment_version}.zip"
+  bq_inserter_object_name     = "bq-inserter-${var.deployment_version}.zip"
+  aggregator_object_name      = "aggregator-${var.deployment_version}.zip"
+  postgres_writer_object_name = "postgres-writer-${var.deployment_version}.zip"
 }
 
 # ==============================================================================
@@ -118,6 +119,14 @@ resource "google_storage_bucket_object" "aggregator_source" {
   name   = "aggregator-${var.deployment_version}.zip"
   bucket = google_storage_bucket.function_source[0].name
   source = "${path.module}/../../../dist/functions/aggregator.zip"
+}
+
+resource "google_storage_bucket_object" "postgres_writer_source" {
+  count = var.external_function_source_bucket == null ? 1 : 0
+
+  name   = "postgres-writer-${var.deployment_version}.zip"
+  bucket = google_storage_bucket.function_source[0].name
+  source = "${path.module}/../../../dist/functions/postgres-writer.zip"
 }
 
 # ==============================================================================
@@ -237,6 +246,78 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
     pubsub_topic   = google_pubsub_topic.activity_events.id
     retry_policy   = "RETRY_POLICY_RETRY"
   }
+
+  labels = local.common_labels
+}
+
+# PostgreSQL Writer (Python Function - Source Package)
+resource "google_cloudfunctions2_function" "postgres_writer" {
+  count       = var.deployment_mode == "full" ? 1 : 0
+  name        = "${var.project_name}_postgres_writer"
+  location    = var.gcp_region
+  description = "Syncs Strava activities to PostgreSQL (${var.environment})"
+
+  build_config {
+    runtime           = "python312"
+    entry_point       = "handler"
+    docker_repository = google_artifact_registry_repository.functions.id
+
+    source {
+      storage_source {
+        bucket = local.function_source_bucket
+        object = local.postgres_writer_object_name
+      }
+    }
+  }
+
+  service_config {
+    max_instance_count    = 1
+    min_instance_count    = 0
+    available_memory      = "256Mi"
+    timeout_seconds       = 60
+    service_account_email = var.create_dedicated_service_accounts ? google_service_account.postgres_writer_dev[0].email : var.service_account_email
+    ingress_settings      = "ALLOW_INTERNAL_ONLY"
+
+    environment_variables = {
+      GCP_PROJECT_ID = var.gcp_project_id
+      ENVIRONMENT    = var.environment
+      LOG_LEVEL      = "INFO"
+    }
+
+    # Mount Strava secrets as volume
+    secret_volumes {
+      mount_path = "/etc/secrets"
+      project_id = var.gcp_project_id
+      secret     = "strava-auth-${var.environment}"
+      versions {
+        version = "latest"
+        path    = "strava_auth.json"
+      }
+    }
+
+    # Mount PostgreSQL connection string as volume
+    secret_volumes {
+      mount_path = "/etc/secrets/postgres"
+      project_id = var.gcp_project_id
+      secret     = "postgres-connection-string-${var.environment}"
+      versions {
+        version = "latest"
+        path    = "connection_string"
+      }
+    }
+  }
+
+  event_trigger {
+    trigger_region = var.gcp_region
+    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
+    pubsub_topic   = google_pubsub_topic.activity_events.id
+    retry_policy   = "RETRY_POLICY_RETRY"
+  }
+
+  depends_on = [
+    google_secret_manager_secret_iam_member.postgres_writer_strava_auth_access,
+    google_secret_manager_secret_iam_member.postgres_writer_postgres_access
+  ]
 
   labels = local.common_labels
 }

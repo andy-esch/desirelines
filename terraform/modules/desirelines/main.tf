@@ -263,6 +263,13 @@ resource "google_service_account" "api_gateway_dev" {
   description  = "Service account for API gateway function in ${var.environment} environment"
 }
 
+resource "google_service_account" "postgres_writer_dev" {
+  count        = var.create_dedicated_service_accounts ? 1 : 0
+  account_id   = "postgres-writer"
+  display_name = "Desirelines PostgreSQL Writer (${title(var.environment)})"
+  description  = "Service account for PostgreSQL writer function in ${var.environment} environment"
+}
+
 # IAM permissions for dispatcher (PubSub Publisher only)
 resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   count  = var.create_dedicated_service_accounts ? 1 : 0
@@ -364,6 +371,13 @@ resource "google_service_account_iam_member" "api_gateway_impersonation" {
   member             = "user:${var.developer_email}"
 }
 
+resource "google_service_account_iam_member" "postgres_writer_impersonation" {
+  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
+  service_account_id = google_service_account.postgres_writer_dev[0].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "user:${var.developer_email}"
+}
+
 # Secret Manager IAM permissions for service accounts
 
 # Dispatcher access to Strava auth secret
@@ -389,6 +403,14 @@ resource "google_secret_manager_secret_iam_member" "bq_inserter_strava_auth_acce
   member    = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
 }
 
+# PostgreSQL Writer access to Strava auth secret
+resource "google_secret_manager_secret_iam_member" "postgres_writer_strava_auth_access" {
+  count     = var.create_dedicated_service_accounts ? 1 : 0
+  secret_id = "strava-auth-${var.environment}"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.postgres_writer_dev[0].email}"
+}
+
 # Grant developer access to secrets for local development
 resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access" {
   count     = var.developer_email != null ? 1 : 0
@@ -399,14 +421,20 @@ resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access
 
 # PostgreSQL secret access permissions
 
-# TODO : add postgresql connection string access for postgres writer too
-
 # API Gateway access to PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "api_gateway_postgres_access" {
   count     = var.create_dedicated_service_accounts ? 1 : 0
   secret_id = "postgres-connection-string-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
+}
+
+# PostgreSQL Writer access to PostgreSQL connection string
+resource "google_secret_manager_secret_iam_member" "postgres_writer_postgres_access" {
+  count     = var.create_dedicated_service_accounts ? 1 : 0
+  secret_id = "postgres-connection-string-${var.environment}"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.postgres_writer_dev[0].email}"
 }
 
 # Grant developer access to PostgreSQL secret for local development
