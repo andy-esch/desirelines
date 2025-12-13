@@ -196,3 +196,193 @@ resource "google_cloud_run_v2_service_iam_member" "api_gateway_public_access" {
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
+
+# ==============================================================================
+# BQ Inserter - Cloud Run Service (Python/FastAPI)
+# ==============================================================================
+# Replaces the Cloud Functions v2 deployment for bq_inserter
+# Uses FastAPI + Uvicorn for better performance and CloudEvent support
+
+resource "google_cloud_run_v2_service" "bq_inserter" {
+  count    = var.deployment_mode == "full" ? 1 : 0
+  name     = "${var.project_name}-bq-inserter"
+  location = var.gcp_region
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Only Eventarc can call this
+
+  labels = local.common_labels
+
+  template {
+    service_account = var.create_dedicated_service_accounts ? google_service_account.bq_inserter_dev[0].email : var.service_account_email
+
+    scaling {
+      max_instance_count = 1
+      min_instance_count = 0
+    }
+
+    containers {
+      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/bq-inserter:${var.deployment_version}"
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "256Mi"
+        }
+        cpu_idle          = true
+        startup_cpu_boost = true
+      }
+
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.gcp_project_id
+      }
+
+      env {
+        name  = "GCP_BIGQUERY_DATASET"
+        value = google_bigquery_dataset.activities_dataset.dataset_id
+      }
+
+      env {
+        name  = "GCP_BIGQUERY_TABLE"
+        value = google_bigquery_table.activities.table_id
+      }
+
+      env {
+        name  = "ENVIRONMENT"
+        value = var.environment
+      }
+
+      env {
+        name  = "LOG_LEVEL"
+        value = "INFO"
+      }
+
+      # Mount Strava secrets as volume
+      volume_mounts {
+        name       = "strava-secrets"
+        mount_path = "/etc/secrets"
+      }
+    }
+
+    volumes {
+      name = "strava-secrets"
+      secret {
+        secret       = "strava-auth-${var.environment}"
+        default_mode = 292 # 0444 in octal (read-only)
+        items {
+          version = "latest"
+          path    = "strava_auth.json"
+          mode    = 292 # 0444
+        }
+      }
+    }
+
+    timeout = "540s"
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+}
+
+# ==============================================================================
+# PostgreSQL Writer - Cloud Run Service (Python/FastAPI)
+# ==============================================================================
+# Replaces the Cloud Functions v2 deployment for postgres_writer
+# Uses FastAPI + Uvicorn for better performance and CloudEvent support
+
+resource "google_cloud_run_v2_service" "postgres_writer" {
+  count    = var.deployment_mode == "full" ? 1 : 0
+  name     = "${var.project_name}-postgres-writer"
+  location = var.gcp_region
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Only Eventarc can call this
+
+  labels = local.common_labels
+
+  template {
+    service_account = var.create_dedicated_service_accounts ? google_service_account.postgres_writer_dev[0].email : var.service_account_email
+
+    scaling {
+      max_instance_count = 1
+      min_instance_count = 0
+    }
+
+    containers {
+      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/postgres-writer:${var.deployment_version}"
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "256Mi"
+        }
+        cpu_idle          = true
+        startup_cpu_boost = true
+      }
+
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.gcp_project_id
+      }
+
+      env {
+        name  = "ENVIRONMENT"
+        value = var.environment
+      }
+
+      env {
+        name  = "LOG_LEVEL"
+        value = "INFO"
+      }
+
+      # Mount Strava secrets as volume
+      volume_mounts {
+        name       = "strava-secrets"
+        mount_path = "/etc/secrets"
+      }
+
+      # Mount PostgreSQL secrets as volume
+      volume_mounts {
+        name       = "postgres-secrets"
+        mount_path = "/etc/secrets/postgres"
+      }
+    }
+
+    volumes {
+      name = "strava-secrets"
+      secret {
+        secret       = "strava-auth-${var.environment}"
+        default_mode = 292 # 0444 in octal (read-only)
+        items {
+          version = "latest"
+          path    = "strava_auth.json"
+          mode    = 292 # 0444
+        }
+      }
+    }
+
+    volumes {
+      name = "postgres-secrets"
+      secret {
+        secret       = "postgres-connection-string-${var.environment}"
+        default_mode = 292 # 0444 in octal (read-only)
+        items {
+          version = "latest"
+          path    = "connection_string"
+          mode    = 292 # 0444
+        }
+      }
+    }
+
+    timeout = "60s"
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+
+  depends_on = [
+    google_secret_manager_secret_iam_member.postgres_writer_strava_auth_access,
+    google_secret_manager_secret_iam_member.postgres_writer_postgres_access,
+  ]
+}
