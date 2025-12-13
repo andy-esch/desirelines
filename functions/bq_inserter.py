@@ -3,11 +3,13 @@
 # CRITICAL: Fix Python import path for Cloud Functions Gen2
 # Must be FIRST executable code before any imports
 import sys
+
 if "/workspace" in sys.path:
     sys.path.remove("/workspace")
 sys.path.insert(0, "/workspace")
 
 import uuid
+from typing import Any
 
 from cloudevents.http import CloudEvent
 import functions_framework
@@ -50,7 +52,7 @@ except Exception as e:
 
 
 @functions_framework.cloud_event
-def main(event: CloudEvent) -> dict:
+def main(event: CloudEvent, context: Any) -> dict:
     """Process CloudEvent and sync Strava activity to BigQuery"""
 
     # Generate correlation ID for request tracing

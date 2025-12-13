@@ -9,6 +9,7 @@ if "/workspace" in sys.path:
 sys.path.insert(0, "/workspace")
 
 import uuid
+from typing import Any
 
 from cloudevents.http import CloudEvent
 import functions_framework
@@ -38,7 +39,7 @@ logger = setup_cloud_function_logging(__name__)
 
 
 @functions_framework.cloud_event
-def main(event: CloudEvent) -> dict:
+def main(event: CloudEvent, context: Any) -> dict:
     """Process CloudEvent and update activity summaries"""
 
     # Generate correlation ID for request tracing
