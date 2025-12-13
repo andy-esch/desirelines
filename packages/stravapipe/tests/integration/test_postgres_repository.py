@@ -6,7 +6,6 @@ Requires: PostgreSQL running (docker compose --profile backend up postgres flywa
 
 from datetime import UTC, datetime
 
-import pytest
 from sqlalchemy import text
 
 from stravapipe.domain import StandardActivity
