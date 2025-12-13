@@ -58,7 +58,7 @@ docker_image(
 
 python_google_cloud_function(
     name="aggregator",
-    type="event",
+    type="cloudevent",
     handler="aggregator.py:main",
     dependencies=[
         ":sources",
@@ -71,7 +71,7 @@ python_google_cloud_function(
 
 python_google_cloud_function(
     name="bq-inserter",
-    type="event",
+    type="cloudevent",
     handler="bq_inserter.py:main",
     dependencies=[
         ":sources",
@@ -84,7 +84,7 @@ python_google_cloud_function(
 
 python_google_cloud_function(
     name="postgres-writer",
-    type="event",
+    type="cloudevent",
     handler="postgres_writer.py:main",
     dependencies=[
         ":sources",
