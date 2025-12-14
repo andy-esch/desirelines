@@ -56,12 +56,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Set up Pants
         uses: pantsbuild/actions/init-pants@v10
         with:
-          gha-cache-key: v1-py3.12-functions
+          gha-cache-key: v1-py3.13-functions
           named-caches-hash: ${{ hashFiles('packages/stravapipe/uv.lock', 'pants.toml') }}
           cache-lmdb-store: true
           base-branch: main
