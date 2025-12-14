@@ -95,7 +95,21 @@ The `deployment_version` variable:
 - Names Cloud Function source packages (e.g., `aggregator-abc1234.zip`)
 - Provides code provenance and observability
 
-### 4. Configure Strava Webhook
+### 4. Run Database Migrations
+
+Database migrations are managed by Flyway. See `schemas/database/README.md` for full details.
+
+```bash
+# Check migration status
+make db-migrate-dev-info
+
+# Run migrations
+make db-migrate-dev
+```
+
+Migrations run automatically in local development via docker-compose (`flyway` service).
+
+### 5. Configure Strava Webhook
 
 After deploying the dispatcher, configure Strava to send webhooks:
 
@@ -112,7 +126,7 @@ make view-webhook dev
 
 See [Strava Webhook Setup Guide](./strava-webhook.md) for OAuth2 authorization requirements.
 
-### 5. Validate Deployment
+### 6. Validate Deployment
 
 Check service health:
 
@@ -444,5 +458,5 @@ GIT_COMMIT=$(git rev-parse --short HEAD) pants publish \
 - [CI Guide](./ci.md) - Continuous Integration workflow and testing
 - [Bootstrap Guide](./bootstrap.md) - Initial environment setup
 - [Strava Webhook Setup](./strava-webhook.md) - OAuth2 and webhook configuration
-- [Docker Architecture](../DOCKER.md) - Docker build details
+- [Docker Guide](./docker.md) - Docker build details and Pants integration
 - [Local Testing](./local-testing.md) - Testing before deployment

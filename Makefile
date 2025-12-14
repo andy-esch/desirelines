@@ -487,13 +487,23 @@ build: generate-requirements
 # Test the full end-to-end flow
 test-full-flow:
 	@echo "🧪 Testing full Strava webhook flow..."
-	@echo "1️⃣ Sending webhook to dispatcher..."
-	curl -X POST http://localhost:8081 \
-		-H "Content-Type: application/json" \
-		-d '{"object_type": "activity", "object_id": 123, "aspect_type": "create", "owner_id": 456}'
 	@echo ""
-	@echo "✅ Check the logs to see if messages flowed through:"
-	@echo "  make logs"
+	@echo "1️⃣ Sending CREATE webhook to dispatcher..."
+	@curl -s -X POST http://localhost:8081/webhook \
+		-H "Content-Type: application/json" \
+		-d '{"aspect_type":"create","event_time":1734200000,"object_id":12345678,"object_type":"activity","owner_id":98765,"subscription_id":123456}' \
+		| head -c 200
+	@echo ""
+	@echo ""
+	@echo "2️⃣ Flow: dispatcher → PubSub → CloudEvent adapter → bq-inserter + postgres-writer"
+	@echo ""
+	@echo "📋 Check logs to verify:"
+	@echo "  make logs-dispatcher   # Should show 'Published message'"
+	@echo "  make logs-bq           # Should show 'Received CloudEvent' (may fail on Strava API)"
+	@echo "  make logs-postgres     # Should show 'Received CloudEvent' (may fail on Strava API)"
+	@echo ""
+	@echo "💡 Note: Services will try to fetch activity 12345678 from Strava API."
+	@echo "   Without valid Strava credentials, you'll see 'activity_not_found' - that's expected."
 
 # Clean up Docker resources
 clean:
