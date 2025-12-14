@@ -111,6 +111,34 @@ services:
       flyway:
         condition: service_completed_successfully
 
+  # CloudEvent Adapter - wraps PubSub emulator messages with Eventarc-style headers
+  # This bridges the gap between PubSub emulator (raw push) and Cloud Run services
+  # (which expect CloudEvent headers like ce-type, ce-id, ce-source)
+  cloudevent-adapter:
+    profiles: ["backend"] # Backend pipeline only
+    build:
+      context: ./scripts/development/local-dev
+      dockerfile: Dockerfile.cloudevent_adapter
+    ports:
+      - "8087:8080"
+    environment:
+      - GCP_PROJECT_ID=local-dev
+      - GCP_PUBSUB_TOPIC=desirelines_activity_events
+      - LOG_LEVEL=INFO
+    depends_on:
+      - pubsub-emulator
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Bootstrap PubSub topics and subscriptions
   pubsub-bootstrap:
     profiles: ["backend"] # Backend pipeline only
@@ -124,6 +152,7 @@ services:
     command: /bootstrap_pubsub.sh
     depends_on:
       - pubsub-emulator
+      - cloudevent-adapter
 
   # Local PubSub emulator for testing
   pubsub-emulator:
