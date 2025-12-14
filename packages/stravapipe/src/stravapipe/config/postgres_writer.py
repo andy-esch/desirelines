@@ -21,8 +21,10 @@ class PostgresWriterConfig(BaseSettings):
     gcp_project_id: str = Field(description="GCP project ID")
 
     # PostgreSQL configuration
+    # IMPORTANT: Must use postgresql+psycopg:// scheme (not postgresql://)
+    # to ensure SQLAlchemy uses the psycopg3 driver instead of psycopg2
     postgres_connection_string: str = Field(
-        description="PostgreSQL connection string (postgresql+psycopg://...)"
+        description="PostgreSQL connection string (postgresql+psycopg://user:pass@host:port/db)"
     )
 
     # Strava API configuration

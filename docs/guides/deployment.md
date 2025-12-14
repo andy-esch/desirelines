@@ -9,10 +9,11 @@ Desirelines uses a hybrid serverless architecture:
 - **Cloud Run Services** (Go, Docker images):
   - `dispatcher` - Receives Strava webhooks, publishes to PubSub
   - `apigateway` - Serves aggregated data to web frontend
+  - `bq-inserter` - Writes activity data to BigQuery
+  - `postgres-writer` - Writes activity data to PostgreSQL backend for web frontend
 
 - **Cloud Functions v2** (Python, source packages):
-  - `bq-inserter` - Writes activity data to BigQuery
-  - `aggregator` - Generates summaries and stores in Cloud Storage
+  - `aggregator` - Generates summaries and stores in Cloud Storage (deprecating wip)
 
 ## Prerequisites
 
@@ -23,6 +24,7 @@ Desirelines uses a hybrid serverless architecture:
 - **Git**: For version tagging
 
 Ensure you have appropriate IAM permissions for:
+
 - Artifact Registry (push images)
 - Cloud Run (deploy services)
 - Cloud Functions (deploy functions)
@@ -37,21 +39,21 @@ Build and push Docker images to Artifact Registry:
 
 ```bash
 # Build all services with current git SHA
-make build-push-images
+make build-publish
 
 # Or build with specific tag
-make build-push-images-tag TAG=v1.2.3
-
-# Or use script directly
-./scripts/operations/build-push-images.sh          # Uses current git SHA
-./scripts/operations/build-push-images.sh abc1234  # Uses specific SHA
+make build-publish-tag TAG=v1.2.3
 ```
 
 This builds and pushes:
-- `dispatcher:TAG` and `dispatcher:latest`
-- `apigateway:TAG` and `apigateway:latest`
+
+- `dispatcher:TAG` and `dispatcher:latest` (Go)
+- `apigateway:TAG` and `apigateway:latest` (Go)
+- `bq-inserter:TAG` and `bq-inserter:latest` (Python/FastAPI)
+- `postgres-writer:TAG` and `postgres-writer:latest` (Python/FastAPI)
 
 Verify images in Artifact Registry:
+
 ```bash
 gcloud artifacts docker images list \
   us-central1-docker.pkg.dev/$(gcloud config get-value project)/desirelines-functions
@@ -59,14 +61,14 @@ gcloud artifacts docker images list \
 
 ### 2. Package Python Cloud Functions
 
-Package Cloud Functions source code:
+Package Cloud Functions source code using same Make target `build-publish`:
 
 ```bash
-./scripts/operations/package-functions.sh
+make build-publish
 ```
 
-This creates zip files in `dist/`:
-- `bq-inserter-{SHA}.zip`
+This creates zip files in `dist/functions/`:
+
 - `aggregator-{SHA}.zip`
 
 ### 3. Deploy with Terraform
@@ -88,11 +90,26 @@ terraform apply -var="deployment_version=$DEPLOY_VERSION"
 ```
 
 The `deployment_version` variable:
-- Tags Cloud Run images (e.g., `dispatcher:abc1234`)
-- Names Cloud Function source packages (e.g., `bq-inserter-abc1234.zip`)
+
+- Tags Cloud Run images (e.g., `dispatcher:abc1234`, `bq-inserter:abc1234`)
+- Names Cloud Function source packages (e.g., `aggregator-abc1234.zip`)
 - Provides code provenance and observability
 
-### 4. Configure Strava Webhook
+### 4. Run Database Migrations
+
+Database migrations are managed by Flyway. See `schemas/database/README.md` for full details.
+
+```bash
+# Check migration status
+make db-migrate-dev-info
+
+# Run migrations
+make db-migrate-dev
+```
+
+Migrations run automatically in local development via docker-compose (`flyway` service).
+
+### 5. Configure Strava Webhook
 
 After deploying the dispatcher, configure Strava to send webhooks:
 
@@ -109,32 +126,42 @@ make view-webhook dev
 
 See [Strava Webhook Setup Guide](./strava-webhook.md) for OAuth2 authorization requirements.
 
-### 5. Validate Deployment
+### 6. Validate Deployment
 
 Check service health:
 
 ```bash
-# Cloud Run services
+# Cloud Run services (dispatcher, apigateway, bq-inserter, postgres-writer)
 gcloud run services list --region=us-central1
 
-# Cloud Functions
+# Cloud Functions (only aggregator remains)
 gcloud functions list --gen2 --region=us-central1
 
 # Check dispatcher logs
 gcloud run services logs read desirelines-dispatcher \
   --region=us-central1 --limit=20
 
-# Check function logs
-gcloud functions logs read activity-bq-inserter \
+# Check bq-inserter logs
+gcloud run services logs read desirelines-bq-inserter \
+  --region=us-central1 --limit=20
+
+# Check postgres-writer logs
+gcloud run services logs read desirelines-postgres-writer \
+  --region=us-central1 --limit=20
+
+# Check aggregator function logs
+gcloud functions logs read desirelines_aggregator \
   --gen2 --region=us-central1 --limit=20
 ```
 
 Test end-to-end flow:
+
 1. Create/update activity in Strava
 2. Check dispatcher logs show webhook received
-3. Check PubSub topic has messages
-4. Check BigQuery table updated
-5. Check Cloud Storage aggregations updated
+3. Check PubSub topic has messages (Eventarc triggers bq-inserter and postgres-writer)
+4. Check BigQuery table updated (via bq-inserter)
+5. Check PostgreSQL database updated (via postgres-writer)
+6. Check Cloud Storage aggregations updated (via aggregator)
 
 ## Environment-Specific Deployments
 
@@ -144,11 +171,11 @@ Test end-to-end flow:
 # Set GCP project
 gcloud config set project desirelines-dev
 
-# Build images
-make build-push-images
-
-# Package functions
-./scripts/operations/package-functions.sh
+# Build images and package functions
+#  Docker Images are pushed to Artifact Registry
+#  Function ZIP files are put locally in dist/function/aggregator.zip
+#    and are subsequently uploaded to GCS by `terraform apply ..` (see below)
+make build-publish
 
 # Deploy
 cd terraform/environments/dev
@@ -163,6 +190,7 @@ make create-webhook dev
 **Important:** Follow this checklist for production deployments.
 
 **Pre-Deployment:**
+
 1. ✅ Dev environment fully validated
 2. ✅ All tests passing (`make test`)
 3. ✅ Code reviewed and merged to main
@@ -170,12 +198,13 @@ make create-webhook dev
 5. ✅ Backup current webhook subscription ID
 
 **Deployment:**
+
 ```bash
 # Set GCP project
 gcloud config set project desirelines-prod
 
 # Build production images with version tag
-make build-push-images-tag TAG=v1.2.0
+make build-publish-tag TAG=v1.2.0
 
 # Package functions
 ./scripts/operations/package-functions.sh
@@ -194,6 +223,7 @@ make view-webhook prod
 ```
 
 **Post-Deployment:**
+
 1. Monitor Cloud Run logs for errors
 2. Check PubSub delivery metrics
 3. Verify BigQuery data updates
@@ -228,8 +258,7 @@ terraform apply -var="deployment_version=PREVIOUS_SHA"
 ### 3. Rollback Cloud Functions (if needed)
 
 ```bash
-# Ensure previous version packages exist
-ls dist/bq-inserter-PREVIOUS_SHA.zip
+# Ensure previous version package exists (only aggregator is a Cloud Function)
 ls dist/aggregator-PREVIOUS_SHA.zip
 
 # Deploy previous version
@@ -239,11 +268,18 @@ terraform apply -var="deployment_version=PREVIOUS_SHA"
 ### 4. Verify Rollback
 
 ```bash
-# Check deployed versions
+# Check deployed Cloud Run versions
 gcloud run services describe desirelines-dispatcher \
   --region=us-central1 --format='value(spec.template.spec.containers[0].image)'
 
-gcloud functions describe activity-bq-inserter \
+gcloud run services describe desirelines-bq-inserter \
+  --region=us-central1 --format='value(spec.template.spec.containers[0].image)'
+
+gcloud run services describe desirelines-postgres-writer \
+  --region=us-central1 --format='value(spec.template.spec.containers[0].image)'
+
+# Check deployed Cloud Function version
+gcloud functions describe desirelines_aggregator \
   --gen2 --region=us-central1
 ```
 
@@ -252,13 +288,17 @@ gcloud functions describe activity-bq-inserter \
 ### Image Build Failures
 
 **Error:** `failed to solve: failed to read dockerfile`
+
 ```bash
-# Ensure Dockerfile exists in package directory
+# Ensure Dockerfiles exist in package directories
 ls packages/dispatcher/Dockerfile
 ls packages/apigateway/Dockerfile
+ls packages/stravapipe/Dockerfile.bq_inserter
+ls packages/stravapipe/Dockerfile.postgres_writer
 ```
 
 **Error:** `denied: Permission denied`
+
 ```bash
 # Configure Docker authentication
 gcloud auth configure-docker us-central1-docker.pkg.dev
@@ -267,25 +307,35 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 ### Terraform Deployment Issues
 
 **Error:** `Error 400: PORT environment variable is reserved`
+
 - Solution: Cloud Run sets PORT automatically. Remove from `cloud_run.tf`.
 
 **Error:** `No such file: dist/dispatcher-abc1234.zip`
+
 - Solution: Go services use Docker images, not source packages. Remove from `main.tf` locals.
 
 **Error:** `ModuleNotFoundError: No module named 'pydantic'`
+
 - Solution: Stale function deployment. Force redeployment:
   ```bash
-  terraform taint 'module.desirelines.google_cloudfunctions2_function.activity_bq_inserter[0]'
+  # For Cloud Function (aggregator)
+  terraform taint 'module.desirelines.google_cloudfunctions2_function.activity_aggregator[0]'
+  terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
+
+  # For Cloud Run services (bq-inserter, postgres-writer), rebuild Docker image
+  make build-publish
   terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
   ```
 
 ### Webhook Issues
 
 **Webhook subscription created but no events received:**
+
 - Cause: Missing OAuth2 user authorization
 - Solution: See [Strava Webhook Setup Guide](./strava-webhook.md)
 
 **Webhook points to old Cloud Functions URL:**
+
 ```bash
 # Update webhook subscription
 make delete-webhook dev
@@ -295,28 +345,42 @@ make create-webhook dev
 ### Service Health Checks
 
 ```bash
-# Cloud Run service status
+# Cloud Run service status (dispatcher, apigateway, bq-inserter, postgres-writer)
 gcloud run services describe desirelines-dispatcher \
   --region=us-central1 --format='value(status.conditions)'
 
-# Cloud Function status
-gcloud functions describe activity-bq-inserter \
+gcloud run services describe desirelines-bq-inserter \
+  --region=us-central1 --format='value(status.conditions)'
+
+gcloud run services describe desirelines-postgres-writer \
+  --region=us-central1 --format='value(status.conditions)'
+
+# Cloud Function status (only aggregator)
+gcloud functions describe desirelines_aggregator \
   --gen2 --region=us-central1 --format='value(state)'
 
 # Check for error logs
 gcloud run services logs read desirelines-dispatcher \
+  --region=us-central1 --filter='severity>=ERROR' --limit=50
+
+gcloud run services logs read desirelines-bq-inserter \
+  --region=us-central1 --filter='severity>=ERROR' --limit=50
+
+gcloud run services logs read desirelines-postgres-writer \
   --region=us-central1 --filter='severity>=ERROR' --limit=50
 ```
 
 ## Cost Optimization
 
 Cloud Run services configured for minimal cost:
-- **vCPU:** 0.25 (minimum)
-- **Memory:** 128Mi (minimum for Go services)
+
+- **vCPU:** 1 (Go services), 1 (Python services)
+- **Memory:** 128Mi (Go services), 256Mi (Python services)
 - **Scaling:** 0-1 instances (scale to zero when idle)
-- **CPU allocation:** Only during request processing
+- **CPU allocation:** Only during request processing (`cpu_idle = true`)
 
 Monitor costs:
+
 ```bash
 # Cloud Run billing
 gcloud run services describe desirelines-dispatcher \
@@ -333,6 +397,7 @@ gcloud run services describe desirelines-dispatcher \
 All code changes go through automated testing before deployment. See [CI Guide](./ci.md) for details.
 
 **CI workflow** (`.github/workflows/ci-pants.yml`):
+
 - Runs on all pull requests and pushes to main
 - Tests: Python (Pants), Go (native), React (npm)
 - Linting: ruff (Python), golangci-lint (Go), ESLint (React)
@@ -346,8 +411,11 @@ All code changes go through automated testing before deployment. See [CI Guide](
 Deployment happens automatically on merge to main via `.github/workflows/deploy.yml`.
 
 **Deployment flow:**
-1. **Package artifacts** - `pants package functions::` creates Cloud Function zips
-2. **Publish images** - `pants publish ::` pushes Docker images to Artifact Registry
+
+1. **Package Cloud Functions** - `pants package functions:aggregator` creates aggregator zip
+2. **Publish Docker images** - `pants publish` pushes all Cloud Run images to Artifact Registry:
+   - Go services: `dispatcher`, `apigateway`
+   - Python services: `bq-inserter`, `postgres-writer`
 3. **Deploy infrastructure** - Terraform applies changes to dev environment
 4. **Tag images** - Uses git SHA for version tracking (e.g., `dispatcher:abc1234`)
 
@@ -356,25 +424,31 @@ Deployment happens automatically on merge to main via `.github/workflows/deploy.
 ### Building Artifacts with Pants
 
 **Cloud Function packages:**
+
 ```bash
-# Package all Python functions
-pants package functions::
+# Package aggregator Cloud Function (only one remaining)
+pants package functions:aggregator
 
 # Creates:
-# - dist/functions/bq-inserter.zip
 # - dist/functions/aggregator.zip
 ```
 
 **Docker images:**
+
 ```bash
-# Build and publish to Artifact Registry
-pants publish packages/dispatcher:image packages/apigateway:image
+# Build and publish all Cloud Run images to Artifact Registry
+GIT_COMMIT=$(git rev-parse --short HEAD) pants publish \
+  packages/dispatcher:dispatcher \
+  packages/apigateway:apigateway \
+  packages/stravapipe:bq-inserter \
+  packages/stravapipe:postgres-writer
 
 # Uses docker_image() targets in BUILD files
 # Tags with git SHA automatically
 ```
 
 **Benefits:**
+
 - Unified build system (one tool for all artifacts)
 - Dependency caching (30-60% faster on repeated builds)
 - Explicit dependency tracking (can't deploy stale code)
@@ -384,5 +458,5 @@ pants publish packages/dispatcher:image packages/apigateway:image
 - [CI Guide](./ci.md) - Continuous Integration workflow and testing
 - [Bootstrap Guide](./bootstrap.md) - Initial environment setup
 - [Strava Webhook Setup](./strava-webhook.md) - OAuth2 and webhook configuration
-- [Docker Architecture](../DOCKER.md) - Docker build details
+- [Docker Guide](./docker.md) - Docker build details and Pants integration
 - [Local Testing](./local-testing.md) - Testing before deployment

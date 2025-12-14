@@ -1,0 +1,6 @@
+# Constraints file for Pants resolves
+# Exclude packages that don't have compatible wheels for cross-platform builds
+
+# greenlet is only needed for async SQLAlchemy - we use sync psycopg
+# Pin to older version that has manylinux2014 wheels
+greenlet<3.1.0

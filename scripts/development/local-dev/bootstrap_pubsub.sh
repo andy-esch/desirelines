@@ -28,33 +28,37 @@ curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/topics/$TOPIC_N
     -H "Content-Type: application/json" \
     -d '{}'
 
-echo "📫 Creating subscription for activity aggregator"
+# Push subscriptions route through the CloudEvent adapter, which wraps
+# PubSub emulator messages with Eventarc-style CloudEvent headers (ce-type,
+# ce-id, ce-source, ce-time) before forwarding to the target services.
+
+echo "📫 Creating subscription for aggregator (via CloudEvent adapter)"
 curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/desirelines_aggregator_subscription" \
     -H "Content-Type: application/json" \
     -d '{
         "topic": "projects/'$PROJECT_ID'/topics/'$TOPIC_NAME'",
         "pushConfig": {
-            "pushEndpoint": "http://activity-aggregator:8080"
+            "pushEndpoint": "http://cloudevent-adapter:8080/aggregator"
         }
     }'
 
-echo "📫 Creating subscription for BQ inserter"
+echo "📫 Creating subscription for BQ inserter (via CloudEvent adapter)"
 curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/desirelines_bq_inserter_subscription" \
     -H "Content-Type: application/json" \
     -d '{
         "topic": "projects/'$PROJECT_ID'/topics/'$TOPIC_NAME'",
         "pushConfig": {
-            "pushEndpoint": "http://activity-bq-inserter:8080"
+            "pushEndpoint": "http://cloudevent-adapter:8080/bq-inserter"
         }
     }'
 
-echo "📫 Creating subscription for PostgreSQL writer"
+echo "📫 Creating subscription for PostgreSQL writer (via CloudEvent adapter)"
 curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/desirelines_postgres_writer_subscription" \
     -H "Content-Type: application/json" \
     -d '{
         "topic": "projects/'$PROJECT_ID'/topics/'$TOPIC_NAME'",
         "pushConfig": {
-            "pushEndpoint": "http://postgres-writer:8080"
+            "pushEndpoint": "http://cloudevent-adapter:8080/postgres-writer"
         }
     }'
 
@@ -63,11 +67,10 @@ echo ""
 echo "📋 Summary:"
 echo "  Topic: $TOPIC_NAME"
 echo "  Topic Path: projects/$PROJECT_ID/topics/$TOPIC_NAME"
-echo "  Subscriptions:"
-echo "    - desirelines_aggregator_subscription → http://activity-aggregator:8080"
-echo "    - desirelines_bq_inserter_subscription → http://activity-bq-inserter:8080"
-echo "    - desirelines_postgres_writer_subscription → http://postgres-writer:8080"
+echo "  Subscriptions (via CloudEvent adapter):"
+echo "    - desirelines_aggregator_subscription → cloudevent-adapter → aggregator"
+echo "    - desirelines_bq_inserter_subscription → cloudevent-adapter → bq-inserter"
+echo "    - desirelines_postgres_writer_subscription → cloudevent-adapter → postgres-writer"
 echo ""
-echo "🔧 Make sure your docker-compose environment contains:"
-echo "  GCP_PUBSUB_TOPIC=$TOPIC_NAME"
-echo "  GCP_PROJECT_ID=$PROJECT_ID"
+echo "🔧 The CloudEvent adapter wraps PubSub messages with Eventarc-style headers"
+echo "   (ce-type, ce-id, ce-source, ce-time) to match production behavior."

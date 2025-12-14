@@ -1,5 +1,5 @@
 [GLOBAL]
-pants_version = "2.29.1"  # Use latest stable version
+pants_version = "2.30.0"  # Use latest stable version
 
 # Enable colors for better readability
 colors = true
@@ -63,6 +63,10 @@ default_resolve = "stravapipe"
 [python.resolves]
 # Stravapipe package resolve - points to LOCKFILE, not source
 stravapipe = "packages/stravapipe/stravapipe.lock"
+
+# Exclude greenlet - only needed for async SQLAlchemy, we use sync psycopg
+[python.resolves_to_constraints_file]
+stravapipe = "build-support/constraints.txt"
 
 # Go configuration
 [golang]

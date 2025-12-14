@@ -82,32 +82,36 @@ output "dev_service_accounts" {
   } : {}
 }
 
-# Cloud Run Service URLs (for Go services deployed as containers)
+# Cloud Run Service URLs (Go services + Python FastAPI services)
 output "cloud_run_urls" {
   description = "Cloud Run service URLs (stable, do not change on redeploy)"
   value = var.deployment_mode == "full" ? {
-    dispatcher_url  = google_cloud_run_v2_service.dispatcher[0].uri
-    api_gateway_url = google_cloud_run_v2_service.api_gateway[0].uri
+    dispatcher_url      = google_cloud_run_v2_service.dispatcher[0].uri
+    api_gateway_url     = google_cloud_run_v2_service.api_gateway[0].uri
+    bq_inserter_url     = google_cloud_run_v2_service.bq_inserter[0].uri
+    postgres_writer_url = google_cloud_run_v2_service.postgres_writer[0].uri
   } : {}
 }
 
 # Cloud Function outputs (only available in "full" deployment mode)
-# Python functions still use Cloud Functions v2
+# Only aggregator still uses Cloud Functions v2 (bq_inserter and postgres_writer migrated to Cloud Run)
 output "cloud_function_urls" {
   description = "URLs for Python Cloud Functions (ephemeral - may change on redeploy)"
   value = var.deployment_mode == "full" ? {
-    bq_inserter_url = google_cloudfunctions2_function.activity_bq_inserter[0].service_config[0].uri
-    aggregator_url  = google_cloudfunctions2_function.activity_aggregator[0].service_config[0].uri
+    aggregator_url = google_cloudfunctions2_function.activity_aggregator[0].service_config[0].uri
   } : {}
 }
 
 output "service_names" {
   description = "Names of deployed services (Cloud Run + Cloud Functions)"
   value = var.deployment_mode == "full" ? {
-    dispatcher  = google_cloud_run_v2_service.dispatcher[0].name
-    api_gateway = google_cloud_run_v2_service.api_gateway[0].name
-    bq_inserter = google_cloudfunctions2_function.activity_bq_inserter[0].name
-    aggregator  = google_cloudfunctions2_function.activity_aggregator[0].name
+    # Cloud Run services
+    dispatcher      = google_cloud_run_v2_service.dispatcher[0].name
+    api_gateway     = google_cloud_run_v2_service.api_gateway[0].name
+    bq_inserter     = google_cloud_run_v2_service.bq_inserter[0].name
+    postgres_writer = google_cloud_run_v2_service.postgres_writer[0].name
+    # Cloud Functions (only aggregator)
+    aggregator = google_cloudfunctions2_function.activity_aggregator[0].name
   } : {}
 }
 

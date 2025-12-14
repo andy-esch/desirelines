@@ -9,6 +9,7 @@ if "/workspace" in sys.path:
 sys.path.insert(0, "/workspace")
 
 import uuid
+from typing import Any
 
 from cloudevents.http import CloudEvent
 import functions_framework

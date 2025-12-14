@@ -19,14 +19,29 @@ This directory contains scripts specifically for local development environment s
 ### `bootstrap_pubsub.sh` 📫
 **PubSub emulator setup** for Docker Compose local development:
 - Waits for PubSub emulator to be ready
-- Creates `strava-webhooks` topic
-- Creates push subscriptions for aggregator and BQ inserter
+- Creates `desirelines_activity_events` topic
+- Creates push subscriptions that route through the CloudEvent adapter
 - Used automatically by `docker-compose.yml`
 
 **Environment Variables:**
 - `PUBSUB_EMULATOR_HOST` (default: localhost:8085)
 - `PROJECT_ID` (default: local-dev)
-- `TOPIC_NAME` (default: strava-webhooks)
+- `TOPIC_NAME` (default: desirelines_activity_events)
+
+### `cloudevent_adapter.py` 🔄
+**CloudEvent adapter** bridges PubSub emulator and Cloud Run services:
+- Receives raw PubSub push messages from the emulator
+- Wraps them with Eventarc-style CloudEvent headers (`ce-type`, `ce-id`, `ce-source`, `ce-time`)
+- Forwards to target services (aggregator, bq-inserter, postgres-writer)
+- Ensures local development uses the exact same code path as production
+
+**Why this exists:** In production, Eventarc automatically adds CloudEvent headers when delivering PubSub messages to Cloud Run. The PubSub emulator doesn't do this, so this adapter fills the gap.
+
+**Endpoints:**
+- `POST /aggregator` → forwards to `http://aggregator:8080`
+- `POST /bq-inserter` → forwards to `http://bq-inserter:8080`
+- `POST /postgres-writer` → forwards to `http://postgres-writer:8080`
+- `GET /health` → health check
 
 ### `bootstrap_bigquery.sh` 📊
 **BigQuery setup** for hybrid local development:
@@ -75,17 +90,19 @@ make start-local --profile frontend
 ### Directory Structure
 ```
 scripts/
-├── development/local-dev/        # Local development only
-│   ├── README.md                 # This file
-│   ├── setup-local-environment.sh   # Master setup script
-│   ├── bootstrap_pubsub.sh       # PubSub emulator setup
-│   └── bootstrap_bigquery.sh     # BigQuery setup
-├── infrastructure/               # Environment setup and deployment
-│   ├── deploy-secrets.sh         # Deploy secrets to Cloud Functions
-│   └── bootstrap-environment.sh  # Complete env bootstrap
-└── operations/                   # Build and deployment tasks
-    ├── package-functions.sh      # Package Cloud Functions
-    └── webhook-management.sh     # Webhook management
+├── development/local-dev/            # Local development only
+│   ├── README.md                     # This file
+│   ├── setup-local-environment.sh    # Master setup script
+│   ├── bootstrap_pubsub.sh           # PubSub emulator setup
+│   ├── bootstrap_bigquery.sh         # BigQuery setup
+│   ├── cloudevent_adapter.py         # CloudEvent wrapper service
+│   └── Dockerfile.cloudevent_adapter # Docker build for adapter
+├── infrastructure/                   # Environment setup and deployment
+│   ├── deploy-secrets.sh             # Deploy secrets to Cloud Functions
+│   └── bootstrap-environment.sh      # Complete env bootstrap
+└── operations/                       # Build and deployment tasks
+    ├── package-functions.sh          # Package Cloud Functions
+    └── webhook-management.sh         # Webhook management
 ```
 
 ### Getting Started

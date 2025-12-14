@@ -1,52 +1,47 @@
 # stravapipe
 
-Strava data pipeline - fetch, process, and store Strava webhook events.
+Strava data pipeline - processes webhook events and syncs to BigQuery and PostgreSQL.
 
-## Overview
+## Services
 
-`stravapipe` is a unified package that handles all Strava webhook processing for the desirelines project. It provides shared infrastructure for:
+This package provides three Cloud Run services:
 
-- **BigQuery Inserter**: Syncs Strava activities to BigQuery for storage and analysis
-- **Aggregator**: Generates daily/cumulative activity summaries stored in Cloud Storage
+| Service | Description | Trigger |
+|---------|-------------|---------|
+| `bq-inserter` | Syncs activities to BigQuery | Eventarc (PubSub) |
+| `postgres-writer` | Syncs activities to PostgreSQL | Eventarc (PubSub) |
+| `aggregator` | Generates summaries to Cloud Storage | Cloud Function v2 |
 
 ## Architecture
 
-The package is organized into:
-
-### Shared Components
-
-- **`domain/`** - Domain models (WebhookRequest, AspectType, StravaActivity)
-- **`exceptions.py`** - Custom exceptions (ActivityNotFoundError, etc.)
-- **`adapters/`** - External service adapters
-  - `strava/` - Strava API client
-  - `gcp/` - Google Cloud Platform adapters (BigQuery, Cloud Storage)
-
-### Application Logic (by function)
-
-- **`application/bq_inserter/`** - BigQuery inserter-specific services
-  - `sync_service.py` - Create/update activities
-  - `delete_service.py` - Archive deleted activities
-
-- **`application/aggregator/`** - Aggregator-specific use cases
-  - `update_summary.py` - Create/update daily summaries
-  - `delete_summary.py` - Remove activities from summaries
-
-- **`application/shared/`** - Shared services
-  - `pacing_service.py` - Cumulative distance calculations
-  - `export_service.py` - Export summaries to Cloud Storage
-
-### Configuration
-
-- **`config/`** - Function-specific configuration
-  - `bq_inserter.py` - BQ inserter config
-  - `aggregator.py` - Aggregator config
-  - `common.py` - Shared config (GCP project, region, etc.)
+```
+packages/stravapipe/
+├── src/stravapipe/
+│   ├── cloudrun/               # FastAPI apps for Cloud Run
+│   │   ├── bq_inserter_app.py
+│   │   ├── postgres_writer_app.py
+│   │   └── pubsub.py           # CloudEvent parsing
+│   ├── application/            # Business logic
+│   │   ├── bq_inserter/        # BigQuery sync services
+│   │   ├── postgres_sync/      # PostgreSQL sync services
+│   │   └── aggregator/         # Summary generation
+│   ├── adapters/               # External service clients
+│   │   ├── strava/             # Strava API
+│   │   └── gcp/                # BigQuery, Cloud Storage
+│   ├── domain/                 # Domain models
+│   ├── config/                 # Configuration
+│   └── exceptions.py
+├── tests/
+├── Dockerfile.bq_inserter
+└── Dockerfile.postgres_writer
+```
 
 ## Development
 
 ```bash
-# Install dependencies
 cd packages/stravapipe
+
+# Install dependencies
 uv sync
 
 # Run tests
@@ -54,13 +49,43 @@ uv run pytest
 
 # Type checking
 uv run mypy src/
+
+# Linting
+uv run ruff check src/
 ```
 
-## Usage
+### Local with docker-compose
 
-This package is used by two Cloud Functions:
+```bash
+# Start backend (includes all services + PubSub emulator)
+docker compose --profile backend up
 
-- `functions/activity_bq_inserter.py` - Uses `application.bq_inserter`
-- `functions/activity_aggregator.py` - Uses `application.aggregator`
+# View logs
+docker compose logs -f postgres-writer
+```
 
-Both functions share the same domain models, adapters, and configuration patterns.
+## Deployment
+
+Built and deployed via Pants:
+
+```bash
+# Build and publish Docker images
+GIT_COMMIT=$(git rev-parse --short HEAD) pants publish \
+  packages/stravapipe:bq-inserter \
+  packages/stravapipe:postgres-writer
+
+# Package aggregator (Cloud Function)
+pants package functions:aggregator
+```
+
+See [Docker Guide](../../docs/guides/docker.md) and [Deployment Guide](../../docs/guides/deployment.md).
+
+## Configuration
+
+Each service has its own config class in `config/`:
+
+- `BQInserterConfig` - BigQuery dataset, Strava credentials
+- `PostgresWriterConfig` - Connection string, Strava credentials
+- `AggregatorConfig` - GCS bucket, Strava credentials
+
+All load from environment variables with Secret Manager integration for production.

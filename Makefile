@@ -314,13 +314,14 @@ help:
 	@echo "  tf-validate-all       - Validate all Terraform configurations"
 	@echo ""
 	@echo "Backend Pipeline (Docker):"
-	@echo "  start-backend       - Start backend pipeline (dispatcher, aggregator, bq-inserter)"
+	@echo "  start-backend       - Start backend pipeline (dispatcher, aggregator, bq-inserter, postgres-writer)"
 	@echo "  start-backend-local - Start backend with Terraform-managed GCP resources"
 	@echo "  start-backend-debug - Start backend with PubSub UI for debugging (port 4200)"
-	@echo "  logs                - View logs from all backend functions"
+	@echo "  logs                - View logs from all backend services"
 	@echo "  logs-dispatcher     - View dispatcher logs"
 	@echo "  logs-aggregator     - View aggregator logs"
 	@echo "  logs-bq             - View bq-inserter logs"
+	@echo "  logs-postgres       - View postgres-writer logs"
 	@echo "  test-full-flow      - Test complete webhook flow"
 	@echo ""
 	@echo "Frontend Development (Docker):"
@@ -392,10 +393,11 @@ start-backend: generate-requirements
 	docker compose --profile backend up --build --detach
 	@echo "✅ All backend services are running!"
 	@echo "📋 Service URLs:"
-	@echo "  Dispatcher: http://localhost:8081"
-	@echo "  Aggregator: http://localhost:8082"
-	@echo "  BQ Inserter: http://localhost:8083"
-	@echo "  PubSub Emulator: http://localhost:8085"
+	@echo "  Dispatcher:       http://localhost:8081"
+	@echo "  Aggregator:       http://localhost:8082"
+	@echo "  BQ Inserter:      http://localhost:8083"
+	@echo "  PostgreSQL Writer: http://localhost:8086"
+	@echo "  PubSub Emulator:  http://localhost:8085"
 	@echo ""
 	@echo "🧪 Test the full flow:"
 	@echo "  make test-full-flow"
@@ -412,15 +414,16 @@ start-backend-local: generate-requirements
 	docker compose -f docker-compose.yml -f docker-compose.local.yml up --build --detach
 	@echo "✅ All backend services are running with local GCP resources!"
 	@echo "📋 Service URLs:"
-	@echo "  Dispatcher: http://localhost:8081 (→ PubSub Emulator forwarding)"
-	@echo "  Aggregator: http://localhost:8082 (→ Terraform-managed Cloud Storage)"
-	@echo "  BQ Inserter: http://localhost:8083 (→ Terraform-managed BigQuery)"
-	@echo "  PubSub Emulator: http://localhost:8085"
+	@echo "  Dispatcher:        http://localhost:8081 (→ PubSub Emulator forwarding)"
+	@echo "  Aggregator:        http://localhost:8082 (→ Terraform-managed Cloud Storage)"
+	@echo "  BQ Inserter:       http://localhost:8083 (→ Terraform-managed BigQuery)"
+	@echo "  PostgreSQL Writer: http://localhost:8086 (→ Terraform-managed Cloud SQL)"
+	@echo "  PubSub Emulator:   http://localhost:8085"
 	@echo ""
 	@echo "🧪 Test the full flow:"
 	@echo "  make test-full-flow"
 	@echo ""
-	@echo "💡 Data will be written to: desirelines.activities"
+	@echo "💡 Data will be written to: desirelines.activities (BQ) + PostgreSQL"
 	@echo "🔐 Using your gcloud application default credentials"
 
 # Start backend with PubSub UI for debugging
@@ -429,14 +432,35 @@ start-backend-debug: generate-requirements
 	docker compose --profile backend --profile debug up --build --detach
 	@echo "✅ All backend services are running with debugging UI!"
 	@echo "📋 Service URLs:"
-	@echo "  Dispatcher: http://localhost:8081"
-	@echo "  Aggregator: http://localhost:8082"
-	@echo "  BQ Inserter: http://localhost:8083"
-	@echo "  PubSub Emulator: http://localhost:8085"
-	@echo "  🐛 PubSub UI: http://localhost:4200"
+	@echo "  Dispatcher:        http://localhost:8081"
+	@echo "  Aggregator:        http://localhost:8082"
+	@echo "  BQ Inserter:       http://localhost:8083"
+	@echo "  PostgreSQL Writer: http://localhost:8086"
+	@echo "  PubSub Emulator:   http://localhost:8085"
+	@echo "  🐛 PubSub UI:      http://localhost:4200"
 	@echo ""
 	@echo "🧪 Test the full flow:"
 	@echo "  make test-full-flow"
+
+# View logs from all backend services
+logs:
+	docker compose --profile backend logs -f
+
+# View dispatcher logs
+logs-dispatcher:
+	docker compose --profile backend logs -f dispatcher
+
+# View aggregator logs
+logs-aggregator:
+	docker compose --profile backend logs -f aggregator
+
+# View bq-inserter logs
+logs-bq:
+	docker compose --profile backend logs -f bq-inserter
+
+# View postgres-writer logs
+logs-postgres:
+	docker compose --profile backend logs -f postgres-writer
 
 # Stop services and cleanup
 stop:
@@ -463,13 +487,23 @@ build: generate-requirements
 # Test the full end-to-end flow
 test-full-flow:
 	@echo "🧪 Testing full Strava webhook flow..."
-	@echo "1️⃣ Sending webhook to dispatcher..."
-	curl -X POST http://localhost:8081 \
-		-H "Content-Type: application/json" \
-		-d '{"object_type": "activity", "object_id": 123, "aspect_type": "create", "owner_id": 456}'
 	@echo ""
-	@echo "✅ Check the logs to see if messages flowed through:"
-	@echo "  make logs"
+	@echo "1️⃣ Sending CREATE webhook to dispatcher..."
+	@curl -s -X POST http://localhost:8081/webhook \
+		-H "Content-Type: application/json" \
+		-d '{"aspect_type":"create","event_time":1734200000,"object_id":12345678,"object_type":"activity","owner_id":98765,"subscription_id":123456}' \
+		| head -c 200
+	@echo ""
+	@echo ""
+	@echo "2️⃣ Flow: dispatcher → PubSub → CloudEvent adapter → bq-inserter + postgres-writer"
+	@echo ""
+	@echo "📋 Check logs to verify:"
+	@echo "  make logs-dispatcher   # Should show 'Published message'"
+	@echo "  make logs-bq           # Should show 'Received CloudEvent' (may fail on Strava API)"
+	@echo "  make logs-postgres     # Should show 'Received CloudEvent' (may fail on Strava API)"
+	@echo ""
+	@echo "💡 Note: Services will try to fetch activity 12345678 from Strava API."
+	@echo "   Without valid Strava credentials, you'll see 'activity_not_found' - that's expected."
 
 # Clean up Docker resources
 clean:

@@ -1,40 +1,36 @@
 # Cloud Functions packaging via Pants
-# Replaces scripts/operations/package-functions.sh (180 lines → ~40 lines)
+# Note: bq-inserter and postgres-writer have been migrated to Cloud Run
+# and their Docker images are now defined in packages/stravapipe/BUILD
 
 # =============================================================================
-# Python Source Files
+# Python Source Files (only aggregator remains as Cloud Function)
 # =============================================================================
 
 python_sources(
     name="sources",
-    sources=["*.py"],
+    sources=["aggregator.py"],
 )
 
 # =============================================================================
 # Docker Images (for Cloud Run deployments)
-# Note: Dockerfiles now live in each package directory for cleaner organization
 # =============================================================================
 
-# Python function Docker images (optional - primarily use python_google_cloud_function)
+# Aggregator Docker image (for potential future Cloud Run migration)
 docker_image(
     name="aggregator-docker",
     source="Dockerfile.aggregator",
+    dependencies=[
+        "packages/stravapipe:pyproject",
+        "packages/stravapipe:lib",
+        ":sources",
+    ],
 )
 
-docker_image(
-    name="bq-inserter-docker",
-    source="Dockerfile.bq_inserter",
-)
-
-docker_image(
-    name="postgres-writer-docker",
-    source="Dockerfile.postgres_writer",
-)
-
-# Go service Docker images for Cloud Run are defined in each package's BUILD file
+# Note: bq-inserter and postgres-writer Docker images are now defined in
+# packages/stravapipe/BUILD since they've been migrated to Cloud Run with FastAPI
 
 # =============================================================================
-# Python Cloud Functions
+# Python Cloud Functions (only aggregator remains)
 # =============================================================================
 # Pants uses PEX to package pre-resolved dependencies directly:
 # 1. Resolves dependencies from pyproject.toml
@@ -54,28 +50,6 @@ python_google_cloud_function(
     ],
 )
 
-python_google_cloud_function(
-    name="bq-inserter",
-    type="event",
-    handler="bq_inserter.py:main",
-    dependencies=[
-        ":sources",
-        "packages/stravapipe:lib",
-    ],
-    complete_platforms=[
-        "build-support:cloud-functions-python312-x86_64",
-    ],
-)
-
-python_google_cloud_function(
-    name="postgres-writer",
-    type="event",
-    handler="postgres_writer.py:main",
-    dependencies=[
-        ":sources",
-        "packages/stravapipe:lib",
-    ],
-    complete_platforms=[
-        "build-support:cloud-functions-python312-x86_64",
-    ],
-)
+# DEPRECATED: bq-inserter and postgres-writer have been migrated to Cloud Run
+# See packages/stravapipe/BUILD for their docker_image targets
+# See packages/stravapipe/src/stravapipe/cloudrun/ for their FastAPI apps
