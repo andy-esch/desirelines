@@ -62,7 +62,7 @@ async def parse_pubsub_cloudevent(
     ce_source = request.headers.get("ce-source")
     ce_time = request.headers.get("ce-time")
 
-    if not all([ce_type, ce_id, ce_source]):
+    if not ce_type or not ce_id or not ce_source:
         raise HTTPException(
             status_code=400,
             detail="Missing required CloudEvent headers (ce-type, ce-id, ce-source)",
