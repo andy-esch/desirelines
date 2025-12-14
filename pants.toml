@@ -1,5 +1,5 @@
 [GLOBAL]
-pants_version = "2.29.1"  # Use latest stable version
+pants_version = "2.30.0"  # Use latest stable version
 
 # Enable colors for better readability
 colors = true

@@ -81,12 +81,6 @@ make logs
 # Build and push Cloud Run images and function sources
 make build-publish
 
-# Use pants to package Python Cloud Functions
-pants package functions:aggregator functions:bq-inserter functions:postgres-writer
-
-# Use pants to package Cloud Run docker images and push to artifact registry
-GIT_COMMIT=$(git rev-parse --short HEAD) pants package packages/dispatcher:dispatcher packages/apigateway:apigateway
-
 # Deploy to dev environment
 cd terraform/environments/dev
 terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
@@ -99,10 +93,16 @@ See [Deployment Guide](./docs/guides/deployment.md) for complete instructions.
 
 ### Testing
 
-Run tests with
+Run tests with (faster)
 
 ```bash
 $ make test
+```
+
+For tests with pants, run with
+
+```bash
+$ pants test ::
 ```
 
 ## Build System
@@ -133,7 +133,7 @@ pants --changed-since=main test
 
 ### Python Package Development
 
-The stravapipe package uses **pyproject.toml as the single source of truth** for dependencies. Both `uv` and Pants read this file directly - no sync needed!
+The stravapipe package uses **pyproject.toml as the single source of truth** for dependencies. Both `uv` and Pants read this file directly.
 
 #### Adding Dependencies
 
@@ -151,6 +151,7 @@ pants generate-lockfiles --resolve=stravapipe
 #### Development Workflows
 
 **Option 1: Using Pants (recommended for CI/testing):**
+
 ```bash
 # From repo root
 pants test packages/stravapipe::
@@ -159,6 +160,7 @@ pants check packages/stravapipe::
 ```
 
 **Option 2: Using uv (for local iterative development):**
+
 ```bash
 cd packages/stravapipe
 uv sync
@@ -202,14 +204,12 @@ See [Architecture Documentation](./docs/architecture/) for detailed design.
 - **[Bootstrap Guide](./docs/guides/bootstrap.md)** - Complete environment setup (dev/prod)
 - **[CI Guide](./docs/guides/ci.md)** - Continuous Integration workflow and testing
 - **[Deployment Guide](./docs/guides/deployment.md)** - Cloud deployment procedures
-- **[Strava Webhook Setup](./docs/guides/strava-webhook.md)** - OAuth2 and webhook configuration
+- **[Local Testing](./docs/guides/local-testing.md)** - Testing the full pipeline locally
 - **[Local Development Scripts](./scripts/development/local-dev/README.md)** - Script organization and usage
-
-### Project Reference
-
+- **[GitHub Actions Workload Identity setup](./docs/guids/github-workload-identity-setup.md)** - GHA workload identity setup to enable deploys from merges to main
+- **[Strava Webhook Setup](./docs/guides/strava-webhook.md)** - OAuth2 and webhook configuration
 - **[Docker Architecture](./docs/DOCKER.md)** - Docker build setup and container management
 - **[Frontend Development](./docs/guides/frontend-local-dev.md)** - React app development guide
-- **[Local Testing](./docs/guides/local-testing.md)** - Testing the full pipeline locally
 
 ## Contributing
 
