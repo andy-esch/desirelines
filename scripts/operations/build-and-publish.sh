@@ -15,10 +15,10 @@ echo "🔧 Building and publishing all artifacts (SHA: $SHA)"
 echo ""
 
 # =============================================================================
-# Cloud Functions - Package source code
+# Cloud Functions - Package source code (only aggregator remains)
 # =============================================================================
 echo "📦 Packaging Cloud Functions..."
-pants package functions:aggregator functions:bq-inserter functions:postgres-writer
+pants package functions:aggregator
 
 echo "✅ Cloud Functions packaged to dist/"
 echo ""
@@ -29,7 +29,9 @@ echo ""
 echo "🐳 Building and publishing Cloud Run images..."
 GIT_COMMIT=$SHA pants publish \
   packages/dispatcher:dispatcher \
-  packages/apigateway:apigateway
+  packages/apigateway:apigateway \
+  packages/stravapipe:bq-inserter \
+  packages/stravapipe:postgres-writer
 
 echo "✅ Docker images published to Artifact Registry"
 echo ""
@@ -43,13 +45,13 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "📁 Cloud Function source packages (in dist/):"
 echo "   - aggregator-${SHA}.zip"
-echo "   - bq-inserter-${SHA}.zip"
-echo "   - postgres-writer-${SHA}.zip"
 echo "   → Terraform will upload these to GCS during apply"
 echo ""
 echo "🐳 Docker images (in Artifact Registry):"
 echo "   - dispatcher:${SHA} + dispatcher:latest"
 echo "   - apigateway:${SHA} + apigateway:latest"
+echo "   - bq-inserter:${SHA} + bq-inserter:latest"
+echo "   - postgres-writer:${SHA} + postgres-writer:latest"
 echo "   → Already published and ready to deploy"
 echo ""
 echo "🚀 Next step - Deploy with Terraform:"

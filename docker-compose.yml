@@ -60,15 +60,15 @@ services:
   bq-inserter:
     profiles: ["backend"] # Backend pipeline only
     build:
-      context: .
-      dockerfile: functions/Dockerfile.bq_inserter
+      context: ./packages/stravapipe
+      dockerfile: Dockerfile.bq_inserter
     ports:
       - "8083:8080"
     environment:
-      - FUNCTION_TARGET=main
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - GCP_PROJECT_ID=local-dev
       - GCP_BIGQUERY_DATASET=local_dev_dataset
+      - LOG_LEVEL=INFO
     env_file:
       - .env
     volumes:
@@ -76,20 +76,31 @@ services:
     depends_on:
       pubsub-bootstrap:
         condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   postgres-writer:
     profiles: ["backend"] # Backend pipeline only
     build:
-      context: .
-      dockerfile: functions/Dockerfile.postgres_writer
+      context: ./packages/stravapipe
+      dockerfile: Dockerfile.postgres_writer
     ports:
       - "8086:8080"
     environment:
-      - FUNCTION_TARGET=main
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - GCP_PROJECT_ID=local-dev
       # PostgreSQL connection string for local development
       - POSTGRES_CONNECTION_STRING=postgresql+psycopg://desirelines:local_dev_password@postgres:5432/desirelines_local
+      - LOG_LEVEL=INFO
     env_file:
       - .env
     volumes:

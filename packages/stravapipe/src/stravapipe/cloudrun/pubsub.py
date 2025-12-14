@@ -13,15 +13,17 @@ import json
 from typing import Any
 
 from fastapi import HTTPException, Request
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 
 class PubSubMessage(BaseModel):
     """Pub/Sub message structure from Eventarc."""
 
+    model_config = {"populate_by_name": True}
+
     data: str  # base64 encoded
-    messageId: str
-    publishTime: str
+    message_id: str = Field(alias="messageId")
+    publish_time: str = Field(alias="publishTime")
 
 
 class PubSubEnvelope(BaseModel):

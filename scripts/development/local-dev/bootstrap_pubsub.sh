@@ -28,13 +28,13 @@ curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/topics/$TOPIC_N
     -H "Content-Type: application/json" \
     -d '{}'
 
-echo "📫 Creating subscription for activity aggregator"
+echo "📫 Creating subscription for aggregator"
 curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/desirelines_aggregator_subscription" \
     -H "Content-Type: application/json" \
     -d '{
         "topic": "projects/'$PROJECT_ID'/topics/'$TOPIC_NAME'",
         "pushConfig": {
-            "pushEndpoint": "http://activity-aggregator:8080"
+            "pushEndpoint": "http://aggregator:8080"
         }
     }'
 
@@ -44,7 +44,7 @@ curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/d
     -d '{
         "topic": "projects/'$PROJECT_ID'/topics/'$TOPIC_NAME'",
         "pushConfig": {
-            "pushEndpoint": "http://activity-bq-inserter:8080"
+            "pushEndpoint": "http://bq-inserter:8080"
         }
     }'
 
@@ -64,8 +64,8 @@ echo "📋 Summary:"
 echo "  Topic: $TOPIC_NAME"
 echo "  Topic Path: projects/$PROJECT_ID/topics/$TOPIC_NAME"
 echo "  Subscriptions:"
-echo "    - desirelines_aggregator_subscription → http://activity-aggregator:8080"
-echo "    - desirelines_bq_inserter_subscription → http://activity-bq-inserter:8080"
+echo "    - desirelines_aggregator_subscription → http://aggregator:8080"
+echo "    - desirelines_bq_inserter_subscription → http://bq-inserter:8080"
 echo "    - desirelines_postgres_writer_subscription → http://postgres-writer:8080"
 echo ""
 echo "🔧 Make sure your docker-compose environment contains:"
