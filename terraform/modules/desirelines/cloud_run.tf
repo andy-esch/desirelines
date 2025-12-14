@@ -386,3 +386,30 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     google_secret_manager_secret_iam_member.postgres_writer_postgres_access,
   ]
 }
+
+# ==============================================================================
+# IAM Bindings for Eventarc → Cloud Run Invocation
+# ==============================================================================
+# Eventarc triggers use service accounts that need permission to invoke
+# the Cloud Run services. These are internal-only services, so we grant
+# run.invoker to the specific service accounts (not allUsers).
+
+# Allow BQ Inserter's service account to be invoked by Eventarc
+resource "google_cloud_run_v2_service_iam_member" "bq_inserter_eventarc_invoker" {
+  count    = var.deployment_mode == "full" ? 1 : 0
+  project  = var.gcp_project_id
+  location = var.gcp_region
+  name     = google_cloud_run_v2_service.bq_inserter[0].name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.create_dedicated_service_accounts ? google_service_account.bq_inserter_dev[0].email : var.service_account_email}"
+}
+
+# Allow PostgreSQL Writer's service account to be invoked by Eventarc
+resource "google_cloud_run_v2_service_iam_member" "postgres_writer_eventarc_invoker" {
+  count    = var.deployment_mode == "full" ? 1 : 0
+  project  = var.gcp_project_id
+  location = var.gcp_region
+  name     = google_cloud_run_v2_service.postgres_writer[0].name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.create_dedicated_service_accounts ? google_service_account.postgres_writer_dev[0].email : var.service_account_email}"
+}

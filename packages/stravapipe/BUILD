@@ -45,6 +45,7 @@ files(
     name="docker_sources",
     sources=[
         "pyproject.toml",
+        "README.md",
         "src/**/*.py",
         "src/**/*.json",  # Include any JSON config files
         "!**/__pycache__/**",
