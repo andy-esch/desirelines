@@ -25,6 +25,8 @@ jobs:
   # Job 1: Package Cloud Functions (Python)
   # ===========================================================================
   # Note: Tests are NOT run here - branch protection ensures tests pass before merge
+  # Note: Only aggregator remains as a Cloud Function. bq-inserter and postgres-writer
+  #       have been migrated to Cloud Run (see build-images job)
   package-functions:
     name: Package Cloud Functions
     runs-on: ubuntu-latest
@@ -67,7 +69,9 @@ jobs:
       - name: Package Cloud Functions
         run: |
           echo "📦 Packaging Cloud Functions via Pants..."
-          pants package functions:aggregator functions:bq-inserter
+          # Only aggregator remains as a Cloud Function
+          # bq-inserter and postgres-writer are now Cloud Run services
+          pants package functions:aggregator
           echo "📁 Pants output:"
           ls -lh dist/functions/
 
@@ -77,10 +81,9 @@ jobs:
 
           # Copy to dist root with SHA suffix (what Terraform expects)
           cp dist/functions/aggregator.zip dist/aggregator-${SHA}.zip
-          cp dist/functions/bq-inserter.zip dist/bq-inserter-${SHA}.zip
 
           echo "✅ Cloud Functions packaged:"
-          ls -lh dist/aggregator-${SHA}.zip dist/bq-inserter-${SHA}.zip
+          ls -lh dist/aggregator-${SHA}.zip
 
       - name: Upload Cloud Function artifacts
         uses: actions/upload-artifact@v4
@@ -88,12 +91,16 @@ jobs:
           name: cloud-functions
           path: |
             dist/aggregator-${{ steps.metadata.outputs.git_sha }}.zip
-            dist/bq-inserter-${{ steps.metadata.outputs.git_sha }}.zip
           retention-days: 1
 
   # ===========================================================================
-  # Job 2: Build and Publish Docker Images (Go)
+  # Job 2: Build and Publish Docker Images (Go + Python)
   # ===========================================================================
+  # Builds all Cloud Run services:
+  # - dispatcher (Go) - Webhook receiver
+  # - apigateway (Go) - API for web frontend
+  # - bq-inserter (Python/FastAPI) - BigQuery sync
+  # - postgres-writer (Python/FastAPI) - PostgreSQL sync
   build-images:
     name: Build & Publish Docker Images
     runs-on: ubuntu-latest
@@ -118,11 +125,16 @@ jobs:
           go-version: "1.25"
           cache-dependency-path: go.work.sum
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
       - name: Set up Pants
         uses: pantsbuild/actions/init-pants@v10
         with:
-          gha-cache-key: v1-go1.25-docker
-          named-caches-hash: ${{ hashFiles('packages/*/go.sum', 'go.work.sum', 'pants.toml') }}
+          gha-cache-key: v1-go1.25-py3.13-docker
+          named-caches-hash: ${{ hashFiles('packages/*/go.sum', 'packages/stravapipe/uv.lock', 'go.work.sum', 'pants.toml') }}
           cache-lmdb-store: true
           base-branch: main
 
@@ -143,7 +155,9 @@ jobs:
           echo "🐳 Building and publishing Cloud Run images..."
           GIT_COMMIT=${{ steps.metadata.outputs.git_sha }} pants publish \
             packages/dispatcher:dispatcher \
-            packages/apigateway:apigateway
+            packages/apigateway:apigateway \
+            packages/stravapipe:bq-inserter \
+            packages/stravapipe:postgres-writer
 
           echo "✅ Docker images published to Artifact Registry"
 
@@ -179,10 +193,10 @@ jobs:
           ls -lh dist/
 
           SHA=${{ needs.package-functions.outputs.git_sha }}
+          # Only aggregator is a Cloud Function now
           test -f dist/aggregator-${SHA}.zip || (echo "❌ Missing aggregator-${SHA}.zip" && exit 1)
-          test -f dist/bq-inserter-${SHA}.zip || (echo "❌ Missing bq-inserter-${SHA}.zip" && exit 1)
 
-          echo "✅ All artifacts present"
+          echo "✅ Cloud Function artifacts present"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -216,11 +230,11 @@ jobs:
           BUCKET="desirelines-${ENV}-function-source"
 
           echo "📤 Uploading Cloud Function source to GCS..."
-          # Artifacts were downloaded to dist/ with SHA suffix
+          # Only aggregator is a Cloud Function now
+          # bq-inserter and postgres-writer are Cloud Run services (Docker images)
           gsutil cp dist/aggregator-${SHA}.zip gs://${BUCKET}/aggregator-${SHA}.zip
-          gsutil cp dist/bq-inserter-${SHA}.zip gs://${BUCKET}/bq-inserter-${SHA}.zip
 
-          echo "✅ Function sources uploaded to gs://${BUCKET}/"
+          echo "✅ Function source uploaded to gs://${BUCKET}/"
 
       - name: Terraform Plan (Deployment Resources Only)
         id: plan
@@ -232,16 +246,28 @@ jobs:
 
           # Only plan changes to deployment resources (Cloud Functions, Cloud Run)
           # Excludes infrastructure: BigQuery IAM, monitoring dashboards, etc.
+          #
+          # Cloud Functions (only aggregator remains):
+          # - activity_aggregator
+          #
+          # Cloud Run services (all others):
+          # - dispatcher (Go) - webhook receiver
+          # - api_gateway (Go) - API for web frontend
+          # - bq_inserter (Python/FastAPI) - BigQuery sync
+          # - postgres_writer (Python/FastAPI) - PostgreSQL sync
           terraform plan \
             -var="deployment_version=${{ needs.package-functions.outputs.git_sha }}" \
             -var="gcp_project_id=desirelines-${ENV}" \
             -var="gcp_project_number=${{ secrets.GCP_PROJECT_NUMBER }}" \
             -var="developer_email=${{ secrets.DEVELOPER_EMAIL }}" \
             -var="gcp_region=us-central1" \
-            -target="module.desirelines.google_cloudfunctions2_function.activity_bq_inserter" \
             -target="module.desirelines.google_cloudfunctions2_function.activity_aggregator" \
             -target="module.desirelines.google_cloud_run_v2_service.dispatcher" \
             -target="module.desirelines.google_cloud_run_v2_service.api_gateway" \
+            -target="module.desirelines.google_cloud_run_v2_service.bq_inserter" \
+            -target="module.desirelines.google_cloud_run_v2_service.postgres_writer" \
+            -target="module.desirelines.google_eventarc_trigger.bq_inserter_pubsub" \
+            -target="module.desirelines.google_eventarc_trigger.postgres_writer_pubsub" \
             -input=false \
             -out=tfplan
 
@@ -297,6 +323,38 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Cloud Run - BQ Inserter
+        if: ${{ !inputs.skip_tests }}
+        run: |
+          # BQ Inserter is internal-only, so we can only verify it's deployed
+          # (can't call health endpoint without authentication)
+          STATUS=$(gcloud run services describe desirelines-bq-inserter \
+            --region=us-central1 \
+            --format='value(status.conditions[0].status)' 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$STATUS" = "True" ]; then
+            echo "✅ BQ Inserter deployed and ready"
+          else
+            echo "❌ BQ Inserter not ready: $STATUS"
+            exit 1
+          fi
+
+      - name: Verify Cloud Run - PostgreSQL Writer
+        if: ${{ !inputs.skip_tests }}
+        run: |
+          # PostgreSQL Writer is internal-only, so we can only verify it's deployed
+          # (can't call health endpoint without authentication)
+          STATUS=$(gcloud run services describe desirelines-postgres-writer \
+            --region=us-central1 \
+            --format='value(status.conditions[0].status)' 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$STATUS" = "True" ]; then
+            echo "✅ PostgreSQL Writer deployed and ready"
+          else
+            echo "❌ PostgreSQL Writer not ready: $STATUS"
+            exit 1
+          fi
+
       # =======================================================================
       # Deployment Summary
       # =======================================================================
@@ -313,9 +371,12 @@ jobs:
           echo "Triggered by:      ${{ github.event_name }}"
           echo "Actor:             ${{ github.actor }}"
           echo ""
-          echo "📦 Artifacts:"
+          echo "📦 Cloud Function (Pants zip):"
           echo "  - aggregator:${{ needs.package-functions.outputs.git_sha }}"
-          echo "  - bq-inserter:${{ needs.package-functions.outputs.git_sha }}"
+          echo ""
+          echo "🐳 Cloud Run Services (Docker images):"
           echo "  - dispatcher:${{ needs.package-functions.outputs.git_sha }}"
           echo "  - apigateway:${{ needs.package-functions.outputs.git_sha }}"
+          echo "  - bq-inserter:${{ needs.package-functions.outputs.git_sha }}"
+          echo "  - postgres-writer:${{ needs.package-functions.outputs.git_sha }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

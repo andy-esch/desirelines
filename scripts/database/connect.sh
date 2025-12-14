@@ -59,6 +59,7 @@ echo -e "${YELLOW}📥 Fetching connection string from Secret Manager...${NC}"
 CONNECTION_STRING=$(gcloud secrets versions access latest \
   --secret="postgres-connection-string-${ENVIRONMENT}" \
   --project="${PROJECT_ID}" 2>/dev/null || true)
+CONNECTION_STRING=${CONNECTION_STRING/+psycopg/}
 
 if [[ -z "$CONNECTION_STRING" ]]; then
   echo -e "${RED}❌ Failed to fetch connection string from Secret Manager${NC}"

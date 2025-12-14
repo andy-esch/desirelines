@@ -2,7 +2,7 @@
 
 This directory contains the Cloud Functions (v2) that make up the Desirelines event processing pipeline. All functions are deployed as individual Cloud Run services via Cloud Functions v2.
 
-## Cloud Run Migration (Phase 6b - December 2024)
+## Cloud Run Migration
 
 **Status:** Dispatcher and API Gateway migrated to Cloud Run ✅
 
@@ -11,9 +11,10 @@ This directory contains the Cloud Functions (v2) that make up the Desirelines ev
 - **Cloud Run Services** (Go, Docker images):
   - `dispatcher` - Pre-compiled Go binary for instant cold starts
   - `apigateway` - Pre-compiled Go binary for optimal performance
+  - `bq-inserter` - Event-driven BigQuery sync
+  - `postgres-writer` - Event-driven PostgreSQL sync
 
 - **Cloud Functions v2** (Python, source packages):
-  - `bq-inserter` - Event-driven BigQuery sync
   - `aggregator` - Event-driven summary generation
 
 ### Why Cloud Run for Go Services?
