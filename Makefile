@@ -474,10 +474,7 @@ generate-requirements:
 	cd packages/stravapipe && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-aggregator.txt
 	@echo "  - Removing local package references from aggregator requirements"
 	sed -i '' '/^\.\/packages\/stravapipe$$/d' functions/requirements-aggregator.txt
-	@echo "  - Stravapipe package requirements (shared for both functions)"
-	cd packages/stravapipe && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-stravabqsync.txt
-	@echo "  - Removing local package references from BQ inserter requirements"
-	sed -i '' '/^\.\/packages\/stravapipe$$/d' functions/requirements-stravabqsync.txt
+
 
 # Build all images
 build: generate-requirements
