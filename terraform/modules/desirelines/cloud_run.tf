@@ -154,7 +154,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
         value = "cloud-storage"
       }
 
-      # Mount PostgreSQL secrets as volume
+      # Mount PostgreSQL secrets as volume (read-only apigateway role)
       volume_mounts {
         name       = "postgres-secrets"
         mount_path = "/etc/secrets/postgres"
@@ -164,7 +164,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
     volumes {
       name = "postgres-secrets"
       secret {
-        secret       = "postgres-connection-string-${var.environment}"
+        secret       = "postgres-conn-apigateway-${var.environment}"
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -340,7 +340,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
         mount_path = "/etc/secrets"
       }
 
-      # Mount PostgreSQL secrets as volume
+      # Mount PostgreSQL secrets as volume (read/write writer role)
       volume_mounts {
         name       = "postgres-secrets"
         mount_path = "/etc/secrets/postgres"
@@ -363,7 +363,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     volumes {
       name = "postgres-secrets"
       secret {
-        secret       = "postgres-connection-string-${var.environment}"
+        secret       = "postgres-conn-writer-${var.environment}"
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"

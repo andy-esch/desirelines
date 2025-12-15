@@ -420,27 +420,28 @@ resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access
 }
 
 # PostgreSQL secret access permissions
+# Each service has its own secret with least-privilege database role
 
-# API Gateway access to PostgreSQL connection string
+# API Gateway access to its read-only PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "api_gateway_postgres_access" {
   count     = var.create_dedicated_service_accounts ? 1 : 0
-  secret_id = "postgres-connection-string-${var.environment}"
+  secret_id = "postgres-conn-apigateway-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
 }
 
-# PostgreSQL Writer access to PostgreSQL connection string
+# PostgreSQL Writer access to its read/write PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "postgres_writer_postgres_access" {
   count     = var.create_dedicated_service_accounts ? 1 : 0
-  secret_id = "postgres-connection-string-${var.environment}"
+  secret_id = "postgres-conn-writer-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.postgres_writer_dev[0].email}"
 }
 
-# Grant developer access to PostgreSQL secret for local development
+# Grant developer access to admin PostgreSQL secret for local development
 resource "google_secret_manager_secret_iam_member" "postgres_developer_access" {
   count     = var.developer_email != null ? 1 : 0
-  secret_id = "postgres-connection-string-${var.environment}"
+  secret_id = "postgres-conn-admin-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
   member    = "user:${var.developer_email}"
 }
