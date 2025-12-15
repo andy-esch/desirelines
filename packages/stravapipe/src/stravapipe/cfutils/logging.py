@@ -1,6 +1,7 @@
 """Logging setup for Cloud Functions"""
 
 import logging
+import os
 
 import google.cloud.logging
 
@@ -29,7 +30,8 @@ def setup_cloud_function_logging(logger_name: str) -> logging.LoggerAdapter:
     Returns a LoggerAdapter that automatically wraps extra fields in json_fields
     for GCP structured logging (jsonPayload).
 
-    For local development, falls back to standard logging if Cloud Logging is unavailable.
+    Set ENABLE_CLOUD_LOGGING=true to enable GCP Cloud Logging integration.
+    When not set or false, uses standard logging.
 
     Args:
         logger_name: Name for the logger (typically __name__)
@@ -37,17 +39,25 @@ def setup_cloud_function_logging(logger_name: str) -> logging.LoggerAdapter:
     Returns:
         Configured LoggerAdapter instance that handles json_fields transformation
     """
-    try:
-        client = google.cloud.logging.Client()
-        client.setup_logging(log_level=logging.INFO)
-    except Exception as e:
-        # Local dev or missing credentials - use standard logging
+    enable_cloud_logging = os.environ.get("ENABLE_CLOUD_LOGGING", "").lower() == "true"
+
+    if enable_cloud_logging:
+        try:
+            client = google.cloud.logging.Client()
+            client.setup_logging(log_level=logging.INFO)
+        except Exception as e:
+            logging.basicConfig(
+                level=logging.INFO,
+                format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            )
+            logging.getLogger(logger_name).warning(
+                "Cloud Logging unavailable, using standard logging: %s", str(e)
+            )
+    else:
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        )
-        logging.getLogger(logger_name).warning(
-            "Cloud Logging unavailable, using standard logging: %s", str(e)
+            force=True,
         )
 
     base_logger = logging.getLogger(logger_name)

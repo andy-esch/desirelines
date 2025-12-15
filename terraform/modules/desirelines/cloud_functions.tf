@@ -4,7 +4,7 @@
 # This file contains all Cloud Function resources and their supporting storage.
 # - Function source buckets and objects
 # - Aggregation output bucket
-# - Cloud Functions (bq_inserter, aggregator, postgres_writer)
+# - Cloud Functions (aggregator)
 
 # Locals for function source configuration
 locals {
@@ -229,11 +229,13 @@ resource "google_cloudfunctions2_function" "activity_aggregator" {
 
 
     environment_variables = {
-      GCP_PROJECT_ID  = var.gcp_project_id
-      GCP_BUCKET_NAME = google_storage_bucket.aggregation_bucket.name
-      ENVIRONMENT     = var.environment
-      LOG_LEVEL       = "INFO"
-      FORCE_REDEPLOY  = "2025-09-19-new-strava-scope-v1"
+      GCP_PROJECT_ID       = var.gcp_project_id
+      GCP_BUCKET_NAME      = google_storage_bucket.aggregation_bucket.name
+      ENVIRONMENT          = var.environment
+      LOG_LEVEL            = "INFO"
+      FORCE_REDEPLOY       = "2025-09-19-new-strava-scope-v1"
+      ENABLE_CLOUD_LOGGING = "true"
+
     }
 
     # Mount Strava secrets as volume

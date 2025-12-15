@@ -49,6 +49,7 @@ services:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - GCP_PROJECT_ID=local-dev
       - GCP_BUCKET_NAME=desirelines_local_testing
+      - ENABLE_CLOUD_LOGGING=true
     env_file:
       - .env
     volumes:
@@ -69,6 +70,7 @@ services:
       - GCP_PROJECT_ID=local-dev
       - GCP_BIGQUERY_DATASET=local_dev_dataset
       - LOG_LEVEL=INFO
+      - ENABLE_CLOUD_LOGGING=true
     env_file:
       - .env
     volumes:
@@ -101,6 +103,7 @@ services:
       # PostgreSQL connection string for local development (application_name required for observability)
       - POSTGRES_CONNECTION_STRING=postgresql://desirelines:local_dev_password@postgres:5432/desirelines_local?application_name=postgres-writer
       - LOG_LEVEL=INFO
+      - ENABLE_CLOUD_LOGGING=true
     env_file:
       - .env
     volumes:

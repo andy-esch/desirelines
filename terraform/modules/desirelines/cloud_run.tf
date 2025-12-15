@@ -256,6 +256,11 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
         value = "INFO"
       }
 
+      env {
+        name  = "ENABLE_CLOUD_LOGGING"
+        value = "true"
+      }
+
       # Mount Strava secrets as volume
       volume_mounts {
         name       = "strava-secrets"
@@ -332,6 +337,11 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
       env {
         name  = "LOG_LEVEL"
         value = "INFO"
+      }
+
+      env {
+        name  = "ENABLE_CLOUD_LOGGING"
+        value = "true"
       }
 
       # Mount Strava secrets as volume
