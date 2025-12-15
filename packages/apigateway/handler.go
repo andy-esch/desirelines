@@ -10,12 +10,15 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
+	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 	"github.com/andy-esch/desirelines/packages/apigateway/apierrors"
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
+	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 	"github.com/andy-esch/desirelines/packages/apigateway/types"
 	"github.com/go-chi/chi/v5"
@@ -29,6 +32,7 @@ type AuthMiddleware interface {
 // Handler orchestrates API Gateway request processing.
 type Handler struct {
 	storage        storage.Client
+	activityRepo   repository.ActivityRepository // Optional: nil if database disabled
 	authMiddleware AuthMiddleware
 	corsHandler    apierrors.CORSHandler
 	router         chi.Router
@@ -80,8 +84,25 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 	// Initialize chi router
 	r := chi.NewRouter()
 
+	// Optional: Initialize PostgreSQL repository if enabled
+	var activityRepo repository.ActivityRepository
+	if os.Getenv("ENABLE_DATABASE") == "true" {
+		pool, err := postgres.NewPool(ctx)
+		if err != nil {
+			// Graceful degradation: warn but don't fail startup
+			logger.Logger.Warn("Database initialization failed, continuing without database",
+				"error", err)
+		} else {
+			activityRepo = postgres.NewActivityRepository(pool)
+			logger.Logger.Info("Database repository initialized")
+		}
+	} else {
+		logger.Logger.Info("Database disabled (ENABLE_DATABASE != true)")
+	}
+
 	h := &Handler{
 		storage:        storageClient,
+		activityRepo:   activityRepo,
 		authMiddleware: authMiddleware,
 		corsHandler:    corsHandler,
 		router:         r,
@@ -154,7 +175,29 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	response := types.HealthResponse{
 		Status: "healthy",
 	}
+
+	// Check database connectivity if enabled
+	if h.activityRepo != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := h.activityRepo.Ping(ctx); err != nil {
+			logger.Logger.Warn("Database health check failed", "error", err)
+			response.Database = "unhealthy"
+		} else {
+			response.Database = "healthy"
+		}
+	}
+
 	h.respondJSON(w, r, http.StatusOK, response)
+}
+
+// Close releases handler resources (database connections, etc.)
+func (h *Handler) Close() error {
+	if h.activityRepo != nil {
+		return h.activityRepo.Close()
+	}
+	return nil
 }
 
 // Wrapper handlers that extract path parameters and validate year

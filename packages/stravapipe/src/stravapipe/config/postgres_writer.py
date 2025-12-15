@@ -6,6 +6,10 @@ import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Import directly from module to avoid pulling in SQLAlchemy dependencies
+from stravapipe.adapters.postgres._connection import (
+    load_connection_string,
+)
 from stravapipe.config.common import StravaApiConfig
 from stravapipe.domain import StravaTokenSet
 
@@ -21,8 +25,10 @@ class PostgresWriterConfig(BaseSettings):
     gcp_project_id: str = Field(description="GCP project ID")
 
     # PostgreSQL configuration
-    # IMPORTANT: Must use postgresql+psycopg:// scheme (not postgresql://)
-    # to ensure SQLAlchemy uses the psycopg3 driver instead of psycopg2
+    # Loaded via load_connection_string() which handles:
+    # - Reading from secret volume or env var
+    # - Validating application_name is present
+    # - Transforming to postgresql+psycopg:// dialect
     postgres_connection_string: str = Field(
         description="PostgreSQL connection string (postgresql+psycopg://user:pass@host:port/db)"
     )
@@ -75,6 +81,7 @@ def load_postgres_writer_config() -> PostgresWriterConfig:
 
     Raises:
         ValidationError: If required configuration is missing or invalid.
+        ConnectionStringError: If PostgreSQL connection string is missing or invalid.
     """
     # Load Strava secrets from mounted volume if available
     strava_secrets_path = "/etc/secrets/strava_auth.json"
@@ -88,11 +95,11 @@ def load_postgres_writer_config() -> PostgresWriterConfig:
             if strava_auth.get("refresh_token"):
                 os.environ["STRAVA_REFRESH_TOKEN"] = strava_auth["refresh_token"]
 
-    # Load PostgreSQL connection string from mounted volume if available
-    postgres_secrets_path = "/etc/secrets/postgres/connection_string"
-    if os.path.exists(postgres_secrets_path):
-        with open(postgres_secrets_path, encoding="utf-8") as f:
-            os.environ["POSTGRES_CONNECTION_STRING"] = f.read().strip()
+    # Load PostgreSQL connection string with validation and dialect transformation
+    # This reads from secret volume or env var, validates application_name,
+    # and transforms postgresql:// to postgresql+psycopg://
+    conn_str = load_connection_string()
+    os.environ["POSTGRES_CONNECTION_STRING"] = conn_str
 
     # Load config from environment variables (and secrets set above)
     return PostgresWriterConfig.model_validate({})

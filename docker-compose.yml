@@ -98,8 +98,8 @@ services:
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - GCP_PROJECT_ID=local-dev
-      # PostgreSQL connection string for local development
-      - POSTGRES_CONNECTION_STRING=postgresql+psycopg://desirelines:local_dev_password@postgres:5432/desirelines_local
+      # PostgreSQL connection string for local development (application_name required for observability)
+      - POSTGRES_CONNECTION_STRING=postgresql://desirelines:local_dev_password@postgres:5432/desirelines_local?application_name=postgres-writer
       - LOG_LEVEL=INFO
     env_file:
       - .env
@@ -108,7 +108,7 @@ services:
     depends_on:
       pubsub-bootstrap:
         condition: service_completed_successfully
-      flyway:
+      db-roles-setup:
         condition: service_completed_successfully
 
   # CloudEvent Adapter - wraps PubSub emulator messages with Eventarc-style headers
@@ -194,6 +194,8 @@ services:
       - POSTGRES_PASSWORD=local_dev_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Init script creates login roles (writer, apigateway, flyway, admin)
+      - ./scripts/development/local-dev/init-db-roles.sql:/docker-entrypoint-initdb.d/01-init-roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U desirelines -d desirelines_local"]
       interval: 10s
@@ -217,6 +219,24 @@ services:
       postgres:
         condition: service_healthy
 
+  # Grant role memberships after Flyway creates role groups
+  # Role groups (desirelines_*_grp) are created by V0001 migration
+  db-roles-setup:
+    profiles: ["backend", "frontend"]
+    image: postgis/postgis:17-3.6-alpine
+    environment:
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=desirelines_local
+      - PGUSER=desirelines
+      - PGPASSWORD=local_dev_password
+    volumes:
+      - ./scripts/development/local-dev/grant-role-memberships.sql:/grant-role-memberships.sql:ro
+    command: ["psql", "-f", "/grant-role-memberships.sql"]
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+
   # API Gateway - serves data to web UI (Go implementation)
   api-gateway:
     profiles: ["frontend"] # Only starts with --profile frontend
@@ -238,7 +258,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
       # Database configuration (optional - enables postgres backend)
       - ENABLE_DATABASE=${ENABLE_DATABASE:-false}
-      - POSTGRES_CONNECTION_STRING=postgres://desirelines:local_dev_password@postgres:5432/desirelines_local?sslmode=disable
+      - POSTGRES_CONNECTION_STRING=postgresql://desirelines:local_dev_password@postgres:5432/desirelines_local?application_name=apigateway
     env_file:
       - .env
     volumes:
