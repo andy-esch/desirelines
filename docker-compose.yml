@@ -111,7 +111,7 @@ services:
     depends_on:
       pubsub-bootstrap:
         condition: service_completed_successfully
-      db-roles-setup:
+      flyway:
         condition: service_completed_successfully
 
   # CloudEvent Adapter - wraps PubSub emulator messages with Eventarc-style headers
@@ -218,27 +218,14 @@ services:
       - DB_NAME=desirelines_local
       - DB_USER=desirelines
       - DB_PASSWORD=local_dev_password
+      # Include local-only migrations (role grants, etc.) - not used in prod
+      - FLYWAY_LOCATIONS=filesystem:/flyway/sql,filesystem:/flyway/local
+    volumes:
+      # Mount local-only migrations (not copied in Dockerfile)
+      - ./schemas/database/local:/flyway/local:ro
     depends_on:
       postgres:
         condition: service_healthy
-
-  # Grant role memberships after Flyway creates role groups
-  # Role groups (desirelines_*_grp) are created by V0001 migration
-  db-roles-setup:
-    profiles: ["backend", "frontend"]
-    image: postgis/postgis:17-3.6-alpine
-    environment:
-      - PGHOST=postgres
-      - PGPORT=5432
-      - PGDATABASE=desirelines_local
-      - PGUSER=desirelines
-      - PGPASSWORD=local_dev_password
-    volumes:
-      - ./scripts/development/local-dev/grant-role-memberships.sql:/grant-role-memberships.sql:ro
-    command: ["psql", "-f", "/grant-role-memberships.sql"]
-    depends_on:
-      flyway:
-        condition: service_completed_successfully
 
   # API Gateway - serves data to web UI (Go implementation)
   api-gateway:
@@ -259,8 +246,6 @@ services:
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE:-local-dev}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE:-desirelines_local_testing}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
-      # Database configuration (optional - enables postgres backend)
-      - ENABLE_DATABASE=${ENABLE_DATABASE:-false}
       - POSTGRES_CONNECTION_STRING=postgresql://desirelines:local_dev_password@postgres:5432/desirelines_local?application_name=apigateway
     env_file:
       - .env

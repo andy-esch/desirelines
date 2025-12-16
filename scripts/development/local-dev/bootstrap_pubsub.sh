@@ -39,7 +39,8 @@ curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/d
         "topic": "projects/'$PROJECT_ID'/topics/'$TOPIC_NAME'",
         "pushConfig": {
             "pushEndpoint": "http://cloudevent-adapter:8080/aggregator"
-        }
+        },
+        "ackDeadlineSeconds": 10
     }'
 
 echo "📫 Creating subscription for BQ inserter (via CloudEvent adapter)"
