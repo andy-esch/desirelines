@@ -147,55 +147,6 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 	return summary, nil
 }
 
-// GetDistances returns cumulative distance timeseries for cycling in a given year.
-// DEPRECATED: Legacy endpoint for backward compatibility with web frontend.
-func (r *ActivityRepository) GetDistances(ctx context.Context, year int) (*repository.DistanceData, error) {
-	// Query aggregates by day for cycling, then computes cumulative sums
-	// This is a simplified version of GetSportMetrics that only returns distance
-	query := `
-		SELECT
-			date,
-			SUM(distance) OVER (ORDER BY date) as distance
-		FROM (
-			SELECT
-				start_date_local::date as date,
-				SUM(distance) as distance
-			FROM desirelines.activities
-			WHERE year = $1
-			  AND sport = 'cycling'
-			GROUP BY start_date_local::date
-		) daily
-		ORDER BY date ASC
-	`
-
-	rows, err := r.pool.Query(ctx, query, year)
-	if err != nil {
-		return nil, fmt.Errorf("query distances: %w", err)
-	}
-	defer rows.Close()
-
-	var entries []repository.DistanceEntry
-	for rows.Next() {
-		var date time.Time
-		var distance float64
-
-		if err := rows.Scan(&date, &distance); err != nil {
-			return nil, fmt.Errorf("scan distances row: %w", err)
-		}
-
-		entries = append(entries, repository.DistanceEntry{
-			X: date.Format("2006-01-02"),
-			Y: distance,
-		})
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate distances rows: %w", err)
-	}
-
-	return &repository.DistanceData{DistanceTraveled: entries}, nil
-}
-
 // GetYearMetadata returns metadata about activities for a given year.
 // Includes list of sports, per-sport totals, and last updated timestamp.
 func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*repository.YearMetadata, error) {

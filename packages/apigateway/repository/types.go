@@ -56,9 +56,3 @@ type DistanceEntry struct {
 	X string  `json:"x"` // Date in ISO format: "2024-01-15"
 	Y float64 `json:"y"` // Cumulative distance in meters
 }
-
-// DistanceData represents the legacy distance timeseries format.
-// This is the response format for GET /activities/{year}/distances (DEPRECATED)
-type DistanceData struct {
-	DistanceTraveled []DistanceEntry `json:"distance_traveled"`
-}

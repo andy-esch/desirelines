@@ -28,9 +28,4 @@ type ActivityRepository interface {
 	// GetYearMetadata returns metadata about activities for a given year.
 	// Used by: GET /activities/{year}/metadata
 	GetYearMetadata(ctx context.Context, year int) (*YearMetadata, error)
-
-	// GetDistances returns cumulative distance timeseries for cycling in a given year.
-	// DEPRECATED: Legacy endpoint for backward compatibility.
-	// Used by: GET /activities/{year}/distances
-	GetDistances(ctx context.Context, year int) (*DistanceData, error)
 }
