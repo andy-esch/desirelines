@@ -17,7 +17,20 @@ type ActivityRepository interface {
 	// Close releases database resources.
 	io.Closer
 
-	// Future query methods will be added incrementally:
-	// GetActivity(ctx context.Context, id int64) (*Activity, error)
-	// ListActivities(ctx context.Context, year int, sport string) ([]Activity, error)
+	// GetSportMetrics returns cumulative metrics timeseries for a sport in a given year.
+	// Used by: GET /activities/{year}/metrics?sport=X
+	GetSportMetrics(ctx context.Context, year int, sport string) (*SportMetrics, error)
+
+	// GetDailySummary returns daily activity summaries for a sport in a given year.
+	// Used by: GET /activities/{year}/source?sport=X
+	GetDailySummary(ctx context.Context, year int, sport string) (DailySummary, error)
+
+	// GetYearMetadata returns metadata about activities for a given year.
+	// Used by: GET /activities/{year}/metadata
+	GetYearMetadata(ctx context.Context, year int) (*YearMetadata, error)
+
+	// GetDistances returns cumulative distance timeseries for cycling in a given year.
+	// DEPRECATED: Legacy endpoint for backward compatibility.
+	// Used by: GET /activities/{year}/distances
+	GetDistances(ctx context.Context, year int) (*DistanceData, error)
 }

@@ -1,14 +1,12 @@
-// Package apigateway provides HTTP API handlers for serving chart data
-// from Cloud Storage to the web frontend.
+// Package apigateway provides HTTP API handlers for serving activity data
+// from PostgreSQL to the web frontend.
 package apigateway
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -19,7 +17,6 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
-	"github.com/andy-esch/desirelines/packages/apigateway/storage"
 	"github.com/andy-esch/desirelines/packages/apigateway/types"
 	"github.com/go-chi/chi/v5"
 )
@@ -31,8 +28,7 @@ type AuthMiddleware interface {
 
 // Handler orchestrates API Gateway request processing.
 type Handler struct {
-	storage        storage.Client
-	activityRepo   repository.ActivityRepository // Optional: nil if database disabled
+	activityRepo   repository.ActivityRepository
 	authMiddleware AuthMiddleware
 	corsHandler    apierrors.CORSHandler
 	router         chi.Router
@@ -41,29 +37,7 @@ type Handler struct {
 
 // NewHandler creates a new API Gateway handler.
 func NewHandler(ctx context.Context) (*Handler, error) {
-	var storageClient storage.Client
 	var err error
-
-	// Check DATA_SOURCE environment variable
-	dataSource := getEnvOrDefault("DATA_SOURCE", "cloud-storage")
-
-	switch dataSource {
-	case "local-fixtures":
-		basePath := getEnvOrDefault("LOCAL_FIXTURES_PATH", "data/fixtures")
-		storageClient, err = storage.NewLocalStorageClient(basePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create local storage client: %w", err)
-		}
-		logger.Logger.Info("Using local fixtures", "base_path", basePath, "data_source", "local-fixtures")
-	case "cloud-storage":
-		storageClient, err = storage.NewCloudStorageClient(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create cloud storage client: %w", err)
-		}
-		logger.Logger.Info("Using Cloud Storage", "data_source", "cloud-storage")
-	default:
-		return nil, fmt.Errorf("invalid DATA_SOURCE: %s (expected: local-fixtures or cloud-storage)", dataSource)
-	}
 
 	// Initialize auth middleware
 	authMiddleware, err := middleware.NewAuthMiddleware(ctx)
@@ -98,7 +72,6 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 	}
 
 	h := &Handler{
-		storage:        storageClient,
 		activityRepo:   activityRepo,
 		authMiddleware: authMiddleware,
 		corsHandler:    corsHandler,
@@ -110,14 +83,6 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 	h.registerRoutes()
 
 	return h, nil
-}
-
-// getEnvOrDefault returns environment variable value or default if not set.
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
 
 // registerRoutes configures all application routes.
@@ -133,13 +98,12 @@ func (h *Handler) registerRoutes() {
 	h.router.Group(func(r chi.Router) {
 		r.Use(h.authMiddleware.Middleware)
 
-		// Multi-sport endpoints
+		// Multi-sport endpoints (PostgreSQL backed)
 		r.Get("/activities/{year}/metadata", h.handleMetadataWithParam)
 		r.Get("/activities/{year}/metrics", h.handleMetricsWithParam)
 		r.Get("/activities/{year}/source", h.handleSourceWithParam)
 
-		// Legacy endpoints (backward compatibility)
-		r.Get("/activities/{year}/summary", h.handleSummaryWithParam)
+		// Legacy endpoint (backward compatibility, PostgreSQL backed)
 		r.Get("/activities/{year}/distances", h.handleDistancesWithParam)
 	})
 }
@@ -223,22 +187,37 @@ func (h *Handler) handleSourceWithParam(w http.ResponseWriter, r *http.Request) 
 	h.handleSource(w, r, year)
 }
 
-func (h *Handler) handleSummaryWithParam(w http.ResponseWriter, r *http.Request) {
-	year, ok := h.validateAndGetYear(w, r)
-	if !ok {
-		return
-	}
-	blobPath := fmt.Sprintf("activities/%s/summary_activities.json", year)
-	h.fetchAndRespond(w, r, blobPath, year, "summary")
-}
-
 func (h *Handler) handleDistancesWithParam(w http.ResponseWriter, r *http.Request) {
 	year, ok := h.validateAndGetYear(w, r)
 	if !ok {
 		return
 	}
-	blobPath := fmt.Sprintf("activities/%s/distances.json", year)
-	h.fetchAndRespond(w, r, blobPath, year, "distances")
+	h.handleDistances(w, r, year)
+}
+
+// handleDistances serves legacy cycling distance data from PostgreSQL.
+// DEPRECATED: Use /activities/{year}/metrics?sport=cycling instead.
+func (h *Handler) handleDistances(w http.ResponseWriter, r *http.Request, year string) {
+	if h.activityRepo == nil {
+		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, "Database not available")
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	yearInt, _ := strconv.Atoi(year) // Already validated
+	distances, err := h.activityRepo.GetDistances(r.Context(), yearInt)
+	if err != nil {
+		logger.Logger.Error("Database query failed", "error", err, "year", year)
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Internal server error",
+			fmt.Sprintf("Database query failed: %v", err),
+		)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	h.respondJSON(w, r, http.StatusOK, distances)
 }
 
 const (
@@ -291,32 +270,86 @@ func (h *Handler) validateAndGetSport(w http.ResponseWriter, r *http.Request) (s
 	return sport, true
 }
 
-// handleMetrics serves sport-specific metrics data.
+// handleMetrics serves sport-specific metrics data from PostgreSQL.
 func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year string) {
 	sport, ok := h.validateAndGetSport(w, r)
 	if !ok {
 		return
 	}
 
-	blobPath := fmt.Sprintf("activities/%s/metrics/%s.json", year, sport)
-	h.fetchAndRespond(w, r, blobPath, year, sport)
+	if h.activityRepo == nil {
+		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, "Database not available")
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	yearInt, _ := strconv.Atoi(year) // Already validated
+	metrics, err := h.activityRepo.GetSportMetrics(r.Context(), yearInt, sport)
+	if err != nil {
+		logger.Logger.Error("Database query failed", "error", err, "year", year, "sport", sport)
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Internal server error",
+			fmt.Sprintf("Database query failed: %v", err),
+		)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	h.respondJSON(w, r, http.StatusOK, metrics)
 }
 
-// handleSource serves sport-specific source data.
+// handleSource serves sport-specific source data from PostgreSQL.
 func (h *Handler) handleSource(w http.ResponseWriter, r *http.Request, year string) {
 	sport, ok := h.validateAndGetSport(w, r)
 	if !ok {
 		return
 	}
 
-	blobPath := fmt.Sprintf("activities/%s/source/%s.json", year, sport)
-	h.fetchAndRespond(w, r, blobPath, year, sport)
+	if h.activityRepo == nil {
+		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, "Database not available")
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	yearInt, _ := strconv.Atoi(year) // Already validated
+	summary, err := h.activityRepo.GetDailySummary(r.Context(), yearInt, sport)
+	if err != nil {
+		logger.Logger.Error("Database query failed", "error", err, "year", year, "sport", sport)
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Internal server error",
+			fmt.Sprintf("Database query failed: %v", err),
+		)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	h.respondJSON(w, r, http.StatusOK, summary)
 }
 
-// handleMetadata serves year metadata (all sports).
+// handleMetadata serves year metadata (all sports) from PostgreSQL.
 func (h *Handler) handleMetadata(w http.ResponseWriter, r *http.Request, year string) {
-	blobPath := fmt.Sprintf("activities/%s/metadata.json", year)
-	h.fetchAndRespond(w, r, blobPath, year, "metadata")
+	if h.activityRepo == nil {
+		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, "Database not available")
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	yearInt, _ := strconv.Atoi(year) // Already validated
+	metadata, err := h.activityRepo.GetYearMetadata(r.Context(), yearInt)
+	if err != nil {
+		logger.Logger.Error("Database query failed", "error", err, "year", year)
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Internal server error",
+			fmt.Sprintf("Database query failed: %v", err),
+		)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	h.respondJSON(w, r, http.StatusOK, metadata)
 }
 
 // handleSportConfig serves the sport configuration JSON.
@@ -348,27 +381,6 @@ func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Write raw JSON directly (no marshal/unmarshal cycle)
 	h.respondRawJSON(w, r, http.StatusOK, data)
-}
-
-// fetchAndRespond is a helper to fetch blob and respond (DRY).
-func (h *Handler) fetchAndRespond(w http.ResponseWriter, r *http.Request, blobPath, year, dataType string) {
-	data, err := h.storage.ReadJSON(r.Context(), blobPath)
-	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			apiErr := apierrors.NewAPIError(http.StatusNotFound, fmt.Sprintf("No data for %s/%s", year, dataType))
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
-			return
-		}
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
-			"Internal server error",
-			fmt.Sprintf("Error reading blob %s: %v", blobPath, err),
-		)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
-		return
-	}
-
-	h.respondJSON(w, r, http.StatusOK, data)
 }
 
 // respondJSON writes a JSON response with CORS headers.

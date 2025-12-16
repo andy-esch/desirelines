@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 )
@@ -31,6 +33,236 @@ func (r *ActivityRepository) Close() error {
 	return nil
 }
 
-// Future query methods will be added here as needed:
-// - GetActivity(ctx, id) (*Activity, error)
-// - ListActivities(ctx, year, sport) ([]Activity, error)
+// GetSportMetrics returns cumulative metrics timeseries for a sport in a given year.
+// The query aggregates daily activities then computes running totals using window functions.
+func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, sport string) (*repository.SportMetrics, error) {
+	// Query aggregates by day, then computes cumulative sums
+	// Inner query: daily aggregates
+	// Outer query: running totals via window functions
+	query := `
+		SELECT
+			date,
+			SUM(distance) OVER (ORDER BY date) as distance,
+			SUM(elevation) OVER (ORDER BY date) as elevation,
+			SUM(time) OVER (ORDER BY date) as time,
+			SUM(activities) OVER (ORDER BY date)::int as activities
+		FROM (
+			SELECT
+				start_date_local::date as date,
+				SUM(distance) as distance,
+				SUM(total_elevation_gain) as elevation,
+				SUM(moving_time) / 60.0 as time,
+				COUNT(*) as activities
+			FROM desirelines.activities
+			WHERE year = $1
+			  AND sport = $2
+			GROUP BY start_date_local::date
+		) daily
+		ORDER BY date ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, year, sport)
+	if err != nil {
+		return nil, fmt.Errorf("query sport metrics: %w", err)
+	}
+	defer rows.Close()
+
+	var timeseries []repository.CumulativeMetricsEntry
+	for rows.Next() {
+		var date time.Time
+		var distance, elevation, timeMinutes float64
+		var activities int
+
+		if err := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities); err != nil {
+			return nil, fmt.Errorf("scan sport metrics row: %w", err)
+		}
+
+		entry := repository.CumulativeMetricsEntry{
+			Date:       date.Format("2006-01-02"),
+			Distance:   &distance,
+			Elevation:  &elevation,
+			Time:       &timeMinutes,
+			Activities: &activities,
+		}
+
+		timeseries = append(timeseries, entry)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sport metrics rows: %w", err)
+	}
+
+	return &repository.SportMetrics{Timeseries: timeseries}, nil
+}
+
+// GetDailySummary returns daily activity summaries for a sport in a given year.
+// Returns a map keyed by date (YYYY-MM-DD) with daily totals (not cumulative).
+func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, sport string) (repository.DailySummary, error) {
+	query := `
+		SELECT
+			start_date_local::date as date,
+			SUM(distance) as distance,
+			SUM(total_elevation_gain) as elevation,
+			SUM(moving_time) / 60.0 as time,
+			COUNT(*) as activities,
+			array_agg(id) as activity_ids
+		FROM desirelines.activities
+		WHERE year = $1
+		  AND sport = $2
+		GROUP BY start_date_local::date
+		ORDER BY start_date_local::date ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, year, sport)
+	if err != nil {
+		return nil, fmt.Errorf("query daily summary: %w", err)
+	}
+	defer rows.Close()
+
+	summary := make(repository.DailySummary)
+	for rows.Next() {
+		var date time.Time
+		var distance, elevation, timeMinutes float64
+		var activities int
+		var activityIDs []int64
+
+		if err := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities, &activityIDs); err != nil {
+			return nil, fmt.Errorf("scan daily summary row: %w", err)
+		}
+
+		dateStr := date.Format("2006-01-02")
+		summary[dateStr] = &repository.DailyActivity{
+			DistanceMeters:  &distance,
+			ElevationMeters: &elevation,
+			TimeMinutes:     &timeMinutes,
+			Activities:      activities,
+			ActivityIDs:     activityIDs,
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate daily summary rows: %w", err)
+	}
+
+	return summary, nil
+}
+
+// GetDistances returns cumulative distance timeseries for cycling in a given year.
+// DEPRECATED: Legacy endpoint for backward compatibility with web frontend.
+func (r *ActivityRepository) GetDistances(ctx context.Context, year int) (*repository.DistanceData, error) {
+	// Query aggregates by day for cycling, then computes cumulative sums
+	// This is a simplified version of GetSportMetrics that only returns distance
+	query := `
+		SELECT
+			date,
+			SUM(distance) OVER (ORDER BY date) as distance
+		FROM (
+			SELECT
+				start_date_local::date as date,
+				SUM(distance) as distance
+			FROM desirelines.activities
+			WHERE year = $1
+			  AND sport = 'cycling'
+			GROUP BY start_date_local::date
+		) daily
+		ORDER BY date ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, year)
+	if err != nil {
+		return nil, fmt.Errorf("query distances: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []repository.DistanceEntry
+	for rows.Next() {
+		var date time.Time
+		var distance float64
+
+		if err := rows.Scan(&date, &distance); err != nil {
+			return nil, fmt.Errorf("scan distances row: %w", err)
+		}
+
+		entries = append(entries, repository.DistanceEntry{
+			X: date.Format("2006-01-02"),
+			Y: distance,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate distances rows: %w", err)
+	}
+
+	return &repository.DistanceData{DistanceTraveled: entries}, nil
+}
+
+// GetYearMetadata returns metadata about activities for a given year.
+// Includes list of sports, per-sport totals, and last updated timestamp.
+func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*repository.YearMetadata, error) {
+	query := `
+		SELECT
+			sport,
+			SUM(distance) as distance,
+			SUM(total_elevation_gain) as elevation,
+			SUM(moving_time) / 60.0 as time,
+			COUNT(*) as activities,
+			MAX(updated_at) as last_updated
+		FROM desirelines.activities
+		WHERE year = $1
+		GROUP BY sport
+		ORDER BY sport ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, year)
+	if err != nil {
+		return nil, fmt.Errorf("query year metadata: %w", err)
+	}
+	defer rows.Close()
+
+	var sports []string
+	totals := make(map[string]*repository.SportTotals)
+	var latestUpdate *time.Time
+
+	for rows.Next() {
+		var sport string
+		var distance, elevation, timeMinutes float64
+		var activities int
+		var lastUpdated *time.Time
+
+		if err := rows.Scan(&sport, &distance, &elevation, &timeMinutes, &activities, &lastUpdated); err != nil {
+			return nil, fmt.Errorf("scan year metadata row: %w", err)
+		}
+
+		sports = append(sports, sport)
+		totals[sport] = &repository.SportTotals{
+			DistanceMeters:  &distance,
+			ElevationMeters: &elevation,
+			TimeMinutes:     &timeMinutes,
+			Activities:      activities,
+		}
+
+		// Track the most recent update across all sports
+		if lastUpdated != nil && (latestUpdate == nil || lastUpdated.After(*latestUpdate)) {
+			latestUpdate = lastUpdated
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate year metadata rows: %w", err)
+	}
+
+	// Convert time to ISO string for JSON response
+	var lastUpdatedStr *string
+	if latestUpdate != nil {
+		s := latestUpdate.Format(time.RFC3339)
+		lastUpdatedStr = &s
+	}
+
+	return &repository.YearMetadata{
+		Year:               year,
+		Sports:             sports,
+		Totals:             totals,
+		LastUpdated:        lastUpdatedStr,
+		AggregationVersion: "2.0", // Hardcoded version for now
+	}, nil
+}

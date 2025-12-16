@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 )
 
 // mockPool implements a minimal pool interface for testing
@@ -104,5 +106,120 @@ func TestActivityRepository_InterfaceCompliance(t *testing.T) {
 
 		// Verify Close method
 		var _ func() error = repo.Close
+
+		// Verify GetSportMetrics method
+		var _ func(context.Context, int, string) (*repository.SportMetrics, error) = repo.GetSportMetrics
+
+		// Verify GetDailySummary method
+		var _ func(context.Context, int, string) (repository.DailySummary, error) = repo.GetDailySummary
+
+		// Verify GetYearMetadata method
+		var _ func(context.Context, int) (*repository.YearMetadata, error) = repo.GetYearMetadata
+	})
+}
+
+func TestActivityRepository_GetSportMetrics_SignatureAndTypes(t *testing.T) {
+	// This test documents the GetSportMetrics method signature and return types
+	// Actual database queries are tested via integration tests
+
+	t.Run("returns SportMetrics pointer and error", func(t *testing.T) {
+		repo := &ActivityRepository{}
+
+		// Verify the method signature matches the interface
+		var method func(context.Context, int, string) (*repository.SportMetrics, error)
+		method = repo.GetSportMetrics
+
+		// Verify the return type structure
+		_ = method // silence unused variable warning
+
+		// The SportMetrics type should have a Timeseries field
+		metrics := repository.SportMetrics{}
+		_ = metrics.Timeseries // verify field exists
+	})
+
+	t.Run("CumulativeMetricsEntry has expected fields", func(t *testing.T) {
+		// Document the structure of CumulativeMetricsEntry
+		entry := repository.CumulativeMetricsEntry{}
+
+		// Required field
+		_ = entry.Date
+
+		// Optional fields (pointers for omitempty JSON)
+		_ = entry.Distance
+		_ = entry.Elevation
+		_ = entry.Time
+		_ = entry.Activities
+	})
+}
+
+func TestActivityRepository_GetDailySummary_SignatureAndTypes(t *testing.T) {
+	// This test documents the GetDailySummary method signature and return types
+	// Actual database queries are tested via integration tests
+
+	t.Run("returns DailySummary map and error", func(t *testing.T) {
+		repo := &ActivityRepository{}
+
+		// Verify the method signature matches the interface
+		var method func(context.Context, int, string) (repository.DailySummary, error)
+		method = repo.GetDailySummary
+
+		_ = method // silence unused variable warning
+
+		// DailySummary is a map[string]*DailyActivity
+		summary := make(repository.DailySummary)
+		summary["2024-01-15"] = &repository.DailyActivity{}
+	})
+
+	t.Run("DailyActivity has expected fields", func(t *testing.T) {
+		// Document the structure of DailyActivity
+		entry := repository.DailyActivity{}
+
+		// Optional metric fields (pointers for omitempty JSON)
+		_ = entry.DistanceMeters
+		_ = entry.TimeMinutes
+		_ = entry.ElevationMeters
+
+		// Required fields
+		_ = entry.Activities
+		_ = entry.ActivityIDs
+	})
+}
+
+func TestActivityRepository_GetYearMetadata_SignatureAndTypes(t *testing.T) {
+	// This test documents the GetYearMetadata method signature and return types
+	// Actual database queries are tested via integration tests
+
+	t.Run("returns YearMetadata pointer and error", func(t *testing.T) {
+		repo := &ActivityRepository{}
+
+		// Verify the method signature matches the interface
+		var method func(context.Context, int) (*repository.YearMetadata, error)
+		method = repo.GetYearMetadata
+
+		_ = method // silence unused variable warning
+	})
+
+	t.Run("YearMetadata has expected fields", func(t *testing.T) {
+		// Document the structure of YearMetadata
+		meta := repository.YearMetadata{}
+
+		_ = meta.Year
+		_ = meta.Sports
+		_ = meta.Totals
+		_ = meta.LastUpdated
+		_ = meta.AggregationVersion
+	})
+
+	t.Run("SportTotals has expected fields", func(t *testing.T) {
+		// Document the structure of SportTotals
+		totals := repository.SportTotals{}
+
+		// Optional metric fields (pointers for omitempty JSON)
+		_ = totals.DistanceMeters
+		_ = totals.TimeMinutes
+		_ = totals.ElevationMeters
+
+		// Required field
+		_ = totals.Activities
 	})
 }
