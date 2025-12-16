@@ -2,13 +2,17 @@ package apigateway
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
+	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/storage"
+	"github.com/andy-esch/desirelines/packages/apigateway/types"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -32,8 +36,30 @@ func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
 	return next
 }
 
+// mockActivityRepository is a mock implementation of repository.ActivityRepository
+type mockActivityRepository struct {
+	pingErr  error
+	closeErr error
+}
+
+func (m *mockActivityRepository) Ping(ctx context.Context) error {
+	return m.pingErr
+}
+
+func (m *mockActivityRepository) Close() error {
+	return m.closeErr
+}
+
+// Compile-time interface verification
+var _ repository.ActivityRepository = (*mockActivityRepository)(nil)
+
 // newHandlerWithStorage creates a handler with injected dependencies for testing
 func newHandlerWithStorage(storageClient storage.Client, sportConfig *config.SportConfig) *Handler {
+	return newHandlerWithDeps(storageClient, sportConfig, nil)
+}
+
+// newHandlerWithDeps creates a handler with all dependencies including optional activity repository
+func newHandlerWithDeps(storageClient storage.Client, sportConfig *config.SportConfig, activityRepo repository.ActivityRepository) *Handler {
 	// Create a mock auth middleware for testing
 	mockAuth := &mockAuthMiddleware{}
 
@@ -45,6 +71,7 @@ func newHandlerWithStorage(storageClient storage.Client, sportConfig *config.Spo
 
 	h := &Handler{
 		storage:        storageClient,
+		activityRepo:   activityRepo,
 		authMiddleware: mockAuth,
 		corsHandler:    corsHandler,
 		router:         r,
@@ -67,23 +94,139 @@ func newTestHandler(storageClient storage.Client) *Handler {
 	return newHandlerWithStorage(storageClient, sportConfig)
 }
 
+// newTestHandlerWithDB creates a handler with mock storage and database for testing
+func newTestHandlerWithDB(storageClient storage.Client, activityRepo repository.ActivityRepository) *Handler {
+	sportConfig, err := config.LoadSportConfig("")
+	if err != nil {
+		panic("Failed to load sport config for tests: " + err.Error())
+	}
+	return newHandlerWithDeps(storageClient, sportConfig, activityRepo)
+}
+
 func TestHandlerHealth(t *testing.T) {
-	mock := &mockStorageClient{}
-	handler := newTestHandler(mock)
+	t.Run("without database", func(t *testing.T) {
+		mock := &mockStorageClient{}
+		handler := newTestHandler(mock)
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		w := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
 
-	contentType := w.Header().Get("Content-Type")
-	if contentType != "application/json" {
-		t.Errorf("expected Content-Type application/json, got %s", contentType)
-	}
+		contentType := w.Header().Get("Content-Type")
+		if contentType != "application/json" {
+			t.Errorf("expected Content-Type application/json, got %s", contentType)
+		}
+
+		// Parse response to verify database field is not present
+		var response types.HealthResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Status != "healthy" {
+			t.Errorf("expected status 'healthy', got %q", response.Status)
+		}
+
+		if response.Database != "" {
+			t.Errorf("expected empty database field without repository, got %q", response.Database)
+		}
+	})
+
+	t.Run("with healthy database", func(t *testing.T) {
+		mockStorage := &mockStorageClient{}
+		mockRepo := &mockActivityRepository{pingErr: nil}
+		handler := newTestHandlerWithDB(mockStorage, mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+
+		var response types.HealthResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Status != "healthy" {
+			t.Errorf("expected status 'healthy', got %q", response.Status)
+		}
+
+		if response.Database != "healthy" {
+			t.Errorf("expected database 'healthy', got %q", response.Database)
+		}
+	})
+
+	t.Run("with unhealthy database", func(t *testing.T) {
+		mockStorage := &mockStorageClient{}
+		mockRepo := &mockActivityRepository{pingErr: errors.New("connection refused")}
+		handler := newTestHandlerWithDB(mockStorage, mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		// Health check should still return 200 (overall service is healthy)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+
+		var response types.HealthResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Status != "healthy" {
+			t.Errorf("expected status 'healthy', got %q", response.Status)
+		}
+
+		if response.Database != "unhealthy" {
+			t.Errorf("expected database 'unhealthy', got %q", response.Database)
+		}
+	})
+}
+
+func TestHandlerClose(t *testing.T) {
+	t.Run("without database", func(t *testing.T) {
+		mockStorage := &mockStorageClient{}
+		handler := newTestHandler(mockStorage)
+
+		err := handler.Close()
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+	})
+
+	t.Run("with database", func(t *testing.T) {
+		mockStorage := &mockStorageClient{}
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockStorage, mockRepo)
+
+		err := handler.Close()
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+	})
+
+	t.Run("with database close error", func(t *testing.T) {
+		mockStorage := &mockStorageClient{}
+		mockRepo := &mockActivityRepository{closeErr: errors.New("close failed")}
+		handler := newTestHandlerWithDB(mockStorage, mockRepo)
+
+		err := handler.Close()
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
 }
 
 func TestHandlerCORS(t *testing.T) {

@@ -84,20 +84,17 @@ func NewHandler(ctx context.Context) (*Handler, error) {
 	// Initialize chi router
 	r := chi.NewRouter()
 
-	// Optional: Initialize PostgreSQL repository if enabled
+	// Initialize PostgreSQL repository (required for production)
 	var activityRepo repository.ActivityRepository
-	if os.Getenv("ENABLE_DATABASE") == "true" {
-		pool, err := postgres.NewPool(ctx)
-		if err != nil {
-			// Graceful degradation: warn but don't fail startup
-			logger.Logger.Warn("Database initialization failed, continuing without database",
-				"error", err)
-		} else {
-			activityRepo = postgres.NewActivityRepository(pool)
-			logger.Logger.Info("Database repository initialized")
-		}
+	pool, err := postgres.NewPool(ctx)
+	if err != nil {
+		// Graceful degradation: warn but don't fail startup
+		// This allows the service to start even if database is temporarily unavailable
+		logger.Logger.Warn("Database initialization failed, continuing without database",
+			"error", err)
 	} else {
-		logger.Logger.Info("Database disabled (ENABLE_DATABASE != true)")
+		activityRepo = postgres.NewActivityRepository(pool)
+		logger.Logger.Info("Database repository initialized")
 	}
 
 	h := &Handler{
