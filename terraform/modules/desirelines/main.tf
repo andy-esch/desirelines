@@ -419,13 +419,98 @@ resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access
   member    = "user:${var.developer_email}"
 }
 
-# PostgreSQL secret access permissions
+# ==============================================================================
+# PostgreSQL Connection Secrets
+# ==============================================================================
+# Each database role has its own secret with connection string.
+# Secret values must be added manually after creation (contain passwords).
+# Naming convention: postgres-conn-{role}-{env}
+
+# Admin connection (for manual database management)
+resource "google_secret_manager_secret" "postgres_conn_admin" {
+  secret_id = "postgres-conn-admin-${var.environment}"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    environment = var.environment
+    purpose     = "postgres-admin"
+  }
+}
+
+# Flyway connection (for schema migrations)
+resource "google_secret_manager_secret" "postgres_conn_flyway" {
+  secret_id = "postgres-conn-flyway-${var.environment}"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    environment = var.environment
+    purpose     = "postgres-flyway"
+  }
+}
+
+# API Gateway connection (read-only access)
+resource "google_secret_manager_secret" "postgres_conn_apigateway" {
+  secret_id = "postgres-conn-apigateway-${var.environment}"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    environment = var.environment
+    purpose     = "postgres-apigateway"
+  }
+}
+
+# PostgreSQL Writer connection (read/write access)
+resource "google_secret_manager_secret" "postgres_conn_writer" {
+  secret_id = "postgres-conn-writer-${var.environment}"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    environment = var.environment
+    purpose     = "postgres-writer"
+  }
+}
+
+# Reader connection (generic read-only, for future services)
+resource "google_secret_manager_secret" "postgres_conn_reader" {
+  secret_id = "postgres-conn-reader-${var.environment}"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    environment = var.environment
+    purpose     = "postgres-reader"
+  }
+}
+
+# ==============================================================================
+# PostgreSQL Secret IAM Permissions
+# ==============================================================================
 # Each service has its own secret with least-privilege database role
 
 # API Gateway access to its read-only PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "api_gateway_postgres_access" {
   count     = var.create_dedicated_service_accounts ? 1 : 0
-  secret_id = "postgres-conn-apigateway-${var.environment}"
+  project   = var.gcp_project_id
+  secret_id = google_secret_manager_secret.postgres_conn_apigateway.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
 }
@@ -433,7 +518,8 @@ resource "google_secret_manager_secret_iam_member" "api_gateway_postgres_access"
 # PostgreSQL Writer access to its read/write PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "postgres_writer_postgres_access" {
   count     = var.create_dedicated_service_accounts ? 1 : 0
-  secret_id = "postgres-conn-writer-${var.environment}"
+  project   = var.gcp_project_id
+  secret_id = google_secret_manager_secret.postgres_conn_writer.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.postgres_writer_dev[0].email}"
 }
@@ -441,7 +527,8 @@ resource "google_secret_manager_secret_iam_member" "postgres_writer_postgres_acc
 # Grant developer access to admin PostgreSQL secret for local development
 resource "google_secret_manager_secret_iam_member" "postgres_developer_access" {
   count     = var.developer_email != null ? 1 : 0
-  secret_id = "postgres-conn-admin-${var.environment}"
+  project   = var.gcp_project_id
+  secret_id = google_secret_manager_secret.postgres_conn_admin.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "user:${var.developer_email}"
 }
