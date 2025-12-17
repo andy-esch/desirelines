@@ -58,7 +58,7 @@ export const fetchDistanceData = async (
   idToken?: string
 ): Promise<RideBlobType> => {
   const apiBaseUrl = getApiBaseUrl();
-  const url = `${apiBaseUrl}/activities/${year}/distances`;
+  const url = `${apiBaseUrl}/activities/${year}/metrics?sport=cycling`;
 
   // Build headers with optional auth token
   const headers: Record<string, string> = {};

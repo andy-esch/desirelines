@@ -43,7 +43,7 @@ describe("fetchDistanceData", () => {
 
       // Verify the URL was called (exact URL depends on env configuration)
       expect(axios.get).toHaveBeenCalledWith(
-        expect.stringContaining("/activities/2025/distances"),
+        expect.stringContaining("/activities/2025/metrics?sport=cycling"),
         expect.any(Object)
       );
     });
@@ -60,7 +60,7 @@ describe("fetchDistanceData", () => {
 
       // In test environment without env vars, should use default
       expect(axios.get).toHaveBeenCalledWith(
-        "http://localhost:8084/activities/2025/distances",
+        "http://localhost:8084/activities/2025/metrics?sport=cycling",
         expect.any(Object)
       );
     });
@@ -93,7 +93,7 @@ describe("fetchDistanceData", () => {
       await fetchDistanceData(2025, abortController.signal);
 
       expect(axios.get).toHaveBeenCalledWith(
-        expect.stringContaining("/activities/2025/distances"),
+        expect.stringContaining("/activities/2025/metrics?sport=cycling"),
         { signal: abortController.signal, headers: {} }
       );
     });
@@ -108,7 +108,7 @@ describe("fetchDistanceData", () => {
       await fetchDistanceData(2023);
 
       expect(axios.get).toHaveBeenCalledWith(
-        expect.stringContaining("/activities/2023/distances"),
+        expect.stringContaining("/activities/2023/metrics?sport=cycling"),
         expect.any(Object)
       );
     });
