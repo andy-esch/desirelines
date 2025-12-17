@@ -1,6 +1,6 @@
 #!/bin/bash
 # Connect to PostgreSQL database via psql
-# Usage: ./scripts/database/connect.sh dev|prod [--admin|--readonly]
+# Usage: ./scripts/database/connect.sh dev|prod [--admin|--apigateway|--writer]
 
 set -euo pipefail
 
@@ -15,10 +15,15 @@ NC='\033[0m' # No Color
 
 # Parse arguments
 ENVIRONMENT="${1:-}"
-ROLE_FLAG="${2:---readonly}"
+ROLE_FLAG="${2:---admin}"
 
 if [[ -z "$ENVIRONMENT" ]]; then
-  echo -e "${RED}Usage: ./scripts/database/connect.sh dev|prod [--admin|--readonly]${NC}"
+  echo -e "${RED}Usage: ./scripts/database/connect.sh dev|prod [--admin|--apigateway|--writer]${NC}"
+  echo ""
+  echo "Roles:"
+  echo "  --admin      Full admin access (default)"
+  echo "  --apigateway Read-only access (apigateway role)"
+  echo "  --writer     Write access (postgres-writer role)"
   exit 1
 fi
 
@@ -27,17 +32,25 @@ if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "prod" ]]; then
   exit 1
 fi
 
-# Determine which role to use
-if [[ "$ROLE_FLAG" == "--admin" ]]; then
-  ROLE="admin"
-  SECRET_SUFFIX="admin"
-elif [[ "$ROLE_FLAG" == "--readonly" ]]; then
-  ROLE="readonly"
-  SECRET_SUFFIX="readonly"
-else
-  echo -e "${RED}Role flag must be --admin or --readonly${NC}"
-  exit 1
-fi
+# Determine which secret to use based on role
+case "$ROLE_FLAG" in
+  --admin)
+    ROLE="admin"
+    SECRET_NAME="postgres-conn-admin-${ENVIRONMENT}"
+    ;;
+  --apigateway)
+    ROLE="apigateway (read-only)"
+    SECRET_NAME="postgres-conn-apigateway-${ENVIRONMENT}"
+    ;;
+  --writer)
+    ROLE="writer"
+    SECRET_NAME="postgres-conn-writer-${ENVIRONMENT}"
+    ;;
+  *)
+    echo -e "${RED}Role flag must be --admin, --apigateway, or --writer${NC}"
+    exit 1
+    ;;
+esac
 
 echo -e "${GREEN}🔌 Connecting to ${ENVIRONMENT} database (${ROLE} role)...${NC}"
 
@@ -55,25 +68,18 @@ if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" &>/dev/nu
 fi
 
 # Get connection string from Secret Manager
-echo -e "${YELLOW}📥 Fetching connection string from Secret Manager...${NC}"
+echo -e "${YELLOW}📥 Fetching connection string from Secret Manager (${SECRET_NAME})...${NC}"
 CONNECTION_STRING=$(gcloud secrets versions access latest \
-  --secret="postgres-connection-string-${ENVIRONMENT}" \
+  --secret="${SECRET_NAME}" \
   --project="${PROJECT_ID}" 2>/dev/null || true)
-CONNECTION_STRING=${CONNECTION_STRING/+psycopg/}
 
 if [[ -z "$CONNECTION_STRING" ]]; then
   echo -e "${RED}❌ Failed to fetch connection string from Secret Manager${NC}"
-  echo -e "${YELLOW}Make sure you have access to secret: postgres-connection-string-${ENVIRONMENT}${NC}"
+  echo -e "${YELLOW}Make sure you have access to secret: ${SECRET_NAME}${NC}"
   exit 1
 fi
 
-# For readonly/admin users, we might need to modify the connection string
-# if we've created separate role-specific credentials
-# For now, use the main connection string (assumes it's using the Neon default role)
-
 echo -e "${GREEN}✅ Connection string retrieved${NC}"
-echo -e "${YELLOW}⚠️  Note: Currently using default Neon credentials${NC}"
-echo -e "${YELLOW}    After creating individual roles, you'll need role-specific secrets${NC}"
 echo ""
 
 # Connect via psql
