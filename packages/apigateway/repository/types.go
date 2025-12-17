@@ -50,9 +50,3 @@ type YearMetadata struct {
 	AggregationVersion string                  `json:"aggregation_version"`    // Version for cache busting
 }
 
-// DistanceEntry represents a single point in the legacy distance timeseries.
-// Uses x/y naming for backward compatibility with existing web frontend.
-type DistanceEntry struct {
-	X string  `json:"x"` // Date in ISO format: "2024-01-15"
-	Y float64 `json:"y"` // Cumulative distance in meters
-}

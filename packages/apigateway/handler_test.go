@@ -33,8 +33,6 @@ type mockActivityRepository struct {
 	dailySummaryErr error
 	yearMetadata    *repository.YearMetadata
 	yearMetadataErr error
-	distances       *repository.DistanceData
-	distancesErr    error
 }
 
 func (m *mockActivityRepository) Ping(ctx context.Context) error {
@@ -45,20 +43,16 @@ func (m *mockActivityRepository) Close() error {
 	return m.closeErr
 }
 
-func (m *mockActivityRepository) GetSportMetrics(ctx context.Context, year int, sport string) (*repository.SportMetrics, error) {
+func (m *mockActivityRepository) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*repository.SportMetrics, error) {
 	return m.sportMetrics, m.sportMetricsErr
 }
 
-func (m *mockActivityRepository) GetDailySummary(ctx context.Context, year int, sport string) (repository.DailySummary, error) {
+func (m *mockActivityRepository) GetDailySummary(ctx context.Context, year int, sportTypes []string) (repository.DailySummary, error) {
 	return m.dailySummary, m.dailySummaryErr
 }
 
 func (m *mockActivityRepository) GetYearMetadata(ctx context.Context, year int) (*repository.YearMetadata, error) {
 	return m.yearMetadata, m.yearMetadataErr
-}
-
-func (m *mockActivityRepository) GetDistances(ctx context.Context, year int) (*repository.DistanceData, error) {
-	return m.distances, m.distancesErr
 }
 
 // Compile-time interface verification
@@ -309,70 +303,6 @@ func TestHandlerCORS(t *testing.T) {
 		allowedOrigin := w.Header().Get("Access-Control-Allow-Origin")
 		if allowedOrigin != "" {
 			t.Errorf("expected no CORS origin when ALLOWED_ORIGINS not set, got %s", allowedOrigin)
-		}
-	})
-}
-
-func TestHandlerDistances(t *testing.T) {
-	testDistances := &repository.DistanceData{
-		DistanceTraveled: []repository.DistanceEntry{
-			{X: "2024-01-01", Y: 10.5},
-		},
-	}
-
-	t.Run("successful request with database", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{distances: testDistances}
-		handler := newTestHandlerWithDB(mockRepo)
-
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/distances", nil)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d", w.Code)
-		}
-	})
-
-	t.Run("returns 503 without database", func(t *testing.T) {
-		handler := newTestHandler() // No database
-
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/distances", nil)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusServiceUnavailable {
-			t.Errorf("expected status 503, got %d", w.Code)
-		}
-	})
-
-	t.Run("invalid data type", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
-
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/invalid", nil)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		// chi returns 404 for non-matching routes
-		if w.Code != http.StatusNotFound {
-			t.Errorf("expected status 404, got %d", w.Code)
-		}
-	})
-
-	t.Run("method not allowed", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
-
-		req := httptest.NewRequest(http.MethodPost, "/activities/2024/distances", nil)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusMethodNotAllowed {
-			t.Errorf("expected status 405, got %d", w.Code)
 		}
 	})
 }

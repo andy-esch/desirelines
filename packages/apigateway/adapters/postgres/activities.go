@@ -33,9 +33,10 @@ func (r *ActivityRepository) Close() error {
 	return nil
 }
 
-// GetSportMetrics returns cumulative metrics timeseries for a sport in a given year.
+// GetSportMetrics returns cumulative metrics timeseries for a sport category in a given year.
 // The query aggregates daily activities then computes running totals using window functions.
-func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, sport string) (*repository.SportMetrics, error) {
+// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
+func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*repository.SportMetrics, error) {
 	// Query aggregates by day, then computes cumulative sums
 	// Inner query: daily aggregates
 	// Outer query: running totals via window functions
@@ -55,13 +56,13 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 				COUNT(*) as activities
 			FROM desirelines.activities
 			WHERE year = $1
-			  AND sport = $2
+			  AND sport = ANY($2)
 			GROUP BY start_date_local::date
 		) daily
 		ORDER BY date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, year, sport)
+	rows, err := r.pool.Query(ctx, query, year, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query sport metrics: %w", err)
 	}
@@ -95,9 +96,10 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 	return &repository.SportMetrics{Timeseries: timeseries}, nil
 }
 
-// GetDailySummary returns daily activity summaries for a sport in a given year.
+// GetDailySummary returns daily activity summaries for a sport category in a given year.
 // Returns a map keyed by date (YYYY-MM-DD) with daily totals (not cumulative).
-func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, sport string) (repository.DailySummary, error) {
+// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
+func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, sportTypes []string) (repository.DailySummary, error) {
 	query := `
 		SELECT
 			start_date_local::date as date,
@@ -108,12 +110,12 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 			array_agg(id) as activity_ids
 		FROM desirelines.activities
 		WHERE year = $1
-		  AND sport = $2
+		  AND sport = ANY($2)
 		GROUP BY start_date_local::date
 		ORDER BY start_date_local::date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, year, sport)
+	rows, err := r.pool.Query(ctx, query, year, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query daily summary: %w", err)
 	}

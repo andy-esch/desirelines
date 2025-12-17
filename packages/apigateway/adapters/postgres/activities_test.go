@@ -108,10 +108,10 @@ func TestActivityRepository_InterfaceCompliance(t *testing.T) {
 		var _ func() error = repo.Close
 
 		// Verify GetSportMetrics method
-		var _ func(context.Context, int, string) (*repository.SportMetrics, error) = repo.GetSportMetrics
+		var _ func(context.Context, int, []string) (*repository.SportMetrics, error) = repo.GetSportMetrics
 
 		// Verify GetDailySummary method
-		var _ func(context.Context, int, string) (repository.DailySummary, error) = repo.GetDailySummary
+		var _ func(context.Context, int, []string) (repository.DailySummary, error) = repo.GetDailySummary
 
 		// Verify GetYearMetadata method
 		var _ func(context.Context, int) (*repository.YearMetadata, error) = repo.GetYearMetadata
@@ -126,7 +126,7 @@ func TestActivityRepository_GetSportMetrics_SignatureAndTypes(t *testing.T) {
 		repo := &ActivityRepository{}
 
 		// Verify the method signature matches the interface
-		var method func(context.Context, int, string) (*repository.SportMetrics, error)
+		var method func(context.Context, int, []string) (*repository.SportMetrics, error)
 		method = repo.GetSportMetrics
 
 		// Verify the return type structure
@@ -160,7 +160,7 @@ func TestActivityRepository_GetDailySummary_SignatureAndTypes(t *testing.T) {
 		repo := &ActivityRepository{}
 
 		// Verify the method signature matches the interface
-		var method func(context.Context, int, string) (repository.DailySummary, error)
+		var method func(context.Context, int, []string) (repository.DailySummary, error)
 		method = repo.GetDailySummary
 
 		_ = method // silence unused variable warning

@@ -17,13 +17,15 @@ type ActivityRepository interface {
 	// Close releases database resources.
 	io.Closer
 
-	// GetSportMetrics returns cumulative metrics timeseries for a sport in a given year.
+	// GetSportMetrics returns cumulative metrics timeseries for a sport category in a given year.
+	// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
 	// Used by: GET /activities/{year}/metrics?sport=X
-	GetSportMetrics(ctx context.Context, year int, sport string) (*SportMetrics, error)
+	GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*SportMetrics, error)
 
-	// GetDailySummary returns daily activity summaries for a sport in a given year.
+	// GetDailySummary returns daily activity summaries for a sport category in a given year.
+	// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
 	// Used by: GET /activities/{year}/source?sport=X
-	GetDailySummary(ctx context.Context, year int, sport string) (DailySummary, error)
+	GetDailySummary(ctx context.Context, year int, sportTypes []string) (DailySummary, error)
 
 	// GetYearMetadata returns metadata about activities for a given year.
 	// Used by: GET /activities/{year}/metadata

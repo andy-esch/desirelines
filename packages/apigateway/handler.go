@@ -102,9 +102,6 @@ func (h *Handler) registerRoutes() {
 		r.Get("/activities/{year}/metadata", h.handleMetadataWithParam)
 		r.Get("/activities/{year}/metrics", h.handleMetricsWithParam)
 		r.Get("/activities/{year}/source", h.handleSourceWithParam)
-
-		// Legacy endpoint (backward compatibility, PostgreSQL backed)
-		r.Get("/activities/{year}/distances", h.handleDistancesWithParam)
 	})
 }
 
@@ -187,39 +184,6 @@ func (h *Handler) handleSourceWithParam(w http.ResponseWriter, r *http.Request) 
 	h.handleSource(w, r, year)
 }
 
-func (h *Handler) handleDistancesWithParam(w http.ResponseWriter, r *http.Request) {
-	year, ok := h.validateAndGetYear(w, r)
-	if !ok {
-		return
-	}
-	h.handleDistances(w, r, year)
-}
-
-// handleDistances serves legacy cycling distance data from PostgreSQL.
-// DEPRECATED: Use /activities/{year}/metrics?sport=cycling instead.
-func (h *Handler) handleDistances(w http.ResponseWriter, r *http.Request, year string) {
-	if h.activityRepo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, "Database not available")
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
-		return
-	}
-
-	yearInt, _ := strconv.Atoi(year) // Already validated
-	distances, err := h.activityRepo.GetDistances(r.Context(), yearInt)
-	if err != nil {
-		logger.Logger.Error("Database query failed", "error", err, "year", year)
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
-			"Internal server error",
-			fmt.Sprintf("Database query failed: %v", err),
-		)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
-		return
-	}
-
-	h.respondJSON(w, r, http.StatusOK, distances)
-}
-
 const (
 	// MinValidYear is the earliest year for which activity data can be requested.
 	// Set to 2000 to allow pre-Strava historical data imports.
@@ -251,28 +215,31 @@ func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (st
 	return year, true
 }
 
-// validateAndGetSport extracts and validates the sport query parameter.
-// Returns the sport name and true if valid, or writes an error response and returns false.
-func (h *Handler) validateAndGetSport(w http.ResponseWriter, r *http.Request) (string, bool) {
+// validateAndGetSportTypes extracts and validates the sport query parameter.
+// Returns the Strava sport_type values for the category and true if valid,
+// or writes an error response and returns false.
+// For example, "cycling" returns ["Ride", "VirtualRide"].
+func (h *Handler) validateAndGetSportTypes(w http.ResponseWriter, r *http.Request) ([]string, bool) {
 	sport := r.URL.Query().Get("sport")
 	if sport == "" {
 		err := apierrors.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
 		apierrors.WriteError(w, r, err, h.corsHandler)
-		return "", false
+		return nil, false
 	}
 
-	if !h.sportConfig.ValidateSport(sport) {
+	stravaTypes := h.sportConfig.GetStravaTypes(sport)
+	if stravaTypes == nil {
 		err := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
 		apierrors.WriteError(w, r, err, h.corsHandler)
-		return "", false
+		return nil, false
 	}
 
-	return sport, true
+	return stravaTypes, true
 }
 
 // handleMetrics serves sport-specific metrics data from PostgreSQL.
 func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year string) {
-	sport, ok := h.validateAndGetSport(w, r)
+	sportTypes, ok := h.validateAndGetSportTypes(w, r)
 	if !ok {
 		return
 	}
@@ -284,9 +251,9 @@ func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year str
 	}
 
 	yearInt, _ := strconv.Atoi(year) // Already validated
-	metrics, err := h.activityRepo.GetSportMetrics(r.Context(), yearInt, sport)
+	metrics, err := h.activityRepo.GetSportMetrics(r.Context(), yearInt, sportTypes)
 	if err != nil {
-		logger.Logger.Error("Database query failed", "error", err, "year", year, "sport", sport)
+		logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Internal server error",
@@ -301,7 +268,7 @@ func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year str
 
 // handleSource serves sport-specific source data from PostgreSQL.
 func (h *Handler) handleSource(w http.ResponseWriter, r *http.Request, year string) {
-	sport, ok := h.validateAndGetSport(w, r)
+	sportTypes, ok := h.validateAndGetSportTypes(w, r)
 	if !ok {
 		return
 	}
@@ -313,9 +280,9 @@ func (h *Handler) handleSource(w http.ResponseWriter, r *http.Request, year stri
 	}
 
 	yearInt, _ := strconv.Atoi(year) // Already validated
-	summary, err := h.activityRepo.GetDailySummary(r.Context(), yearInt, sport)
+	summary, err := h.activityRepo.GetDailySummary(r.Context(), yearInt, sportTypes)
 	if err != nil {
-		logger.Logger.Error("Database query failed", "error", err, "year", year, "sport", sport)
+		logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Internal server error",

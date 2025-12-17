@@ -64,7 +64,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	})
 
 	t.Run("GetSportMetrics", func(t *testing.T) {
-		metrics, err := repo.GetSportMetrics(ctx, 2024, "cycling")
+		// Pass Strava sport types that map to "cycling" category
+		metrics, err := repo.GetSportMetrics(ctx, 2024, []string{"Ride", "VirtualRide"})
 		if err != nil {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
@@ -87,7 +88,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	})
 
 	t.Run("GetSportMetrics_NoResults", func(t *testing.T) {
-		metrics, err := repo.GetSportMetrics(ctx, 2024, "nonexistent")
+		metrics, err := repo.GetSportMetrics(ctx, 2024, []string{"NonexistentSport"})
 		if err != nil {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
@@ -98,7 +99,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	})
 
 	t.Run("GetDailySummary", func(t *testing.T) {
-		summary, err := repo.GetDailySummary(ctx, 2024, "cycling")
+		// Pass Strava sport types that map to "cycling" category
+		summary, err := repo.GetDailySummary(ctx, 2024, []string{"Ride", "VirtualRide"})
 		if err != nil {
 			t.Fatalf("GetDailySummary failed: %v", err)
 		}
@@ -136,34 +138,34 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Errorf("expected year 2024, got %d", metadata.Year)
 		}
 
-		// Should have both cycling and running
+		// Should have both Ride and Run (raw Strava sport types)
 		if len(metadata.Sports) != 2 {
 			t.Errorf("expected 2 sports, got %d: %v", len(metadata.Sports), metadata.Sports)
 		}
 
-		// Check cycling totals
-		cyclingTotals := metadata.Totals["cycling"]
-		if cyclingTotals == nil {
-			t.Fatal("expected cycling totals")
+		// Check Ride totals (raw Strava sport_type)
+		rideTotals := metadata.Totals["Ride"]
+		if rideTotals == nil {
+			t.Fatal("expected Ride totals")
 		}
 
 		// 10000 + 15000 = 25000 total distance
-		if cyclingTotals.DistanceMeters == nil || *cyclingTotals.DistanceMeters != 25000 {
-			t.Errorf("expected cycling total distance 25000, got %v", cyclingTotals.DistanceMeters)
+		if rideTotals.DistanceMeters == nil || *rideTotals.DistanceMeters != 25000 {
+			t.Errorf("expected Ride total distance 25000, got %v", rideTotals.DistanceMeters)
 		}
 
-		if cyclingTotals.Activities != 2 {
-			t.Errorf("expected 2 cycling activities, got %d", cyclingTotals.Activities)
+		if rideTotals.Activities != 2 {
+			t.Errorf("expected 2 Ride activities, got %d", rideTotals.Activities)
 		}
 
-		// Check running totals
-		runningTotals := metadata.Totals["running"]
-		if runningTotals == nil {
-			t.Fatal("expected running totals")
+		// Check Run totals (raw Strava sport_type)
+		runTotals := metadata.Totals["Run"]
+		if runTotals == nil {
+			t.Fatal("expected Run totals")
 		}
 
-		if runningTotals.Activities != 1 {
-			t.Errorf("expected 1 running activity, got %d", runningTotals.Activities)
+		if runTotals.Activities != 1 {
+			t.Errorf("expected 1 Run activity, got %d", runTotals.Activities)
 		}
 	})
 
@@ -175,40 +177,6 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 		if len(metadata.Sports) != 0 {
 			t.Errorf("expected 0 sports for year with no data, got %d", len(metadata.Sports))
-		}
-	})
-
-	t.Run("GetDistances", func(t *testing.T) {
-		distances, err := repo.GetDistances(ctx, 2024)
-		if err != nil {
-			t.Fatalf("GetDistances failed: %v", err)
-		}
-
-		if len(distances.DistanceTraveled) != 2 {
-			t.Errorf("expected 2 distance entries, got %d", len(distances.DistanceTraveled))
-		}
-
-		// First entry should be Jan 15
-		if distances.DistanceTraveled[0].X != "2024-01-15" {
-			t.Errorf("expected first date 2024-01-15, got %s", distances.DistanceTraveled[0].X)
-		}
-
-		// Values should be cumulative (cycling only: 10000 + 15000 = 25000)
-		// Jan 15: 10000m
-		// Jan 16: 25000m cumulative
-		if distances.DistanceTraveled[1].Y != 25000 {
-			t.Errorf("expected cumulative distance 25000, got %v", distances.DistanceTraveled[1].Y)
-		}
-	})
-
-	t.Run("GetDistances_NoResults", func(t *testing.T) {
-		distances, err := repo.GetDistances(ctx, 1999)
-		if err != nil {
-			t.Fatalf("GetDistances failed: %v", err)
-		}
-
-		if len(distances.DistanceTraveled) != 0 {
-			t.Errorf("expected 0 distance entries for year with no data, got %d", len(distances.DistanceTraveled))
 		}
 	})
 }
@@ -254,7 +222,7 @@ func insertTestData(t *testing.T, pool *pgxpool.Pool) {
 			userID:         "test-user",
 			name:           "Morning Ride",
 			activityType:   "Ride",
-			sport:          "cycling",
+			sport:          "Ride", // Raw Strava sport_type
 			startDateLocal: time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC),
 			year:           2024,
 			distance:       10000, // 10km in meters
@@ -267,7 +235,7 @@ func insertTestData(t *testing.T, pool *pgxpool.Pool) {
 			userID:         "test-user",
 			name:           "Afternoon Ride",
 			activityType:   "Ride",
-			sport:          "cycling",
+			sport:          "Ride", // Raw Strava sport_type
 			startDateLocal: time.Date(2024, 1, 16, 14, 0, 0, 0, time.UTC),
 			year:           2024,
 			distance:       15000, // 15km in meters
@@ -280,7 +248,7 @@ func insertTestData(t *testing.T, pool *pgxpool.Pool) {
 			userID:         "test-user",
 			name:           "Morning Run",
 			activityType:   "Run",
-			sport:          "running",
+			sport:          "Run", // Raw Strava sport_type
 			startDateLocal: time.Date(2024, 1, 15, 7, 0, 0, 0, time.UTC),
 			year:           2024,
 			distance:       5000, // 5km in meters
