@@ -7,23 +7,14 @@
 --   dml_grp  - Application runtime, can SELECT/INSERT/UPDATE/DELETE
 --   ro_grp   - Read-only access for reporting/analytics
 --
--- Login roles (created separately in Neon console) inherit from these groups.
-
--- =============================================================================
--- ROLE GROUPS (NOLOGIN)
--- =============================================================================
-
--- DDL Group: Owns all database objects, can create/modify schema
-CREATE ROLE desirelines_ddl_grp NOINHERIT;
-COMMENT ON ROLE desirelines_ddl_grp IS 'DDL operations - owns all objects (Flyway, admins)';
-
--- DML Group: Read/write access to data, no DDL permissions
-CREATE ROLE desirelines_dml_grp NOINHERIT;
-COMMENT ON ROLE desirelines_dml_grp IS 'DML operations - application runtime (writer service)';
-
--- Read-Only Group: SELECT-only access for reporting/analytics
-CREATE ROLE desirelines_ro_grp NOINHERIT;
-COMMENT ON ROLE desirelines_ro_grp IS 'Read-only access (apigateway, reporting)';
+-- IMPORTANT: Role groups must be created MANUALLY before running migrations.
+-- Neon restricts role creation to neondb_owner, which Flyway cannot assume.
+--
+-- Pre-migration setup (run as neondb_owner):
+--   CREATE ROLE desirelines_ddl_grp NOINHERIT;
+--   CREATE ROLE desirelines_dml_grp NOINHERIT;
+--   CREATE ROLE desirelines_ro_grp NOINHERIT;
+--   GRANT desirelines_ddl_grp TO desirelines_flyway;
 
 -- =============================================================================
 -- SCHEMA PRIVILEGES
@@ -60,14 +51,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE desirelines_ddl_grp IN SCHEMA desirelines
 -- SEARCH PATH DEFAULTS
 -- =============================================================================
 
--- Set search_path so applications use correct schemas automatically
-ALTER ROLE desirelines_dml_grp SET search_path = desirelines, extensions, public;
-ALTER ROLE desirelines_ro_grp SET search_path = desirelines, extensions, public;
-
--- =============================================================================
--- GRANT DDL GROUP TO CURRENT USER
--- =============================================================================
-
--- Allow Flyway (or local superuser) to SET ROLE to ddl_grp for object creation
--- This ensures all objects are owned by ddl_grp, not the connecting user
-GRANT desirelines_ddl_grp TO CURRENT_USER;
+-- NOTE: search_path must be set manually as neondb_owner (requires CREATEROLE):
+--   ALTER ROLE desirelines_dml_grp SET search_path = desirelines, extensions, public;
+--   ALTER ROLE desirelines_ro_grp SET search_path = desirelines, extensions, public;
