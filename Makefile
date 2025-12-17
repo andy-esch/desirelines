@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config db-connect-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-admin db-connect-prod-admin db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info db-clean-dev
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config db-connect-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-ro db-connect-prod-ro db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info db-clean-dev
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -474,10 +474,7 @@ generate-requirements:
 	cd packages/stravapipe && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-aggregator.txt
 	@echo "  - Removing local package references from aggregator requirements"
 	sed -i '' '/^\.\/packages\/stravapipe$$/d' functions/requirements-aggregator.txt
-	@echo "  - Stravapipe package requirements (shared for both functions)"
-	cd packages/stravapipe && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-stravabqsync.txt
-	@echo "  - Removing local package references from BQ inserter requirements"
-	sed -i '' '/^\.\/packages\/stravapipe$$/d' functions/requirements-stravabqsync.txt
+
 
 # Build all images
 build: generate-requirements
@@ -636,21 +633,21 @@ db-clean-local:
 # Production Database Operations
 # ==========================================
 
-# Connect to dev database (read-only)
+# Connect to dev database (admin - default)
 db-connect-dev:
-	@./scripts/database/connect.sh dev --readonly
-
-# Connect to prod database (read-only)
-db-connect-prod:
-	@./scripts/database/connect.sh prod --readonly
-
-# Connect to dev database (admin)
-db-connect-dev-admin:
 	@./scripts/database/connect.sh dev --admin
 
-# Connect to prod database (admin)
-db-connect-prod-admin:
+# Connect to prod database (admin - default)
+db-connect-prod:
 	@./scripts/database/connect.sh prod --admin
+
+# Connect to dev database (apigateway read-only role)
+db-connect-dev-ro:
+	@./scripts/database/connect.sh dev --apigateway
+
+# Connect to prod database (apigateway read-only role)
+db-connect-prod-ro:
+	@./scripts/database/connect.sh prod --apigateway
 
 # Run migrations against dev (with dry-run first)
 db-migrate-dev:

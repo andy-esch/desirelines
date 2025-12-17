@@ -42,14 +42,16 @@ if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" &>/dev/nu
 fi
 
 # Get connection string from Secret Manager
-echo -e "${YELLOW}📥 Fetching connection string from Secret Manager...${NC}"
+# Use flyway connection string (has schema management permissions)
+SECRET_NAME="postgres-conn-flyway-${ENVIRONMENT}"
+echo -e "${YELLOW}📥 Fetching connection string from Secret Manager (${SECRET_NAME})...${NC}"
 CONNECTION_STRING=$(gcloud secrets versions access latest \
-  --secret="postgres-connection-string-${ENVIRONMENT}" \
+  --secret="${SECRET_NAME}" \
   --project="${PROJECT_ID}" 2>/dev/null || true)
 
 if [[ -z "$CONNECTION_STRING" ]]; then
   echo -e "${RED}❌ Failed to fetch connection string from Secret Manager${NC}"
-  echo -e "${YELLOW}Make sure you have access to secret: postgres-connection-string-${ENVIRONMENT}${NC}"
+  echo -e "${YELLOW}Make sure you have access to secret: ${SECRET_NAME}${NC}"
   exit 1
 fi
 
@@ -59,6 +61,10 @@ DB_USER=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://([^:]+):.*|\1|')
 DB_PASSWORD=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://[^:]+:([^@]+)@.*|\1|')
 URL_WITHOUT_CREDS=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://[^@]+@|postgresql://|')
 JDBC_URL="jdbc:${URL_WITHOUT_CREDS}"
+
+echo "DB_USER="$DB_USER
+echo "DB_PASSWORD="$DB_PASSWORD
+echo "JDBC_URL="$JDBC_URL
 
 echo -e "${GREEN}✅ Connection string retrieved and parsed${NC}"
 echo ""

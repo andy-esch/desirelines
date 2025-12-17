@@ -4,7 +4,8 @@ package types
 
 // HealthResponse is the response for the /health endpoint.
 type HealthResponse struct {
-	Status string `json:"status"`
+	Status   string `json:"status"`
+	Database string `json:"database,omitempty"`
 }
 
 // ErrorResponse is the response for error cases.

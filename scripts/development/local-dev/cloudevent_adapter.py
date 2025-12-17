@@ -9,10 +9,16 @@ delivering to Cloud Run. This adapter replicates that behavior locally.
 Architecture:
     PubSub Emulator -> CloudEvent Adapter -> Cloud Run Services
                        (adds ce-* headers)
+
+Retry Limiting:
+    The PubSub emulator doesn't support maxDeliveryAttempts, so this adapter
+    tracks delivery attempts per message and returns 200 (ACK) after hitting
+    the limit. This prevents retry storms from hammering external APIs.
 """
 
 import logging
 import os
+from collections import defaultdict
 from datetime import UTC, datetime
 
 import httpx
@@ -41,6 +47,10 @@ SERVICE_ENDPOINTS = {
 # Project and topic for CloudEvent source
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "local-dev")
 TOPIC_NAME = os.environ.get("GCP_PUBSUB_TOPIC", "desirelines_activity_events")
+
+# Retry limiting (emulator doesn't support maxDeliveryAttempts)
+MAX_DELIVERY_ATTEMPTS = int(os.environ.get("MAX_DELIVERY_ATTEMPTS", "2"))
+message_attempts: dict[str, int] = defaultdict(int)
 
 
 @app.get("/health")
@@ -90,6 +100,25 @@ async def forward_with_cloudevents(target_service: str, request: Request):
     message_id = message.get("messageId", "unknown")
     publish_time = message.get("publishTime", datetime.now(UTC).isoformat())
 
+    # Track delivery attempts per message+service to prevent retry storms
+    attempt_key = f"{target_service}:{message_id}"
+    message_attempts[attempt_key] += 1
+    attempt = message_attempts[attempt_key]
+
+    if attempt > MAX_DELIVERY_ATTEMPTS:
+        logger.warning(
+            "Message %s to %s exceeded max attempts (%d), ACKing to stop retries",
+            message_id,
+            target_service,
+            MAX_DELIVERY_ATTEMPTS,
+        )
+        # Return 200 to ACK the message and stop retries
+        return Response(
+            content=f'{{"status": "dropped", "reason": "max_attempts_exceeded", "attempts": {attempt}}}',
+            status_code=200,
+            media_type="application/json",
+        )
+
     # Build CloudEvent headers (matching Eventarc format)
     cloudevent_headers = {
         "ce-specversion": "1.0",
@@ -121,15 +150,22 @@ async def forward_with_cloudevents(target_service: str, request: Request):
             )
 
             logger.info(
-                "Response from %s: %s",
+                "Response from %s: %s (attempt %d/%d)",
                 target_service,
                 response.status_code,
+                attempt,
+                MAX_DELIVERY_ATTEMPTS,
                 extra={
                     "message_id": message_id,
                     "target_service": target_service,
                     "status_code": response.status_code,
+                    "attempt": attempt,
                 },
             )
+
+            # Clear attempt tracking on success
+            if response.status_code < 400:
+                message_attempts.pop(attempt_key, None)
 
             # Return the response from the target service
             return Response(

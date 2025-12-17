@@ -131,6 +131,17 @@ func (c *SportConfig) ValidateSport(sport string) bool {
 	return ok
 }
 
+// GetStravaTypes returns the Strava sport_type values that map to a category.
+// For example, "cycling" returns ["Ride", "VirtualRide"].
+// Returns nil if the category doesn't exist.
+func (c *SportConfig) GetStravaTypes(category string) []string {
+	cat, ok := c.data.SportCategories[category]
+	if !ok {
+		return nil
+	}
+	return cat.StravaTypes
+}
+
 // GetRawConfigJSON returns the raw embedded sport config JSON
 // Used for serving the config via API endpoint
 func GetRawConfigJSON() []byte {

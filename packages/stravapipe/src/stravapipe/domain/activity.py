@@ -345,8 +345,13 @@ class StandardActivity(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sport(self) -> str:
-        """Normalize sport_type to lowercase snake_case for sport column."""
-        return self.sport_type.lower().replace(" ", "_")
+        """Return raw sport_type value for sport column.
+
+        No normalization - store Strava's original value (e.g., "Ride", "MountainBikeRide").
+        Categorization logic (grouping into cycling, running, etc.) is handled by
+        the frontend/apigateway using sport_types.json config.
+        """
+        return self.sport_type
 
     @computed_field  # type: ignore[prop-decorator]
     @property
