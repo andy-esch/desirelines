@@ -2,58 +2,21 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 )
 
-// mockPool implements a minimal pool interface for testing
-type mockPool struct {
-	pingErr  error
-	closeErr error
-}
-
-func (m *mockPool) Ping(ctx context.Context) error {
-	return m.pingErr
-}
-
-func (m *mockPool) Close() {
-	// no-op for mock
-}
-
 func TestActivityRepository_Ping(t *testing.T) {
-	tests := []struct {
-		name    string
-		pingErr error
-		wantErr bool
-	}{
-		{
-			name:    "successful ping",
-			pingErr: nil,
-			wantErr: false,
-		},
-		{
-			name:    "failed ping",
-			pingErr: errors.New("connection refused"),
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a Pool wrapper with mock behavior
-			// Since Pool embeds *pgxpool.Pool, we can't easily mock it.
-			// Instead, test via integration or verify the struct composition.
-			// This test documents expected behavior.
-
-			// For unit testing without a real database, we verify the type implements the interface
-			var _ interface {
-				Ping(context.Context) error
-				Close() error
-			} = &ActivityRepository{}
-		})
-	}
+	// Since Pool embeds *pgxpool.Pool, we can't easily mock it.
+	// Instead, test via integration or verify the struct composition.
+	// This test documents that ActivityRepository implements the expected interface.
+	t.Run("implements Ping interface", func(t *testing.T) {
+		var _ interface {
+			Ping(context.Context) error
+			Close() error
+		} = &ActivityRepository{}
+	})
 }
 
 func TestActivityRepository_Close(t *testing.T) {
@@ -77,12 +40,12 @@ func TestNewActivityRepository(t *testing.T) {
 		// This test documents the expected API
 
 		// Verify the function exists and has correct signature
-		var constructor func(*Pool) *ActivityRepository = NewActivityRepository
+		constructor := NewActivityRepository
 
 		// Verify nil pool handling (defensive - shouldn't happen in practice)
 		repo := constructor(nil)
 		if repo == nil {
-			t.Error("NewActivityRepository returned nil")
+			t.Fatal("NewActivityRepository returned nil")
 		}
 		if repo.pool != nil {
 			t.Error("expected nil pool to be stored as nil")
@@ -98,23 +61,8 @@ func TestActivityRepository_InterfaceCompliance(t *testing.T) {
 		// The compile-time check in activities.go ensures this:
 		// var _ repository.ActivityRepository = (*ActivityRepository)(nil)
 
-		// Verify the methods exist with correct signatures
-		repo := &ActivityRepository{}
-
-		// Verify Ping method
-		var _ func(context.Context) error = repo.Ping
-
-		// Verify Close method
-		var _ func() error = repo.Close
-
-		// Verify GetSportMetrics method
-		var _ func(context.Context, int, []string) (*repository.SportMetrics, error) = repo.GetSportMetrics
-
-		// Verify GetDailySummary method
-		var _ func(context.Context, int, []string) (repository.DailySummary, error) = repo.GetDailySummary
-
-		// Verify GetYearMetadata method
-		var _ func(context.Context, int) (*repository.YearMetadata, error) = repo.GetYearMetadata
+		// Verify interface compliance via compile-time check
+		var _ repository.ActivityRepository = (*ActivityRepository)(nil)
 	})
 }
 
@@ -125,30 +73,25 @@ func TestActivityRepository_GetSportMetrics_SignatureAndTypes(t *testing.T) {
 	t.Run("returns SportMetrics pointer and error", func(t *testing.T) {
 		repo := &ActivityRepository{}
 
-		// Verify the method signature matches the interface
-		var method func(context.Context, int, []string) (*repository.SportMetrics, error)
-		method = repo.GetSportMetrics
+		// Verify the method exists and can be called (compile-time check)
+		_ = repo.GetSportMetrics
+	})
 
-		// Verify the return type structure
-		_ = method // silence unused variable warning
-
-		// The SportMetrics type should have a Timeseries field
+	t.Run("SportMetrics has Timeseries field", func(t *testing.T) {
 		metrics := repository.SportMetrics{}
-		_ = metrics.Timeseries // verify field exists
+		if metrics.Timeseries != nil {
+			t.Log("Timeseries field exists and is nil by default")
+		}
 	})
 
 	t.Run("CumulativeMetricsEntry has expected fields", func(t *testing.T) {
-		// Document the structure of CumulativeMetricsEntry
-		entry := repository.CumulativeMetricsEntry{}
-
-		// Required field
-		_ = entry.Date
-
-		// Optional fields (pointers for omitempty JSON)
-		_ = entry.Distance
-		_ = entry.Elevation
-		_ = entry.Time
-		_ = entry.Activities
+		// Document the structure by constructing a valid instance
+		entry := repository.CumulativeMetricsEntry{
+			Date: "2024-01-15",
+		}
+		if entry.Date == "" {
+			t.Error("Date field should be set")
+		}
 	})
 }
 
@@ -159,29 +102,28 @@ func TestActivityRepository_GetDailySummary_SignatureAndTypes(t *testing.T) {
 	t.Run("returns DailySummary map and error", func(t *testing.T) {
 		repo := &ActivityRepository{}
 
-		// Verify the method signature matches the interface
-		var method func(context.Context, int, []string) (repository.DailySummary, error)
-		method = repo.GetDailySummary
+		// Verify the method exists and can be called (compile-time check)
+		_ = repo.GetDailySummary
+	})
 
-		_ = method // silence unused variable warning
-
-		// DailySummary is a map[string]*DailyActivity
+	t.Run("DailySummary is a map type", func(t *testing.T) {
 		summary := make(repository.DailySummary)
-		summary["2024-01-15"] = &repository.DailyActivity{}
+		summary["2024-01-15"] = &repository.DailyActivity{
+			Activities: 1,
+		}
+		if len(summary) != 1 {
+			t.Error("expected 1 entry in summary")
+		}
 	})
 
 	t.Run("DailyActivity has expected fields", func(t *testing.T) {
-		// Document the structure of DailyActivity
-		entry := repository.DailyActivity{}
-
-		// Optional metric fields (pointers for omitempty JSON)
-		_ = entry.DistanceMeters
-		_ = entry.TimeMinutes
-		_ = entry.ElevationMeters
-
-		// Required fields
-		_ = entry.Activities
-		_ = entry.ActivityIDs
+		entry := repository.DailyActivity{
+			Activities:  1,
+			ActivityIDs: []int64{12345},
+		}
+		if entry.Activities != 1 {
+			t.Error("Activities field should be set")
+		}
 	})
 }
 
@@ -192,34 +134,27 @@ func TestActivityRepository_GetYearMetadata_SignatureAndTypes(t *testing.T) {
 	t.Run("returns YearMetadata pointer and error", func(t *testing.T) {
 		repo := &ActivityRepository{}
 
-		// Verify the method signature matches the interface
-		var method func(context.Context, int) (*repository.YearMetadata, error)
-		method = repo.GetYearMetadata
-
-		_ = method // silence unused variable warning
+		// Verify the method exists and can be called (compile-time check)
+		_ = repo.GetYearMetadata
 	})
 
 	t.Run("YearMetadata has expected fields", func(t *testing.T) {
-		// Document the structure of YearMetadata
-		meta := repository.YearMetadata{}
-
-		_ = meta.Year
-		_ = meta.Sports
-		_ = meta.Totals
-		_ = meta.LastUpdated
-		_ = meta.AggregationVersion
+		meta := repository.YearMetadata{
+			Year:               2024,
+			Sports:             []string{"cycling"},
+			AggregationVersion: "2.0",
+		}
+		if meta.Year != 2024 {
+			t.Error("Year field should be set")
+		}
 	})
 
 	t.Run("SportTotals has expected fields", func(t *testing.T) {
-		// Document the structure of SportTotals
-		totals := repository.SportTotals{}
-
-		// Optional metric fields (pointers for omitempty JSON)
-		_ = totals.DistanceMeters
-		_ = totals.TimeMinutes
-		_ = totals.ElevationMeters
-
-		// Required field
-		_ = totals.Activities
+		totals := repository.SportTotals{
+			Activities: 10,
+		}
+		if totals.Activities != 10 {
+			t.Error("Activities field should be set")
+		}
 	})
 }

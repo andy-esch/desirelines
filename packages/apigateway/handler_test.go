@@ -118,8 +118,8 @@ func TestHandlerHealth(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		if response.Status != "healthy" {
-			t.Errorf("expected status 'healthy', got %q", response.Status)
+		if response.Status != statusHealthy {
+			t.Errorf("expected status %q, got %q", statusHealthy, response.Status)
 		}
 
 		if response.Database != "" {
@@ -145,12 +145,12 @@ func TestHandlerHealth(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		if response.Status != "healthy" {
-			t.Errorf("expected status 'healthy', got %q", response.Status)
+		if response.Status != statusHealthy {
+			t.Errorf("expected status %q, got %q", statusHealthy, response.Status)
 		}
 
-		if response.Database != "healthy" {
-			t.Errorf("expected database 'healthy', got %q", response.Database)
+		if response.Database != statusHealthy {
+			t.Errorf("expected database %q, got %q", statusHealthy, response.Database)
 		}
 	})
 
@@ -173,12 +173,12 @@ func TestHandlerHealth(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		if response.Status != "healthy" {
-			t.Errorf("expected status 'healthy', got %q", response.Status)
+		if response.Status != statusHealthy {
+			t.Errorf("expected status %q, got %q", statusHealthy, response.Status)
 		}
 
-		if response.Database != "unhealthy" {
-			t.Errorf("expected database 'unhealthy', got %q", response.Database)
+		if response.Database != statusUnhealthy {
+			t.Errorf("expected database %q, got %q", statusUnhealthy, response.Database)
 		}
 	})
 }

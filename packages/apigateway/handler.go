@@ -131,7 +131,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // handleHealth returns API health status.
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	response := types.HealthResponse{
-		Status: "healthy",
+		Status: statusHealthy,
 	}
 
 	// Check database connectivity if enabled
@@ -141,9 +141,9 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 		if err := h.activityRepo.Ping(ctx); err != nil {
 			logger.Logger.Warn("Database health check failed", "error", err)
-			response.Database = "unhealthy"
+			response.Database = statusUnhealthy
 		} else {
-			response.Database = "healthy"
+			response.Database = statusHealthy
 		}
 	}
 
@@ -161,27 +161,27 @@ func (h *Handler) Close() error {
 // Wrapper handlers that extract path parameters and validate year
 
 func (h *Handler) handleMetadataWithParam(w http.ResponseWriter, r *http.Request) {
-	year, ok := h.validateAndGetYear(w, r)
+	yearStr, ok := h.validateAndGetYear(w, r)
 	if !ok {
 		return
 	}
-	h.handleMetadata(w, r, year)
+	h.handleMetadata(w, r, yearStr)
 }
 
 func (h *Handler) handleMetricsWithParam(w http.ResponseWriter, r *http.Request) {
-	year, ok := h.validateAndGetYear(w, r)
+	yearStr, ok := h.validateAndGetYear(w, r)
 	if !ok {
 		return
 	}
-	h.handleMetrics(w, r, year)
+	h.handleMetrics(w, r, yearStr)
 }
 
 func (h *Handler) handleSourceWithParam(w http.ResponseWriter, r *http.Request) {
-	year, ok := h.validateAndGetYear(w, r)
+	yearStr, ok := h.validateAndGetYear(w, r)
 	if !ok {
 		return
 	}
-	h.handleSource(w, r, year)
+	h.handleSource(w, r, yearStr)
 }
 
 const (
@@ -192,6 +192,14 @@ const (
 	// MaxValidYear is the latest year for which activity data can be requested.
 	// Set to 2050 as a reasonable planning horizon (approximately one generation).
 	MaxValidYear = 2050
+
+	// Health status constants
+	statusHealthy   = "healthy"
+	statusUnhealthy = "unhealthy"
+
+	// Error messages
+	errMsgDatabaseUnavailable = "Database not available"
+	errMsgInternalServerError = "Internal server error"
 )
 
 // isValidYear validates that the year string is a 4-digit number within valid bounds.
@@ -237,26 +245,46 @@ func (h *Handler) validateAndGetSportTypes(w http.ResponseWriter, r *http.Reques
 	return stravaTypes, true
 }
 
-// handleMetrics serves sport-specific metrics data from PostgreSQL.
-func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year string) {
+// validateSportAndYear validates sport types and year, checks database availability,
+// and returns the parsed values. This consolidates common validation for metrics/source handlers.
+func (h *Handler) validateSportAndYear(w http.ResponseWriter, r *http.Request, year string) ([]string, int, bool) {
 	sportTypes, ok := h.validateAndGetSportTypes(w, r)
+	if !ok {
+		return nil, 0, false
+	}
+
+	if h.activityRepo == nil {
+		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return nil, 0, false
+	}
+
+	yearInt, err := strconv.Atoi(year)
+	if err != nil {
+		// This should never happen since year is validated, but handle it properly
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return nil, 0, false
+	}
+
+	return sportTypes, yearInt, true
+}
+
+// handleMetrics serves sport-specific metrics data from PostgreSQL.
+//
+//nolint:dupl // Similar to handleSource but calls different repository method
+func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year string) {
+	sportTypes, yearInt, ok := h.validateSportAndYear(w, r, year)
 	if !ok {
 		return
 	}
 
-	if h.activityRepo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, "Database not available")
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
-		return
-	}
-
-	yearInt, _ := strconv.Atoi(year) // Already validated
 	metrics, err := h.activityRepo.GetSportMetrics(r.Context(), yearInt, sportTypes)
 	if err != nil {
 		logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
-			"Internal server error",
+			errMsgInternalServerError,
 			fmt.Sprintf("Database query failed: %v", err),
 		)
 		apierrors.WriteError(w, r, apiErr, h.corsHandler)
@@ -267,25 +295,20 @@ func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year str
 }
 
 // handleSource serves sport-specific source data from PostgreSQL.
+//
+//nolint:dupl // Similar to handleMetrics but calls different repository method
 func (h *Handler) handleSource(w http.ResponseWriter, r *http.Request, year string) {
-	sportTypes, ok := h.validateAndGetSportTypes(w, r)
+	sportTypes, yearInt, ok := h.validateSportAndYear(w, r, year)
 	if !ok {
 		return
 	}
 
-	if h.activityRepo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, "Database not available")
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
-		return
-	}
-
-	yearInt, _ := strconv.Atoi(year) // Already validated
 	summary, err := h.activityRepo.GetDailySummary(r.Context(), yearInt, sportTypes)
 	if err != nil {
 		logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
-			"Internal server error",
+			errMsgInternalServerError,
 			fmt.Sprintf("Database query failed: %v", err),
 		)
 		apierrors.WriteError(w, r, apiErr, h.corsHandler)
@@ -298,18 +321,25 @@ func (h *Handler) handleSource(w http.ResponseWriter, r *http.Request, year stri
 // handleMetadata serves year metadata (all sports) from PostgreSQL.
 func (h *Handler) handleMetadata(w http.ResponseWriter, r *http.Request, year string) {
 	if h.activityRepo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, "Database not available")
+		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
 		apierrors.WriteError(w, r, apiErr, h.corsHandler)
 		return
 	}
 
-	yearInt, _ := strconv.Atoi(year) // Already validated
+	yearInt, err := strconv.Atoi(year)
+	if err != nil {
+		// This should never happen since year is validated, but handle it properly
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
 	metadata, err := h.activityRepo.GetYearMetadata(r.Context(), yearInt)
 	if err != nil {
 		logger.Logger.Error("Database query failed", "error", err, "year", year)
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
-			"Internal server error",
+			errMsgInternalServerError,
 			fmt.Sprintf("Database query failed: %v", err),
 		)
 		apierrors.WriteError(w, r, apiErr, h.corsHandler)
@@ -351,6 +381,8 @@ func (h *Handler) handleSportConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // respondJSON writes a JSON response with CORS headers.
+//
+//nolint:unparam // status is always 200 currently, but keeping for consistency and future use
 func (h *Handler) respondJSON(w http.ResponseWriter, r *http.Request, status int, data any) {
 	h.corsHandler.SetHeaders(w, r)
 

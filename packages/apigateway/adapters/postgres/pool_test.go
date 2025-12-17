@@ -145,12 +145,12 @@ func TestLoadConnectionString(t *testing.T) {
 		// Create temp directory and file to simulate secret mount
 		tmpDir := t.TempDir()
 		secretDir := filepath.Join(tmpDir, "etc", "secrets", "postgres")
-		if err := os.MkdirAll(secretDir, 0755); err != nil {
+		if err := os.MkdirAll(secretDir, 0750); err != nil { //nolint:gosec // G301: Test directory, not production
 			t.Fatalf("Failed to create secret dir: %v", err)
 		}
 
 		secretFile := filepath.Join(secretDir, "connection_string")
-		secretValue := "postgresql://secret@host/db?application_name=from-secret"
+		secretValue := "postgresql://secret@host/db?application_name=from-secret" //nolint:gosec // G101: Test data, not real credentials
 		if err := os.WriteFile(secretFile, []byte(secretValue), 0600); err != nil {
 			t.Fatalf("Failed to write secret file: %v", err)
 		}

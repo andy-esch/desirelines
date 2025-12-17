@@ -49,4 +49,3 @@ type YearMetadata struct {
 	LastUpdated        *string                 `json:"last_updated,omitempty"` // ISO timestamp
 	AggregationVersion string                  `json:"aggregation_version"`    // Version for cache busting
 }
-

@@ -74,8 +74,8 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 		var distance, elevation, timeMinutes float64
 		var activities int
 
-		if err := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities); err != nil {
-			return nil, fmt.Errorf("scan sport metrics row: %w", err)
+		if scanErr := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities); scanErr != nil {
+			return nil, fmt.Errorf("scan sport metrics row: %w", scanErr)
 		}
 
 		entry := repository.CumulativeMetricsEntry{
@@ -89,8 +89,8 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 		timeseries = append(timeseries, entry)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate sport metrics rows: %w", err)
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate sport metrics rows: %w", rowsErr)
 	}
 
 	return &repository.SportMetrics{Timeseries: timeseries}, nil
@@ -128,8 +128,8 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 		var activities int
 		var activityIDs []int64
 
-		if err := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities, &activityIDs); err != nil {
-			return nil, fmt.Errorf("scan daily summary row: %w", err)
+		if scanErr := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities, &activityIDs); scanErr != nil {
+			return nil, fmt.Errorf("scan daily summary row: %w", scanErr)
 		}
 
 		dateStr := date.Format("2006-01-02")
@@ -142,8 +142,8 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 		}
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate daily summary rows: %w", err)
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate daily summary rows: %w", rowsErr)
 	}
 
 	return summary, nil
@@ -182,8 +182,8 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*re
 		var activities int
 		var lastUpdated *time.Time
 
-		if err := rows.Scan(&sport, &distance, &elevation, &timeMinutes, &activities, &lastUpdated); err != nil {
-			return nil, fmt.Errorf("scan year metadata row: %w", err)
+		if scanErr := rows.Scan(&sport, &distance, &elevation, &timeMinutes, &activities, &lastUpdated); scanErr != nil {
+			return nil, fmt.Errorf("scan year metadata row: %w", scanErr)
 		}
 
 		sports = append(sports, sport)
@@ -200,8 +200,8 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*re
 		}
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate year metadata rows: %w", err)
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate year metadata rows: %w", rowsErr)
 	}
 
 	// Convert time to ISO string for JSON response

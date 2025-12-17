@@ -42,8 +42,8 @@ func NewPool(ctx context.Context) (*Pool, error) {
 	}
 
 	// Validate connection string format and required parameters
-	if err := validateConnectionString(connString); err != nil {
-		return nil, err
+	if validateErr := validateConnectionString(connString); validateErr != nil {
+		return nil, validateErr
 	}
 
 	config, err := pgxpool.ParseConfig(connString)
@@ -70,9 +70,9 @@ func NewPool(ctx context.Context) (*Pool, error) {
 	}
 
 	// Verify connectivity
-	if err := pool.Ping(ctx); err != nil {
+	if pingErr := pool.Ping(ctx); pingErr != nil {
 		pool.Close()
-		return nil, fmt.Errorf("ping database: %w", err)
+		return nil, fmt.Errorf("ping database: %w", pingErr)
 	}
 
 	logger.Logger.Info("PostgreSQL connection pool established")
@@ -83,7 +83,7 @@ func NewPool(ctx context.Context) (*Pool, error) {
 // loadConnectionString reads from secret mount or environment variable.
 func loadConnectionString() (string, error) {
 	// Try secret mount first (Cloud Run)
-	const secretPath = "/etc/secrets/postgres/connection_string"
+	const secretPath = "/etc/secrets/postgres/connection_string" //nolint:gosec // G101: Not credentials, just a file path
 	if data, err := os.ReadFile(secretPath); err == nil {
 		return strings.TrimSpace(string(data)), nil
 	}
