@@ -104,7 +104,13 @@ class TestActivityRepository:
         assert row.name == "Evening Run"
 
     def test_update_metadata_changes_type_and_sport(self, uow, db_session):
-        """update_metadata updates type and sport columns."""
+        """update_metadata updates both type and sport columns.
+
+        Strava webhooks send 'type' (base type like "Ride") not 'sport_type'
+        (specific type like "MountainBikeRide"). While lossy, updating both
+        columns is better than leaving stale data - "Ride" is more correct
+        than "Run" if the user changed their activity type.
+        """
         activity = make_activity(activity_id=100005)
 
         with uow:
@@ -122,7 +128,7 @@ class TestActivityRepository:
             {"id": 100005},
         ).fetchone()
         assert row.type == "Ride"
-        assert row.sport == "ride"
+        assert row.sport == "Ride"
 
     def test_update_metadata_returns_false_for_missing(self, uow):
         """update_metadata returns False for non-existent activity."""
