@@ -2,8 +2,8 @@
  * Authentication hook using Firebase Auth
  *
  * Provides authentication state and handles sign in/out
- * - No user (null) → Show fixtures (demo mode)
- * - With user → Show backend data (authenticated mode)
+ * - No user (null) → Unauthenticated mode (localStorage for config)
+ * - With user → Authenticated mode (Firestore for config, API with auth token)
  */
 
 import { useState, useEffect } from "react";

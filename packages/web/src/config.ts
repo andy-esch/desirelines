@@ -12,10 +12,7 @@ import { getConfig } from "./lib/config";
 // Load validated configuration
 const appConfig = getConfig();
 
-// Fixture mode: Use local fixture data instead of backend API
-export const USE_FIXTURE_DATA = appConfig.useFixtures;
-
-// API Gateway URL (for backend mode)
+// API Gateway URL
 export const API_BASE_URL = appConfig.apiGatewayUrl || "";
 
 // Note: Configuration logging moved to src/lib/config.ts

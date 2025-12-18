@@ -5,8 +5,6 @@ import {
   type SportMetrics,
   type SportConfig,
 } from "../api/activities";
-import { USE_FIXTURE_DATA } from "../config";
-import { FIXTURE_SPORT_METRICS, FIXTURE_SPORT_CONFIG } from "../data/fixtures";
 import { useAuth } from "./useAuth";
 import { useAuthToken } from "./useAuthToken";
 
@@ -22,8 +20,7 @@ export interface SportDataResult {
  * Hook for fetching sport metrics and configuration data
  *
  * Handles loading metrics and config for a specific year and sport,
- * with automatic authentication and fixture mode support.
- * Provides retry functionality for error recovery.
+ * with automatic authentication. Provides retry functionality for error recovery.
  *
  * @param year - The year to fetch data for
  * @param sport - The sport type (cycling, running, yoga)
@@ -38,7 +35,7 @@ export interface SportDataResult {
  * ```
  */
 export function useSportData(year: number, sport: string): SportDataResult {
-  const { user, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const { getToken } = useAuthToken();
 
   const [metrics, setMetrics] = useState<SportMetrics | null>(null);
@@ -66,28 +63,15 @@ export function useSportData(year: number, sport: string): SportDataResult {
         setIsLoading(true);
         setError(null);
 
-        // Smart mode: Use fixtures for anonymous users when USE_FIXTURE_DATA=true
-        const shouldUseFixtures = USE_FIXTURE_DATA && !user;
+        const idToken = await getToken();
 
-        if (shouldUseFixtures) {
-          // Load from fixtures (synchronous)
-          const metricsData = FIXTURE_SPORT_METRICS[sport]?.[year] || [];
-          const configData = FIXTURE_SPORT_CONFIG;
+        const [metricsData, configData] = await Promise.all([
+          fetchSportMetrics(year, sport, controller.signal, idToken),
+          fetchSportConfig(controller.signal, idToken),
+        ]);
 
-          setMetrics(metricsData);
-          setSportConfig(configData);
-        } else {
-          // Fetch from API (authenticated user or USE_FIXTURE_DATA=false)
-          const idToken = await getToken();
-
-          const [metricsData, configData] = await Promise.all([
-            fetchSportMetrics(year, sport, controller.signal, idToken),
-            fetchSportConfig(controller.signal, idToken),
-          ]);
-
-          setMetrics(metricsData);
-          setSportConfig(configData);
-        }
+        setMetrics(metricsData);
+        setSportConfig(configData);
       } catch (err) {
         if (err instanceof Error && err.message !== "Request cancelled") {
           setError(err);
@@ -102,7 +86,7 @@ export function useSportData(year: number, sport: string): SportDataResult {
     return () => {
       controller.abort();
     };
-  }, [year, sport, user, authLoading, retryCount, getToken]);
+  }, [year, sport, authLoading, retryCount, getToken]);
 
   return {
     metrics,

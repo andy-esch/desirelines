@@ -2,10 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import GoalControls from "../GoalControls";
 import type { Goals } from "../../utils/goalCalculations";
-import { fetchYearMetadata } from "../../api/activities";
+import { fetchYearMetadata, fetchSportConfig } from "../../api/activities";
 import type { MetricUnit } from "../../utils/units";
-import { USE_FIXTURE_DATA } from "../../config";
-import { FIXTURE_METADATA } from "../../data/fixtures";
 import { useAuth } from "../../hooks/useAuth";
 import { useAuthToken } from "../../hooks/useAuthToken";
 
@@ -35,7 +33,7 @@ export default function Sidebar({
   isLoading = false,
 }: SidebarProps) {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
   const { getToken } = useAuthToken();
   const [availableSports, setAvailableSports] = useState<string[]>(["cycling"]); // Default fallback
 
@@ -50,23 +48,31 @@ export default function Sidebar({
 
     async function loadSports() {
       try {
-        // Smart mode: Use fixtures for anonymous users when USE_FIXTURE_DATA=true
-        // Authenticated users always fetch from API (even if USE_FIXTURE_DATA=true)
-        const shouldUseFixtures = USE_FIXTURE_DATA && !user;
+        const idToken = await getToken();
 
-        if (shouldUseFixtures) {
-          const metadata = FIXTURE_METADATA[currentYear];
-          if (metadata?.sports && metadata.sports.length > 0) {
-            setAvailableSports(metadata.sports);
-          }
-        } else {
-          // Fetch from API with authentication
-          const idToken = await getToken();
+        // Fetch both metadata (raw Strava types with data) and config (category definitions)
+        const [metadata, sportConfig] = await Promise.all([
+          fetchYearMetadata(currentYear, controller.signal, idToken),
+          fetchSportConfig(controller.signal, idToken),
+        ]);
 
-          const metadata = await fetchYearMetadata(currentYear, controller.signal, idToken);
-          if (metadata.sports && metadata.sports.length > 0) {
-            setAvailableSports(metadata.sports);
+        // metadata.sports contains raw Strava types (e.g., ["Ride", "Run", "MountainBikeRide"])
+        // We need to find which categories have at least one matching Strava type
+        const rawSportsWithData = new Set(metadata.sports || []);
+        const categoriesWithData: string[] = [];
+
+        for (const [category, config] of Object.entries(sportConfig.sport_categories)) {
+          // Check if any of this category's Strava types have data
+          const hasData = config.strava_types.some((stravaType) =>
+            rawSportsWithData.has(stravaType)
+          );
+          if (hasData) {
+            categoriesWithData.push(category);
           }
+        }
+
+        if (categoriesWithData.length > 0) {
+          setAvailableSports(categoriesWithData);
         }
       } catch (err) {
         // Silently fail - keep default sports
@@ -79,7 +85,7 @@ export default function Sidebar({
     return () => {
       controller.abort();
     };
-  }, [currentYear, user, loading, getToken]);
+  }, [currentYear, loading, getToken]);
 
   const handleSportChange = (newSport: string) => {
     // Use currentYear prop (source of truth from parent component)

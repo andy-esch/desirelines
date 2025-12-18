@@ -9,19 +9,9 @@ import * as activitiesApi from "../api/activities";
 vi.mock("./useAuth");
 vi.mock("./useAuthToken");
 vi.mock("../api/activities");
-vi.mock("../config", () => ({
-  USE_FIXTURE_DATA: true,
-}));
-vi.mock("../data/fixtures", () => ({
-  FIXTURE_SPORT_METRICS: {
-    cycling: {
-      2025: [
-        { date: "2025-01-01", distance: 10 },
-        { date: "2025-01-02", distance: 20 },
-      ],
-    },
-  },
-  FIXTURE_SPORT_CONFIG: {
+
+describe("useSportData", () => {
+  const mockConfig = {
     version: "1.0",
     sport_categories: {
       cycling: {
@@ -34,10 +24,8 @@ vi.mock("../data/fixtures", () => ({
         has_elevation: true,
       },
     },
-  },
-}));
+  };
 
-describe("useSportData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -62,7 +50,9 @@ describe("useSportData", () => {
     expect(result.current.sportConfig).toBeNull();
   });
 
-  it("loads fixture data when user is not authenticated", async () => {
+  it("fetches from API when auth is ready (unauthenticated)", async () => {
+    const mockMetrics = [{ date: "2025-01-01", distance: 50 }];
+
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
       user: null,
       loading: false,
@@ -75,33 +65,27 @@ describe("useSportData", () => {
       getToken: vi.fn().mockResolvedValue(undefined),
     });
 
+    vi.spyOn(activitiesApi, "fetchSportMetrics").mockResolvedValue(mockMetrics);
+    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
+
     const { result } = renderHook(() => useSportData(2025, "cycling"));
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(result.current.metrics).toHaveLength(2);
-    expect(result.current.sportConfig).toBeDefined();
-    expect(result.current.error).toBeNull();
+    expect(result.current.metrics).toEqual(mockMetrics);
+    expect(result.current.sportConfig).toEqual(mockConfig);
+    expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith(
+      2025,
+      "cycling",
+      expect.any(AbortSignal),
+      undefined
+    );
   });
 
   it("fetches from API when user is authenticated", async () => {
     const mockMetrics = [{ date: "2025-01-01", distance: 50 }];
-    const mockConfig = {
-      version: "1.0",
-      sport_categories: {
-        cycling: {
-          display_name: "Cycling",
-          strava_types: ["Ride"],
-          excluded_types: [],
-          primary_metric: "distance_meters",
-          metrics: ["distance_meters"],
-          has_distance: true,
-          has_elevation: true,
-        },
-      },
-    };
 
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
       user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
@@ -207,10 +191,7 @@ describe("useSportData", () => {
       .mockRejectedValueOnce(error)
       .mockResolvedValueOnce([{ date: "2025-01-01", distance: 100 }]);
 
-    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue({
-      version: "1.0",
-      sport_categories: {},
-    });
+    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
 
     const { result } = renderHook(() => useSportData(2025, "cycling"));
 
@@ -232,6 +213,9 @@ describe("useSportData", () => {
   });
 
   it("refetches when year changes", async () => {
+    const mockMetrics2025 = [{ date: "2025-01-01", distance: 100 }];
+    const mockMetrics2024 = [{ date: "2024-01-01", distance: 200 }];
+
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
       user: null,
       loading: false,
@@ -244,6 +228,12 @@ describe("useSportData", () => {
       getToken: vi.fn().mockResolvedValue(undefined),
     });
 
+    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
+    const fetchMetricsSpy = vi
+      .spyOn(activitiesApi, "fetchSportMetrics")
+      .mockResolvedValueOnce(mockMetrics2025)
+      .mockResolvedValueOnce(mockMetrics2024);
+
     const { result, rerender } = renderHook(({ year, sport }) => useSportData(year, sport), {
       initialProps: { year: 2025, sport: "cycling" },
     });
@@ -252,20 +242,22 @@ describe("useSportData", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    const firstMetrics = result.current.metrics;
+    expect(result.current.metrics).toEqual(mockMetrics2025);
 
     // Change year
     rerender({ year: 2024, sport: "cycling" });
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current.metrics).toEqual(mockMetrics2024);
     });
 
-    // Should trigger refetch (metrics will be empty for 2024 in fixture)
-    expect(result.current.metrics).not.toBe(firstMetrics);
+    expect(fetchMetricsSpy).toHaveBeenCalledTimes(2);
   });
 
   it("refetches when sport changes", async () => {
+    const mockCyclingMetrics = [{ date: "2025-01-01", distance: 100 }];
+    const mockRunningMetrics = [{ date: "2025-01-01", distance: 50 }];
+
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
       user: null,
       loading: false,
@@ -278,6 +270,12 @@ describe("useSportData", () => {
       getToken: vi.fn().mockResolvedValue(undefined),
     });
 
+    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
+    const fetchMetricsSpy = vi
+      .spyOn(activitiesApi, "fetchSportMetrics")
+      .mockResolvedValueOnce(mockCyclingMetrics)
+      .mockResolvedValueOnce(mockRunningMetrics);
+
     const { result, rerender } = renderHook(({ year, sport }) => useSportData(year, sport), {
       initialProps: { year: 2025, sport: "cycling" },
     });
@@ -286,14 +284,15 @@ describe("useSportData", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
+    expect(result.current.metrics).toEqual(mockCyclingMetrics);
+
     // Change sport
     rerender({ year: 2025, sport: "running" });
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current.metrics).toEqual(mockRunningMetrics);
     });
 
-    // Should have triggered refetch
-    expect(result.current.isLoading).toBe(false);
+    expect(fetchMetricsSpy).toHaveBeenCalledTimes(2);
   });
 });
