@@ -1,4 +1,12 @@
 // Package repository defines domain interfaces and types for data access.
+//
+// Empty Data Convention:
+// All slice fields MUST be initialized as empty slices (not nil) to ensure
+// proper JSON serialization. Go's nil slices serialize to JSON null, but our
+// API contract requires empty arrays [].
+//
+// Use: make([]T, 0)  -- serializes to []
+// Not: var s []T     -- serializes to null
 package repository
 
 // CumulativeMetricsEntry represents a single point in the cumulative metrics timeseries.

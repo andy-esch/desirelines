@@ -1,3 +1,30 @@
+/**
+ * API Client for Activities
+ *
+ * API Contract for Empty/Missing Data:
+ * ------------------------------------
+ * The API follows a consistent pattern for handling missing data:
+ *
+ * | Scenario              | HTTP Status | Response Body                              |
+ * |-----------------------|-------------|--------------------------------------------|
+ * | Year/sport has data   | 200         | { timeseries: [...] } or { sports: [...] } |
+ * | Year/sport NO data    | 200         | { timeseries: [] } or { sports: [] }       |
+ * | Invalid year format   | 400         | { error: "Invalid year format" }           |
+ * | Invalid sport         | 400         | { error: "Invalid sport: X" }              |
+ * | Auth failure          | 401/403     | { error: "..." }                           |
+ * | DB/Server error       | 500         | { error: "Internal server error" }         |
+ *
+ * Key principle: Empty data is NOT an error. The API returns 200 with empty
+ * arrays/objects. 404 is only used for truly non-existent resources (wrong endpoint).
+ *
+ * Frontend handling:
+ * - 200 responses: Display data (or empty state if arrays are empty)
+ * - 400 responses: Show validation error to user
+ * - 401/403: Redirect to login or show access denied
+ * - 500: Show error message with retry option
+ * - Cancelled requests: Silently ignore (return empty data)
+ */
+
 import axios, { AxiosError } from "axios";
 import type { RideBlobType } from "../types/activity";
 import { EMPTY_RIDE_DATA } from "../constants";
@@ -9,14 +36,22 @@ const getApiBaseUrl = (): string => {
 
 // MULTI-SPORT API TYPES
 
-// API Response - Raw array (not wrapped in object)
-export type SportMetrics = Array<{
+// Metric entry from API
+export interface MetricsEntry {
   date: string;
   distance?: number;
   elevation?: number;
   time?: number;
   activities?: number;
-}>;
+}
+
+// API Response wrapper - matches Go struct { timeseries: [...] }
+interface SportMetricsResponse {
+  timeseries: MetricsEntry[];
+}
+
+// What the frontend uses (just the array)
+export type SportMetrics = MetricsEntry[];
 
 // API Response - Matches protobuf YearMetadata
 export interface YearMetadata {
@@ -58,7 +93,7 @@ export const fetchDistanceData = async (
   idToken?: string
 ): Promise<RideBlobType> => {
   const apiBaseUrl = getApiBaseUrl();
-  const url = `${apiBaseUrl}/activities/${year}/distances`;
+  const url = `${apiBaseUrl}/activities/${year}/metrics?sport=cycling`;
 
   // Build headers with optional auth token
   const headers: Record<string, string> = {};
@@ -75,9 +110,11 @@ export const fetchDistanceData = async (
       // Silently return empty data - cancellation is expected behavior
       return EMPTY_RIDE_DATA;
     }
-    // 404 means no data for this year - return empty data (not an error)
+    // LEGACY: 404 handling for old API endpoints that returned 404 for missing data.
+    // New API contract returns 200 with empty arrays, so this is only hit for:
+    // 1. Truly non-existent endpoints (wrong URL)
+    // 2. Old backend versions before empty data normalization
     if (err instanceof AxiosError && err.response?.status === 404) {
-      // Silently return empty data - no data available is a valid state
       return EMPTY_RIDE_DATA;
     }
     // 401/403 means authentication/authorization failed
@@ -111,16 +148,13 @@ export const fetchSportMetrics = async (
   }
 
   try {
-    const { data } = await axios.get<SportMetrics>(url, { signal, headers });
-    return data;
+    const { data } = await axios.get<SportMetricsResponse>(url, { signal, headers });
+    // Extract timeseries array from response wrapper
+    // API always returns 200 with empty array when no data (not 404)
+    return data.timeseries ?? [];
   } catch (err: unknown) {
-    // Request was cancelled - return empty data (expected behavior)
+    // Request was cancelled - not an error, return empty
     if (axios.isCancel(err)) {
-      return [];
-    }
-    // 404 means no data for this sport/year - return empty array (not an error)
-    if (err instanceof AxiosError && err.response?.status === 404) {
-      // Silently return empty data - no data available is a valid state
       return [];
     }
     // 401/403 means authentication/authorization failed
@@ -152,7 +186,13 @@ export const fetchYearMetadata = async (
 
   try {
     const { data } = await axios.get<YearMetadata>(url, { signal, headers });
-    return data;
+    // API always returns 200 with empty sports/totals when no data (not 404)
+    // Ensure arrays are never null for safe iteration
+    return {
+      ...data,
+      sports: data.sports ?? [],
+      totals: data.totals ?? {},
+    };
   } catch (err: unknown) {
     if (axios.isCancel(err)) {
       throw new Error("Request cancelled");

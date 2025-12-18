@@ -38,9 +38,6 @@ const AppConfigSchema = z.object({
   isDevelopment: z.boolean(),
   isProduction: z.boolean(),
 
-  // Feature flags
-  useFixtures: z.boolean(),
-
   // API configuration
   apiGatewayUrl: z.string().url().optional(),
 
@@ -70,7 +67,6 @@ export function loadConfig(): AppConfig {
   const raw = {
     isDevelopment: import.meta.env.DEV,
     isProduction: import.meta.env.PROD,
-    useFixtures: import.meta.env.VITE_USE_FIXTURES === "true",
     apiGatewayUrl: import.meta.env.VITE_API_GATEWAY_URL,
     firebase: {
       apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -154,7 +150,6 @@ export function getConfig(): AppConfig {
       /* eslint-disable no-console */
       console.log("✓ Configuration loaded successfully");
       console.log(`  Environment: ${configInstance.isProduction ? "production" : "development"}`);
-      console.log(`  Fixture mode: ${configInstance.useFixtures ? "enabled" : "disabled"}`);
       console.log(`  Firebase project: ${configInstance.firebase.projectId}`);
       console.log(`  API Gateway: ${configInstance.apiGatewayUrl || "not configured"}`);
       /* eslint-enable no-console */

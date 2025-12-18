@@ -36,9 +36,8 @@ vi.mock("firebase/firestore", () => ({
   onSnapshot: vi.fn(),
 }));
 
-// Mock the config to disable fixtures (so tests can test Firestore logic)
+// Mock the config
 vi.mock("../config", () => ({
-  USE_FIXTURE_DATA: false,
   API_BASE_URL: "http://localhost:8080",
 }));
 
@@ -725,11 +724,11 @@ describe("useUserConfig", () => {
       expect(onSnapshotMock).toHaveBeenCalled();
     });
 
-    it("should use fixture mode behavior when user is null", async () => {
+    it("should use localStorage mode when user is null", async () => {
       // Note: This test documents the expected behavior when user is null.
-      // In the actual implementation, isFixtureMode = !user, so:
-      // - When user is null: isFixtureMode = true → uses localStorage/fixtures
-      // - When user exists: isFixtureMode = false → uses Firestore
+      // In the actual implementation, isLocalStorageMode = !user, so:
+      // - When user is null: isLocalStorageMode = true → uses localStorage
+      // - When user exists: isLocalStorageMode = false → uses Firestore
       //
       // We can't easily test this in isolation because useAuth is mocked at module level,
       // but the userId resolution tests above verify the critical bug fix.
@@ -1101,17 +1100,17 @@ describe("useFullUserConfig", () => {
     });
   });
 
-  describe("fixture mode consistency", () => {
-    it("should use auth state to determine fixture mode", () => {
-      // Note: The fixture mode behavior (isFixtureMode = !user) is tested indirectly
+  describe("localStorage mode consistency", () => {
+    it("should use auth state to determine storage mode", () => {
+      // Note: The localStorage mode behavior (isLocalStorageMode = !user) is tested indirectly
       // through the other tests in this file. Specifically:
       // - When user is authenticated (default mock), Firestore operations are called
-      // - When user is null, fixture mode activates (using localStorage/fixtures)
+      // - When user is null, localStorage mode activates
       //
       // We can't easily test dynamic auth state changes with vi.doMock because
       // modules are already imported. The critical behavior is already validated:
-      // - useUserConfig uses isFixtureMode = !user (not USE_FIXTURE_DATA)
-      // - useFullUserConfig uses isFixtureMode = !user (not USE_FIXTURE_DATA)
+      // - useUserConfig uses isLocalStorageMode = !user
+      // - useFullUserConfig uses isLocalStorageMode = !user
       // - This ensures authenticated users always persist to Firestore
       //
       // This test serves as documentation of the expected behavior.

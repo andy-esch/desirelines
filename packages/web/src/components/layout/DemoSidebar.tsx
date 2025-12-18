@@ -1,99 +1,44 @@
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import GoalControls from "../GoalControls";
 import type { Goals } from "../../utils/goalCalculations";
-import { fetchYearMetadata, fetchSportConfig } from "../../api/activities";
 import type { MetricUnit } from "../../utils/units";
-import { useAuth } from "../../hooks/useAuth";
-import { useAuthToken } from "../../hooks/useAuthToken";
+import { getDemoAvailableSports } from "../../hooks/useDemoData";
 
-interface SidebarProps {
+interface DemoSidebarProps {
   currentYear: number;
   onYearClick: (year: number) => void;
   goals: Goals;
   onGoalsChange: (goals: Goals) => void;
   estimatedYearEnd: number;
   currentDistance: number;
-  sport?: string; // Current sport (cycling, running, yoga)
-  unit?: MetricUnit; // Unit label (e.g., "miles", "kilometers", "sessions")
-  isLoading?: boolean; // Whether data is still loading
+  sport?: string;
+  unit?: MetricUnit;
+  isLoading?: boolean;
 }
 
 const AVAILABLE_YEARS = [2025, 2024, 2023];
 
-export default function Sidebar({
+/**
+ * Sidebar for demo mode - uses fixture data, no API calls.
+ */
+export default function DemoSidebar({
   currentYear,
   onYearClick,
   goals,
   onGoalsChange,
   estimatedYearEnd,
   currentDistance,
-  sport = "cycling", // Default to cycling if not provided
-  unit = "miles", // Default to miles
+  sport = "cycling",
+  unit = "miles",
   isLoading = false,
-}: SidebarProps) {
+}: DemoSidebarProps) {
   const navigate = useNavigate();
-  const { loading } = useAuth();
-  const { getToken } = useAuthToken();
-  const [availableSports, setAvailableSports] = useState<string[]>(["cycling"]); // Default fallback
-
-  // Fetch available sports from metadata
-  useEffect(() => {
-    // Don't make API calls while auth is still loading
-    if (loading) {
-      return;
-    }
-
-    const controller = new AbortController();
-
-    async function loadSports() {
-      try {
-        const idToken = await getToken();
-
-        // Fetch both metadata (raw Strava types with data) and config (category definitions)
-        const [metadata, sportConfig] = await Promise.all([
-          fetchYearMetadata(currentYear, controller.signal, idToken),
-          fetchSportConfig(controller.signal, idToken),
-        ]);
-
-        // metadata.sports contains raw Strava types (e.g., ["Ride", "Run", "MountainBikeRide"])
-        // We need to find which categories have at least one matching Strava type
-        const rawSportsWithData = new Set(metadata.sports || []);
-        const categoriesWithData: string[] = [];
-
-        for (const [category, config] of Object.entries(sportConfig.sport_categories)) {
-          // Check if any of this category's Strava types have data
-          const hasData = config.strava_types.some((stravaType) =>
-            rawSportsWithData.has(stravaType)
-          );
-          if (hasData) {
-            categoriesWithData.push(category);
-          }
-        }
-
-        if (categoriesWithData.length > 0) {
-          setAvailableSports(categoriesWithData);
-        }
-      } catch (err) {
-        // Silently fail - keep default sports
-        console.warn("Failed to fetch available sports, using defaults:", err);
-      }
-    }
-
-    loadSports();
-
-    return () => {
-      controller.abort();
-    };
-  }, [currentYear, loading, getToken]);
+  const availableSports = getDemoAvailableSports();
 
   const handleSportChange = (newSport: string) => {
-    // Use currentYear prop (source of truth from parent component)
-    // Preserves year when switching sports
-    navigate(`/${newSport}/${currentYear}`);
+    navigate(`/demo/${newSport}/${currentYear}`);
   };
 
-  // Convert sport IDs to display format
   const capitalizeFirst = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
 
   return (

@@ -121,11 +121,14 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             params["name"] = updates["title"]
 
         if "type" in updates:
-            # Note: 'type' is deprecated by Strava in favor of 'sport_type'.
-            # We still write it for historical purposes but don't derive 'sport' from it.
-            # The 'sport' column should only come from 'sport_type' on activity creation.
+            # Strava webhooks send 'type' (base type like "Ride") not 'sport_type'
+            # (specific type like "MountainBikeRide"). While lossy, updating both
+            # columns is better than leaving stale data - "Ride" is more correct
+            # than "Run" if the user changed their activity type.
             set_clauses.append("type = :type")
+            set_clauses.append("sport = :sport")
             params["type"] = updates["type"]
+            params["sport"] = updates["type"]
 
         if not set_clauses:
             return False  # Nothing to update

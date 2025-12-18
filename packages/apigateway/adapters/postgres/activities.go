@@ -34,12 +34,15 @@ func (r *ActivityRepository) Close() error {
 }
 
 // GetSportMetrics returns cumulative metrics timeseries for a sport category in a given year.
-// The query aggregates daily activities then computes running totals using window functions.
+// The query generates a dense timeseries from Jan 1 to today (or Dec 31 for past years),
+// left joining with actual activity data and using COALESCE to fill zeros for days without activity.
 // sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
 func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*repository.SportMetrics, error) {
-	// Query aggregates by day, then computes cumulative sums
-	// Inner query: daily aggregates
-	// Outer query: running totals via window functions
+	// Query structure:
+	// 1. generate_series creates dates from Jan 1 to LEAST(today, Dec 31 of year)
+	// 2. Left join with daily activity aggregates (only days with activities)
+	// 3. COALESCE fills zeros for days without activity
+	// 4. Window functions compute cumulative sums over the full date range
 	query := `
 		SELECT
 			date,
@@ -49,16 +52,31 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 			SUM(activities) OVER (ORDER BY date)::int as activities
 		FROM (
 			SELECT
-				start_date_local::date as date,
-				SUM(distance) as distance,
-				SUM(total_elevation_gain) as elevation,
-				SUM(moving_time) / 60.0 as time,
-				COUNT(*) as activities
-			FROM desirelines.activities
-			WHERE year = $1
-			  AND sport = ANY($2)
-			GROUP BY start_date_local::date
-		) daily
+				all_dates.date,
+				COALESCE(daily.distance, 0) as distance,
+				COALESCE(daily.elevation, 0) as elevation,
+				COALESCE(daily.time, 0) as time,
+				COALESCE(daily.activities, 0) as activities
+			FROM (
+				SELECT generate_series(
+					make_date($1, 1, 1),
+					LEAST(CURRENT_DATE, make_date($1, 12, 31)),
+					'1 day'::interval
+				)::date as date
+			) all_dates
+			LEFT JOIN (
+				SELECT
+					start_date_local::date as date,
+					SUM(distance) as distance,
+					SUM(total_elevation_gain) as elevation,
+					SUM(moving_time) / 60.0 as time,
+					COUNT(*) as activities
+				FROM desirelines.activities
+				WHERE year = $1
+				  AND sport = ANY($2)
+				GROUP BY start_date_local::date
+			) daily ON all_dates.date = daily.date
+		) dense_daily
 		ORDER BY date ASC
 	`
 
@@ -68,7 +86,7 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 	}
 	defer rows.Close()
 
-	var timeseries []repository.CumulativeMetricsEntry
+	timeseries := make([]repository.CumulativeMetricsEntry, 0) // Initialize as empty slice, not nil (JSON: [] not null)
 	for rows.Next() {
 		var date time.Time
 		var distance, elevation, timeMinutes float64
@@ -172,7 +190,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*re
 	}
 	defer rows.Close()
 
-	var sports []string
+	sports := make([]string, 0) // Initialize as empty slice, not nil (JSON: [] not null)
 	totals := make(map[string]*repository.SportTotals)
 	var latestUpdate *time.Time
 

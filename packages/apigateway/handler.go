@@ -1,5 +1,21 @@
 // Package apigateway provides HTTP API handlers for serving activity data
 // from PostgreSQL to the web frontend.
+//
+// API Contract for Empty/Missing Data:
+//
+// The API follows a consistent pattern for handling missing data:
+//
+//	| Scenario              | HTTP Status | Response Body                              |
+//	|-----------------------|-------------|-------------------------------------------|
+//	| Year/sport has data   | 200         | { timeseries: [...] } or { sports: [...] } |
+//	| Year/sport NO data    | 200         | { timeseries: [] } or { sports: [] }       |
+//	| Invalid year format   | 400         | { error: "Invalid year format" }           |
+//	| Invalid sport         | 400         | { error: "Invalid sport: X" }              |
+//	| Auth failure          | 401/403     | { error: "..." }                           |
+//	| DB/Server error       | 500         | { error: "Internal server error" }         |
+//
+// Key principle: Empty data is NOT an error. The API returns 200 with empty
+// arrays/objects. 404 is only used for truly non-existent resources (wrong endpoint).
 package apigateway
 
 import (

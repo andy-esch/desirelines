@@ -21,7 +21,7 @@ message TimeseriesEntry {
 //
 // API Gateway:
 //   - Go: packages/apigateway/handler.go
-//   - Endpoint: GET /activities/{year}/distances
+//   - Endpoint: GET /activities/{year}/metrics?sport=cycling
 //
 // Frontend Consumer:
 //   - TypeScript: packages/web/src/api/activities.ts
