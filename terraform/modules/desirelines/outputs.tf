@@ -77,8 +77,8 @@ output "dev_service_accounts" {
   description = "Development service account emails for Docker Compose"
   value = var.create_dedicated_service_accounts ? {
     dispatcher_email  = google_service_account.dispatcher_dev[0].email
-    aggregator_email  = google_service_account.aggregator_dev[0].email
     bq_inserter_email = google_service_account.bq_inserter_dev[0].email
+    # DEPRECATED: aggregator_email removed 2025-12-18
   } : {}
 }
 
@@ -93,25 +93,23 @@ output "cloud_run_urls" {
   } : {}
 }
 
-# Cloud Function outputs (only available in "full" deployment mode)
-# Only aggregator still uses Cloud Functions v2 (bq_inserter and postgres_writer migrated to Cloud Run)
-output "cloud_function_urls" {
-  description = "URLs for Python Cloud Functions (ephemeral - may change on redeploy)"
-  value = var.deployment_mode == "full" ? {
-    aggregator_url = google_cloudfunctions2_function.activity_aggregator[0].service_config[0].uri
-  } : {}
-}
+# DEPRECATED: All Cloud Functions migrated to Cloud Run 2025-12-18
+# output "cloud_function_urls" {
+#   description = "URLs for Python Cloud Functions (ephemeral - may change on redeploy)"
+#   value = var.deployment_mode == "full" ? {
+#     aggregator_url = google_cloudfunctions2_function.activity_aggregator[0].service_config[0].uri
+#   } : {}
+# }
 
 output "service_names" {
-  description = "Names of deployed services (Cloud Run + Cloud Functions)"
+  description = "Names of deployed services (Cloud Run)"
   value = var.deployment_mode == "full" ? {
     # Cloud Run services
     dispatcher      = google_cloud_run_v2_service.dispatcher[0].name
     api_gateway     = google_cloud_run_v2_service.api_gateway[0].name
     bq_inserter     = google_cloud_run_v2_service.bq_inserter[0].name
     postgres_writer = google_cloud_run_v2_service.postgres_writer[0].name
-    # Cloud Functions (only aggregator)
-    aggregator = google_cloudfunctions2_function.activity_aggregator[0].name
+    # DEPRECATED: aggregator removed 2025-12-18
   } : {}
 }
 

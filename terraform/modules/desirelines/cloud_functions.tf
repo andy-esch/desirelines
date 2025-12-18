@@ -1,21 +1,23 @@
 # ==============================================================================
-# Cloud Functions Infrastructure
+# Cloud Functions Infrastructure (DEPRECATED)
 # ==============================================================================
-# This file contains all Cloud Function resources and their supporting storage.
-# - Function source buckets and objects
-# - Aggregation output bucket
-# - Cloud Functions (aggregator)
+# This file previously contained Cloud Function resources. All Cloud Functions
+# have been migrated to Cloud Run services (see cloud_run.tf).
+#
+# Remaining resources:
+# - Function source bucket (for historical packages)
+# - Aggregation output bucket (ORPHANED - data preserved but no longer written)
+#
+# The aggregator Cloud Function was deprecated 2025-12-18 after PostgreSQL
+# migration (Epic 09). API Gateway now reads directly from PostgreSQL.
 
 # Locals for function source configuration
 locals {
   # Function source bucket (local or external)
   function_source_bucket = var.external_function_source_bucket != null ? var.external_function_source_bucket : google_storage_bucket.function_source[0].name
 
-  # Function source object names (Python Cloud Functions only - Go services use Docker images)
-  # NOTE: bq-inserter and postgres-writer now use Cloud Run services (see cloud_run.tf)
-  # bq_inserter_object_name     = "bq-inserter-${var.deployment_version}.zip"
-  aggregator_object_name = "aggregator-${var.deployment_version}.zip"
-  # postgres_writer_object_name = "postgres-writer-${var.deployment_version}.zip"
+  # DEPRECATED: All Cloud Functions migrated to Cloud Run
+  # aggregator_object_name = "aggregator-${var.deployment_version}.zip"
 }
 
 # ==============================================================================
@@ -46,12 +48,14 @@ resource "google_storage_bucket" "function_source" {
   }
 }
 
-# Cloud Storage Bucket for aggregated data
-# Available in both "full" and "data-only" modes for storing chart data
+# Cloud Storage Bucket for aggregated data (ORPHANED)
+# DEPRECATED: This bucket is no longer written to after PostgreSQL migration.
+# Keeping the bucket and its contents for historical reference.
+# The bucket will be orphaned from Terraform (not deleted) to preserve data.
 resource "google_storage_bucket" "aggregation_bucket" {
   name          = local.bucket_name
   location      = var.storage_location
-  force_destroy = var.environment != "prod"
+  force_destroy = false # Never force destroy - data preserved
 
   labels = local.common_labels
 
@@ -96,14 +100,20 @@ resource "google_storage_bucket" "aggregation_bucket" {
       type = "Delete"
     }
   }
+
+  # IMPORTANT: Prevent Terraform from deleting this bucket
+  # This orphans the bucket when removed from Terraform state
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # ==============================================================================
-# Function Source Storage Objects (Python Cloud Functions only)
+# Function Source Storage Objects (DEPRECATED)
 # ==============================================================================
-# Note: dispatcher, api-gateway, bq-inserter, and postgres-writer are now deployed
-# as Cloud Run services using Docker images from Artifact Registry.
-# Only aggregator still uses Cloud Functions source packages.
+# Note: All services (dispatcher, api-gateway, bq-inserter, postgres-writer, aggregator)
+# have been migrated to Cloud Run using Docker images from Artifact Registry.
+# No active Cloud Functions remain. These resources kept for historical reference.
 
 # Upload function source packages to Cloud Storage (only when using local bucket)
 # Packages are built by Pants: pants package functions:aggregator
@@ -117,13 +127,15 @@ resource "google_storage_bucket" "aggregation_bucket" {
 #   source = "${path.module}/../../../dist/functions/bq-inserter.zip"
 # }
 
-resource "google_storage_bucket_object" "aggregator_source" {
-  count = var.external_function_source_bucket == null ? 1 : 0
-
-  name   = "aggregator-${var.deployment_version}.zip"
-  bucket = google_storage_bucket.function_source[0].name
-  source = "${path.module}/../../../dist/functions/aggregator.zip"
-}
+# DEPRECATED: aggregator now deprecated after PostgreSQL migration (2025-12-18)
+# API Gateway reads directly from PostgreSQL instead of JSON blobs.
+# resource "google_storage_bucket_object" "aggregator_source" {
+#   count = var.external_function_source_bucket == null ? 1 : 0
+#
+#   name   = "aggregator-${var.deployment_version}.zip"
+#   bucket = google_storage_bucket.function_source[0].name
+#   source = "${path.module}/../../../dist/functions/aggregator.zip"
+# }
 
 # DEPRECATED: postgres-writer now uses Cloud Run (see cloud_run.tf and eventarc.tf)
 # resource "google_storage_bucket_object" "postgres_writer_source" {
@@ -135,8 +147,10 @@ resource "google_storage_bucket_object" "aggregator_source" {
 # }
 
 # ==============================================================================
-# CLOUD FUNCTIONS (Only created in "full" deployment mode)
+# CLOUD FUNCTIONS (DEPRECATED - All migrated to Cloud Run)
 # ==============================================================================
+# All Cloud Functions have been migrated to Cloud Run services.
+# See cloud_run.tf and eventarc.tf for current infrastructure.
 
 # DEPRECATED: BQ Inserter now uses Cloud Run (see cloud_run.tf and eventarc.tf)
 # Keeping commented out for reference during migration period.
@@ -199,66 +213,70 @@ resource "google_storage_bucket_object" "aggregator_source" {
 #   labels = local.common_labels
 # }
 
-# Activity Aggregator (Python Function - Source Package)
-resource "google_cloudfunctions2_function" "activity_aggregator" {
-  count       = var.deployment_mode == "full" ? 1 : 0
-  name        = "${var.project_name}_aggregator"
-  location    = var.gcp_region
-  description = "Activity aggregator and storage writer (${var.environment})"
-
-  build_config {
-    runtime           = "python312"
-    entry_point       = "handler"
-    docker_repository = google_artifact_registry_repository.functions.id
-
-    source {
-      storage_source {
-        bucket = local.function_source_bucket
-        object = local.aggregator_object_name
-      }
-    }
-  }
-
-  service_config {
-    max_instance_count    = 1
-    min_instance_count    = 0
-    available_memory      = "512Mi"
-    timeout_seconds       = 540
-    service_account_email = var.create_dedicated_service_accounts ? google_service_account.aggregator_dev[0].email : var.service_account_email
-    ingress_settings      = "ALLOW_INTERNAL_ONLY"
-
-
-    environment_variables = {
-      GCP_PROJECT_ID       = var.gcp_project_id
-      GCP_BUCKET_NAME      = google_storage_bucket.aggregation_bucket.name
-      ENVIRONMENT          = var.environment
-      LOG_LEVEL            = "INFO"
-      FORCE_REDEPLOY       = "2025-09-19-new-strava-scope-v1"
-      ENABLE_CLOUD_LOGGING = "true"
-
-    }
-
-    # Mount Strava secrets as volume
-    secret_volumes {
-      mount_path = "/etc/secrets"
-      project_id = var.gcp_project_id
-      secret     = "strava-auth-${var.environment}"
-      versions {
-        version = "latest"
-        path    = "strava_auth.json"
-      }
-    }
-  }
-
-  event_trigger {
-    trigger_region = var.gcp_region
-    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
-    pubsub_topic   = google_pubsub_topic.activity_events.id
-    retry_policy   = "RETRY_POLICY_RETRY"
-  }
-
-  labels = local.common_labels
-}
+# DEPRECATED: Aggregator deprecated 2025-12-18 after PostgreSQL migration (Epic 09)
+# API Gateway now reads directly from PostgreSQL instead of JSON blobs.
+# Keeping commented out for reference.
+#
+# # Activity Aggregator (Python Function - Source Package)
+# resource "google_cloudfunctions2_function" "activity_aggregator" {
+#   count       = var.deployment_mode == "full" ? 1 : 0
+#   name        = "${var.project_name}_aggregator"
+#   location    = var.gcp_region
+#   description = "Activity aggregator and storage writer (${var.environment})"
+#
+#   build_config {
+#     runtime           = "python312"
+#     entry_point       = "handler"
+#     docker_repository = google_artifact_registry_repository.functions.id
+#
+#     source {
+#       storage_source {
+#         bucket = local.function_source_bucket
+#         object = local.aggregator_object_name
+#       }
+#     }
+#   }
+#
+#   service_config {
+#     max_instance_count    = 1
+#     min_instance_count    = 0
+#     available_memory      = "512Mi"
+#     timeout_seconds       = 540
+#     service_account_email = var.create_dedicated_service_accounts ? google_service_account.aggregator_dev[0].email : var.service_account_email
+#     ingress_settings      = "ALLOW_INTERNAL_ONLY"
+#
+#
+#     environment_variables = {
+#       GCP_PROJECT_ID       = var.gcp_project_id
+#       GCP_BUCKET_NAME      = google_storage_bucket.aggregation_bucket.name
+#       ENVIRONMENT          = var.environment
+#       LOG_LEVEL            = "INFO"
+#       FORCE_REDEPLOY       = "2025-09-19-new-strava-scope-v1"
+#       ENABLE_CLOUD_LOGGING = "true"
+#
+#     }
+#
+#     # Mount Strava secrets as volume
+#     secret_volumes {
+#       mount_path = "/etc/secrets"
+#       project_id = var.gcp_project_id
+#       secret     = "strava-auth-${var.environment}"
+#       versions {
+#         version = "latest"
+#         path    = "strava_auth.json"
+#       }
+#     }
+#   }
+#
+#   event_trigger {
+#     trigger_region = var.gcp_region
+#     event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
+#     pubsub_topic   = google_pubsub_topic.activity_events.id
+#     retry_policy   = "RETRY_POLICY_RETRY"
+#   }
+#
+#   labels = local.common_labels
+# }
 
 # DEPRECATED: PostgreSQL Writer now uses Cloud Run (see cloud_run.tf and eventarc.tf)
 # Keeping commented out for reference during migration period.

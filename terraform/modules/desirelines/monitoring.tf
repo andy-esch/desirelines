@@ -571,50 +571,50 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
   }
 }
 
-# CRITICAL: DLQ Messages Detected (Aggregator)
-resource "google_monitoring_alert_policy" "dlq_aggregator" {
-  count = var.developer_email != null ? 1 : 0
-
-  display_name = "🚨 DLQ: Aggregator Has Messages"
-  combiner     = "OR"
-
-  documentation {
-    content = <<-EOT
-      **CRITICAL**: The Aggregator Dead Letter Queue has messages.
-
-      This indicates that activities are failing to be aggregated.
-
-      **Action Required**:
-      1. Check DLQ messages in PubSub console
-      2. Review Aggregator function logs for errors
-      3. Check Cloud Storage bucket permissions
-
-      Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
-    EOT
-  }
-
-  conditions {
-    display_name = "Aggregator DLQ has messages"
-
-    condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-aggregator-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
-      duration        = "60s"
-      comparison      = "COMPARISON_GT"
-      threshold_value = 0
-
-      aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_MEAN"
-      }
-    }
-  }
-
-  notification_channels = [google_monitoring_notification_channel.email_alerts[0].id]
-
-  alert_strategy {
-    auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
-  }
-}
+# DEPRECATED: Aggregator DLQ alert deprecated 2025-12-18
+# resource "google_monitoring_alert_policy" "dlq_aggregator" {
+#   count = var.developer_email != null ? 1 : 0
+#
+#   display_name = "🚨 DLQ: Aggregator Has Messages"
+#   combiner     = "OR"
+#
+#   documentation {
+#     content = <<-EOT
+#       **CRITICAL**: The Aggregator Dead Letter Queue has messages.
+#
+#       This indicates that activities are failing to be aggregated.
+#
+#       **Action Required**:
+#       1. Check DLQ messages in PubSub console
+#       2. Review Aggregator function logs for errors
+#       3. Check Cloud Storage bucket permissions
+#
+#       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
+#     EOT
+#   }
+#
+#   conditions {
+#     display_name = "Aggregator DLQ has messages"
+#
+#     condition_threshold {
+#       filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-aggregator-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+#       duration        = "60s"
+#       comparison      = "COMPARISON_GT"
+#       threshold_value = 0
+#
+#       aggregations {
+#         alignment_period   = "60s"
+#         per_series_aligner = "ALIGN_MEAN"
+#       }
+#     }
+#   }
+#
+#   notification_channels = [google_monitoring_notification_channel.email_alerts[0].id]
+#
+#   alert_strategy {
+#     auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
+#   }
+# }
 
 # HIGH: Function 4xx Error Rate (Client Errors)
 resource "google_monitoring_alert_policy" "function_4xx_errors" {
@@ -789,9 +789,9 @@ output "alert_policy_ids" {
   description = "IDs of created alert policies"
   value = var.developer_email != null ? {
     dlq_bq_inserter = google_monitoring_alert_policy.dlq_bq_inserter[0].id
-    dlq_aggregator  = google_monitoring_alert_policy.dlq_aggregator[0].id
-    function_4xx    = google_monitoring_alert_policy.function_4xx_errors[0].id
-    function_5xx    = google_monitoring_alert_policy.function_5xx_errors[0].id
-    old_messages    = google_monitoring_alert_policy.old_messages[0].id
+    # DEPRECATED: dlq_aggregator removed 2025-12-18
+    function_4xx = google_monitoring_alert_policy.function_4xx_errors[0].id
+    function_5xx = google_monitoring_alert_policy.function_5xx_errors[0].id
+    old_messages = google_monitoring_alert_policy.old_messages[0].id
   } : {}
 }
