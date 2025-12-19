@@ -100,22 +100,6 @@ resource "google_pubsub_subscription" "bq_inserter_dlq" {
   }
 }
 
-# Dead letter subscription for aggregator function
-resource "google_pubsub_subscription" "aggregator_dlq" {
-  name  = "desirelines-aggregator-dlq"
-  topic = module.desirelines.pubsub_dead_letter_topic_name
-
-  # Long retention for debugging failed messages
-  message_retention_duration = "1209600s" # 14 days
-  ack_deadline_seconds       = 600
-
-  labels = {
-    purpose     = "dead-letter-queue"
-    function    = "aggregator"
-    environment = "dev"
-  }
-}
-
 # Note: Eventarc automatically creates and manages the main subscriptions
 # that trigger the functions. We only manage the dead letter queue subscriptions
 # for monitoring and debugging failed messages.
@@ -131,11 +115,6 @@ resource "google_pubsub_subscription" "aggregator_dlq" {
 import {
   to = google_pubsub_subscription.bq_inserter_eventarc
   id = "projects/desirelines-dev/subscriptions/eventarc-us-central1-desirelines-bq-inserter-601502-sub-060"
-}
-
-import {
-  to = google_pubsub_subscription.aggregator_eventarc
-  id = "projects/desirelines-dev/subscriptions/eventarc-us-central1-desirelines-aggregator-696214-sub-050"
 }
 
 # BQ Inserter Eventarc subscription with DLQ
@@ -167,35 +146,6 @@ resource "google_pubsub_subscription" "bq_inserter_eventarc" {
   }
 }
 
-# Aggregator Eventarc subscription with DLQ
-resource "google_pubsub_subscription" "aggregator_eventarc" {
-  name  = "eventarc-us-central1-desirelines-aggregator-696214-sub-050"
-  topic = module.desirelines.pubsub_topic_name
-
-  dead_letter_policy {
-    dead_letter_topic     = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
-    max_delivery_attempts = 5
-  }
-
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "300s"
-  }
-
-  ack_deadline_seconds = 540 # 9 minutes for aggregation with API calls
-
-  lifecycle {
-    # Critical: Let Eventarc manage push configuration to avoid drift
-    ignore_changes = [push_config]
-  }
-
-  labels = {
-    managed-by  = "terraform"
-    function    = "aggregator"
-    environment = "dev"
-  }
-}
-
 # ===================================================================
 # IAM Permissions for Dead Letter Queue
 # ===================================================================
@@ -217,9 +167,3 @@ resource "google_pubsub_subscription_iam_member" "bq_inserter_pubsub_sa_subscrib
   member       = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
-# Allow Pub/Sub service account to subscribe to aggregator subscription
-resource "google_pubsub_subscription_iam_member" "aggregator_pubsub_sa_subscribe" {
-  subscription = google_pubsub_subscription.aggregator_eventarc.name
-  role         = "roles/pubsub.subscriber"
-  member       = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
-}
