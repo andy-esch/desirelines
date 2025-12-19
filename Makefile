@@ -314,12 +314,11 @@ help:
 	@echo "  tf-validate-all       - Validate all Terraform configurations"
 	@echo ""
 	@echo "Backend Pipeline (Docker):"
-	@echo "  start-backend       - Start backend pipeline (dispatcher, aggregator, bq-inserter, postgres-writer)"
+	@echo "  start-backend       - Start backend pipeline (dispatcher, bq-inserter, postgres-writer)"
 	@echo "  start-backend-local - Start backend with Terraform-managed GCP resources"
 	@echo "  start-backend-debug - Start backend with PubSub UI for debugging (port 4200)"
 	@echo "  logs                - View logs from all backend services"
 	@echo "  logs-dispatcher     - View dispatcher logs"
-	@echo "  logs-aggregator     - View aggregator logs"
 	@echo "  logs-bq             - View bq-inserter logs"
 	@echo "  logs-postgres       - View postgres-writer logs"
 	@echo "  test-full-flow      - Test complete webhook flow"
@@ -394,7 +393,6 @@ start-backend: generate-requirements
 	@echo "✅ All backend services are running!"
 	@echo "📋 Service URLs:"
 	@echo "  Dispatcher:       http://localhost:8081"
-	@echo "  Aggregator:       http://localhost:8082"
 	@echo "  BQ Inserter:      http://localhost:8083"
 	@echo "  PostgreSQL Writer: http://localhost:8086"
 	@echo "  PubSub Emulator:  http://localhost:8085"
@@ -415,7 +413,6 @@ start-backend-local: generate-requirements
 	@echo "✅ All backend services are running with local GCP resources!"
 	@echo "📋 Service URLs:"
 	@echo "  Dispatcher:        http://localhost:8081 (→ PubSub Emulator forwarding)"
-	@echo "  Aggregator:        http://localhost:8082 (→ Terraform-managed Cloud Storage)"
 	@echo "  BQ Inserter:       http://localhost:8083 (→ Terraform-managed BigQuery)"
 	@echo "  PostgreSQL Writer: http://localhost:8086 (→ Terraform-managed Cloud SQL)"
 	@echo "  PubSub Emulator:   http://localhost:8085"
@@ -433,7 +430,6 @@ start-backend-debug: generate-requirements
 	@echo "✅ All backend services are running with debugging UI!"
 	@echo "📋 Service URLs:"
 	@echo "  Dispatcher:        http://localhost:8081"
-	@echo "  Aggregator:        http://localhost:8082"
 	@echo "  BQ Inserter:       http://localhost:8083"
 	@echo "  PostgreSQL Writer: http://localhost:8086"
 	@echo "  PubSub Emulator:   http://localhost:8085"
@@ -450,10 +446,6 @@ logs:
 logs-dispatcher:
 	docker compose --profile backend logs -f dispatcher
 
-# View aggregator logs
-logs-aggregator:
-	docker compose --profile backend logs -f aggregator
-
 # View bq-inserter logs
 logs-bq:
 	docker compose --profile backend logs -f bq-inserter
@@ -468,11 +460,13 @@ stop:
 	docker compose --profile backend --profile debug --profile frontend down
 
 # Generate function-specific requirements files
+# NOTE: Aggregator is deprecated (2025-12-18), but requirements file still generated
+# for backward compatibility with docker-compose until full cleanup
 generate-requirements:
 	@echo "📋 Generating function-specific requirements..."
 	@echo "  - Stravapipe package requirements"
 	cd packages/stravapipe && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-aggregator.txt
-	@echo "  - Removing local package references from aggregator requirements"
+	@echo "  - Removing local package references from requirements"
 	sed -i '' '/^\.\/packages\/stravapipe$$/d' functions/requirements-aggregator.txt
 
 
