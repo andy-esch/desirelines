@@ -8,7 +8,7 @@ import json
 
 from google.protobuf import json_format
 
-from stravapipe.types.generated import activities_pb2, sports_metrics_pb2
+from stravapipe.types.generated import sports_metrics_pb2
 
 
 class TestSportMetricsProtobuf:
@@ -202,45 +202,6 @@ class TestDailyActivityProtobuf:
         assert "time_minutes" not in data
         assert "elevation_meters" not in data
         assert data["activities"] == 1
-
-
-class TestActivitiesProtobuf:
-    """Test activities.proto generated code."""
-
-    def test_timeseries_entry(self):
-        """Test TimeseriesEntry from activities.proto."""
-        entry = activities_pb2.TimeseriesEntry()
-        entry.date = "2024-01-15"
-        entry.value = 42.5
-
-        # Convert to JSON
-        json_str = json_format.MessageToJson(entry, preserving_proto_field_name=True)
-        data = json.loads(json_str)
-
-        assert data["date"] == "2024-01-15"
-        assert data["value"] == 42.5
-
-    def test_distances_payload(self):
-        """Test DistancesPayload from activities.proto."""
-        payload = activities_pb2.DistancesPayload()
-
-        # Add distance traveled entries
-        entry1 = payload.distance_traveled.add()
-        entry1.date = "2024-01-15"
-        entry1.value = 10.5
-
-        entry2 = payload.distance_traveled.add()
-        entry2.date = "2024-01-16"
-        entry2.value = 25.3
-
-        json_str = json_format.MessageToJson(payload, preserving_proto_field_name=True)
-        data = json.loads(json_str)
-
-        assert len(data["distance_traveled"]) == 2
-        assert data["distance_traveled"][0]["date"] == "2024-01-15"
-        assert data["distance_traveled"][0]["value"] == 10.5
-        assert data["distance_traveled"][1]["date"] == "2024-01-16"
-        assert data["distance_traveled"][1]["value"] == 25.3
 
 
 class TestMetricTimeseriesEntry:
