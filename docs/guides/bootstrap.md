@@ -40,8 +40,8 @@ That's it! The script will:
 3. ✅ Set up authentication and impersonation
 4. ✅ Create terraform state bucket
 5. ✅ Deploy secrets to Secret Manager
-6. ✅ Package all Cloud Functions
-7. ✅ Deploy complete infrastructure (BigQuery, PubSub, Cloud Functions, etc.)
+6. ✅ Build and push Docker images
+7. ✅ Deploy complete infrastructure (BigQuery, PubSub, Cloud Run, etc.)
 
 ## What Gets Created
 

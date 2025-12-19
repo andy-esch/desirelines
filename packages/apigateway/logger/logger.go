@@ -50,5 +50,5 @@ func setupCloudLogger() *slog.Logger {
 	return slog.New(handler)
 }
 
-// Logger is the package-level structured logger for Cloud Functions
+// Logger is the package-level structured logger for Cloud Run
 var Logger = setupCloudLogger()

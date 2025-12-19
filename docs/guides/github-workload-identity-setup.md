@@ -83,10 +83,9 @@ terraform output github_secrets_setup
 Create a test PR, merge it to main, and watch `.github/workflows/deploy.yml` run:
 
 1. ✅ Authenticates via Workload Identity (no keys!)
-2. ✅ Packages Cloud Functions
-3. ✅ Builds and publishes Docker images
-4. ✅ Deploys via Terraform
-5. ✅ Verifies endpoints
+2. ✅ Builds and publishes Docker images
+3. ✅ Deploys via Terraform
+4. ✅ Verifies endpoints
 
 ## Repeat for Production
 
@@ -110,11 +109,9 @@ Then add `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT` secrets to GitHub (can use sam
 The Terraform module grants these roles to the service account:
 
 - `roles/run.admin` - Deploy Cloud Run services
-- `roles/cloudfunctions.admin` - Deploy Cloud Functions
 - `roles/artifactregistry.writer` - Push Docker images
-- `roles/storage.objectAdmin` - Upload Cloud Function source
+- `roles/storage.objectAdmin` - Terraform state and assets
 - `roles/iam.serviceAccountUser` - Deploy as other service accounts
-- `roles/cloudbuild.builds.editor` - Cloud Functions v2 builds
 
 ## Manual Setup (Not Recommended)
 

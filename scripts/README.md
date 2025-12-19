@@ -6,175 +6,67 @@ Operational scripts for desirelines monorepo management, deployment, and data op
 
 ```
 scripts/
-├── infrastructure/   # Environment setup and deployment
+├── data/             # Data backfill and migration
 ├── development/      # Local development tooling
-├── data/            # Data operations and backfill
-└── operations/      # Build and deployment tasks
+├── infrastructure/   # Environment setup
+├── operations/       # Build and deployment
+└── schema/           # Schema utilities
 ```
 
-## Infrastructure Scripts
+## Quick Reference
 
-**Location:** `infrastructure/`
+| Task | Command |
+|------|---------|
+| Local dev setup | `./scripts/development/local-dev/setup-local-environment.sh` |
+| Build & publish images | `make build-publish` |
+| Deploy secrets | `./scripts/infrastructure/deploy-secrets.sh StravaAuth-dev.json` |
+| Create webhook | `./scripts/operations/webhook-management.sh create dev` |
+| Backfill from Strava | `uv run python scripts/data/backfill_from_strava.py --years 2024` |
+| Migrate BQ→PostgreSQL | `uv run python scripts/data/backfill_bq_to_postgres.py` |
 
-### bootstrap-environment.sh
-Complete environment bootstrap from scratch. Creates GCP project resources, enables APIs, configures Terraform backend.
+## By Directory
 
-```bash
-./scripts/infrastructure/bootstrap-environment.sh dev
-./scripts/infrastructure/bootstrap-environment.sh prod
-```
+### `data/`
 
-See [Bootstrap Guide](../docs/guides/bootstrap.md) for details.
+Data backfill and migration scripts. See [scripts/data/README.md](data/README.md).
 
-### bootstrap-terraform-sa.sh
-Create and configure Terraform service account with required permissions.
+- `backfill_from_strava.py` - Backfill from Strava API → BigQuery
+- `backfill_bq_to_postgres.py` - Migrate BigQuery → PostgreSQL
+- `webhook-replay/` - Load testing via webhook replay
 
-```bash
-./scripts/infrastructure/bootstrap-terraform-sa.sh <project-id>
-```
+### `development/`
 
-### deploy-secrets.sh
-Deploy Strava authentication secrets to Cloud Functions secret volumes.
+Local development environment setup.
 
-```bash
-./scripts/infrastructure/deploy-secrets.sh StravaAuth-dev.json
-./scripts/infrastructure/deploy-secrets.sh StravaAuth-prod.json
-```
+- `local-dev/setup-local-environment.sh` - One-command local setup
+- `local-dev/bootstrap_pubsub.sh` - PubSub emulator configuration
+- `local-dev/cloudevent_adapter.py` - CloudEvent wrapper for local dev
+- `api-gateway-tunnel.sh` - SSH tunnel to VPC-only API Gateway
 
-## Development Scripts
+See [scripts/development/local-dev/README.md](development/local-dev/README.md).
 
-**Location:** `development/`
+### `infrastructure/`
 
-### setup_local_testing.sh
-Initialize local Docker Compose development environment with PubSub emulator.
+Environment bootstrap and secrets management.
 
-```bash
-./scripts/development/setup_local_testing.sh
-```
+- `bootstrap-environment.sh` - Complete environment bootstrap
+- `deploy-secrets.sh` - Deploy secrets to Secret Manager
 
-See [Local Testing Setup](../docs/guides/local-testing.md) for details.
+### `operations/`
 
-### api-gateway-tunnel.sh
-Create SSH tunnel to access VPC-only API Gateway from local machine.
+Build and deployment tasks.
 
-```bash
-./scripts/development/api-gateway-tunnel.sh
-```
+- `build-and-publish.sh` - Build and push Docker images to Artifact Registry
+- `webhook-management.sh` - Manage Strava webhook subscriptions
 
-### local-dev/
-Docker Compose helpers for hybrid local development (local functions + live GCP resources).
+### `schema/`
 
-- `bootstrap_bigquery.sh` - Create BigQuery datasets
-- `bootstrap_pubsub.sh` - Configure PubSub topics and subscriptions
-- `setup-local-environment.sh` - One-command local environment setup
+Schema utilities.
 
-## Data Scripts
-
-**Location:** `data/`
-
-### backfill_activities.go
-Restore historical activity data by replaying webhook events from old system to new environment.
-
-```bash
-# Production backfill
-go run scripts/data/backfill_activities.go \
-  --source-project=progressor-x \
-  --target-env=prod \
-  --start-date=2024-01-01 \
-  --end-date=2024-12-31
-
-# Dev fixtures
-go run scripts/data/backfill_activities.go \
-  --source-project=progressor-x \
-  --target-env=dev \
-  --limit=50
-```
-
-<!-- TODO: Add backfill guide to docs/guides/backfill.md -->
-
-## Operations Scripts
-
-**Location:** `operations/`
-
-### package-functions.sh
-Package Cloud Functions into deployment-ready zip files.
-
-```bash
-./scripts/operations/package-functions.sh
-```
-
-Creates zip files in `dist/` directory for each function.
-
-### webhook-management.sh
-Manage Strava webhook subscriptions (create, list, delete).
-
-```bash
-# List subscriptions
-./scripts/operations/webhook-management.sh list
-
-# Create subscription
-./scripts/operations/webhook-management.sh create <callback-url>
-
-# Delete subscription
-./scripts/operations/webhook-management.sh delete <subscription-id>
-```
-
-## Common Workflows
-
-### New Environment Setup
-```bash
-# 1. Bootstrap GCP project
-./scripts/infrastructure/bootstrap-environment.sh dev
-
-# 2. Deploy secrets
-./scripts/infrastructure/deploy-secrets.sh StravaAuth-dev.json
-
-# 3. Deploy infrastructure
-cd terraform/environments/dev
-terraform apply
-```
-
-### Local Development
-```bash
-# 1. Setup local environment
-./scripts/development/setup_local_testing.sh
-
-# 2. Start services
-cd web-app
-docker compose up
-```
-
-### Production Deployment
-```bash
-# 1. Package functions
-./scripts/operations/package-functions.sh
-
-# 2. Apply terraform
-cd terraform/environments/prod
-terraform apply
-
-# 3. Verify webhook subscription
-./scripts/operations/webhook-management.sh list
-```
-
-### Data Backfill
-```bash
-# 1. Test with small dataset (dev)
-go run scripts/data/backfill_activities.go \
-  --source-project=progressor-x \
-  --target-env=dev \
-  --limit=10
-
-# 2. Full backfill (prod)
-go run scripts/data/backfill_activities.go \
-  --source-project=progressor-x \
-  --target-env=prod \
-  --start-date=2024-01-01 \
-  --end-date=2024-12-31
-```
+- `schema_to_bq.py` - Convert JSON schemas to BigQuery CLI format
 
 ## Related Documentation
 
-- [Bootstrap Guide](../docs/guides/bootstrap.md) - Environment setup details
-- [Local Testing Setup](../docs/guides/local-testing.md) - Docker development
-<!-- TODO: Add backfill guide to docs/guides/backfill.md -->
+- [Bootstrap Guide](../docs/guides/bootstrap.md)
+- [Local Testing Setup](../docs/guides/local-testing.md)
+- [Deployment Guide](../docs/guides/deployment.md)

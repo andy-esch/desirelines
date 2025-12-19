@@ -43,7 +43,7 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 	}
 
 	// Initialize Firebase Admin SDK
-	// In Cloud Functions, this automatically uses Application Default Credentials
+	// In Cloud Run, this automatically uses Application Default Credentials
 	app, err := firebase.NewApp(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Firebase app: %w", err)

@@ -210,8 +210,7 @@ func writeSuccess(w http.ResponseWriter, correlationID string, logger Logger) {
 }
 
 // Close releases resources held by the handler (PubSub client, etc.).
-// This is optional in Cloud Functions where the platform handles cleanup,
-// but useful for graceful shutdown in long-running services.
+// Useful for graceful shutdown.
 //
 // The context parameter allows for cancellation during cleanup.
 // Pass context.Background() if no timeout is needed.

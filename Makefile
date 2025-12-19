@@ -361,7 +361,7 @@ help:
 	@echo "  proto-clean          - Clean generated protobuf code"
 	@echo ""
 	@echo "Build and Publish (Pants):"
-	@echo "  build-publish                        - Build and publish all artifacts (Cloud Functions + Cloud Run)"
+	@echo "  build-publish                        - Build and publish all Cloud Run images"
 	@echo "  build-publish-tag TAG=abc1234        - Build and publish with specific git SHA"
 	@echo ""
 	@echo "Secret Management & Webhooks (uses current gcloud project):"
@@ -499,7 +499,7 @@ clean:
 # Build and Publish (Pants)
 # ==========================================
 
-# Build and publish all artifacts via Pants (Cloud Functions + Cloud Run)
+# Build and publish all Cloud Run images
 .PHONY: build-publish
 build-publish:
 	@./scripts/operations/build-and-publish.sh

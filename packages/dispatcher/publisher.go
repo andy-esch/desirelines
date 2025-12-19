@@ -12,9 +12,7 @@ import (
 type Publisher interface {
 	Publish(ctx context.Context, webhook WebhookRequest, correlationID string) error
 	// Close releases resources held by the publisher.
-	// In Cloud Functions, this is typically unnecessary as the platform
-	// cleans up resources on instance termination. However, it's useful
-	// for graceful shutdown in long-running services.
+	// Useful for graceful shutdown.
 	Close() error
 }
 

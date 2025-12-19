@@ -56,6 +56,6 @@ func setupCloudLogger() *slog.Logger {
 	return slog.New(handler)
 }
 
-// DefaultLogger is the package-level structured logger for Cloud Functions.
+// DefaultLogger is the package-level structured logger for Cloud Run.
 // Deprecated: Use dependency injection via Handler constructors instead.
 var DefaultLogger Logger = setupCloudLogger()

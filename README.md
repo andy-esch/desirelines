@@ -17,7 +17,7 @@ This repository represents the current working state of a personal project that 
 - **Goal Visualization**: Set annual distance or activity targets and track progress in real-time
 - **Strava Integration**: Automatic activity import via webhooks (no manual uploads!)
 - **Modern Web Interface**: Clean, responsive dashboard for progress tracking (WIP ;))
-- **Serverless Architecture**: Built on Google Cloud Functions for reliable, scalable data processing
+- **Serverless Architecture**: Built on Google Cloud Run for reliable, scalable data processing
 
 ## Quick Start
 
@@ -191,7 +191,7 @@ pants lint schemas/proto::
 - **Backend**:
   - Cloud Run: Go services for HTTP endpoints (dispatcher, api-gateway)
   - Cloud Run: Python services for event processing (bq-inserter, postgres-writer)
-- **Data**: BigQuery for analytics storage, Cloud Storage for aggregations
+- **Data**: BigQuery for analytics, PostgreSQL for application data
 - **Integration**: Strava API webhooks for real-time activity updates
 - **Infrastructure**: Terraform for cloud resource management
 
@@ -206,10 +206,15 @@ See [Architecture Documentation](./docs/architecture/) for detailed design.
 - **[Deployment Guide](./docs/guides/deployment.md)** - Cloud deployment procedures
 - **[Local Testing](./docs/guides/local-testing.md)** - Testing the full pipeline locally
 - **[Local Development Scripts](./scripts/development/local-dev/README.md)** - Script organization and usage
-- **[GitHub Actions Workload Identity setup](./docs/guids/github-workload-identity-setup.md)** - GHA workload identity setup to enable deploys from merges to main
+- **[GitHub Actions Workload Identity setup](./docs/guides/github-workload-identity-setup.md)** - GHA workload identity setup to enable deploys from merges to main
 - **[Strava Webhook Setup](./docs/guides/strava-webhook.md)** - OAuth2 and webhook configuration
 - **[Docker Architecture](./docs/DOCKER.md)** - Docker build setup and container management
 - **[Frontend Development](./docs/guides/frontend-local-dev.md)** - React app development guide
+
+### Reference
+
+- **[Schemas](./schemas/)** - Data schemas (BigQuery, PostgreSQL, Protobuf, Sports config)
+- **[Data Scripts](./scripts/data/)** - Backfill and migration scripts
 
 ## Contributing
 

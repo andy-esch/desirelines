@@ -56,11 +56,6 @@ resource "google_pubsub_subscription" "bq_inserter" {
 
 ### Why Manual Subscriptions?
 
-Using `event_trigger` in Cloud Functions creates auto-named Eventarc subscriptions that:
-- Change names on each deployment
-- Require hard-coded imports in Terraform
-- Create orphaned subscriptions on redeploy
-
 Manual subscriptions provide:
 - Stable, predictable naming
 - DLQ configured from the start

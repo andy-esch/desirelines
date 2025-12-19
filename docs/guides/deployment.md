@@ -17,14 +17,13 @@ Desirelines uses a hybrid serverless architecture:
 - **Google Cloud SDK**: `gcloud` CLI installed and authenticated
 - **Docker**: For building Cloud Run images
 - **Terraform**: For infrastructure management
-- **uv**: Python package manager for Cloud Functions
+- **uv**: Python package manager
 - **Git**: For version tagging
 
 Ensure you have appropriate IAM permissions for:
 
 - Artifact Registry (push images)
 - Cloud Run (deploy services)
-- Cloud Functions (deploy functions)
 - Secret Manager (read secrets)
 - Terraform state bucket (read/write)
 
@@ -229,14 +228,7 @@ cd terraform/environments/prod
 terraform apply -var="deployment_version=PREVIOUS_SHA"
 ```
 
-### 3. Rollback Cloud Functions (if needed)
-
-```bash
-# Deploy previous version
-terraform apply -var="deployment_version=PREVIOUS_SHA"
-```
-
-### 4. Verify Rollback
+### 3. Verify Rollback
 
 ```bash
 # Check deployed Cloud Run versions
@@ -299,7 +291,7 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 - Cause: Missing OAuth2 user authorization
 - Solution: See [Strava Webhook Setup Guide](./strava-webhook.md)
 
-**Webhook points to old Cloud Functions URL:**
+**Webhook points to old URL:**
 
 ```bash
 # Update webhook subscription
