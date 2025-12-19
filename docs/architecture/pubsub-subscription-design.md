@@ -5,13 +5,20 @@
 ```
 Strava Webhook → Dispatcher (Cloud Run) → PubSub Topic
                                               ↓
-                    ┌─────────────────────────┼─────────────────────────┐
-                    ↓                         ↓                         ↓
-              Eventarc Trigger          Eventarc Trigger          Eventarc Trigger
-                    ↓                         ↓                         ↓
-              bq-inserter              postgres-writer              aggregator
-              (Cloud Run)               (Cloud Run)            (Cloud Function v2)
+                              ┌───────────────┴───────────────┐
+                              ↓                               ↓
+                        Eventarc Trigger                Eventarc Trigger
+                              ↓                               ↓
+                        bq-inserter                    postgres-writer
+                        (Cloud Run)                     (Cloud Run)
+                              ↓                               ↓
+                          BigQuery                       PostgreSQL
+                        (analytics)                    (primary backend)
 ```
+
+**Note**: The aggregator Cloud Function was deprecated 2025-12-18 after PostgreSQL
+migration (Epic 09). API Gateway now reads directly from PostgreSQL instead of
+JSON blobs in Cloud Storage.
 
 ## Event Delivery Pattern
 

@@ -69,19 +69,19 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Aggregator DLQ - Row 2, Right
+        # Postgres Writer DLQ - Row 2, Right
         {
           xPos   = 6
           yPos   = 2
           width  = 6
           height = 4
           widget = {
-            title = "Aggregator DLQ Messages"
+            title = "PostgreSQL Writer DLQ Messages"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-aggregator-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-postgres-writer-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MEAN"
@@ -105,16 +105,16 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         },
 
         # ====================================================================
-        # Section Header: Cloud Functions Performance - Row 6
+        # Section Header: Cloud Run Performance - Row 6
         # ====================================================================
         {
           yPos   = 6
           width  = 12
           height = 2
           widget = {
-            title = "⚡ Cloud Functions Performance"
+            title = "⚡ Cloud Run Performance"
             text = {
-              content = "Monitor execution counts, error rates, and performance across all functions:\n- **dispatcher** (webhook entry point)\n- **api_gateway** (web UI backend)\n- **bq_inserter** (BigQuery writer)\n- **aggregator** (summary aggregator)"
+              content = "Monitor execution counts, error rates, and performance across all services:\n- **dispatcher** (webhook entry point)\n- **api_gateway** (web UI backend)\n- **bq_inserter** (BigQuery writer)\n- **postgres_writer** (PostgreSQL sync)"
               format  = "MARKDOWN"
               style   = {}
             }
@@ -571,51 +571,6 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
   }
 }
 
-# DEPRECATED: Aggregator DLQ alert deprecated 2025-12-18
-# resource "google_monitoring_alert_policy" "dlq_aggregator" {
-#   count = var.developer_email != null ? 1 : 0
-#
-#   display_name = "🚨 DLQ: Aggregator Has Messages"
-#   combiner     = "OR"
-#
-#   documentation {
-#     content = <<-EOT
-#       **CRITICAL**: The Aggregator Dead Letter Queue has messages.
-#
-#       This indicates that activities are failing to be aggregated.
-#
-#       **Action Required**:
-#       1. Check DLQ messages in PubSub console
-#       2. Review Aggregator function logs for errors
-#       3. Check Cloud Storage bucket permissions
-#
-#       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
-#     EOT
-#   }
-#
-#   conditions {
-#     display_name = "Aggregator DLQ has messages"
-#
-#     condition_threshold {
-#       filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-aggregator-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
-#       duration        = "60s"
-#       comparison      = "COMPARISON_GT"
-#       threshold_value = 0
-#
-#       aggregations {
-#         alignment_period   = "60s"
-#         per_series_aligner = "ALIGN_MEAN"
-#       }
-#     }
-#   }
-#
-#   notification_channels = [google_monitoring_notification_channel.email_alerts[0].id]
-#
-#   alert_strategy {
-#     auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
-#   }
-# }
-
 # HIGH: Function 4xx Error Rate (Client Errors)
 resource "google_monitoring_alert_policy" "function_4xx_errors" {
   count = var.developer_email != null ? 1 : 0
@@ -632,15 +587,15 @@ resource "google_monitoring_alert_policy" "function_4xx_errors" {
       - Invalid API requests (api_gateway)
       - Authentication issues
 
-      **Monitored Functions**:
+      **Monitored Services**:
       - desirelines_dispatcher (webhook entry point)
       - desirelines_api_gateway (web UI backend)
       - desirelines_bq_inserter (BigQuery writer)
-      - desirelines_aggregator (summary aggregator)
+      - desirelines_postgres_writer (PostgreSQL writer)
 
       **Action Required**:
-      1. Check which function is affected in the dashboard
-      2. Review function logs to see specific 4xx status codes
+      1. Check which service is affected in the dashboard
+      2. Review service logs to see specific 4xx status codes
       3. For dispatcher: Check Strava webhook payload format
       4. For api_gateway: Check client requests and auth tokens
 
@@ -689,18 +644,18 @@ resource "google_monitoring_alert_policy" "function_5xx_errors" {
       - Timeouts
       - Dependency failures (BigQuery, Cloud Storage, etc.)
 
-      **Monitored Functions**:
+      **Monitored Services**:
       - desirelines_dispatcher (webhook entry point)
       - desirelines_api_gateway (web UI backend)
       - desirelines_bq_inserter (BigQuery writer)
-      - desirelines_aggregator (summary aggregator)
+      - desirelines_postgres_writer (PostgreSQL writer)
 
       **Action Required**:
-      1. Check which function is failing in the dashboard
-      2. Review function logs for stack traces and error details
+      1. Check which service is failing in the dashboard
+      2. Review service logs for stack traces and error details
       3. Check for recent deployments or configuration changes
-      4. For bq_inserter/aggregator: Check DLQ for failed messages
-      5. Verify dependencies (BigQuery, Cloud Storage) are healthy
+      4. For bq_inserter/postgres_writer: Check DLQ for failed messages
+      5. Verify dependencies (BigQuery, PostgreSQL) are healthy
 
       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
     EOT
@@ -789,9 +744,8 @@ output "alert_policy_ids" {
   description = "IDs of created alert policies"
   value = var.developer_email != null ? {
     dlq_bq_inserter = google_monitoring_alert_policy.dlq_bq_inserter[0].id
-    # DEPRECATED: dlq_aggregator removed 2025-12-18
-    function_4xx = google_monitoring_alert_policy.function_4xx_errors[0].id
-    function_5xx = google_monitoring_alert_policy.function_5xx_errors[0].id
-    old_messages = google_monitoring_alert_policy.old_messages[0].id
+    function_4xx    = google_monitoring_alert_policy.function_4xx_errors[0].id
+    function_5xx    = google_monitoring_alert_policy.function_5xx_errors[0].id
+    old_messages    = google_monitoring_alert_policy.old_messages[0].id
   } : {}
 }

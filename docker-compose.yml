@@ -37,27 +37,6 @@ services:
       timeout: 10s
       retries: 3
 
-  aggregator:
-    profiles: ["backend"] # Backend pipeline only
-    build:
-      context: .
-      dockerfile: functions/Dockerfile.aggregator
-    ports:
-      - "8082:8080"
-    environment:
-      - FUNCTION_TARGET=main
-      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
-      - GCP_PROJECT_ID=local-dev
-      - GCP_BUCKET_NAME=desirelines_local_testing
-      - ENABLE_CLOUD_LOGGING=true
-    env_file:
-      - .env
-    volumes:
-      - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
-    depends_on:
-      pubsub-bootstrap:
-        condition: service_completed_successfully
-
   bq-inserter:
     profiles: ["backend"] # Backend pipeline only
     build:

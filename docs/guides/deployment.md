@@ -12,9 +12,6 @@ Desirelines uses a hybrid serverless architecture:
   - `bq-inserter` - Writes activity data to BigQuery
   - `postgres-writer` - Writes activity data to PostgreSQL backend for web frontend
 
-- **Cloud Functions v2** (Python, source packages):
-  - `aggregator` - Generates summaries and stores in Cloud Storage (deprecating wip)
-
 ## Prerequisites
 
 - **Google Cloud SDK**: `gcloud` CLI installed and authenticated
@@ -59,19 +56,7 @@ gcloud artifacts docker images list \
   us-central1-docker.pkg.dev/$(gcloud config get-value project)/desirelines-functions
 ```
 
-### 2. Package Python Cloud Functions
-
-Package Cloud Functions source code using same Make target `build-publish`:
-
-```bash
-make build-publish
-```
-
-This creates zip files in `dist/functions/`:
-
-- `aggregator-{SHA}.zip`
-
-### 3. Deploy with Terraform
+### 2. Deploy with Terraform
 
 Deploy infrastructure and services:
 
@@ -92,10 +77,9 @@ terraform apply -var="deployment_version=$DEPLOY_VERSION"
 The `deployment_version` variable:
 
 - Tags Cloud Run images (e.g., `dispatcher:abc1234`, `bq-inserter:abc1234`)
-- Names Cloud Function source packages (e.g., `aggregator-abc1234.zip`)
 - Provides code provenance and observability
 
-### 4. Run Database Migrations
+### 3. Run Database Migrations
 
 Database migrations are managed by Flyway. See `schemas/database/README.md` for full details.
 
@@ -134,9 +118,6 @@ Check service health:
 # Cloud Run services (dispatcher, apigateway, bq-inserter, postgres-writer)
 gcloud run services list --region=us-central1
 
-# Cloud Functions (only aggregator remains)
-gcloud functions list --gen2 --region=us-central1
-
 # Check dispatcher logs
 gcloud run services logs read desirelines-dispatcher \
   --region=us-central1 --limit=20
@@ -148,10 +129,6 @@ gcloud run services logs read desirelines-bq-inserter \
 # Check postgres-writer logs
 gcloud run services logs read desirelines-postgres-writer \
   --region=us-central1 --limit=20
-
-# Check aggregator function logs
-gcloud functions logs read desirelines_aggregator \
-  --gen2 --region=us-central1 --limit=20
 ```
 
 Test end-to-end flow:
@@ -161,7 +138,6 @@ Test end-to-end flow:
 3. Check PubSub topic has messages (Eventarc triggers bq-inserter and postgres-writer)
 4. Check BigQuery table updated (via bq-inserter)
 5. Check PostgreSQL database updated (via postgres-writer)
-6. Check Cloud Storage aggregations updated (via aggregator)
 
 ## Environment-Specific Deployments
 
@@ -173,8 +149,6 @@ gcloud config set project desirelines-dev
 
 # Build images and package functions
 #  Docker Images are pushed to Artifact Registry
-#  Function ZIP files are put locally in dist/function/aggregator.zip
-#    and are subsequently uploaded to GCS by `terraform apply ..` (see below)
 make build-publish
 
 # Deploy
@@ -258,9 +232,6 @@ terraform apply -var="deployment_version=PREVIOUS_SHA"
 ### 3. Rollback Cloud Functions (if needed)
 
 ```bash
-# Ensure previous version package exists (only aggregator is a Cloud Function)
-ls dist/aggregator-PREVIOUS_SHA.zip
-
 # Deploy previous version
 terraform apply -var="deployment_version=PREVIOUS_SHA"
 ```
@@ -277,10 +248,6 @@ gcloud run services describe desirelines-bq-inserter \
 
 gcloud run services describe desirelines-postgres-writer \
   --region=us-central1 --format='value(spec.template.spec.containers[0].image)'
-
-# Check deployed Cloud Function version
-gcloud functions describe desirelines_aggregator \
-  --gen2 --region=us-central1
 ```
 
 ## Troubleshooting
@@ -318,8 +285,6 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 
 - Solution: Stale function deployment. Force redeployment:
   ```bash
-  # For Cloud Function (aggregator)
-  terraform taint 'module.desirelines.google_cloudfunctions2_function.activity_aggregator[0]'
   terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
 
   # For Cloud Run services (bq-inserter, postgres-writer), rebuild Docker image
@@ -354,10 +319,6 @@ gcloud run services describe desirelines-bq-inserter \
 
 gcloud run services describe desirelines-postgres-writer \
   --region=us-central1 --format='value(status.conditions)'
-
-# Cloud Function status (only aggregator)
-gcloud functions describe desirelines_aggregator \
-  --gen2 --region=us-central1 --format='value(state)'
 
 # Check for error logs
 gcloud run services logs read desirelines-dispatcher \
@@ -412,26 +373,15 @@ Deployment happens automatically on merge to main via `.github/workflows/deploy.
 
 **Deployment flow:**
 
-1. **Package Cloud Functions** - `pants package functions:aggregator` creates aggregator zip
-2. **Publish Docker images** - `pants publish` pushes all Cloud Run images to Artifact Registry:
+1. **Publish Docker images** - `pants publish` pushes all Cloud Run images to Artifact Registry:
    - Go services: `dispatcher`, `apigateway`
    - Python services: `bq-inserter`, `postgres-writer`
-3. **Deploy infrastructure** - Terraform applies changes to dev environment
-4. **Tag images** - Uses git SHA for version tracking (e.g., `dispatcher:abc1234`)
+2. **Deploy infrastructure** - Terraform applies changes to dev environment
+3. **Tag images** - Uses git SHA for version tracking (e.g., `dispatcher:abc1234`)
 
 **Key feature:** Deployment workflow doesn't re-run tests (branch protection ensures quality).
 
 ### Building Artifacts with Pants
-
-**Cloud Function packages:**
-
-```bash
-# Package aggregator Cloud Function (only one remaining)
-pants package functions:aggregator
-
-# Creates:
-# - dist/functions/aggregator.zip
-```
 
 **Docker images:**
 

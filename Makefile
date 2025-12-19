@@ -459,17 +459,6 @@ stop:
 	@echo "🛑 Stopping all services..."
 	docker compose --profile backend --profile debug --profile frontend down
 
-# Generate function-specific requirements files
-# NOTE: Aggregator is deprecated (2025-12-18), but requirements file still generated
-# for backward compatibility with docker-compose until full cleanup
-generate-requirements:
-	@echo "📋 Generating function-specific requirements..."
-	@echo "  - Stravapipe package requirements"
-	cd packages/stravapipe && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-aggregator.txt
-	@echo "  - Removing local package references from requirements"
-	sed -i '' '/^\.\/packages\/stravapipe$$/d' functions/requirements-aggregator.txt
-
-
 # Build all images
 build: generate-requirements
 	@echo "🔨 Building all Docker images..."

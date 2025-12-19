@@ -190,7 +190,7 @@ pants lint schemas/proto::
 - **Frontend**: React web application (`packages/web/`)
 - **Backend**:
   - Cloud Run: Go services for HTTP endpoints (dispatcher, api-gateway)
-  - Cloud Functions: Python services for event processing (bq-inserter, aggregator)
+  - Cloud Run: Python services for event processing (bq-inserter, postgres-writer)
 - **Data**: BigQuery for analytics storage, Cloud Storage for aggregations
 - **Integration**: Strava API webhooks for real-time activity updates
 - **Infrastructure**: Terraform for cloud resource management

@@ -3,7 +3,7 @@
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.local.yml up
 
 services:
-  activity-dispatcher:
+  dispatcher:
     environment:
       # For hybrid mode: use emulator project ID since PubSub still uses emulator
       - GCP_PROJECT_ID=local-dev
@@ -14,24 +14,6 @@ services:
     env_file:
       - .env
     volumes:
-      # Mount your local gcloud config (Application Default Credentials)
-      - ~/.config/gcloud:/app/.config/gcloud:ro
-
-  activity-aggregator:
-    environment:
-      # Use real Terraform-created PubSub topics (no emulator)
-      # Use user credentials (mounted from host)
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
-      - GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID_LIVE}
-      # Override with live GCP project ID for AggregatorConfig
-      - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
-      # Override with live GCP bucket name
-      - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE}
-      # Strava credentials loaded from mounted volume at /etc/secrets/strava_auth.json
-    volumes:
-      - ./.env:/app/.env
-      - ./functions/activity_aggregator.py:/app/main.py
-      - ./packages/stravapipe/src/stravapipe:/app/stravapipe
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
 

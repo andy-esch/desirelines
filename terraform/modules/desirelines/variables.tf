@@ -105,15 +105,15 @@ variable "create_service_accounts" {
 
 variable "create_dedicated_service_accounts" {
   description = <<-EOT
-    Whether to create dedicated service accounts per function (recommended for least privilege).
+    Whether to create dedicated service accounts per service (recommended for least privilege).
 
-    When true: Creates separate service accounts for each function:
+    When true: Creates separate service accounts for each Cloud Run service:
       - dispatcher_dev / dispatcher_prod
       - bq_inserter_dev / bq_inserter_prod
-      - aggregator_dev / aggregator_prod
+      - postgres_writer_dev / postgres_writer_prod
       - api_gateway_dev / api_gateway_prod
 
-    When false: All functions use var.service_account_email (shared, less secure)
+    When false: All services use var.service_account_email (shared, less secure)
 
     Recommended: true in all environments (dev and prod)
   EOT

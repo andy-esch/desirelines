@@ -87,14 +87,6 @@ resource "google_bigquery_dataset" "activities_dataset" {
     }
   }
 
-  # DEPRECATED: Aggregator BigQuery access deprecated 2025-12-18
-  # dynamic "access" {
-  #   for_each = var.create_dedicated_service_accounts ? [google_service_account.aggregator_dev[0].email] : [var.service_account_email]
-  #   content {
-  #     role          = "READER"
-  #     user_by_email = access.value
-  #   }
-  # }
 }
 
 # BigQuery Table for Activities
@@ -242,14 +234,6 @@ resource "google_service_account" "dispatcher_dev" {
   description  = "Service account for dispatcher function in ${var.environment} environment"
 }
 
-# DEPRECATED: Aggregator deprecated 2025-12-18 after PostgreSQL migration (Epic 09)
-# resource "google_service_account" "aggregator_dev" {
-#   count        = var.create_dedicated_service_accounts ? 1 : 0
-#   account_id   = "aggregator"
-#   display_name = "Desirelines Aggregator (${title(var.environment)})"
-#   description  = "Service account for aggregator function in ${var.environment} environment"
-# }
-
 resource "google_service_account" "bq_inserter_dev" {
   count        = var.create_dedicated_service_accounts ? 1 : 0
   account_id   = "bq-inserter"
@@ -279,26 +263,6 @@ resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   member = "serviceAccount:${google_service_account.dispatcher_dev[0].email}"
 }
 
-# DEPRECATED: Aggregator IAM permissions deprecated 2025-12-18 after PostgreSQL migration
-# resource "google_storage_bucket_iam_member" "aggregator_storage" {
-#   count  = var.create_dedicated_service_accounts ? 1 : 0
-#   bucket = google_storage_bucket.aggregation_bucket.name
-#   role   = "roles/storage.objectAdmin"
-#   member = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
-# }
-#
-# resource "google_bigquery_dataset_iam_member" "aggregator_data_viewer" {
-#   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
-#   role       = "roles/bigquery.dataViewer"
-#   member     = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
-# }
-#
-# resource "google_project_iam_member" "aggregator_bigquery_job_user" {
-#   project = var.gcp_project_id
-#   role    = "roles/bigquery.jobUser"
-#   member  = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
-# }
-
 # IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)
 
 resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
@@ -322,15 +286,6 @@ resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
   member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
 }
 
-# DEPRECATED: API Gateway storage access deprecated 2025-12-18
-# API Gateway now reads from PostgreSQL, not JSON blobs in Cloud Storage
-# resource "google_storage_bucket_iam_member" "api_gateway_storage" {
-#   count  = var.create_dedicated_service_accounts ? 1 : 0
-#   bucket = google_storage_bucket.aggregation_bucket.name
-#   role   = "roles/storage.objectViewer"
-#   member = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
-# }
-
 # Grant Firebase Admin permissions to API Gateway for token verification
 resource "google_project_iam_member" "api_gateway_firebase_admin" {
   count   = var.create_dedicated_service_accounts ? 1 : 0
@@ -346,14 +301,6 @@ resource "google_service_account_iam_member" "dispatcher_impersonation" {
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
-
-# DEPRECATED: Aggregator impersonation deprecated 2025-12-18
-# resource "google_service_account_iam_member" "aggregator_impersonation" {
-#   count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
-#   service_account_id = google_service_account.aggregator_dev[0].name
-#   role               = "roles/iam.serviceAccountTokenCreator"
-#   member             = "user:${var.developer_email}"
-# }
 
 resource "google_service_account_iam_member" "bq_inserter_impersonation" {
   count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
@@ -384,14 +331,6 @@ resource "google_secret_manager_secret_iam_member" "dispatcher_strava_auth_acces
   role      = "roles/secretmanager.secretAccessor"
   member    = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.dispatcher_dev[0].email}" : "serviceAccount:${var.service_account_email}"
 }
-
-# DEPRECATED: Aggregator secret access deprecated 2025-12-18
-# resource "google_secret_manager_secret_iam_member" "aggregator_strava_auth_access" {
-#   count     = var.create_dedicated_service_accounts ? 1 : 0
-#   secret_id = "strava-auth-${var.environment}"
-#   role      = "roles/secretmanager.secretAccessor"
-#   member    = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
-# }
 
 # BQ Inserter access to Strava auth secret
 resource "google_secret_manager_secret_iam_member" "bq_inserter_strava_auth_access" {
