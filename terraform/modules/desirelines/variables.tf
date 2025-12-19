@@ -25,15 +25,15 @@ variable "deployment_mode" {
   description = <<-EOT
     Deployment mode that controls which resources are created:
 
-    - "full": Complete deployment with Cloud Functions, PubSub, service accounts, etc.
+    - "full": Complete deployment with Cloud Run services, PubSub, service accounts, etc.
               Used for: dev, prod environments
 
     - "data-only": Minimal deployment with only data storage resources (BigQuery, Storage)
-                   Used for: local hybrid development where functions run in Docker
+                   Used for: local hybrid development where services run in Docker
 
     Resources created by mode:
     - Both modes: BigQuery dataset/tables, Storage buckets, API enablement
-    - "full" only: Cloud Functions, PubSub topics, Eventarc, service accounts, DLQ
+    - "full" only: Cloud Run services, PubSub topics, Eventarc, service accounts, DLQ
   EOT
   type        = string
   default     = "full"

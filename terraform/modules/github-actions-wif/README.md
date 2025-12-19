@@ -89,13 +89,15 @@ terraform output github_wif_service_account
 
 The deployment service account receives these roles:
 
-- `roles/run.admin` - Deploy Cloud Run services
-- `roles/cloudfunctions.admin` - Deploy Cloud Functions
+- `roles/run.developer` - Deploy Cloud Run services
 - `roles/artifactregistry.writer` - Push Docker images
-- `roles/storage.objectAdmin` - Upload Cloud Function source code
+- `roles/storage.objectAdmin` - Terraform state and assets
 - `roles/iam.serviceAccountUser` - Deploy as other service accounts
-- `roles/cloudbuild.builds.editor` - Cloud Functions v2 builds
-- `roles/secretmanager.secretAccessor` - (optional) Read secrets
+- `roles/secretmanager.secretAccessor` - Read secrets
+- `roles/viewer` - Verify deployments
+- `roles/pubsub.viewer` - Terraform state refresh
+- `roles/bigquery.admin` - Terraform state refresh
+- `roles/iam.securityReviewer` - Terraform state refresh
 
 ## Security Considerations
 
