@@ -16,10 +16,6 @@ Strava Webhook → Dispatcher (Cloud Run) → PubSub Topic
                         (analytics)                    (primary backend)
 ```
 
-**Note**: The aggregator Cloud Function was deprecated 2025-12-18 after PostgreSQL
-migration (Epic 09). API Gateway now reads directly from PostgreSQL instead of
-JSON blobs in Cloud Storage.
-
 ## Event Delivery Pattern
 
 Eventarc delivers PubSub messages to Cloud Run/Functions as **CloudEvents** with:
