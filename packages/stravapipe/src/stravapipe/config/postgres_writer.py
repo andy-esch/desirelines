@@ -7,9 +7,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Import directly from module to avoid pulling in SQLAlchemy dependencies
-from stravapipe.adapters.postgres._connection import (
-    load_connection_string,
-)
+from stravapipe.adapters.postgres._connection import load_connection_string
 from stravapipe.config.common import StravaApiConfig
 from stravapipe.domain import StravaTokenSet
 

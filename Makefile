@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config db-connect-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-ro db-connect-prod-ro db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info db-clean-dev
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint sync-schemas sync-sport-config verify-schemas db-connect-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-ro db-connect-prod-ro db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info db-clean-dev
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -123,15 +123,12 @@ proto-gen-pants:
 	pants export-codegen schemas/proto::
 	@echo "📋 Copying Python generated code to stravapipe..."
 	@mkdir -p packages/stravapipe/src/stravapipe/types/generated
-	cp dist/codegen/schemas/proto/activities_pb2.py packages/stravapipe/src/stravapipe/types/generated/
-	cp dist/codegen/schemas/proto/activities_pb2.pyi packages/stravapipe/src/stravapipe/types/generated/
 	cp dist/codegen/schemas/proto/sports_metrics_pb2.py packages/stravapipe/src/stravapipe/types/generated/
 	cp dist/codegen/schemas/proto/sports_metrics_pb2.pyi packages/stravapipe/src/stravapipe/types/generated/
 	@# Note: user_config not needed by stravapipe (only apigateway uses it)
 	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
 	@echo "📋 Copying Go generated code to apigateway..."
 	@mkdir -p packages/apigateway/types/generated
-	cp dist/codegen/schemas/proto/activities.pb.go packages/apigateway/types/generated/
 	cp dist/codegen/schemas/proto/sports_metrics.pb.go packages/apigateway/types/generated/
 	cp dist/codegen/schemas/proto/user_config.pb.go packages/apigateway/types/generated/
 	@echo "✅ Pants-generated code copied to source tree (Python + Go)"
@@ -206,26 +203,32 @@ proto-lint:
 	@echo "✅ Protobuf files linted"
 
 # ==========================================
-# Sport Configuration
+# Schema Sync (Proto + Sport Config)
 # ==========================================
 
-.PHONY: copy-sport-config
-copy-sport-config:
-	@echo "📋 Copying sport config to packages..."
+# Sync all schemas from schemas/ to packages that need them
+# Run after modifying any schema file (proto or sport config)
+.PHONY: sync-schemas
+sync-schemas: proto-gen-pants sync-sport-config
+	@echo "✅ All schemas synced"
+
+.PHONY: sync-sport-config
+sync-sport-config:
+	@echo "📋 Syncing sport config to packages..."
 	@mkdir -p packages/stravapipe/src/stravapipe/config
 	@mkdir -p packages/apigateway/config
 	@cp schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/
 	@cp schemas/sports/sport_types.json packages/apigateway/config/
-	@echo "✅ Sport config copied"
+	@echo "✅ Sport config synced"
 
-.PHONY: verify-sport-config
-verify-sport-config:
-	@echo "🔍 Verifying sport config..."
+.PHONY: verify-schemas
+verify-schemas:
+	@echo "🔍 Verifying schemas are in sync..."
 	@diff -q schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/sport_types.json || \
-		(echo "❌ stravapipe config out of sync! Run: make copy-sport-config" && exit 1)
+		(echo "❌ stravapipe sport config out of sync! Run: make sync-schemas" && exit 1)
 	@diff -q schemas/sports/sport_types.json packages/apigateway/config/sport_types.json || \
-		(echo "❌ apigateway config out of sync! Run: make copy-sport-config" && exit 1)
-	@echo "✅ Config copies match source"
+		(echo "❌ apigateway sport config out of sync! Run: make sync-schemas" && exit 1)
+	@echo "✅ All schemas in sync"
 
 # ==========================================
 # Service Account Management
@@ -376,7 +379,7 @@ help:
 	@echo "  Use Terraform for deployment (see terraform/ directory)"
 
 # Combined commands
-test: verify-sport-config py-test go-test web-test
+test: verify-schemas py-test go-test web-test
 lint: py-lint go-lint web-lint proto-lint
 format: py-format go-format web-format tf-fmt proto-fmt
 typecheck: py-typecheck web-typecheck
@@ -651,10 +654,3 @@ db-migrate-prod-info:
 # Clean dev database (drops all objects in desirelines schema)
 db-clean-dev:
 	@./scripts/database/migrate.sh dev clean
-
-# Legacy site commands (direct npm, no Docker)
-site-start:
-	cd web && npm start
-
-site-build:
-	cd web && npm run build

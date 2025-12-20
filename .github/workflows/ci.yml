@@ -20,18 +20,18 @@ env:
 
 jobs:
   # ===========================================================================
-  # Sport Config Sync Check
+  # Schema Sync Check (sport config copied from schemas/ to packages)
   # ===========================================================================
-  sport-config-sync:
-    name: Sport Config Sync
+  schema-sync:
+    name: Schema Sync
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Verify sport_types.json copies are in sync
-        run: make verify-sport-config
+      - name: Verify schemas are in sync
+        run: make verify-schemas
 
   # ===========================================================================
   # Pants: Test & Lint (Python only)
