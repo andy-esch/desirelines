@@ -87,14 +87,6 @@ resource "google_bigquery_dataset" "activities_dataset" {
     }
   }
 
-  # Aggregator service account access (read-only for delete operations)
-  dynamic "access" {
-    for_each = var.create_dedicated_service_accounts ? [google_service_account.aggregator_dev[0].email] : [var.service_account_email]
-    content {
-      role          = "READER"
-      user_by_email = access.value
-    }
-  }
 }
 
 # BigQuery Table for Activities
@@ -242,13 +234,6 @@ resource "google_service_account" "dispatcher_dev" {
   description  = "Service account for dispatcher function in ${var.environment} environment"
 }
 
-resource "google_service_account" "aggregator_dev" {
-  count        = var.create_dedicated_service_accounts ? 1 : 0
-  account_id   = "aggregator"
-  display_name = "Desirelines Aggregator (${title(var.environment)})"
-  description  = "Service account for aggregator function in ${var.environment} environment"
-}
-
 resource "google_service_account" "bq_inserter_dev" {
   count        = var.create_dedicated_service_accounts ? 1 : 0
   account_id   = "bq-inserter"
@@ -278,31 +263,6 @@ resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   member = "serviceAccount:${google_service_account.dispatcher_dev[0].email}"
 }
 
-# IAM permissions for aggregator (Storage Admin + BigQuery read access - PubSub permissions handled by Eventarc)
-
-resource "google_storage_bucket_iam_member" "aggregator_storage" {
-  count  = var.create_dedicated_service_accounts ? 1 : 0
-  bucket = google_storage_bucket.aggregation_bucket.name
-  role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
-}
-
-# BigQuery permissions for aggregator (needed for delete event handling)
-# Aggregator needs to query BigQuery to get activity metadata for distance calculations
-# NOTE: If implementing activity-indexed summary structure (see refactor-summary-structure-activity-indexed.md),
-#       these permissions can be removed as aggregator will no longer need BigQuery access
-resource "google_bigquery_dataset_iam_member" "aggregator_data_viewer" {
-  dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
-  role       = "roles/bigquery.dataViewer"
-  member     = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
-}
-
-resource "google_project_iam_member" "aggregator_bigquery_job_user" {
-  project = var.gcp_project_id
-  role    = "roles/bigquery.jobUser"
-  member  = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.aggregator_dev[0].email}" : "serviceAccount:${var.service_account_email}"
-}
-
 # IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)
 
 resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
@@ -326,14 +286,6 @@ resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
   member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
 }
 
-# IAM permissions for API Gateway (Storage Object Viewer only - read aggregated data)
-resource "google_storage_bucket_iam_member" "api_gateway_storage" {
-  count  = var.create_dedicated_service_accounts ? 1 : 0
-  bucket = google_storage_bucket.aggregation_bucket.name
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
-}
-
 # Grant Firebase Admin permissions to API Gateway for token verification
 resource "google_project_iam_member" "api_gateway_firebase_admin" {
   count   = var.create_dedicated_service_accounts ? 1 : 0
@@ -346,13 +298,6 @@ resource "google_project_iam_member" "api_gateway_firebase_admin" {
 resource "google_service_account_iam_member" "dispatcher_impersonation" {
   count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
   service_account_id = google_service_account.dispatcher_dev[0].name
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "user:${var.developer_email}"
-}
-
-resource "google_service_account_iam_member" "aggregator_impersonation" {
-  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
-  service_account_id = google_service_account.aggregator_dev[0].name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
@@ -385,14 +330,6 @@ resource "google_secret_manager_secret_iam_member" "dispatcher_strava_auth_acces
   secret_id = "strava-auth-${var.environment}"
   role      = "roles/secretmanager.secretAccessor"
   member    = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.dispatcher_dev[0].email}" : "serviceAccount:${var.service_account_email}"
-}
-
-# Aggregator access to Strava auth secret
-resource "google_secret_manager_secret_iam_member" "aggregator_strava_auth_access" {
-  count     = var.create_dedicated_service_accounts ? 1 : 0
-  secret_id = "strava-auth-${var.environment}"
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.aggregator_dev[0].email}"
 }
 
 # BQ Inserter access to Strava auth secret

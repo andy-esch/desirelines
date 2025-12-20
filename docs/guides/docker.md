@@ -14,9 +14,6 @@ packages/
     ├── Dockerfile.bq_inserter      # Python/FastAPI - Cloud Run
     └── Dockerfile.postgres_writer  # Python/FastAPI - Cloud Run
 
-functions/
-└── Dockerfile.aggregator           # Python - Cloud Function v2 (local dev only)
-
 scripts/development/local-dev/
 └── Dockerfile.cloudevent_adapter   # Python/FastAPI - local dev only
 ```
@@ -46,7 +43,6 @@ This:
 - Builds all Docker images
 - Tags with git SHA and `latest`
 - Pushes to Artifact Registry
-- Packages `aggregator` Cloud Function source
 
 ### Build Without Publishing
 
@@ -75,7 +71,7 @@ docker compose build dispatcher
 
 ### Profiles
 
-- `backend` - Pipeline services (dispatcher, aggregator, bq-inserter, postgres-writer, PubSub emulator)
+- `backend` - Pipeline services (dispatcher, bq-inserter, postgres-writer, PubSub emulator)
 - `frontend` - Web services (api-gateway, postgres)
 - `debug` - Debugging tools (PubSub UI)
 
@@ -84,7 +80,6 @@ docker compose build dispatcher
 | Port | Service |
 |------|---------|
 | 8081 | Dispatcher |
-| 8082 | Aggregator |
 | 8083 | BQ Inserter |
 | 8084 | API Gateway |
 | 8085 | PubSub Emulator |
@@ -119,16 +114,6 @@ RUN pip install uv
 
 FROM python:3.13-slim
 # ... copy venv, run with uvicorn ...
-```
-
-### Python Functions (Cloud Function v2)
-
-Production uses Pants-packaged zip files, not Docker. Dockerfiles are for local development only.
-
-```bash
-# Production packaging
-pants package functions:aggregator
-# Creates dist/functions/aggregator.zip
 ```
 
 ## Related Documentation

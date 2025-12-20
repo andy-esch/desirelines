@@ -25,15 +25,15 @@ variable "deployment_mode" {
   description = <<-EOT
     Deployment mode that controls which resources are created:
 
-    - "full": Complete deployment with Cloud Functions, PubSub, service accounts, etc.
+    - "full": Complete deployment with Cloud Run services, PubSub, service accounts, etc.
               Used for: dev, prod environments
 
     - "data-only": Minimal deployment with only data storage resources (BigQuery, Storage)
-                   Used for: local hybrid development where functions run in Docker
+                   Used for: local hybrid development where services run in Docker
 
     Resources created by mode:
     - Both modes: BigQuery dataset/tables, Storage buckets, API enablement
-    - "full" only: Cloud Functions, PubSub topics, Eventarc, service accounts, DLQ
+    - "full" only: Cloud Run services, PubSub topics, Eventarc, service accounts, DLQ
   EOT
   type        = string
   default     = "full"
@@ -105,15 +105,15 @@ variable "create_service_accounts" {
 
 variable "create_dedicated_service_accounts" {
   description = <<-EOT
-    Whether to create dedicated service accounts per function (recommended for least privilege).
+    Whether to create dedicated service accounts per service (recommended for least privilege).
 
-    When true: Creates separate service accounts for each function:
+    When true: Creates separate service accounts for each Cloud Run service:
       - dispatcher_dev / dispatcher_prod
       - bq_inserter_dev / bq_inserter_prod
-      - aggregator_dev / aggregator_prod
+      - postgres_writer_dev / postgres_writer_prod
       - api_gateway_dev / api_gateway_prod
 
-    When false: All functions use var.service_account_email (shared, less secure)
+    When false: All services use var.service_account_email (shared, less secure)
 
     Recommended: true in all environments (dev and prod)
   EOT

@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint copy-sport-config verify-sport-config db-connect-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-ro db-connect-prod-ro db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info db-clean-dev
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint sync-schemas sync-sport-config verify-schemas db-connect-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-ro db-connect-prod-ro db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info db-clean-dev
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -123,22 +123,19 @@ proto-gen-pants:
 	pants export-codegen schemas/proto::
 	@echo "📋 Copying Python generated code to stravapipe..."
 	@mkdir -p packages/stravapipe/src/stravapipe/types/generated
-	cp dist/codegen/schemas/proto/activities_pb2.py packages/stravapipe/src/stravapipe/types/generated/
-	cp dist/codegen/schemas/proto/activities_pb2.pyi packages/stravapipe/src/stravapipe/types/generated/
 	cp dist/codegen/schemas/proto/sports_metrics_pb2.py packages/stravapipe/src/stravapipe/types/generated/
 	cp dist/codegen/schemas/proto/sports_metrics_pb2.pyi packages/stravapipe/src/stravapipe/types/generated/
 	@# Note: user_config not needed by stravapipe (only apigateway uses it)
 	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
 	@echo "📋 Copying Go generated code to apigateway..."
 	@mkdir -p packages/apigateway/types/generated
-	cp dist/codegen/schemas/proto/activities.pb.go packages/apigateway/types/generated/
 	cp dist/codegen/schemas/proto/sports_metrics.pb.go packages/apigateway/types/generated/
 	cp dist/codegen/schemas/proto/user_config.pb.go packages/apigateway/types/generated/
 	@echo "✅ Pants-generated code copied to source tree (Python + Go)"
 	@echo "ℹ️  TypeScript still uses npm (run 'make proto-gen-typescript' separately if needed)"
 
 # Generate Python code from proto files
-# stravapipe only needs: activities.proto, sports_metrics.proto (not user_config)
+# stravapipe only needs: sports_metrics.proto (not user_config)
 proto-gen-python:
 	@echo "🔨 Generating Python code from proto files..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
@@ -146,7 +143,6 @@ proto-gen-python:
 	protoc --python_out=packages/stravapipe/src/stravapipe/types/generated \
 		--pyi_out=packages/stravapipe/src/stravapipe/types/generated \
 		-I schemas/proto \
-		schemas/proto/activities.proto \
 		schemas/proto/sports_metrics.proto
 	@# Create __init__.py to make it a proper Python package
 	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
@@ -162,7 +158,6 @@ proto-gen-go:
 	protoc --go_out=packages/apigateway/types/generated \
 		--go_opt=paths=source_relative \
 		-I schemas/proto \
-		schemas/proto/activities.proto \
 		schemas/proto/sports_metrics.proto \
 		schemas/proto/user_config.proto
 	@echo "✅ Go protobuf code generated in packages/apigateway/types/generated/"
@@ -178,7 +173,6 @@ proto-gen-typescript:
 		--ts_proto_out=packages/web/src/types/generated \
 		--ts_proto_opt=outputJsonMethods=false,outputPartialMethods=false,useOptionals=messages,oneof=unions \
 		-I schemas/proto \
-		schemas/proto/activities.proto \
 		schemas/proto/sports_metrics.proto \
 		schemas/proto/user_config.proto
 	@echo "✅ TypeScript protobuf code generated in packages/web/src/types/generated/"
@@ -206,26 +200,32 @@ proto-lint:
 	@echo "✅ Protobuf files linted"
 
 # ==========================================
-# Sport Configuration
+# Schema Sync (Proto + Sport Config)
 # ==========================================
 
-.PHONY: copy-sport-config
-copy-sport-config:
-	@echo "📋 Copying sport config to packages..."
+# Sync all schemas from schemas/ to packages that need them
+# Run after modifying any schema file (proto or sport config)
+.PHONY: sync-schemas
+sync-schemas: proto-gen-pants sync-sport-config
+	@echo "✅ All schemas synced"
+
+.PHONY: sync-sport-config
+sync-sport-config:
+	@echo "📋 Syncing sport config to packages..."
 	@mkdir -p packages/stravapipe/src/stravapipe/config
 	@mkdir -p packages/apigateway/config
 	@cp schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/
 	@cp schemas/sports/sport_types.json packages/apigateway/config/
-	@echo "✅ Sport config copied"
+	@echo "✅ Sport config synced"
 
-.PHONY: verify-sport-config
-verify-sport-config:
-	@echo "🔍 Verifying sport config..."
+.PHONY: verify-schemas
+verify-schemas:
+	@echo "🔍 Verifying schemas are in sync..."
 	@diff -q schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/sport_types.json || \
-		(echo "❌ stravapipe config out of sync! Run: make copy-sport-config" && exit 1)
+		(echo "❌ stravapipe sport config out of sync! Run: make sync-schemas" && exit 1)
 	@diff -q schemas/sports/sport_types.json packages/apigateway/config/sport_types.json || \
-		(echo "❌ apigateway config out of sync! Run: make copy-sport-config" && exit 1)
-	@echo "✅ Config copies match source"
+		(echo "❌ apigateway sport config out of sync! Run: make sync-schemas" && exit 1)
+	@echo "✅ All schemas in sync"
 
 # ==========================================
 # Service Account Management
@@ -314,12 +314,11 @@ help:
 	@echo "  tf-validate-all       - Validate all Terraform configurations"
 	@echo ""
 	@echo "Backend Pipeline (Docker):"
-	@echo "  start-backend       - Start backend pipeline (dispatcher, aggregator, bq-inserter, postgres-writer)"
+	@echo "  start-backend       - Start backend pipeline (dispatcher, bq-inserter, postgres-writer)"
 	@echo "  start-backend-local - Start backend with Terraform-managed GCP resources"
 	@echo "  start-backend-debug - Start backend with PubSub UI for debugging (port 4200)"
 	@echo "  logs                - View logs from all backend services"
 	@echo "  logs-dispatcher     - View dispatcher logs"
-	@echo "  logs-aggregator     - View aggregator logs"
 	@echo "  logs-bq             - View bq-inserter logs"
 	@echo "  logs-postgres       - View postgres-writer logs"
 	@echo "  test-full-flow      - Test complete webhook flow"
@@ -330,8 +329,6 @@ help:
 	@echo "  logs-frontend  - View frontend logs (API Gateway + Web UI)"
 	@echo "  logs-api       - View API Gateway logs only"
 	@echo "  logs-web       - View Web UI logs only"
-	@echo "  site-start     - Start Web UI directly (npm, no Docker)"
-	@echo "  site-build     - Build Web UI for production"
 	@echo ""
 	@echo "Database:"
 	@echo "  db-connect-local       - Connect to local PostgreSQL database (psql)"
@@ -362,7 +359,7 @@ help:
 	@echo "  proto-clean          - Clean generated protobuf code"
 	@echo ""
 	@echo "Build and Publish (Pants):"
-	@echo "  build-publish                        - Build and publish all artifacts (Cloud Functions + Cloud Run)"
+	@echo "  build-publish                        - Build and publish all Cloud Run images"
 	@echo "  build-publish-tag TAG=abc1234        - Build and publish with specific git SHA"
 	@echo ""
 	@echo "Secret Management & Webhooks (uses current gcloud project):"
@@ -377,7 +374,7 @@ help:
 	@echo "  Use Terraform for deployment (see terraform/ directory)"
 
 # Combined commands
-test: verify-sport-config py-test go-test web-test
+test: verify-schemas py-test go-test web-test
 lint: py-lint go-lint web-lint proto-lint
 format: py-format go-format web-format tf-fmt proto-fmt
 typecheck: py-typecheck web-typecheck
@@ -388,13 +385,12 @@ typecheck: py-typecheck web-typecheck
 # ==========================================
 
 # Start backend pipeline locally with PubSub emulator
-start-backend: generate-requirements
+start-backend:
 	@echo "🚀 Starting backend pipeline locally (PubSub emulator + local storage)..."
 	docker compose --profile backend up --build --detach
 	@echo "✅ All backend services are running!"
 	@echo "📋 Service URLs:"
 	@echo "  Dispatcher:       http://localhost:8081"
-	@echo "  Aggregator:       http://localhost:8082"
 	@echo "  BQ Inserter:      http://localhost:8083"
 	@echo "  PostgreSQL Writer: http://localhost:8086"
 	@echo "  PubSub Emulator:  http://localhost:8085"
@@ -403,7 +399,7 @@ start-backend: generate-requirements
 	@echo "  make test-full-flow"
 
 # Start backend with local Terraform-managed GCP resources (hybrid mode)
-start-backend-local: generate-requirements
+start-backend-local:
 	@echo "🚀 Starting backend with local GCP resources (PubSub emulator + Terraform-created BigQuery/Storage)..."
 	@if [ ! -f "$$HOME/.config/gcloud/application_default_credentials.json" ]; then \
 		echo "❌ Error: No gcloud application default credentials found"; \
@@ -415,7 +411,6 @@ start-backend-local: generate-requirements
 	@echo "✅ All backend services are running with local GCP resources!"
 	@echo "📋 Service URLs:"
 	@echo "  Dispatcher:        http://localhost:8081 (→ PubSub Emulator forwarding)"
-	@echo "  Aggregator:        http://localhost:8082 (→ Terraform-managed Cloud Storage)"
 	@echo "  BQ Inserter:       http://localhost:8083 (→ Terraform-managed BigQuery)"
 	@echo "  PostgreSQL Writer: http://localhost:8086 (→ Terraform-managed Cloud SQL)"
 	@echo "  PubSub Emulator:   http://localhost:8085"
@@ -427,13 +422,12 @@ start-backend-local: generate-requirements
 	@echo "🔐 Using your gcloud application default credentials"
 
 # Start backend with PubSub UI for debugging
-start-backend-debug: generate-requirements
+start-backend-debug:
 	@echo "🐛 Starting backend pipeline with PubSub debugging UI..."
 	docker compose --profile backend --profile debug up --build --detach
 	@echo "✅ All backend services are running with debugging UI!"
 	@echo "📋 Service URLs:"
 	@echo "  Dispatcher:        http://localhost:8081"
-	@echo "  Aggregator:        http://localhost:8082"
 	@echo "  BQ Inserter:       http://localhost:8083"
 	@echo "  PostgreSQL Writer: http://localhost:8086"
 	@echo "  PubSub Emulator:   http://localhost:8085"
@@ -450,10 +444,6 @@ logs:
 logs-dispatcher:
 	docker compose --profile backend logs -f dispatcher
 
-# View aggregator logs
-logs-aggregator:
-	docker compose --profile backend logs -f aggregator
-
 # View bq-inserter logs
 logs-bq:
 	docker compose --profile backend logs -f bq-inserter
@@ -467,17 +457,8 @@ stop:
 	@echo "🛑 Stopping all services..."
 	docker compose --profile backend --profile debug --profile frontend down
 
-# Generate function-specific requirements files
-generate-requirements:
-	@echo "📋 Generating function-specific requirements..."
-	@echo "  - Stravapipe package requirements"
-	cd packages/stravapipe && uv export --format requirements-txt --no-dev --no-editable > ../../functions/requirements-aggregator.txt
-	@echo "  - Removing local package references from aggregator requirements"
-	sed -i '' '/^\.\/packages\/stravapipe$$/d' functions/requirements-aggregator.txt
-
-
 # Build all images
-build: generate-requirements
+build:
 	@echo "🔨 Building all Docker images..."
 	docker compose build
 
@@ -507,16 +488,13 @@ clean:
 	@echo "🧹 Cleaning up Docker resources..."
 	docker compose down --rmi all --volumes --remove-orphans
 	docker system prune -f
-	rm -f functions/requirements-*.txt
-
-
 
 
 # ==========================================
 # Build and Publish (Pants)
 # ==========================================
 
-# Build and publish all artifacts via Pants (Cloud Functions + Cloud Run)
+# Build and publish all Cloud Run images
 .PHONY: build-publish
 build-publish:
 	@./scripts/operations/build-and-publish.sh
@@ -668,10 +646,3 @@ db-migrate-prod-info:
 # Clean dev database (drops all objects in desirelines schema)
 db-clean-dev:
 	@./scripts/database/migrate.sh dev clean
-
-# Legacy site commands (direct npm, no Docker)
-site-start:
-	cd web && npm start
-
-site-build:
-	cd web && npm run build

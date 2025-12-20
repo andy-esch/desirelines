@@ -92,7 +92,7 @@ def load_sport_config() -> SportConfig:
 
     if not config_path.exists():
         raise FileNotFoundError(
-            f"Sport config not found: {config_path}\nRun: make copy-sport-config"
+            f"Sport config not found: {config_path}\nRun: make sync-sport-config"
         )
 
     config = SportConfig(config_path)

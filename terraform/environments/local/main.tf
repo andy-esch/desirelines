@@ -83,22 +83,6 @@ resource "google_pubsub_subscription" "bq_inserter_dlq" {
   }
 }
 
-# Dead letter subscription for aggregator function
-resource "google_pubsub_subscription" "aggregator_dlq" {
-  name  = "desirelines-aggregator-dlq"
-  topic = module.desirelines.pubsub_dead_letter_topic_name
-
-  # Long retention for debugging failed messages
-  message_retention_duration = "1209600s" # 14 days
-  ack_deadline_seconds       = 600
-
-  labels = {
-    purpose     = "dead-letter-queue"
-    function    = "aggregator"
-    environment = "local"
-  }
-}
-
 # Note: Eventarc automatically creates and manages the main subscriptions
 # that trigger the functions. We only manage the dead letter queue subscriptions
 # for monitoring and debugging failed messages.

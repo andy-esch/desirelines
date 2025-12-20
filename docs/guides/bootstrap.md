@@ -40,21 +40,21 @@ That's it! The script will:
 3. ✅ Set up authentication and impersonation
 4. ✅ Create terraform state bucket
 5. ✅ Deploy secrets to Secret Manager
-6. ✅ Package all Cloud Functions
-7. ✅ Deploy complete infrastructure (BigQuery, PubSub, Cloud Functions, etc.)
+6. ✅ Build and push Docker images
+7. ✅ Deploy complete infrastructure (BigQuery, PubSub, Cloud Run, etc.)
 
 ## What Gets Created
 
 ### Infrastructure
-- **BigQuery datasets**: Raw activities, processed data, aggregated summaries
+- **BigQuery datasets**: Raw activities (analytics/archival)
 - **PubSub topics**: Activity processing pipeline
-- **Cloud Functions**: 4 functions (dispatcher, bq-inserter, aggregator, api-gateway)
-- **Secret Manager**: Strava API credentials
+- **Cloud Run services**: dispatcher, api-gateway, bq-inserter, postgres-writer
+- **Secret Manager**: Strava API credentials, PostgreSQL connection string
 - **Cloud Storage**: Terraform state bucket
 
 ### Service Accounts
 - **terraform-desirelines**: For infrastructure management (same name across environments)
-- **Dedicated function SAs**: Created by Terraform for each function (dispatcher, aggregator, bq-inserter, api-gateway)
+- **Dedicated service account per Cloud Run service**: dispatcher, api-gateway, bq-inserter, postgres-writer
 
 ## Updating the Environment
 

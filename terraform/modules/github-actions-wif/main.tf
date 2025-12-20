@@ -96,13 +96,6 @@ resource "google_project_iam_member" "run_developer" {
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
 
-# Cloud Functions Developer - Deploy new versions of existing functions
-resource "google_project_iam_member" "cloudfunctions_developer" {
-  project = var.project_id
-  role    = "roles/cloudfunctions.developer"
-  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
-}
-
 # Artifact Registry Writer - Push Docker images
 resource "google_project_iam_member" "artifact_registry_writer" {
   project = var.project_id
@@ -110,7 +103,7 @@ resource "google_project_iam_member" "artifact_registry_writer" {
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
 
-# Storage Object Admin - Upload Cloud Function source ZIPs
+# Storage Object Admin - Terraform state and assets
 resource "google_project_iam_member" "storage_object_admin" {
   project = var.project_id
   role    = "roles/storage.objectAdmin"
@@ -121,13 +114,6 @@ resource "google_project_iam_member" "storage_object_admin" {
 resource "google_project_iam_member" "service_account_user" {
   project = var.project_id
   role    = "roles/iam.serviceAccountUser"
-  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
-}
-
-# Cloud Build Editor - Cloud Functions v2 uses Cloud Build for deployments
-resource "google_project_iam_member" "cloudbuild_editor" {
-  project = var.project_id
-  role    = "roles/cloudbuild.builds.editor"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
 

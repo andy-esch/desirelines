@@ -23,10 +23,6 @@ python_sources(
             "dependencies": ["packages/stravapipe/src/stravapipe/config:sport_config_json"],
         },
         # Generated protobuf files - don't lint or type-check
-        "src/stravapipe/types/generated/activities_pb2.py": {
-            "skip_ruff": True,
-            "skip_mypy": True,
-        },
         "src/stravapipe/types/generated/sports_metrics_pb2.py": {
             "skip_ruff": True,
             "skip_mypy": True,

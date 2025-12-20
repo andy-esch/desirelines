@@ -32,13 +32,12 @@ This directory contains scripts specifically for local development environment s
 **CloudEvent adapter** bridges PubSub emulator and Cloud Run services:
 - Receives raw PubSub push messages from the emulator
 - Wraps them with Eventarc-style CloudEvent headers (`ce-type`, `ce-id`, `ce-source`, `ce-time`)
-- Forwards to target services (aggregator, bq-inserter, postgres-writer)
+- Forwards to target services (bq-inserter, postgres-writer)
 - Ensures local development uses the exact same code path as production
 
 **Why this exists:** In production, Eventarc automatically adds CloudEvent headers when delivering PubSub messages to Cloud Run. The PubSub emulator doesn't do this, so this adapter fills the gap.
 
 **Endpoints:**
-- `POST /aggregator` → forwards to `http://aggregator:8080`
 - `POST /bq-inserter` → forwards to `http://bq-inserter:8080`
 - `POST /postgres-writer` → forwards to `http://postgres-writer:8080`
 - `GET /health` → health check
@@ -98,10 +97,10 @@ scripts/
 │   ├── cloudevent_adapter.py         # CloudEvent wrapper service
 │   └── Dockerfile.cloudevent_adapter # Docker build for adapter
 ├── infrastructure/                   # Environment setup and deployment
-│   ├── deploy-secrets.sh             # Deploy secrets to Cloud Functions
+│   ├── deploy-secrets.sh             # Deploy secrets to Secret Manager
 │   └── bootstrap-environment.sh      # Complete env bootstrap
 └── operations/                       # Build and deployment tasks
-    ├── package-functions.sh          # Package Cloud Functions
+    ├── build-and-publish.sh          # Build and push Docker images
     └── webhook-management.sh         # Webhook management
 ```
 

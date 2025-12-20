@@ -5,12 +5,15 @@
 ```
 Strava Webhook → Dispatcher (Cloud Run) → PubSub Topic
                                               ↓
-                    ┌─────────────────────────┼─────────────────────────┐
-                    ↓                         ↓                         ↓
-              Eventarc Trigger          Eventarc Trigger          Eventarc Trigger
-                    ↓                         ↓                         ↓
-              bq-inserter              postgres-writer              aggregator
-              (Cloud Run)               (Cloud Run)            (Cloud Function v2)
+                              ┌───────────────┴───────────────┐
+                              ↓                               ↓
+                        Eventarc Trigger                Eventarc Trigger
+                              ↓                               ↓
+                        bq-inserter                    postgres-writer
+                        (Cloud Run)                     (Cloud Run)
+                              ↓                               ↓
+                          BigQuery                       PostgreSQL
+                        (analytics)                    (primary backend)
 ```
 
 ## Event Delivery Pattern
@@ -52,11 +55,6 @@ resource "google_pubsub_subscription" "bq_inserter" {
 ```
 
 ### Why Manual Subscriptions?
-
-Using `event_trigger` in Cloud Functions creates auto-named Eventarc subscriptions that:
-- Change names on each deployment
-- Require hard-coded imports in Terraform
-- Create orphaned subscriptions on redeploy
 
 Manual subscriptions provide:
 - Stable, predictable naming

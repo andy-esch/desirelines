@@ -3,11 +3,9 @@
 # ============================================================================
 # This dashboard provides at-a-glance visibility into:
 # - Dead Letter Queue health (critical early warning)
-# - Cloud Function performance and errors
+# - Cloud Run service performance and errors
 # - PubSub message flow and backlogs
 # - Data pipeline health (BigQuery & Storage)
-#
-# Related: docs/planning/tasks/in-progress/monitoring-dashboard.md
 # ============================================================================
 
 resource "google_monitoring_dashboard" "desirelines_observability" {
@@ -69,19 +67,19 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Aggregator DLQ - Row 2, Right
+        # Postgres Writer DLQ - Row 2, Right
         {
           xPos   = 6
           yPos   = 2
           width  = 6
           height = 4
           widget = {
-            title = "Aggregator DLQ Messages"
+            title = "PostgreSQL Writer DLQ Messages"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-aggregator-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-postgres-writer-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MEAN"
@@ -105,80 +103,80 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         },
 
         # ====================================================================
-        # Section Header: Cloud Functions Performance - Row 6
+        # Section Header: Cloud Run Performance - Row 6
         # ====================================================================
         {
           yPos   = 6
           width  = 12
           height = 2
           widget = {
-            title = "⚡ Cloud Functions Performance"
+            title = "⚡ Cloud Run Performance"
             text = {
-              content = "Monitor execution counts, error rates, and performance across all functions:\n- **dispatcher** (webhook entry point)\n- **api_gateway** (web UI backend)\n- **bq_inserter** (BigQuery writer)\n- **aggregator** (summary aggregator)"
+              content = "Monitor execution counts, error rates, and performance across all services:\n- **dispatcher** (webhook entry point)\n- **api_gateway** (web UI backend)\n- **bq_inserter** (BigQuery writer)\n- **postgres_writer** (PostgreSQL sync)"
               format  = "MARKDOWN"
               style   = {}
             }
           }
         },
 
-        # Function Execution Counts - Row 8
+        # Service Request Counts - Row 8
         {
           yPos   = 8
           width  = 12
           height = 4
           widget = {
-            title = "Function Executions (per minute)"
+            title = "Service Requests (per minute)"
             xyChart = {
               dataSets = [
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "resource.type=\"cloud_function\" AND resource.labels.function_name=monitoring.regex.full_match(\"desirelines.*\") AND metric.type=\"cloudfunctions.googleapis.com/function/execution_count\""
+                      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\""
                       aggregation = {
                         alignmentPeriod    = "60s"
                         perSeriesAligner   = "ALIGN_RATE"
                         crossSeriesReducer = "REDUCE_SUM"
-                        groupByFields      = ["resource.function_name"]
+                        groupByFields      = ["resource.labels.service_name"]
                       }
                     }
                   }
                   plotType       = "LINE"
                   targetAxis     = "Y1"
-                  legendTemplate = "$${resource.labels.function_name}"
+                  legendTemplate = "$${resource.labels.service_name}"
                 }
               ]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Executions/min"
+                label = "Requests/min"
                 scale = "LINEAR"
               }
             }
           }
         },
 
-        # Function 4xx Errors - Row 12, Left
+        # Service 4xx Errors - Row 12, Left
         {
           yPos   = 12
           width  = 6
           height = 4
           widget = {
-            title = "Function 4xx Errors (client errors)"
+            title = "Service 4xx Errors (client errors)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"cloud_function\" AND resource.labels.function_name=monitoring.regex.full_match(\"desirelines.*\") AND metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" AND metric.labels.status=monitoring.regex.full_match(\"4..\") "
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"4xx\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_RATE"
                       crossSeriesReducer = "REDUCE_SUM"
-                      groupByFields      = ["resource.function_name"]
+                      groupByFields      = ["resource.labels.service_name"]
                     }
                   }
                 }
                 plotType       = "LINE"
                 targetAxis     = "Y1"
-                legendTemplate = "$${resource.labels.function_name}"
+                legendTemplate = "$${resource.labels.service_name}"
               }]
               timeshiftDuration = "0s"
               yAxis = {
@@ -189,30 +187,30 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Function 5xx Errors - Row 12, Right
+        # Service 5xx Errors - Row 12, Right
         {
           xPos   = 6
           yPos   = 12
           width  = 6
           height = 4
           widget = {
-            title = "Function 5xx Errors (server errors)"
+            title = "Service 5xx Errors (server errors)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"cloud_function\" AND resource.labels.function_name=monitoring.regex.full_match(\"desirelines.*\") AND metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" AND metric.labels.status=monitoring.regex.full_match(\"5..\") "
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_RATE"
                       crossSeriesReducer = "REDUCE_SUM"
-                      groupByFields      = ["resource.function_name"]
+                      groupByFields      = ["resource.labels.service_name"]
                     }
                   }
                 }
                 plotType       = "LINE"
                 targetAxis     = "Y1"
-                legendTemplate = "$${resource.labels.function_name}"
+                legendTemplate = "$${resource.labels.service_name}"
               }]
               timeshiftDuration = "0s"
               yAxis = {
@@ -226,29 +224,29 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Function Execution Times (P95) - Row 16, Full Width
+        # Service Request Latency (P95) - Row 16, Full Width
         {
           yPos   = 16
           width  = 12
           height = 4
           widget = {
-            title = "Function Execution Time P95 (ms)"
+            title = "Service Request Latency P95 (ms)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"cloud_function\" AND resource.labels.function_name=monitoring.regex.full_match(\"desirelines.*\") AND metric.type=\"cloudfunctions.googleapis.com/function/execution_times\""
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_latencies\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_DELTA"
                       crossSeriesReducer = "REDUCE_PERCENTILE_95"
-                      groupByFields      = ["resource.function_name"]
+                      groupByFields      = ["resource.labels.service_name"]
                     }
                   }
                 }
                 plotType       = "LINE"
                 targetAxis     = "Y1"
-                legendTemplate = "$${resource.labels.function_name}"
+                legendTemplate = "$${resource.labels.service_name}"
               }]
               timeshiftDuration = "0s"
               yAxis = {
@@ -262,29 +260,29 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Function Active Instances - Row 20
+        # Service Instance Count - Row 20
         {
           yPos   = 20
           width  = 12
           height = 4
           widget = {
-            title = "Function Active Instances"
+            title = "Service Instance Count"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"cloud_function\" AND resource.labels.function_name=monitoring.regex.full_match(\"desirelines.*\") AND metric.type=\"cloudfunctions.googleapis.com/function/active_instances\""
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/container/instance_count\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MEAN"
-                      crossSeriesReducer = "REDUCE_MEAN"
-                      groupByFields      = ["resource.function_name"]
+                      crossSeriesReducer = "REDUCE_SUM"
+                      groupByFields      = ["resource.labels.service_name"]
                     }
                   }
                 }
                 plotType       = "LINE"
                 targetAxis     = "Y1"
-                legendTemplate = "$${resource.labels.function_name}"
+                legendTemplate = "$${resource.labels.service_name}"
               }]
               timeshiftDuration = "0s"
               yAxis = {
@@ -571,76 +569,31 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
   }
 }
 
-# CRITICAL: DLQ Messages Detected (Aggregator)
-resource "google_monitoring_alert_policy" "dlq_aggregator" {
+# HIGH: Service 4xx Error Rate (Client Errors)
+resource "google_monitoring_alert_policy" "service_4xx_errors" {
   count = var.developer_email != null ? 1 : 0
 
-  display_name = "🚨 DLQ: Aggregator Has Messages"
+  display_name = "⚠️ Cloud Run: High 4xx Error Rate"
   combiner     = "OR"
 
   documentation {
     content = <<-EOT
-      **CRITICAL**: The Aggregator Dead Letter Queue has messages.
-
-      This indicates that activities are failing to be aggregated.
-
-      **Action Required**:
-      1. Check DLQ messages in PubSub console
-      2. Review Aggregator function logs for errors
-      3. Check Cloud Storage bucket permissions
-
-      Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
-    EOT
-  }
-
-  conditions {
-    display_name = "Aggregator DLQ has messages"
-
-    condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-aggregator-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
-      duration        = "60s"
-      comparison      = "COMPARISON_GT"
-      threshold_value = 0
-
-      aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_MEAN"
-      }
-    }
-  }
-
-  notification_channels = [google_monitoring_notification_channel.email_alerts[0].id]
-
-  alert_strategy {
-    auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
-  }
-}
-
-# HIGH: Function 4xx Error Rate (Client Errors)
-resource "google_monitoring_alert_policy" "function_4xx_errors" {
-  count = var.developer_email != null ? 1 : 0
-
-  display_name = "⚠️ Cloud Functions: High 4xx Error Rate"
-  combiner     = "OR"
-
-  documentation {
-    content = <<-EOT
-      **MEDIUM PRIORITY**: One or more Cloud Functions are experiencing high 4xx errors (>10%).
+      **MEDIUM PRIORITY**: One or more Cloud Run services are experiencing high 4xx errors (>10%).
 
       4xx errors are client errors (bad requests, unauthorized, not found, etc.) and may indicate:
       - Malformed webhook payloads from Strava (dispatcher)
       - Invalid API requests (api_gateway)
       - Authentication issues
 
-      **Monitored Functions**:
-      - desirelines_dispatcher (webhook entry point)
-      - desirelines_api_gateway (web UI backend)
-      - desirelines_bq_inserter (BigQuery writer)
-      - desirelines_aggregator (summary aggregator)
+      **Monitored Services**:
+      - desirelines-dispatcher (webhook entry point)
+      - desirelines-api-gateway (web UI backend)
+      - desirelines-bq-inserter (BigQuery writer)
+      - desirelines-postgres-writer (PostgreSQL writer)
 
       **Action Required**:
-      1. Check which function is affected in the dashboard
-      2. Review function logs to see specific 4xx status codes
+      1. Check which service is affected in the dashboard
+      2. Review service logs to see specific 4xx status codes
       3. For dispatcher: Check Strava webhook payload format
       4. For api_gateway: Check client requests and auth tokens
 
@@ -649,10 +602,10 @@ resource "google_monitoring_alert_policy" "function_4xx_errors" {
   }
 
   conditions {
-    display_name = "Function 4xx error rate > 10%"
+    display_name = "Service 4xx error rate > 10%"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_function\" AND resource.labels.function_name=monitoring.regex.full_match(\"desirelines.*\") AND metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" AND metric.labels.status=monitoring.regex.full_match(\"4..\")"
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"4xx\""
       duration        = "300s" # 5 minutes to avoid transient errors
       comparison      = "COMPARISON_GT"
       threshold_value = 0.10 # 10% error rate (higher tolerance for client errors)
@@ -661,7 +614,7 @@ resource "google_monitoring_alert_policy" "function_4xx_errors" {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_RATE"
         cross_series_reducer = "REDUCE_SUM"
-        group_by_fields      = ["resource.function_name"]
+        group_by_fields      = ["resource.labels.service_name"]
       }
     }
   }
@@ -673,44 +626,44 @@ resource "google_monitoring_alert_policy" "function_4xx_errors" {
   }
 }
 
-# CRITICAL: Function 5xx Error Rate (Server Errors)
-resource "google_monitoring_alert_policy" "function_5xx_errors" {
+# CRITICAL: Service 5xx Error Rate (Server Errors)
+resource "google_monitoring_alert_policy" "service_5xx_errors" {
   count = var.developer_email != null ? 1 : 0
 
-  display_name = "🚨 Cloud Functions: 5xx Server Errors"
+  display_name = "🚨 Cloud Run: 5xx Server Errors"
   combiner     = "OR"
 
   documentation {
     content = <<-EOT
-      **CRITICAL**: One or more Cloud Functions are experiencing 5xx server errors (>2%).
+      **CRITICAL**: One or more Cloud Run services are experiencing 5xx server errors (>2%).
 
       5xx errors indicate actual problems with our code or infrastructure:
       - Unhandled exceptions
       - Timeouts
-      - Dependency failures (BigQuery, Cloud Storage, etc.)
+      - Dependency failures (BigQuery, PostgreSQL, etc.)
 
-      **Monitored Functions**:
-      - desirelines_dispatcher (webhook entry point)
-      - desirelines_api_gateway (web UI backend)
-      - desirelines_bq_inserter (BigQuery writer)
-      - desirelines_aggregator (summary aggregator)
+      **Monitored Services**:
+      - desirelines-dispatcher (webhook entry point)
+      - desirelines-api-gateway (web UI backend)
+      - desirelines-bq-inserter (BigQuery writer)
+      - desirelines-postgres-writer (PostgreSQL writer)
 
       **Action Required**:
-      1. Check which function is failing in the dashboard
-      2. Review function logs for stack traces and error details
+      1. Check which service is failing in the dashboard
+      2. Review service logs for stack traces and error details
       3. Check for recent deployments or configuration changes
-      4. For bq_inserter/aggregator: Check DLQ for failed messages
-      5. Verify dependencies (BigQuery, Cloud Storage) are healthy
+      4. For bq_inserter/postgres_writer: Check DLQ for failed messages
+      5. Verify dependencies (BigQuery, PostgreSQL) are healthy
 
       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
     EOT
   }
 
   conditions {
-    display_name = "Function 5xx error rate > 2%"
+    display_name = "Service 5xx error rate > 2%"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_function\" AND resource.labels.function_name=monitoring.regex.full_match(\"desirelines.*\") AND metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" AND metric.labels.status=monitoring.regex.full_match(\"5..\")"
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
       duration        = "300s" # 5 minutes
       comparison      = "COMPARISON_GT"
       threshold_value = 0.02 # 2% error rate (strict for server errors)
@@ -719,7 +672,7 @@ resource "google_monitoring_alert_policy" "function_5xx_errors" {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_RATE"
         cross_series_reducer = "REDUCE_SUM"
-        group_by_fields      = ["resource.function_name"]
+        group_by_fields      = ["resource.labels.service_name"]
       }
     }
   }
@@ -789,9 +742,8 @@ output "alert_policy_ids" {
   description = "IDs of created alert policies"
   value = var.developer_email != null ? {
     dlq_bq_inserter = google_monitoring_alert_policy.dlq_bq_inserter[0].id
-    dlq_aggregator  = google_monitoring_alert_policy.dlq_aggregator[0].id
-    function_4xx    = google_monitoring_alert_policy.function_4xx_errors[0].id
-    function_5xx    = google_monitoring_alert_policy.function_5xx_errors[0].id
+    service_4xx     = google_monitoring_alert_policy.service_4xx_errors[0].id
+    service_5xx     = google_monitoring_alert_policy.service_5xx_errors[0].id
     old_messages    = google_monitoring_alert_policy.old_messages[0].id
   } : {}
 }

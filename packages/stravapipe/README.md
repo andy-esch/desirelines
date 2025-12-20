@@ -4,13 +4,12 @@ Strava data pipeline - processes webhook events and syncs to BigQuery and Postgr
 
 ## Services
 
-This package provides three Cloud Run services:
+This package provides two Cloud Run services:
 
 | Service | Description | Trigger |
 |---------|-------------|---------|
 | `bq-inserter` | Syncs activities to BigQuery | Eventarc (PubSub) |
 | `postgres-writer` | Syncs activities to PostgreSQL | Eventarc (PubSub) |
-| `aggregator` | Generates summaries to Cloud Storage | Cloud Function v2 |
 
 ## Architecture
 
@@ -73,9 +72,6 @@ Built and deployed via Pants:
 GIT_COMMIT=$(git rev-parse --short HEAD) pants publish \
   packages/stravapipe:bq-inserter \
   packages/stravapipe:postgres-writer
-
-# Package aggregator (Cloud Function)
-pants package functions:aggregator
 ```
 
 See [Docker Guide](../../docs/guides/docker.md) and [Deployment Guide](../../docs/guides/deployment.md).
@@ -86,6 +82,5 @@ Each service has its own config class in `config/`:
 
 - `BQInserterConfig` - BigQuery dataset, Strava credentials
 - `PostgresWriterConfig` - Connection string, Strava credentials
-- `AggregatorConfig` - GCS bucket, Strava credentials
 
 All load from environment variables with Secret Manager integration for production.

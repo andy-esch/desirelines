@@ -1,6 +1,5 @@
 #!/bin/bash
 # Build and publish all artifacts via Pants
-# Replaces: package-functions.sh (180 lines) + build-push-images.sh (67 lines)
 #
 # Usage: ./scripts/operations/build-and-publish.sh [SHA]
 # Examples:
@@ -12,15 +11,6 @@ set -euo pipefail
 SHA=${1:-$(git rev-parse --short HEAD)}
 
 echo "🔧 Building and publishing all artifacts (SHA: $SHA)"
-echo ""
-
-# =============================================================================
-# Cloud Functions - Package source code (only aggregator remains)
-# =============================================================================
-echo "📦 Packaging Cloud Functions..."
-pants package functions:aggregator
-
-echo "✅ Cloud Functions packaged to dist/"
 echo ""
 
 # =============================================================================
@@ -42,10 +32,6 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✅ All artifacts ready for deployment!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "📁 Cloud Function source packages (in dist/):"
-echo "   - aggregator-${SHA}.zip"
-echo "   → Terraform will upload these to GCS during apply"
 echo ""
 echo "🐳 Docker images (in Artifact Registry):"
 echo "   - dispatcher:${SHA} + dispatcher:latest"

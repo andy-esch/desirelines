@@ -39,39 +39,25 @@ case "$COMMAND" in
     "create")
         echo "🔗 Creating Strava webhook subscription for $ENV_NAME environment..."
 
-        # Try Cloud Run first (new architecture), fallback to Cloud Functions (legacy)
+        # Get Cloud Run dispatcher URL
         SERVICE_NAME=$(gcloud run services list \
             --region=$REGION \
             --filter="metadata.name~dispatcher" \
             --format="value(metadata.name)" \
             --project="$GCP_PROJECT_ID" 2>/dev/null | head -1)
 
-        if [ -n "$SERVICE_NAME" ]; then
-            # Cloud Run service found
-            CALLBACK_URL=$(gcloud run services describe "$SERVICE_NAME" \
-                --region=$REGION \
-                --project="$GCP_PROJECT_ID" \
-                --format="value(status.url)")
-            echo "📍 Found Cloud Run service: $SERVICE_NAME"
-            echo "📍 Using Cloud Run URL: $CALLBACK_URL"
-        else
-            # Fallback to Cloud Functions (legacy)
-            FUNCTION_NAME=$(gcloud functions list \
-                --regions=$REGION \
-                --filter="name~dispatcher" \
-                --format="value(name)" \
-                --project="$GCP_PROJECT_ID" 2>/dev/null | head -1)
-
-            if [ -z "$FUNCTION_NAME" ]; then
-                echo "❌ Error: Could not find dispatcher (Cloud Run or Cloud Functions) in $REGION"
-                echo "Make sure the service is deployed and region is correct"
-                exit 1
-            fi
-
-            CALLBACK_URL="https://$REGION-$GCP_PROJECT_ID.cloudfunctions.net/$FUNCTION_NAME"
-            echo "📍 Found Cloud Functions: $FUNCTION_NAME (legacy)"
-            echo "📍 Using Cloud Functions URL: $CALLBACK_URL"
+        if [ -z "$SERVICE_NAME" ]; then
+            echo "❌ Error: Could not find dispatcher Cloud Run service in $REGION"
+            echo "Make sure the service is deployed and region is correct"
+            exit 1
         fi
+
+        CALLBACK_URL=$(gcloud run services describe "$SERVICE_NAME" \
+            --region=$REGION \
+            --project="$GCP_PROJECT_ID" \
+            --format="value(status.url)")
+        echo "📍 Found dispatcher: $SERVICE_NAME"
+        echo "📍 Callback URL: $CALLBACK_URL"
 
         STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth-$ENV_NAME" --project="$GCP_PROJECT_ID")
         CLIENT_ID=$(echo "$STRAVA_AUTH" | jq -r '.client_id')
@@ -146,7 +132,7 @@ case "$COMMAND" in
             --data-file=-
 
         echo "📋 Token rotated. You'll need to:"
-        echo "  1. Redeploy functions to pick up new token"
+        echo "  1. Redeploy dispatcher to pick up new token"
         echo "  2. Delete old webhook subscription: $0 delete $ENV_NAME"
         echo "  3. Create new webhook subscription: $0 create $ENV_NAME"
         echo "✅ Webhook verify token rotation complete!"

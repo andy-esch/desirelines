@@ -4,13 +4,6 @@
 # Individual proto file targets for fine-grained dependency tracking
 # All protos are used by apigateway Go module
 protobuf_sources(
-    name="activities",
-    sources=["activities.proto"],
-    python_resolve="stravapipe",
-    go_mod_address="packages/apigateway:mod",
-)
-
-protobuf_sources(
     name="sports_metrics",
     sources=["sports_metrics.proto"],
     python_resolve="stravapipe",

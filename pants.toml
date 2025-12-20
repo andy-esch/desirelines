@@ -32,9 +32,6 @@ backend_packages = [
   "pants.backend.shell.lint.shellcheck",
   "pants.backend.shell.lint.shfmt",
 
-  # # Google Cloud Functions
-  "pants.backend.google_cloud_function.python",
-
   # # Docker coordination
   "pants.backend.docker",
 ]
@@ -83,7 +80,6 @@ generate_type_stubs = true
 root_patterns = [
   "/packages/*/src",  # src-layout packages (stravapipe)
   "/packages/*",      # flat-layout packages
-  "/functions",
   "/schemas",
   "/scripts",
 ]
