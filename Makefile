@@ -329,8 +329,6 @@ help:
 	@echo "  logs-frontend  - View frontend logs (API Gateway + Web UI)"
 	@echo "  logs-api       - View API Gateway logs only"
 	@echo "  logs-web       - View Web UI logs only"
-	@echo "  site-start     - Start Web UI directly (npm, no Docker)"
-	@echo "  site-build     - Build Web UI for production"
 	@echo ""
 	@echo "Database:"
 	@echo "  db-connect-local       - Connect to local PostgreSQL database (psql)"
@@ -387,7 +385,7 @@ typecheck: py-typecheck web-typecheck
 # ==========================================
 
 # Start backend pipeline locally with PubSub emulator
-start-backend: generate-requirements
+start-backend:
 	@echo "🚀 Starting backend pipeline locally (PubSub emulator + local storage)..."
 	docker compose --profile backend up --build --detach
 	@echo "✅ All backend services are running!"
@@ -401,7 +399,7 @@ start-backend: generate-requirements
 	@echo "  make test-full-flow"
 
 # Start backend with local Terraform-managed GCP resources (hybrid mode)
-start-backend-local: generate-requirements
+start-backend-local:
 	@echo "🚀 Starting backend with local GCP resources (PubSub emulator + Terraform-created BigQuery/Storage)..."
 	@if [ ! -f "$$HOME/.config/gcloud/application_default_credentials.json" ]; then \
 		echo "❌ Error: No gcloud application default credentials found"; \
@@ -424,7 +422,7 @@ start-backend-local: generate-requirements
 	@echo "🔐 Using your gcloud application default credentials"
 
 # Start backend with PubSub UI for debugging
-start-backend-debug: generate-requirements
+start-backend-debug:
 	@echo "🐛 Starting backend pipeline with PubSub debugging UI..."
 	docker compose --profile backend --profile debug up --build --detach
 	@echo "✅ All backend services are running with debugging UI!"
@@ -460,7 +458,7 @@ stop:
 	docker compose --profile backend --profile debug --profile frontend down
 
 # Build all images
-build: generate-requirements
+build:
 	@echo "🔨 Building all Docker images..."
 	docker compose build
 
@@ -490,9 +488,6 @@ clean:
 	@echo "🧹 Cleaning up Docker resources..."
 	docker compose down --rmi all --volumes --remove-orphans
 	docker system prune -f
-	rm -f functions/requirements-*.txt
-
-
 
 
 # ==========================================

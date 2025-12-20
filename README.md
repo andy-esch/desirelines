@@ -62,17 +62,14 @@ cp .env.example .env  # Edit with your values
 ### Local Development
 
 ```bash
-# Pure local (PubSub emulator, no GCP)
-make start
+# Start backend pipeline
+make start-backend
+
+# Start frontend, api-gateway, and postgres database
+make start-frontend
 
 # Hybrid local (real BigQuery/Storage + PubSub emulator)
 make start-local
-
-# Test the pipeline
-make test-full-flow
-
-# View logs
-make logs
 ```
 
 ### Cloud Deployment
@@ -93,16 +90,10 @@ See [Deployment Guide](./docs/guides/deployment.md) for complete instructions.
 
 ### Testing
 
-Run tests with (faster)
+Run tests with
 
 ```bash
 $ make test
-```
-
-For tests with pants, run with
-
-```bash
-$ pants test ::
 ```
 
 ## Build System
