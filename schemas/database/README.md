@@ -2,6 +2,8 @@
 
 Flyway-based database migrations for Desirelines PostgreSQL (Neon-hosted).
 
+For setting up a database from scratch read [Database Setup Playbook](../../docs/guides/database-setup.md), a step-by-step guide to setting up a new database for this project.
+
 ## Local Development
 
 ```bash
@@ -90,7 +92,6 @@ See [`postgresql-roles-schema-best-practices.md`](/planning/research/postgresql-
 
 ## Related Documentation
 
+- **[Database Setup Playbook](../../docs/guides/database-setup.md)** - Step-by-step new database setup
 - [Flyway Documentation](https://flywaydb.org/documentation/)
 - [Neon PostgreSQL Documentation](https://neon.tech/docs)
-- Task: [`postgresql-05-setup-flyway-migrations.md`](/planning/tasks/completed/2025-12-09-postgresql-05-setup-flyway-migrations.md) (planning repo)
-- Task: [`postgresql-06-production-database-setup.md`](/planning/tasks/ready-to-start/postgresql-06-production-database-setup.md) (planning repo)
