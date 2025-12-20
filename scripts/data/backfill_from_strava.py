@@ -2,8 +2,8 @@
 """
 Backfill production data from Strava API
 
-Fetches activities from Strava (source of truth), inserts to BigQuery,
-and generates aggregation files. Handles rate limiting and resumability.
+Fetches activities from Strava (source of truth) and inserts to BigQuery
+and PostgreSQL. Handles rate limiting and resumability.
 
 This script uses Strava as the authoritative source, ensuring deleted activities
 are properly excluded and all current activities are included.
@@ -21,8 +21,7 @@ Usage:
 Requirements:
     - Strava API credentials configured in Secret Manager
     - BigQuery write permissions
-    - Cloud Storage write permissions
-    - Firestore write permissions (for aggregations)
+    - PostgreSQL write permissions (Neon database)
 """
 
 import argparse
@@ -31,15 +30,15 @@ import sys
 import time
 
 from stravapipe.adapters.gcp import ActivitiesRepo, BigQueryClientWrapper
+from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork, create_session_factory
 from stravapipe.adapters.strava import (
     DetailedStravaActivitiesRepo,
     StravaApiConfig,
     StravaTokenRepo,
 )
-from stravapipe.application.aggregator.usecases import make_update_summary_use_case
-from stravapipe.config.aggregator import load_aggregator_config
 from stravapipe.config.bq_inserter import load_bq_inserter_config
-from stravapipe.domain import MinimalStravaActivity, SummaryStravaActivity
+from stravapipe.config.postgres_writer import load_postgres_writer_config
+from stravapipe.domain import StandardActivity, SummaryStravaActivity
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -50,26 +49,35 @@ BATCH_SIZE = 100
 
 
 class StravaBackfiller:
-    """Handles backfilling activities from Strava API to production"""
+    """Handles backfilling activities from Strava API to BigQuery and PostgreSQL"""
 
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
-        self._config = None  # Lazy loaded
+        self._bq_config = None  # Lazy loaded
+        self._pg_config = None  # Lazy loaded
         self._strava_repo: DetailedStravaActivitiesRepo | None = None
         self._bq_repo: ActivitiesRepo | None = None
+        self._pg_session_factory = None  # Lazy loaded
 
-    def _get_config(self):
-        """Lazy load configuration"""
-        if self._config is None:
-            logger.info("Loading configuration from environment...")
-            self._config = load_bq_inserter_config()
-        return self._config
+    def _get_bq_config(self):
+        """Lazy load BigQuery configuration"""
+        if self._bq_config is None:
+            logger.info("Loading BigQuery configuration from environment...")
+            self._bq_config = load_bq_inserter_config()
+        return self._bq_config
+
+    def _get_pg_config(self):
+        """Lazy load PostgreSQL configuration"""
+        if self._pg_config is None:
+            logger.info("Loading PostgreSQL configuration from environment...")
+            self._pg_config = load_postgres_writer_config()
+        return self._pg_config
 
     def _initialize_strava_repo(self) -> DetailedStravaActivitiesRepo:
         """Lazy initialize Strava repository with token refresh"""
         if self._strava_repo is None:
             logger.info("Initializing Strava API client...")
-            config = self._get_config()
+            config = self._get_bq_config()
 
             # Refresh the access token before making API calls
             # The token repo handles OAuth refresh flow with the refresh token
@@ -88,12 +96,23 @@ class StravaBackfiller:
         """Lazy initialize BigQuery repository"""
         if self._bq_repo is None:
             logger.info("Initializing BigQuery client...")
-            config = self._get_config()
+            config = self._get_bq_config()
             client = BigQueryClientWrapper(project_id=config.project_id)
             self._bq_repo = ActivitiesRepo(
                 client=client, dataset_name=config.bq_dataset
             )
         return self._bq_repo
+
+    def _initialize_postgres(self):
+        """Lazy initialize PostgreSQL session factory"""
+        if self._pg_session_factory is None:
+            logger.info("Initializing PostgreSQL client...")
+            config = self._get_pg_config()
+            self._pg_session_factory = create_session_factory(
+                config.postgres_connection_string
+            )
+            logger.info("PostgreSQL session factory initialized")
+        return self._pg_session_factory
 
     def fetch_activities_for_year(self, year: int) -> list[SummaryStravaActivity]:
         """
@@ -187,73 +206,77 @@ class StravaBackfiller:
         )
         return (inserted_count, skipped_count, error_count)
 
-    def generate_aggregations(
-        self, year: int, activities: list[SummaryStravaActivity]
-    ) -> None:
+    def insert_activities_to_postgres(
+        self, activities: list[SummaryStravaActivity]
+    ) -> tuple[int, int, int]:
         """
-        Generate aggregation files for a given year using already-fetched activities
+        Insert activities to PostgreSQL using batched transactions.
 
         Args:
-            year: The year to generate aggregations for
-            activities: Activities already fetched from Strava (to avoid re-fetching)
+            activities: List of activities to insert (SummaryActivity from list endpoint)
+
+        Returns:
+            Tuple of (inserted_count, skipped_count, error_count)
 
         Note:
-            Converts SummaryStravaActivity to MinimalStravaActivity (only needs 4 fields)
-            and passes them to UpdateSummaryUseCase.run_batch() to avoid duplicate API calls.
+            - Converts SummaryStravaActivity to StandardActivity for PostgreSQL schema
+            - Uses Unit of Work pattern with batched commits
+            - Handles duplicates gracefully (ON CONFLICT DO NOTHING)
         """
         if self.dry_run:
-            logger.info(f"DRY RUN - would generate aggregations for {year}")
-            return
+            logger.info("DRY RUN - would insert to PostgreSQL:")
+            for i, act in enumerate(activities[:10], 1):
+                logger.info(f"  {i}. Activity {act.id} - {act.name} ({act.start_date})")
+            if len(activities) > 10:
+                logger.info(f"  ... and {len(activities) - 10} more")
+            return (len(activities), 0, 0)
 
-        logger.info(f"Generating aggregation files for {year}...")
+        logger.info(f"Inserting {len(activities)} activities to PostgreSQL in batches...")
+        session_factory = self._initialize_postgres()
 
-        try:
-            # Filter for cycling activities only (match production pipeline behavior)
-            # Production aggregator only processes Ride and VirtualRide types
-            cycling_activities = [
-                activity
-                for activity in activities
-                if activity.type in ("Ride", "VirtualRide")
-            ]
+        inserted_count = 0
+        skipped_count = 0
+        error_count = 0
 
-            filtered_count = len(activities) - len(cycling_activities)
-            if filtered_count > 0:
+        total_batches = (len(activities) + BATCH_SIZE - 1) // BATCH_SIZE
+
+        for batch_num, i in enumerate(range(0, len(activities), BATCH_SIZE), 1):
+            batch = activities[i : i + BATCH_SIZE]
+
+            try:
+                batch_inserted = 0
+                batch_skipped = 0
+
+                with SqlAlchemyUnitOfWork(session_factory) as uow:
+                    for activity in batch:
+                        # Convert SummaryStravaActivity → StandardActivity
+                        # StandardActivity uses extra="ignore" so we can parse from dict
+                        standard = StandardActivity.model_validate(activity.model_dump())
+
+                        # Insert returns True if inserted, False if already existed
+                        if uow.activities.insert(standard):
+                            batch_inserted += 1
+                        else:
+                            batch_skipped += 1
+
+                    uow.commit()
+
+                inserted_count += batch_inserted
+                skipped_count += batch_skipped
+
                 logger.info(
-                    f"Filtered out {filtered_count} non-cycling activities "
-                    f"(keeping {len(cycling_activities)} Ride/VirtualRide)"
+                    f"Batch {batch_num}/{total_batches}: {batch_inserted} inserted, "
+                    f"{batch_skipped} skipped (total: {inserted_count}/{len(activities)})"
                 )
+            except Exception as e:
+                error_count += len(batch)
+                logger.error(f"Error inserting batch {batch_num}: {e}")
 
-            # Convert SummaryStravaActivity → MinimalStravaActivity
-            # Aggregator needs: id, type, start_date_local, distance, moving_time, total_elevation_gain
-            minimal_activities = [
-                MinimalStravaActivity(
-                    id=activity.id,
-                    type=activity.type,
-                    start_date_local=activity.start_date_local,
-                    distance=activity.distance,
-                    moving_time=activity.moving_time,
-                    total_elevation_gain=activity.total_elevation_gain,
-                )
-                for activity in cycling_activities
-            ]
-
-            logger.info(
-                f"Converted {len(minimal_activities)} cycling activities to minimal format"
-            )
-
-            # Load aggregator config (needs GCP bucket for storage)
-            aggregator_config = load_aggregator_config()
-
-            # Create use case with all dependencies wired up
-            update_summary_use_case = make_update_summary_use_case(aggregator_config)
-
-            # Run batch aggregation with pre-fetched activities (avoids re-fetching)
-            update_summary_use_case.run_batch(year, activities=minimal_activities)
-
-            logger.info(f"Aggregation complete for {year}")
-        except Exception as e:
-            logger.error(f"Failed to generate aggregations for {year}: {e}")
-            raise
+        logger.info(
+            f"PostgreSQL insert complete: {inserted_count} inserted, "
+            f"{skipped_count} skipped, {error_count} errors"
+        )
+        return (inserted_count, skipped_count, error_count)
 
     def backfill_year(self, year: int) -> dict:
         """
@@ -268,7 +291,7 @@ class StravaBackfiller:
         Process:
             1. Fetch activities from Strava API (source of truth)
             2. Insert activities to BigQuery (skip duplicates)
-            3. Generate aggregation files for the year
+            3. Insert activities to PostgreSQL (skip duplicates)
         """
         logger.info(f"{'=' * 60}")
         logger.info(f"Starting backfill for {year}")
@@ -284,32 +307,43 @@ class StravaBackfiller:
             return {
                 "year": year,
                 "activities_found": 0,
-                "inserted": 0,
-                "skipped": 0,
-                "errors": 0,
+                "bq_inserted": 0,
+                "bq_skipped": 0,
+                "bq_errors": 0,
+                "pg_inserted": 0,
+                "pg_skipped": 0,
+                "pg_errors": 0,
                 "duration_seconds": time.time() - start_time,
             }
 
         # Step 2: Insert to BigQuery
-        inserted, skipped, errors = self.insert_activities_to_bigquery(activities)
+        bq_inserted, bq_skipped, bq_errors = self.insert_activities_to_bigquery(
+            activities
+        )
 
-        # Step 3: Generate aggregations (pass activities to avoid re-fetching)
-        self.generate_aggregations(year, activities)
+        # Step 3: Insert to PostgreSQL
+        pg_inserted, pg_skipped, pg_errors = self.insert_activities_to_postgres(
+            activities
+        )
 
         duration = time.time() - start_time
 
         stats = {
             "year": year,
             "activities_found": len(activities),
-            "inserted": inserted,
-            "skipped": skipped,
-            "errors": errors,
+            "bq_inserted": bq_inserted,
+            "bq_skipped": bq_skipped,
+            "bq_errors": bq_errors,
+            "pg_inserted": pg_inserted,
+            "pg_skipped": pg_skipped,
+            "pg_errors": pg_errors,
             "duration_seconds": duration,
         }
 
         logger.info(
             f"Year {year} complete in {duration:.1f}s: "
-            f"{inserted} inserted, {skipped} skipped, {errors} errors"
+            f"BQ({bq_inserted} inserted, {bq_skipped} skipped, {bq_errors} errors), "
+            f"PG({pg_inserted} inserted, {pg_skipped} skipped, {pg_errors} errors)"
         )
 
         return stats
@@ -346,7 +380,7 @@ Examples:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Preview activities without inserting to BigQuery or generating aggregations",
+        help="Preview activities without inserting to BigQuery or PostgreSQL",
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Enable verbose logging (DEBUG level)"
@@ -370,15 +404,17 @@ Examples:
 
     # Process each year
     all_stats = []
-    total_inserted = 0
+    total_bq_inserted = 0
+    total_pg_inserted = 0
     total_errors = 0
 
     for year in sorted(args.years):
         try:
             stats = backfiller.backfill_year(year)
             all_stats.append(stats)
-            total_inserted += stats["inserted"]
-            total_errors += stats["errors"]
+            total_bq_inserted += stats["bq_inserted"]
+            total_pg_inserted += stats["pg_inserted"]
+            total_errors += stats["bq_errors"] + stats["pg_errors"]
         except Exception as e:
             logger.error(f"Failed to backfill {year}: {e}")
             total_errors += 1
@@ -390,12 +426,16 @@ Examples:
     logger.info(f"{'=' * 60}")
     for stats in all_stats:
         logger.info(
-            f"  {stats['year']}: {stats['inserted']} inserted, "
-            f"{stats['skipped']} skipped, {stats['errors']} errors "
+            f"  {stats['year']}: "
+            f"BQ({stats['bq_inserted']}/{stats['bq_skipped']}/{stats['bq_errors']}) "
+            f"PG({stats['pg_inserted']}/{stats['pg_skipped']}/{stats['pg_errors']}) "
             f"({stats['duration_seconds']:.1f}s)"
         )
     logger.info(f"{'=' * 60}")
-    logger.info(f"Total: {total_inserted} activities inserted, {total_errors} errors")
+    logger.info(
+        f"Total: BQ {total_bq_inserted} inserted, PG {total_pg_inserted} inserted, "
+        f"{total_errors} errors"
+    )
 
     if total_errors > 0:
         logger.warning(f"Completed with {total_errors} errors")
