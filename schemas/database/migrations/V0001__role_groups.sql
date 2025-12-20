@@ -1,5 +1,5 @@
 -- Security: Role Groups and Privileges
--- Migration: V0002
+-- Migration: V0001
 -- Concern: Role-based access control setup
 --
 -- Role hierarchy:

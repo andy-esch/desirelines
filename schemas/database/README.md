@@ -35,13 +35,7 @@ make db-connect-prod         # Connect (read-only)
 make db-connect-prod-admin   # Connect (admin)
 ```
 
-**First-time setup** (once per environment):
-
-1. Run `scripts/database/setup-roles.sql` to create individual login roles
-2. Store credentials in Secret Manager as `postgres-connection-string-{env}`
-3. Run initial migrations with `make db-migrate-{env}`
-
-See [`postgresql-06-production-database-setup.md`](/planning/tasks/ready-to-start/postgresql-06-production-database-setup.md) in planning repo for detailed setup guide.
+**First-time setup**: See [Database Setup Playbook](../../docs/guides/database-setup.md) for complete steps including pre-migration setup (schemas, extensions, roles) that must be done as `neondb_owner` before Flyway runs.
 
 ## Creating New Migrations
 
@@ -82,13 +76,16 @@ RESET ROLE;
 - `extensions` - PostGIS
 - `public` - Unused
 
-**Role groups** (created by V0001):
+**Role groups** (created manually before migrations, see playbook):
 
-- `desirelines_ddl_grp` - Owns all objects (used by Flyway, admin)
+- `desirelines_ddl_grp` - Owns schemas/objects (used by Flyway, admin)
 - `desirelines_dml_grp` - Read/write data (used by app)
 - `desirelines_ro_grp` - Read-only (used for analytics)
 
-See [`postgresql-roles-schema-best-practices.md`](/planning/research/postgresql-roles-schema-best-practices.md) for role group pattern details.
+**Current migrations**:
+
+- `V0001__role_groups.sql` - Role group privileges and default grants
+- `V0002__activities_table.sql` - Activities table and indexes
 
 ## Related Documentation
 
