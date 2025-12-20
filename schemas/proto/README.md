@@ -8,7 +8,6 @@ API contracts between `api-gateway` (Go) and `web` frontend (TypeScript).
 |------|---------|--------|
 | `sports_metrics.proto` | Activity metrics API response | Active |
 | `user_config.proto` | User settings (Firestore) | Active |
-| `activities.proto` | Legacy distance payload | Deprecated - use `sports_metrics.proto` |
 
 ## `sports_metrics.proto`
 
