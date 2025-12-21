@@ -192,15 +192,11 @@ See [Architecture Documentation](./docs/architecture/) for detailed design.
 
 ### Essential Guides
 
+- **[Guides Index](./docs/guides/README.md)** - All guides in one place
 - **[Bootstrap Guide](./docs/guides/bootstrap.md)** - Complete environment setup (dev/prod)
-- **[CI Guide](./docs/guides/ci.md)** - Continuous Integration workflow and testing
+- **[Database Setup](./docs/guides/database-setup.md)** - PostgreSQL/Neon database setup
 - **[Deployment Guide](./docs/guides/deployment.md)** - Cloud deployment procedures
-- **[Local Testing](./docs/guides/local-testing.md)** - Testing the full pipeline locally
-- **[Local Development Scripts](./scripts/development/local-dev/README.md)** - Script organization and usage
-- **[GitHub Actions Workload Identity setup](./docs/guides/github-workload-identity-setup.md)** - GHA workload identity setup to enable deploys from merges to main
 - **[Strava Webhook Setup](./docs/guides/strava-webhook.md)** - OAuth2 and webhook configuration
-- **[Docker Architecture](./docs/DOCKER.md)** - Docker build setup and container management
-- **[Frontend Development](./docs/guides/frontend-local-dev.md)** - React app development guide
 
 ### Reference
 

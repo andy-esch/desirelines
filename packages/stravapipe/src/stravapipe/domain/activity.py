@@ -12,10 +12,16 @@ class MetaAthlete(BaseModel):
 
 
 class PolylineMap(BaseModel):
+    """Map data from Strava activity.
+
+    Note: polyline is only present in detailed activity responses.
+    Summary activities (list endpoint) only have summary_polyline.
+    """
+
     id: str
-    polyline: str
+    polyline: str | None = None  # Only in detailed activity, not summary
     resource_state: int
-    summary_polyline: str
+    summary_polyline: str | None = None
 
 
 class MetaActivity(BaseModel):

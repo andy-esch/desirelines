@@ -18,10 +18,18 @@ Usage:
     # Backfill multiple years
     python scripts/data/backfill_from_strava.py --years 2023 2024 2025
 
-Requirements:
-    - Strava API credentials configured in Secret Manager
-    - BigQuery write permissions
-    - PostgreSQL write permissions (Neon database)
+Environment Variables:
+    # GCP
+    export GCP_PROJECT_ID=desirelines-dev
+    export BQ_DATASET=activities
+
+    # Strava API
+    export STRAVA_CLIENT_ID=12345
+    export STRAVA_CLIENT_SECRET=abc123...
+    export STRAVA_REFRESH_TOKEN=def456...
+
+    # PostgreSQL (include application_name for observability)
+    export POSTGRES_CONNECTION_STRING="postgres://writer:PASSWORD@HOST/desirelines?sslmode=require&application_name=postgres-writer"
 """
 
 import argparse
