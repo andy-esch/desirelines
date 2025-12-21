@@ -34,8 +34,9 @@ module "desirelines" {
   gcp_project_number = var.gcp_project_number
   gcp_region         = var.gcp_region
 
-  # Cross-project function source sharing (use dev bucket)
+  # Cross-project sharing (use dev as single source of truth for artifacts)
   external_function_source_bucket = "desirelines-dev-function-source"
+  external_artifact_registry      = "us-central1-docker.pkg.dev/desirelines-dev/desirelines-functions"
 
   # Production settings
   bigquery_location = "US"
@@ -68,30 +69,6 @@ module "desirelines" {
 # ===================================================================
 # These subscriptions allow us to monitor and debug failed messages
 
-# Dead letter subscription for BQ inserter function
-resource "google_pubsub_subscription" "bq_inserter_dlq" {
-  name  = "desirelines-bq-inserter-dlq"
-  topic = module.desirelines.pubsub_dead_letter_topic_name
-
-  # Long retention for debugging failed messages
-  message_retention_duration = "1209600s" # 14 days
-  ack_deadline_seconds       = 600
-
-  labels = {
-    purpose     = "dead-letter-queue"
-    function    = "bq-inserter"
-    environment = "prod"
-  }
-}
-
-# ===================================================================
-# Eventarc Subscription Management with Dead Letter Queue
-# ===================================================================
-# Cloud Functions v2 with event_trigger automatically create Eventarc
-# subscriptions. We import these subscriptions to add DLQ configuration.
-# The ignore_changes lifecycle rule lets Eventarc continue managing
-# the push_config while we manage the dead_letter_policy.
-
 # Get project for IAM configuration
 data "google_project" "project" {
   project_id = var.gcp_project_id
@@ -119,15 +96,43 @@ resource "google_pubsub_subscription" "bq_inserter_eventarc" {
   }
 
   ack_deadline_seconds = 600 # 10 minutes (matches current Eventarc config)
+}
 
-  lifecycle {
-    # Critical: Let Eventarc manage push configuration to avoid drift
-    ignore_changes = [push_config]
-  }
+# ===================================================================
+# Dead Letter Queue Subscriptions
+# ===================================================================
+# These subscriptions allow monitoring and debugging of failed messages.
+# Eventarc triggers (created by the module) deliver to Cloud Run services.
+# Failed messages are sent to the dead letter topic.
+
+# Dead letter subscription for BQ inserter service
+resource "google_pubsub_subscription" "bq_inserter_dlq" {
+  name  = "desirelines-bq-inserter-dlq"
+  topic = module.desirelines.pubsub_dead_letter_topic_name
+
+  # Long retention for debugging failed messages
+  message_retention_duration = "1209600s" # 14 days
+  ack_deadline_seconds       = 600
 
   labels = {
-    managed-by  = "terraform"
-    function    = "bq-inserter"
+    purpose     = "dead-letter-queue"
+    service     = "bq-inserter"
+    environment = "prod"
+  }
+}
+
+# Dead letter subscription for postgres-writer service
+resource "google_pubsub_subscription" "postgres_writer_dlq" {
+  name  = "desirelines-postgres-writer-dlq"
+  topic = module.desirelines.pubsub_dead_letter_topic_name
+
+  # Long retention for debugging failed messages
+  message_retention_duration = "1209600s" # 14 days
+  ack_deadline_seconds       = 600
+
+  labels = {
+    purpose     = "dead-letter-queue"
+    service     = "postgres-writer"
     environment = "prod"
   }
 }
@@ -141,12 +146,5 @@ resource "google_pubsub_topic_iam_member" "pubsub_sa_publish_deadletter" {
   topic  = module.desirelines.pubsub_dead_letter_topic_name
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
-}
-
-# Pub/Sub service account needs permission to subscribe to BQ inserter subscription
-resource "google_pubsub_subscription_iam_member" "bq_inserter_pubsub_sa_subscribe" {
-  subscription = google_pubsub_subscription.bq_inserter_eventarc.name
-  role         = "roles/pubsub.subscriber"
-  member       = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 

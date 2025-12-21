@@ -134,6 +134,12 @@ variable "external_function_source_bucket" {
   default     = null
 }
 
+variable "external_artifact_registry" {
+  description = "External Artifact Registry URL to use instead of creating one (for cross-project image sharing). Format: REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME"
+  type        = string
+  default     = null
+}
+
 variable "artifact_registry_location" {
   description = "Location for Artifact Registry repository"
   type        = string

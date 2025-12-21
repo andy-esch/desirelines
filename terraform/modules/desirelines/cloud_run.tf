@@ -1,6 +1,11 @@
 # Cloud Run Services (Go services deployed as Docker images)
 # These replace the previous Cloud Functions v2 deployments for dispatcher and apigateway
 
+# Compute image base URL - use external registry if provided (cross-project sharing)
+locals {
+  image_base_url = var.external_artifact_registry != null ? var.external_artifact_registry : "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}"
+}
+
 # ==============================================================================
 # Dispatcher - Cloud Run Service
 # ==============================================================================
@@ -22,7 +27,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     }
 
     containers {
-      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/dispatcher:${var.deployment_version}"
+      image = "${local.image_base_url}/dispatcher:${var.deployment_version}"
 
       resources {
         limits = {
@@ -113,7 +118,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
     }
 
     containers {
-      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/apigateway:${var.deployment_version}"
+      image = "${local.image_base_url}/apigateway:${var.deployment_version}"
 
       resources {
         limits = {
@@ -220,7 +225,7 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
     }
 
     containers {
-      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/bq-inserter:${var.deployment_version}"
+      image = "${local.image_base_url}/bq-inserter:${var.deployment_version}"
 
       resources {
         limits = {
@@ -313,7 +318,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     }
 
     containers {
-      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/postgres-writer:${var.deployment_version}"
+      image = "${local.image_base_url}/postgres-writer:${var.deployment_version}"
 
       resources {
         limits = {
