@@ -239,7 +239,7 @@ def main() -> int:
         print("Error: POSTGRES_CONNECTION_STRING environment variable not set")
         print("Get it from Secret Manager:")
         print(
-            "  export POSTGRES_CONNECTION_STRING=$(gcloud secrets versions access latest --secret=postgres-conn-admin-dev --project=desirelines-dev)"
+            "  export POSTGRES_CONNECTION_STRING=$(gcloud secrets versions access latest --secret=postgres-conn-admin --project=desirelines-dev)"
         )
         return 1
 

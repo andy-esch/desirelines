@@ -521,10 +521,10 @@ deploy-secrets:
 	@./scripts/infrastructure/deploy-secrets.sh $(SECRET_FILE)
 
 create-webhook:
-	$(call check_project_and_run,./scripts/webhook-management.sh create)
+	$(call check_project_and_run,./scripts/operations/webhook-management.sh create)
 
 view-webhook:
-	$(call check_project_and_run,./scripts/webhook-management.sh view)
+	$(call check_project_and_run,./scripts/operations/webhook-management.sh view)
 
 delete-webhook:
 	@CURRENT_PROJECT="$(GCP_PROJECT_ID)"; \
@@ -547,16 +547,16 @@ delete-webhook:
 	echo "   Project: $$CURRENT_PROJECT"; \
 	read -p "Are you sure? (y/N): " confirm; \
 	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
-		./scripts/webhook-management.sh delete $$ENV_NAME; \
+		./scripts/operations/webhook-management.sh delete $$ENV_NAME; \
 	else \
 		echo "❌ Cancelled webhook deletion"; \
 	fi
 
 generate-webhook-verify-token:
-	$(call check_project_and_run,./scripts/webhook-management.sh generate-token)
+	$(call check_project_and_run,./scripts/operations/webhook-management.sh generate-token)
 
 rotate-webhook-verify-token:
-	$(call check_project_and_run,./scripts/webhook-management.sh rotate-token)
+	$(call check_project_and_run,./scripts/operations/webhook-management.sh rotate-token)
 
 
 

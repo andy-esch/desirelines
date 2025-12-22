@@ -165,7 +165,7 @@ resource "google_bigquery_table" "deleted_activities" {
 # Stores user-specific frontend configs (goals, annotations, preferences)
 resource "google_firestore_database" "user_configs" {
   project     = var.gcp_project_id
-  name        = "(default)"
+  name        = "desirelines-user-configs"
   location_id = var.firestore_location
   type        = "FIRESTORE_NATIVE"
 
@@ -323,7 +323,7 @@ resource "google_service_account_iam_member" "postgres_writer_impersonation" {
 # Format: JSON with client_id, client_secret, refresh_token, access_token
 
 resource "google_secret_manager_secret" "strava_auth" {
-  secret_id = "strava-auth-${var.environment}"
+  secret_id = "strava-auth"
   project   = var.gcp_project_id
 
   replication {
@@ -372,11 +372,11 @@ resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access
 # ==============================================================================
 # Each database role has its own secret with connection string.
 # Secret values must be added manually after creation (contain passwords).
-# Naming convention: postgres-conn-{role}-{env}
+# Naming convention: postgres-conn
 
 # Admin connection (for manual database management)
 resource "google_secret_manager_secret" "postgres_conn_admin" {
-  secret_id = "postgres-conn-admin-${var.environment}"
+  secret_id = "postgres-conn-admin"
   project   = var.gcp_project_id
 
   replication {
@@ -391,7 +391,7 @@ resource "google_secret_manager_secret" "postgres_conn_admin" {
 
 # Flyway connection (for schema migrations)
 resource "google_secret_manager_secret" "postgres_conn_flyway" {
-  secret_id = "postgres-conn-flyway-${var.environment}"
+  secret_id = "postgres-conn-flyway"
   project   = var.gcp_project_id
 
   replication {
@@ -406,7 +406,7 @@ resource "google_secret_manager_secret" "postgres_conn_flyway" {
 
 # API Gateway connection (read-only access)
 resource "google_secret_manager_secret" "postgres_conn_apigateway" {
-  secret_id = "postgres-conn-apigateway-${var.environment}"
+  secret_id = "postgres-conn-apigateway"
   project   = var.gcp_project_id
 
   replication {
@@ -421,7 +421,7 @@ resource "google_secret_manager_secret" "postgres_conn_apigateway" {
 
 # PostgreSQL Writer connection (read/write access)
 resource "google_secret_manager_secret" "postgres_conn_writer" {
-  secret_id = "postgres-conn-writer-${var.environment}"
+  secret_id = "postgres-conn-writer"
   project   = var.gcp_project_id
 
   replication {
@@ -436,7 +436,7 @@ resource "google_secret_manager_secret" "postgres_conn_writer" {
 
 # Reader connection (generic read-only, for future services)
 resource "google_secret_manager_secret" "postgres_conn_reader" {
-  secret_id = "postgres-conn-reader-${var.environment}"
+  secret_id = "postgres-conn-reader"
   project   = var.gcp_project_id
 
   replication {

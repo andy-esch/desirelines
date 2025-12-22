@@ -67,7 +67,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     volumes {
       name = "strava-secrets"
       secret {
-        secret       = "strava-auth-${var.environment}"
+        secret       = google_secret_manager_secret.strava_auth.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -161,7 +161,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
     volumes {
       name = "postgres-secrets"
       secret {
-        secret       = "postgres-conn-apigateway-${var.environment}"
+        secret       = google_secret_manager_secret.postgres_conn_apigateway.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -266,7 +266,7 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
     volumes {
       name = "strava-secrets"
       secret {
-        secret       = "strava-auth-${var.environment}"
+        secret       = google_secret_manager_secret.strava_auth.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -354,7 +354,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     volumes {
       name = "strava-secrets"
       secret {
-        secret       = "strava-auth-${var.environment}"
+        secret       = google_secret_manager_secret.strava_auth.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -367,7 +367,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     volumes {
       name = "postgres-secrets"
       secret {
-        secret       = "postgres-conn-writer-${var.environment}"
+        secret       = google_secret_manager_secret.postgres_conn_writer.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"

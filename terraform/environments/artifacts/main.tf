@@ -40,9 +40,9 @@ resource "google_artifact_registry_repository" "services" {
   }
 
   labels = {
-    project     = "desirelines"
-    managed_by  = "terraform"
-    purpose     = "shared-artifacts"
+    project    = "desirelines"
+    managed_by = "terraform"
+    purpose    = "shared-artifacts"
   }
 }
 
