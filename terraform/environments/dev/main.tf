@@ -34,24 +34,20 @@ module "desirelines" {
   gcp_project_number = var.gcp_project_number
   gcp_region         = var.gcp_region
 
+  # Shared artifacts project (single source of truth for container images)
+  external_artifact_registry = "us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services"
+
   # Development settings
   bigquery_location = "US"
-  storage_location  = "US"
 
   # Use default compute service account initially (will be replaced with dedicated SAs)
   service_account_email = "${var.gcp_project_number}-compute@developer.gserviceaccount.com"
 
-  # Enable APIs and create service accounts
-  enable_apis                       = true
-  create_service_accounts           = true # Enabled for clean dev environment setup
-  create_dedicated_service_accounts = true # Use dedicated SAs per function (least privilege)
+  # Enable APIs
+  enable_apis = true
 
-  # Deployment version configuration (used for both Cloud Run images and Cloud Function source packages)
+  # Deployment version configuration (used for Cloud Run images)
   deployment_version = var.deployment_version
-
-  # Use "full" mode for complete cloud deployment
-  # This creates all resources: Cloud Functions, PubSub, BigQuery, Storage, etc.
-  deployment_mode = "full"
 
   # Developer access
   developer_email = var.developer_email
@@ -131,25 +127,4 @@ resource "google_pubsub_topic_iam_member" "pubsub_sa_publish_deadletter" {
   member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
-# ===================================================================
-# Cross-Project Artifact Registry Access (for prod)
-# ===================================================================
-# Allow prod project's Cloud Run service agent to pull images from dev's registry.
-# This enables single-source-of-truth for container images across environments.
-
-variable "prod_project_number" {
-  description = "Production project number for cross-project Artifact Registry access"
-  type        = string
-  default     = null
-}
-
-resource "google_artifact_registry_repository_iam_member" "prod_cloud_run_reader" {
-  count = var.prod_project_number != null ? 1 : 0
-
-  project    = var.gcp_project_id
-  location   = var.gcp_region
-  repository = module.desirelines.artifact_registry_repository
-  role       = "roles/artifactregistry.reader"
-  member     = "serviceAccount:service-${var.prod_project_number}@serverless-robot-prod.iam.gserviceaccount.com"
-}
 

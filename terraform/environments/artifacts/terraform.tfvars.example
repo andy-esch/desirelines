@@ -1,0 +1,6 @@
+# Copy this to terraform.tfvars and fill in values
+# Get project numbers from: gcloud projects describe <project-id> --format="value(projectNumber)"
+
+dev_project_number      = "YOUR_DEV_PROJECT_NUMBER"
+prod_project_number     = "YOUR_PROD_PROJECT_NUMBER"
+github_actions_sa_email = "github-actions-deploy@desirelines-dev.iam.gserviceaccount.com"

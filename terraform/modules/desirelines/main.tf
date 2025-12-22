@@ -19,7 +19,6 @@ terraform {
 locals {
   # Consistent naming conventions using project ID for global uniqueness
   dataset_name = var.project_name
-  bucket_name  = "${var.gcp_project_id}-${var.project_name}-aggregation"
 
   # Common resource labels (GCP labels only allow lowercase letters, numbers, hyphens, underscores)
   common_labels = {
@@ -226,30 +225,29 @@ resource "google_pubsub_topic_iam_member" "dead_letter_publisher" {
   member = "serviceAccount:service-${var.gcp_project_number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
-# Development Service Accounts (only created if enabled)
-resource "google_service_account" "dispatcher_dev" {
-  count        = var.create_dedicated_service_accounts ? 1 : 0
+# ==============================================================================
+# Service Accounts (per-service for least privilege)
+# ==============================================================================
+
+resource "google_service_account" "dispatcher" {
   account_id   = "dispatcher"
   display_name = "Desirelines Dispatcher (${title(var.environment)})"
   description  = "Service account for dispatcher function in ${var.environment} environment"
 }
 
-resource "google_service_account" "bq_inserter_dev" {
-  count        = var.create_dedicated_service_accounts ? 1 : 0
+resource "google_service_account" "bq_inserter" {
   account_id   = "bq-inserter"
   display_name = "Desirelines BQ Inserter (${title(var.environment)})"
   description  = "Service account for BQ inserter function in ${var.environment} environment"
 }
 
-resource "google_service_account" "api_gateway_dev" {
-  count        = var.create_dedicated_service_accounts ? 1 : 0
+resource "google_service_account" "api_gateway" {
   account_id   = "api-gateway"
   display_name = "Desirelines API Gateway (${title(var.environment)})"
   description  = "Service account for API gateway function in ${var.environment} environment"
 }
 
-resource "google_service_account" "postgres_writer_dev" {
-  count        = var.create_dedicated_service_accounts ? 1 : 0
+resource "google_service_account" "postgres_writer" {
   account_id   = "postgres-writer"
   display_name = "Desirelines PostgreSQL Writer (${title(var.environment)})"
   description  = "Service account for PostgreSQL writer function in ${var.environment} environment"
@@ -257,101 +255,114 @@ resource "google_service_account" "postgres_writer_dev" {
 
 # IAM permissions for dispatcher (PubSub Publisher only)
 resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
-  count  = var.create_dedicated_service_accounts ? 1 : 0
   topic  = google_pubsub_topic.activity_events.name
   role   = "roles/pubsub.publisher"
-  member = "serviceAccount:${google_service_account.dispatcher_dev[0].email}"
+  member = "serviceAccount:${google_service_account.dispatcher.email}"
 }
 
 # IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)
 
 resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
-  count      = var.create_dedicated_service_accounts ? 1 : 0
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
   role       = "roles/bigquery.dataEditor"
-  member     = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
+  member     = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
 resource "google_project_iam_member" "bq_inserter_bigquery_data_editor" {
-  count   = var.create_dedicated_service_accounts ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/bigquery.dataEditor"
-  member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
+  member  = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
 resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
-  count   = var.create_dedicated_service_accounts ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/bigquery.jobUser"
-  member  = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
+  member  = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
 # Grant Firebase Admin permissions to API Gateway for token verification
 resource "google_project_iam_member" "api_gateway_firebase_admin" {
-  count   = var.create_dedicated_service_accounts ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/firebase.admin"
-  member  = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
+  member  = "serviceAccount:${google_service_account.api_gateway.email}"
 }
 
 # Service Account Impersonation permissions (allows your user to impersonate the service accounts)
 resource "google_service_account_iam_member" "dispatcher_impersonation" {
-  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
-  service_account_id = google_service_account.dispatcher_dev[0].name
+  count              = var.developer_email != null ? 1 : 0
+  service_account_id = google_service_account.dispatcher.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
 
 resource "google_service_account_iam_member" "bq_inserter_impersonation" {
-  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
-  service_account_id = google_service_account.bq_inserter_dev[0].name
+  count              = var.developer_email != null ? 1 : 0
+  service_account_id = google_service_account.bq_inserter.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
 
 resource "google_service_account_iam_member" "api_gateway_impersonation" {
-  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
-  service_account_id = google_service_account.api_gateway_dev[0].name
+  count              = var.developer_email != null ? 1 : 0
+  service_account_id = google_service_account.api_gateway.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
 
 resource "google_service_account_iam_member" "postgres_writer_impersonation" {
-  count              = var.create_dedicated_service_accounts && var.developer_email != null ? 1 : 0
-  service_account_id = google_service_account.postgres_writer_dev[0].name
+  count              = var.developer_email != null ? 1 : 0
+  service_account_id = google_service_account.postgres_writer.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
+}
+
+# ==============================================================================
+# Strava Auth Secret
+# ==============================================================================
+# Secret value must be added manually after creation (contains API credentials).
+# Format: JSON with client_id, client_secret, refresh_token, access_token
+
+resource "google_secret_manager_secret" "strava_auth" {
+  secret_id = "strava-auth-${var.environment}"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    environment = var.environment
+    purpose     = "strava-api-auth"
+  }
 }
 
 # Secret Manager IAM permissions for service accounts
 
 # Dispatcher access to Strava auth secret
 resource "google_secret_manager_secret_iam_member" "dispatcher_strava_auth_access" {
-  secret_id = "strava-auth-${var.environment}"
+  secret_id = google_secret_manager_secret.strava_auth.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = var.create_dedicated_service_accounts ? "serviceAccount:${google_service_account.dispatcher_dev[0].email}" : "serviceAccount:${var.service_account_email}"
+  member    = "serviceAccount:${google_service_account.dispatcher.email}"
 }
 
 # BQ Inserter access to Strava auth secret
 resource "google_secret_manager_secret_iam_member" "bq_inserter_strava_auth_access" {
-  count     = var.create_dedicated_service_accounts ? 1 : 0
-  secret_id = "strava-auth-${var.environment}"
+  secret_id = google_secret_manager_secret.strava_auth.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.bq_inserter_dev[0].email}"
+  member    = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
 # PostgreSQL Writer access to Strava auth secret
 resource "google_secret_manager_secret_iam_member" "postgres_writer_strava_auth_access" {
-  count     = var.create_dedicated_service_accounts ? 1 : 0
-  secret_id = "strava-auth-${var.environment}"
+  secret_id = google_secret_manager_secret.strava_auth.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.postgres_writer_dev[0].email}"
+  member    = "serviceAccount:${google_service_account.postgres_writer.email}"
 }
 
 # Grant developer access to secrets for local development
 resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access" {
   count     = var.developer_email != null ? 1 : 0
-  secret_id = "strava-auth-${var.environment}"
+  secret_id = google_secret_manager_secret.strava_auth.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "user:${var.developer_email}"
 }
@@ -445,20 +456,18 @@ resource "google_secret_manager_secret" "postgres_conn_reader" {
 
 # API Gateway access to its read-only PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "api_gateway_postgres_access" {
-  count     = var.create_dedicated_service_accounts ? 1 : 0
   project   = var.gcp_project_id
   secret_id = google_secret_manager_secret.postgres_conn_apigateway.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.api_gateway_dev[0].email}"
+  member    = "serviceAccount:${google_service_account.api_gateway.email}"
 }
 
 # PostgreSQL Writer access to its read/write PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "postgres_writer_postgres_access" {
-  count     = var.create_dedicated_service_accounts ? 1 : 0
   project   = var.gcp_project_id
   secret_id = google_secret_manager_secret.postgres_conn_writer.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.postgres_writer_dev[0].email}"
+  member    = "serviceAccount:${google_service_account.postgres_writer.email}"
 }
 
 # Grant developer access to admin PostgreSQL secret for local development
@@ -473,26 +482,7 @@ resource "google_secret_manager_secret_iam_member" "postgres_developer_access" {
 # ==============================================================================
 # Artifact Registry
 # ==============================================================================
-
-# Artifact Registry repository for container images (shared across environments)
-resource "google_artifact_registry_repository" "functions" {
-  location      = var.artifact_registry_location
-  repository_id = "${var.project_name}-functions"
-  description   = "Container registry for desirelines functions (all environments)"
-  format        = "DOCKER"
-
-  # Cleanup policy: keep only last 5 versions of each image
-  cleanup_policy_dry_run = false
-  cleanup_policies {
-    id     = "keep-recent-versions"
-    action = "KEEP"
-    most_recent_versions {
-      keep_count = 5
-    }
-  }
-
-  labels = merge(local.common_labels, {
-    shared_resource = "true"
-  })
-}
+# Container images are managed in the shared desirelines-artifacts project.
+# See terraform/environments/artifacts/ for that configuration.
+# The image URL is passed in via the external_artifact_registry variable.
 

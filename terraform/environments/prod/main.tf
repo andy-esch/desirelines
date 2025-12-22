@@ -34,28 +34,20 @@ module "desirelines" {
   gcp_project_number = var.gcp_project_number
   gcp_region         = var.gcp_region
 
-  # Cross-project sharing (use dev as single source of truth for artifacts)
-  external_function_source_bucket = "desirelines-dev-function-source"
-  external_artifact_registry      = "us-central1-docker.pkg.dev/desirelines-dev/desirelines-functions"
+  # Shared artifacts project (single source of truth for container images)
+  external_artifact_registry = "us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services"
 
   # Production settings
   bigquery_location = "US"
-  storage_location  = "US"
 
   # Use default compute service account (only as fallback if dedicated SAs not created)
   service_account_email = "${var.gcp_project_number}-compute@developer.gserviceaccount.com"
 
-  # Enable APIs and create service accounts
-  enable_apis                       = true
-  create_service_accounts           = true # Create terraform and infrastructure service accounts
-  create_dedicated_service_accounts = true # Use dedicated SAs per function (least privilege)
+  # Enable APIs
+  enable_apis = true
 
-  # Deployment version configuration (used for both Cloud Run images and Cloud Function source packages)
+  # Deployment version configuration (used for Cloud Run images)
   deployment_version = var.deployment_version
-
-  # Use "full" mode for complete cloud deployment
-  # This creates all resources: Cloud Functions, PubSub, BigQuery, Storage, etc.
-  deployment_mode = "full"
 
   # Developer access
   developer_email = var.developer_email
@@ -76,11 +68,6 @@ data "google_project" "project" {
 # After successful apply, these import blocks can be removed.
 
 # --- Core Infrastructure ---
-import {
-  to = module.desirelines.google_storage_bucket.aggregation_bucket
-  id = "desirelines-prod-desirelines-aggregation"
-}
-
 import {
   to = module.desirelines.google_artifact_registry_repository.functions
   id = "projects/desirelines-prod/locations/us-central1/repositories/desirelines-functions"
@@ -132,37 +119,45 @@ import {
 
 # --- Service Accounts ---
 import {
-  to = module.desirelines.google_service_account.dispatcher_dev[0]
+  to = module.desirelines.google_service_account.dispatcher
   id = "projects/desirelines-prod/serviceAccounts/dispatcher@desirelines-prod.iam.gserviceaccount.com"
 }
 
 import {
-  to = module.desirelines.google_service_account.bq_inserter_dev[0]
+  to = module.desirelines.google_service_account.bq_inserter
   id = "projects/desirelines-prod/serviceAccounts/bq-inserter@desirelines-prod.iam.gserviceaccount.com"
 }
 
 import {
-  to = module.desirelines.google_service_account.api_gateway_dev[0]
+  to = module.desirelines.google_service_account.api_gateway
   id = "projects/desirelines-prod/serviceAccounts/api-gateway@desirelines-prod.iam.gserviceaccount.com"
+}
+
+import {
+  to = module.desirelines.google_service_account.postgres_writer
+  id = "projects/desirelines-prod/serviceAccounts/postgres-writer@desirelines-prod.iam.gserviceaccount.com"
 }
 
 # --- Cloud Run Services ---
 import {
-  to = module.desirelines.google_cloud_run_v2_service.dispatcher[0]
+  to = module.desirelines.google_cloud_run_v2_service.dispatcher
   id = "projects/desirelines-prod/locations/us-central1/services/desirelines-dispatcher"
 }
 
 import {
-  to = module.desirelines.google_cloud_run_v2_service.api_gateway[0]
+  to = module.desirelines.google_cloud_run_v2_service.api_gateway
   id = "projects/desirelines-prod/locations/us-central1/services/desirelines-api-gateway"
 }
 
 import {
-  to = module.desirelines.google_cloud_run_v2_service.bq_inserter[0]
+  to = module.desirelines.google_cloud_run_v2_service.bq_inserter
   id = "projects/desirelines-prod/locations/us-central1/services/desirelines-bq-inserter"
 }
 
-# Note: postgres-writer Cloud Run service may not exist yet (new service)
+import {
+  to = module.desirelines.google_cloud_run_v2_service.postgres_writer
+  id = "projects/desirelines-prod/locations/us-central1/services/desirelines-postgres-writer"
+}
 
 # --- Eventarc Subscription (managed outside module) ---
 import {

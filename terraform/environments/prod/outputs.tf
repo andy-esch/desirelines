@@ -16,11 +16,6 @@ output "bigquery_dataset_id" {
   value       = module.desirelines.bigquery_dataset_id
 }
 
-output "storage_bucket_name" {
-  description = "Storage bucket name for production environment"
-  value       = module.desirelines.storage_bucket_name
-}
-
 output "pubsub_topic_name" {
   description = "PubSub topic name for production environment"
   value       = module.desirelines.pubsub_topic_name

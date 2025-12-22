@@ -14,7 +14,6 @@
 # activity events topic
 
 resource "google_eventarc_trigger" "bq_inserter_pubsub" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   name     = "${var.project_name}-bq-inserter-trigger"
   location = var.gcp_region
 
@@ -31,12 +30,12 @@ resource "google_eventarc_trigger" "bq_inserter_pubsub" {
 
   destination {
     cloud_run_service {
-      service = google_cloud_run_v2_service.bq_inserter[0].name
+      service = google_cloud_run_v2_service.bq_inserter.name
       region  = var.gcp_region
     }
   }
 
-  service_account = var.create_dedicated_service_accounts ? google_service_account.bq_inserter_dev[0].email : var.service_account_email
+  service_account = google_service_account.bq_inserter.email
 
   labels = local.common_labels
 
@@ -52,7 +51,6 @@ resource "google_eventarc_trigger" "bq_inserter_pubsub" {
 # to the activity events topic
 
 resource "google_eventarc_trigger" "postgres_writer_pubsub" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   name     = "${var.project_name}-postgres-writer-trigger"
   location = var.gcp_region
 
@@ -69,12 +67,12 @@ resource "google_eventarc_trigger" "postgres_writer_pubsub" {
 
   destination {
     cloud_run_service {
-      service = google_cloud_run_v2_service.postgres_writer[0].name
+      service = google_cloud_run_v2_service.postgres_writer.name
       region  = var.gcp_region
     }
   }
 
-  service_account = var.create_dedicated_service_accounts ? google_service_account.postgres_writer_dev[0].email : var.service_account_email
+  service_account = google_service_account.postgres_writer.email
 
   labels = local.common_labels
 
