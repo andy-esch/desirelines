@@ -22,21 +22,6 @@ output "pubsub_topic_name" {
 }
 
 # ==============================================================================
-# GitHub Actions CI/CD Outputs
-# ==============================================================================
-
-output "github_wif_provider" {
-  description = "Workload Identity Provider for GitHub Actions (add as secret: WIF_PROVIDER)"
-  value       = module.github_actions.wif_provider
-  sensitive   = true
-}
-
-output "github_wif_service_account" {
-  description = "Service account for GitHub Actions deployments (add as secret: WIF_SERVICE_ACCOUNT)"
-  value       = module.github_actions.wif_service_account
-}
-
-# ==============================================================================
 # Firebase Web App Configuration
 # ==============================================================================
 

@@ -61,136 +61,25 @@ data "google_project" "project" {
   project_id = var.gcp_project_id
 }
 
-# ===================================================================
-# Import Blocks for Existing Resources
-# ===================================================================
-# These resources exist in GCP but are missing from Terraform state.
-# After successful apply, these import blocks can be removed.
+# ==============================================================================
+# GitHub Actions CI/CD Infrastructure
+# ==============================================================================
 
-# --- Core Infrastructure ---
-import {
-  to = module.desirelines.google_artifact_registry_repository.functions
-  id = "projects/desirelines-prod/locations/us-central1/repositories/desirelines-functions"
+module "github_actions" {
+  source = "../../modules/github-actions-wif"
+
+  project_id        = var.gcp_project_id
+  environment       = "prod"
+  github_repository = var.github_repository
+
+  # Use different pool name to avoid soft-deleted resource conflicts
+  pool_id     = "github-actions-cicd"
+  provider_id = "github-oidc-provider"
 }
 
-# --- BigQuery ---
-import {
-  to = module.desirelines.google_bigquery_dataset.activities_dataset
-  id = "projects/desirelines-prod/datasets/desirelines"
-}
-
-import {
-  to = module.desirelines.google_bigquery_table.activities
-  id = "projects/desirelines-prod/datasets/desirelines/tables/activities"
-}
-
-import {
-  to = module.desirelines.google_bigquery_table.activities_staging
-  id = "projects/desirelines-prod/datasets/desirelines/tables/activities_staging"
-}
-
-import {
-  to = module.desirelines.google_bigquery_table.deleted_activities
-  id = "projects/desirelines-prod/datasets/desirelines/tables/deleted_activities"
-}
-
-# --- PubSub ---
-import {
-  to = module.desirelines.google_pubsub_topic.activity_events
-  id = "projects/desirelines-prod/topics/desirelines_activity_events"
-}
-
-import {
-  to = module.desirelines.google_pubsub_topic.dead_letter
-  id = "projects/desirelines-prod/topics/desirelines_dead_letter"
-}
-
-# --- Firestore ---
-import {
-  to = module.desirelines.google_firestore_database.user_configs
-  id = "projects/desirelines-prod/databases/(default)"
-}
-
-# --- Firebase Hosting Custom Domain ---
-import {
-  to = module.desirelines.google_firebase_hosting_custom_domain.app_subdomain[0]
-  id = "projects/desirelines-prod/sites/desirelines-prod/customDomains/desirelines.andyes.ch"
-}
-
-# --- Service Accounts ---
-import {
-  to = module.desirelines.google_service_account.dispatcher
-  id = "projects/desirelines-prod/serviceAccounts/dispatcher@desirelines-prod.iam.gserviceaccount.com"
-}
-
-import {
-  to = module.desirelines.google_service_account.bq_inserter
-  id = "projects/desirelines-prod/serviceAccounts/bq-inserter@desirelines-prod.iam.gserviceaccount.com"
-}
-
-import {
-  to = module.desirelines.google_service_account.api_gateway
-  id = "projects/desirelines-prod/serviceAccounts/api-gateway@desirelines-prod.iam.gserviceaccount.com"
-}
-
-import {
-  to = module.desirelines.google_service_account.postgres_writer
-  id = "projects/desirelines-prod/serviceAccounts/postgres-writer@desirelines-prod.iam.gserviceaccount.com"
-}
-
-# --- Cloud Run Services ---
-import {
-  to = module.desirelines.google_cloud_run_v2_service.dispatcher
-  id = "projects/desirelines-prod/locations/us-central1/services/desirelines-dispatcher"
-}
-
-import {
-  to = module.desirelines.google_cloud_run_v2_service.api_gateway
-  id = "projects/desirelines-prod/locations/us-central1/services/desirelines-api-gateway"
-}
-
-import {
-  to = module.desirelines.google_cloud_run_v2_service.bq_inserter
-  id = "projects/desirelines-prod/locations/us-central1/services/desirelines-bq-inserter"
-}
-
-import {
-  to = module.desirelines.google_cloud_run_v2_service.postgres_writer
-  id = "projects/desirelines-prod/locations/us-central1/services/desirelines-postgres-writer"
-}
-
-# --- Eventarc Subscription (managed outside module) ---
-import {
-  to = google_pubsub_subscription.bq_inserter_eventarc
-  id = "projects/desirelines-prod/subscriptions/eventarc-us-central1-desirelines-bq-inserter-812734-sub-457"
-}
-
-# ===================================================================
-# Dead Letter Queue Monitoring Subscriptions
-# ===================================================================
-# These subscriptions allow us to monitor and debug failed messages.
-
-# BQ Inserter Eventarc subscription with DLQ
-resource "google_pubsub_subscription" "bq_inserter_eventarc" {
-  name  = "eventarc-us-central1-desirelines-bq-inserter-812734-sub-457"
-  topic = module.desirelines.pubsub_topic_name
-
-  dead_letter_policy {
-    dead_letter_topic     = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
-    max_delivery_attempts = 5
-  }
-
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "600s"
-  }
-
-  ack_deadline_seconds = 600 # 10 minutes (matches current Eventarc config)
-}
-
-# ===================================================================
+# ==============================================================================
 # Dead Letter Queue Subscriptions
-# ===================================================================
+# ==============================================================================
 # These subscriptions allow monitoring and debugging of failed messages.
 # Eventarc triggers (created by the module) deliver to Cloud Run services.
 # Failed messages are sent to the dead letter topic.
@@ -227,14 +116,13 @@ resource "google_pubsub_subscription" "postgres_writer_dlq" {
   }
 }
 
-# ===================================================================
+# ==============================================================================
 # IAM Permissions for Dead Letter Queue
-# ===================================================================
+# ==============================================================================
 
-# Pub/Sub service account needs permission to publish to dead letter topic
+# Allow Pub/Sub service account to publish to dead letter topic
 resource "google_pubsub_topic_iam_member" "pubsub_sa_publish_deadletter" {
-  topic  = module.desirelines.pubsub_dead_letter_topic_name
+  topic  = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
-

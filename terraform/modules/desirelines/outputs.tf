@@ -74,6 +74,7 @@ output "service_accounts" {
 output "cloud_run_urls" {
   description = "Cloud Run service URLs (stable, do not change on redeploy)"
   value = {
+    deployment_version  = var.deployment_version
     dispatcher_url      = google_cloud_run_v2_service.dispatcher.uri
     api_gateway_url     = google_cloud_run_v2_service.api_gateway.uri
     bq_inserter_url     = google_cloud_run_v2_service.bq_inserter.uri
