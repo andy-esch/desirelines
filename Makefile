@@ -284,10 +284,11 @@ tf-fmt:
 .PHONY: tf-validate-all
 tf-validate-all:
 	@echo "🔍 Validating all Terraform configurations..."
-	@cd terraform/environments/local && terraform init -backend=false && terraform validate
+	@cd terraform/environments/artifacts && terraform init -backend=false && terraform validate
 	@cd terraform/environments/dev && terraform init -backend=false && terraform validate
 	@cd terraform/environments/prod && terraform init -backend=false && terraform validate
 	@cd terraform/modules/desirelines && terraform init -backend=false && terraform validate
+	@cd terraform/modules/github-actions-wif && terraform init -backend=false && terraform validate
 	@echo "✅ All Terraform configurations are valid!"
 
 # Combined workflows
