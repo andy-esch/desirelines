@@ -223,7 +223,6 @@ services:
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
       # Cloud storage configuration (used when DATA_SOURCE=cloud-storage)
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE:-local-dev}
-      - GCP_BUCKET_NAME=${GCP_BUCKET_NAME_LIVE:-desirelines_local_testing}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
       - POSTGRES_CONNECTION_STRING=postgresql://desirelines:local_dev_password@postgres:5432/desirelines_local?application_name=apigateway
     env_file:

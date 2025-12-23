@@ -86,7 +86,7 @@ ALTER ROLE admin SET search_path = desirelines, extensions, public;
 
 ## 5. Store Credentials in Secret Manager
 
-Secret naming convention: `postgres-conn-{role}-{env}`
+Secret naming convention: `postgres-conn-{role}`
 
 ```bash
 ENV=dev  # or prod
@@ -95,27 +95,27 @@ HOST="ep-xxx-pooler.us-east-2.aws.neon.tech"  # your Neon pooler host
 # Create secrets for each role (replace PASSWORD with actual values)
 # flyway
 echo -n "postgres://flyway:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=flyway" | \
-  gcloud secrets create postgres-conn-flyway-$ENV \
+  gcloud secrets create postgres-conn-flyway \
     --project=desirelines-$ENV --replication-policy=automatic --data-file=-
 
 # writer
 echo -n "postgres://writer:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=postgres-writer" | \
-  gcloud secrets create postgres-conn-writer-$ENV \
+  gcloud secrets create postgres-conn-writer \
     --project=desirelines-$ENV --replication-policy=automatic --data-file=-
 
 # apigateway
 echo -n "postgres://apigateway:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=apigateway" | \
-  gcloud secrets create postgres-conn-apigateway-$ENV \
+  gcloud secrets create postgres-conn-apigateway \
     --project=desirelines-$ENV --replication-policy=automatic --data-file=-
 
 # reader
 echo -n "postgres://reader:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=reader" | \
-  gcloud secrets create postgres-conn-reader-$ENV \
+  gcloud secrets create postgres-conn-reader \
     --project=desirelines-$ENV --replication-policy=automatic --data-file=-
 
 # admin
 echo -n "postgres://admin:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=admin" | \
-  gcloud secrets create postgres-conn-admin-$ENV \
+  gcloud secrets create postgres-conn-admin \
     --project=desirelines-$ENV --replication-policy=automatic --data-file=-
 
 # Verify

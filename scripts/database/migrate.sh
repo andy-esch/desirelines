@@ -43,7 +43,7 @@ fi
 
 # Get connection string from Secret Manager
 # Use flyway connection string (has schema management permissions)
-SECRET_NAME="postgres-conn-flyway-${ENVIRONMENT}"
+SECRET_NAME="postgres-conn-flyway"
 echo -e "${YELLOW}📥 Fetching connection string from Secret Manager (${SECRET_NAME})...${NC}"
 CONNECTION_STRING=$(gcloud secrets versions access latest \
   --secret="${SECRET_NAME}" \

@@ -72,7 +72,6 @@ cat > .env << EOF
 # GCP Configuration
 GCP_PROJECT_ID=$GCP_PROJECT_ID
 GCP_BIGQUERY_DATASET=$LOCAL_DATASET
-GCP_BUCKET_NAME=${GCP_BUCKET_NAME:-desire-lines-local-testing}
 GCP_PUBSUB_TOPIC=strava-webhook-events
 
 # Strava API Configuration (Live)

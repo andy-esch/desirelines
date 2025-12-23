@@ -16,17 +16,6 @@ output "bigquery_table_full_id" {
   value       = "${var.gcp_project_id}:${google_bigquery_dataset.activities_dataset.dataset_id}.${google_bigquery_table.activities.table_id}"
 }
 
-# Storage outputs
-output "storage_bucket_name" {
-  description = "Name of the Cloud Storage bucket for aggregated data"
-  value       = google_storage_bucket.aggregation_bucket.name
-}
-
-output "storage_bucket_url" {
-  description = "URL of the Cloud Storage bucket"
-  value       = google_storage_bucket.aggregation_bucket.url
-}
-
 # Firestore outputs
 output "firestore_database_name" {
   description = "Name of the Firestore database"
@@ -56,7 +45,6 @@ output "resource_names" {
   value = {
     dataset_name = google_bigquery_dataset.activities_dataset.dataset_id
     table_name   = google_bigquery_table.activities.table_id
-    bucket_name  = google_storage_bucket.aggregation_bucket.name
     topic_name   = google_pubsub_topic.activity_events.name
   }
 }
@@ -67,59 +55,55 @@ output "application_config" {
   value = {
     gcp_project_id       = var.gcp_project_id
     gcp_bigquery_dataset = google_bigquery_dataset.activities_dataset.dataset_id
-    gcp_bucket_name      = google_storage_bucket.aggregation_bucket.name
     gcp_pubsub_topic     = google_pubsub_topic.activity_events.name
   }
 }
 
-# Development service account outputs (only when created)
-output "dev_service_accounts" {
-  description = "Development service account emails for Docker Compose"
-  value = var.create_dedicated_service_accounts ? {
-    dispatcher_email  = google_service_account.dispatcher_dev[0].email
-    bq_inserter_email = google_service_account.bq_inserter_dev[0].email
-  } : {}
+# Service account outputs
+output "service_accounts" {
+  description = "Service account emails for each service"
+  value = {
+    dispatcher_email      = google_service_account.dispatcher.email
+    bq_inserter_email     = google_service_account.bq_inserter.email
+    api_gateway_email     = google_service_account.api_gateway.email
+    postgres_writer_email = google_service_account.postgres_writer.email
+  }
 }
 
 # Cloud Run Service URLs (Go services + Python FastAPI services)
 output "cloud_run_urls" {
   description = "Cloud Run service URLs (stable, do not change on redeploy)"
-  value = var.deployment_mode == "full" ? {
-    dispatcher_url      = google_cloud_run_v2_service.dispatcher[0].uri
-    api_gateway_url     = google_cloud_run_v2_service.api_gateway[0].uri
-    bq_inserter_url     = google_cloud_run_v2_service.bq_inserter[0].uri
-    postgres_writer_url = google_cloud_run_v2_service.postgres_writer[0].uri
-  } : {}
+  value = {
+    deployment_version  = var.deployment_version
+    dispatcher_url      = google_cloud_run_v2_service.dispatcher.uri
+    api_gateway_url     = google_cloud_run_v2_service.api_gateway.uri
+    bq_inserter_url     = google_cloud_run_v2_service.bq_inserter.uri
+    postgres_writer_url = google_cloud_run_v2_service.postgres_writer.uri
+  }
 }
 
 output "service_names" {
   description = "Names of deployed services (Cloud Run)"
-  value = var.deployment_mode == "full" ? {
-    dispatcher      = google_cloud_run_v2_service.dispatcher[0].name
-    api_gateway     = google_cloud_run_v2_service.api_gateway[0].name
-    bq_inserter     = google_cloud_run_v2_service.bq_inserter[0].name
-    postgres_writer = google_cloud_run_v2_service.postgres_writer[0].name
-  } : {}
+  value = {
+    dispatcher      = google_cloud_run_v2_service.dispatcher.name
+    api_gateway     = google_cloud_run_v2_service.api_gateway.name
+    bq_inserter     = google_cloud_run_v2_service.bq_inserter.name
+    postgres_writer = google_cloud_run_v2_service.postgres_writer.name
+  }
 }
 
 # Artifact Registry outputs
-output "artifact_registry_repository" {
-  description = "Artifact Registry repository for container images (shared across environments)"
-  value       = google_artifact_registry_repository.functions.name
-}
-
 output "container_image_base_url" {
   description = "Base URL for container images in Artifact Registry"
-  value       = "${var.artifact_registry_location}-docker.pkg.dev/${var.gcp_project_id}/${var.project_name}-functions"
+  value       = var.external_artifact_registry
 }
 
 # Deployment information
 output "deployment_info" {
   description = "Information needed for CI/CD deployment"
   value = {
-    artifact_registry_repo = google_artifact_registry_repository.functions.name
-    image_base_url         = "${var.artifact_registry_location}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}"
-    deployment_version     = var.deployment_version
+    image_base_url     = var.external_artifact_registry
+    deployment_version = var.deployment_version
   }
 }
 
@@ -143,4 +127,18 @@ output "firebase_hosting_url" {
 output "firebase_custom_domain" {
   description = "Custom domain for Firebase Hosting (production only)"
   value       = var.environment == "prod" ? google_firebase_hosting_custom_domain.app_subdomain[0].custom_domain : null
+}
+
+# Firebase Web App outputs (for .env configuration)
+output "firebase_web_app_config" {
+  description = "Firebase Web App configuration for frontend .env files"
+  value = {
+    api_key             = data.google_firebase_web_app_config.web_app.api_key
+    auth_domain         = "${var.gcp_project_id}.firebaseapp.com"
+    project_id          = var.gcp_project_id
+    storage_bucket      = data.google_firebase_web_app_config.web_app.storage_bucket
+    messaging_sender_id = data.google_firebase_web_app_config.web_app.messaging_sender_id
+    app_id              = google_firebase_web_app.web_app.app_id
+    measurement_id      = lookup(data.google_firebase_web_app_config.web_app, "measurement_id", null)
+  }
 }

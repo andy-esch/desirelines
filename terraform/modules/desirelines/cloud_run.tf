@@ -1,12 +1,16 @@
 # Cloud Run Services (Go services deployed as Docker images)
 # These replace the previous Cloud Functions v2 deployments for dispatcher and apigateway
 
+# Image base URL from shared artifacts project
+locals {
+  image_base_url = var.external_artifact_registry
+}
+
 # ==============================================================================
 # Dispatcher - Cloud Run Service
 # ==============================================================================
 
 resource "google_cloud_run_v2_service" "dispatcher" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   name     = "${var.project_name}-dispatcher"
   location = var.gcp_region
   ingress  = "INGRESS_TRAFFIC_ALL" # Required for Strava webhooks
@@ -14,7 +18,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
   labels = local.common_labels
 
   template {
-    service_account = var.create_dedicated_service_accounts ? google_service_account.dispatcher_dev[0].email : var.service_account_email
+    service_account = google_service_account.dispatcher.email
 
     scaling {
       max_instance_count = 1
@@ -22,7 +26,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     }
 
     containers {
-      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/dispatcher:${var.deployment_version}"
+      image = "${local.image_base_url}/dispatcher:${var.deployment_version}"
 
       resources {
         limits = {
@@ -63,7 +67,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     volumes {
       name = "strava-secrets"
       secret {
-        secret       = "strava-auth-${var.environment}"
+        secret       = google_secret_manager_secret.strava_auth.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -84,10 +88,9 @@ resource "google_cloud_run_v2_service" "dispatcher" {
 
 # Allow unauthenticated access to dispatcher (required for Strava webhooks)
 resource "google_cloud_run_v2_service_iam_member" "dispatcher_public_access" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   project  = var.gcp_project_id
   location = var.gcp_region
-  name     = google_cloud_run_v2_service.dispatcher[0].name
+  name     = google_cloud_run_v2_service.dispatcher.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
@@ -97,7 +100,6 @@ resource "google_cloud_run_v2_service_iam_member" "dispatcher_public_access" {
 # ==============================================================================
 
 resource "google_cloud_run_v2_service" "api_gateway" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   name     = "${var.project_name}-api-gateway"
   location = var.gcp_region
   ingress  = "INGRESS_TRAFFIC_ALL" # Public web access
@@ -105,7 +107,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
   labels = local.common_labels
 
   template {
-    service_account = var.create_dedicated_service_accounts ? google_service_account.api_gateway_dev[0].email : var.service_account_email
+    service_account = google_service_account.api_gateway.email
 
     scaling {
       max_instance_count = 1
@@ -113,7 +115,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
     }
 
     containers {
-      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/apigateway:${var.deployment_version}"
+      image = "${local.image_base_url}/apigateway:${var.deployment_version}"
 
       resources {
         limits = {
@@ -127,11 +129,6 @@ resource "google_cloud_run_v2_service" "api_gateway" {
       env {
         name  = "GCP_PROJECT_ID"
         value = var.gcp_project_id
-      }
-
-      env {
-        name  = "GCP_BUCKET_NAME"
-        value = google_storage_bucket.aggregation_bucket.name
       }
 
       env {
@@ -164,7 +161,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
     volumes {
       name = "postgres-secrets"
       secret {
-        secret       = "postgres-conn-apigateway-${var.environment}"
+        secret       = google_secret_manager_secret.postgres_conn_apigateway.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -189,10 +186,9 @@ resource "google_cloud_run_v2_service" "api_gateway" {
 
 # Allow unauthenticated access to API Gateway (required for web app access)
 resource "google_cloud_run_v2_service_iam_member" "api_gateway_public_access" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   project  = var.gcp_project_id
   location = var.gcp_region
-  name     = google_cloud_run_v2_service.api_gateway[0].name
+  name     = google_cloud_run_v2_service.api_gateway.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
@@ -204,7 +200,6 @@ resource "google_cloud_run_v2_service_iam_member" "api_gateway_public_access" {
 # Uses FastAPI + Uvicorn for better performance and CloudEvent support
 
 resource "google_cloud_run_v2_service" "bq_inserter" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   name     = "${var.project_name}-bq-inserter"
   location = var.gcp_region
   ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Only Eventarc can call this
@@ -212,7 +207,7 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
   labels = local.common_labels
 
   template {
-    service_account = var.create_dedicated_service_accounts ? google_service_account.bq_inserter_dev[0].email : var.service_account_email
+    service_account = google_service_account.bq_inserter.email
 
     scaling {
       max_instance_count = 1
@@ -220,7 +215,7 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
     }
 
     containers {
-      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/bq-inserter:${var.deployment_version}"
+      image = "${local.image_base_url}/bq-inserter:${var.deployment_version}"
 
       resources {
         limits = {
@@ -271,7 +266,7 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
     volumes {
       name = "strava-secrets"
       secret {
-        secret       = "strava-auth-${var.environment}"
+        secret       = google_secret_manager_secret.strava_auth.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -297,7 +292,6 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
 # Uses FastAPI + Uvicorn for better performance and CloudEvent support
 
 resource "google_cloud_run_v2_service" "postgres_writer" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   name     = "${var.project_name}-postgres-writer"
   location = var.gcp_region
   ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Only Eventarc can call this
@@ -305,7 +299,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
   labels = local.common_labels
 
   template {
-    service_account = var.create_dedicated_service_accounts ? google_service_account.postgres_writer_dev[0].email : var.service_account_email
+    service_account = google_service_account.postgres_writer.email
 
     scaling {
       max_instance_count = 1
@@ -313,7 +307,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     }
 
     containers {
-      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.functions.repository_id}/postgres-writer:${var.deployment_version}"
+      image = "${local.image_base_url}/postgres-writer:${var.deployment_version}"
 
       resources {
         limits = {
@@ -360,7 +354,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     volumes {
       name = "strava-secrets"
       secret {
-        secret       = "strava-auth-${var.environment}"
+        secret       = google_secret_manager_secret.strava_auth.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -373,7 +367,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     volumes {
       name = "postgres-secrets"
       secret {
-        secret       = "postgres-conn-writer-${var.environment}"
+        secret       = google_secret_manager_secret.postgres_conn_writer.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
@@ -406,20 +400,18 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
 
 # Allow BQ Inserter's service account to be invoked by Eventarc
 resource "google_cloud_run_v2_service_iam_member" "bq_inserter_eventarc_invoker" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   project  = var.gcp_project_id
   location = var.gcp_region
-  name     = google_cloud_run_v2_service.bq_inserter[0].name
+  name     = google_cloud_run_v2_service.bq_inserter.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${var.create_dedicated_service_accounts ? google_service_account.bq_inserter_dev[0].email : var.service_account_email}"
+  member   = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
 # Allow PostgreSQL Writer's service account to be invoked by Eventarc
 resource "google_cloud_run_v2_service_iam_member" "postgres_writer_eventarc_invoker" {
-  count    = var.deployment_mode == "full" ? 1 : 0
   project  = var.gcp_project_id
   location = var.gcp_region
-  name     = google_cloud_run_v2_service.postgres_writer[0].name
+  name     = google_cloud_run_v2_service.postgres_writer.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${var.create_dedicated_service_accounts ? google_service_account.postgres_writer_dev[0].email : var.service_account_email}"
+  member   = "serviceAccount:${google_service_account.postgres_writer.email}"
 }

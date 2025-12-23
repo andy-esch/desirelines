@@ -26,3 +26,9 @@ variable "developer_email" {
   description = "Developer email for IAM access"
   type        = string
 }
+
+variable "github_repository" {
+  description = "GitHub repository in format 'owner/repo' for Workload Identity Federation"
+  type        = string
+  default     = "andy-esch/desirelines"
+}

@@ -21,29 +21,6 @@ variable "environment" {
   }
 }
 
-variable "deployment_mode" {
-  description = <<-EOT
-    Deployment mode that controls which resources are created:
-
-    - "full": Complete deployment with Cloud Run services, PubSub, service accounts, etc.
-              Used for: dev, prod environments
-
-    - "data-only": Minimal deployment with only data storage resources (BigQuery, Storage)
-                   Used for: local hybrid development where services run in Docker
-
-    Resources created by mode:
-    - Both modes: BigQuery dataset/tables, Storage buckets, API enablement
-    - "full" only: Cloud Run services, PubSub topics, Eventarc, service accounts, DLQ
-  EOT
-  type        = string
-  default     = "full"
-
-  validation {
-    condition     = contains(["full", "data-only"], var.deployment_mode)
-    error_message = "Deployment mode must be either 'full' or 'data-only'."
-  }
-}
-
 variable "gcp_project_id" {
   description = "Google Cloud Project ID"
   type        = string
@@ -62,12 +39,6 @@ variable "gcp_region" {
 
 variable "bigquery_location" {
   description = "BigQuery dataset location"
-  type        = string
-  default     = "US"
-}
-
-variable "storage_location" {
-  description = "Cloud Storage bucket location"
   type        = string
   default     = "US"
 }
@@ -97,30 +68,6 @@ variable "enable_apis" {
   default     = true
 }
 
-variable "create_service_accounts" {
-  description = "Whether to create dedicated service accounts"
-  type        = bool
-  default     = true
-}
-
-variable "create_dedicated_service_accounts" {
-  description = <<-EOT
-    Whether to create dedicated service accounts per service (recommended for least privilege).
-
-    When true: Creates separate service accounts for each Cloud Run service:
-      - dispatcher_dev / dispatcher_prod
-      - bq_inserter_dev / bq_inserter_prod
-      - postgres_writer_dev / postgres_writer_prod
-      - api_gateway_dev / api_gateway_prod
-
-    When false: All services use var.service_account_email (shared, less secure)
-
-    Recommended: true in all environments (dev and prod)
-  EOT
-  type        = bool
-  default     = true
-}
-
 # Deployment version tracking for code provenance and observability
 variable "deployment_version" {
   description = "Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest')"
@@ -128,8 +75,8 @@ variable "deployment_version" {
   default     = "latest"
 }
 
-variable "external_function_source_bucket" {
-  description = "External function source bucket to use instead of creating one (for cross-project sharing)"
+variable "external_artifact_registry" {
+  description = "External Artifact Registry URL to use instead of creating one (for cross-project image sharing). Format: REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME"
   type        = string
   default     = null
 }

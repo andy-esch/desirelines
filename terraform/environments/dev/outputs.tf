@@ -16,32 +16,25 @@ output "bigquery_dataset_id" {
   value       = module.desirelines.bigquery_dataset_id
 }
 
-output "storage_bucket_name" {
-  description = "Storage bucket name for production environment"
-  value       = module.desirelines.storage_bucket_name
-}
-
 output "pubsub_topic_name" {
   description = "PubSub topic name for production environment"
   value       = module.desirelines.pubsub_topic_name
 }
 
 # ==============================================================================
-# GitHub Actions CI/CD Outputs
+# Firebase Web App Configuration
 # ==============================================================================
 
-output "github_wif_provider" {
-  description = "Workload Identity Provider for GitHub Actions (add as secret: WIF_PROVIDER)"
-  value       = module.github_actions.wif_provider
-  sensitive   = true
+output "firebase_web_app_config" {
+  description = "Firebase Web App configuration for frontend .env files"
+  value       = module.desirelines.firebase_web_app_config
 }
 
-output "github_wif_service_account" {
-  description = "Service account for GitHub Actions deployments (add as secret: WIF_SERVICE_ACCOUNT)"
-  value       = module.github_actions.wif_service_account
-}
+# ==============================================================================
+# Cloud Run deployment details
+# ==============================================================================
 
-output "github_secrets_setup" {
-  description = "Instructions for setting up GitHub secrets"
-  value       = module.github_actions.github_secrets_instructions
+output "cloudrun_deployment_urls_details" {
+  description = "API Gateway details"
+  value       = module.desirelines.cloud_run_urls
 }

@@ -59,7 +59,7 @@ case "$COMMAND" in
         echo "📍 Found dispatcher: $SERVICE_NAME"
         echo "📍 Callback URL: $CALLBACK_URL"
 
-        STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth-$ENV_NAME" --project="$GCP_PROJECT_ID")
+        STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth" --project="$GCP_PROJECT_ID")
         CLIENT_ID=$(echo "$STRAVA_AUTH" | jq -r '.client_id')
         CLIENT_SECRET=$(echo "$STRAVA_AUTH" | jq -r '.client_secret')
         VERIFY_TOKEN=$(echo "$STRAVA_AUTH" | jq -r '.webhook_verify_token')
@@ -78,7 +78,7 @@ case "$COMMAND" in
     "view")
         echo "🔍 Viewing Strava webhook subscriptions for $ENV_NAME environment..."
 
-        STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth-$ENV_NAME" --project="$GCP_PROJECT_ID")
+        STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth" --project="$GCP_PROJECT_ID")
         CLIENT_ID=$(echo "$STRAVA_AUTH" | jq -r '.client_id')
         CLIENT_SECRET=$(echo "$STRAVA_AUTH" | jq -r '.client_secret')
 
@@ -91,7 +91,7 @@ case "$COMMAND" in
     "delete")
         echo "🗑️ Deleting Strava webhook subscription for $ENV_NAME environment..."
 
-        STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth-$ENV_NAME" --project="$GCP_PROJECT_ID")
+        STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth" --project="$GCP_PROJECT_ID")
         SUBSCRIPTION_ID=$(echo "$STRAVA_AUTH" | jq -r '.webhook_subscription_id')
         CLIENT_ID=$(echo "$STRAVA_AUTH" | jq -r '.client_id')
         CLIENT_SECRET=$(echo "$STRAVA_AUTH" | jq -r '.client_secret')

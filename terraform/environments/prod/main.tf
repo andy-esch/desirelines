@@ -34,27 +34,20 @@ module "desirelines" {
   gcp_project_number = var.gcp_project_number
   gcp_region         = var.gcp_region
 
-  # Cross-project function source sharing (use dev bucket)
-  external_function_source_bucket = "desirelines-dev-function-source"
+  # Shared artifacts project (single source of truth for container images)
+  external_artifact_registry = "us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services"
 
   # Production settings
   bigquery_location = "US"
-  storage_location  = "US"
 
   # Use default compute service account (only as fallback if dedicated SAs not created)
   service_account_email = "${var.gcp_project_number}-compute@developer.gserviceaccount.com"
 
-  # Enable APIs and create service accounts
-  enable_apis                       = true
-  create_service_accounts           = true # Create terraform and infrastructure service accounts
-  create_dedicated_service_accounts = true # Use dedicated SAs per function (least privilege)
+  # Enable APIs
+  enable_apis = true
 
-  # Deployment version configuration (used for both Cloud Run images and Cloud Function source packages)
+  # Deployment version configuration (used for Cloud Run images)
   deployment_version = var.deployment_version
-
-  # Use "full" mode for complete cloud deployment
-  # This creates all resources: Cloud Functions, PubSub, BigQuery, Storage, etc.
-  deployment_mode = "full"
 
   # Developer access
   developer_email = var.developer_email
@@ -63,12 +56,35 @@ module "desirelines" {
   api_gateway_allowed_origins = "https://desirelines-prod.web.app,https://desirelines.andyes.ch"
 }
 
-# ===================================================================
-# Dead Letter Queue Monitoring Subscriptions
-# ===================================================================
-# These subscriptions allow us to monitor and debug failed messages
+# Get project for IAM configuration
+data "google_project" "project" {
+  project_id = var.gcp_project_id
+}
 
-# Dead letter subscription for BQ inserter function
+# ==============================================================================
+# GitHub Actions CI/CD Infrastructure
+# ==============================================================================
+
+module "github_actions" {
+  source = "../../modules/github-actions-wif"
+
+  project_id        = var.gcp_project_id
+  environment       = "prod"
+  github_repository = var.github_repository
+
+  # Use different pool name to avoid soft-deleted resource conflicts
+  pool_id     = "github-actions-cicd"
+  provider_id = "github-oidc-provider"
+}
+
+# ==============================================================================
+# Dead Letter Queue Subscriptions
+# ==============================================================================
+# These subscriptions allow monitoring and debugging of failed messages.
+# Eventarc triggers (created by the module) deliver to Cloud Run services.
+# Failed messages are sent to the dead letter topic.
+
+# Dead letter subscription for BQ inserter service
 resource "google_pubsub_subscription" "bq_inserter_dlq" {
   name  = "desirelines-bq-inserter-dlq"
   topic = module.desirelines.pubsub_dead_letter_topic_name
@@ -79,74 +95,34 @@ resource "google_pubsub_subscription" "bq_inserter_dlq" {
 
   labels = {
     purpose     = "dead-letter-queue"
-    function    = "bq-inserter"
+    service     = "bq-inserter"
     environment = "prod"
   }
 }
 
-# ===================================================================
-# Eventarc Subscription Management with Dead Letter Queue
-# ===================================================================
-# Cloud Functions v2 with event_trigger automatically create Eventarc
-# subscriptions. We import these subscriptions to add DLQ configuration.
-# The ignore_changes lifecycle rule lets Eventarc continue managing
-# the push_config while we manage the dead_letter_policy.
+# Dead letter subscription for postgres-writer service
+resource "google_pubsub_subscription" "postgres_writer_dlq" {
+  name  = "desirelines-postgres-writer-dlq"
+  topic = module.desirelines.pubsub_dead_letter_topic_name
 
-# Get project for IAM configuration
-data "google_project" "project" {
-  project_id = var.gcp_project_id
-}
-
-# Import existing Eventarc subscriptions
-import {
-  to = google_pubsub_subscription.bq_inserter_eventarc
-  id = "projects/desirelines-prod/subscriptions/eventarc-us-central1-desirelines-bq-inserter-960936-sub-360"
-}
-
-# BQ Inserter Eventarc subscription with DLQ
-resource "google_pubsub_subscription" "bq_inserter_eventarc" {
-  name  = "eventarc-us-central1-desirelines-bq-inserter-960936-sub-360"
-  topic = module.desirelines.pubsub_topic_name
-
-  dead_letter_policy {
-    dead_letter_topic     = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
-    max_delivery_attempts = 5
-  }
-
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "600s"
-  }
-
-  ack_deadline_seconds = 600 # 10 minutes (matches current Eventarc config)
-
-  lifecycle {
-    # Critical: Let Eventarc manage push configuration to avoid drift
-    ignore_changes = [push_config]
-  }
+  # Long retention for debugging failed messages
+  message_retention_duration = "1209600s" # 14 days
+  ack_deadline_seconds       = 600
 
   labels = {
-    managed-by  = "terraform"
-    function    = "bq-inserter"
+    purpose     = "dead-letter-queue"
+    service     = "postgres-writer"
     environment = "prod"
   }
 }
 
-# ===================================================================
+# ==============================================================================
 # IAM Permissions for Dead Letter Queue
-# ===================================================================
+# ==============================================================================
 
-# Pub/Sub service account needs permission to publish to dead letter topic
+# Allow Pub/Sub service account to publish to dead letter topic
 resource "google_pubsub_topic_iam_member" "pubsub_sa_publish_deadletter" {
-  topic  = module.desirelines.pubsub_dead_letter_topic_name
+  topic  = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
-
-# Pub/Sub service account needs permission to subscribe to BQ inserter subscription
-resource "google_pubsub_subscription_iam_member" "bq_inserter_pubsub_sa_subscribe" {
-  subscription = google_pubsub_subscription.bq_inserter_eventarc.name
-  role         = "roles/pubsub.subscriber"
-  member       = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
-}
-

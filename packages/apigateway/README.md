@@ -27,8 +27,6 @@ PORT=8080
 # Data source
 DATA_SOURCE=local-fixtures              # or cloud-storage, postgres
 LOCAL_FIXTURES_PATH=/app/data/fixtures  # for local-fixtures
-GCP_BUCKET_NAME=desirelines-bucket      # for cloud-storage
-ENABLE_DATABASE=false                   # enable postgres backend
 POSTGRES_CONNECTION_STRING=postgres://...  # for postgres
 
 # CORS

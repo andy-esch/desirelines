@@ -26,6 +26,27 @@ resource "google_project_service" "firebase" {
 }
 
 # ==============================================================================
+# Firebase Web App Registration
+# ==============================================================================
+
+# Register the web application with Firebase
+# This provides the firebaseConfig values needed by the React app
+resource "google_firebase_web_app" "web_app" {
+  provider     = google-beta
+  project      = var.gcp_project_id
+  display_name = "Desirelines Web (${title(var.environment)})"
+
+  depends_on = [google_project_service.firebase]
+}
+
+# Retrieve the web app configuration (apiKey, authDomain, etc.)
+data "google_firebase_web_app_config" "web_app" {
+  provider   = google-beta
+  project    = var.gcp_project_id
+  web_app_id = google_firebase_web_app.web_app.app_id
+}
+
+# ==============================================================================
 # Firebase Hosting Site
 # ==============================================================================
 
@@ -36,6 +57,9 @@ resource "google_firebase_hosting_site" "web_app" {
   provider = google-beta
   project  = var.gcp_project_id
   site_id  = "${var.project_name}-${var.environment}"
+
+  # Link the hosting site to the web app
+  app_id = google_firebase_web_app.web_app.app_id
 
   depends_on = [
     google_project_service.firebase_hosting,

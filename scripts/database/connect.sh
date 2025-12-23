@@ -36,15 +36,15 @@ fi
 case "$ROLE_FLAG" in
   --admin)
     ROLE="admin"
-    SECRET_NAME="postgres-conn-admin-${ENVIRONMENT}"
+    SECRET_NAME="postgres-conn-admin"
     ;;
   --apigateway)
     ROLE="apigateway (read-only)"
-    SECRET_NAME="postgres-conn-apigateway-${ENVIRONMENT}"
+    SECRET_NAME="postgres-conn-apigateway"
     ;;
   --writer)
     ROLE="writer"
-    SECRET_NAME="postgres-conn-writer-${ENVIRONMENT}"
+    SECRET_NAME="postgres-conn-writer"
     ;;
   *)
     echo -e "${RED}Role flag must be --admin, --apigateway, or --writer${NC}"
