@@ -25,8 +25,9 @@ This monorepo system processes Strava activity events through a serverless pipel
 
 ### Prerequisites
 
-- **uv** (Python package manager): `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- **Go 1.25+**: For dispatcher development
+- [**`uv`**](https://docs.astral.sh/uv/) (Python package manager): `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- [**Go 1.25+**](https://go.dev/): For dispatcher development
+- [**`pants`**](https://www.pantsbuild.org/): For building packages
 - **Docker**: For local development environment
 - **Google Cloud SDK**: For deployment
 - **Terraform**: For infrastructure management
