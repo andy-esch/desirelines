@@ -20,6 +20,11 @@ on:
           - dev
           - prod
 
+# Prevent concurrent deployments to the same environment
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
 jobs:
   # ===========================================================================
   # Job 1: Build and Publish Docker Images (Go + Python)
@@ -140,38 +145,23 @@ jobs:
             -backend-config="bucket=${BACKEND_BUCKET}" \
             -input=false
 
-      - name: Terraform Plan (Deployment Resources Only)
+      - name: Terraform Plan
         id: plan
         run: |
           cd terraform/environments/${{ needs.build-images.outputs.environment }}
 
-          # Set environment-specific variables
           ENV="${{ needs.build-images.outputs.environment }}"
 
-          # Only plan changes to deployment resources (Cloud Run)
-          # Excludes infrastructure: BigQuery IAM, monitoring dashboards, etc.
-          #
-          # Cloud Run services (all others):
-          # - dispatcher (Go) - webhook receiver
-          # - api_gateway (Go) - API for web frontend
-          # - bq_inserter (Python/FastAPI) - BigQuery sync
-          # - postgres_writer (Python/FastAPI) - PostgreSQL sync
           terraform plan \
             -var="deployment_version=${{ needs.build-images.outputs.git_sha }}" \
             -var="gcp_project_id=desirelines-${ENV}" \
             -var="gcp_project_number=${{ secrets.GCP_PROJECT_NUMBER }}" \
             -var="developer_email=${{ secrets.DEVELOPER_EMAIL }}" \
             -var="gcp_region=us-central1" \
-            -target="module.desirelines.google_cloud_run_v2_service.dispatcher" \
-            -target="module.desirelines.google_cloud_run_v2_service.api_gateway" \
-            -target="module.desirelines.google_cloud_run_v2_service.bq_inserter" \
-            -target="module.desirelines.google_cloud_run_v2_service.postgres_writer" \
-            -target="module.desirelines.google_eventarc_trigger.bq_inserter_pubsub" \
-            -target="module.desirelines.google_eventarc_trigger.postgres_writer_pubsub" \
             -input=false \
             -out=tfplan
 
-      - name: Terraform Apply (Deployment Resources Only)
+      - name: Terraform Apply
         run: |
           cd terraform/environments/${{ needs.build-images.outputs.environment }}
           terraform apply -auto-approve tfplan
