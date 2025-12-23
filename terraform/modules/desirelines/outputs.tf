@@ -127,3 +127,17 @@ output "firebase_custom_domain" {
   description = "Custom domain for Firebase Hosting (production only)"
   value       = var.environment == "prod" ? google_firebase_hosting_custom_domain.app_subdomain[0].custom_domain : null
 }
+
+# Firebase Web App outputs (for .env configuration)
+output "firebase_web_app_config" {
+  description = "Firebase Web App configuration for frontend .env files"
+  value = {
+    api_key             = data.google_firebase_web_app_config.web_app.api_key
+    auth_domain         = "${var.gcp_project_id}.firebaseapp.com"
+    project_id          = var.gcp_project_id
+    storage_bucket      = data.google_firebase_web_app_config.web_app.storage_bucket
+    messaging_sender_id = data.google_firebase_web_app_config.web_app.messaging_sender_id
+    app_id              = google_firebase_web_app.web_app.app_id
+    measurement_id      = lookup(data.google_firebase_web_app_config.web_app, "measurement_id", null)
+  }
+}

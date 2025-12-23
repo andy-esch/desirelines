@@ -36,7 +36,20 @@ output "github_wif_service_account" {
   value       = module.github_actions.wif_service_account
 }
 
-output "github_secrets_setup" {
-  description = "Instructions for setting up GitHub secrets"
-  value       = module.github_actions.github_secrets_instructions
+# ==============================================================================
+# Firebase Web App Configuration
+# ==============================================================================
+
+output "firebase_web_app_config" {
+  description = "Firebase Web App configuration for frontend .env files"
+  value       = module.desirelines.firebase_web_app_config
+}
+
+# ==============================================================================
+# Cloud Run deployment details
+# ==============================================================================
+
+output "cloudrun_deployment_urls_details" {
+  description = "API Gateway details"
+  value       = module.desirelines.cloud_run_urls
 }
