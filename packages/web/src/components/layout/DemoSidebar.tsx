@@ -44,7 +44,7 @@ export default function DemoSidebar({
   return (
     <div className="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary">
       <div
-        className="offcanvas-md offcanvas-end bg-body-tertiary"
+        className="offcanvas-md offcanvas-start bg-body-tertiary"
         data-tabindex="-1"
         id="sidebarMenu"
         aria-labelledby="sidebarMenuLabel"
@@ -61,9 +61,31 @@ export default function DemoSidebar({
             aria-label="Close"
           ></button>
         </div>
-        <div className="offcanvas-body d-md-flex flex-column p-0 pt-lg-3 overflow-y-auto">
+        <div className="offcanvas-body d-flex flex-column p-0 pt-lg-3 overflow-y-auto">
+          {/* Progress Summary */}
+          <div className="px-3 pt-3 pb-2">
+            <div className="d-flex justify-content-between small">
+              <span className="text-muted">Current</span>
+              <span className="fw-semibold">
+                {isLoading || currentDistance === 0
+                  ? "--"
+                  : `${currentDistance.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}`}
+              </span>
+            </div>
+            <div className="d-flex justify-content-between small">
+              <span className="text-muted">Est. Year-End</span>
+              <span className="fw-semibold">
+                {isLoading || estimatedYearEnd === 0
+                  ? "--"
+                  : `${estimatedYearEnd.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}`}
+              </span>
+            </div>
+          </div>
+
+          <hr className="my-2" />
+
           {/* Filters Section */}
-          <h6 className="sidebar-heading px-3 mt-4 mb-3 text-body-secondary text-uppercase">
+          <h6 className="sidebar-heading px-3 mt-2 mb-3 text-body-secondary text-uppercase">
             <span>Filters</span>
           </h6>
 
@@ -118,10 +140,8 @@ export default function DemoSidebar({
               goals={goals}
               onGoalsChange={onGoalsChange}
               estimatedYearEnd={estimatedYearEnd}
-              currentDistance={currentDistance}
               unit={unit}
               sport={sport}
-              isLoading={isLoading}
             />
           </div>
         </div>
