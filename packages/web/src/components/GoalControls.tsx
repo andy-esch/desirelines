@@ -259,7 +259,6 @@ const GoalControls: React.FC<GoalControlsProps> = ({
           Reset
         </button>
       </div>
-
     </div>
   );
 };

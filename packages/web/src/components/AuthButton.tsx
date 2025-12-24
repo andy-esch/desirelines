@@ -71,7 +71,11 @@ export default function AuthButton({
   // Show sign in button for anonymous users
   return (
     <div>
-      <button onClick={handleSignIn} className={`btn btn-sm btn-${signInVariant}`} disabled={actionLoading}>
+      <button
+        onClick={handleSignIn}
+        className={`btn btn-sm btn-${signInVariant}`}
+        disabled={actionLoading}
+      >
         {actionLoading ? "Signing in..." : "Sign In"}
       </button>
       {error && (
