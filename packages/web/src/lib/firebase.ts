@@ -43,7 +43,9 @@ if (config.emulators.enabled) {
   if (firestoreHost && firestorePort) {
     try {
       connectFirestoreEmulator(db, firestoreHost, firestorePort);
-      console.log(`🔥 Firestore emulator connected: ${firestoreHost}:${firestorePort} (database: ${databaseId})`);
+      console.log(
+        `🔥 Firestore emulator connected: ${firestoreHost}:${firestorePort} (database: ${databaseId})`
+      );
     } catch {
       console.warn(`⚠️ Firestore emulator not available at ${firestoreHost}:${firestorePort}`);
     }

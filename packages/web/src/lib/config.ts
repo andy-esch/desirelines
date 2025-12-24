@@ -179,7 +179,9 @@ export function getConfig(): AppConfig {
       console.log(`  Firebase project: ${configInstance.firebase.projectId}`);
       console.log(`  API Gateway: ${configInstance.apiGatewayUrl || "not configured"}`);
       if (configInstance.emulators.enabled) {
-        console.log(`  Emulators: enabled (Firestore: ${configInstance.emulators.firestoreHost}:${configInstance.emulators.firestorePort})`);
+        console.log(
+          `  Emulators: enabled (Firestore: ${configInstance.emulators.firestoreHost}:${configInstance.emulators.firestorePort})`
+        );
       }
       /* eslint-enable no-console */
     }
