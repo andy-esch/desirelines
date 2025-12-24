@@ -138,13 +138,22 @@ services:
 
   # Local PubSub emulator for testing
   pubsub-emulator:
-    profiles: ["backend"] # Backend pipeline only
-    image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+    profiles: ["backend"]
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
     ports:
       - "8085:8085"
     command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+
+  firestore-emulator:
+    profiles: ["frontend"]
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
+    ports:
+      - "8089:8080"
+    command: gcloud emulators firestore start --host-port=127.0.0.1:8080
+    environment:
+      - FIRESTORE_PROJECT_ID=desirelines-local
 
   # PubSub Emulator Web UI for debugging
   pubsub-ui:
