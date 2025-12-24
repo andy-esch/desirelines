@@ -108,10 +108,12 @@ describe("UserConfigService", () => {
     });
 
     it("should handle errors and rethrow", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const error = new Error("Firestore error");
       vi.mocked(firestore.getDoc).mockRejectedValue(error);
 
       await expect(service.getConfig()).rejects.toThrow("Firestore error");
+      consoleErrorSpy.mockRestore();
     });
 
     it("should log error when fetch fails", async () => {
@@ -584,12 +586,14 @@ describe("UserConfigService", () => {
     });
 
     it("should handle errors and rethrow", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const error = new Error("Firestore write error");
       vi.mocked(firestore.getDoc).mockRejectedValue(error);
 
       await expect(
         service.updateConfigSection("goals", { goals: [] }, 2025, "cycling")
       ).rejects.toThrow("Firestore write error");
+      consoleErrorSpy.mockRestore();
     });
 
     it("should log error when update fails", async () => {
@@ -614,10 +618,12 @@ describe("UserConfigService", () => {
     });
 
     it("should handle errors and rethrow", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const error = new Error("Delete error");
       vi.mocked(firestore.deleteDoc).mockRejectedValue(error);
 
       await expect(service.deleteConfig()).rejects.toThrow("Delete error");
+      consoleErrorSpy.mockRestore();
     });
 
     it("should log error when delete fails", async () => {

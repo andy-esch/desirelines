@@ -1,8 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import GoalControls from "../GoalControls";
+import ProgressSummary from "./ProgressSummary";
+import SidebarSection from "./SidebarSection";
+import FilterControls from "./FilterControls";
 import type { Goals } from "../../utils/goalCalculations";
 import type { MetricUnit } from "../../utils/units";
 import { getDemoAvailableSports } from "../../hooks/useDemoData";
+import { useLocalStorage } from "../../hooks/useLocalStorage";
 
 interface DemoSidebarProps {
   currentYear: number;
@@ -16,7 +20,10 @@ interface DemoSidebarProps {
   isLoading?: boolean;
 }
 
-const AVAILABLE_YEARS = [2025, 2024, 2023];
+interface SidebarSections {
+  filters: boolean;
+  goals: boolean;
+}
 
 /**
  * Sidebar for demo mode - uses fixture data, no API calls.
@@ -35,16 +42,26 @@ export default function DemoSidebar({
   const navigate = useNavigate();
   const availableSports = getDemoAvailableSports();
 
+  const [expandedSections, setExpandedSections] = useLocalStorage<SidebarSections>(
+    "sidebar-sections",
+    { filters: true, goals: true }
+  );
+
+  const toggleSection = (section: keyof SidebarSections) => {
+    setExpandedSections({
+      ...expandedSections,
+      [section]: !expandedSections[section],
+    });
+  };
+
   const handleSportChange = (newSport: string) => {
     navigate(`/demo/${newSport}/${currentYear}`);
   };
 
-  const capitalizeFirst = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
-
   return (
     <div className="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary">
       <div
-        className="offcanvas-md offcanvas-end bg-body-tertiary"
+        className="offcanvas-md offcanvas-start bg-body-tertiary"
         data-tabindex="-1"
         id="sidebarMenu"
         aria-labelledby="sidebarMenuLabel"
@@ -61,69 +78,48 @@ export default function DemoSidebar({
             aria-label="Close"
           ></button>
         </div>
-        <div className="offcanvas-body d-md-flex flex-column p-0 pt-lg-3 overflow-y-auto">
-          {/* Filters Section */}
-          <h6 className="sidebar-heading px-3 mt-4 mb-3 text-body-secondary text-uppercase">
-            <span>Filters</span>
-          </h6>
 
-          <div className="px-3 mb-3">
-            {/* Activity Type Selector */}
-            <div className="d-flex align-items-center mb-2">
-              <label
-                className="form-label small text-muted mb-0 text-start"
-                style={{ minWidth: "65px" }}
-              >
-                Sport
-              </label>
-              <select
-                className="form-select form-select-sm flex-grow-1"
-                value={sport}
-                onChange={(e) => handleSportChange(e.target.value)}
-              >
-                {availableSports.map((sportId) => (
-                  <option key={sportId} value={sportId}>
-                    {capitalizeFirst(sportId)}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <div className="offcanvas-body d-flex flex-column p-0 pt-lg-3 overflow-y-auto">
+          <ProgressSummary
+            currentDistance={currentDistance}
+            estimatedYearEnd={estimatedYearEnd}
+            unit={unit}
+            isLoading={isLoading}
+          />
 
-            {/* Year Selector */}
-            <div className="d-flex align-items-center">
-              <label
-                className="form-label small text-muted mb-0 text-start"
-                style={{ minWidth: "65px" }}
-              >
-                Year
-              </label>
-              <select
-                className="form-select form-select-sm flex-grow-1"
-                value={currentYear}
-                onChange={(e) => onYearClick(Number(e.target.value))}
-              >
-                {AVAILABLE_YEARS.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <hr className="my-2" />
 
-          <hr className="my-3" />
+          <SidebarSection
+            title="Filters"
+            id="filters"
+            isExpanded={expandedSections.filters}
+            onToggle={() => toggleSection("filters")}
+          >
+            <FilterControls
+              sport={sport}
+              availableSports={availableSports}
+              onSportChange={handleSportChange}
+              currentYear={currentYear}
+              onYearChange={onYearClick}
+            />
+          </SidebarSection>
 
-          <div className="px-3">
+          <hr className="my-2" />
+
+          <SidebarSection
+            title="Goals"
+            id="goals"
+            isExpanded={expandedSections.goals}
+            onToggle={() => toggleSection("goals")}
+          >
             <GoalControls
               goals={goals}
               onGoalsChange={onGoalsChange}
               estimatedYearEnd={estimatedYearEnd}
-              currentDistance={currentDistance}
               unit={unit}
               sport={sport}
-              isLoading={isLoading}
             />
-          </div>
+          </SidebarSection>
         </div>
       </div>
     </div>

@@ -27,6 +27,19 @@ const FirebaseConfigSchema = z.object({
   messagingSenderId: z.string().optional(),
   appId: z.string().optional(),
   measurementId: z.string().optional(),
+  firestoreDatabase: z.string().optional(),
+});
+
+/**
+ * Emulator configuration schema
+ * Settings for connecting to local Firestore emulator during development.
+ * Note: Auth emulator requires full Firebase Emulator Suite (Java-based).
+ * The gcloud SDK emulators image only supports Firestore, so auth uses cloud.
+ */
+const EmulatorConfigSchema = z.object({
+  enabled: z.boolean(),
+  firestoreHost: z.string().optional(),
+  firestorePort: z.number().optional(),
 });
 
 /**
@@ -43,6 +56,9 @@ const AppConfigSchema = z.object({
 
   // Firebase configuration
   firebase: FirebaseConfigSchema,
+
+  // Emulator configuration (local development only)
+  emulators: EmulatorConfigSchema,
 });
 
 // ============================================================================
@@ -50,6 +66,7 @@ const AppConfigSchema = z.object({
 // ============================================================================
 
 export type FirebaseConfig = z.infer<typeof FirebaseConfigSchema>;
+export type EmulatorConfig = z.infer<typeof EmulatorConfigSchema>;
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 
 // ============================================================================
@@ -63,6 +80,10 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
  * @returns Validated configuration object
  */
 export function loadConfig(): AppConfig {
+  // Parse emulator settings
+  const useEmulators = import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true";
+  const firestorePort = import.meta.env.VITE_FIRESTORE_EMULATOR_PORT;
+
   // Load raw environment variables
   const raw = {
     isDevelopment: import.meta.env.DEV,
@@ -76,6 +97,11 @@ export function loadConfig(): AppConfig {
       messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
       appId: import.meta.env.VITE_FIREBASE_APP_ID,
       measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+    },
+    emulators: {
+      enabled: useEmulators,
+      firestoreHost: import.meta.env.VITE_FIRESTORE_EMULATOR_HOST || "127.0.0.1",
+      firestorePort: firestorePort ? parseInt(firestorePort, 10) : 8089,
     },
   };
 
@@ -152,6 +178,11 @@ export function getConfig(): AppConfig {
       console.log(`  Environment: ${configInstance.isProduction ? "production" : "development"}`);
       console.log(`  Firebase project: ${configInstance.firebase.projectId}`);
       console.log(`  API Gateway: ${configInstance.apiGatewayUrl || "not configured"}`);
+      if (configInstance.emulators.enabled) {
+        console.log(
+          `  Emulators: enabled (Firestore: ${configInstance.emulators.firestoreHost}:${configInstance.emulators.firestorePort})`
+        );
+      }
       /* eslint-enable no-console */
     }
   }

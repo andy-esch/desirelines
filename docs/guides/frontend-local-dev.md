@@ -19,13 +19,16 @@ That's it! The web UI will be available at http://localhost:3000 and will connec
 The frontend development stack consists of:
 
 1. **API Gateway** (port 8084) - Started with `make start-frontend`, serves local fixture data from `data/fixtures/`
-2. **Web UI** (port 3000) - Started with `make site-start`, React development server with hot reload (runs via npm, not Docker)
+2. **PostgreSQL** (port 15430) - Local database for activity data
+3. **Firestore Emulator** (port 8089) - Local emulator for user config (goals, preferences)
+4. **Web UI** (port 3000) - Started with `make site-start`, React development server with hot reload (runs via npm, not Docker)
 
 ## Service URLs
 
 - 🌐 **Web UI**: http://localhost:3000
 - 🔌 **API Gateway**: http://localhost:8084
 - 📊 **Health Check**: http://localhost:8084/health
+- 🔥 **Firestore Emulator**: localhost:8089 (when enabled)
 
 ## Data Source Modes
 
@@ -44,6 +47,61 @@ DATA_SOURCE=cloud-storage make start-frontend
 ```
 
 Requires `gcloud` authentication and access to the configured GCS bucket.
+
+## Firestore Emulator (User Config)
+
+User configuration (goals, preferences) is stored in Firestore. By default, the web app connects to cloud Firestore, but you can use a local emulator for fully offline development.
+
+### Enabling the Emulator
+
+1. **Start the emulator** (included in frontend profile):
+   ```bash
+   make start-frontend  # Starts api-gateway, postgres, AND firestore-emulator
+   ```
+
+2. **Enable in your environment** (add to `.env.development.local`):
+   ```bash
+   VITE_USE_FIREBASE_EMULATORS=true
+   ```
+
+3. **Restart the web dev server** to pick up the change.
+
+You should see in the browser console:
+```
+✓ Configuration loaded successfully
+  Emulators: enabled (Firestore: 127.0.0.1:8089)
+🔥 Firestore emulator connected: 127.0.0.1:8089 (database: (default))
+```
+
+### How It Works
+
+- **Firestore**: Uses local emulator on port 8089 (gcloud SDK emulators image)
+- **Auth**: Still uses cloud Firebase (emulator image doesn't include Auth)
+- **Data**: In-memory only, resets when container stops
+
+This means you can:
+- Save/load goals locally without cloud access
+- Test user config changes without affecting production
+- Still sign in with your real Google account (Auth uses cloud)
+
+### Emulator vs Cloud
+
+| Feature | Emulator | Cloud |
+|---------|----------|-------|
+| Goals persist across restarts | No (in-memory) | Yes |
+| Works offline | Yes | No |
+| Auth flow | Cloud Firebase | Cloud Firebase |
+| Database | `(default)` | `desirelines-user-configs` |
+
+### Disabling the Emulator
+
+To switch back to cloud Firestore:
+```bash
+# In .env.development.local, set:
+VITE_USE_FIREBASE_EMULATORS=false
+```
+
+Or simply remove the line (defaults to cloud).
 
 ## Available API Endpoints
 

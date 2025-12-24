@@ -1,11 +1,21 @@
 import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 
+interface AuthButtonProps {
+  /** Button variant for signed-out state. Default: "primary" */
+  signInVariant?: string;
+  /** Button variant for signed-in state. Default: "outline-light" */
+  signOutVariant?: string;
+}
+
 /**
  * Authentication button component
  * Shows "Sign In" for anonymous users, "Sign Out" for authenticated users
  */
-export default function AuthButton() {
+export default function AuthButton({
+  signInVariant = "primary",
+  signOutVariant = "outline-light",
+}: AuthButtonProps = {}) {
   const { user, loading, error, signIn, signOut } = useAuth();
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -43,7 +53,7 @@ export default function AuthButton() {
       <div>
         <button
           onClick={handleSignOut}
-          className="btn btn-sm btn-outline-light"
+          className={`btn btn-sm btn-${signOutVariant}`}
           title={`Signed in as ${user.email}`}
           disabled={actionLoading}
         >
@@ -61,7 +71,11 @@ export default function AuthButton() {
   // Show sign in button for anonymous users
   return (
     <div>
-      <button onClick={handleSignIn} className="btn btn-sm btn-primary" disabled={actionLoading}>
+      <button
+        onClick={handleSignIn}
+        className={`btn btn-sm btn-${signInVariant}`}
+        disabled={actionLoading}
+      >
         {actionLoading ? "Signing in..." : "Sign In"}
       </button>
       {error && (

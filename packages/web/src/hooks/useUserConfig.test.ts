@@ -80,7 +80,10 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { cycling: mockGoals } } } }),
+            data: () => ({
+              schemaVersion: "2.0",
+              goals: { "2025": { sports: { cycling: mockGoals } } },
+            }),
           });
         }, 0);
         return vi.fn(); // Return unsubscribe function
@@ -122,7 +125,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ annotations: { "2025": mockAnnotations } }),
+            data: () => ({ schemaVersion: "2.0", annotations: { "2025": mockAnnotations } }),
           });
         }, 0);
         return vi.fn();
@@ -153,7 +156,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ preferences: mockPreferences }),
+            data: () => ({ schemaVersion: "2.0", preferences: mockPreferences }),
           });
         }, 0);
         return vi.fn();
@@ -190,7 +193,10 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { cycling: mockGoals } } } }),
+            data: () => ({
+              schemaVersion: "2.0",
+              goals: { "2025": { sports: { cycling: mockGoals } } },
+            }),
           });
         }, 0);
         return vi.fn();
@@ -230,7 +236,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: {} }), // No data for year 2025
+            data: () => ({ schemaVersion: "2.0", goals: {} }), // No data for year 2025
           });
         }, 0);
         return vi.fn();
@@ -251,7 +257,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: {} }), // No data for year 2025
+            data: () => ({ schemaVersion: "2.0", goals: {} }), // No data for year 2025
           });
         }, 0);
         return vi.fn();
@@ -313,7 +319,10 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+            data: () => ({
+              schemaVersion: "2.0",
+              goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+            }),
           });
         }, 0);
         return vi.fn();
@@ -322,7 +331,10 @@ describe("useUserConfig", () => {
       // Mock getDoc for updateConfigSection
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+        data: () => ({
+          schemaVersion: "2.0",
+          goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+        }),
       } as any);
 
       vi.mocked(setDoc).mockResolvedValue(undefined);
@@ -365,7 +377,10 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+            data: () => ({
+              schemaVersion: "2.0",
+              goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+            }),
           });
         }, 0);
         return vi.fn();
@@ -373,7 +388,10 @@ describe("useUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+        data: () => ({
+          schemaVersion: "2.0",
+          goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+        }),
       } as any);
 
       vi.mocked(setDoc).mockResolvedValue(undefined);
@@ -407,7 +425,7 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ preferences: { theme: "light" } }),
+            data: () => ({ schemaVersion: "2.0", preferences: { theme: "light" } }),
           });
         }, 0);
         return vi.fn();
@@ -415,7 +433,7 @@ describe("useUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ preferences: { theme: "light" } }),
+        data: () => ({ schemaVersion: "2.0", preferences: { theme: "light" } }),
       } as any);
 
       vi.mocked(setDoc).mockResolvedValue(undefined);
@@ -448,7 +466,10 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+            data: () => ({
+              schemaVersion: "2.0",
+              goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+            }),
           });
         }, 0);
         return unsubscribeMock;
@@ -479,6 +500,7 @@ describe("useUserConfig", () => {
           callback({
             exists: () => true,
             data: () => ({
+              schemaVersion: "2.0",
               goals: {
                 "2025": { sports: { cycling: { annualGoal: 500 } } },
                 "2024": { sports: { cycling: { annualGoal: 400 } } },
@@ -572,7 +594,10 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+            data: () => ({
+              schemaVersion: "2.0",
+              goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+            }),
           });
         }, 0);
         return vi.fn();
@@ -580,7 +605,10 @@ describe("useUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+        data: () => ({
+          schemaVersion: "2.0",
+          goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+        }),
       } as any);
 
       const updateError = new Error("Failed to update Firestore");
@@ -637,7 +665,10 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+            data: () => ({
+              schemaVersion: "2.0",
+              goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+            }),
           });
         }, 0);
         return vi.fn();
@@ -666,7 +697,10 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+            data: () => ({
+              schemaVersion: "2.0",
+              goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+            }),
           });
         }, 0);
         return vi.fn();
@@ -706,7 +740,10 @@ describe("useUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } } }),
+            data: () => ({
+              schemaVersion: "2.0",
+              goals: { "2025": { sports: { cycling: { annualGoal: 500 } } } },
+            }),
           });
         }, 0);
         return vi.fn();
@@ -908,7 +945,7 @@ describe("useFullUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ annotations: {} }),
+            data: () => ({ schemaVersion: "2.0", annotations: {} }),
           });
         }, 0);
         return vi.fn();
@@ -916,7 +953,7 @@ describe("useFullUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ annotations: {} }),
+        data: () => ({ schemaVersion: "2.0", annotations: {} }),
       } as any);
 
       vi.mocked(setDoc).mockResolvedValue(undefined);
@@ -954,7 +991,7 @@ describe("useFullUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ preferences: { theme: "light" } }),
+            data: () => ({ schemaVersion: "2.0", preferences: { theme: "light" } }),
           });
         }, 0);
         return vi.fn();
@@ -962,7 +999,7 @@ describe("useFullUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ preferences: { theme: "light" } }),
+        data: () => ({ schemaVersion: "2.0", preferences: { theme: "light" } }),
       } as any);
 
       vi.mocked(setDoc).mockResolvedValue(undefined);
@@ -992,7 +1029,7 @@ describe("useFullUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: {} }),
+            data: () => ({ schemaVersion: "2.0", goals: {} }),
           });
         }, 0);
         return vi.fn();
@@ -1000,7 +1037,7 @@ describe("useFullUserConfig", () => {
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
-        data: () => ({ goals: {} }),
+        data: () => ({ schemaVersion: "2.0", goals: {} }),
       } as any);
 
       const updateError = new Error("Update failed");
@@ -1047,7 +1084,7 @@ describe("useFullUserConfig", () => {
         setTimeout(() => {
           callback({
             exists: () => true,
-            data: () => ({ goals: {} }),
+            data: () => ({ schemaVersion: "2.0", goals: {} }),
           });
         }, 0);
         return unsubscribeMock;
