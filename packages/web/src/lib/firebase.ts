@@ -26,7 +26,8 @@ export const auth: Auth = getAuth(app);
 
 // Initialize Firestore using the SAME app instance as Auth
 // This ensures Firestore can access the authentication state
-export const db: Firestore = getFirestore(app);
+const databaseId = config.firebase.firestoreDatabase || "desirelines-user-configs";
+export const db: Firestore = getFirestore(app, databaseId);
 
 // Promise that resolves when initial auth state is determined
 // CRITICAL: Firestore subscriptions MUST wait for this to avoid permission errors

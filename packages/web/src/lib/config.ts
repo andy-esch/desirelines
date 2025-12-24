@@ -27,6 +27,7 @@ const FirebaseConfigSchema = z.object({
   messagingSenderId: z.string().optional(),
   appId: z.string().optional(),
   measurementId: z.string().optional(),
+  firestoreDatabase: z.string().optional(),
 });
 
 /**
