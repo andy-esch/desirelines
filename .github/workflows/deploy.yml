@@ -129,10 +129,37 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Validate Docker images exist
+        run: |
+          VERSION="${{ needs.build-images.outputs.git_sha }}"
+          REGISTRY="us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services"
+          IMAGES="dispatcher apigateway bq-inserter postgres-writer"
+
+          echo "Validating images for version: $VERSION"
+          MISSING=""
+
+          for IMAGE in $IMAGES; do
+            if ! gcloud artifacts docker images describe "$REGISTRY/$IMAGE:$VERSION" > /dev/null 2>&1; then
+              MISSING="$MISSING $IMAGE:$VERSION"
+            else
+              echo "✓ $IMAGE:$VERSION exists"
+            fi
+          done
+
+          if [ -n "$MISSING" ]; then
+            echo ""
+            echo "❌ Missing images:$MISSING"
+            echo ""
+            echo "Run 'make build-publish' to build and push images first."
+            exit 1
+          fi
+
+          echo "✅ All images exist for version $VERSION"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.12"
+          terraform_version: "1.14.3"
 
       - name: Terraform Init
         run: |

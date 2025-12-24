@@ -4,52 +4,70 @@ Quick reference for deploying Desirelines services.
 
 ## Contents
 
-- [Backend Services](#backend-services) - Cloud Run (dispatcher, apigateway, bq-inserter, postgres-writer)
+- [CI/CD (Preferred)](#cicd-preferred)
+- [Backend Services](#backend-services) - Cloud Run
 - [Web Frontend](#web-frontend) - Firebase Hosting
-- [Database Migrations](#database-migrations) - Flyway/PostgreSQL
-- [Strava Webhook](#strava-webhook) - Webhook subscription
-- [Rollback](#rollback) - Reverting deployments
+- [Database Migrations](#database-migrations) - Flyway
+- [Strava Webhook](#strava-webhook)
+- [Rollback](#rollback)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## CI/CD (Preferred)
+
+Deployments should go through CI/CD when possible.
+
+| Action | Trigger |
+|--------|---------|
+| Deploy to dev | Merge PR to main (automatic) |
+| Deploy to prod | Manual workflow dispatch in GitHub Actions |
+
+See [ci.md](./ci.md) for workflow details.
 
 ---
 
 ## Backend Services
 
-### Quick Deploy (Dev)
+### Dev Deploy (Manual)
 
 ```bash
-# 1. Build and push Docker images
+# Build and push images
 make build-publish
 
-# 2. Deploy with Terraform
-cd terraform/environments/dev
-terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
+# Plan and apply
+make tf-dev-plan
+make tf-dev-apply  # requires typing "dev"
 ```
 
-### Production Deploy
+### Prod Deploy (Manual)
 
 ```bash
-# 1. Ensure tests pass
+# Ensure tests pass
 make test
 
-# 2. Build with version tag
-make build-publish-tag TAG=v1.2.0
+# Build with version
+make build-publish
 
-# 3. Deploy
-cd terraform/environments/prod
-terraform apply -var="deployment_version=v1.2.0"
+# Plan and apply
+make tf-prod-plan
+make tf-prod-apply  # requires typing "production"
 
-# 4. Update webhook if dispatcher URL changed
+# Update webhook if dispatcher URL changed
 make delete-webhook prod && make create-webhook prod
+```
+
+### Check for Drift
+
+```bash
+make tf-dev-drift   # Quick drift check
+make tf-prod-drift
 ```
 
 ### Verify Deployment
 
 ```bash
-# List services
 gcloud run services list --region=us-central1
-
-# Check logs
 gcloud run services logs read desirelines-dispatcher --region=us-central1 --limit=20
 ```
 
@@ -73,14 +91,6 @@ Create `.env.staging.local` or `.env.production.local` (see `packages/web/README
 ./scripts/infrastructure/deploy-web.sh prod
 ```
 
-### Manual Deploy
-
-```bash
-cd packages/web
-npm run build -- --mode production
-firebase deploy --only hosting --project your-prod-project
-```
-
 ---
 
 ## Database Migrations
@@ -88,11 +98,8 @@ firebase deploy --only hosting --project your-prod-project
 PostgreSQL migrations managed by Flyway.
 
 ```bash
-# Check status
-make db-migrate-dev-info
-
-# Run migrations
-make db-migrate-dev
+make db-migrate-dev-info  # Check status
+make db-migrate-dev       # Run migrations
 ```
 
 See `schemas/database/README.md` for details.
@@ -102,11 +109,8 @@ See `schemas/database/README.md` for details.
 ## Strava Webhook
 
 ```bash
-# View current subscription
-make view-webhook dev
-
-# Create subscription (after dispatcher deploy)
-make create-webhook dev
+make view-webhook dev      # View current subscription
+make create-webhook dev    # Create subscription
 ```
 
 See [strava-webhook.md](./strava-webhook.md) for OAuth2 setup.
@@ -118,10 +122,10 @@ See [strava-webhook.md](./strava-webhook.md) for OAuth2 setup.
 ```bash
 # Find previous version
 gcloud artifacts docker images list \
-  us-central1-docker.pkg.dev/PROJECT/desirelines-functions/dispatcher \
+  us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/dispatcher \
   --sort-by=~CREATE_TIME --limit=5
 
-# Deploy previous version
+# Deploy previous version via CI/CD or:
 cd terraform/environments/prod
 terraform apply -var="deployment_version=PREVIOUS_SHA"
 ```
@@ -134,8 +138,8 @@ terraform apply -var="deployment_version=PREVIOUS_SHA"
 |-------|-----|
 | `denied: Permission denied` | `gcloud auth configure-docker us-central1-docker.pkg.dev` |
 | `.env.*.local not found` | Create env file per `packages/web/README.md` |
-| Webhook not receiving events | Check OAuth2 auth - see [strava-webhook.md](./strava-webhook.md) |
-| `ModuleNotFoundError` | Rebuild images: `make build-publish` then re-apply Terraform |
+| Webhook not receiving events | Check OAuth2 - see [strava-webhook.md](./strava-webhook.md) |
+| `ModuleNotFoundError` | Rebuild: `make build-publish` then `make tf-dev-apply` |
 
 ### Check Service Health
 
@@ -154,3 +158,4 @@ gcloud run services logs read desirelines-dispatcher \
 - [bootstrap.md](./bootstrap.md) - Initial environment setup
 - [strava-webhook.md](./strava-webhook.md) - Webhook configuration
 - [ci.md](./ci.md) - CI/CD pipeline
+- [terraform/README.md](../../terraform/README.md) - Terraform operations

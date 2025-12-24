@@ -1,86 +1,113 @@
-# Terraform Infrastructure Setup
+# Terraform Infrastructure
 
-This directory contains Terraform configurations for deploying the Desirelines infrastructure across different environments.
+Terraform configurations for Desirelines infrastructure.
 
 ## Prerequisites
 
-1. **Google Cloud SDK** installed and authenticated
-2. **Terraform** >= 1.0 installed
-3. **Google Cloud Project** with billing enabled
-4. **Required GCP APIs** will be enabled automatically by Terraform
+- **Terraform** 1.14.3 (pinned in `.terraform-version`)
+- **Google Cloud SDK** authenticated
+- **GCP Project** with billing enabled
+- **pre-commit** installed (for validation hooks)
 
-## Initial Setup
-
-### 1. Configure Your Project
-
-Copy the example configuration files and customize for your GCP project:
+## Quick Start
 
 ```bash
-# Copy example files
-cp terraform.tfvars.example terraform.tfvars
+# Dev environment
+make tf-dev-init
+make tf-dev-plan
+make tf-dev-apply   # requires confirmation
+
+# Prod environment
+make tf-prod-init
+make tf-prod-plan
+make tf-prod-apply  # requires typing "production"
+```
+
+## Makefile Targets
+
+| Target | Description |
+|--------|-------------|
+| `tf-dev-init` | Initialize dev backend |
+| `tf-dev-plan` | Plan dev changes |
+| `tf-dev-apply` | Apply to dev (confirmation required) |
+| `tf-dev-drift` | Check for drift in dev |
+| `tf-prod-init` | Initialize prod backend |
+| `tf-prod-plan` | Plan prod changes |
+| `tf-prod-apply` | Apply to prod (confirmation required) |
+| `tf-prod-drift` | Check for drift in prod |
+| `tf-fmt` | Format all .tf files |
+| `tf-validate-all` | Validate all environments |
+
+## Directory Structure
+
+```
+terraform/
+├── .terraform-version     # Pinned version (1.14.3)
+├── environments/
+│   ├── artifacts/         # Shared artifact registry
+│   ├── dev/               # Development environment
+│   └── prod/              # Production environment
+└── modules/
+    ├── desirelines/       # Main infrastructure module
+    └── github-actions-wif/ # Workload Identity Federation
+```
+
+## CI/CD
+
+- **CI validation**: `terraform fmt -check` and `terraform validate` on PRs
+- **Deployment**: Merge to main auto-deploys to dev; prod requires manual trigger
+- **Drift detection**: Runs daily, creates GitHub issue if drift found
+
+See [docs/guides/ci.md](../docs/guides/ci.md) for details.
+
+## Pre-commit Hooks
+
+Terraform validation runs automatically on commit when `.tf` files are staged:
+
+```yaml
+# .pre-commit-config.yaml
+- repo: https://github.com/antonbabenko/pre-commit-terraform
+  hooks:
+  - id: terraform_fmt
+  - id: terraform_validate
+```
+
+Install: `pre-commit install`
+
+## Configuration
+
+Copy example files and customize:
+
+```bash
 cp environments/dev/terraform.tfvars.example environments/dev/terraform.tfvars
-cp environments/local/terraform.tfvars.example environments/local/terraform.tfvars
-
-# Edit each file with your project details
 ```
 
-### 2. Create Terraform State Bucket (for dev/prod environments)
+| Variable | Description |
+|----------|-------------|
+| `gcp_project_id` | GCP Project ID |
+| `gcp_project_number` | GCP Project Number |
+| `deployment_version` | Container image tag (git SHA) |
 
-```bash
-# Create a globally unique bucket for Terraform state
-gsutil mb gs://your-project-terraform-state
+## Image Validation
 
-# Enable versioning for safety
-gsutil versioning set on gs://your-project-terraform-state
+Terraform validates that all Docker images exist in Artifact Registry before deployment.
+If images are missing, `terraform plan` fails with a clear error:
+
+```
+Error: Image not found: .../dispatcher:abc1234
+Run 'make build-publish' first.
 ```
 
-## Environment Configurations
+This prevents partial deployments when images haven't been built.
 
-### Local Development (`environments/local/`)
-- Uses local state storage
-- For testing Terraform configurations
-- Creates resources with `local` environment prefix
+## Security
 
-### Development (`environments/dev/`)
-- Uses remote state storage in GCS
-- Shared development environment
-- Creates resources with `dev` environment prefix
+- Never commit `*.tfvars` files (contain project config)
+- State files stored in GCS with versioning
+- Sensitive outputs marked with `sensitive = true`
 
-## Usage
+## Related
 
-### Deploy Local Environment
-```bash
-cd environments/local
-terraform init
-terraform plan
-terraform apply
-```
-
-### Deploy Development Environment
-```bash
-cd environments/dev
-
-# Initialize with your state bucket
-terraform init -backend-config="bucket=your-project-terraform-state"
-
-# Deploy with specific image tag (git SHA)
-SHA=$(git rev-parse --short HEAD)
-terraform apply -var="function_image_tag=$SHA"
-```
-
-## Configuration Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `gcp_project_id` | Your GCP Project ID | `"my-project-123"` |
-| `gcp_project_number` | Your GCP Project Number | `"123456789012"` |
-| `gcp_region` | Primary GCP region | `"us-central1"` |
-| `function_image_tag` | Container image tag | `"abc1234"` (git SHA) |
-
-## Security Notes
-
-- **Never commit `*.tfvars` files** - they contain project-specific configuration
-- **Use service account impersonation** - no need to manage key files locally
-- **State files contain sensitive data** - ensure proper GCS bucket permissions
-
-For detailed setup instructions, see [docs/guides/bootstrap.md](../docs/guides/bootstrap.md).
+- [Bootstrap Guide](../docs/guides/bootstrap.md) - Initial environment setup
+- [Deployment Guide](../docs/guides/deployment.md) - Deployment procedures
+- [CI Guide](../docs/guides/ci.md) - CI/CD pipeline
