@@ -119,7 +119,7 @@ export default function Sidebar({
   return (
     <div className="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary">
       <div
-        className="offcanvas-md offcanvas-end bg-body-tertiary"
+        className="offcanvas-md offcanvas-start bg-body-tertiary"
         data-tabindex="-1"
         id="sidebarMenu"
         aria-labelledby="sidebarMenuLabel"
