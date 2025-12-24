@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { useSportData } from "./useSportData";
 import * as useAuthModule from "./useAuth";
 import * as useAuthTokenModule from "./useAuthToken";
@@ -200,8 +200,10 @@ describe("useSportData", () => {
       expect(result.current.error).toEqual(error);
     });
 
-    // Retry
-    result.current.retry();
+    // Retry - wrap in act to handle state updates
+    await act(async () => {
+      result.current.retry();
+    });
 
     // Wait for successful retry
     await waitFor(() => {

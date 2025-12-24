@@ -263,6 +263,7 @@ describe("fetchDistanceData", () => {
     });
 
     it("should throw error for 403 Forbidden", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const error = Object.assign(new Error("Request failed with status code 403"), {
         isAxiosError: true,
         response: {
@@ -280,6 +281,7 @@ describe("fetchDistanceData", () => {
       vi.mocked(axios.get).mockRejectedValue(error);
 
       await expect(fetchDistanceData(2025)).rejects.toThrow();
+      consoleErrorSpy.mockRestore();
     });
 
     it("should handle non-Error objects and convert to Error", async () => {
