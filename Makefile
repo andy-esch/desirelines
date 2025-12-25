@@ -291,6 +291,62 @@ tf-validate-all:
 	@cd terraform/modules/github-actions-wif && terraform init -backend=false && terraform validate
 	@echo "✅ All Terraform configurations are valid!"
 
+# Dev environment operations
+.PHONY: tf-dev-init
+tf-dev-init:
+	@echo "🏗️ Initializing dev Terraform environment..."
+	@cd terraform/environments/dev && terraform init
+
+.PHONY: tf-dev-plan
+tf-dev-plan:
+	@echo "📋 Planning dev Terraform deployment..."
+	@cd terraform/environments/dev && terraform plan -var="deployment_version=$$(git rev-parse --short HEAD)"
+
+.PHONY: tf-dev-apply
+tf-dev-apply:
+	@echo "⚠️  This will apply changes to DEV environment."
+	@echo "    Consider using CI/CD for deployments instead."
+	@read -p "Type 'dev' to continue: " confirm && [ "$$confirm" = "dev" ] || (echo "Aborted." && exit 1)
+	@cd terraform/environments/dev && terraform apply -var="deployment_version=$$(git rev-parse --short HEAD)"
+
+.PHONY: tf-dev-drift
+tf-dev-drift:
+	@echo "🔍 Checking for drift in dev environment..."
+	@cd terraform/environments/dev && \
+	terraform plan -detailed-exitcode -var="deployment_version=$$(git rev-parse --short HEAD)" > /dev/null 2>&1; \
+	EXIT_CODE=$$?; \
+	if [ $$EXIT_CODE -eq 0 ]; then echo "✅ No drift detected"; \
+	elif [ $$EXIT_CODE -eq 2 ]; then echo "⚠️  Drift detected! Run 'make tf-dev-plan' to see details."; \
+	else echo "❌ Error running plan"; fi
+
+# Prod environment operations
+.PHONY: tf-prod-init
+tf-prod-init:
+	@echo "🏗️ Initializing prod Terraform environment..."
+	@cd terraform/environments/prod && terraform init
+
+.PHONY: tf-prod-plan
+tf-prod-plan:
+	@echo "📋 Planning prod Terraform deployment..."
+	@cd terraform/environments/prod && terraform plan -var="deployment_version=$$(git rev-parse --short HEAD)"
+
+.PHONY: tf-prod-apply
+tf-prod-apply:
+	@echo "🚨 WARNING: This will apply changes to PRODUCTION environment!"
+	@echo "    Deployments should go through CI/CD with proper review."
+	@read -p "Type 'production' to continue: " confirm && [ "$$confirm" = "production" ] || (echo "Aborted." && exit 1)
+	@cd terraform/environments/prod && terraform apply -var="deployment_version=$$(git rev-parse --short HEAD)"
+
+.PHONY: tf-prod-drift
+tf-prod-drift:
+	@echo "🔍 Checking for drift in prod environment..."
+	@cd terraform/environments/prod && \
+	terraform plan -detailed-exitcode -var="deployment_version=$$(git rev-parse --short HEAD)" > /dev/null 2>&1; \
+	EXIT_CODE=$$?; \
+	if [ $$EXIT_CODE -eq 0 ]; then echo "✅ No drift detected"; \
+	elif [ $$EXIT_CODE -eq 2 ]; then echo "⚠️  Drift detected! Run 'make tf-prod-plan' to see details."; \
+	else echo "❌ Error running plan"; fi
+
 # Combined workflows
 .PHONY: setup-local
 setup-local: impersonate-terraform tf-local-init tf-local-plan

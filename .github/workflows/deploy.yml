@@ -20,6 +20,11 @@ on:
           - dev
           - prod
 
+# Prevent concurrent deployments to the same environment
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
 jobs:
   # ===========================================================================
   # Job 1: Build and Publish Docker Images (Go + Python)
@@ -124,10 +129,37 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Validate Docker images exist
+        run: |
+          VERSION="${{ needs.build-images.outputs.git_sha }}"
+          REGISTRY="us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services"
+          IMAGES="dispatcher apigateway bq-inserter postgres-writer"
+
+          echo "Validating images for version: $VERSION"
+          MISSING=""
+
+          for IMAGE in $IMAGES; do
+            if ! gcloud artifacts docker images describe "$REGISTRY/$IMAGE:$VERSION" > /dev/null 2>&1; then
+              MISSING="$MISSING $IMAGE:$VERSION"
+            else
+              echo "✓ $IMAGE:$VERSION exists"
+            fi
+          done
+
+          if [ -n "$MISSING" ]; then
+            echo ""
+            echo "❌ Missing images:$MISSING"
+            echo ""
+            echo "Run 'make build-publish' to build and push images first."
+            exit 1
+          fi
+
+          echo "✅ All images exist for version $VERSION"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.12"
+          terraform_version: "1.14.3"
 
       - name: Terraform Init
         run: |
@@ -140,38 +172,23 @@ jobs:
             -backend-config="bucket=${BACKEND_BUCKET}" \
             -input=false
 
-      - name: Terraform Plan (Deployment Resources Only)
+      - name: Terraform Plan
         id: plan
         run: |
           cd terraform/environments/${{ needs.build-images.outputs.environment }}
 
-          # Set environment-specific variables
           ENV="${{ needs.build-images.outputs.environment }}"
 
-          # Only plan changes to deployment resources (Cloud Run)
-          # Excludes infrastructure: BigQuery IAM, monitoring dashboards, etc.
-          #
-          # Cloud Run services (all others):
-          # - dispatcher (Go) - webhook receiver
-          # - api_gateway (Go) - API for web frontend
-          # - bq_inserter (Python/FastAPI) - BigQuery sync
-          # - postgres_writer (Python/FastAPI) - PostgreSQL sync
           terraform plan \
             -var="deployment_version=${{ needs.build-images.outputs.git_sha }}" \
             -var="gcp_project_id=desirelines-${ENV}" \
             -var="gcp_project_number=${{ secrets.GCP_PROJECT_NUMBER }}" \
             -var="developer_email=${{ secrets.DEVELOPER_EMAIL }}" \
             -var="gcp_region=us-central1" \
-            -target="module.desirelines.google_cloud_run_v2_service.dispatcher" \
-            -target="module.desirelines.google_cloud_run_v2_service.api_gateway" \
-            -target="module.desirelines.google_cloud_run_v2_service.bq_inserter" \
-            -target="module.desirelines.google_cloud_run_v2_service.postgres_writer" \
-            -target="module.desirelines.google_eventarc_trigger.bq_inserter_pubsub" \
-            -target="module.desirelines.google_eventarc_trigger.postgres_writer_pubsub" \
             -input=false \
             -out=tfplan
 
-      - name: Terraform Apply (Deployment Resources Only)
+      - name: Terraform Apply
         run: |
           cd terraform/environments/${{ needs.build-images.outputs.environment }}
           terraform apply -auto-approve tfplan

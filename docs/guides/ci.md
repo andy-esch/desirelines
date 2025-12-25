@@ -1,10 +1,25 @@
-# Continuous Integration (CI) Guide
+# CI/CD Guide
 
-This guide covers the CI workflow for Desirelines, which uses a hybrid approach combining Pants build system with native tooling.
+CI/CD workflows for Desirelines using GitHub Actions.
+
+## Workflows
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ci.yml` | PR, push to main | Tests, lint, validate |
+| `deploy.yml` | Push to main, manual | Build images, deploy |
+| `drift-detection.yml` | Daily 8am UTC, manual | Detect terraform drift |
+
+## Concurrency
+
+Workflows use concurrency groups to prevent conflicts:
+- **CI**: Cancels in-progress runs on same branch (fast feedback)
+- **Deploy**: Queues deployments to same environment (no cancel)
+- **Drift**: Single run at a time
 
 ## Overview
 
-CI runs on every pull request and push to main via GitHub Actions (`.github/workflows/ci-pants.yml`). The workflow uses:
+CI runs on every pull request and push to main via GitHub Actions (`.github/workflows/ci.yml`). The workflow uses:
 - **Pants** for Python (unified configuration, prevents config drift)
 - **Native Go tooling** for Go (6x faster, better multi-module support)
 - **Standard npm** for React/Web (mature tooling)
@@ -264,17 +279,25 @@ run: pants test ::    # Fails - YAML interprets :: as syntax
 7. **CI runs** - GitHub Actions runs all checks
 8. **Merge** - Once CI passes and approved, merge PR
 
-### Pre-Commit Checks
-Consider running before committing:
-```bash
-# Quick checks
-make lint
-make py-typecheck
+### Pre-Commit Hooks
 
-# Full validation
-make test
-pants tailor --check ::
+Pre-commit hooks run automatically on staged files:
+
+```bash
+# Install hooks (one-time)
+pre-commit install
+
+# Hooks run automatically on commit, or manually:
+pre-commit run --all-files
 ```
+
+**Configured hooks:**
+- Python: `ruff` (lint + format)
+- JavaScript: `prettier`, `eslint`
+- Terraform: `terraform_fmt`, `terraform_validate`
+- General: trailing whitespace, YAML/JSON validation
+
+See `.pre-commit-config.yaml` for full configuration.
 
 ### Fast Feedback Loop
 For rapid iteration:
@@ -295,9 +318,38 @@ The `main` branch requires:
 
 **Philosophy:** Tests enforce quality before merge. Deployment workflow focuses only on deployment.
 
+## Deployment Workflow
+
+The `deploy.yml` workflow handles deployments:
+
+| Trigger | Environment | Behavior |
+|---------|-------------|----------|
+| Push to main | dev | Automatic |
+| Manual dispatch | dev or prod | Choose environment |
+
+**Steps:**
+1. Build Docker images with Pants
+2. Push to Artifact Registry
+3. Run `terraform apply` with git SHA as version
+4. Verify Cloud Run services are healthy
+
+## Drift Detection
+
+The `drift-detection.yml` workflow runs daily to detect infrastructure drift:
+
+- Runs `terraform plan` for dev and prod
+- Creates GitHub issue if changes detected
+- Can be triggered manually via workflow dispatch
+
+Check drift locally:
+```bash
+make tf-dev-drift
+make tf-prod-drift
+```
+
 ## Related Documentation
 
-- [Deployment Guide](./deployment.md) - How code gets deployed after CI passes
+- [Deployment Guide](./deployment.md) - Manual deployment procedures
 - [Testing Guide](../testing-guide.md) - Detailed testing documentation
-- [Docker Guide](../DOCKER.md) - Docker build details
+- [Terraform README](../../terraform/README.md) - Terraform operations
 - [Pants Documentation](https://www.pantsbuild.org/docs) - Official Pants docs

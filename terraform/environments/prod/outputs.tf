@@ -27,6 +27,7 @@ output "pubsub_topic_name" {
 
 output "firebase_web_app_config" {
   description = "Firebase Web App configuration for frontend .env files"
+  sensitive   = true
   value       = module.desirelines.firebase_web_app_config
 }
 

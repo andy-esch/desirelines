@@ -130,8 +130,12 @@ output "firebase_custom_domain" {
 }
 
 # Firebase Web App outputs (for .env configuration)
+# Marked sensitive to prevent API key from appearing in CI/CD logs
+# Note: Firebase API keys are designed to be public (they're in client JS),
+# but we hide them from logs as a defense-in-depth measure
 output "firebase_web_app_config" {
   description = "Firebase Web App configuration for frontend .env files"
+  sensitive   = true
   value = {
     api_key             = data.google_firebase_web_app_config.web_app.api_key
     auth_domain         = "${var.gcp_project_id}.firebaseapp.com"
