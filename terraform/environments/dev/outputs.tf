@@ -39,3 +39,12 @@ output "cloudrun_deployment_urls_details" {
   description = "Cloud Run service URLs and deployment info"
   value       = module.desirelines.cloud_run_urls
 }
+
+# ==============================================================================
+# GitHub Actions CI/CD
+# ==============================================================================
+
+output "github_actions_service_account_email" {
+  description = "GitHub Actions service account email (needed for artifacts project IAM)"
+  value       = module.github_actions.wif_service_account
+}
