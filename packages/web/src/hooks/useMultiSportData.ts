@@ -4,7 +4,7 @@ import { useAuthToken } from "./useAuthToken";
 import { fetchSportMetrics, type SportMetrics, type MetricsEntry } from "../api/activities";
 import { FIXTURE_SPORT_METRICS } from "../data/fixtures";
 
-const SPORTS = ["cycling", "running", "yoga"] as const;
+export type Sport = "cycling" | "running" | "yoga";
 
 /**
  * Filter fixture data to only include entries up to today's date.
@@ -14,8 +14,6 @@ function filterToCurrentDate(data: MetricsEntry[]): MetricsEntry[] {
   const today = new Date().toISOString().split("T")[0];
   return data.filter((entry) => entry.date <= today);
 }
-
-export type Sport = (typeof SPORTS)[number];
 
 export interface MultiSportData {
   cycling: SportMetrics | null;
