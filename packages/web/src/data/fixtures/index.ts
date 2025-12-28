@@ -1,34 +1,105 @@
-import cycling2023 from "./activities/2023/metrics/cycling.json";
-import cycling2024 from "./activities/2024/metrics/cycling.json";
-import cycling2025 from "./activities/2025/metrics/cycling.json";
-import running2023 from "./activities/2023/metrics/running.json";
-import running2024 from "./activities/2024/metrics/running.json";
-import running2025 from "./activities/2025/metrics/running.json";
-import yoga2024 from "./activities/2024/metrics/yoga.json";
-import yoga2025 from "./activities/2025/metrics/yoga.json";
-import metadata2024 from "./activities/2024/metadata.json";
-import metadata2025 from "./activities/2025/metadata.json";
 import type { SportMetrics, SportConfig, YearMetadata } from "../../api/activities";
 import type { GoalsForYear } from "../../types/generated/user_config";
 
-// Multi-sport fixture data matching API format: SportMetrics
-export const FIXTURE_SPORT_METRICS: Record<string, Record<number, SportMetrics>> = {
-  cycling: {
-    2023: cycling2023 as SportMetrics,
-    2024: cycling2024 as SportMetrics,
-    2025: cycling2025 as SportMetrics,
-  },
-  running: {
-    2023: running2023 as SportMetrics,
-    2024: running2024 as SportMetrics,
-    2025: running2025 as SportMetrics,
-  },
-  yoga: {
-    2023: [], // No yoga in 2023
-    2024: yoga2024 as SportMetrics,
-    2025: yoga2025 as SportMetrics,
-  },
-};
+// Lazy-loaded fixture data cache
+let _fixtureCache: Record<string, Record<number, SportMetrics>> | null = null;
+let _metadataCache: Record<number, YearMetadata> | null = null;
+
+/**
+ * Lazily load fixture data to avoid OOM in tests.
+ * Only loads JSON files when actually accessed.
+ */
+async function loadFixtures(): Promise<Record<string, Record<number, SportMetrics>>> {
+  if (_fixtureCache) return _fixtureCache;
+
+  const [
+    cycling2023,
+    cycling2024,
+    cycling2025,
+    running2023,
+    running2024,
+    running2025,
+    yoga2024,
+    yoga2025,
+  ] = await Promise.all([
+    import("./activities/2023/metrics/cycling.json").then((m) => m.default),
+    import("./activities/2024/metrics/cycling.json").then((m) => m.default),
+    import("./activities/2025/metrics/cycling.json").then((m) => m.default),
+    import("./activities/2023/metrics/running.json").then((m) => m.default),
+    import("./activities/2024/metrics/running.json").then((m) => m.default),
+    import("./activities/2025/metrics/running.json").then((m) => m.default),
+    import("./activities/2024/metrics/yoga.json").then((m) => m.default),
+    import("./activities/2025/metrics/yoga.json").then((m) => m.default),
+  ]);
+
+  _fixtureCache = {
+    cycling: {
+      2023: cycling2023 as SportMetrics,
+      2024: cycling2024 as SportMetrics,
+      2025: cycling2025 as SportMetrics,
+    },
+    running: {
+      2023: running2023 as SportMetrics,
+      2024: running2024 as SportMetrics,
+      2025: running2025 as SportMetrics,
+    },
+    yoga: {
+      2023: [],
+      2024: yoga2024 as SportMetrics,
+      2025: yoga2025 as SportMetrics,
+    },
+  };
+
+  return _fixtureCache;
+}
+
+/**
+ * Get fixture metrics for a sport and year.
+ * Returns empty array if not found.
+ */
+export async function getFixtureMetrics(sport: string, year: number): Promise<SportMetrics> {
+  const fixtures = await loadFixtures();
+  return fixtures[sport]?.[year] ?? [];
+}
+
+/**
+ * Synchronous access to fixtures - returns null if not yet loaded.
+ * Use getFixtureMetrics for guaranteed data.
+ */
+export function getFixtureMetricsSync(sport: string, year: number): SportMetrics | null {
+  if (!_fixtureCache) return null;
+  return _fixtureCache[sport]?.[year] ?? [];
+}
+
+/**
+ * Preload all fixtures into cache.
+ * Call this at app startup for synchronous access later.
+ */
+export async function preloadFixtures(): Promise<void> {
+  await loadFixtures();
+}
+
+// For backwards compatibility - will be deprecated
+// These are now getters that throw if accessed before preload
+export const FIXTURE_SPORT_METRICS: Record<string, Record<number, SportMetrics>> = new Proxy(
+  {} as Record<string, Record<number, SportMetrics>>,
+  {
+    get(_, sport: string) {
+      if (!_fixtureCache) {
+        // Return empty object that returns empty arrays for any year
+        return new Proxy(
+          {},
+          {
+            get() {
+              return [];
+            },
+          }
+        );
+      }
+      return _fixtureCache[sport] ?? {};
+    },
+  }
+);
 
 // Sport configuration fixture matching API format: SportConfig
 export const FIXTURE_SPORT_CONFIG: SportConfig = {
@@ -103,8 +174,35 @@ export const FIXTURE_GOALS: GoalsForYear = {
   ],
 };
 
-// Year metadata fixture matching API format: YearMetadata
-export const FIXTURE_METADATA: Record<number, YearMetadata> = {
-  2024: metadata2024 as YearMetadata,
-  2025: metadata2025 as YearMetadata,
-};
+// Lazy load metadata
+async function loadMetadata(): Promise<Record<number, YearMetadata>> {
+  if (_metadataCache) return _metadataCache;
+
+  const [metadata2024, metadata2025] = await Promise.all([
+    import("./activities/2024/metadata.json").then((m) => m.default),
+    import("./activities/2025/metadata.json").then((m) => m.default),
+  ]);
+
+  _metadataCache = {
+    2024: metadata2024 as YearMetadata,
+    2025: metadata2025 as YearMetadata,
+  };
+
+  return _metadataCache;
+}
+
+export async function getFixtureMetadata(year: number): Promise<YearMetadata | null> {
+  const metadata = await loadMetadata();
+  return metadata[year] ?? null;
+}
+
+// For backwards compatibility
+export const FIXTURE_METADATA: Record<number, YearMetadata> = new Proxy(
+  {} as Record<number, YearMetadata>,
+  {
+    get(_, year: string) {
+      if (!_metadataCache) return null;
+      return _metadataCache[Number(year)] ?? null;
+    },
+  }
+);

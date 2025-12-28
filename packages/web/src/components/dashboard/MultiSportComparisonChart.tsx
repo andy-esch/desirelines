@@ -1,0 +1,371 @@
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { useMultiSportData, type Sport } from "../../hooks/useMultiSportData";
+import type { TimeRange } from "../../utils/dataNormalization";
+import TimeRangeSelector from "./TimeRangeSelector";
+import type { MetricsEntry } from "../../api/activities";
+
+// Sport colors - NEON theme (CMY)
+const SPORT_COLORS: Record<Sport, string> = {
+  cycling: "rgb(0, 255, 255)", // Cyan
+  running: "rgb(255, 0, 255)", // Magenta
+  yoga: "rgb(0, 255, 128)", // Green-Cyan
+};
+
+const SPORT_LABELS: Record<Sport, string> = {
+  cycling: "Cycling",
+  running: "Running",
+  yoga: "Yoga",
+};
+
+interface MultiSportComparisonChartProps {
+  className?: string;
+}
+
+/**
+ * Get the primary metric value for a sport.
+ */
+function getMetricValue(entry: MetricsEntry, sport: Sport): number {
+  if (sport === "yoga") {
+    return entry.time ?? 0;
+  }
+  return entry.distance ?? 0;
+}
+
+/**
+ * Convert cumulative data to daily values (deltas).
+ */
+function toDailyValues(data: MetricsEntry[], sport: Sport): { date: string; value: number }[] {
+  if (data.length === 0) return [];
+
+  const result: { date: string; value: number }[] = [];
+  let prevValue = 0;
+
+  for (const entry of data) {
+    const currentValue = getMetricValue(entry, sport);
+    const dailyValue = Math.max(0, currentValue - prevValue);
+    result.push({ date: entry.date, value: dailyValue });
+    prevValue = currentValue;
+  }
+
+  return result;
+}
+
+/**
+ * Filter daily values by time range.
+ */
+function filterDailyByTimeRange(
+  data: { date: string; value: number }[],
+  timeRange: TimeRange
+): { date: string; value: number }[] {
+  if (data.length === 0) return [];
+
+  const now = new Date();
+  const cutoff = getTimeRangeCutoff(now, timeRange);
+
+  return data.filter((entry) => {
+    const entryDate = new Date(entry.date);
+    return entryDate >= cutoff && entryDate <= now;
+  });
+}
+
+/**
+ * Get the cutoff date for a time range.
+ */
+function getTimeRangeCutoff(now: Date, timeRange: TimeRange): Date {
+  const cutoff = new Date(now);
+
+  switch (timeRange) {
+    case "2weeks":
+      cutoff.setDate(now.getDate() - 14);
+      break;
+    case "4weeks":
+      cutoff.setDate(now.getDate() - 28);
+      break;
+    case "2months":
+      cutoff.setMonth(now.getMonth() - 2);
+      break;
+    case "6months":
+      cutoff.setMonth(now.getMonth() - 6);
+      break;
+    case "ytd":
+      cutoff.setMonth(0);
+      cutoff.setDate(1);
+      cutoff.setHours(0, 0, 0, 0);
+      break;
+  }
+
+  return cutoff;
+}
+
+/**
+ * Normalize daily values to 0-1 scale.
+ */
+function normalizeToRange(
+  data: { date: string; value: number }[]
+): { date: string; value: number }[] {
+  if (data.length === 0) return [];
+
+  const values = data.map((d) => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min;
+
+  // If no range, return flat line at 0.5
+  if (range === 0) {
+    return data.map((d) => ({ date: d.date, value: 0.5 }));
+  }
+
+  return data.map((d) => ({
+    date: d.date,
+    value: (d.value - min) / range,
+  }));
+}
+
+// Darker text colors for readability on light backgrounds
+const SPORT_TEXT_COLORS: Record<Sport, string> = {
+  cycling: "rgb(0, 160, 160)", // Darker cyan
+  running: "rgb(180, 0, 180)", // Darker magenta
+  yoga: "rgb(0, 160, 80)", // Darker green
+};
+
+/**
+ * Individual sparkline row component.
+ */
+function SparklineRow({
+  sport,
+  data,
+  color,
+}: {
+  sport: Sport;
+  data: { date: string; value: number }[];
+  color: string;
+}) {
+  const hasData = data.length > 0;
+  const textColor = SPORT_TEXT_COLORS[sport];
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <div className="d-flex align-items-center gap-2">
+      {/* Label - links to sport page */}
+      <Link
+        to={`/${sport}/${currentYear}`}
+        className="text-end small text-decoration-none"
+        style={{ width: 55, color: textColor, fontWeight: 600, fontSize: "0.75rem" }}
+      >
+        {SPORT_LABELS[sport]}
+      </Link>
+
+      {/* Sparkline */}
+      <div style={{ flex: 1, height: 36 }}>
+        {hasData ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+              <Line
+                type="linear"
+                dataKey="value"
+                stroke={color}
+                strokeWidth={1.5}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div
+            className="d-flex align-items-center justify-content-center h-100 text-muted"
+            style={{ fontSize: "0.65rem" }}
+          >
+            No data
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Placeholder recent activities for demo
+const DEMO_RECENT_ACTIVITIES = [
+  { name: "Morning Ride", distance: "16 mi", time: "1h 12m", date: "Dec 26" },
+  { name: "Yoga Flow", distance: "", time: "25m", date: "Dec 26" },
+  { name: "Evening Run", distance: "3.2 mi", time: "28m", date: "Dec 25" },
+  { name: "Indoor Ride", distance: "12 mi", time: "52m", date: "Dec 24" },
+  { name: "Vinyasa", distance: "", time: "30m", date: "Dec 24" },
+  { name: "Long Ride", distance: "32 mi", time: "2h 15m", date: "Dec 23" },
+  { name: "Recovery Run", distance: "2.1 mi", time: "18m", date: "Dec 22" },
+  { name: "Hill Repeats", distance: "18 mi", time: "1h 25m", date: "Dec 21" },
+  { name: "Yoga Flow", distance: "", time: "25m", date: "Dec 21" },
+  { name: "Easy Spin", distance: "14 mi", time: "48m", date: "Dec 20" },
+  { name: "Tempo Run", distance: "4.5 mi", time: "35m", date: "Dec 19" },
+  { name: "Yoga Stretch", distance: "", time: "20m", date: "Dec 19" },
+];
+
+const PAGE_SIZE = 4;
+
+/**
+ * Recent activities table component with pagination.
+ */
+function RecentActivitiesList() {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(DEMO_RECENT_ACTIVITIES.length / PAGE_SIZE);
+
+  const startIdx = page * PAGE_SIZE;
+  const visibleActivities = DEMO_RECENT_ACTIVITIES.slice(startIdx, startIdx + PAGE_SIZE);
+
+  const canGoUp = page > 0;
+  const canGoDown = page < totalPages - 1;
+
+  return (
+    <div className="d-flex h-100">
+      {/* Activities table */}
+      <table
+        className="table table-sm table-borderless mb-0 flex-grow-1"
+        style={{ fontSize: "0.8rem", lineHeight: 1.2 }}
+      >
+        <tbody>
+          {visibleActivities.map((activity, idx) => (
+            <tr key={startIdx + idx}>
+              <td className="ps-0 pe-3 py-1" style={{ whiteSpace: "nowrap" }}>
+                <a href="#" className="text-decoration-none">
+                  {activity.name}
+                </a>
+              </td>
+              <td className="text-muted text-end px-2 py-1" style={{ whiteSpace: "nowrap" }}>
+                {activity.distance}
+              </td>
+              <td className="text-muted text-end px-2 py-1" style={{ whiteSpace: "nowrap" }}>
+                {activity.time}
+              </td>
+              <td className="text-muted text-end ps-2 pe-0 py-1" style={{ whiteSpace: "nowrap" }}>
+                {activity.date}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="d-flex flex-column justify-content-center ms-2" style={{ minWidth: 24 }}>
+          <button
+            className="btn btn-sm btn-link p-0 text-muted"
+            onClick={() => setPage((p) => p - 1)}
+            disabled={!canGoUp}
+            style={{ opacity: canGoUp ? 1 : 0.3 }}
+            aria-label="Newer activities"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 4l5 6H3l5-6z" />
+            </svg>
+          </button>
+          <span className="text-muted text-center" style={{ fontSize: "0.65rem", lineHeight: 1.2 }}>
+            {page + 1}/{totalPages}
+          </span>
+          <button
+            className="btn btn-sm btn-link p-0 text-muted"
+            onClick={() => setPage((p) => p + 1)}
+            disabled={!canGoDown}
+            style={{ opacity: canGoDown ? 1 : 0.3 }}
+            aria-label="Older activities"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 12l5-6H3l5 6z" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function MultiSportComparisonChart({
+  className = "",
+}: MultiSportComparisonChartProps) {
+  const currentYear = new Date().getFullYear();
+  const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
+
+  const { data, isLoading, error } = useMultiSportData(currentYear);
+
+  // Process data for each sport's sparkline
+  // Order: cumulative -> daily deltas -> filter by range -> normalize 0-1
+  const sparklineData = useMemo(() => {
+    const sports: Sport[] = ["cycling", "running", "yoga"];
+
+    return sports.map((sport) => {
+      const sportData = data[sport] || [];
+      // 1. Convert cumulative to daily values (needs full dataset)
+      const dailyValues = toDailyValues(sportData, sport);
+      // 2. Filter to time range
+      const filtered = filterDailyByTimeRange(dailyValues, timeRange);
+      // 3. Normalize to 0-1 for sparkline display
+      const normalized = normalizeToRange(filtered);
+      return { sport, data: normalized };
+    });
+  }, [data, timeRange]);
+
+  if (isLoading) {
+    return (
+      <div className={className}>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h2 className="h5 mb-0">Recent Activity</h2>
+        </div>
+        <div
+          className="bg-light rounded d-flex align-items-center justify-content-center"
+          style={{ height: 140 }}
+        >
+          <div className="spinner-border spinner-border-sm text-secondary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={`${className} text-center p-4`}>
+        <p className="text-danger mb-0">Failed to load activity data</p>
+      </div>
+    );
+  }
+
+  const hasAnyData = sparklineData.some((s) => s.data.length > 0);
+
+  return (
+    <div className={className}>
+      {/* Header with time range selector */}
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h2 className="h5 mb-0">Recent Activity</h2>
+        <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
+      </div>
+
+      {!hasAnyData ? (
+        <div
+          className="bg-light rounded d-flex align-items-center justify-content-center"
+          style={{ height: 140 }}
+        >
+          <p className="text-muted mb-0">No activity data for selected time range</p>
+        </div>
+      ) : (
+        <div className="row g-3 justify-content-center">
+          {/* Left: Sparklines */}
+          <div className="col-md-6">
+            <div className="border rounded p-2 h-100 d-flex flex-column justify-content-center gap-2">
+              {sparklineData.map(({ sport, data: sData }) => (
+                <SparklineRow key={sport} sport={sport} data={sData} color={SPORT_COLORS[sport]} />
+              ))}
+            </div>
+          </div>
+
+          {/* Right: Recent Activities */}
+          <div className="col-md-6">
+            <div className="border rounded p-2 h-100 overflow-hidden">
+              <RecentActivitiesList />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,77 +1,98 @@
-# Web UI Development Fixtures
+# Activity Fixture Data
 
-This directory contains local fixture data for developing the React web UI without requiring live API Gateway access.
-
-## Data Source
-Copied from `progressor-341702` project (legacy production system) on 2025-10-03.
-- **Total files**: 338
-- **Total size**: ~6.2MB
-- **Date range**: 2023-2025
+This directory contains fixture data for the desirelines web UI. The data is used for demo mode when users are not authenticated, showing realistic activity patterns.
 
 ## Directory Structure
 
 ```
 fixtures/
-└── activities/           # Aggregated summary data by year
-    ├── 2023/
-    │   ├── distances.json          # Distance aggregations
-    │   ├── pacings.json            # Pacing aggregations
-    │   └── summary_activities.json # Daily activity summaries
-    ├── 2024/
-    │   └── (same structure)
-    └── 2025/
-        └── (same structure)
+└── activities/
+    └── {year}/
+        ├── metadata.json       # Year summary (totals, sports, last_updated)
+        ├── metrics/
+        │   ├── cycling.json    # Cumulative YTD cycling metrics
+        │   ├── running.json    # Cumulative YTD running metrics
+        │   └── yoga.json       # Cumulative YTD yoga metrics
+        └── source/             # Raw source data (activity details)
+            ├── cycling.json
+            ├── running.json
+            └── yoga.json
 ```
 
 ## Data Formats
 
-### summary_activities.json
-Daily aggregated activity data:
+### Metrics Files (`metrics/{sport}.json`)
+
+Each metrics file contains an array of **cumulative year-to-date** entries, one per day:
+
+```json
+[
+  {
+    "date": "2025-01-01",
+    "distance": 15234.5,
+    "elevation": 120.0,
+    "time": 2700,
+    "activities": 1
+  },
+  {
+    "date": "2025-01-02",
+    "distance": 30456.2,
+    "elevation": 245.0,
+    "time": 5400,
+    "activities": 2
+  }
+]
+```
+
+| Field | Description |
+|-------|-------------|
+| `date` | Date in YYYY-MM-DD format |
+| `distance` | Cumulative distance in meters |
+| `elevation` | Cumulative elevation gain in meters |
+| `time` | Cumulative time in seconds |
+| `activities` | Cumulative activity count |
+
+**Note:** Values are cumulative running totals from January 1st.
+
+### Metadata File (`metadata.json`)
+
+Year summary with totals per sport:
+
 ```json
 {
-  "2024-01-02": {
-    "distance_miles": 1.143382937,
-    "activity_ids": [10481812565]
-  }
+  "year": 2025,
+  "sports": ["cycling", "running", "yoga"],
+  "totals": {
+    "cycling": {
+      "distance_meters": 2955032.9,
+      "time_minutes": 9411.5,
+      "elevation_meters": 8638.0,
+      "activities": 298
+    }
+  },
+  "last_updated": "2025-11-10T12:09:18.722299+00:00",
+  "aggregation_version": "1.0"
 }
 ```
 
-### distances.json
-Distance-based aggregations (format TBD - inspect file for structure)
+## Usage
 
-### pacings.json
-Pacing-based aggregations (format TBD - inspect file for structure)
+### Web UI (Demo Mode)
 
-## Usage for Web UI Development
+The fixture data is copied to `packages/web/src/data/fixtures/` and bundled with the React app. When users are not authenticated:
 
-### Local API Gateway Mode
-The API Gateway can be configured to serve this fixture data locally:
+1. The app loads fixture data for the current year
+2. Data is filtered to only show entries up to the current date
+3. This creates the appearance of "live" data that grows daily
 
-**Environment variable:**
-```bash
-DATA_SOURCE=local-fixtures
-FIXTURES_PATH=/path/to/data/fixtures
-```
+### Generating/Updating Fixtures
 
-**Docker Compose:**
-```yaml
-services:
-  api-gateway:
-    environment:
-      - DATA_SOURCE=local-fixtures
-      - FIXTURES_PATH=/app/data/fixtures
-    volumes:
-      - ./data/fixtures:/app/data/fixtures:ro
-```
+Fixture data is generated from real Strava data using the aggregator scripts. The data covers the full year (Jan 1 - Dec 31) to support the rolling date filter.
 
-### Web UI Integration
-The React app should:
-1. Use the same API client regardless of backend (local vs cloud)
-2. Configure API base URL via environment variable
-3. Expect the same response format from local and cloud APIs
+## Available Years
 
-## Next Steps
-- [ ] Inspect `distances.json` and `pacings.json` structure
-- [ ] Update API Gateway to support local fixture mode
-- [ ] Configure web UI to connect to local API Gateway
-- [ ] Document API endpoints and response formats
+| Year | Sports | Notes |
+|------|--------|-------|
+| 2023 | cycling, running | Partial year |
+| 2024 | cycling, running, yoga | Full year |
+| 2025 | cycling, running, yoga | Full year (projected) |
