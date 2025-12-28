@@ -22,10 +22,18 @@ function App() {
 
           {/* Sport detail pages - data source based on auth state */}
           {VALID_SPORTS.map((sport) => (
-            <Route key={sport} path={`/${sport}`} element={<Navigate to={`/${sport}/${currentYear}`} replace />} />
+            <Route
+              key={sport}
+              path={`/${sport}`}
+              element={<Navigate to={`/${sport}/${currentYear}`} replace />}
+            />
           ))}
           {VALID_SPORTS.map((sport) => (
-            <Route key={`${sport}-year`} path={`/${sport}/:year`} element={<UnifiedSportPage sport={sport} />} />
+            <Route
+              key={`${sport}-year`}
+              path={`/${sport}/:year`}
+              element={<UnifiedSportPage sport={sport} />}
+            />
           ))}
 
           {/* Legacy demo routes - redirect to new structure */}

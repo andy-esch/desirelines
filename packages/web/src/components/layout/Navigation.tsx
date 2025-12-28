@@ -37,11 +37,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           <span className="nav-link text-white-50 py-1 small text-uppercase">Activities</span>
         </div>
         {SPORTS.map((sport) => (
-          <NavLink
-            key={sport.id}
-            to={`/${sport.id}/${currentYear}`}
-            className={linkClasses}
-          >
+          <NavLink key={sport.id} to={`/${sport.id}/${currentYear}`} className={linkClasses}>
             <span className="me-2">{sport.icon}</span>
             {sport.label}
           </NavLink>

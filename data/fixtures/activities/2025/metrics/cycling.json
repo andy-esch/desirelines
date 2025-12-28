@@ -1,1 +1,2557 @@
-[{"date":"2025-01-01","distance":0.0,"elevation":0.0,"time":0.0,"activities":0},{"date":"2025-01-02","distance":0.0,"elevation":0.0,"time":0.0,"activities":0},{"date":"2025-01-03","distance":0.0,"elevation":0.0,"time":0.0,"activities":0},{"date":"2025-01-04","distance":0.0,"elevation":0.0,"time":0.0,"activities":0},{"date":"2025-01-05","distance":0.0,"elevation":0.0,"time":0.0,"activities":0},{"date":"2025-01-06","distance":0.0,"elevation":0.0,"time":0.0,"activities":0},{"date":"2025-01-07","distance":18908.4,"elevation":0.0,"time":40.18333333333333,"activities":1},{"date":"2025-01-08","distance":18908.4,"elevation":0.0,"time":40.18333333333333,"activities":1},{"date":"2025-01-09","distance":23685.7,"elevation":51.0,"time":59.883333333333326,"activities":2},{"date":"2025-01-10","distance":43053.100000000006,"elevation":51.0,"time":104.53333333333333,"activities":3},{"date":"2025-01-11","distance":43766.3,"elevation":51.0,"time":106.85,"activities":4},{"date":"2025-01-12","distance":62677.5,"elevation":51.0,"time":157.45,"activities":6},{"date":"2025-01-13","distance":62677.5,"elevation":51.0,"time":157.45,"activities":6},{"date":"2025-01-14","distance":62677.5,"elevation":51.0,"time":157.45,"activities":6},{"date":"2025-01-15","distance":108464.3,"elevation":51.0,"time":269.0,"activities":10},{"date":"2025-01-16","distance":126963.6,"elevation":249.0,"time":332.5333333333333,"activities":11},{"date":"2025-01-17","distance":151051.30000000002,"elevation":249.0,"time":400.0833333333333,"activities":13},{"date":"2025-01-18","distance":151051.30000000002,"elevation":249.0,"time":400.0833333333333,"activities":13},{"date":"2025-01-19","distance":161832.30000000002,"elevation":249.0,"time":430.59999999999997,"activities":15},{"date":"2025-01-20","distance":175226.00000000003,"elevation":249.0,"time":461.1333333333333,"activities":16},{"date":"2025-01-21","distance":184300.30000000002,"elevation":249.0,"time":481.1166666666667,"activities":17},{"date":"2025-01-22","distance":184300.30000000002,"elevation":249.0,"time":481.1166666666667,"activities":17},{"date":"2025-01-23","distance":202819.00000000003,"elevation":249.0,"time":522.1,"activities":18},{"date":"2025-01-24","distance":209572.30000000002,"elevation":249.0,"time":537.2666666666667,"activities":19},{"date":"2025-01-25","distance":212804.90000000002,"elevation":275.0,"time":550.1999999999999,"activities":20},{"date":"2025-01-26","distance":212804.90000000002,"elevation":275.0,"time":550.1999999999999,"activities":20},{"date":"2025-01-27","distance":223684.10000000003,"elevation":397.0,"time":587.8,"activities":21},{"date":"2025-01-28","distance":227319.50000000003,"elevation":434.0,"time":600.3166666666666,"activities":22},{"date":"2025-01-29","distance":241169.90000000002,"elevation":606.0,"time":641.1666666666666,"activities":23},{"date":"2025-01-30","distance":270821.5,"elevation":846.0,"time":728.05,"activities":24},{"date":"2025-01-31","distance":270821.5,"elevation":846.0,"time":728.05,"activities":24},{"date":"2025-02-01","distance":270821.5,"elevation":846.0,"time":728.05,"activities":24},{"date":"2025-02-02","distance":295331.4,"elevation":846.0,"time":789.15,"activities":26},{"date":"2025-02-03","distance":332284.10000000003,"elevation":846.0,"time":890.7166666666667,"activities":28},{"date":"2025-02-04","distance":342513.60000000003,"elevation":945.0,"time":920.2666666666667,"activities":29},{"date":"2025-02-05","distance":344833.60000000003,"elevation":978.0,"time":932.55,"activities":30},{"date":"2025-02-06","distance":400742.80000000005,"elevation":978.0,"time":1068.0,"activities":35},{"date":"2025-02-07","distance":402731.20000000007,"elevation":1003.0,"time":1080.6,"activities":36},{"date":"2025-02-08","distance":402731.20000000007,"elevation":1003.0,"time":1080.6,"activities":36},{"date":"2025-02-09","distance":402731.20000000007,"elevation":1003.0,"time":1080.6,"activities":36},{"date":"2025-02-10","distance":420207.50000000006,"elevation":1192.0,"time":1130.7166666666665,"activities":37},{"date":"2025-02-11","distance":432395.4000000001,"elevation":1306.0,"time":1167.1166666666666,"activities":38},{"date":"2025-02-12","distance":432395.4000000001,"elevation":1306.0,"time":1167.1166666666666,"activities":38},{"date":"2025-02-13","distance":432395.4000000001,"elevation":1306.0,"time":1167.1166666666666,"activities":38},{"date":"2025-02-14","distance":432395.4000000001,"elevation":1306.0,"time":1167.1166666666666,"activities":38},{"date":"2025-02-15","distance":432395.4000000001,"elevation":1306.0,"time":1167.1166666666666,"activities":38},{"date":"2025-02-16","distance":444222.00000000006,"elevation":1434.0,"time":1216.1333333333332,"activities":40},{"date":"2025-02-17","distance":444222.00000000006,"elevation":1434.0,"time":1216.1333333333332,"activities":40},{"date":"2025-02-18","distance":473515.9000000001,"elevation":1434.0,"time":1278.6499999999999,"activities":41},{"date":"2025-02-19","distance":501108.00000000006,"elevation":1434.0,"time":1336.9333333333332,"activities":42},{"date":"2025-02-20","distance":513983.20000000007,"elevation":1434.0,"time":1368.1166666666666,"activities":43},{"date":"2025-02-21","distance":513983.20000000007,"elevation":1434.0,"time":1368.1166666666666,"activities":43},{"date":"2025-02-22","distance":528940.9,"elevation":1434.0,"time":1399.6333333333332,"activities":44},{"date":"2025-02-23","distance":528940.9,"elevation":1434.0,"time":1399.6333333333332,"activities":44},{"date":"2025-02-24","distance":545887.9,"elevation":1577.0,"time":1445.6333333333332,"activities":45},{"date":"2025-02-25","distance":564697.6,"elevation":1577.0,"time":1489.6666666666665,"activities":46},{"date":"2025-02-26","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-02-27","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-02-28","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-01","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-02","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-03","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-04","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-05","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-06","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-07","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-08","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-09","distance":592126.1,"elevation":1641.0,"time":1578.5833333333333,"activities":48},{"date":"2025-03-10","distance":617141.0,"elevation":1689.0,"time":1643.0333333333333,"activities":50},{"date":"2025-03-11","distance":617141.0,"elevation":1689.0,"time":1643.0333333333333,"activities":50},{"date":"2025-03-12","distance":624172.1,"elevation":1754.0,"time":1675.5,"activities":51},{"date":"2025-03-13","distance":652802.2999999999,"elevation":1754.0,"time":1735.2166666666667,"activities":52},{"date":"2025-03-14","distance":672648.2999999999,"elevation":1754.0,"time":1775.4166666666667,"activities":53},{"date":"2025-03-15","distance":687611.3999999999,"elevation":1754.0,"time":1809.0500000000002,"activities":54},{"date":"2025-03-16","distance":687611.3999999999,"elevation":1754.0,"time":1809.0500000000002,"activities":54},{"date":"2025-03-17","distance":687611.3999999999,"elevation":1754.0,"time":1809.0500000000002,"activities":54},{"date":"2025-03-18","distance":687611.3999999999,"elevation":1754.0,"time":1809.0500000000002,"activities":54},{"date":"2025-03-19","distance":718280.2999999999,"elevation":1754.0,"time":1879.7333333333336,"activities":56},{"date":"2025-03-20","distance":718280.2999999999,"elevation":1754.0,"time":1879.7333333333336,"activities":56},{"date":"2025-03-21","distance":720382.3999999999,"elevation":1795.0,"time":1894.216666666667,"activities":57},{"date":"2025-03-22","distance":720382.3999999999,"elevation":1795.0,"time":1894.216666666667,"activities":57},{"date":"2025-03-23","distance":720382.3999999999,"elevation":1795.0,"time":1894.216666666667,"activities":57},{"date":"2025-03-24","distance":726012.3999999999,"elevation":1862.0,"time":1912.1833333333336,"activities":58},{"date":"2025-03-25","distance":750721.8999999999,"elevation":1862.0,"time":1973.1833333333336,"activities":60},{"date":"2025-03-26","distance":810988.0999999999,"elevation":1862.0,"time":2114.1000000000004,"activities":62},{"date":"2025-03-27","distance":820746.7999999998,"elevation":1991.0,"time":2174.316666666667,"activities":64},{"date":"2025-03-28","distance":823550.1999999998,"elevation":2031.0,"time":2183.05,"activities":65},{"date":"2025-03-29","distance":823550.1999999998,"elevation":2031.0,"time":2183.05,"activities":65},{"date":"2025-03-30","distance":823550.1999999998,"elevation":2031.0,"time":2183.05,"activities":65},{"date":"2025-03-31","distance":823550.1999999998,"elevation":2031.0,"time":2183.05,"activities":65},{"date":"2025-04-01","distance":852747.9999999999,"elevation":2031.0,"time":2261.2000000000003,"activities":67},{"date":"2025-04-02","distance":890030.2999999999,"elevation":2031.0,"time":2351.3833333333337,"activities":69},{"date":"2025-04-03","distance":921857.3999999999,"elevation":2031.0,"time":2423.516666666667,"activities":71},{"date":"2025-04-04","distance":951431.5999999999,"elevation":2031.0,"time":2509.3500000000004,"activities":73},{"date":"2025-04-05","distance":951431.5999999999,"elevation":2031.0,"time":2509.3500000000004,"activities":73},{"date":"2025-04-06","distance":951431.5999999999,"elevation":2031.0,"time":2509.3500000000004,"activities":73},{"date":"2025-04-07","distance":976944.3999999999,"elevation":2031.0,"time":2578.1000000000004,"activities":75},{"date":"2025-04-08","distance":976944.3999999999,"elevation":2031.0,"time":2578.1000000000004,"activities":75},{"date":"2025-04-09","distance":976944.3999999999,"elevation":2031.0,"time":2578.1000000000004,"activities":75},{"date":"2025-04-10","distance":1010811.5999999999,"elevation":2031.0,"time":2651.266666666667,"activities":76},{"date":"2025-04-11","distance":1024916.1999999998,"elevation":2031.0,"time":2682.4,"activities":77},{"date":"2025-04-12","distance":1024916.1999999998,"elevation":2031.0,"time":2682.4,"activities":77},{"date":"2025-04-13","distance":1024916.1999999998,"elevation":2031.0,"time":2682.4,"activities":77},{"date":"2025-04-14","distance":1044931.7999999998,"elevation":2179.0,"time":2755.116666666667,"activities":80},{"date":"2025-04-15","distance":1044931.7999999998,"elevation":2179.0,"time":2755.116666666667,"activities":80},{"date":"2025-04-16","distance":1044931.7999999998,"elevation":2179.0,"time":2755.116666666667,"activities":80},{"date":"2025-04-17","distance":1067187.5999999999,"elevation":2179.0,"time":2824.1833333333334,"activities":84},{"date":"2025-04-18","distance":1080435.7,"elevation":2179.0,"time":2864.4666666666667,"activities":85},{"date":"2025-04-19","distance":1117634.0,"elevation":2179.0,"time":2958.616666666667,"activities":87},{"date":"2025-04-20","distance":1117634.0,"elevation":2179.0,"time":2958.616666666667,"activities":87},{"date":"2025-04-21","distance":1121825.0,"elevation":2214.0,"time":2982.4,"activities":88},{"date":"2025-04-22","distance":1135974.9,"elevation":2214.0,"time":3012.5833333333335,"activities":89},{"date":"2025-04-23","distance":1156609.2,"elevation":2282.0,"time":3079.8500000000004,"activities":91},{"date":"2025-04-24","distance":1180860.3,"elevation":2282.0,"time":3142.683333333334,"activities":93},{"date":"2025-04-25","distance":1207008.2,"elevation":2382.0,"time":3227.0000000000005,"activities":95},{"date":"2025-04-26","distance":1230410.4,"elevation":2382.0,"time":3279.333333333334,"activities":96},{"date":"2025-04-27","distance":1238427.0999999999,"elevation":2457.0,"time":3316.6666666666674,"activities":97},{"date":"2025-04-28","distance":1251677.4999999998,"elevation":2568.0,"time":3383.9333333333343,"activities":99},{"date":"2025-04-29","distance":1251677.4999999998,"elevation":2568.0,"time":3383.9333333333343,"activities":99},{"date":"2025-04-30","distance":1267423.0999999999,"elevation":2695.0,"time":3435.900000000001,"activities":100},{"date":"2025-05-01","distance":1281584.4,"elevation":2695.0,"time":3466.0666666666675,"activities":101},{"date":"2025-05-02","distance":1308817.9,"elevation":2751.0,"time":3545.400000000001,"activities":103},{"date":"2025-05-03","distance":1340018.0,"elevation":2751.0,"time":3611.783333333334,"activities":104},{"date":"2025-05-04","distance":1340018.0,"elevation":2751.0,"time":3611.783333333334,"activities":104},{"date":"2025-05-05","distance":1344298.9,"elevation":2788.0,"time":3633.400000000001,"activities":105},{"date":"2025-05-06","distance":1357812.7,"elevation":2962.0,"time":3669.7166666666676,"activities":106},{"date":"2025-05-07","distance":1376243.0,"elevation":3014.0,"time":3722.6833333333343,"activities":109},{"date":"2025-05-08","distance":1390338.5,"elevation":3014.0,"time":3752.850000000001,"activities":110},{"date":"2025-05-09","distance":1390338.5,"elevation":3014.0,"time":3752.850000000001,"activities":110},{"date":"2025-05-10","distance":1422759.5,"elevation":3014.0,"time":3831.5166666666673,"activities":111},{"date":"2025-05-11","distance":1424745.3,"elevation":3028.0,"time":3842.833333333334,"activities":112},{"date":"2025-05-12","distance":1439725.4000000001,"elevation":3151.0,"time":3880.5333333333338,"activities":113},{"date":"2025-05-13","distance":1446794.4000000001,"elevation":3151.0,"time":3911.5333333333338,"activities":115},{"date":"2025-05-14","distance":1446794.4000000001,"elevation":3151.0,"time":3911.5333333333338,"activities":115},{"date":"2025-05-15","distance":1446794.4000000001,"elevation":3151.0,"time":3911.5333333333338,"activities":115},{"date":"2025-05-16","distance":1446794.4000000001,"elevation":3151.0,"time":3911.5333333333338,"activities":115},{"date":"2025-05-17","distance":1446794.4000000001,"elevation":3151.0,"time":3911.5333333333338,"activities":115},{"date":"2025-05-18","distance":1446794.4000000001,"elevation":3151.0,"time":3911.5333333333338,"activities":115},{"date":"2025-05-19","distance":1478682.5000000002,"elevation":3151.0,"time":3984.3500000000004,"activities":117},{"date":"2025-05-20","distance":1488075.8000000003,"elevation":3249.0,"time":4042.3833333333337,"activities":121},{"date":"2025-05-21","distance":1488075.8000000003,"elevation":3249.0,"time":4042.3833333333337,"activities":121},{"date":"2025-05-22","distance":1517924.9000000004,"elevation":3280.0,"time":4120.016666666667,"activities":124},{"date":"2025-05-23","distance":1517924.9000000004,"elevation":3280.0,"time":4120.016666666667,"activities":124},{"date":"2025-05-24","distance":1517924.9000000004,"elevation":3280.0,"time":4120.016666666667,"activities":124},{"date":"2025-05-25","distance":1538904.1000000003,"elevation":3505.0,"time":4235.183333333334,"activities":125},{"date":"2025-05-26","distance":1538904.1000000003,"elevation":3505.0,"time":4235.183333333334,"activities":125},{"date":"2025-05-27","distance":1550867.0000000002,"elevation":3595.0,"time":4290.9833333333345,"activities":127},{"date":"2025-05-28","distance":1550867.0000000002,"elevation":3595.0,"time":4290.9833333333345,"activities":127},{"date":"2025-05-29","distance":1569170.0000000002,"elevation":3595.0,"time":4343.166666666668,"activities":130},{"date":"2025-05-30","distance":1569170.0000000002,"elevation":3595.0,"time":4343.166666666668,"activities":130},{"date":"2025-05-31","distance":1569170.0000000002,"elevation":3595.0,"time":4343.166666666668,"activities":130},{"date":"2025-06-01","distance":1607712.7000000002,"elevation":3634.0,"time":4440.350000000001,"activities":133},{"date":"2025-06-02","distance":1613287.3000000003,"elevation":3692.0,"time":4468.166666666668,"activities":135},{"date":"2025-06-03","distance":1621572.3000000003,"elevation":3763.0,"time":4509.366666666668,"activities":137},{"date":"2025-06-04","distance":1627997.3000000003,"elevation":3821.0,"time":4543.116666666668,"activities":138},{"date":"2025-06-05","distance":1641849.6000000003,"elevation":4004.0,"time":4590.516666666667,"activities":139},{"date":"2025-06-06","distance":1649848.7000000004,"elevation":4082.0,"time":4629.416666666667,"activities":140},{"date":"2025-06-07","distance":1649848.7000000004,"elevation":4082.0,"time":4629.416666666667,"activities":140},{"date":"2025-06-08","distance":1654795.9000000004,"elevation":4111.0,"time":4652.016666666667,"activities":141},{"date":"2025-06-09","distance":1654795.9000000004,"elevation":4111.0,"time":4652.016666666667,"activities":141},{"date":"2025-06-10","distance":1654795.9000000004,"elevation":4111.0,"time":4652.016666666667,"activities":141},{"date":"2025-06-11","distance":1654795.9000000004,"elevation":4111.0,"time":4652.016666666667,"activities":141},{"date":"2025-06-12","distance":1694632.5000000005,"elevation":4146.0,"time":4761.866666666668,"activities":145},{"date":"2025-06-13","distance":1696761.2000000004,"elevation":4174.0,"time":4772.200000000001,"activities":146},{"date":"2025-06-14","distance":1696761.2000000004,"elevation":4174.0,"time":4772.200000000001,"activities":146},{"date":"2025-06-15","distance":1696761.2000000004,"elevation":4174.0,"time":4772.200000000001,"activities":146},{"date":"2025-06-16","distance":1721679.7000000004,"elevation":4217.0,"time":4842.516666666667,"activities":148},{"date":"2025-06-17","distance":1750823.5000000005,"elevation":4291.0,"time":4930.216666666667,"activities":150},{"date":"2025-06-18","distance":1762826.9000000004,"elevation":4418.0,"time":4992.983333333334,"activities":152},{"date":"2025-06-19","distance":1762826.9000000004,"elevation":4418.0,"time":4992.983333333334,"activities":152},{"date":"2025-06-20","distance":1762826.9000000004,"elevation":4418.0,"time":4992.983333333334,"activities":152},{"date":"2025-06-21","distance":1762826.9000000004,"elevation":4418.0,"time":4992.983333333334,"activities":152},{"date":"2025-06-22","distance":1775890.3000000003,"elevation":4514.0,"time":5060.900000000001,"activities":154},{"date":"2025-06-23","distance":1805446.2000000002,"elevation":4582.0,"time":5141.183333333334,"activities":158},{"date":"2025-06-24","distance":1805446.2000000002,"elevation":4582.0,"time":5141.183333333334,"activities":158},{"date":"2025-06-25","distance":1805446.2000000002,"elevation":4582.0,"time":5141.183333333334,"activities":158},{"date":"2025-06-26","distance":1805446.2000000002,"elevation":4582.0,"time":5141.183333333334,"activities":158},{"date":"2025-06-27","distance":1841331.9000000001,"elevation":4582.0,"time":5288.916666666668,"activities":161},{"date":"2025-06-28","distance":1843127.3,"elevation":4598.0,"time":5304.283333333335,"activities":162},{"date":"2025-06-29","distance":1843127.3,"elevation":4598.0,"time":5304.283333333335,"activities":162},{"date":"2025-06-30","distance":1853033.4000000001,"elevation":4754.0,"time":5330.9833333333345,"activities":163},{"date":"2025-07-01","distance":1853033.4000000001,"elevation":4754.0,"time":5330.9833333333345,"activities":163},{"date":"2025-07-02","distance":1853033.4000000001,"elevation":4754.0,"time":5330.9833333333345,"activities":163},{"date":"2025-07-03","distance":1853033.4000000001,"elevation":4754.0,"time":5330.9833333333345,"activities":163},{"date":"2025-07-04","distance":1853033.4000000001,"elevation":4754.0,"time":5330.9833333333345,"activities":163},{"date":"2025-07-05","distance":1853033.4000000001,"elevation":4754.0,"time":5330.9833333333345,"activities":163},{"date":"2025-07-06","distance":1853033.4000000001,"elevation":4754.0,"time":5330.9833333333345,"activities":163},{"date":"2025-07-07","distance":1890139.2000000002,"elevation":4754.0,"time":5421.166666666668,"activities":165},{"date":"2025-07-08","distance":1890139.2000000002,"elevation":4754.0,"time":5421.166666666668,"activities":165},{"date":"2025-07-09","distance":1890139.2000000002,"elevation":4754.0,"time":5421.166666666668,"activities":165},{"date":"2025-07-10","distance":1904214.8000000003,"elevation":4754.0,"time":5451.350000000001,"activities":166},{"date":"2025-07-11","distance":1927527.3000000003,"elevation":4754.0,"time":5530.700000000002,"activities":168},{"date":"2025-07-12","distance":1927527.3000000003,"elevation":4754.0,"time":5530.700000000002,"activities":168},{"date":"2025-07-13","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-14","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-15","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-16","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-17","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-18","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-19","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-20","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-21","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-22","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-23","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-24","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-25","distance":1932370.3000000003,"elevation":4793.0,"time":5559.200000000002,"activities":169},{"date":"2025-07-26","distance":1933472.4000000004,"elevation":4801.0,"time":5569.116666666669,"activities":170},{"date":"2025-07-27","distance":1933472.4000000004,"elevation":4801.0,"time":5569.116666666669,"activities":170},{"date":"2025-07-28","distance":1956775.9000000004,"elevation":4801.0,"time":5631.350000000002,"activities":172},{"date":"2025-07-29","distance":1979416.4000000004,"elevation":4801.0,"time":5696.816666666668,"activities":174},{"date":"2025-07-30","distance":1982114.9000000004,"elevation":4832.0,"time":5723.566666666668,"activities":175},{"date":"2025-07-31","distance":1982114.9000000004,"elevation":4832.0,"time":5723.566666666668,"activities":175},{"date":"2025-08-01","distance":1997543.7000000004,"elevation":4988.0,"time":5768.966666666668,"activities":177},{"date":"2025-08-02","distance":1997543.7000000004,"elevation":4988.0,"time":5768.966666666668,"activities":177},{"date":"2025-08-03","distance":1997543.7000000004,"elevation":4988.0,"time":5768.966666666668,"activities":177},{"date":"2025-08-04","distance":2021568.2000000004,"elevation":4988.0,"time":5837.533333333335,"activities":179},{"date":"2025-08-05","distance":2021568.2000000004,"elevation":4988.0,"time":5837.533333333335,"activities":179},{"date":"2025-08-06","distance":2021568.2000000004,"elevation":4988.0,"time":5837.533333333335,"activities":179},{"date":"2025-08-07","distance":2021568.2000000004,"elevation":4988.0,"time":5837.533333333335,"activities":179},{"date":"2025-08-08","distance":2021568.2000000004,"elevation":4988.0,"time":5837.533333333335,"activities":179},{"date":"2025-08-09","distance":2021568.2000000004,"elevation":4988.0,"time":5837.533333333335,"activities":179},{"date":"2025-08-10","distance":2021568.2000000004,"elevation":4988.0,"time":5837.533333333335,"activities":179},{"date":"2025-08-11","distance":2045527.7000000004,"elevation":4988.0,"time":5900.700000000002,"activities":181},{"date":"2025-08-12","distance":2068797.4000000004,"elevation":4988.0,"time":5961.033333333335,"activities":183},{"date":"2025-08-13","distance":2068797.4000000004,"elevation":4988.0,"time":5961.033333333335,"activities":183},{"date":"2025-08-14","distance":2083948.0000000005,"elevation":5111.0,"time":6012.833333333335,"activities":184},{"date":"2025-08-15","distance":2111299.7000000007,"elevation":5134.0,"time":6103.533333333335,"activities":187},{"date":"2025-08-16","distance":2111299.7000000007,"elevation":5134.0,"time":6103.533333333335,"activities":187},{"date":"2025-08-17","distance":2111299.7000000007,"elevation":5134.0,"time":6103.533333333335,"activities":187},{"date":"2025-08-18","distance":2111299.7000000007,"elevation":5134.0,"time":6103.533333333335,"activities":187},{"date":"2025-08-19","distance":2116289.400000001,"elevation":5185.0,"time":6120.116666666668,"activities":188},{"date":"2025-08-20","distance":2116289.400000001,"elevation":5185.0,"time":6120.116666666668,"activities":188},{"date":"2025-08-21","distance":2121167.3000000007,"elevation":5235.0,"time":6136.666666666668,"activities":189},{"date":"2025-08-22","distance":2121167.3000000007,"elevation":5235.0,"time":6136.666666666668,"activities":189},{"date":"2025-08-23","distance":2121167.3000000007,"elevation":5235.0,"time":6136.666666666668,"activities":189},{"date":"2025-08-24","distance":2121167.3000000007,"elevation":5235.0,"time":6136.666666666668,"activities":189},{"date":"2025-08-25","distance":2136167.000000001,"elevation":5349.0,"time":6180.5666666666675,"activities":191},{"date":"2025-08-26","distance":2136167.000000001,"elevation":5349.0,"time":6180.5666666666675,"activities":191},{"date":"2025-08-27","distance":2136167.000000001,"elevation":5349.0,"time":6180.5666666666675,"activities":191},{"date":"2025-08-28","distance":2136167.000000001,"elevation":5349.0,"time":6180.5666666666675,"activities":191},{"date":"2025-08-29","distance":2170497.700000001,"elevation":5349.0,"time":6270.766666666667,"activities":193},{"date":"2025-08-30","distance":2170497.700000001,"elevation":5349.0,"time":6270.766666666667,"activities":193},{"date":"2025-08-31","distance":2170497.700000001,"elevation":5349.0,"time":6270.766666666667,"activities":193},{"date":"2025-09-01","distance":2187780.100000001,"elevation":5497.0,"time":6363.35,"activities":195},{"date":"2025-09-02","distance":2191574.600000001,"elevation":5535.0,"time":6383.616666666667,"activities":196},{"date":"2025-09-03","distance":2226076.900000001,"elevation":5535.0,"time":6474.85,"activities":198},{"date":"2025-09-04","distance":2257713.400000001,"elevation":5535.0,"time":6555.633333333334,"activities":200},{"date":"2025-09-05","distance":2299382.600000001,"elevation":5610.0,"time":6686.650000000001,"activities":204},{"date":"2025-09-06","distance":2299382.600000001,"elevation":5610.0,"time":6686.650000000001,"activities":204},{"date":"2025-09-07","distance":2299382.600000001,"elevation":5610.0,"time":6686.650000000001,"activities":204},{"date":"2025-09-08","distance":2317776.700000001,"elevation":5817.0,"time":6763.416666666667,"activities":208},{"date":"2025-09-09","distance":2346273.9000000013,"elevation":5956.0,"time":6876.733333333334,"activities":212},{"date":"2025-09-10","distance":2409844.4000000013,"elevation":6331.6,"time":7102.966666666667,"activities":220},{"date":"2025-09-11","distance":2466228.6000000015,"elevation":6633.200000000001,"time":7322.8,"activities":227},{"date":"2025-09-12","distance":2478465.4000000013,"elevation":6758.300000000001,"time":7386.283333333334,"activities":231},{"date":"2025-09-13","distance":2491449.700000001,"elevation":6908.300000000001,"time":7457.766666666667,"activities":233},{"date":"2025-09-14","distance":2501508.100000001,"elevation":6954.000000000001,"time":7558.766666666667,"activities":236},{"date":"2025-09-15","distance":2527481.900000001,"elevation":6954.000000000001,"time":7627.616666666668,"activities":238},{"date":"2025-09-16","distance":2551847.3000000007,"elevation":6954.000000000001,"time":7695.033333333335,"activities":240},{"date":"2025-09-17","distance":2567457.900000001,"elevation":6992.700000000001,"time":7819.033333333335,"activities":243},{"date":"2025-09-18","distance":2663589.900000001,"elevation":7708.1,"time":8089.000000000001,"activities":252},{"date":"2025-09-19","distance":2730072.8000000007,"elevation":7731.8,"time":8441.483333333334,"activities":264},{"date":"2025-09-20","distance":2730072.8000000007,"elevation":7731.8,"time":8441.483333333334,"activities":264},{"date":"2025-09-21","distance":2750044.7000000007,"elevation":7750.1,"time":8700.483333333334,"activities":271},{"date":"2025-09-22","distance":2817159.7000000007,"elevation":7858.200000000001,"time":8919.783333333333,"activities":279},{"date":"2025-09-23","distance":2833253.1000000006,"elevation":7956.000000000001,"time":8979.783333333333,"activities":280},{"date":"2025-09-24","distance":2855765.2000000007,"elevation":7956.000000000001,"time":9040.6,"activities":283},{"date":"2025-09-25","distance":2890956.7000000007,"elevation":7956.000000000001,"time":9130.15,"activities":285},{"date":"2025-09-26","distance":2902685.0000000005,"elevation":8098.000000000001,"time":9190.866666666667,"activities":287},{"date":"2025-09-27","distance":2902685.0000000005,"elevation":8098.000000000001,"time":9190.866666666667,"activities":287},{"date":"2025-09-28","distance":2906456.9000000004,"elevation":8131.000000000001,"time":9203.15,"activities":288},{"date":"2025-09-29","distance":2906456.9000000004,"elevation":8131.000000000001,"time":9203.15,"activities":288},{"date":"2025-09-30","distance":2906456.9000000004,"elevation":8131.000000000001,"time":9203.15,"activities":288},{"date":"2025-10-01","distance":2923354.8000000003,"elevation":8306.0,"time":9280.816666666666,"activities":290},{"date":"2025-10-02","distance":2923354.8000000003,"elevation":8306.0,"time":9280.816666666666,"activities":290},{"date":"2025-10-03","distance":2923354.8000000003,"elevation":8306.0,"time":9280.816666666666,"activities":290},{"date":"2025-10-04","distance":2923354.8000000003,"elevation":8306.0,"time":9280.816666666666,"activities":290},{"date":"2025-10-05","distance":2933333.5000000005,"elevation":8398.0,"time":9341.566666666666,"activities":292},{"date":"2025-10-06","distance":2937443.6000000006,"elevation":8444.0,"time":9354.183333333332,"activities":293},{"date":"2025-10-07","distance":2945667.0000000005,"elevation":8525.0,"time":9379.883333333333,"activities":295},{"date":"2025-10-08","distance":2952016.8000000003,"elevation":8594.0,"time":9401.566666666666,"activities":296},{"date":"2025-10-09","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-10","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-11","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-12","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-13","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-14","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-15","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-16","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-17","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-18","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-19","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-20","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-21","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-22","distance":2954041.5000000005,"elevation":8630.0,"time":9408.033333333333,"activities":297},{"date":"2025-10-23","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-10-24","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-10-25","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-10-26","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-10-27","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-10-28","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-10-29","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-10-30","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-10-31","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-01","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-02","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-03","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-04","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-05","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-06","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-07","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-08","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-09","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298},{"date":"2025-11-10","distance":2955032.9000000004,"elevation":8638.0,"time":9411.533333333333,"activities":298}]
+[
+  {
+    "date": "2025-01-01",
+    "distance": 0.0,
+    "elevation": 0.0,
+    "time": 0.0,
+    "activities": 0
+  },
+  {
+    "date": "2025-01-02",
+    "distance": 0.0,
+    "elevation": 0.0,
+    "time": 0.0,
+    "activities": 0
+  },
+  {
+    "date": "2025-01-03",
+    "distance": 0.0,
+    "elevation": 0.0,
+    "time": 0.0,
+    "activities": 0
+  },
+  {
+    "date": "2025-01-04",
+    "distance": 0.0,
+    "elevation": 0.0,
+    "time": 0.0,
+    "activities": 0
+  },
+  {
+    "date": "2025-01-05",
+    "distance": 0.0,
+    "elevation": 0.0,
+    "time": 0.0,
+    "activities": 0
+  },
+  {
+    "date": "2025-01-06",
+    "distance": 0.0,
+    "elevation": 0.0,
+    "time": 0.0,
+    "activities": 0
+  },
+  {
+    "date": "2025-01-07",
+    "distance": 18908.4,
+    "elevation": 0.0,
+    "time": 40.18333333333333,
+    "activities": 1
+  },
+  {
+    "date": "2025-01-08",
+    "distance": 18908.4,
+    "elevation": 0.0,
+    "time": 40.18333333333333,
+    "activities": 1
+  },
+  {
+    "date": "2025-01-09",
+    "distance": 23685.7,
+    "elevation": 51.0,
+    "time": 59.883333333333326,
+    "activities": 2
+  },
+  {
+    "date": "2025-01-10",
+    "distance": 43053.100000000006,
+    "elevation": 51.0,
+    "time": 104.53333333333333,
+    "activities": 3
+  },
+  {
+    "date": "2025-01-11",
+    "distance": 43766.3,
+    "elevation": 51.0,
+    "time": 106.85,
+    "activities": 4
+  },
+  {
+    "date": "2025-01-12",
+    "distance": 62677.5,
+    "elevation": 51.0,
+    "time": 157.45,
+    "activities": 6
+  },
+  {
+    "date": "2025-01-13",
+    "distance": 62677.5,
+    "elevation": 51.0,
+    "time": 157.45,
+    "activities": 6
+  },
+  {
+    "date": "2025-01-14",
+    "distance": 62677.5,
+    "elevation": 51.0,
+    "time": 157.45,
+    "activities": 6
+  },
+  {
+    "date": "2025-01-15",
+    "distance": 108464.3,
+    "elevation": 51.0,
+    "time": 269.0,
+    "activities": 10
+  },
+  {
+    "date": "2025-01-16",
+    "distance": 126963.6,
+    "elevation": 249.0,
+    "time": 332.5333333333333,
+    "activities": 11
+  },
+  {
+    "date": "2025-01-17",
+    "distance": 151051.30000000002,
+    "elevation": 249.0,
+    "time": 400.0833333333333,
+    "activities": 13
+  },
+  {
+    "date": "2025-01-18",
+    "distance": 151051.30000000002,
+    "elevation": 249.0,
+    "time": 400.0833333333333,
+    "activities": 13
+  },
+  {
+    "date": "2025-01-19",
+    "distance": 161832.30000000002,
+    "elevation": 249.0,
+    "time": 430.59999999999997,
+    "activities": 15
+  },
+  {
+    "date": "2025-01-20",
+    "distance": 175226.00000000003,
+    "elevation": 249.0,
+    "time": 461.1333333333333,
+    "activities": 16
+  },
+  {
+    "date": "2025-01-21",
+    "distance": 184300.30000000002,
+    "elevation": 249.0,
+    "time": 481.1166666666667,
+    "activities": 17
+  },
+  {
+    "date": "2025-01-22",
+    "distance": 184300.30000000002,
+    "elevation": 249.0,
+    "time": 481.1166666666667,
+    "activities": 17
+  },
+  {
+    "date": "2025-01-23",
+    "distance": 202819.00000000003,
+    "elevation": 249.0,
+    "time": 522.1,
+    "activities": 18
+  },
+  {
+    "date": "2025-01-24",
+    "distance": 209572.30000000002,
+    "elevation": 249.0,
+    "time": 537.2666666666667,
+    "activities": 19
+  },
+  {
+    "date": "2025-01-25",
+    "distance": 212804.90000000002,
+    "elevation": 275.0,
+    "time": 550.1999999999999,
+    "activities": 20
+  },
+  {
+    "date": "2025-01-26",
+    "distance": 212804.90000000002,
+    "elevation": 275.0,
+    "time": 550.1999999999999,
+    "activities": 20
+  },
+  {
+    "date": "2025-01-27",
+    "distance": 223684.10000000003,
+    "elevation": 397.0,
+    "time": 587.8,
+    "activities": 21
+  },
+  {
+    "date": "2025-01-28",
+    "distance": 227319.50000000003,
+    "elevation": 434.0,
+    "time": 600.3166666666666,
+    "activities": 22
+  },
+  {
+    "date": "2025-01-29",
+    "distance": 241169.90000000002,
+    "elevation": 606.0,
+    "time": 641.1666666666666,
+    "activities": 23
+  },
+  {
+    "date": "2025-01-30",
+    "distance": 270821.5,
+    "elevation": 846.0,
+    "time": 728.05,
+    "activities": 24
+  },
+  {
+    "date": "2025-01-31",
+    "distance": 270821.5,
+    "elevation": 846.0,
+    "time": 728.05,
+    "activities": 24
+  },
+  {
+    "date": "2025-02-01",
+    "distance": 270821.5,
+    "elevation": 846.0,
+    "time": 728.05,
+    "activities": 24
+  },
+  {
+    "date": "2025-02-02",
+    "distance": 295331.4,
+    "elevation": 846.0,
+    "time": 789.15,
+    "activities": 26
+  },
+  {
+    "date": "2025-02-03",
+    "distance": 332284.10000000003,
+    "elevation": 846.0,
+    "time": 890.7166666666667,
+    "activities": 28
+  },
+  {
+    "date": "2025-02-04",
+    "distance": 342513.60000000003,
+    "elevation": 945.0,
+    "time": 920.2666666666667,
+    "activities": 29
+  },
+  {
+    "date": "2025-02-05",
+    "distance": 344833.60000000003,
+    "elevation": 978.0,
+    "time": 932.55,
+    "activities": 30
+  },
+  {
+    "date": "2025-02-06",
+    "distance": 400742.80000000005,
+    "elevation": 978.0,
+    "time": 1068.0,
+    "activities": 35
+  },
+  {
+    "date": "2025-02-07",
+    "distance": 402731.20000000007,
+    "elevation": 1003.0,
+    "time": 1080.6,
+    "activities": 36
+  },
+  {
+    "date": "2025-02-08",
+    "distance": 402731.20000000007,
+    "elevation": 1003.0,
+    "time": 1080.6,
+    "activities": 36
+  },
+  {
+    "date": "2025-02-09",
+    "distance": 402731.20000000007,
+    "elevation": 1003.0,
+    "time": 1080.6,
+    "activities": 36
+  },
+  {
+    "date": "2025-02-10",
+    "distance": 420207.50000000006,
+    "elevation": 1192.0,
+    "time": 1130.7166666666665,
+    "activities": 37
+  },
+  {
+    "date": "2025-02-11",
+    "distance": 432395.4000000001,
+    "elevation": 1306.0,
+    "time": 1167.1166666666666,
+    "activities": 38
+  },
+  {
+    "date": "2025-02-12",
+    "distance": 432395.4000000001,
+    "elevation": 1306.0,
+    "time": 1167.1166666666666,
+    "activities": 38
+  },
+  {
+    "date": "2025-02-13",
+    "distance": 432395.4000000001,
+    "elevation": 1306.0,
+    "time": 1167.1166666666666,
+    "activities": 38
+  },
+  {
+    "date": "2025-02-14",
+    "distance": 432395.4000000001,
+    "elevation": 1306.0,
+    "time": 1167.1166666666666,
+    "activities": 38
+  },
+  {
+    "date": "2025-02-15",
+    "distance": 432395.4000000001,
+    "elevation": 1306.0,
+    "time": 1167.1166666666666,
+    "activities": 38
+  },
+  {
+    "date": "2025-02-16",
+    "distance": 444222.00000000006,
+    "elevation": 1434.0,
+    "time": 1216.1333333333332,
+    "activities": 40
+  },
+  {
+    "date": "2025-02-17",
+    "distance": 444222.00000000006,
+    "elevation": 1434.0,
+    "time": 1216.1333333333332,
+    "activities": 40
+  },
+  {
+    "date": "2025-02-18",
+    "distance": 473515.9000000001,
+    "elevation": 1434.0,
+    "time": 1278.6499999999999,
+    "activities": 41
+  },
+  {
+    "date": "2025-02-19",
+    "distance": 501108.00000000006,
+    "elevation": 1434.0,
+    "time": 1336.9333333333332,
+    "activities": 42
+  },
+  {
+    "date": "2025-02-20",
+    "distance": 513983.20000000007,
+    "elevation": 1434.0,
+    "time": 1368.1166666666666,
+    "activities": 43
+  },
+  {
+    "date": "2025-02-21",
+    "distance": 513983.20000000007,
+    "elevation": 1434.0,
+    "time": 1368.1166666666666,
+    "activities": 43
+  },
+  {
+    "date": "2025-02-22",
+    "distance": 528940.9,
+    "elevation": 1434.0,
+    "time": 1399.6333333333332,
+    "activities": 44
+  },
+  {
+    "date": "2025-02-23",
+    "distance": 528940.9,
+    "elevation": 1434.0,
+    "time": 1399.6333333333332,
+    "activities": 44
+  },
+  {
+    "date": "2025-02-24",
+    "distance": 545887.9,
+    "elevation": 1577.0,
+    "time": 1445.6333333333332,
+    "activities": 45
+  },
+  {
+    "date": "2025-02-25",
+    "distance": 564697.6,
+    "elevation": 1577.0,
+    "time": 1489.6666666666665,
+    "activities": 46
+  },
+  {
+    "date": "2025-02-26",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-02-27",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-02-28",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-01",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-02",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-03",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-04",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-05",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-06",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-07",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-08",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-09",
+    "distance": 592126.1,
+    "elevation": 1641.0,
+    "time": 1578.5833333333333,
+    "activities": 48
+  },
+  {
+    "date": "2025-03-10",
+    "distance": 617141.0,
+    "elevation": 1689.0,
+    "time": 1643.0333333333333,
+    "activities": 50
+  },
+  {
+    "date": "2025-03-11",
+    "distance": 617141.0,
+    "elevation": 1689.0,
+    "time": 1643.0333333333333,
+    "activities": 50
+  },
+  {
+    "date": "2025-03-12",
+    "distance": 624172.1,
+    "elevation": 1754.0,
+    "time": 1675.5,
+    "activities": 51
+  },
+  {
+    "date": "2025-03-13",
+    "distance": 652802.2999999999,
+    "elevation": 1754.0,
+    "time": 1735.2166666666667,
+    "activities": 52
+  },
+  {
+    "date": "2025-03-14",
+    "distance": 672648.2999999999,
+    "elevation": 1754.0,
+    "time": 1775.4166666666667,
+    "activities": 53
+  },
+  {
+    "date": "2025-03-15",
+    "distance": 687611.3999999999,
+    "elevation": 1754.0,
+    "time": 1809.0500000000002,
+    "activities": 54
+  },
+  {
+    "date": "2025-03-16",
+    "distance": 687611.3999999999,
+    "elevation": 1754.0,
+    "time": 1809.0500000000002,
+    "activities": 54
+  },
+  {
+    "date": "2025-03-17",
+    "distance": 687611.3999999999,
+    "elevation": 1754.0,
+    "time": 1809.0500000000002,
+    "activities": 54
+  },
+  {
+    "date": "2025-03-18",
+    "distance": 687611.3999999999,
+    "elevation": 1754.0,
+    "time": 1809.0500000000002,
+    "activities": 54
+  },
+  {
+    "date": "2025-03-19",
+    "distance": 718280.2999999999,
+    "elevation": 1754.0,
+    "time": 1879.7333333333336,
+    "activities": 56
+  },
+  {
+    "date": "2025-03-20",
+    "distance": 718280.2999999999,
+    "elevation": 1754.0,
+    "time": 1879.7333333333336,
+    "activities": 56
+  },
+  {
+    "date": "2025-03-21",
+    "distance": 720382.3999999999,
+    "elevation": 1795.0,
+    "time": 1894.216666666667,
+    "activities": 57
+  },
+  {
+    "date": "2025-03-22",
+    "distance": 720382.3999999999,
+    "elevation": 1795.0,
+    "time": 1894.216666666667,
+    "activities": 57
+  },
+  {
+    "date": "2025-03-23",
+    "distance": 720382.3999999999,
+    "elevation": 1795.0,
+    "time": 1894.216666666667,
+    "activities": 57
+  },
+  {
+    "date": "2025-03-24",
+    "distance": 726012.3999999999,
+    "elevation": 1862.0,
+    "time": 1912.1833333333336,
+    "activities": 58
+  },
+  {
+    "date": "2025-03-25",
+    "distance": 750721.8999999999,
+    "elevation": 1862.0,
+    "time": 1973.1833333333336,
+    "activities": 60
+  },
+  {
+    "date": "2025-03-26",
+    "distance": 810988.0999999999,
+    "elevation": 1862.0,
+    "time": 2114.1000000000004,
+    "activities": 62
+  },
+  {
+    "date": "2025-03-27",
+    "distance": 820746.7999999998,
+    "elevation": 1991.0,
+    "time": 2174.316666666667,
+    "activities": 64
+  },
+  {
+    "date": "2025-03-28",
+    "distance": 823550.1999999998,
+    "elevation": 2031.0,
+    "time": 2183.05,
+    "activities": 65
+  },
+  {
+    "date": "2025-03-29",
+    "distance": 823550.1999999998,
+    "elevation": 2031.0,
+    "time": 2183.05,
+    "activities": 65
+  },
+  {
+    "date": "2025-03-30",
+    "distance": 823550.1999999998,
+    "elevation": 2031.0,
+    "time": 2183.05,
+    "activities": 65
+  },
+  {
+    "date": "2025-03-31",
+    "distance": 823550.1999999998,
+    "elevation": 2031.0,
+    "time": 2183.05,
+    "activities": 65
+  },
+  {
+    "date": "2025-04-01",
+    "distance": 852747.9999999999,
+    "elevation": 2031.0,
+    "time": 2261.2000000000003,
+    "activities": 67
+  },
+  {
+    "date": "2025-04-02",
+    "distance": 890030.2999999999,
+    "elevation": 2031.0,
+    "time": 2351.3833333333337,
+    "activities": 69
+  },
+  {
+    "date": "2025-04-03",
+    "distance": 921857.3999999999,
+    "elevation": 2031.0,
+    "time": 2423.516666666667,
+    "activities": 71
+  },
+  {
+    "date": "2025-04-04",
+    "distance": 951431.5999999999,
+    "elevation": 2031.0,
+    "time": 2509.3500000000004,
+    "activities": 73
+  },
+  {
+    "date": "2025-04-05",
+    "distance": 951431.5999999999,
+    "elevation": 2031.0,
+    "time": 2509.3500000000004,
+    "activities": 73
+  },
+  {
+    "date": "2025-04-06",
+    "distance": 951431.5999999999,
+    "elevation": 2031.0,
+    "time": 2509.3500000000004,
+    "activities": 73
+  },
+  {
+    "date": "2025-04-07",
+    "distance": 976944.3999999999,
+    "elevation": 2031.0,
+    "time": 2578.1000000000004,
+    "activities": 75
+  },
+  {
+    "date": "2025-04-08",
+    "distance": 976944.3999999999,
+    "elevation": 2031.0,
+    "time": 2578.1000000000004,
+    "activities": 75
+  },
+  {
+    "date": "2025-04-09",
+    "distance": 976944.3999999999,
+    "elevation": 2031.0,
+    "time": 2578.1000000000004,
+    "activities": 75
+  },
+  {
+    "date": "2025-04-10",
+    "distance": 1010811.5999999999,
+    "elevation": 2031.0,
+    "time": 2651.266666666667,
+    "activities": 76
+  },
+  {
+    "date": "2025-04-11",
+    "distance": 1024916.1999999998,
+    "elevation": 2031.0,
+    "time": 2682.4,
+    "activities": 77
+  },
+  {
+    "date": "2025-04-12",
+    "distance": 1024916.1999999998,
+    "elevation": 2031.0,
+    "time": 2682.4,
+    "activities": 77
+  },
+  {
+    "date": "2025-04-13",
+    "distance": 1024916.1999999998,
+    "elevation": 2031.0,
+    "time": 2682.4,
+    "activities": 77
+  },
+  {
+    "date": "2025-04-14",
+    "distance": 1044931.7999999998,
+    "elevation": 2179.0,
+    "time": 2755.116666666667,
+    "activities": 80
+  },
+  {
+    "date": "2025-04-15",
+    "distance": 1044931.7999999998,
+    "elevation": 2179.0,
+    "time": 2755.116666666667,
+    "activities": 80
+  },
+  {
+    "date": "2025-04-16",
+    "distance": 1044931.7999999998,
+    "elevation": 2179.0,
+    "time": 2755.116666666667,
+    "activities": 80
+  },
+  {
+    "date": "2025-04-17",
+    "distance": 1067187.5999999999,
+    "elevation": 2179.0,
+    "time": 2824.1833333333334,
+    "activities": 84
+  },
+  {
+    "date": "2025-04-18",
+    "distance": 1080435.7,
+    "elevation": 2179.0,
+    "time": 2864.4666666666667,
+    "activities": 85
+  },
+  {
+    "date": "2025-04-19",
+    "distance": 1117634.0,
+    "elevation": 2179.0,
+    "time": 2958.616666666667,
+    "activities": 87
+  },
+  {
+    "date": "2025-04-20",
+    "distance": 1117634.0,
+    "elevation": 2179.0,
+    "time": 2958.616666666667,
+    "activities": 87
+  },
+  {
+    "date": "2025-04-21",
+    "distance": 1121825.0,
+    "elevation": 2214.0,
+    "time": 2982.4,
+    "activities": 88
+  },
+  {
+    "date": "2025-04-22",
+    "distance": 1135974.9,
+    "elevation": 2214.0,
+    "time": 3012.5833333333335,
+    "activities": 89
+  },
+  {
+    "date": "2025-04-23",
+    "distance": 1156609.2,
+    "elevation": 2282.0,
+    "time": 3079.8500000000004,
+    "activities": 91
+  },
+  {
+    "date": "2025-04-24",
+    "distance": 1180860.3,
+    "elevation": 2282.0,
+    "time": 3142.683333333334,
+    "activities": 93
+  },
+  {
+    "date": "2025-04-25",
+    "distance": 1207008.2,
+    "elevation": 2382.0,
+    "time": 3227.0000000000005,
+    "activities": 95
+  },
+  {
+    "date": "2025-04-26",
+    "distance": 1230410.4,
+    "elevation": 2382.0,
+    "time": 3279.333333333334,
+    "activities": 96
+  },
+  {
+    "date": "2025-04-27",
+    "distance": 1238427.0999999999,
+    "elevation": 2457.0,
+    "time": 3316.6666666666674,
+    "activities": 97
+  },
+  {
+    "date": "2025-04-28",
+    "distance": 1251677.4999999998,
+    "elevation": 2568.0,
+    "time": 3383.9333333333343,
+    "activities": 99
+  },
+  {
+    "date": "2025-04-29",
+    "distance": 1251677.4999999998,
+    "elevation": 2568.0,
+    "time": 3383.9333333333343,
+    "activities": 99
+  },
+  {
+    "date": "2025-04-30",
+    "distance": 1267423.0999999999,
+    "elevation": 2695.0,
+    "time": 3435.900000000001,
+    "activities": 100
+  },
+  {
+    "date": "2025-05-01",
+    "distance": 1281584.4,
+    "elevation": 2695.0,
+    "time": 3466.0666666666675,
+    "activities": 101
+  },
+  {
+    "date": "2025-05-02",
+    "distance": 1308817.9,
+    "elevation": 2751.0,
+    "time": 3545.400000000001,
+    "activities": 103
+  },
+  {
+    "date": "2025-05-03",
+    "distance": 1340018.0,
+    "elevation": 2751.0,
+    "time": 3611.783333333334,
+    "activities": 104
+  },
+  {
+    "date": "2025-05-04",
+    "distance": 1340018.0,
+    "elevation": 2751.0,
+    "time": 3611.783333333334,
+    "activities": 104
+  },
+  {
+    "date": "2025-05-05",
+    "distance": 1344298.9,
+    "elevation": 2788.0,
+    "time": 3633.400000000001,
+    "activities": 105
+  },
+  {
+    "date": "2025-05-06",
+    "distance": 1357812.7,
+    "elevation": 2962.0,
+    "time": 3669.7166666666676,
+    "activities": 106
+  },
+  {
+    "date": "2025-05-07",
+    "distance": 1376243.0,
+    "elevation": 3014.0,
+    "time": 3722.6833333333343,
+    "activities": 109
+  },
+  {
+    "date": "2025-05-08",
+    "distance": 1390338.5,
+    "elevation": 3014.0,
+    "time": 3752.850000000001,
+    "activities": 110
+  },
+  {
+    "date": "2025-05-09",
+    "distance": 1390338.5,
+    "elevation": 3014.0,
+    "time": 3752.850000000001,
+    "activities": 110
+  },
+  {
+    "date": "2025-05-10",
+    "distance": 1422759.5,
+    "elevation": 3014.0,
+    "time": 3831.5166666666673,
+    "activities": 111
+  },
+  {
+    "date": "2025-05-11",
+    "distance": 1424745.3,
+    "elevation": 3028.0,
+    "time": 3842.833333333334,
+    "activities": 112
+  },
+  {
+    "date": "2025-05-12",
+    "distance": 1439725.4000000001,
+    "elevation": 3151.0,
+    "time": 3880.5333333333338,
+    "activities": 113
+  },
+  {
+    "date": "2025-05-13",
+    "distance": 1446794.4000000001,
+    "elevation": 3151.0,
+    "time": 3911.5333333333338,
+    "activities": 115
+  },
+  {
+    "date": "2025-05-14",
+    "distance": 1446794.4000000001,
+    "elevation": 3151.0,
+    "time": 3911.5333333333338,
+    "activities": 115
+  },
+  {
+    "date": "2025-05-15",
+    "distance": 1446794.4000000001,
+    "elevation": 3151.0,
+    "time": 3911.5333333333338,
+    "activities": 115
+  },
+  {
+    "date": "2025-05-16",
+    "distance": 1446794.4000000001,
+    "elevation": 3151.0,
+    "time": 3911.5333333333338,
+    "activities": 115
+  },
+  {
+    "date": "2025-05-17",
+    "distance": 1446794.4000000001,
+    "elevation": 3151.0,
+    "time": 3911.5333333333338,
+    "activities": 115
+  },
+  {
+    "date": "2025-05-18",
+    "distance": 1446794.4000000001,
+    "elevation": 3151.0,
+    "time": 3911.5333333333338,
+    "activities": 115
+  },
+  {
+    "date": "2025-05-19",
+    "distance": 1478682.5000000002,
+    "elevation": 3151.0,
+    "time": 3984.3500000000004,
+    "activities": 117
+  },
+  {
+    "date": "2025-05-20",
+    "distance": 1488075.8000000003,
+    "elevation": 3249.0,
+    "time": 4042.3833333333337,
+    "activities": 121
+  },
+  {
+    "date": "2025-05-21",
+    "distance": 1488075.8000000003,
+    "elevation": 3249.0,
+    "time": 4042.3833333333337,
+    "activities": 121
+  },
+  {
+    "date": "2025-05-22",
+    "distance": 1517924.9000000004,
+    "elevation": 3280.0,
+    "time": 4120.016666666667,
+    "activities": 124
+  },
+  {
+    "date": "2025-05-23",
+    "distance": 1517924.9000000004,
+    "elevation": 3280.0,
+    "time": 4120.016666666667,
+    "activities": 124
+  },
+  {
+    "date": "2025-05-24",
+    "distance": 1517924.9000000004,
+    "elevation": 3280.0,
+    "time": 4120.016666666667,
+    "activities": 124
+  },
+  {
+    "date": "2025-05-25",
+    "distance": 1538904.1000000003,
+    "elevation": 3505.0,
+    "time": 4235.183333333334,
+    "activities": 125
+  },
+  {
+    "date": "2025-05-26",
+    "distance": 1538904.1000000003,
+    "elevation": 3505.0,
+    "time": 4235.183333333334,
+    "activities": 125
+  },
+  {
+    "date": "2025-05-27",
+    "distance": 1550867.0000000002,
+    "elevation": 3595.0,
+    "time": 4290.9833333333345,
+    "activities": 127
+  },
+  {
+    "date": "2025-05-28",
+    "distance": 1550867.0000000002,
+    "elevation": 3595.0,
+    "time": 4290.9833333333345,
+    "activities": 127
+  },
+  {
+    "date": "2025-05-29",
+    "distance": 1569170.0000000002,
+    "elevation": 3595.0,
+    "time": 4343.166666666668,
+    "activities": 130
+  },
+  {
+    "date": "2025-05-30",
+    "distance": 1569170.0000000002,
+    "elevation": 3595.0,
+    "time": 4343.166666666668,
+    "activities": 130
+  },
+  {
+    "date": "2025-05-31",
+    "distance": 1569170.0000000002,
+    "elevation": 3595.0,
+    "time": 4343.166666666668,
+    "activities": 130
+  },
+  {
+    "date": "2025-06-01",
+    "distance": 1607712.7000000002,
+    "elevation": 3634.0,
+    "time": 4440.350000000001,
+    "activities": 133
+  },
+  {
+    "date": "2025-06-02",
+    "distance": 1613287.3000000003,
+    "elevation": 3692.0,
+    "time": 4468.166666666668,
+    "activities": 135
+  },
+  {
+    "date": "2025-06-03",
+    "distance": 1621572.3000000003,
+    "elevation": 3763.0,
+    "time": 4509.366666666668,
+    "activities": 137
+  },
+  {
+    "date": "2025-06-04",
+    "distance": 1627997.3000000003,
+    "elevation": 3821.0,
+    "time": 4543.116666666668,
+    "activities": 138
+  },
+  {
+    "date": "2025-06-05",
+    "distance": 1641849.6000000003,
+    "elevation": 4004.0,
+    "time": 4590.516666666667,
+    "activities": 139
+  },
+  {
+    "date": "2025-06-06",
+    "distance": 1649848.7000000004,
+    "elevation": 4082.0,
+    "time": 4629.416666666667,
+    "activities": 140
+  },
+  {
+    "date": "2025-06-07",
+    "distance": 1649848.7000000004,
+    "elevation": 4082.0,
+    "time": 4629.416666666667,
+    "activities": 140
+  },
+  {
+    "date": "2025-06-08",
+    "distance": 1654795.9000000004,
+    "elevation": 4111.0,
+    "time": 4652.016666666667,
+    "activities": 141
+  },
+  {
+    "date": "2025-06-09",
+    "distance": 1654795.9000000004,
+    "elevation": 4111.0,
+    "time": 4652.016666666667,
+    "activities": 141
+  },
+  {
+    "date": "2025-06-10",
+    "distance": 1654795.9000000004,
+    "elevation": 4111.0,
+    "time": 4652.016666666667,
+    "activities": 141
+  },
+  {
+    "date": "2025-06-11",
+    "distance": 1654795.9000000004,
+    "elevation": 4111.0,
+    "time": 4652.016666666667,
+    "activities": 141
+  },
+  {
+    "date": "2025-06-12",
+    "distance": 1694632.5000000005,
+    "elevation": 4146.0,
+    "time": 4761.866666666668,
+    "activities": 145
+  },
+  {
+    "date": "2025-06-13",
+    "distance": 1696761.2000000004,
+    "elevation": 4174.0,
+    "time": 4772.200000000001,
+    "activities": 146
+  },
+  {
+    "date": "2025-06-14",
+    "distance": 1696761.2000000004,
+    "elevation": 4174.0,
+    "time": 4772.200000000001,
+    "activities": 146
+  },
+  {
+    "date": "2025-06-15",
+    "distance": 1696761.2000000004,
+    "elevation": 4174.0,
+    "time": 4772.200000000001,
+    "activities": 146
+  },
+  {
+    "date": "2025-06-16",
+    "distance": 1721679.7000000004,
+    "elevation": 4217.0,
+    "time": 4842.516666666667,
+    "activities": 148
+  },
+  {
+    "date": "2025-06-17",
+    "distance": 1750823.5000000005,
+    "elevation": 4291.0,
+    "time": 4930.216666666667,
+    "activities": 150
+  },
+  {
+    "date": "2025-06-18",
+    "distance": 1762826.9000000004,
+    "elevation": 4418.0,
+    "time": 4992.983333333334,
+    "activities": 152
+  },
+  {
+    "date": "2025-06-19",
+    "distance": 1762826.9000000004,
+    "elevation": 4418.0,
+    "time": 4992.983333333334,
+    "activities": 152
+  },
+  {
+    "date": "2025-06-20",
+    "distance": 1762826.9000000004,
+    "elevation": 4418.0,
+    "time": 4992.983333333334,
+    "activities": 152
+  },
+  {
+    "date": "2025-06-21",
+    "distance": 1762826.9000000004,
+    "elevation": 4418.0,
+    "time": 4992.983333333334,
+    "activities": 152
+  },
+  {
+    "date": "2025-06-22",
+    "distance": 1775890.3000000003,
+    "elevation": 4514.0,
+    "time": 5060.900000000001,
+    "activities": 154
+  },
+  {
+    "date": "2025-06-23",
+    "distance": 1805446.2000000002,
+    "elevation": 4582.0,
+    "time": 5141.183333333334,
+    "activities": 158
+  },
+  {
+    "date": "2025-06-24",
+    "distance": 1805446.2000000002,
+    "elevation": 4582.0,
+    "time": 5141.183333333334,
+    "activities": 158
+  },
+  {
+    "date": "2025-06-25",
+    "distance": 1805446.2000000002,
+    "elevation": 4582.0,
+    "time": 5141.183333333334,
+    "activities": 158
+  },
+  {
+    "date": "2025-06-26",
+    "distance": 1805446.2000000002,
+    "elevation": 4582.0,
+    "time": 5141.183333333334,
+    "activities": 158
+  },
+  {
+    "date": "2025-06-27",
+    "distance": 1841331.9000000001,
+    "elevation": 4582.0,
+    "time": 5288.916666666668,
+    "activities": 161
+  },
+  {
+    "date": "2025-06-28",
+    "distance": 1843127.3,
+    "elevation": 4598.0,
+    "time": 5304.283333333335,
+    "activities": 162
+  },
+  {
+    "date": "2025-06-29",
+    "distance": 1843127.3,
+    "elevation": 4598.0,
+    "time": 5304.283333333335,
+    "activities": 162
+  },
+  {
+    "date": "2025-06-30",
+    "distance": 1853033.4000000001,
+    "elevation": 4754.0,
+    "time": 5330.9833333333345,
+    "activities": 163
+  },
+  {
+    "date": "2025-07-01",
+    "distance": 1853033.4000000001,
+    "elevation": 4754.0,
+    "time": 5330.9833333333345,
+    "activities": 163
+  },
+  {
+    "date": "2025-07-02",
+    "distance": 1853033.4000000001,
+    "elevation": 4754.0,
+    "time": 5330.9833333333345,
+    "activities": 163
+  },
+  {
+    "date": "2025-07-03",
+    "distance": 1853033.4000000001,
+    "elevation": 4754.0,
+    "time": 5330.9833333333345,
+    "activities": 163
+  },
+  {
+    "date": "2025-07-04",
+    "distance": 1853033.4000000001,
+    "elevation": 4754.0,
+    "time": 5330.9833333333345,
+    "activities": 163
+  },
+  {
+    "date": "2025-07-05",
+    "distance": 1853033.4000000001,
+    "elevation": 4754.0,
+    "time": 5330.9833333333345,
+    "activities": 163
+  },
+  {
+    "date": "2025-07-06",
+    "distance": 1853033.4000000001,
+    "elevation": 4754.0,
+    "time": 5330.9833333333345,
+    "activities": 163
+  },
+  {
+    "date": "2025-07-07",
+    "distance": 1890139.2000000002,
+    "elevation": 4754.0,
+    "time": 5421.166666666668,
+    "activities": 165
+  },
+  {
+    "date": "2025-07-08",
+    "distance": 1890139.2000000002,
+    "elevation": 4754.0,
+    "time": 5421.166666666668,
+    "activities": 165
+  },
+  {
+    "date": "2025-07-09",
+    "distance": 1890139.2000000002,
+    "elevation": 4754.0,
+    "time": 5421.166666666668,
+    "activities": 165
+  },
+  {
+    "date": "2025-07-10",
+    "distance": 1904214.8000000003,
+    "elevation": 4754.0,
+    "time": 5451.350000000001,
+    "activities": 166
+  },
+  {
+    "date": "2025-07-11",
+    "distance": 1927527.3000000003,
+    "elevation": 4754.0,
+    "time": 5530.700000000002,
+    "activities": 168
+  },
+  {
+    "date": "2025-07-12",
+    "distance": 1927527.3000000003,
+    "elevation": 4754.0,
+    "time": 5530.700000000002,
+    "activities": 168
+  },
+  {
+    "date": "2025-07-13",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-14",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-15",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-16",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-17",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-18",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-19",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-20",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-21",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-22",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-23",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-24",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-25",
+    "distance": 1932370.3000000003,
+    "elevation": 4793.0,
+    "time": 5559.200000000002,
+    "activities": 169
+  },
+  {
+    "date": "2025-07-26",
+    "distance": 1933472.4000000004,
+    "elevation": 4801.0,
+    "time": 5569.116666666669,
+    "activities": 170
+  },
+  {
+    "date": "2025-07-27",
+    "distance": 1933472.4000000004,
+    "elevation": 4801.0,
+    "time": 5569.116666666669,
+    "activities": 170
+  },
+  {
+    "date": "2025-07-28",
+    "distance": 1956775.9000000004,
+    "elevation": 4801.0,
+    "time": 5631.350000000002,
+    "activities": 172
+  },
+  {
+    "date": "2025-07-29",
+    "distance": 1979416.4000000004,
+    "elevation": 4801.0,
+    "time": 5696.816666666668,
+    "activities": 174
+  },
+  {
+    "date": "2025-07-30",
+    "distance": 1982114.9000000004,
+    "elevation": 4832.0,
+    "time": 5723.566666666668,
+    "activities": 175
+  },
+  {
+    "date": "2025-07-31",
+    "distance": 1982114.9000000004,
+    "elevation": 4832.0,
+    "time": 5723.566666666668,
+    "activities": 175
+  },
+  {
+    "date": "2025-08-01",
+    "distance": 1997543.7000000004,
+    "elevation": 4988.0,
+    "time": 5768.966666666668,
+    "activities": 177
+  },
+  {
+    "date": "2025-08-02",
+    "distance": 1997543.7000000004,
+    "elevation": 4988.0,
+    "time": 5768.966666666668,
+    "activities": 177
+  },
+  {
+    "date": "2025-08-03",
+    "distance": 1997543.7000000004,
+    "elevation": 4988.0,
+    "time": 5768.966666666668,
+    "activities": 177
+  },
+  {
+    "date": "2025-08-04",
+    "distance": 2021568.2000000004,
+    "elevation": 4988.0,
+    "time": 5837.533333333335,
+    "activities": 179
+  },
+  {
+    "date": "2025-08-05",
+    "distance": 2021568.2000000004,
+    "elevation": 4988.0,
+    "time": 5837.533333333335,
+    "activities": 179
+  },
+  {
+    "date": "2025-08-06",
+    "distance": 2021568.2000000004,
+    "elevation": 4988.0,
+    "time": 5837.533333333335,
+    "activities": 179
+  },
+  {
+    "date": "2025-08-07",
+    "distance": 2021568.2000000004,
+    "elevation": 4988.0,
+    "time": 5837.533333333335,
+    "activities": 179
+  },
+  {
+    "date": "2025-08-08",
+    "distance": 2021568.2000000004,
+    "elevation": 4988.0,
+    "time": 5837.533333333335,
+    "activities": 179
+  },
+  {
+    "date": "2025-08-09",
+    "distance": 2021568.2000000004,
+    "elevation": 4988.0,
+    "time": 5837.533333333335,
+    "activities": 179
+  },
+  {
+    "date": "2025-08-10",
+    "distance": 2021568.2000000004,
+    "elevation": 4988.0,
+    "time": 5837.533333333335,
+    "activities": 179
+  },
+  {
+    "date": "2025-08-11",
+    "distance": 2045527.7000000004,
+    "elevation": 4988.0,
+    "time": 5900.700000000002,
+    "activities": 181
+  },
+  {
+    "date": "2025-08-12",
+    "distance": 2068797.4000000004,
+    "elevation": 4988.0,
+    "time": 5961.033333333335,
+    "activities": 183
+  },
+  {
+    "date": "2025-08-13",
+    "distance": 2068797.4000000004,
+    "elevation": 4988.0,
+    "time": 5961.033333333335,
+    "activities": 183
+  },
+  {
+    "date": "2025-08-14",
+    "distance": 2083948.0000000005,
+    "elevation": 5111.0,
+    "time": 6012.833333333335,
+    "activities": 184
+  },
+  {
+    "date": "2025-08-15",
+    "distance": 2111299.7000000007,
+    "elevation": 5134.0,
+    "time": 6103.533333333335,
+    "activities": 187
+  },
+  {
+    "date": "2025-08-16",
+    "distance": 2111299.7000000007,
+    "elevation": 5134.0,
+    "time": 6103.533333333335,
+    "activities": 187
+  },
+  {
+    "date": "2025-08-17",
+    "distance": 2111299.7000000007,
+    "elevation": 5134.0,
+    "time": 6103.533333333335,
+    "activities": 187
+  },
+  {
+    "date": "2025-08-18",
+    "distance": 2111299.7000000007,
+    "elevation": 5134.0,
+    "time": 6103.533333333335,
+    "activities": 187
+  },
+  {
+    "date": "2025-08-19",
+    "distance": 2116289.400000001,
+    "elevation": 5185.0,
+    "time": 6120.116666666668,
+    "activities": 188
+  },
+  {
+    "date": "2025-08-20",
+    "distance": 2116289.400000001,
+    "elevation": 5185.0,
+    "time": 6120.116666666668,
+    "activities": 188
+  },
+  {
+    "date": "2025-08-21",
+    "distance": 2121167.3000000007,
+    "elevation": 5235.0,
+    "time": 6136.666666666668,
+    "activities": 189
+  },
+  {
+    "date": "2025-08-22",
+    "distance": 2121167.3000000007,
+    "elevation": 5235.0,
+    "time": 6136.666666666668,
+    "activities": 189
+  },
+  {
+    "date": "2025-08-23",
+    "distance": 2121167.3000000007,
+    "elevation": 5235.0,
+    "time": 6136.666666666668,
+    "activities": 189
+  },
+  {
+    "date": "2025-08-24",
+    "distance": 2121167.3000000007,
+    "elevation": 5235.0,
+    "time": 6136.666666666668,
+    "activities": 189
+  },
+  {
+    "date": "2025-08-25",
+    "distance": 2136167.000000001,
+    "elevation": 5349.0,
+    "time": 6180.5666666666675,
+    "activities": 191
+  },
+  {
+    "date": "2025-08-26",
+    "distance": 2136167.000000001,
+    "elevation": 5349.0,
+    "time": 6180.5666666666675,
+    "activities": 191
+  },
+  {
+    "date": "2025-08-27",
+    "distance": 2136167.000000001,
+    "elevation": 5349.0,
+    "time": 6180.5666666666675,
+    "activities": 191
+  },
+  {
+    "date": "2025-08-28",
+    "distance": 2136167.000000001,
+    "elevation": 5349.0,
+    "time": 6180.5666666666675,
+    "activities": 191
+  },
+  {
+    "date": "2025-08-29",
+    "distance": 2170497.700000001,
+    "elevation": 5349.0,
+    "time": 6270.766666666667,
+    "activities": 193
+  },
+  {
+    "date": "2025-08-30",
+    "distance": 2170497.700000001,
+    "elevation": 5349.0,
+    "time": 6270.766666666667,
+    "activities": 193
+  },
+  {
+    "date": "2025-08-31",
+    "distance": 2170497.700000001,
+    "elevation": 5349.0,
+    "time": 6270.766666666667,
+    "activities": 193
+  },
+  {
+    "date": "2025-09-01",
+    "distance": 2187780.100000001,
+    "elevation": 5497.0,
+    "time": 6363.35,
+    "activities": 195
+  },
+  {
+    "date": "2025-09-02",
+    "distance": 2191574.600000001,
+    "elevation": 5535.0,
+    "time": 6383.616666666667,
+    "activities": 196
+  },
+  {
+    "date": "2025-09-03",
+    "distance": 2226076.900000001,
+    "elevation": 5535.0,
+    "time": 6474.85,
+    "activities": 198
+  },
+  {
+    "date": "2025-09-04",
+    "distance": 2257713.400000001,
+    "elevation": 5535.0,
+    "time": 6555.633333333334,
+    "activities": 200
+  },
+  {
+    "date": "2025-09-05",
+    "distance": 2299382.600000001,
+    "elevation": 5610.0,
+    "time": 6686.650000000001,
+    "activities": 204
+  },
+  {
+    "date": "2025-09-06",
+    "distance": 2299382.600000001,
+    "elevation": 5610.0,
+    "time": 6686.650000000001,
+    "activities": 204
+  },
+  {
+    "date": "2025-09-07",
+    "distance": 2299382.600000001,
+    "elevation": 5610.0,
+    "time": 6686.650000000001,
+    "activities": 204
+  },
+  {
+    "date": "2025-09-08",
+    "distance": 2317776.700000001,
+    "elevation": 5817.0,
+    "time": 6763.416666666667,
+    "activities": 208
+  },
+  {
+    "date": "2025-09-09",
+    "distance": 2346273.9000000013,
+    "elevation": 5956.0,
+    "time": 6876.733333333334,
+    "activities": 212
+  },
+  {
+    "date": "2025-09-10",
+    "distance": 2409844.4000000013,
+    "elevation": 6331.6,
+    "time": 7102.966666666667,
+    "activities": 220
+  },
+  {
+    "date": "2025-09-11",
+    "distance": 2466228.6000000015,
+    "elevation": 6633.200000000001,
+    "time": 7322.8,
+    "activities": 227
+  },
+  {
+    "date": "2025-09-12",
+    "distance": 2478465.4000000013,
+    "elevation": 6758.300000000001,
+    "time": 7386.283333333334,
+    "activities": 231
+  },
+  {
+    "date": "2025-09-13",
+    "distance": 2491449.700000001,
+    "elevation": 6908.300000000001,
+    "time": 7457.766666666667,
+    "activities": 233
+  },
+  {
+    "date": "2025-09-14",
+    "distance": 2501508.100000001,
+    "elevation": 6954.000000000001,
+    "time": 7558.766666666667,
+    "activities": 236
+  },
+  {
+    "date": "2025-09-15",
+    "distance": 2527481.900000001,
+    "elevation": 6954.000000000001,
+    "time": 7627.616666666668,
+    "activities": 238
+  },
+  {
+    "date": "2025-09-16",
+    "distance": 2551847.3000000007,
+    "elevation": 6954.000000000001,
+    "time": 7695.033333333335,
+    "activities": 240
+  },
+  {
+    "date": "2025-09-17",
+    "distance": 2567457.900000001,
+    "elevation": 6992.700000000001,
+    "time": 7819.033333333335,
+    "activities": 243
+  },
+  {
+    "date": "2025-09-18",
+    "distance": 2663589.900000001,
+    "elevation": 7708.1,
+    "time": 8089.000000000001,
+    "activities": 252
+  },
+  {
+    "date": "2025-09-19",
+    "distance": 2730072.8000000007,
+    "elevation": 7731.8,
+    "time": 8441.483333333334,
+    "activities": 264
+  },
+  {
+    "date": "2025-09-20",
+    "distance": 2730072.8000000007,
+    "elevation": 7731.8,
+    "time": 8441.483333333334,
+    "activities": 264
+  },
+  {
+    "date": "2025-09-21",
+    "distance": 2750044.7000000007,
+    "elevation": 7750.1,
+    "time": 8700.483333333334,
+    "activities": 271
+  },
+  {
+    "date": "2025-09-22",
+    "distance": 2817159.7000000007,
+    "elevation": 7858.200000000001,
+    "time": 8919.783333333333,
+    "activities": 279
+  },
+  {
+    "date": "2025-09-23",
+    "distance": 2833253.1000000006,
+    "elevation": 7956.000000000001,
+    "time": 8979.783333333333,
+    "activities": 280
+  },
+  {
+    "date": "2025-09-24",
+    "distance": 2855765.2000000007,
+    "elevation": 7956.000000000001,
+    "time": 9040.6,
+    "activities": 283
+  },
+  {
+    "date": "2025-09-25",
+    "distance": 2890956.7000000007,
+    "elevation": 7956.000000000001,
+    "time": 9130.15,
+    "activities": 285
+  },
+  {
+    "date": "2025-09-26",
+    "distance": 2902685.0000000005,
+    "elevation": 8098.000000000001,
+    "time": 9190.866666666667,
+    "activities": 287
+  },
+  {
+    "date": "2025-09-27",
+    "distance": 2902685.0000000005,
+    "elevation": 8098.000000000001,
+    "time": 9190.866666666667,
+    "activities": 287
+  },
+  {
+    "date": "2025-09-28",
+    "distance": 2906456.9000000004,
+    "elevation": 8131.000000000001,
+    "time": 9203.15,
+    "activities": 288
+  },
+  {
+    "date": "2025-09-29",
+    "distance": 2906456.9000000004,
+    "elevation": 8131.000000000001,
+    "time": 9203.15,
+    "activities": 288
+  },
+  {
+    "date": "2025-09-30",
+    "distance": 2906456.9000000004,
+    "elevation": 8131.000000000001,
+    "time": 9203.15,
+    "activities": 288
+  },
+  {
+    "date": "2025-10-01",
+    "distance": 2923354.8000000003,
+    "elevation": 8306.0,
+    "time": 9280.816666666666,
+    "activities": 290
+  },
+  {
+    "date": "2025-10-02",
+    "distance": 2923354.8000000003,
+    "elevation": 8306.0,
+    "time": 9280.816666666666,
+    "activities": 290
+  },
+  {
+    "date": "2025-10-03",
+    "distance": 2923354.8000000003,
+    "elevation": 8306.0,
+    "time": 9280.816666666666,
+    "activities": 290
+  },
+  {
+    "date": "2025-10-04",
+    "distance": 2923354.8000000003,
+    "elevation": 8306.0,
+    "time": 9280.816666666666,
+    "activities": 290
+  },
+  {
+    "date": "2025-10-05",
+    "distance": 2933333.5000000005,
+    "elevation": 8398.0,
+    "time": 9341.566666666666,
+    "activities": 292
+  },
+  {
+    "date": "2025-10-06",
+    "distance": 2937443.6000000006,
+    "elevation": 8444.0,
+    "time": 9354.183333333332,
+    "activities": 293
+  },
+  {
+    "date": "2025-10-07",
+    "distance": 2945667.0000000005,
+    "elevation": 8525.0,
+    "time": 9379.883333333333,
+    "activities": 295
+  },
+  {
+    "date": "2025-10-08",
+    "distance": 2952016.8000000003,
+    "elevation": 8594.0,
+    "time": 9401.566666666666,
+    "activities": 296
+  },
+  {
+    "date": "2025-10-09",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-10",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-11",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-12",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-13",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-14",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-15",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-16",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-17",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-18",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-19",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-20",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-21",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-22",
+    "distance": 2954041.5000000005,
+    "elevation": 8630.0,
+    "time": 9408.033333333333,
+    "activities": 297
+  },
+  {
+    "date": "2025-10-23",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-10-24",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-10-25",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-10-26",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-10-27",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-10-28",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-10-29",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-10-30",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-10-31",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-01",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-02",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-03",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-04",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-05",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-06",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-07",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-08",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-09",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-10",
+    "distance": 2955032.9000000004,
+    "elevation": 8638.0,
+    "time": 9411.533333333333,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-11",
+    "distance": 2955032.9,
+    "elevation": 8638.0,
+    "time": 9411.53,
+    "activities": 298
+  },
+  {
+    "date": "2025-11-12",
+    "distance": 2979658.9,
+    "elevation": 8805.0,
+    "time": 9485.72,
+    "activities": 299
+  },
+  {
+    "date": "2025-11-13",
+    "distance": 2979658.9,
+    "elevation": 8805.0,
+    "time": 9485.72,
+    "activities": 299
+  },
+  {
+    "date": "2025-11-14",
+    "distance": 2979658.9,
+    "elevation": 8805.0,
+    "time": 9485.72,
+    "activities": 299
+  },
+  {
+    "date": "2025-11-15",
+    "distance": 3009426.2,
+    "elevation": 8913.9,
+    "time": 9528.84,
+    "activities": 300
+  },
+  {
+    "date": "2025-11-16",
+    "distance": 3025354.9,
+    "elevation": 9073.6,
+    "time": 9597.83,
+    "activities": 301
+  },
+  {
+    "date": "2025-11-17",
+    "distance": 3048070.4,
+    "elevation": 9350.3,
+    "time": 9676.4,
+    "activities": 302
+  },
+  {
+    "date": "2025-11-18",
+    "distance": 3091274.0,
+    "elevation": 9659.8,
+    "time": 9726.81,
+    "activities": 303
+  },
+  {
+    "date": "2025-11-19",
+    "distance": 3139776.5,
+    "elevation": 9860.8,
+    "time": 9762.38,
+    "activities": 304
+  },
+  {
+    "date": "2025-11-20",
+    "distance": 3184438.8,
+    "elevation": 10141.9,
+    "time": 9840.81,
+    "activities": 305
+  },
+  {
+    "date": "2025-11-21",
+    "distance": 3184438.8,
+    "elevation": 10141.9,
+    "time": 9840.81,
+    "activities": 305
+  },
+  {
+    "date": "2025-11-22",
+    "distance": 3233497.9,
+    "elevation": 10355.4,
+    "time": 9903.93,
+    "activities": 306
+  },
+  {
+    "date": "2025-11-23",
+    "distance": 3233497.9,
+    "elevation": 10355.4,
+    "time": 9903.93,
+    "activities": 306
+  },
+  {
+    "date": "2025-11-24",
+    "distance": 3233497.9,
+    "elevation": 10355.4,
+    "time": 9903.93,
+    "activities": 306
+  },
+  {
+    "date": "2025-11-25",
+    "distance": 3233497.9,
+    "elevation": 10355.4,
+    "time": 9903.93,
+    "activities": 306
+  },
+  {
+    "date": "2025-11-26",
+    "distance": 3273157.9,
+    "elevation": 10469.2,
+    "time": 9947.6,
+    "activities": 307
+  },
+  {
+    "date": "2025-11-27",
+    "distance": 3290950.6,
+    "elevation": 10639.0,
+    "time": 9983.66,
+    "activities": 308
+  },
+  {
+    "date": "2025-11-28",
+    "distance": 3328199.5,
+    "elevation": 10848.5,
+    "time": 10035.87,
+    "activities": 309
+  },
+  {
+    "date": "2025-11-29",
+    "distance": 3352543.8,
+    "elevation": 11229.5,
+    "time": 10104.76,
+    "activities": 310
+  },
+  {
+    "date": "2025-11-30",
+    "distance": 3352543.8,
+    "elevation": 11229.5,
+    "time": 10104.76,
+    "activities": 310
+  },
+  {
+    "date": "2025-12-01",
+    "distance": 3393063.2,
+    "elevation": 11378.5,
+    "time": 10157.52,
+    "activities": 311
+  },
+  {
+    "date": "2025-12-02",
+    "distance": 3393063.2,
+    "elevation": 11378.5,
+    "time": 10157.52,
+    "activities": 311
+  },
+  {
+    "date": "2025-12-03",
+    "distance": 3393063.2,
+    "elevation": 11378.5,
+    "time": 10157.52,
+    "activities": 311
+  },
+  {
+    "date": "2025-12-04",
+    "distance": 3432024.7,
+    "elevation": 11731.3,
+    "time": 10234.08,
+    "activities": 312
+  },
+  {
+    "date": "2025-12-05",
+    "distance": 3448148.2,
+    "elevation": 11926.0,
+    "time": 10280.15,
+    "activities": 313
+  },
+  {
+    "date": "2025-12-06",
+    "distance": 3496150.1,
+    "elevation": 12288.9,
+    "time": 10329.03,
+    "activities": 314
+  },
+  {
+    "date": "2025-12-07",
+    "distance": 3496150.1,
+    "elevation": 12288.9,
+    "time": 10329.03,
+    "activities": 314
+  },
+  {
+    "date": "2025-12-08",
+    "distance": 3543159.2,
+    "elevation": 12526.5,
+    "time": 10374.92,
+    "activities": 315
+  },
+  {
+    "date": "2025-12-09",
+    "distance": 3577807.1,
+    "elevation": 12705.4,
+    "time": 10440.0,
+    "activities": 316
+  },
+  {
+    "date": "2025-12-10",
+    "distance": 3577807.1,
+    "elevation": 12705.4,
+    "time": 10440.0,
+    "activities": 316
+  },
+  {
+    "date": "2025-12-11",
+    "distance": 3600483.3,
+    "elevation": 13104.6,
+    "time": 10500.57,
+    "activities": 317
+  },
+  {
+    "date": "2025-12-12",
+    "distance": 3617132.4,
+    "elevation": 13237.5,
+    "time": 10568.21,
+    "activities": 318
+  },
+  {
+    "date": "2025-12-13",
+    "distance": 3617132.4,
+    "elevation": 13237.5,
+    "time": 10568.21,
+    "activities": 318
+  },
+  {
+    "date": "2025-12-14",
+    "distance": 3634355.9,
+    "elevation": 13452.0,
+    "time": 10657.98,
+    "activities": 319
+  },
+  {
+    "date": "2025-12-15",
+    "distance": 3683343.6,
+    "elevation": 13810.2,
+    "time": 10688.67,
+    "activities": 320
+  },
+  {
+    "date": "2025-12-16",
+    "distance": 3683343.6,
+    "elevation": 13810.2,
+    "time": 10688.67,
+    "activities": 320
+  },
+  {
+    "date": "2025-12-17",
+    "distance": 3683343.6,
+    "elevation": 13810.2,
+    "time": 10688.67,
+    "activities": 320
+  },
+  {
+    "date": "2025-12-18",
+    "distance": 3707682.5,
+    "elevation": 14102.5,
+    "time": 10725.36,
+    "activities": 321
+  },
+  {
+    "date": "2025-12-19",
+    "distance": 3738562.8,
+    "elevation": 14488.7,
+    "time": 10807.91,
+    "activities": 322
+  },
+  {
+    "date": "2025-12-20",
+    "distance": 3771083.3,
+    "elevation": 14642.3,
+    "time": 10892.67,
+    "activities": 323
+  },
+  {
+    "date": "2025-12-21",
+    "distance": 3771083.3,
+    "elevation": 14642.3,
+    "time": 10892.67,
+    "activities": 323
+  },
+  {
+    "date": "2025-12-22",
+    "distance": 3808446.6,
+    "elevation": 14925.0,
+    "time": 10931.84,
+    "activities": 324
+  },
+  {
+    "date": "2025-12-23",
+    "distance": 3808446.6,
+    "elevation": 14925.0,
+    "time": 10931.84,
+    "activities": 324
+  },
+  {
+    "date": "2025-12-24",
+    "distance": 3850698.5,
+    "elevation": 15184.1,
+    "time": 10961.88,
+    "activities": 325
+  },
+  {
+    "date": "2025-12-25",
+    "distance": 3866380.2,
+    "elevation": 15562.8,
+    "time": 11044.6,
+    "activities": 326
+  },
+  {
+    "date": "2025-12-26",
+    "distance": 3866380.2,
+    "elevation": 15562.8,
+    "time": 11044.6,
+    "activities": 326
+  },
+  {
+    "date": "2025-12-27",
+    "distance": 3883407.6,
+    "elevation": 15926.2,
+    "time": 11131.42,
+    "activities": 327
+  },
+  {
+    "date": "2025-12-28",
+    "distance": 3915417.2,
+    "elevation": 16047.0,
+    "time": 11207.05,
+    "activities": 328
+  },
+  {
+    "date": "2025-12-29",
+    "distance": 3915417.2,
+    "elevation": 16047.0,
+    "time": 11207.05,
+    "activities": 328
+  },
+  {
+    "date": "2025-12-30",
+    "distance": 3947052.1,
+    "elevation": 16311.9,
+    "time": 11252.96,
+    "activities": 329
+  },
+  {
+    "date": "2025-12-31",
+    "distance": 3947052.1,
+    "elevation": 16311.9,
+    "time": 11252.96,
+    "activities": 329
+  }
+]

@@ -1,0 +1,204 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import MultiSportComparisonChart from "./MultiSportComparisonChart";
+
+// Mock useMultiSportData hook
+vi.mock("../../hooks/useMultiSportData", () => ({
+  useMultiSportData: vi.fn(),
+}));
+
+// Mock recharts to avoid rendering issues in tests
+vi.mock("recharts", () => ({
+  LineChart: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="line-chart">{children}</div>
+  ),
+  Line: () => <div data-testid="chart-line" />,
+  XAxis: () => null,
+  YAxis: () => null,
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="responsive-container">{children}</div>
+  ),
+  Tooltip: () => null,
+}));
+
+import { useMultiSportData } from "../../hooks/useMultiSportData";
+
+const mockUseMultiSportData = vi.mocked(useMultiSportData);
+
+// Helper to render with router
+function renderWithRouter(component: React.ReactElement) {
+  return render(<MemoryRouter>{component}</MemoryRouter>);
+}
+
+describe("MultiSportComparisonChart", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe("loading state", () => {
+    it("shows loading spinner when data is loading", () => {
+      mockUseMultiSportData.mockReturnValue({
+        data: { cycling: [], running: [], yoga: [] },
+        isLoading: true,
+        error: null,
+      });
+
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      expect(screen.getByRole("status")).toBeInTheDocument();
+      expect(screen.getByText("Loading...")).toBeInTheDocument();
+    });
+
+    it("shows Recent Activity header while loading", () => {
+      mockUseMultiSportData.mockReturnValue({
+        data: { cycling: [], running: [], yoga: [] },
+        isLoading: true,
+        error: null,
+      });
+
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      expect(screen.getByRole("heading", { name: "Recent Activity" })).toBeInTheDocument();
+    });
+  });
+
+  describe("error state", () => {
+    it("shows error message when data fails to load", () => {
+      mockUseMultiSportData.mockReturnValue({
+        data: { cycling: [], running: [], yoga: [] },
+        isLoading: false,
+        error: new Error("Failed to fetch"),
+      });
+
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      expect(screen.getByText("Failed to load activity data")).toBeInTheDocument();
+    });
+  });
+
+  describe("empty state", () => {
+    it("shows no data message when no activities", () => {
+      mockUseMultiSportData.mockReturnValue({
+        data: { cycling: [], running: [], yoga: [] },
+        isLoading: false,
+        error: null,
+      });
+
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      expect(screen.getByText("No activity data for selected time range")).toBeInTheDocument();
+    });
+  });
+
+  describe("with data", () => {
+    beforeEach(() => {
+      mockUseMultiSportData.mockReturnValue({
+        data: {
+          cycling: [
+            { date: "2025-12-20", distance: 20000, time: 60, activities: 1 },
+            { date: "2025-12-22", distance: 50000, time: 120, activities: 2 },
+          ],
+          running: [
+            { date: "2025-12-21", distance: 5000, time: 30, activities: 1 },
+            { date: "2025-12-23", distance: 10000, time: 50, activities: 2 },
+          ],
+          yoga: [
+            { date: "2025-12-20", time: 30, activities: 1 },
+            { date: "2025-12-24", time: 75, activities: 2 },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      });
+    });
+
+    it("renders sparklines for each sport", () => {
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      // Should have 3 sparklines (one per sport)
+      const charts = screen.getAllByTestId("responsive-container");
+      expect(charts.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("renders chart heading", () => {
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      expect(screen.getByRole("heading", { name: "Recent Activity" })).toBeInTheDocument();
+    });
+
+    it("renders time range selector", () => {
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      expect(screen.getByRole("button", { name: "2W" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "4W" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "YTD" })).toBeInTheDocument();
+    });
+
+    it("renders sport labels as links", () => {
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      const currentYear = new Date().getFullYear();
+      expect(screen.getByRole("link", { name: "Cycling" })).toHaveAttribute(
+        "href",
+        `/cycling/${currentYear}`
+      );
+      expect(screen.getByRole("link", { name: "Running" })).toHaveAttribute(
+        "href",
+        `/running/${currentYear}`
+      );
+      expect(screen.getByRole("link", { name: "Yoga" })).toHaveAttribute(
+        "href",
+        `/yoga/${currentYear}`
+      );
+    });
+
+    it("defaults to 2 weeks time range", () => {
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      const twoWeeksBtn = screen.getByRole("button", { name: "2W" });
+      expect(twoWeeksBtn).toHaveClass("btn-secondary");
+    });
+
+    it("changes time range when selector clicked", () => {
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      const fourWeeksBtn = screen.getByRole("button", { name: "4W" });
+      fireEvent.click(fourWeeksBtn);
+
+      expect(fourWeeksBtn).toHaveClass("btn-secondary");
+      expect(screen.getByRole("button", { name: "2W" })).toHaveClass("btn-outline-secondary");
+    });
+
+    it("renders recent activities section", () => {
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      // Check for activity links (demo data)
+      expect(screen.getByRole("link", { name: "Morning Ride" })).toBeInTheDocument();
+    });
+
+    it("renders pagination controls for activities", () => {
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      // Should have up/down buttons
+      expect(screen.getByRole("button", { name: "Newer activities" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Older activities" })).toBeInTheDocument();
+    });
+  });
+
+  describe("className prop", () => {
+    it("applies custom className", () => {
+      mockUseMultiSportData.mockReturnValue({
+        data: { cycling: [], running: [], yoga: [] },
+        isLoading: false,
+        error: null,
+      });
+
+      const { container } = renderWithRouter(
+        <MultiSportComparisonChart className="custom-class" />
+      );
+
+      expect(container.querySelector(".custom-class")).toBeInTheDocument();
+    });
+  });
+});

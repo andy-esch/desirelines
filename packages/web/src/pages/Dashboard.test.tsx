@@ -8,8 +8,20 @@ vi.mock("../hooks/useAuth", () => ({
   useAuth: vi.fn(),
 }));
 
+// Mock useMultiSportData hook (used by MultiSportComparisonChart)
+vi.mock("../hooks/useMultiSportData", () => ({
+  useMultiSportData: vi.fn(() => ({
+    data: { cycling: null, running: null, yoga: null },
+    isLoading: false,
+    error: null,
+  })),
+}));
+
 import { useAuth } from "../hooks/useAuth";
 const mockUseAuth = vi.mocked(useAuth);
+
+const mockSignIn = vi.fn();
+const mockSignOut = vi.fn();
 
 const renderWithRouter = (ui: React.ReactElement) => {
   return render(<MemoryRouter>{ui}</MemoryRouter>);
@@ -22,7 +34,13 @@ describe("Dashboard", () => {
 
   describe("loading state", () => {
     it("shows loading spinner when auth is loading", () => {
-      mockUseAuth.mockReturnValue({ user: null, loading: true });
+      mockUseAuth.mockReturnValue({
+        user: null,
+        loading: true,
+        error: null,
+        signIn: mockSignIn,
+        signOut: mockSignOut,
+      });
       renderWithRouter(<Dashboard />);
 
       expect(screen.getByRole("status")).toBeInTheDocument();
@@ -32,7 +50,13 @@ describe("Dashboard", () => {
 
   describe("unauthenticated user", () => {
     beforeEach(() => {
-      mockUseAuth.mockReturnValue({ user: null, loading: false });
+      mockUseAuth.mockReturnValue({
+        user: null,
+        loading: false,
+        error: null,
+        signIn: mockSignIn,
+        signOut: mockSignOut,
+      });
     });
 
     it("renders welcome message without user name", () => {
@@ -76,6 +100,9 @@ describe("Dashboard", () => {
       mockUseAuth.mockReturnValue({
         user: { displayName: "Jane Doe", uid: "123", email: "jane@example.com" },
         loading: false,
+        error: null,
+        signIn: mockSignIn,
+        signOut: mockSignOut,
       });
     });
 
@@ -95,14 +122,15 @@ describe("Dashboard", () => {
     });
   });
 
-  describe("placeholder sections", () => {
+  describe("dashboard sections", () => {
     beforeEach(() => {
-      mockUseAuth.mockReturnValue({ user: null, loading: false });
-    });
-
-    it("renders comparison chart placeholder", () => {
-      renderWithRouter(<Dashboard />);
-      expect(screen.getByText(/Multi-sport comparison chart coming soon/i)).toBeInTheDocument();
+      mockUseAuth.mockReturnValue({
+        user: null,
+        loading: false,
+        error: null,
+        signIn: mockSignIn,
+        signOut: mockSignOut,
+      });
     });
 
     it("renders Recent Activity section", () => {

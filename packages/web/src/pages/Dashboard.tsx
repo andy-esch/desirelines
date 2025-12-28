@@ -1,5 +1,5 @@
-import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import MultiSportComparisonChart from "../components/dashboard/MultiSportComparisonChart";
 
 /**
  * Dashboard landing page showing multi-sport overview.
@@ -8,24 +8,14 @@ import { useAuth } from "../hooks/useAuth";
  * - Authenticated: Shows real data from API
  * - Unauthenticated: Shows fixture/demo data
  *
- * Phase 1: Basic structure with placeholders
- * Phase 2: Add MultiSportComparisonChart
- * Phase 3: Add SportCards with mini-charts
- * Phase 4: Polish and integration
+ * Layout:
+ * - Header with welcome message
+ * - MultiSportComparisonChart with sparklines and recent activities
+ * - Sign-in prompt for unauthenticated users
  */
-
-const SPORTS = ["cycling", "running", "yoga"] as const;
-type Sport = (typeof SPORTS)[number];
-
-const SPORT_INFO: Record<Sport, { icon: string; color: string }> = {
-  cycling: { icon: "\u{1F6B2}", color: "#3b82f6" },
-  running: { icon: "\u{1F3C3}", color: "#10b981" },
-  yoga: { icon: "\u{1F9D8}", color: "#8b5cf6" },
-};
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
-  const currentYear = new Date().getFullYear();
 
   if (loading) {
     return (
@@ -54,63 +44,8 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Multi-Sport Comparison Chart Section (Phase 2) */}
-      <div className="comparison-chart-section mb-5">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h2 className="h4 mb-0">Recent Activity</h2>
-          {/* Time range selector will go here in Phase 2 */}
-        </div>
-        <div
-          className="chart-placeholder bg-light rounded p-5 text-center"
-          style={{ minHeight: "200px" }}
-        >
-          <p className="text-muted mb-0">
-            <em>Multi-sport comparison chart coming soon</em>
-          </p>
-          <small className="text-muted">
-            Overlapping sparklines showing performance across all sports
-          </small>
-        </div>
-      </div>
-
-      {/* Sport Cards Section (Phase 3) */}
-      <div className="sport-cards-section">
-        <h2 className="h4 mb-3">Your Sports</h2>
-        <div className="row g-4">
-          {SPORTS.map((sport) => {
-            const info = SPORT_INFO[sport];
-            return (
-              <div key={sport} className="col-md-4">
-                <div className="card h-100 shadow-sm">
-                  <div className="card-body">
-                    <div className="d-flex align-items-center mb-3">
-                      <span style={{ fontSize: "1.5rem" }} className="me-2">
-                        {info.icon}
-                      </span>
-                      <h5 className="card-title mb-0 text-capitalize">{sport}</h5>
-                    </div>
-
-                    {/* Mini sparkline placeholder (Phase 3) */}
-                    <div
-                      className="sparkline-placeholder bg-light rounded mb-3"
-                      style={{ height: "60px" }}
-                    />
-
-                    {/* Goal progress placeholder (Phase 3) */}
-                    <p className="text-muted small mb-3">
-                      <em>Goal progress summary coming soon</em>
-                    </p>
-
-                    <Link to={`/${sport}/${currentYear}`} className="btn btn-outline-primary w-100">
-                      View Details
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Multi-Sport Comparison Chart */}
+      <MultiSportComparisonChart className="mb-4" />
 
       {/* Sign-in prompt for unauthenticated users */}
       {!user && (
