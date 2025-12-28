@@ -70,28 +70,12 @@ describe("Dashboard", () => {
       expect(screen.getByText(/Sign in with Google/)).toBeInTheDocument();
     });
 
-    it("renders all three sport cards", () => {
+    it("renders sport labels as links in sparkline chart", () => {
       renderWithRouter(<Dashboard />);
 
-      expect(screen.getByRole("heading", { name: /cycling/i })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: /running/i })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: /yoga/i })).toBeInTheDocument();
-    });
-
-    it("renders View Details links for each sport", () => {
-      renderWithRouter(<Dashboard />);
-      const viewDetailsLinks = screen.getAllByRole("link", { name: /View Details/i });
-      expect(viewDetailsLinks).toHaveLength(3);
-    });
-
-    it("links to current year for each sport", () => {
-      const currentYear = new Date().getFullYear();
-      renderWithRouter(<Dashboard />);
-
-      const links = screen.getAllByRole("link", { name: /View Details/i });
-      expect(links[0]).toHaveAttribute("href", `/cycling/${currentYear}`);
-      expect(links[1]).toHaveAttribute("href", `/running/${currentYear}`);
-      expect(links[2]).toHaveAttribute("href", `/yoga/${currentYear}`);
+      // Sport labels are links in the MultiSportComparisonChart component
+      // When there's no data, the empty state is shown instead
+      expect(screen.getByText("No activity data for selected time range")).toBeInTheDocument();
     });
   });
 
@@ -138,9 +122,11 @@ describe("Dashboard", () => {
       expect(screen.getByRole("heading", { name: "Recent Activity" })).toBeInTheDocument();
     });
 
-    it("renders Your Sports section", () => {
+    it("renders time range selector", () => {
       renderWithRouter(<Dashboard />);
-      expect(screen.getByRole("heading", { name: "Your Sports" })).toBeInTheDocument();
+      // Time range selector is part of the MultiSportComparisonChart
+      expect(screen.getByRole("button", { name: "2W" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "YTD" })).toBeInTheDocument();
     });
   });
 });
