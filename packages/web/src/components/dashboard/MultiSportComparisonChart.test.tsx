@@ -8,6 +8,16 @@ vi.mock("../../hooks/useMultiSportData", () => ({
   useMultiSportData: vi.fn(),
 }));
 
+// Mock useAuth hook
+vi.mock("../../hooks/useAuth", () => ({
+  useAuth: vi.fn(),
+}));
+
+// Mock useActivities hook
+vi.mock("../../hooks/useActivities", () => ({
+  useActivities: vi.fn(),
+}));
+
 // Mock recharts to avoid rendering issues in tests
 vi.mock("recharts", () => ({
   LineChart: ({ children }: { children: React.ReactNode }) => (
@@ -23,8 +33,64 @@ vi.mock("recharts", () => ({
 }));
 
 import { useMultiSportData } from "../../hooks/useMultiSportData";
+import { useAuth } from "../../hooks/useAuth";
+import { useActivities } from "../../hooks/useActivities";
 
 const mockUseMultiSportData = vi.mocked(useMultiSportData);
+const mockUseAuth = vi.mocked(useAuth);
+const mockUseActivities = vi.mocked(useActivities);
+
+const mockActivities = [
+  {
+    id: 123456789,
+    name: "Morning Ride",
+    type: "Ride",
+    sport: "cycling",
+    start_date_local: "2025-12-28T08:30:00",
+    distance_meters: 45000,
+    moving_time_seconds: 5400,
+    elevation_meters: 450,
+  },
+  {
+    id: 123456790,
+    name: "Evening Run",
+    type: "Run",
+    sport: "running",
+    start_date_local: "2025-12-27T18:00:00",
+    distance_meters: 8000,
+    moving_time_seconds: 2400,
+    elevation_meters: 50,
+  },
+  {
+    id: 123456791,
+    name: "Yoga Flow",
+    type: "Yoga",
+    sport: "yoga",
+    start_date_local: "2025-12-26T07:00:00",
+    distance_meters: 0,
+    moving_time_seconds: 1500,
+  },
+  {
+    id: 123456792,
+    name: "Hill Climb",
+    type: "Ride",
+    sport: "cycling",
+    start_date_local: "2025-12-25T10:00:00",
+    distance_meters: 30000,
+    moving_time_seconds: 4200,
+    elevation_meters: 800,
+  },
+  {
+    id: 123456793,
+    name: "Recovery Run",
+    type: "Run",
+    sport: "running",
+    start_date_local: "2025-12-24T16:00:00",
+    distance_meters: 5000,
+    moving_time_seconds: 1800,
+    elevation_meters: 20,
+  },
+];
 
 // Helper to render with router
 function renderWithRouter(component: React.ReactElement) {
@@ -34,6 +100,24 @@ function renderWithRouter(component: React.ReactElement) {
 describe("MultiSportComparisonChart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Default: authenticated user with activities
+    mockUseAuth.mockReturnValue({
+      user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
+      loading: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      error: null,
+    });
+
+    mockUseActivities.mockReturnValue({
+      activities: mockActivities,
+      isLoading: false,
+      error: null,
+      hasMore: true,
+      loadMore: vi.fn(),
+      retry: vi.fn(),
+    });
   });
 
   describe("loading state", () => {
