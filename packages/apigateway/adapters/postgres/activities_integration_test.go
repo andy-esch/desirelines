@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
+	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 )
 
 // TestIntegration_ActivityRepository runs integration tests against a real PostgreSQL database.
@@ -177,6 +178,188 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 		if len(metadata.Sports) != 0 {
 			t.Errorf("expected 0 sports for year with no data, got %d", len(metadata.Sports))
+		}
+	})
+
+	t.Run("GetActivityByID", func(t *testing.T) {
+		activity, err := repo.GetActivityByID(ctx, 1001)
+		if err != nil {
+			t.Fatalf("GetActivityByID failed: %v", err)
+		}
+
+		if activity == nil {
+			t.Fatal("expected activity, got nil")
+		}
+
+		if activity.ID != 1001 {
+			t.Errorf("expected ID 1001, got %d", activity.ID)
+		}
+
+		if activity.Name != "Morning Ride" {
+			t.Errorf("expected name 'Morning Ride', got %s", activity.Name)
+		}
+
+		if activity.Type != "Ride" {
+			t.Errorf("expected type 'Ride', got %s", activity.Type)
+		}
+
+		if activity.Sport != "Ride" {
+			t.Errorf("expected sport 'Ride', got %s", activity.Sport)
+		}
+
+		if activity.DistanceMeters != 10000 {
+			t.Errorf("expected distance 10000, got %f", activity.DistanceMeters)
+		}
+
+		if activity.MovingTimeSeconds != 1800 {
+			t.Errorf("expected moving time 1800, got %d", activity.MovingTimeSeconds)
+		}
+	})
+
+	t.Run("GetActivityByID_NotFound", func(t *testing.T) {
+		activity, err := repo.GetActivityByID(ctx, 99999999)
+		if err != nil {
+			t.Fatalf("GetActivityByID failed: %v", err)
+		}
+
+		if activity != nil {
+			t.Errorf("expected nil for non-existent activity, got %+v", activity)
+		}
+	})
+
+	t.Run("ListActivities_Basic", func(t *testing.T) {
+		response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+			Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListActivities failed: %v", err)
+		}
+
+		// Should return all 3 test activities
+		if len(response.Activities) != 3 {
+			t.Errorf("expected 3 activities, got %d", len(response.Activities))
+		}
+
+		// Should be ordered by start_date_local DESC (newest first)
+		// Jan 16 > Jan 15 (run at 7am) > Jan 15 (ride at 8am)
+		if response.Activities[0].ID != 1002 {
+			t.Errorf("expected first activity ID 1002 (newest), got %d", response.Activities[0].ID)
+		}
+
+		// No more results
+		if response.HasMore {
+			t.Error("expected HasMore to be false")
+		}
+	})
+
+	t.Run("ListActivities_WithLimit", func(t *testing.T) {
+		response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+			Limit: 2,
+		})
+		if err != nil {
+			t.Fatalf("ListActivities failed: %v", err)
+		}
+
+		if len(response.Activities) != 2 {
+			t.Errorf("expected 2 activities, got %d", len(response.Activities))
+		}
+
+		if !response.HasMore {
+			t.Error("expected HasMore to be true")
+		}
+
+		if response.NextCursor == nil {
+			t.Error("expected NextCursor to be set")
+		}
+	})
+
+	t.Run("ListActivities_WithSportFilter", func(t *testing.T) {
+		response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+			SportTypes: []string{"Ride"},
+			Limit:      10,
+		})
+		if err != nil {
+			t.Fatalf("ListActivities failed: %v", err)
+		}
+
+		// Should only return 2 Ride activities
+		if len(response.Activities) != 2 {
+			t.Errorf("expected 2 Ride activities, got %d", len(response.Activities))
+		}
+
+		for _, a := range response.Activities {
+			if a.Sport != "Ride" {
+				t.Errorf("expected sport 'Ride', got %s", a.Sport)
+			}
+		}
+	})
+
+	t.Run("ListActivities_WithDateRange", func(t *testing.T) {
+		from := "2024-01-15"
+		to := "2024-01-15"
+		response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+			From:  &from,
+			To:    &to,
+			Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListActivities failed: %v", err)
+		}
+
+		// Should return 2 activities from Jan 15 (Morning Ride at 8am, Morning Run at 7am)
+		if len(response.Activities) != 2 {
+			t.Errorf("expected 2 activities on Jan 15, got %d", len(response.Activities))
+		}
+	})
+
+	t.Run("ListActivities_NoResults", func(t *testing.T) {
+		from := "2023-01-01"
+		to := "2023-12-31"
+		response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+			From:  &from,
+			To:    &to,
+			Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListActivities failed: %v", err)
+		}
+
+		if len(response.Activities) != 0 {
+			t.Errorf("expected 0 activities in 2023, got %d", len(response.Activities))
+		}
+
+		if response.HasMore {
+			t.Error("expected HasMore to be false")
+		}
+	})
+
+	t.Run("ListActivities_DefaultLimit", func(t *testing.T) {
+		// When limit is 0 or not set, should default to 20
+		response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+			Limit: 0,
+		})
+		if err != nil {
+			t.Fatalf("ListActivities failed: %v", err)
+		}
+
+		// With only 3 test activities, should return all
+		if len(response.Activities) != 3 {
+			t.Errorf("expected 3 activities with default limit, got %d", len(response.Activities))
+		}
+	})
+
+	t.Run("ListActivities_MaxLimit", func(t *testing.T) {
+		// When limit exceeds 100, should cap at 100
+		response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+			Limit: 500,
+		})
+		if err != nil {
+			t.Fatalf("ListActivities failed: %v", err)
+		}
+
+		// With only 3 test activities, should return all (but limit was capped)
+		if len(response.Activities) != 3 {
+			t.Errorf("expected 3 activities with max limit, got %d", len(response.Activities))
 		}
 	})
 }

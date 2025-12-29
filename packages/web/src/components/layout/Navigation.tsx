@@ -20,7 +20,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
   const currentYear = new Date().getFullYear();
   const location = useLocation();
 
-  // Determine if we're on a sport page
+  // Determine if we're on a sport/goals page
   const isOnSportPage = SPORTS.some((s) => location.pathname.startsWith(`/${s.id}`));
 
   const linkClasses = ({ isActive }: { isActive: boolean }) =>
@@ -34,7 +34,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           Dashboard
         </NavLink>
         <div className="nav-item mt-2 mb-1">
-          <span className="nav-link text-white-50 py-1 small text-uppercase">Activities</span>
+          <span className="nav-link text-white-50 py-1 small text-uppercase">Goals</span>
         </div>
         {SPORTS.map((sport) => (
           <NavLink key={sport.id} to={`/${sport.id}/${currentYear}`} className={linkClasses}>
@@ -42,6 +42,12 @@ export default function Navigation({ className = "", vertical = false }: Navigat
             {sport.label}
           </NavLink>
         ))}
+        <NavLink
+          to="/activities"
+          className={({ isActive }) => `nav-link mt-2 ${isActive ? "active" : "text-white-50"}`}
+        >
+          Activities
+        </NavLink>
       </nav>
     );
   }
@@ -53,7 +59,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
         Dashboard
       </NavLink>
 
-      {/* Activities dropdown */}
+      {/* Goals dropdown */}
       <div className="nav-item dropdown">
         <button
           className={`nav-link dropdown-toggle ${isOnSportPage ? "active" : "text-white-50"}`}
@@ -61,7 +67,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           aria-expanded="false"
           type="button"
         >
-          Activities
+          Goals
         </button>
         <ul className="dropdown-menu">
           {SPORTS.map((sport) => (
@@ -79,6 +85,11 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           ))}
         </ul>
       </div>
+
+      {/* Activities link */}
+      <NavLink to="/activities" className={linkClasses}>
+        Activities
+      </NavLink>
     </nav>
   );
 }

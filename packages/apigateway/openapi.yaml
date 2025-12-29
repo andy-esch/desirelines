@@ -1,0 +1,509 @@
+openapi: 3.1.0
+info:
+  title: Desirelines API
+  description: |
+    REST API for serving Strava activity data to the web frontend.
+
+    ## Authentication
+    All `/activities` endpoints require Firebase authentication.
+    Include `Authorization: Bearer <firebase-token>` header.
+
+    ## Pagination
+    The `/activities` list endpoint uses cursor-based pagination.
+    Use `next_cursor` from the response to fetch subsequent pages.
+  version: 1.0.0
+  contact:
+    name: Desirelines
+    url: https://github.com/andy-esch/desirelines
+
+servers:
+  - url: https://api-gateway-{hash}-uc.a.run.app
+    description: Production (Cloud Run)
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Health
+    description: Service health endpoints
+  - name: Config
+    description: Configuration endpoints
+  - name: Activities
+    description: Individual activity operations
+  - name: Aggregates
+    description: Aggregated activity data by year
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns service health status including database connectivity
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /sports/config:
+    get:
+      tags: [Config]
+      summary: Get sport configuration
+      description: Returns sport category definitions and Strava type mappings
+      operationId: getSportsConfig
+      responses:
+        '200':
+          description: Sport configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SportsConfig'
+
+  /activities:
+    get:
+      tags: [Activities]
+      summary: List activities
+      description: Returns paginated list of activities with optional filters
+      operationId: listActivities
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          description: Start date (inclusive)
+          schema:
+            type: string
+            format: date
+            example: '2025-01-01'
+        - name: to
+          in: query
+          description: End date (inclusive)
+          schema:
+            type: string
+            format: date
+            example: '2025-12-31'
+        - name: sport
+          in: query
+          description: Filter by sport category
+          schema:
+            type: string
+            enum: [cycling, running, yoga]
+        - name: limit
+          in: query
+          description: Maximum results per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          description: Pagination cursor from previous response
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of activities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /activities/{id}:
+    get:
+      tags: [Activities]
+      summary: Get activity by ID
+      description: Returns a single activity by its Strava ID
+      operationId: getActivityById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Strava activity ID
+          schema:
+            type: integer
+            format: int64
+            example: 12345678901
+      responses:
+        '200':
+          description: Activity details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /activities/{year}/metadata:
+    get:
+      tags: [Aggregates]
+      summary: Get year metadata
+      description: Returns aggregate totals for all sports in a given year
+      operationId: getYearMetadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/year'
+      responses:
+        '200':
+          description: Year metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YearMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /activities/{year}/metrics:
+    get:
+      tags: [Aggregates]
+      summary: Get cumulative metrics
+      description: Returns cumulative metrics timeseries for a sport in a given year
+      operationId: getSportMetrics
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/year'
+        - $ref: '#/components/parameters/sport'
+      responses:
+        '200':
+          description: Cumulative metrics timeseries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SportMetrics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /activities/{year}/source:
+    get:
+      tags: [Aggregates]
+      summary: Get daily summaries
+      description: Returns daily activity summaries for a sport in a given year
+      operationId: getDailySummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/year'
+        - $ref: '#/components/parameters/sport'
+      responses:
+        '200':
+          description: Daily summaries keyed by date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailySummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase JWT
+      description: Firebase ID token
+
+  parameters:
+    year:
+      name: year
+      in: path
+      required: true
+      description: Year (2000-2050)
+      schema:
+        type: integer
+        minimum: 2000
+        maximum: 2050
+        example: 2025
+    sport:
+      name: sport
+      in: query
+      required: true
+      description: Sport category
+      schema:
+        type: string
+        enum: [cycling, running, yoga]
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ServiceUnavailable:
+      description: Database unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Invalid year format
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        database:
+          type: string
+          enum: [healthy, unhealthy]
+
+    SportsConfig:
+      type: object
+      description: Sport category configuration
+      additionalProperties:
+        $ref: '#/components/schemas/SportCategory'
+      example:
+        cycling:
+          display_name: Cycling
+          strava_types: [Ride, VirtualRide, EBikeRide]
+
+    SportCategory:
+      type: object
+      properties:
+        display_name:
+          type: string
+        strava_types:
+          type: array
+          items:
+            type: string
+
+    Activity:
+      type: object
+      description: Full activity details
+      required: [id, name, type, sport, start_date_local, distance_meters, moving_time_seconds, elapsed_time_seconds]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Strava activity ID
+        name:
+          type: string
+          description: Activity name
+        type:
+          type: string
+          description: Strava activity type (Ride, Run, Yoga, etc.)
+        sport:
+          type: string
+          description: Categorized sport (cycling, running, yoga)
+        start_date_local:
+          type: string
+          format: date-time
+          description: Activity start time in local timezone
+        distance_meters:
+          type: number
+          format: double
+          description: Distance in meters
+        moving_time_seconds:
+          type: integer
+          description: Moving time in seconds
+        elapsed_time_seconds:
+          type: integer
+          description: Total elapsed time in seconds
+        elevation_meters:
+          type: number
+          format: double
+          description: Total elevation gain in meters
+        average_speed_mps:
+          type: number
+          format: double
+          description: Average speed in m/s
+        max_speed_mps:
+          type: number
+          format: double
+          description: Max speed in m/s
+        average_heartrate:
+          type: number
+          format: double
+          description: Average heart rate (bpm)
+        max_heartrate:
+          type: number
+          format: double
+          description: Max heart rate (bpm)
+
+    ActivitySummary:
+      type: object
+      description: Condensed activity for list views
+      required: [id, name, type, sport, start_date_local, distance_meters, moving_time_seconds]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        type:
+          type: string
+        sport:
+          type: string
+        start_date_local:
+          type: string
+          format: date-time
+        distance_meters:
+          type: number
+          format: double
+        moving_time_seconds:
+          type: integer
+        elevation_meters:
+          type: number
+          format: double
+
+    ActivityListResponse:
+      type: object
+      required: [activities, has_more]
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivitySummary'
+        next_cursor:
+          type: string
+          description: Cursor for fetching next page (base64 encoded)
+        has_more:
+          type: boolean
+          description: Whether more results are available
+
+    YearMetadata:
+      type: object
+      required: [year, sports, totals, aggregation_version]
+      properties:
+        year:
+          type: integer
+        sports:
+          type: array
+          items:
+            type: string
+          description: List of sports with activities
+        totals:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SportTotals'
+        last_updated:
+          type: string
+          format: date-time
+        aggregation_version:
+          type: string
+
+    SportTotals:
+      type: object
+      properties:
+        distance_meters:
+          type: number
+          format: double
+        time_minutes:
+          type: number
+          format: double
+        elevation_meters:
+          type: number
+          format: double
+        activities:
+          type: integer
+
+    SportMetrics:
+      type: object
+      required: [timeseries]
+      properties:
+        timeseries:
+          type: array
+          items:
+            $ref: '#/components/schemas/CumulativeMetricsEntry'
+
+    CumulativeMetricsEntry:
+      type: object
+      required: [date]
+      properties:
+        date:
+          type: string
+          format: date
+          description: ISO date (YYYY-MM-DD)
+        distance:
+          type: number
+          format: double
+          description: Cumulative distance in meters
+        elevation:
+          type: number
+          format: double
+          description: Cumulative elevation in meters
+        time:
+          type: number
+          format: double
+          description: Cumulative time in minutes
+        activities:
+          type: integer
+          description: Cumulative activity count
+
+    DailySummary:
+      type: object
+      description: Daily summaries keyed by date (YYYY-MM-DD)
+      additionalProperties:
+        $ref: '#/components/schemas/DailyActivity'
+
+    DailyActivity:
+      type: object
+      properties:
+        distance_meters:
+          type: number
+          format: double
+        time_minutes:
+          type: number
+          format: double
+        elevation_meters:
+          type: number
+          format: double
+        activities:
+          type: integer
+        activity_ids:
+          type: array
+          items:
+            type: integer
+            format: int64

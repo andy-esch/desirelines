@@ -14,12 +14,17 @@ describe("Navigation", () => {
       expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
     });
 
-    it("renders Activities dropdown button", () => {
+    it("renders Activities link", () => {
       renderWithRouter(<Navigation />);
-      expect(screen.getByRole("button", { name: "Activities" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Activities" })).toBeInTheDocument();
     });
 
-    it("renders sport links in dropdown", () => {
+    it("renders Goals dropdown button", () => {
+      renderWithRouter(<Navigation />);
+      expect(screen.getByRole("button", { name: "Goals" })).toBeInTheDocument();
+    });
+
+    it("renders sport links in Goals dropdown", () => {
       renderWithRouter(<Navigation />);
       expect(screen.getByRole("link", { name: /Cycling/ })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Running/ })).toBeInTheDocument();
@@ -32,16 +37,22 @@ describe("Navigation", () => {
       expect(dashboardLink).toHaveClass("active");
     });
 
-    it("highlights Activities dropdown when on sport route", () => {
+    it("highlights Goals dropdown when on sport route", () => {
       renderWithRouter(<Navigation />, { route: "/cycling/2025" });
-      const activitiesButton = screen.getByRole("button", { name: "Activities" });
-      expect(activitiesButton).toHaveClass("active");
+      const goalsButton = screen.getByRole("button", { name: "Goals" });
+      expect(goalsButton).toHaveClass("active");
     });
 
-    it("does not highlight Activities dropdown when on dashboard", () => {
+    it("highlights Activities link when on activities page", () => {
+      renderWithRouter(<Navigation />, { route: "/activities" });
+      const activitiesLink = screen.getByRole("link", { name: "Activities" });
+      expect(activitiesLink).toHaveClass("active");
+    });
+
+    it("does not highlight Goals dropdown when on dashboard", () => {
       renderWithRouter(<Navigation />, { route: "/" });
-      const activitiesButton = screen.getByRole("button", { name: "Activities" });
-      expect(activitiesButton).not.toHaveClass("active");
+      const goalsButton = screen.getByRole("button", { name: "Goals" });
+      expect(goalsButton).not.toHaveClass("active");
     });
   });
 
@@ -51,9 +62,14 @@ describe("Navigation", () => {
       expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
     });
 
-    it("renders Activities section header", () => {
+    it("renders Activities link", () => {
       renderWithRouter(<Navigation vertical />);
-      expect(screen.getByText("Activities")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Activities" })).toBeInTheDocument();
+    });
+
+    it("renders Goals section header", () => {
+      renderWithRouter(<Navigation vertical />);
+      expect(screen.getByText("Goals")).toBeInTheDocument();
     });
 
     it("renders all sport links directly (no dropdown)", () => {

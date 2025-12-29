@@ -20,10 +20,12 @@ package apigateway
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
@@ -118,6 +120,10 @@ func (h *Handler) registerRoutes() {
 		r.Get("/activities/{year}/metadata", h.handleMetadataWithParam)
 		r.Get("/activities/{year}/metrics", h.handleMetricsWithParam)
 		r.Get("/activities/{year}/source", h.handleSourceWithParam)
+
+		// Individual activity endpoints
+		r.Get("/activities", h.handleListActivities)
+		r.Get("/activities/{id}", h.handleGetActivity)
 	})
 }
 
@@ -421,4 +427,161 @@ func (h *Handler) respondRawJSON(w http.ResponseWriter, r *http.Request, status 
 	if _, err := w.Write(data); err != nil {
 		logger.Logger.Error("Error writing raw JSON response", "error", err)
 	}
+}
+
+// =============================================================================
+// Individual Activity Handlers
+// =============================================================================
+
+// handleGetActivity serves a single activity by ID.
+// GET /activities/{id}
+func (h *Handler) handleGetActivity(w http.ResponseWriter, r *http.Request) {
+	if h.activityRepo == nil {
+		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	// Parse activity ID from path
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid activity ID format")
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	activity, err := h.activityRepo.GetActivityByID(r.Context(), id)
+	if err != nil {
+		logger.Logger.Error("Database query failed", "error", err, "activityId", id)
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			errMsgInternalServerError,
+			fmt.Sprintf("Database query failed: %v", err),
+		)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	if activity == nil {
+		apiErr := apierrors.NewAPIError(http.StatusNotFound, "Activity not found")
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	h.respondJSON(w, r, http.StatusOK, activity)
+}
+
+// handleListActivities serves a paginated list of activities.
+// GET /activities?from=2025-01-01&to=2025-12-31&sport=cycling&limit=20&cursor=...
+func (h *Handler) handleListActivities(w http.ResponseWriter, r *http.Request) {
+	if h.activityRepo == nil {
+		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	// Parse query parameters
+	query := r.URL.Query()
+
+	filter := repository.ActivityListFilter{
+		Limit: 20, // Default
+	}
+
+	// Parse 'from' date
+	if fromStr := query.Get("from"); fromStr != "" {
+		if !isValidDate(fromStr) {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+		filter.From = &fromStr
+	}
+
+	// Parse 'to' date
+	if toStr := query.Get("to"); toStr != "" {
+		if !isValidDate(toStr) {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+		filter.To = &toStr
+	}
+
+	// Parse 'sport' (optional) - maps to Strava sport types
+	if sport := query.Get("sport"); sport != "" {
+		stravaTypes := h.sportConfig.GetStravaTypes(sport)
+		if stravaTypes == nil {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+		filter.SportTypes = stravaTypes
+	}
+
+	// Parse 'limit'
+	if limitStr := query.Get("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit < 1 || limit > 100 {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-100)")
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+		filter.Limit = limit
+	}
+
+	// Parse 'cursor' for pagination
+	if cursorStr := query.Get("cursor"); cursorStr != "" {
+		cursor, err := decodeCursor(cursorStr)
+		if err != nil {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid cursor")
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+		filter.Cursor = cursor
+	}
+
+	result, err := h.activityRepo.ListActivities(r.Context(), filter)
+	if err != nil {
+		logger.Logger.Error("Database query failed", "error", err)
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			errMsgInternalServerError,
+			fmt.Sprintf("Database query failed: %v", err),
+		)
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	h.respondJSON(w, r, http.StatusOK, result)
+}
+
+// isValidDate checks if the string is a valid YYYY-MM-DD date.
+func isValidDate(s string) bool {
+	_, err := time.Parse("2006-01-02", s)
+	return err == nil
+}
+
+// decodeCursor decodes a base64-encoded cursor string.
+// Cursor format: "timestamp|id" encoded as base64.
+func decodeCursor(s string) (*repository.ActivityCursor, error) {
+	data, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("decode base64: %w", err)
+	}
+
+	parts := strings.SplitN(string(data), "|", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid cursor format")
+	}
+
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("parse id: %w", err)
+	}
+
+	return &repository.ActivityCursor{
+		Timestamp: parts[0],
+		ID:        id,
+	}, nil
 }

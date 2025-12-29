@@ -241,3 +241,135 @@ export const fetchSportConfig = async (
     throw err instanceof Error ? err : new Error(String(err));
   }
 };
+
+// ACTIVITY LIST API TYPES
+
+/** Activity summary returned in list responses */
+export interface ActivitySummary {
+  id: number;
+  name: string;
+  type: string;
+  sport: string;
+  start_date_local: string;
+  distance_meters: number;
+  moving_time_seconds: number;
+  elevation_meters?: number;
+}
+
+/** Full activity details */
+export interface Activity {
+  id: number;
+  name: string;
+  type: string;
+  sport: string;
+  start_date_local: string;
+  distance_meters: number;
+  moving_time_seconds: number;
+  elapsed_time_seconds: number;
+  elevation_meters?: number;
+  average_speed_mps?: number;
+  max_speed_mps?: number;
+  average_heartrate?: number;
+  max_heartrate?: number;
+}
+
+/** Paginated activity list response */
+export interface ActivityListResponse {
+  activities: ActivitySummary[];
+  next_cursor?: string;
+  has_more: boolean;
+}
+
+/** Filter options for listing activities */
+export interface ActivityListFilter {
+  from?: string; // YYYY-MM-DD
+  to?: string; // YYYY-MM-DD
+  sport?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+/**
+ * Fetch a single activity by ID
+ */
+export const fetchActivity = async (
+  id: number,
+  signal?: AbortSignal,
+  idToken?: string
+): Promise<Activity | null> => {
+  const apiBaseUrl = getApiBaseUrl();
+  const url = `${apiBaseUrl}/activities/${id}`;
+
+  const headers: Record<string, string> = {};
+  if (idToken) {
+    headers.Authorization = `Bearer ${idToken}`;
+  }
+
+  try {
+    const { data } = await axios.get<Activity>(url, { signal, headers });
+    return data;
+  } catch (err: unknown) {
+    if (axios.isCancel(err)) {
+      return null;
+    }
+    if (err instanceof AxiosError && err.response?.status === 404) {
+      return null;
+    }
+    if (
+      err instanceof AxiosError &&
+      (err.response?.status === 401 || err.response?.status === 403)
+    ) {
+      console.error("Authentication failed - user not authorized");
+      throw new Error("Access denied. Please sign in with an authorized account.");
+    }
+    console.error("Failed to fetch activity:", err instanceof Error ? err.message : err);
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+};
+
+/**
+ * Fetch paginated list of activities
+ */
+export const fetchActivities = async (
+  filter: ActivityListFilter,
+  signal?: AbortSignal,
+  idToken?: string
+): Promise<ActivityListResponse> => {
+  const apiBaseUrl = getApiBaseUrl();
+  const params = new URLSearchParams();
+
+  if (filter.from) params.set("from", filter.from);
+  if (filter.to) params.set("to", filter.to);
+  if (filter.sport) params.set("sport", filter.sport);
+  if (filter.limit) params.set("limit", filter.limit.toString());
+  if (filter.cursor) params.set("cursor", filter.cursor);
+
+  const url = `${apiBaseUrl}/activities?${params.toString()}`;
+
+  const headers: Record<string, string> = {};
+  if (idToken) {
+    headers.Authorization = `Bearer ${idToken}`;
+  }
+
+  try {
+    const { data } = await axios.get<ActivityListResponse>(url, { signal, headers });
+    return {
+      activities: data.activities ?? [],
+      next_cursor: data.next_cursor,
+      has_more: data.has_more ?? false,
+    };
+  } catch (err: unknown) {
+    if (axios.isCancel(err)) {
+      return { activities: [], has_more: false };
+    }
+    if (
+      err instanceof AxiosError &&
+      (err.response?.status === 401 || err.response?.status === 403)
+    ) {
+      console.error("Authentication failed - user not authorized");
+      throw new Error("Access denied. Please sign in with an authorized account.");
+    }
+    console.error("Failed to fetch activities:", err instanceof Error ? err.message : err);
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+};

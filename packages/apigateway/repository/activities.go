@@ -30,4 +30,14 @@ type ActivityRepository interface {
 	// GetYearMetadata returns metadata about activities for a given year.
 	// Used by: GET /activities/{year}/metadata
 	GetYearMetadata(ctx context.Context, year int) (*YearMetadata, error)
+
+	// GetActivityByID returns a single activity by its Strava ID.
+	// Returns nil (not error) if activity not found.
+	// Used by: GET /activities/{id}
+	GetActivityByID(ctx context.Context, id int64) (*Activity, error)
+
+	// ListActivities returns activities matching the filter criteria.
+	// Uses cursor-based pagination for efficient sequential access.
+	// Used by: GET /activities
+	ListActivities(ctx context.Context, filter ActivityListFilter) (*ActivityListResponse, error)
 }
