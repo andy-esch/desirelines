@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { useMultiSportData, type Sport } from "../../hooks/useMultiSportData";
+import { useActivities } from "../../hooks/useActivities";
+import { useAuth } from "../../hooks/useAuth";
 import type { TimeRange } from "../../utils/dataNormalization";
 import TimeRangeSelector from "./TimeRangeSelector";
 import type { MetricsEntry } from "../../api/activities";
@@ -185,36 +187,129 @@ function SparklineRow({
   );
 }
 
-// Placeholder recent activities for demo
-const DEMO_RECENT_ACTIVITIES = [
-  { name: "Morning Ride", distance: "16 mi", time: "1h 12m", date: "Dec 26" },
-  { name: "Yoga Flow", distance: "", time: "25m", date: "Dec 26" },
-  { name: "Evening Run", distance: "3.2 mi", time: "28m", date: "Dec 25" },
-  { name: "Indoor Ride", distance: "12 mi", time: "52m", date: "Dec 24" },
-  { name: "Vinyasa", distance: "", time: "30m", date: "Dec 24" },
-  { name: "Long Ride", distance: "32 mi", time: "2h 15m", date: "Dec 23" },
-  { name: "Recovery Run", distance: "2.1 mi", time: "18m", date: "Dec 22" },
-  { name: "Hill Repeats", distance: "18 mi", time: "1h 25m", date: "Dec 21" },
-  { name: "Yoga Flow", distance: "", time: "25m", date: "Dec 21" },
-  { name: "Easy Spin", distance: "14 mi", time: "48m", date: "Dec 20" },
-  { name: "Tempo Run", distance: "4.5 mi", time: "35m", date: "Dec 19" },
-  { name: "Yoga Stretch", distance: "", time: "20m", date: "Dec 19" },
-];
-
 const PAGE_SIZE = 4;
+
+/**
+ * Convert TimeRange to from/to date strings for API.
+ */
+function getDateRangeFromTimeRange(timeRange: TimeRange): { from: string; to: string } {
+  const now = new Date();
+  const to = now.toISOString().split("T")[0];
+  const cutoff = getTimeRangeCutoff(now, timeRange);
+  const from = cutoff.toISOString().split("T")[0];
+  return { from, to };
+}
+
+/**
+ * Format distance in miles.
+ */
+function formatDistance(meters: number): string {
+  if (!meters) return "";
+  const miles = meters / 1609.344;
+  return `${miles.toFixed(1)} mi`;
+}
+
+/**
+ * Format duration.
+ */
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) {
+    return `${hours}h ${mins}m`;
+  }
+  return `${mins}m`;
+}
+
+/**
+ * Format activity date as "Mon DD".
+ */
+function formatActivityDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 /**
  * Recent activities table component with pagination.
  */
-function RecentActivitiesList() {
+function RecentActivitiesList({ timeRange }: { timeRange: TimeRange }) {
+  const { user } = useAuth();
   const [page, setPage] = useState(0);
-  const totalPages = Math.ceil(DEMO_RECENT_ACTIVITIES.length / PAGE_SIZE);
 
+  // Reset page when time range changes
+  const { from, to } = useMemo(() => getDateRangeFromTimeRange(timeRange), [timeRange]);
+
+  const { activities, isLoading, error, hasMore, loadMore } = useActivities({
+    from,
+    to,
+    limit: 20,
+  });
+
+  // Reset page when activities change (time range changed)
+  useMemo(() => {
+    setPage(0);
+  }, [from, to]);
+
+  const totalPages = Math.ceil(activities.length / PAGE_SIZE);
   const startIdx = page * PAGE_SIZE;
-  const visibleActivities = DEMO_RECENT_ACTIVITIES.slice(startIdx, startIdx + PAGE_SIZE);
+  const visibleActivities = activities.slice(startIdx, startIdx + PAGE_SIZE);
 
   const canGoUp = page > 0;
-  const canGoDown = page < totalPages - 1;
+  const canGoDown = page < totalPages - 1 || hasMore;
+
+  const handleNextPage = () => {
+    if (page < totalPages - 1) {
+      setPage((p) => p + 1);
+    } else if (hasMore) {
+      loadMore();
+      setPage((p) => p + 1);
+    }
+  };
+
+  if (!user) {
+    return (
+      <div
+        className="d-flex align-items-center justify-content-center h-100 text-muted"
+        style={{ fontSize: "0.8rem" }}
+      >
+        Sign in to see activities
+      </div>
+    );
+  }
+
+  if (isLoading && activities.length === 0) {
+    return (
+      <div className="d-flex align-items-center justify-content-center h-100">
+        <div className="spinner-border spinner-border-sm text-secondary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        className="d-flex align-items-center justify-content-center h-100 text-danger"
+        style={{ fontSize: "0.8rem" }}
+      >
+        Failed to load activities
+      </div>
+    );
+  }
+
+  if (activities.length === 0) {
+    return (
+      <div
+        className="d-flex align-items-center justify-content-center h-100 text-muted"
+        style={{ fontSize: "0.8rem" }}
+      >
+        No activities in this time range
+      </div>
+    );
+  }
+
+  const showPagination = totalPages > 1 || hasMore;
 
   return (
     <div className="d-flex h-100">
@@ -224,57 +319,71 @@ function RecentActivitiesList() {
         style={{ fontSize: "0.8rem", lineHeight: 1.2 }}
       >
         <tbody>
-          {visibleActivities.map((activity, idx) => (
-            <tr key={startIdx + idx}>
-              <td className="ps-0 pe-3 py-1" style={{ whiteSpace: "nowrap" }}>
-                <a href="#" className="text-decoration-none">
+          {visibleActivities.map((activity) => (
+            <tr key={activity.id}>
+              <td
+                className="ps-0 pe-2 py-1"
+                style={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 140,
+                }}
+              >
+                <a
+                  href={`https://www.strava.com/activities/${activity.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-decoration-none"
+                >
                   {activity.name}
                 </a>
               </td>
-              <td className="text-muted text-end px-2 py-1" style={{ whiteSpace: "nowrap" }}>
-                {activity.distance}
+              <td className="text-muted text-end px-1 py-1" style={{ whiteSpace: "nowrap" }}>
+                {formatDistance(activity.distance_meters)}
               </td>
-              <td className="text-muted text-end px-2 py-1" style={{ whiteSpace: "nowrap" }}>
-                {activity.time}
+              <td className="text-muted text-end px-1 py-1" style={{ whiteSpace: "nowrap" }}>
+                {formatDuration(activity.moving_time_seconds)}
               </td>
-              <td className="text-muted text-end ps-2 pe-0 py-1" style={{ whiteSpace: "nowrap" }}>
-                {activity.date}
+              <td className="text-muted text-end ps-1 pe-0 py-1" style={{ whiteSpace: "nowrap" }}>
+                {formatActivityDate(activity.start_date_local)}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* Pagination controls */}
-      {totalPages > 1 && (
-        <div className="d-flex flex-column justify-content-center ms-2" style={{ minWidth: 24 }}>
-          <button
-            className="btn btn-sm btn-link p-0 text-muted"
-            onClick={() => setPage((p) => p - 1)}
-            disabled={!canGoUp}
-            style={{ opacity: canGoUp ? 1 : 0.3 }}
-            aria-label="Newer activities"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 4l5 6H3l5-6z" />
-            </svg>
-          </button>
-          <span className="text-muted text-center" style={{ fontSize: "0.65rem", lineHeight: 1.2 }}>
-            {page + 1}/{totalPages}
-          </span>
-          <button
-            className="btn btn-sm btn-link p-0 text-muted"
-            onClick={() => setPage((p) => p + 1)}
-            disabled={!canGoDown}
-            style={{ opacity: canGoDown ? 1 : 0.3 }}
-            aria-label="Older activities"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 12l5-6H3l5 6z" />
-            </svg>
-          </button>
-        </div>
-      )}
+      {/* Pagination controls - always reserve space for stable layout */}
+      <div
+        className="d-flex flex-column justify-content-center ms-2"
+        style={{ minWidth: 32, visibility: showPagination ? "visible" : "hidden" }}
+      >
+        <button
+          className="btn btn-sm btn-link p-0 text-muted"
+          onClick={() => setPage((p) => p - 1)}
+          disabled={!canGoUp}
+          style={{ opacity: canGoUp ? 1 : 0.3 }}
+          aria-label="Newer activities"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 4l5 6H3l5-6z" />
+          </svg>
+        </button>
+        <span className="text-muted text-center" style={{ fontSize: "0.7rem", lineHeight: 1.3 }}>
+          {page + 1}/{hasMore ? "+" : totalPages}
+        </span>
+        <button
+          className="btn btn-sm btn-link p-0 text-muted"
+          onClick={handleNextPage}
+          disabled={!canGoDown}
+          style={{ opacity: canGoDown ? 1 : 0.3 }}
+          aria-label="Older activities"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 12l5-6H3l5 6z" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }
@@ -361,7 +470,7 @@ export default function MultiSportComparisonChart({
           {/* Right: Recent Activities */}
           <div className="col-md-6">
             <div className="border rounded p-2 h-100 overflow-hidden">
-              <RecentActivitiesList />
+              <RecentActivitiesList timeRange={timeRange} />
             </div>
           </div>
         </div>
