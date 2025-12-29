@@ -307,7 +307,10 @@ func TestEncodeCursor(t *testing.T) {
 		}
 
 		// Verify it decodes correctly
-		decoded, _ := base64.URLEncoding.DecodeString(encoded)
+		decoded, err := base64.URLEncoding.DecodeString(encoded)
+		if err != nil {
+			t.Fatalf("failed to decode cursor: %v", err)
+		}
 		expected := "2024-01-15T08:00:00Z|9999999999999"
 		if string(decoded) != expected {
 			t.Errorf("expected decoded cursor %q, got %q", expected, string(decoded))
