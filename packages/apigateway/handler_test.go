@@ -25,14 +25,18 @@ func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 // mockActivityRepository is a mock implementation of repository.ActivityRepository
 type mockActivityRepository struct {
-	pingErr         error
-	closeErr        error
-	sportMetrics    *repository.SportMetrics
-	sportMetricsErr error
-	dailySummary    repository.DailySummary
-	dailySummaryErr error
-	yearMetadata    *repository.YearMetadata
-	yearMetadataErr error
+	pingErr          error
+	closeErr         error
+	sportMetrics     *repository.SportMetrics
+	sportMetricsErr  error
+	dailySummary     repository.DailySummary
+	dailySummaryErr  error
+	yearMetadata     *repository.YearMetadata
+	yearMetadataErr  error
+	activity         *repository.Activity
+	activityErr      error
+	activityList     *repository.ActivityListResponse
+	activityListErr  error
 }
 
 func (m *mockActivityRepository) Ping(ctx context.Context) error {
@@ -53,6 +57,14 @@ func (m *mockActivityRepository) GetDailySummary(ctx context.Context, year int, 
 
 func (m *mockActivityRepository) GetYearMetadata(ctx context.Context, year int) (*repository.YearMetadata, error) {
 	return m.yearMetadata, m.yearMetadataErr
+}
+
+func (m *mockActivityRepository) GetActivityByID(ctx context.Context, id int64) (*repository.Activity, error) {
+	return m.activity, m.activityErr
+}
+
+func (m *mockActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*repository.ActivityListResponse, error) {
+	return m.activityList, m.activityListErr
 }
 
 // Compile-time interface verification
@@ -499,4 +511,347 @@ func TestHandlerSportConfig(t *testing.T) {
 	if body == "" {
 		t.Error("expected non-empty response body")
 	}
+}
+
+// =============================================================================
+// Individual Activity Endpoint Tests
+// =============================================================================
+
+func TestHandlerGetActivity(t *testing.T) {
+	elevation := 450.5
+	testActivity := &repository.Activity{
+		ID:                 12345678901,
+		Name:               "Morning Ride",
+		Type:               "Ride",
+		Sport:              "cycling",
+		StartDateLocal:     "2025-12-28T08:30:00Z",
+		DistanceMeters:     45678.9,
+		MovingTimeSeconds:  5400,
+		ElapsedTimeSeconds: 5800,
+		ElevationMeters:    &elevation,
+	}
+
+	t.Run("returns activity successfully", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activity: testActivity}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/12345678901", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+
+		var response repository.Activity
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+
+		if response.ID != testActivity.ID {
+			t.Errorf("expected activity ID %d, got %d", testActivity.ID, response.ID)
+		}
+		if response.Name != testActivity.Name {
+			t.Errorf("expected activity name %s, got %s", testActivity.Name, response.Name)
+		}
+	})
+
+	t.Run("returns 404 for not found", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activity: nil} // Not found
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/99999999999", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 400 for invalid ID format", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/not-a-number", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 503 without database", func(t *testing.T) {
+		handler := newTestHandler() // No database
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/12345678901", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 500 on database error", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityErr: errors.New("database error")}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/12345678901", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status 500, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandlerListActivities(t *testing.T) {
+	elevation := 450.5
+	testResponse := &repository.ActivityListResponse{
+		Activities: []repository.ActivitySummary{
+			{
+				ID:                12345678901,
+				Name:              "Morning Ride",
+				Type:              "Ride",
+				Sport:             "cycling",
+				StartDateLocal:    "2025-12-28T08:30:00Z",
+				DistanceMeters:    45678.9,
+				MovingTimeSeconds: 5400,
+				ElevationMeters:   &elevation,
+			},
+		},
+		HasMore: false,
+	}
+
+	t.Run("returns activities successfully", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityList: testResponse}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+
+		var response repository.ActivityListResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+
+		if len(response.Activities) != 1 {
+			t.Errorf("expected 1 activity, got %d", len(response.Activities))
+		}
+	})
+
+	t.Run("accepts date range parameters", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityList: testResponse}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities?from=2025-12-01&to=2025-12-28", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("accepts sport parameter", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityList: testResponse}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities?sport=cycling", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("accepts limit parameter", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityList: testResponse}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities?limit=50", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 400 for invalid from date", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities?from=not-a-date", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 400 for invalid to date", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities?to=not-a-date", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 400 for invalid sport", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities?sport=badminton", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 400 for invalid limit", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities?limit=999", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 400 for invalid cursor", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities?cursor=not-valid-base64!!!", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 503 without database", func(t *testing.T) {
+		handler := newTestHandler() // No database
+
+		req := httptest.NewRequest(http.MethodGet, "/activities", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 500 on database error", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityListErr: errors.New("database error")}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status 500, got %d", w.Code)
+		}
+	})
+}
+
+func TestDecodeCursor(t *testing.T) {
+	t.Run("decodes valid cursor", func(t *testing.T) {
+		// Encode a cursor: "2025-12-28T08:30:00Z|12345678901"
+		encoded := "MjAyNS0xMi0yOFQwODozMDowMFp8MTIzNDU2Nzg5MDE="
+
+		cursor, err := decodeCursor(encoded)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if cursor.Timestamp != "2025-12-28T08:30:00Z" {
+			t.Errorf("expected timestamp '2025-12-28T08:30:00Z', got '%s'", cursor.Timestamp)
+		}
+		if cursor.ID != 12345678901 {
+			t.Errorf("expected ID 12345678901, got %d", cursor.ID)
+		}
+	})
+
+	t.Run("returns error for invalid base64", func(t *testing.T) {
+		_, err := decodeCursor("not-valid-base64!!!")
+		if err == nil {
+			t.Error("expected error for invalid base64")
+		}
+	})
+
+	t.Run("returns error for invalid format", func(t *testing.T) {
+		// Valid base64 but missing pipe separator
+		encoded := "bm8tcGlwZS1zZXBhcmF0b3I=" // "no-pipe-separator"
+
+		_, err := decodeCursor(encoded)
+		if err == nil {
+			t.Error("expected error for invalid cursor format")
+		}
+	})
+}
+
+func TestIsValidDate(t *testing.T) {
+	t.Run("valid date", func(t *testing.T) {
+		if !isValidDate("2025-12-28") {
+			t.Error("expected 2025-12-28 to be valid")
+		}
+	})
+
+	t.Run("invalid format", func(t *testing.T) {
+		if isValidDate("12/28/2025") {
+			t.Error("expected 12/28/2025 to be invalid")
+		}
+	})
+
+	t.Run("invalid date", func(t *testing.T) {
+		if isValidDate("2025-13-45") {
+			t.Error("expected 2025-13-45 to be invalid")
+		}
+	})
+
+	t.Run("empty string", func(t *testing.T) {
+		if isValidDate("") {
+			t.Error("expected empty string to be invalid")
+		}
+	})
 }

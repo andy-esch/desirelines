@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/layout/Header";
 import Dashboard from "./pages/Dashboard";
 import UnifiedSportPage from "./pages/UnifiedSportPage";
+import ActivitiesPage from "./pages/ActivitiesPage";
 
 const VALID_SPORTS = ["cycling", "running", "yoga"] as const;
 
@@ -19,6 +20,9 @@ function App() {
           {/* Dashboard - landing page for all users */}
           <Route path="/" element={<Dashboard />} />
           <Route path="/dashboard" element={<Dashboard />} />
+
+          {/* Activities list page */}
+          <Route path="/activities" element={<ActivitiesPage />} />
 
           {/* Sport detail pages - data source based on auth state */}
           {VALID_SPORTS.map((sport) => (

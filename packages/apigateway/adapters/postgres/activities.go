@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -236,4 +237,191 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*re
 		LastUpdated:        lastUpdatedStr,
 		AggregationVersion: "2.0", // Hardcoded version for now
 	}, nil
+}
+
+// GetActivityByID returns a single activity by its Strava ID.
+// Returns nil (not error) if the activity is not found.
+func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*repository.Activity, error) {
+	query := `
+		SELECT
+			id, name, type, sport, start_date_local,
+			distance, moving_time, elapsed_time,
+			total_elevation_gain, average_speed, max_speed,
+			average_heartrate, max_heartrate
+		FROM desirelines.activities
+		WHERE id = $1
+	`
+
+	row := r.pool.QueryRow(ctx, query, id)
+
+	var activity repository.Activity
+	var startDateLocal time.Time
+	var elevation, avgSpeed, maxSpeed, avgHR, maxHR *float64
+
+	err := row.Scan(
+		&activity.ID,
+		&activity.Name,
+		&activity.Type,
+		&activity.Sport,
+		&startDateLocal,
+		&activity.DistanceMeters,
+		&activity.MovingTimeSeconds,
+		&activity.ElapsedTimeSeconds,
+		&elevation,
+		&avgSpeed,
+		&maxSpeed,
+		&avgHR,
+		&maxHR,
+	)
+
+	if err != nil {
+		// Check for not found - pgx returns specific error
+		if err.Error() == "no rows in result set" {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query activity by id: %w", err)
+	}
+
+	activity.StartDateLocal = startDateLocal.Format(time.RFC3339)
+	activity.ElevationMeters = elevation
+	activity.AverageSpeedMps = avgSpeed
+	activity.MaxSpeedMps = maxSpeed
+	activity.AverageHeartrate = avgHR
+	activity.MaxHeartrate = maxHR
+
+	return &activity, nil
+}
+
+// ListActivities returns activities matching the filter criteria with cursor-based pagination.
+// Results are ordered by (start_date_local DESC, id DESC) for stable ordering.
+// Uses keyset pagination for O(1) performance regardless of offset.
+func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*repository.ActivityListResponse, error) {
+	// Build query dynamically based on filter
+	// We fetch limit+1 to determine if there are more results
+
+	var query string
+	var args []interface{}
+	argNum := 1
+
+	// Base SELECT
+	baseSelect := `
+		SELECT
+			id, name, type, sport, start_date_local,
+			distance, moving_time, total_elevation_gain
+		FROM desirelines.activities
+		WHERE 1=1
+	`
+
+	query = baseSelect
+
+	// Add date range filters
+	if filter.From != nil {
+		query += fmt.Sprintf(" AND start_date_local >= $%d::date", argNum)
+		args = append(args, *filter.From)
+		argNum++
+	}
+
+	if filter.To != nil {
+		// Add 1 day to make 'to' inclusive (end of day)
+		query += fmt.Sprintf(" AND start_date_local < ($%d::date + interval '1 day')", argNum)
+		args = append(args, *filter.To)
+		argNum++
+	}
+
+	// Add sport filter
+	if len(filter.SportTypes) > 0 {
+		query += fmt.Sprintf(" AND sport = ANY($%d)", argNum)
+		args = append(args, filter.SportTypes)
+		argNum++
+	}
+
+	// Add cursor constraint for pagination
+	if filter.Cursor != nil {
+		// Keyset pagination: get rows where (start_date_local, id) < (cursor.timestamp, cursor.id)
+		// This works because we order by start_date_local DESC, id DESC
+		query += fmt.Sprintf(" AND (start_date_local, id) < ($%d::timestamp, $%d)", argNum, argNum+1)
+		args = append(args, filter.Cursor.Timestamp, filter.Cursor.ID)
+		argNum += 2
+	}
+
+	// Order by for stable pagination
+	query += " ORDER BY start_date_local DESC, id DESC"
+
+	// Limit (+1 to detect if there are more results)
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20 // Default limit
+	}
+	if limit > 100 {
+		limit = 100 // Max limit
+	}
+	query += fmt.Sprintf(" LIMIT $%d", argNum)
+	args = append(args, limit+1)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query activities list: %w", err)
+	}
+	defer rows.Close()
+
+	activities := make([]repository.ActivitySummary, 0, limit)
+	for rows.Next() {
+		var activity repository.ActivitySummary
+		var startDateLocal time.Time
+		var elevation *float64
+
+		if scanErr := rows.Scan(
+			&activity.ID,
+			&activity.Name,
+			&activity.Type,
+			&activity.Sport,
+			&startDateLocal,
+			&activity.DistanceMeters,
+			&activity.MovingTimeSeconds,
+			&elevation,
+		); scanErr != nil {
+			return nil, fmt.Errorf("scan activity row: %w", scanErr)
+		}
+
+		activity.StartDateLocal = startDateLocal.Format(time.RFC3339)
+		activity.ElevationMeters = elevation
+
+		activities = append(activities, activity)
+	}
+
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate activities rows: %w", rowsErr)
+	}
+
+	// Determine if there are more results
+	hasMore := len(activities) > limit
+	if hasMore {
+		// Remove the extra row we fetched
+		activities = activities[:limit]
+	}
+
+	// Build next cursor from last activity
+	var nextCursor *string
+	if hasMore && len(activities) > 0 {
+		lastActivity := activities[len(activities)-1]
+		cursor := repository.ActivityCursor{
+			Timestamp: lastActivity.StartDateLocal,
+			ID:        lastActivity.ID,
+		}
+		encoded := encodeCursor(&cursor)
+		nextCursor = &encoded
+	}
+
+	return &repository.ActivityListResponse{
+		Activities: activities,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	}, nil
+}
+
+// encodeCursor encodes an ActivityCursor to a base64 string.
+// Uses simple "timestamp|id" format rather than JSON for efficiency.
+func encodeCursor(cursor *repository.ActivityCursor) string {
+	data := fmt.Sprintf("%s|%d", cursor.Timestamp, cursor.ID)
+	return base64.URLEncoding.EncodeToString([]byte(data))
 }
