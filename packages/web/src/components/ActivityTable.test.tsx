@@ -80,14 +80,8 @@ describe("ActivityTable", () => {
 
       const links = screen.getAllByTitle("View on Strava");
       expect(links).toHaveLength(3);
-      expect(links[0]).toHaveAttribute(
-        "href",
-        "https://www.strava.com/activities/123456789"
-      );
-      expect(links[1]).toHaveAttribute(
-        "href",
-        "https://www.strava.com/activities/123456790"
-      );
+      expect(links[0]).toHaveAttribute("href", "https://www.strava.com/activities/123456789");
+      expect(links[1]).toHaveAttribute("href", "https://www.strava.com/activities/123456790");
     });
 
     it("opens Strava links in new tab", () => {
@@ -200,15 +194,11 @@ describe("ActivityTable", () => {
     it("shows empty message when no activities", () => {
       render(<ActivityTable {...defaultProps} activities={[]} />);
 
-      expect(
-        screen.getByText("No activities found for the selected filters.")
-      ).toBeInTheDocument();
+      expect(screen.getByText("No activities found for the selected filters.")).toBeInTheDocument();
     });
 
     it("does not show empty message while loading", () => {
-      render(
-        <ActivityTable {...defaultProps} activities={[]} isLoading={true} />
-      );
+      render(<ActivityTable {...defaultProps} activities={[]} isLoading={true} />);
 
       expect(
         screen.queryByText("No activities found for the selected filters.")
@@ -248,35 +238,25 @@ describe("ActivityTable", () => {
     it("shows Load More button when hasMore is true", () => {
       render(<ActivityTable {...defaultProps} hasMore={true} />);
 
-      expect(
-        screen.getByRole("button", { name: "Load More" })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Load More" })).toBeInTheDocument();
     });
 
     it("hides Load More button when hasMore is false", () => {
       render(<ActivityTable {...defaultProps} hasMore={false} />);
 
-      expect(
-        screen.queryByRole("button", { name: "Load More" })
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Load More" })).not.toBeInTheDocument();
     });
 
     it("hides Load More button while loading", () => {
-      render(
-        <ActivityTable {...defaultProps} hasMore={true} isLoading={true} />
-      );
+      render(<ActivityTable {...defaultProps} hasMore={true} isLoading={true} />);
 
-      expect(
-        screen.queryByRole("button", { name: "Load More" })
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Load More" })).not.toBeInTheDocument();
     });
 
     it("calls onLoadMore when Load More clicked", async () => {
       const user = userEvent.setup();
       const onLoadMore = vi.fn();
-      render(
-        <ActivityTable {...defaultProps} hasMore={true} onLoadMore={onLoadMore} />
-      );
+      render(<ActivityTable {...defaultProps} hasMore={true} onLoadMore={onLoadMore} />);
 
       await user.click(screen.getByRole("button", { name: "Load More" }));
 

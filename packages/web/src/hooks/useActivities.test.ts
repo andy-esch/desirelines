@@ -236,10 +236,9 @@ describe("useActivities", () => {
       .mockResolvedValueOnce({ activities: cyclingActivities, has_more: false })
       .mockResolvedValueOnce({ activities: runningActivities, has_more: false });
 
-    const { result, rerender } = renderHook(
-      ({ sport }) => useActivities({ sport, limit: 20 }),
-      { initialProps: { sport: "cycling" } }
-    );
+    const { result, rerender } = renderHook(({ sport }) => useActivities({ sport, limit: 20 }), {
+      initialProps: { sport: "cycling" },
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -272,9 +271,7 @@ describe("useActivities", () => {
       has_more: false,
     });
 
-    const { result } = renderHook(() =>
-      useActivities({ sport: "cycling", limit: 20 })
-    );
+    const { result } = renderHook(() => useActivities({ sport: "cycling", limit: 20 }));
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);

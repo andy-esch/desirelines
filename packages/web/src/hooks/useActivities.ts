@@ -1,9 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  fetchActivities,
-  type ActivitySummary,
-  type ActivityListFilter,
-} from "../api/activities";
+import { fetchActivities, type ActivitySummary, type ActivityListFilter } from "../api/activities";
 import { useAuth } from "./useAuth";
 import { useAuthToken } from "./useAuthToken";
 
@@ -68,15 +64,9 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
 
         const idToken = await getToken();
 
-        const response = await fetchActivities(
-          { ...filter, cursor },
-          controller.signal,
-          idToken
-        );
+        const response = await fetchActivities({ ...filter, cursor }, controller.signal, idToken);
 
-        setActivities((prev) =>
-          cursor ? [...prev, ...response.activities] : response.activities
-        );
+        setActivities((prev) => (cursor ? [...prev, ...response.activities] : response.activities));
         setHasMore(response.has_more);
         if (response.next_cursor) {
           setCursor(response.next_cursor);

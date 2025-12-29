@@ -67,17 +67,17 @@ type YearMetadata struct {
 type Activity struct {
 	ID                 int64    `json:"id"`
 	Name               string   `json:"name"`
-	Type               string   `json:"type"`                           // Strava activity type (Run, Ride, etc.)
-	Sport              string   `json:"sport"`                          // Categorized sport (running, cycling, yoga)
-	StartDateLocal     string   `json:"start_date_local"`               // ISO timestamp
-	DistanceMeters     float64  `json:"distance_meters"`                // Distance in meters
-	MovingTimeSeconds  int      `json:"moving_time_seconds"`            // Moving time in seconds
-	ElapsedTimeSeconds int      `json:"elapsed_time_seconds"`           // Total elapsed time in seconds
-	ElevationMeters    *float64 `json:"elevation_meters,omitempty"`     // Elevation gain in meters
-	AverageSpeedMps    *float64 `json:"average_speed_mps,omitempty"`    // Average speed in m/s
-	MaxSpeedMps        *float64 `json:"max_speed_mps,omitempty"`        // Max speed in m/s
-	AverageHeartrate   *float64 `json:"average_heartrate,omitempty"`    // Average heart rate (bpm)
-	MaxHeartrate       *float64 `json:"max_heartrate,omitempty"`        // Max heart rate (bpm)
+	Type               string   `json:"type"`                        // Strava activity type (Run, Ride, etc.)
+	Sport              string   `json:"sport"`                       // Categorized sport (running, cycling, yoga)
+	StartDateLocal     string   `json:"start_date_local"`            // ISO timestamp
+	DistanceMeters     float64  `json:"distance_meters"`             // Distance in meters
+	MovingTimeSeconds  int      `json:"moving_time_seconds"`         // Moving time in seconds
+	ElapsedTimeSeconds int      `json:"elapsed_time_seconds"`        // Total elapsed time in seconds
+	ElevationMeters    *float64 `json:"elevation_meters,omitempty"`  // Elevation gain in meters
+	AverageSpeedMps    *float64 `json:"average_speed_mps,omitempty"` // Average speed in m/s
+	MaxSpeedMps        *float64 `json:"max_speed_mps,omitempty"`     // Max speed in m/s
+	AverageHeartrate   *float64 `json:"average_heartrate,omitempty"` // Average heart rate (bpm)
+	MaxHeartrate       *float64 `json:"max_heartrate,omitempty"`     // Max heart rate (bpm)
 }
 
 // ActivitySummary represents a condensed activity for list views.

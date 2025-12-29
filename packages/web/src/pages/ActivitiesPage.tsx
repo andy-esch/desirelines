@@ -114,9 +114,7 @@ const ActivitiesPage: React.FC = () => {
             <div className="card text-center">
               <div className="card-body py-5">
                 <h2 className="card-title">Sign In Required</h2>
-                <p className="card-text text-muted">
-                  Please sign in to view your activities.
-                </p>
+                <p className="card-text text-muted">Please sign in to view your activities.</p>
               </div>
             </div>
           </div>

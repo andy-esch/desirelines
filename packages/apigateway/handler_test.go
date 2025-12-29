@@ -25,18 +25,18 @@ func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 // mockActivityRepository is a mock implementation of repository.ActivityRepository
 type mockActivityRepository struct {
-	pingErr          error
-	closeErr         error
-	sportMetrics     *repository.SportMetrics
-	sportMetricsErr  error
-	dailySummary     repository.DailySummary
-	dailySummaryErr  error
-	yearMetadata     *repository.YearMetadata
-	yearMetadataErr  error
-	activity         *repository.Activity
-	activityErr      error
-	activityList     *repository.ActivityListResponse
-	activityListErr  error
+	pingErr         error
+	closeErr        error
+	sportMetrics    *repository.SportMetrics
+	sportMetricsErr error
+	dailySummary    repository.DailySummary
+	dailySummaryErr error
+	yearMetadata    *repository.YearMetadata
+	yearMetadataErr error
+	activity        *repository.Activity
+	activityErr     error
+	activityList    *repository.ActivityListResponse
+	activityListErr error
 }
 
 func (m *mockActivityRepository) Ping(ctx context.Context) error {

@@ -58,9 +58,7 @@ describe("ActivitiesPage", () => {
       renderWithRouter();
 
       expect(screen.getByText("Sign In Required")).toBeInTheDocument();
-      expect(
-        screen.getByText("Please sign in to view your activities.")
-      ).toBeInTheDocument();
+      expect(screen.getByText("Please sign in to view your activities.")).toBeInTheDocument();
     });
 
     it("shows activities when authenticated", async () => {
@@ -179,9 +177,7 @@ describe("ActivitiesPage", () => {
 
       renderWithRouter("/activities?range=2m&sport=running");
 
-      expect(useActivitiesSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ sport: "running" })
-      );
+      expect(useActivitiesSpy).toHaveBeenCalledWith(expect.objectContaining({ sport: "running" }));
     });
   });
 
