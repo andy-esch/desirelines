@@ -1,6 +1,7 @@
 import { useAuth } from "../hooks/useAuth";
 import SportPage from "./SportPage";
 import DemoSportPage from "./DemoSportPage";
+import NeonSpinner from "../components/NeonSpinner";
 
 interface UnifiedSportPageProps {
   sport: string;
@@ -22,9 +23,7 @@ export default function UnifiedSportPage({ sport }: UnifiedSportPageProps) {
         className="container d-flex justify-content-center align-items-center"
         style={{ minHeight: "60vh" }}
       >
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+        <NeonSpinner />
       </div>
     );
   }

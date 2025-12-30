@@ -1,12 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { LineChart, Line, ResponsiveContainer, XAxis } from "recharts";
 import { useMultiSportData, type Sport } from "../../hooks/useMultiSportData";
 import { useActivities } from "../../hooks/useActivities";
 import { useAuth } from "../../hooks/useAuth";
 import type { TimeRange } from "../../utils/dataNormalization";
 import TimeRangeSelector from "./TimeRangeSelector";
 import type { MetricsEntry } from "../../api/activities";
+import NeonSpinner from "../NeonSpinner";
 
 // Sport colors - NEON theme (CMY)
 const SPORT_COLORS: Record<Sport, string> = {
@@ -133,37 +134,70 @@ const SPORT_TEXT_COLORS: Record<Sport, string> = {
 };
 
 /**
+ * Format date for x-axis tick (e.g., "Dec 15").
+ */
+function formatAxisDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/**
  * Individual sparkline row component.
  */
 function SparklineRow({
   sport,
   data,
   color,
+  showXAxis = false,
 }: {
   sport: Sport;
   data: { date: string; value: number }[];
   color: string;
+  showXAxis?: boolean;
 }) {
   const hasData = data.length > 0;
   const textColor = SPORT_TEXT_COLORS[sport];
   const currentYear = new Date().getFullYear();
 
+  // Height is taller when showing x-axis (need room for axis labels)
+  const chartHeight = showXAxis ? 60 : 36;
+
   return (
-    <div className="d-flex align-items-center gap-2">
+    <div className={`d-flex gap-2 ${showXAxis ? "align-items-start" : "align-items-center"}`}>
       {/* Label - links to sport page */}
       <Link
         to={`/${sport}/${currentYear}`}
         className="text-end small text-decoration-none"
-        style={{ width: 55, color: textColor, fontWeight: 600, fontSize: "0.75rem" }}
+        style={{
+          width: 55,
+          color: textColor,
+          fontWeight: 600,
+          fontSize: "0.75rem",
+          paddingTop: showXAxis ? 12 : 0,
+        }}
       >
         {SPORT_LABELS[sport]}
       </Link>
 
       {/* Sparkline */}
-      <div style={{ flex: 1, height: 36 }}>
+      <div style={{ flex: 1, height: chartHeight }}>
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+            <LineChart
+              data={data}
+              margin={{ top: 4, right: 4, bottom: showXAxis ? 16 : 4, left: 4 }}
+            >
+              {showXAxis && (
+                <XAxis
+                  dataKey="date"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 9, fill: "#999" }}
+                  tickFormatter={formatAxisDate}
+                  interval="preserveStartEnd"
+                  minTickGap={50}
+                />
+              )}
               <Line
                 type="linear"
                 dataKey="value"
@@ -245,8 +279,8 @@ function RecentActivitiesList({ timeRange }: { timeRange: TimeRange }) {
     limit: 20,
   });
 
-  // Reset page when activities change (time range changed)
-  useMemo(() => {
+  // Reset page when time range changes
+  useEffect(() => {
     setPage(0);
   }, [from, to]);
 
@@ -280,9 +314,7 @@ function RecentActivitiesList({ timeRange }: { timeRange: TimeRange }) {
   if (isLoading && activities.length === 0) {
     return (
       <div className="d-flex align-items-center justify-content-center h-100">
-        <div className="spinner-border spinner-border-sm text-secondary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+        <NeonSpinner size="sm" />
       </div>
     );
   }
@@ -322,7 +354,7 @@ function RecentActivitiesList({ timeRange }: { timeRange: TimeRange }) {
           {visibleActivities.map((activity) => (
             <tr key={activity.id}>
               <td
-                className="ps-0 pe-2 py-1"
+                className="text-start ps-0 pe-2 py-1"
                 style={{
                   whiteSpace: "nowrap",
                   overflow: "hidden",
@@ -423,9 +455,7 @@ export default function MultiSportComparisonChart({
           className="bg-light rounded d-flex align-items-center justify-content-center"
           style={{ height: 140 }}
         >
-          <div className="spinner-border spinner-border-sm text-secondary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
+          <NeonSpinner size="sm" />
         </div>
       </div>
     );
@@ -460,16 +490,25 @@ export default function MultiSportComparisonChart({
         <div className="row g-3 justify-content-center">
           {/* Left: Sparklines */}
           <div className="col-md-6">
-            <div className="border rounded p-2 h-100 d-flex flex-column justify-content-center gap-2">
-              {sparklineData.map(({ sport, data: sData }) => (
-                <SparklineRow key={sport} sport={sport} data={sData} color={SPORT_COLORS[sport]} />
+            <div
+              className="border rounded p-2 h-100 d-flex flex-column justify-content-center gap-2"
+              style={{ minHeight: 185 }}
+            >
+              {sparklineData.map(({ sport, data: sData }, index) => (
+                <SparklineRow
+                  key={sport}
+                  sport={sport}
+                  data={sData}
+                  color={SPORT_COLORS[sport]}
+                  showXAxis={index === sparklineData.length - 1}
+                />
               ))}
             </div>
           </div>
 
           {/* Right: Recent Activities */}
           <div className="col-md-6">
-            <div className="border rounded p-2 h-100 overflow-hidden">
+            <div className="border rounded p-2 h-100 overflow-hidden" style={{ minHeight: 185 }}>
               <RecentActivitiesList timeRange={timeRange} />
             </div>
           </div>

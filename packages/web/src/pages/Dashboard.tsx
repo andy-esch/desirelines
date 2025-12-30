@@ -1,5 +1,6 @@
 import { useAuth } from "../hooks/useAuth";
 import MultiSportComparisonChart from "../components/dashboard/MultiSportComparisonChart";
+import NeonSpinner from "../components/NeonSpinner";
 
 /**
  * Dashboard landing page showing multi-sport overview.
@@ -23,9 +24,7 @@ export default function Dashboard() {
         className="container d-flex justify-content-center align-items-center"
         style={{ minHeight: "60vh" }}
       >
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+        <NeonSpinner />
       </div>
     );
   }
