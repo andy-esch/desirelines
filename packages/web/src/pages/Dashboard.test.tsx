@@ -66,8 +66,8 @@ describe("Dashboard", () => {
 
     it("shows sign-in prompt", () => {
       renderWithRouter(<Dashboard />);
-      expect(screen.getByText("Want to see your own data?")).toBeInTheDocument();
-      expect(screen.getByText(/Sign in with Google/)).toBeInTheDocument();
+      expect(screen.getByText("Interested in using Desire Lines?")).toBeInTheDocument();
+      expect(screen.getByText(/Check back soon/)).toBeInTheDocument();
     });
 
     it("renders sport labels as links in sparkline chart", () => {

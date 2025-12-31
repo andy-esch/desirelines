@@ -12,12 +12,15 @@ interface DemoSidebarProps {
   currentYear: number;
   onYearClick: (year: number) => void;
   goals: Goals;
-  onGoalsChange: (goals: Goals) => void;
+  onGoalsChange: (goals: Goals) => Promise<void>;
   estimatedYearEnd: number;
   currentDistance: number;
   sport?: string;
   unit?: MetricUnit;
   isLoading?: boolean;
+  // Goal mutation state (always false/null for demo - localStorage is sync)
+  isSaving?: boolean;
+  saveError?: Error | null;
 }
 
 interface SidebarSections {
@@ -38,6 +41,8 @@ export default function DemoSidebar({
   sport = "cycling",
   unit = "miles",
   isLoading = false,
+  isSaving = false,
+  saveError = null,
 }: DemoSidebarProps) {
   const navigate = useNavigate();
   const availableSports = getDemoAvailableSports();
@@ -118,6 +123,8 @@ export default function DemoSidebar({
               estimatedYearEnd={estimatedYearEnd}
               unit={unit}
               sport={sport}
+              isSaving={isSaving}
+              saveError={saveError}
             />
           </SidebarSection>
         </div>

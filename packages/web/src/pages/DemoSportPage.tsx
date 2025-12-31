@@ -10,18 +10,17 @@ import EmptyState from "../components/EmptyState";
 import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
-import { useDemoData } from "../hooks/useDemoData";
+import { useDemoData, getDemoGoalsForSport } from "../hooks/useDemoData";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
 import { createYearContext } from "../utils/yearContext";
-import { FIXTURE_GOALS } from "../data/fixtures";
 
 interface DemoSportPageProps {
   sport: string;
 }
 
 /**
- * Demo version of SportPage that uses fixture data.
+ * Demo version of SportPage that uses generated demo data.
  * Goals are stored in localStorage for demo persistence.
  */
 export default function DemoSportPage({ sport }: DemoSportPageProps) {
@@ -29,8 +28,9 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   const navigate = useNavigate();
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
   const [showFullYear, setShowFullYear] = useState(true);
+  const [showAchievements, setShowAchievements] = useState(true);
 
-  // Fetch demo data from fixtures
+  // Fetch generated demo data
   const { metrics, sportConfig, isLoading, error } = useDemoData(currentYear, sport);
 
   // Use hardcoded settings for demo (no Firestore)
@@ -85,15 +85,24 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
         // Fall back to defaults
       }
     }
-    // Use fixture defaults
-    return FIXTURE_GOALS.goals.map((g) => ({
-      id: g.id,
-      value: g.value,
-      label: g.label,
-    }));
+    // Use generated demo goals for this sport
+    const demoGoals = getDemoGoalsForSport(sport);
+    if (demoGoals) {
+      return [
+        { id: "1", value: demoGoals.conservative, label: "Conservative" },
+        { id: "2", value: demoGoals.target, label: "Target" },
+        { id: "3", value: demoGoals.stretch, label: "Stretch" },
+      ];
+    }
+    // Fallback
+    return [
+      { id: "1", value: 2000, label: "Conservative" },
+      { id: "2", value: 2500, label: "Target" },
+      { id: "3", value: 3000, label: "Stretch" },
+    ];
   });
 
-  const handleGoalsChange = (newGoals: Goals) => {
+  const handleGoalsChange = async (newGoals: Goals): Promise<void> => {
     setGoals(newGoals);
     // Persist to localStorage
     localStorage.setItem(storageKey, JSON.stringify({ goals: newGoals }));
@@ -119,10 +128,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
       <div className="alert alert-info alert-dismissible fade show mb-0 rounded-0" role="alert">
         <div className="container-fluid">
           <strong>Demo Mode</strong> - Viewing sample data.{" "}
-          <a href="/" className="alert-link">
-            Sign in
-          </a>{" "}
-          to see your real data.
+          <span className="text-muted small">Sign-in is invite-only.</span>
         </div>
       </div>
 
@@ -140,6 +146,8 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
             currentDistance={currentValue}
             unit={metricUnit}
             isLoading={isLoading}
+            isSaving={false}
+            saveError={null}
           />
 
           <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
@@ -186,6 +194,8 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
                   error={error}
                   showFullYear={showFullYear}
                   onViewChange={setShowFullYear}
+                  showAchievements={showAchievements}
+                  onAchievementsChange={setShowAchievements}
                   unit={metricUnit}
                   sport={sport}
                 />

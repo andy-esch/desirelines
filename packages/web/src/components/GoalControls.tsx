@@ -11,10 +11,14 @@ import type { MetricUnit } from "../utils/units";
 
 interface GoalControlsProps {
   goals: Goals;
-  onGoalsChange: (goals: Goals) => void;
+  onGoalsChange: (goals: Goals) => Promise<void>;
   estimatedYearEnd: number;
   unit?: MetricUnit; // Unit label (e.g., "mi", "km", "sessions")
   sport?: string; // Sport name (e.g., "cycling", "running", "yoga")
+  // Loading/error state from parent (useUserConfig hook)
+  isSaving?: boolean;
+  saveError?: Error | null;
+  onClearSaveError?: () => void;
 }
 
 const GoalControls: React.FC<GoalControlsProps> = ({
@@ -23,6 +27,9 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   estimatedYearEnd,
   unit = "miles", // Default to miles
   sport = "cycling", // Default to cycling
+  isSaving = false,
+  saveError = null,
+  onClearSaveError,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -34,6 +41,19 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   // Debounce timer for label changes
   const labelDebounceTimer = useRef<NodeJS.Timeout | null>(null);
 
+  /**
+   * Wrapper for onGoalsChange that cancels pending debounced saves
+   * to prevent race conditions.
+   */
+  const saveGoals = async (updatedGoals: Goals) => {
+    // Cancel any pending debounced label save to prevent race condition
+    if (labelDebounceTimer.current) {
+      clearTimeout(labelDebounceTimer.current);
+      labelDebounceTimer.current = null;
+    }
+    await onGoalsChange(updatedGoals);
+  };
+
   // Determine increment size based on sport type
   // Cycling: 100, Running: 10, Yoga: 10
   const incrementSize = sport === "cycling" ? 100 : 10;
@@ -43,7 +63,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     // Round based on sport type (100 for cycling, 10 for running/yoga)
     const rounded = Math.round(value / roundingFactor) * roundingFactor;
     const updated = goals.map((g) => (g.id === id ? { ...g, value: rounded } : g));
-    onGoalsChange(updated);
+    saveGoals(updated);
   };
 
   const handleIncrement = (id: string, delta: number) => {
@@ -76,7 +96,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
     // Don't round manual text entry - allow any positive integer
     const updated = goals.map((g) => (g.id === id ? { ...g, value } : g));
-    onGoalsChange(updated);
+    saveGoals(updated);
     setEditingId(null);
     setEditValidationError(null);
   };
@@ -120,7 +140,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
   const handleGoalLabelChange = (id: string, label: string) => {
     const updated = goals.map((g) => (g.id === id ? { ...g, label } : g));
-    onGoalsChange(updated);
+    saveGoals(updated);
   };
 
   const handleAddGoal = () => {
@@ -138,17 +158,37 @@ const GoalControls: React.FC<GoalControlsProps> = ({
       value: newValue,
       label: `Goal ${goals.length + 1}`,
     };
-    onGoalsChange([...goals, newGoal]);
+    saveGoals([...goals, newGoal]);
   };
 
   const handleRemoveGoal = (id: string) => {
     if (goals.length <= 1) return;
-    onGoalsChange(goals.filter((g) => g.id !== id));
+    saveGoals(goals.filter((g) => g.id !== id));
   };
 
   return (
     <div className="mb-3">
-      <h6 className="text-muted">Desirelines ({goals.length}/5)</h6>
+      <h6 className="text-muted">
+        Desirelines ({goals.length}/5)
+        {isSaving && (
+          <span className="ms-2 text-muted small" aria-live="polite">
+            Saving...
+          </span>
+        )}
+      </h6>
+      {saveError && (
+        <div className="alert alert-danger py-1 px-2 small" role="alert">
+          {saveError.message || "Failed to save. Please try again."}
+          {onClearSaveError && (
+            <button
+              type="button"
+              className="btn-close btn-sm float-end"
+              aria-label="Dismiss"
+              onClick={onClearSaveError}
+            />
+          )}
+        </div>
+      )}
       {!validation.valid && (
         <div className="alert alert-danger py-1 px-2 small">{validation.error}</div>
       )}
@@ -173,12 +213,14 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   if (e.key === "Escape") setEditingLabel(null);
                 }}
                 placeholder="Label"
+                disabled={isSaving}
               />
               {goals.length > 1 && (
                 <button
                   className="btn btn-sm btn-link text-danger p-0 ms-2"
                   onClick={() => handleRemoveGoal(goal.id)}
                   title="Remove goal"
+                  disabled={isSaving}
                 >
                   ×
                 </button>
@@ -189,7 +231,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               <button
                 className="btn btn-outline-secondary"
                 onClick={() => handleIncrement(goal.id, -incrementSize)}
-                disabled={goal.value <= 0}
+                disabled={goal.value <= 0 || isSaving}
               >
                 −
               </button>
@@ -211,6 +253,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                     }
                   }}
                   autoFocus
+                  disabled={isSaving}
                   style={{ maxWidth: "130px" }}
                   aria-describedby={editValidationError ? `goal-error-${goal.id}` : undefined}
                 />
@@ -221,12 +264,14 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   value={`${goal.value.toLocaleString()} ${unit}`}
                   onFocus={() => handleStartEdit(goal.id, goal.value)}
                   readOnly
-                  style={{ maxWidth: "130px", cursor: "pointer" }}
+                  disabled={isSaving}
+                  style={{ maxWidth: "130px", cursor: isSaving ? "not-allowed" : "pointer" }}
                 />
               )}
               <button
                 className="btn btn-outline-secondary"
                 onClick={() => handleIncrement(goal.id, incrementSize)}
+                disabled={isSaving}
               >
                 +
               </button>
@@ -248,13 +293,14 @@ const GoalControls: React.FC<GoalControlsProps> = ({
         <button
           className="btn btn-sm btn-outline-primary"
           onClick={handleAddGoal}
-          disabled={goals.length >= 5}
+          disabled={goals.length >= 5 || isSaving}
         >
           + Add Goal
         </button>
         <button
           className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-1"
-          onClick={() => onGoalsChange(generateDefaultGoals(estimatedYearEnd))}
+          onClick={() => saveGoals(generateDefaultGoals(estimatedYearEnd))}
+          disabled={isSaving}
         >
           <svg
             width="14"

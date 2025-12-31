@@ -16,12 +16,16 @@ interface SidebarProps {
   currentYear: number;
   onYearClick: (year: number) => void;
   goals: Goals;
-  onGoalsChange: (goals: Goals) => void;
+  onGoalsChange: (goals: Goals) => Promise<void>;
   estimatedYearEnd: number;
   currentDistance: number;
   sport?: string;
   unit?: MetricUnit;
   isLoading?: boolean;
+  // Goal mutation state from useUserConfig
+  isSaving?: boolean;
+  saveError?: Error | null;
+  onClearSaveError?: () => void;
 }
 
 interface SidebarSections {
@@ -39,6 +43,9 @@ export default function Sidebar({
   sport = "cycling",
   unit = "miles",
   isLoading = false,
+  isSaving = false,
+  saveError = null,
+  onClearSaveError,
 }: SidebarProps) {
   const navigate = useNavigate();
   const { loading } = useAuth();
@@ -159,6 +166,9 @@ export default function Sidebar({
               estimatedYearEnd={estimatedYearEnd}
               unit={unit}
               sport={sport}
+              isSaving={isSaving}
+              saveError={saveError}
+              onClearSaveError={onClearSaveError}
             />
           </SidebarSection>
 

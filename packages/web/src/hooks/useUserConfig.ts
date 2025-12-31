@@ -57,6 +57,9 @@ export function useUserConfig(
   loading: boolean;
   error: Error | null;
   updateData: (data: GoalsForYear) => Promise<void>;
+  isSaving: boolean;
+  saveError: Error | null;
+  clearSaveError: () => void;
 };
 
 // Overload for "annotations" - year is required, sport is optional but unused
@@ -72,6 +75,9 @@ export function useUserConfig(
   loading: boolean;
   error: Error | null;
   updateData: (data: AnnotationsForYear) => Promise<void>;
+  isSaving: boolean;
+  saveError: Error | null;
+  clearSaveError: () => void;
 };
 
 // Overload for "preferences" - year and sport are optional but unused
@@ -87,6 +93,9 @@ export function useUserConfig(
   loading: boolean;
   error: Error | null;
   updateData: (data: Preferences) => Promise<void>;
+  isSaving: boolean;
+  saveError: Error | null;
+  clearSaveError: () => void;
 };
 
 // Implementation - parameters must be compatible with ALL overloads
@@ -112,6 +121,15 @@ export function useUserConfig(
   const [data, setData] = useState<GoalsForYear | AnnotationsForYear | Preferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  // Mutation state - tracks save operations
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<Error | null>(null);
+
+  // Clear save error (for dismiss button in UI)
+  const clearSaveError = useCallback(() => {
+    setSaveError(null);
+  }, []);
 
   // For unauthenticated users, use localStorage fallback
   // This prevents the loading spinner from showing indefinitely
@@ -279,42 +297,47 @@ export function useUserConfig(
   /**
    * Update the config data
    * Uses optimistic UI update (updates local state immediately)
-   * then syncs to Firestore in the background
+   * then syncs to Firestore in the background.
+   * Tracks isSaving/saveError state for UI feedback.
    */
   const updateData = useCallback(
     async (newData: GoalsForYear | AnnotationsForYear | Preferences) => {
-      // In fixture mode, persist to localStorage
-      if (isLocalStorageMode) {
-        // Build localStorage key - include sport for goals
-        let storageKey: string;
-        if (configType === "goals" && year !== undefined && sport !== undefined) {
-          storageKey = `userConfig_${effectiveUserId}_${configType}_${year}_${sport}`;
-        } else if (year !== undefined) {
-          storageKey = `userConfig_${effectiveUserId}_${configType}_${year}`;
-        } else {
-          storageKey = `userConfig_${effectiveUserId}_${configType}`;
-        }
-
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(newData));
-          setData(newData);
-        } catch (err) {
-          console.error("Failed to save to localStorage:", err);
-          setError(err as Error);
-        }
-        return;
-      }
-
-      // Optimistic update for Firestore mode
-      setData(newData);
-
-      // configService should exist when not in localStorage mode
-      if (!configService) {
-        console.error("configService is null but not in localStorage mode");
-        return;
-      }
+      // Clear any previous save error when starting a new save
+      setSaveError(null);
+      setIsSaving(true);
 
       try {
+        // In fixture mode, persist to localStorage
+        if (isLocalStorageMode) {
+          // Build localStorage key - include sport for goals
+          let storageKey: string;
+          if (configType === "goals" && year !== undefined && sport !== undefined) {
+            storageKey = `userConfig_${effectiveUserId}_${configType}_${year}_${sport}`;
+          } else if (year !== undefined) {
+            storageKey = `userConfig_${effectiveUserId}_${configType}_${year}`;
+          } else {
+            storageKey = `userConfig_${effectiveUserId}_${configType}`;
+          }
+
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(newData));
+            setData(newData);
+          } catch (err) {
+            console.error("Failed to save to localStorage:", err);
+            setSaveError(err as Error);
+          }
+          return;
+        }
+
+        // Optimistic update for Firestore mode
+        setData(newData);
+
+        // configService should exist when not in localStorage mode
+        if (!configService) {
+          console.error("configService is null but not in localStorage mode");
+          return;
+        }
+
         if (configType === "goals" && year !== undefined && sport !== undefined) {
           await configService.updateConfigSection("goals", newData as GoalsForYear, year, sport);
         } else if (configType === "annotations" && year !== undefined) {
@@ -326,11 +349,14 @@ export function useUserConfig(
         } else if (configType === "preferences") {
           await configService.updateConfigSection("preferences", newData as Preferences);
         }
+        // Clear read error on successful save (in case there was one)
         setError(null);
       } catch (err) {
         console.error("Error updating config:", err);
-        setError(err as Error);
+        setSaveError(err as Error);
         // Real-time listener will revert to correct state from Firestore
+      } finally {
+        setIsSaving(false);
       }
     },
     [configType, year, sport, configService, effectiveUserId, isLocalStorageMode]
@@ -341,6 +367,9 @@ export function useUserConfig(
     loading,
     error,
     updateData,
+    isSaving,
+    saveError,
+    clearSaveError,
   };
 }
 

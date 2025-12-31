@@ -30,6 +30,7 @@ export default function SportPage({ sport }: SportPageProps) {
   const navigate = useNavigate();
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
   const [showFullYear, setShowFullYear] = useState(true);
+  const [showAchievements, setShowAchievements] = useState(true);
 
   // Fetch sport metrics and config
   const { metrics, sportConfig, isLoading, error, retry } = useSportData(currentYear, sport);
@@ -92,12 +93,13 @@ export default function SportPage({ sport }: SportPageProps) {
     };
   }, [estimatedYearEnd, sport]);
 
-  const { data: goalsData, updateData: updateGoals } = useUserConfig(
-    "goals",
-    currentYear,
-    sport,
-    defaultGoalsForYear
-  );
+  const {
+    data: goalsData,
+    updateData: updateGoals,
+    isSaving: isGoalsSaving,
+    saveError: goalsSaveError,
+    clearSaveError: clearGoalsSaveError,
+  } = useUserConfig("goals", currentYear, sport, defaultGoalsForYear);
 
   const goals = goalsData?.goals || [];
 
@@ -144,6 +146,9 @@ export default function SportPage({ sport }: SportPageProps) {
           currentDistance={currentValue}
           unit={metricUnit}
           isLoading={isLoading || !!error}
+          isSaving={isGoalsSaving}
+          saveError={goalsSaveError}
+          onClearSaveError={clearGoalsSaveError}
         />
 
         <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
@@ -190,6 +195,8 @@ export default function SportPage({ sport }: SportPageProps) {
                 error={error}
                 showFullYear={showFullYear}
                 onViewChange={setShowFullYear}
+                showAchievements={showAchievements}
+                onAchievementsChange={setShowAchievements}
                 unit={metricUnit}
                 sport={sport}
                 onRetry={retry}

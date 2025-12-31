@@ -1,6 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { SportMetrics, SportConfig } from "../api/activities";
-import { FIXTURE_SPORT_METRICS, FIXTURE_SPORT_CONFIG } from "../data/fixtures";
+import { FIXTURE_SPORT_CONFIG } from "../data/fixtures";
+import {
+  generateDemoMetrics,
+  generateDemoGoals,
+  getDemoSports,
+  type DemoSport,
+} from "../utils/demoDataGenerator";
 
 export interface DemoDataResult {
   metrics: SportMetrics | null;
@@ -10,17 +16,24 @@ export interface DemoDataResult {
 }
 
 /**
- * Hook for loading demo/fixture data for unauthenticated users.
- * Uses static fixture files instead of API calls.
+ * Hook for loading demo data for unauthenticated users.
+ * Uses the data generator to create fresh, realistic-looking data.
  *
  * @param year - The year to load data for
  * @param sport - The sport type (cycling, running, yoga)
  * @returns Object containing metrics, config, and loading state
  */
 export function useDemoData(year: number, sport: string): DemoDataResult {
-  const [metrics, setMetrics] = useState<SportMetrics | null>(null);
-  const [sportConfig, setSportConfig] = useState<SportConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Generate metrics using the data generator
+  const metrics = useMemo(() => {
+    const validSports = getDemoSports();
+    if (!validSports.includes(sport as DemoSport)) {
+      return [];
+    }
+    return generateDemoMetrics(sport as DemoSport, year);
+  }, [year, sport]);
 
   useEffect(() => {
     // Simulate async loading for smooth UX
@@ -28,9 +41,6 @@ export function useDemoData(year: number, sport: string): DemoDataResult {
 
     // Small delay to prevent flash of loading state
     const timer = setTimeout(() => {
-      const metricsData = FIXTURE_SPORT_METRICS[sport]?.[year] || [];
-      setMetrics(metricsData);
-      setSportConfig(FIXTURE_SPORT_CONFIG);
       setIsLoading(false);
     }, 100);
 
@@ -39,9 +49,9 @@ export function useDemoData(year: number, sport: string): DemoDataResult {
 
   return {
     metrics,
-    sportConfig,
+    sportConfig: FIXTURE_SPORT_CONFIG,
     isLoading,
-    error: null, // Fixtures don't fail
+    error: null,
   };
 }
 
@@ -49,5 +59,20 @@ export function useDemoData(year: number, sport: string): DemoDataResult {
  * Get list of available sports in demo mode
  */
 export function getDemoAvailableSports(): string[] {
-  return Object.keys(FIXTURE_SPORT_CONFIG.sport_categories);
+  return getDemoSports();
+}
+
+/**
+ * Get demo goals for a sport (in display units)
+ */
+export function getDemoGoalsForSport(sport: string): {
+  conservative: number;
+  target: number;
+  stretch: number;
+} | null {
+  const validSports = getDemoSports();
+  if (!validSports.includes(sport as DemoSport)) {
+    return null;
+  }
+  return generateDemoGoals(sport as DemoSport);
 }

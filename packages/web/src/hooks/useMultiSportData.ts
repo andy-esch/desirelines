@@ -1,19 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "./useAuth";
 import { useAuthToken } from "./useAuthToken";
-import { fetchSportMetrics, type SportMetrics, type MetricsEntry } from "../api/activities";
-import { FIXTURE_SPORT_METRICS } from "../data/fixtures";
+import { fetchSportMetrics, type SportMetrics } from "../api/activities";
+import { generateDemoMetrics, generateCoordinatedFillLevels } from "../utils/demoDataGenerator";
 
 export type Sport = "cycling" | "running" | "yoga";
-
-/**
- * Filter fixture data to only include entries up to today's date.
- * This makes fixtures appear "live" - they grow as time passes.
- */
-function filterToCurrentDate(data: MetricsEntry[]): MetricsEntry[] {
-  const today = new Date().toISOString().split("T")[0];
-  return data.filter((entry) => entry.date <= today);
-}
 
 export interface MultiSportData {
   cycling: SportMetrics | null;
@@ -29,7 +20,7 @@ export interface MultiSportDataResult {
 
 /**
  * Hook for fetching metrics for all sports (cycling, running, yoga).
- * Automatically uses fixtures for unauthenticated users and API for authenticated users.
+ * Automatically uses generated demo data for unauthenticated users and API for authenticated users.
  *
  * @param year - The year to fetch data for
  * @returns Object containing data for all sports, loading state, and errors
@@ -45,6 +36,17 @@ export function useMultiSportData(year: number): MultiSportDataResult {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  // Generate demo data using useMemo for stability
+  // Uses coordinated fill levels to ensure at most one sport is empty
+  const demoData = useMemo(() => {
+    const fillLevels = generateCoordinatedFillLevels();
+    return {
+      cycling: generateDemoMetrics("cycling", year, fillLevels.cycling),
+      running: generateDemoMetrics("running", year, fillLevels.running),
+      yoga: generateDemoMetrics("yoga", year, fillLevels.yoga),
+    };
+  }, [year]);
 
   useEffect(() => {
     // Wait for auth to settle
@@ -73,12 +75,8 @@ export function useMultiSportData(year: number): MultiSportDataResult {
             setData({ cycling, running, yoga });
           }
         } else {
-          // Unauthenticated: use fixtures, filtered to current date
-          const cycling = filterToCurrentDate(FIXTURE_SPORT_METRICS.cycling?.[year] || []);
-          const running = filterToCurrentDate(FIXTURE_SPORT_METRICS.running?.[year] || []);
-          const yoga = filterToCurrentDate(FIXTURE_SPORT_METRICS.yoga?.[year] || []);
-
-          setData({ cycling, running, yoga });
+          // Unauthenticated: use generated demo data
+          setData(demoData);
         }
       } catch (err) {
         if (!controller.signal.aborted) {
@@ -94,7 +92,7 @@ export function useMultiSportData(year: number): MultiSportDataResult {
     loadData();
 
     return () => controller.abort();
-  }, [year, user, authLoading, getToken]);
+  }, [year, user, authLoading, getToken, demoData]);
 
   return { data, isLoading, error };
 }
