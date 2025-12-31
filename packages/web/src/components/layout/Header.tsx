@@ -36,7 +36,7 @@ export default function Header() {
   return (
     <header
       className="navbar sticky-top flex-md-nowrap p-2 shadow"
-      style={{ backgroundColor: "#2d3748" }}
+      style={{ backgroundColor: "var(--slate-dark, #2d3748)" }}
     >
       <div className="me-0 px-2 d-flex align-items-center">
         <div style={{ transform: "translateY(-1px)" }}>
@@ -49,7 +49,7 @@ export default function Header() {
 
       <div className="d-none d-md-flex align-items-center gap-3 px-3 ms-auto">
         <div className="navbar-text text-white-50 small d-none d-lg-block">{currentDate}</div>
-        <AuthButton />
+        <AuthButton signInVariant="accent" />
       </div>
 
       {/* Mobile: Both buttons on right (nav hamburger, then controls gear) */}
@@ -103,7 +103,7 @@ export default function Header() {
           <Navigation vertical className="mb-4" />
           <hr className="border-secondary" />
           <div className="mt-3">
-            <AuthButton />
+            <AuthButton signInVariant="accent" />
           </div>
         </div>
       </div>

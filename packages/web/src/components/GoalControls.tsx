@@ -291,14 +291,14 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
       <div className="d-grid gap-1">
         <button
-          className="btn btn-sm btn-outline-primary"
+          className="btn btn-sm btn-outline-slate"
           onClick={handleAddGoal}
           disabled={goals.length >= 5 || isSaving}
         >
           + Add Goal
         </button>
         <button
-          className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-1"
+          className="btn btn-sm btn-ghost-slate d-inline-flex align-items-center justify-content-center gap-1"
           onClick={() => saveGoals(generateDefaultGoals(estimatedYearEnd))}
           disabled={isSaving}
         >

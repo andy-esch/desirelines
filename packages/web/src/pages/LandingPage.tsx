@@ -68,7 +68,7 @@ export default function LandingPage() {
               <div className="d-grid gap-3">
                 <button
                   onClick={handleSignIn}
-                  className="btn btn-primary btn-lg"
+                  className="btn btn-accent btn-lg"
                   disabled={signingIn}
                 >
                   {signingIn ? (
@@ -87,7 +87,7 @@ export default function LandingPage() {
                   <hr className="flex-grow-1" />
                 </div>
 
-                <button onClick={handleDemo} className="btn btn-outline-secondary btn-lg">
+                <button onClick={handleDemo} className="btn btn-outline-slate btn-lg">
                   Try Demo
                 </button>
               </div>
