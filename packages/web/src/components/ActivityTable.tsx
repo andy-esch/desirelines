@@ -212,7 +212,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
         {/* Load more button */}
         {!isLoading && hasMore && (
           <div className="text-center py-3 border-top">
-            <button className="btn btn-outline-primary" onClick={onLoadMore}>
+            <button className="btn btn-ghost-slate" onClick={onLoadMore}>
               Load More
             </button>
           </div>

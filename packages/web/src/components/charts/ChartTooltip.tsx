@@ -177,7 +177,7 @@ export const ChartTooltip = ({
                     flexShrink: 0,
                   }}
                 />
-                <span style={{ color: "#aaa" }}>{entry.name}</span>
+                <span style={{ color: "#aaa" }}>{shortName}</span>
                 <span style={{ color: "#fff", fontWeight: "500", marginLeft: "auto" }}>
                   {value}
                 </span>
