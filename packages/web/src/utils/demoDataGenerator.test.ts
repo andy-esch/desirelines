@@ -55,10 +55,12 @@ describe("generateDemoMetrics", () => {
     });
 
     it("includes elevation for cycling", () => {
-      const metrics = generateDemoMetrics("cycling", 2024);
+      // Use "full" fill level to ensure we get data (random can return "empty")
+      const metrics = generateDemoMetrics("cycling", 2024, "full");
       // Find an entry with activity (non-zero cumulative)
       const entryWithActivity = metrics.find((m) => (m.activities ?? 0) > 0);
 
+      expect(entryWithActivity).toBeDefined();
       expect(entryWithActivity).toHaveProperty("elevation");
     });
 
