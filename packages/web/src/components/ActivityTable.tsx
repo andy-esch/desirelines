@@ -6,6 +6,7 @@ import {
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
+import NeonSpinner from "./NeonSpinner";
 
 interface ActivityTableProps {
   activities: ActivitySummary[];
@@ -204,9 +205,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
         {/* Loading indicator */}
         {isLoading && (
           <div className="text-center py-4">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
+            <NeonSpinner />
           </div>
         )}
 

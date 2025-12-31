@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useEffect, useState } from "react";
+import NeonSpinner from "../components/NeonSpinner";
 
 /**
  * Landing page shown to unauthenticated users.
@@ -42,9 +43,7 @@ export default function LandingPage() {
         className="container d-flex justify-content-center align-items-center"
         style={{ minHeight: "80vh" }}
       >
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+        <NeonSpinner />
       </div>
     );
   }
@@ -74,11 +73,7 @@ export default function LandingPage() {
                 >
                   {signingIn ? (
                     <>
-                      <span
-                        className="spinner-border spinner-border-sm me-2"
-                        role="status"
-                        aria-hidden="true"
-                      ></span>
+                      <NeonSpinner size="sm" className="me-2" />
                       Signing in...
                     </>
                   ) : (

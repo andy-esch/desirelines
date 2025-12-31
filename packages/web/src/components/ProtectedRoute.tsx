@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import NeonSpinner from "./NeonSpinner";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -19,9 +20,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         className="container d-flex justify-content-center align-items-center"
         style={{ minHeight: "80vh" }}
       >
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+        <NeonSpinner />
       </div>
     );
   }

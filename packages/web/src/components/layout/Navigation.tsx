@@ -33,11 +33,21 @@ export default function Navigation({ className = "", vertical = false }: Navigat
         <NavLink to="/" end className={linkClasses}>
           Dashboard
         </NavLink>
-        <div className="nav-item mt-2 mb-1">
-          <span className="nav-link text-white-50 py-1 small text-uppercase">Goals</span>
+        <div className="mt-3 mb-1 ps-2">
+          <span
+            className="text-white-50 small text-uppercase fw-semibold"
+            style={{ fontSize: "0.65rem", letterSpacing: "0.05em" }}
+          >
+            Goals
+          </span>
         </div>
         {SPORTS.map((sport) => (
-          <NavLink key={sport.id} to={`/${sport.id}/${currentYear}`} className={linkClasses}>
+          <NavLink
+            key={sport.id}
+            to={`/${sport.id}/${currentYear}`}
+            className={linkClasses}
+            style={{ paddingLeft: "1rem" }}
+          >
             <span className="me-2">{sport.icon}</span>
             {sport.label}
           </NavLink>
