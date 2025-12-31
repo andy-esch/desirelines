@@ -37,15 +37,15 @@ describe("ChartTooltip", () => {
       <ChartTooltip active={true} payload={mockPayload} label="2025-10-22" unit="mi" decimals={1} />
     );
 
-    // Check data entries render correctly
-    expect(screen.getByText("Actual:")).toBeInTheDocument();
-    expect(screen.getByText("2450.0 mi")).toBeInTheDocument();
+    // Check data entries render correctly (labels without colon, values without unit)
+    expect(screen.getByText("Actual")).toBeInTheDocument();
+    expect(screen.getByText("2450.0")).toBeInTheDocument();
 
-    expect(screen.getByText("Goal Line:")).toBeInTheDocument();
-    expect(screen.getByText("2800.0 mi")).toBeInTheDocument();
+    expect(screen.getByText("Goal Line")).toBeInTheDocument();
+    expect(screen.getByText("2800.0")).toBeInTheDocument();
   });
 
-  it("uses custom unit", () => {
+  it("formats values with specified decimals", () => {
     render(
       <ChartTooltip
         active={true}
@@ -56,7 +56,7 @@ describe("ChartTooltip", () => {
       />
     );
 
-    expect(screen.getByText(/8.25 mi\/day/)).toBeInTheDocument();
+    expect(screen.getByText("8.25")).toBeInTheDocument();
   });
 
   it("respects decimal places", () => {
@@ -70,7 +70,7 @@ describe("ChartTooltip", () => {
       />
     );
 
-    expect(screen.getByText("2450.57 mi")).toBeInTheDocument();
+    expect(screen.getByText("2450.57")).toBeInTheDocument();
   });
 
   it("handles string values", () => {
@@ -86,12 +86,12 @@ describe("ChartTooltip", () => {
     expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
-  it("uses default unit (mi) and decimals (1) when not provided", () => {
+  it("uses default decimals (1) when not provided", () => {
     render(
       <ChartTooltip active={true} payload={[{ name: "Test", value: 123.456 }]} label="2025-10-22" />
     );
 
-    expect(screen.getByText("123.5 mi")).toBeInTheDocument();
+    expect(screen.getByText("123.5")).toBeInTheDocument();
   });
 
   it("uses fallback color when stroke/color not provided", () => {
@@ -99,8 +99,8 @@ describe("ChartTooltip", () => {
       <ChartTooltip active={true} payload={[{ name: "Test", value: 100 }]} label="2025-10-22" />
     );
 
-    // Check that the tooltip renders with data
-    expect(screen.getByText("Test:")).toBeInTheDocument();
-    expect(screen.getByText("100.0 mi")).toBeInTheDocument();
+    // Check that the tooltip renders with data (labels without colon)
+    expect(screen.getByText("Test")).toBeInTheDocument();
+    expect(screen.getByText("100.0")).toBeInTheDocument();
   });
 });
