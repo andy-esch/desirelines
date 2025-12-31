@@ -1,53 +1,110 @@
--- Create login roles for local development
--- This script runs after the database is created but before Flyway migrations
--- Note: Role groups (desirelines_*_grp) are created by V0001 migration
-
--- For local dev, we create roles with simple passwords
--- Production uses separate secrets per role with strong passwords
+-- Bootstrap database for local development
+-- This script runs at PostgreSQL init time (docker-entrypoint-initdb.d)
+-- before Flyway migrations.
+--
+-- For local dev, we create everything that Neon's neondb_owner would create
+-- (see docs/guides/database-setup.md for the production setup guide):
+--   1. Role groups (permission containers)
+--   2. Schemas with ownership transfer
+--   3. Login roles with grants and search paths
+--
+-- NOTE: PostGIS is installed by the postgis/postgis Docker image (in public schema)
 
 -- =============================================================================
--- postgres-writer service (read/write via dml_grp)
+-- ROLE GROUPS (permission containers, NOLOGIN)
+-- See: docs/guides/database-setup.md Section 2
 -- =============================================================================
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'writer') THEN
-        CREATE ROLE writer WITH LOGIN PASSWORD 'writer_local';
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'desirelines_ddl_grp') THEN
+        CREATE ROLE desirelines_ddl_grp NOINHERIT;
+    END IF;
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'desirelines_dml_grp') THEN
+        CREATE ROLE desirelines_dml_grp NOINHERIT;
+    END IF;
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'desirelines_ro_grp') THEN
+        CREATE ROLE desirelines_ro_grp NOINHERIT;
     END IF;
 END $$;
-COMMENT ON ROLE writer IS 'postgres-writer Cloud Run service (local dev)';
 
 -- =============================================================================
--- apigateway service (read-only via ro_grp)
+-- SCHEMAS
+-- See: docs/guides/database-setup.md Section 3
 -- =============================================================================
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'apigateway') THEN
-        CREATE ROLE apigateway WITH LOGIN PASSWORD 'apigateway_local';
-    END IF;
-END $$;
-COMMENT ON ROLE apigateway IS 'apigateway Cloud Run service (local dev)';
+
+-- Create schemas (extensions schema needed for V0001 migration compatibility)
+CREATE SCHEMA IF NOT EXISTS desirelines;
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+-- Transfer ownership to ddl_grp
+ALTER SCHEMA desirelines OWNER TO desirelines_ddl_grp;
+ALTER SCHEMA extensions OWNER TO desirelines_ddl_grp;
+
+-- Grant usage to other role groups
+GRANT USAGE ON SCHEMA desirelines TO desirelines_dml_grp, desirelines_ro_grp;
+GRANT USAGE ON SCHEMA extensions TO desirelines_dml_grp, desirelines_ro_grp;
+
+-- NOTE: PostGIS extension is handled by the postgis/postgis Docker image
+-- and installed in the public schema. For prod (Neon), it's installed
+-- manually in the extensions schema per docs/guides/database-setup.md
 
 -- =============================================================================
--- Flyway migrations (DDL via ddl_grp)
+-- LOGIN ROLES
+-- See: docs/guides/database-setup.md Section 4
+-- Service accounts with simple passwords for local dev
 -- =============================================================================
+
+-- Flyway (runs migrations)
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'flyway') THEN
         CREATE ROLE flyway WITH LOGIN PASSWORD 'flyway_local';
     END IF;
 END $$;
+GRANT desirelines_ddl_grp TO flyway;
+ALTER ROLE flyway SET search_path = desirelines, extensions, public;
 COMMENT ON ROLE flyway IS 'Flyway database migrations (local dev)';
 
--- =============================================================================
--- Admin access for manual operations (DDL via ddl_grp)
--- =============================================================================
+-- postgres-writer service
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'writer') THEN
+        CREATE ROLE writer WITH LOGIN PASSWORD 'writer_local';
+    END IF;
+END $$;
+GRANT desirelines_dml_grp TO writer;
+ALTER ROLE writer SET search_path = desirelines, extensions, public;
+COMMENT ON ROLE writer IS 'postgres-writer Cloud Run service (local dev)';
+
+-- apigateway service (read-only)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'apigateway') THEN
+        CREATE ROLE apigateway WITH LOGIN PASSWORD 'apigateway_local';
+    END IF;
+END $$;
+GRANT desirelines_ro_grp TO apigateway;
+ALTER ROLE apigateway SET search_path = desirelines, extensions, public;
+COMMENT ON ROLE apigateway IS 'apigateway Cloud Run service (local dev)';
+
+-- reader (general read-only access)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'reader') THEN
+        CREATE ROLE reader WITH LOGIN PASSWORD 'reader_local';
+    END IF;
+END $$;
+GRANT desirelines_ro_grp TO reader;
+ALTER ROLE reader SET search_path = desirelines, extensions, public;
+COMMENT ON ROLE reader IS 'General read-only access (local dev)';
+
+-- Admin (manual ops)
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'admin') THEN
         CREATE ROLE admin WITH LOGIN PASSWORD 'admin_local';
     END IF;
 END $$;
+GRANT desirelines_ddl_grp TO admin;
+ALTER ROLE admin SET search_path = desirelines, extensions, public;
 COMMENT ON ROLE admin IS 'Manual admin access (local dev)';
-
--- Note: Role group grants happen AFTER Flyway migrations create the groups
--- See: schemas/database/scripts/grant-role-memberships.sql
