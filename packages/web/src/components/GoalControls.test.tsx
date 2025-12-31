@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import GoalControls from "./GoalControls";
 import type { Goals } from "../utils/goalCalculations";
 
@@ -250,11 +250,7 @@ describe("GoalControls", () => {
       const onClearSaveError = vi.fn();
 
       render(
-        <GoalControls
-          {...defaultProps}
-          saveError={saveError}
-          onClearSaveError={onClearSaveError}
-        />
+        <GoalControls {...defaultProps} saveError={saveError} onClearSaveError={onClearSaveError} />
       );
 
       // Error should be visible

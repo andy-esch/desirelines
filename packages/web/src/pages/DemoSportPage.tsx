@@ -28,6 +28,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   const navigate = useNavigate();
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
   const [showFullYear, setShowFullYear] = useState(true);
+  const [showAchievements, setShowAchievements] = useState(true);
 
   // Fetch generated demo data
   const { metrics, sportConfig, isLoading, error } = useDemoData(currentYear, sport);
@@ -193,6 +194,8 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
                   error={error}
                   showFullYear={showFullYear}
                   onViewChange={setShowFullYear}
+                  showAchievements={showAchievements}
+                  onAchievementsChange={setShowAchievements}
                   unit={metricUnit}
                   sport={sport}
                 />
