@@ -20,7 +20,7 @@ export default function TimeRangeSelector({ value, onChange }: TimeRangeSelector
         <button
           key={rangeValue}
           type="button"
-          className={`btn ${value === rangeValue ? "btn-secondary" : "btn-outline-secondary"}`}
+          className={`btn ${value === rangeValue ? "btn-time-range-active" : "btn-time-range"}`}
           onClick={() => onChange(rangeValue)}
         >
           {label}

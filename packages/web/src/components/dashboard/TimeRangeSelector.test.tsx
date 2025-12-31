@@ -22,8 +22,8 @@ describe("TimeRangeSelector", () => {
     const selectedBtn = screen.getByRole("button", { name: "4W" });
     const unselectedBtn = screen.getByRole("button", { name: "2W" });
 
-    expect(selectedBtn).toHaveClass("btn-secondary");
-    expect(unselectedBtn).toHaveClass("btn-outline-secondary");
+    expect(selectedBtn).toHaveClass("btn-time-range-active");
+    expect(unselectedBtn).toHaveClass("btn-time-range");
   });
 
   it("calls onChange with correct value when option clicked", () => {
