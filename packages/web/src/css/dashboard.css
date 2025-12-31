@@ -61,14 +61,35 @@
 
 /* CSS Variables for the color scheme */
 :root {
+  /* Slate palette - neutrals */
   --slate-dark: #2d3748;
   --slate: #4a5568;
   --slate-light: #718096;
   --slate-lighter: #a0aec0;
+
+  /* Accent colors - NEON theme */
   --accent-cyan: #00d4ff;
   --accent-cyan-hover: #00b8e6;
   --accent-cyan-glow: rgba(0, 212, 255, 0.15);
   --accent-cyan-text: #1a202c;
+  --accent-magenta: #ff00ff;
+  --accent-magenta-glow: rgba(255, 0, 255, 0.15);
+}
+
+/*
+ * Links - cyan default, magenta underline on hover
+ */
+a {
+  color: var(--accent-cyan);
+  text-decoration: none;
+}
+a:hover,
+a.text-decoration-none:hover {
+  color: var(--accent-cyan);
+  text-decoration: underline !important;
+  text-decoration-color: var(--accent-magenta) !important;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
 /* Primary - for main CTAs only (Try Demo, Sign In) */
@@ -116,12 +137,21 @@
 }
 .btn-ghost-slate:hover,
 .btn-ghost-slate:focus {
-  border-color: var(--slate-light);
+  border-color: var(--accent-cyan);
   color: var(--accent-cyan);
   background-color: var(--accent-cyan-glow);
 }
 .btn-ghost-slate:active {
   background-color: rgba(0, 212, 255, 0.2);
+}
+
+/*
+ * Form controls - override Bootstrap focus ring
+ */
+.form-select:focus,
+.form-control:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 0.25rem var(--accent-cyan-glow);
 }
 
 /*
