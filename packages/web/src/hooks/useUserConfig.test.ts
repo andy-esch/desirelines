@@ -587,7 +587,7 @@ describe("useUserConfig", () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it("should set error state and log when updateData fails", async () => {
+    it("should set saveError state and log when updateData fails", async () => {
       const { onSnapshot, getDoc, setDoc } = await import("firebase/firestore");
 
       vi.mocked(onSnapshot).mockImplementation((_doc, callback: any) => {
@@ -635,10 +635,13 @@ describe("useUserConfig", () => {
       };
       await result.current.updateData(newGoals);
 
-      // Wait for error state to be set
+      // Wait for saveError state to be set (mutation error, not read error)
       await waitFor(() => {
-        expect(result.current.error).toEqual(updateError);
+        expect(result.current.saveError).toEqual(updateError);
       });
+
+      // isSaving should be false after completion
+      expect(result.current.isSaving).toBe(false);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith("Error updating config:", updateError);
 

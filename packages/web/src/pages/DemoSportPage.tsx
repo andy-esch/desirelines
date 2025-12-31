@@ -101,7 +101,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
     ];
   });
 
-  const handleGoalsChange = (newGoals: Goals) => {
+  const handleGoalsChange = async (newGoals: Goals): Promise<void> => {
     setGoals(newGoals);
     // Persist to localStorage
     localStorage.setItem(storageKey, JSON.stringify({ goals: newGoals }));
@@ -145,6 +145,8 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
             currentDistance={currentValue}
             unit={metricUnit}
             isLoading={isLoading}
+            isSaving={false}
+            saveError={null}
           />
 
           <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">

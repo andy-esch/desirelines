@@ -70,4 +70,18 @@ export const CHART_CONFIG = {
   animation: {
     duration: 50,
   },
+
+  /** Goal achievement marker styling */
+  achievementMarker: {
+    /** Use SVG path star (true) or unicode character (false) */
+    useSvgStar: true,
+    /** Size of the star marker */
+    size: 12,
+    /** Vertical offset above the data point */
+    yOffset: 18,
+    /** Unicode star character (used when useSvgStar is false) */
+    unicodeChar: "★",
+    /** Font size for unicode star */
+    unicodeFontSize: 18,
+  },
 } as const;

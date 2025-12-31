@@ -92,12 +92,13 @@ export default function SportPage({ sport }: SportPageProps) {
     };
   }, [estimatedYearEnd, sport]);
 
-  const { data: goalsData, updateData: updateGoals } = useUserConfig(
-    "goals",
-    currentYear,
-    sport,
-    defaultGoalsForYear
-  );
+  const {
+    data: goalsData,
+    updateData: updateGoals,
+    isSaving: isGoalsSaving,
+    saveError: goalsSaveError,
+    clearSaveError: clearGoalsSaveError,
+  } = useUserConfig("goals", currentYear, sport, defaultGoalsForYear);
 
   const goals = goalsData?.goals || [];
 
@@ -144,6 +145,9 @@ export default function SportPage({ sport }: SportPageProps) {
           currentDistance={currentValue}
           unit={metricUnit}
           isLoading={isLoading || !!error}
+          isSaving={isGoalsSaving}
+          saveError={goalsSaveError}
+          onClearSaveError={clearGoalsSaveError}
         />
 
         <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">

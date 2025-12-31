@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import GoalControls from "./GoalControls";
 import type { Goals } from "../utils/goalCalculations";
 
@@ -9,14 +9,22 @@ describe("GoalControls", () => {
     { id: "2", value: 2000, label: "Target" },
   ];
 
+  // Create async mock that resolves immediately by default
+  const createAsyncMock = () => vi.fn().mockResolvedValue(undefined);
+
   const defaultProps = {
     goals: mockGoals,
-    onGoalsChange: vi.fn(),
+    onGoalsChange: createAsyncMock(),
     estimatedYearEnd: 2500,
     currentDistance: 1500,
     unit: "miles" as const,
     sport: "cycling",
   };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    defaultProps.onGoalsChange = createAsyncMock();
+  });
 
   describe("Inline Validation", () => {
     it("displays inline error when invalid value is entered", () => {
@@ -179,7 +187,7 @@ describe("GoalControls", () => {
     });
 
     it("cancels edit on Escape key", () => {
-      const onGoalsChange = vi.fn();
+      const onGoalsChange = createAsyncMock();
 
       render(<GoalControls {...defaultProps} onGoalsChange={onGoalsChange} />);
 
@@ -193,6 +201,83 @@ describe("GoalControls", () => {
 
       // Should not save changes
       expect(onGoalsChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Loading and Error States", () => {
+    it("shows saving indicator when isSaving prop is true", () => {
+      render(<GoalControls {...defaultProps} isSaving={true} />);
+
+      // Should show saving indicator
+      expect(screen.getByText("Saving...")).toBeInTheDocument();
+    });
+
+    it("hides saving indicator when isSaving prop is false", () => {
+      render(<GoalControls {...defaultProps} isSaving={false} />);
+
+      // Should not show saving indicator
+      expect(screen.queryByText("Saving...")).not.toBeInTheDocument();
+    });
+
+    it("disables inputs when isSaving prop is true", () => {
+      render(<GoalControls {...defaultProps} isSaving={true} />);
+
+      // All buttons should be disabled
+      const allButtons = screen.getAllByRole("button");
+      allButtons.forEach((button) => {
+        expect(button).toBeDisabled();
+      });
+    });
+
+    it("shows error message when saveError prop is set", () => {
+      const saveError = new Error("Network error");
+      render(<GoalControls {...defaultProps} saveError={saveError} />);
+
+      // Should show error message
+      expect(screen.getByText("Network error")).toBeInTheDocument();
+    });
+
+    it("shows default error message when saveError has no message", () => {
+      const saveError = new Error();
+      render(<GoalControls {...defaultProps} saveError={saveError} />);
+
+      // Should show default error message
+      expect(screen.getByText("Failed to save. Please try again.")).toBeInTheDocument();
+    });
+
+    it("allows dismissing error message via onClearSaveError", () => {
+      const saveError = new Error("Network error");
+      const onClearSaveError = vi.fn();
+
+      render(
+        <GoalControls
+          {...defaultProps}
+          saveError={saveError}
+          onClearSaveError={onClearSaveError}
+        />
+      );
+
+      // Error should be visible
+      expect(screen.getByText("Network error")).toBeInTheDocument();
+
+      // Dismiss error
+      const dismissButton = screen.getByLabelText("Dismiss");
+      fireEvent.click(dismissButton);
+
+      // onClearSaveError should be called
+      expect(onClearSaveError).toHaveBeenCalled();
+    });
+
+    it("does not show dismiss button when onClearSaveError is not provided", () => {
+      const saveError = new Error("Network error");
+
+      render(<GoalControls {...defaultProps} saveError={saveError} />);
+
+      // Error should be visible
+      expect(screen.getByText("Network error")).toBeInTheDocument();
+
+      // Dismiss button should not be present
+      expect(screen.queryByLabelText("Dismiss")).not.toBeInTheDocument();
     });
   });
 });
