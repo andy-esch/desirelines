@@ -30,34 +30,48 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="container-fluid py-4">
-      {/* Header Section */}
-      <div className="dashboard-header mb-4">
-        <h1 className="h2">
-          {user ? `Welcome back, ${user.displayName?.split(" ")[0] || "there"}!` : "Welcome!"}
-        </h1>
-        <p className="text-muted">
-          {user
-            ? "Your multi-sport activity dashboard"
-            : "Sign in to see your personal data, or explore with demo data below."}
-        </p>
-      </div>
-
-      {/* Multi-Sport Comparison Chart */}
-      <MultiSportComparisonChart className="mb-4" />
-
-      {/* Sign-in prompt for unauthenticated users */}
+    <>
+      {/* Demo mode banner for unauthenticated users */}
       {!user && (
-        <div className="mt-5 text-center">
-          <hr className="my-4" />
-          <p className="text-muted">
-            <strong>Want to see your own data?</strong>
-          </p>
-          <p className="text-muted small">
-            Sign in with Google to connect your Strava activities and track your personal goals.
-          </p>
+        <div className="alert alert-info alert-dismissible fade show mb-0 rounded-0" role="alert">
+          <div className="container-fluid">
+            <strong>Demo Mode</strong> - Viewing generated sample data.{" "}
+            <span className="text-muted small">Sign-in is invite-only.</span>
+          </div>
         </div>
       )}
-    </div>
+
+      <div className="container-fluid py-4">
+        {/* Header Section */}
+        <div className="dashboard-header mb-4">
+          <h1 className="h2">
+            {user ? `Welcome back, ${user.displayName?.split(" ")[0] || "there"}!` : "Welcome!"}
+          </h1>
+          <p className="text-muted">
+            {user
+              ? "Your multi-sport activity dashboard"
+              : "Explore the dashboard with demo data, then sign in to see your own activities."}
+          </p>
+        </div>
+
+        {/* Multi-Sport Comparison Chart */}
+        <MultiSportComparisonChart className="mb-4" />
+
+        {/* Sign-in prompt for unauthenticated users */}
+        {!user && (
+          <div className="mt-5 text-center">
+            <hr className="my-4" />
+            <p className="text-muted">
+              <strong>Interested in using Desire Lines?</strong>
+            </p>
+            <p className="text-muted small">
+              Sign-in is currently invite-only.
+              <br />
+              Check back soon or reach out if you'd like early access.
+            </p>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
