@@ -1,13 +1,30 @@
 /**
- * UI Color Scheme
+ * UI Color Scheme - Reference Documentation
  *
- * Single source of truth for UI colors in TypeScript.
- * These values must match the CSS variables in dashboard.css :root
+ * PURPOSE: This file serves as TypeScript documentation for the UI color system.
+ * It mirrors the CSS custom properties defined in `src/css/variables.css`.
  *
- * Philosophy:
- * - NEON colors (full brightness) stay on charts (see chartColors.ts)
- * - UI uses toned-down accents (90% brightness cyan, magenta)
+ * WHY THIS EXISTS:
+ * - Provides IntelliSense/autocomplete for color values in TypeScript
+ * - Documents the color system design decisions
+ * - Can be imported if programmatic color access is needed (e.g., for charts, dynamic styles)
+ *
+ * IMPORTANT: The source of truth for runtime styles is `variables.css`.
+ * If you change colors, update BOTH files to keep them in sync.
+ *
+ * COLOR PHILOSOPHY:
+ * - NEON colors (full brightness) are reserved for charts (see chartColors.ts)
+ * - UI uses toned-down accents (cyan for interactive, magenta for hover accents)
  * - Slate tones for neutral elements (matches header background)
+ *
+ * HIERARCHY:
+ * - Primary: Cyan (`btn-accent`) - Main CTAs like "Try Demo", "Sign In"
+ * - Secondary: Slate outline (`btn-outline-slate`) - Important actions like "Add Goal"
+ * - Tertiary: Ghost slate (`btn-ghost-slate`) - Minor actions like "Load More"
+ *
+ * @see src/css/variables.css - CSS variables (source of truth)
+ * @see src/css/dashboard.css - Component styles
+ * @see src/constants/chartColors.ts - Chart-specific NEON colors
  */
 
 /**

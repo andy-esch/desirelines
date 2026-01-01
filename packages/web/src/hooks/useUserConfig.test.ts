@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { useUserConfig, useFullUserConfig } from "./useUserConfig";
 import type { GoalsForYear, AnnotationsForYear, Preferences } from "../services/userConfigService";
 
@@ -302,8 +302,10 @@ describe("useUserConfig", () => {
 
       expect(result.current.data).toEqual({ annualGoal: 500 });
 
-      // Simulate Firestore update
-      triggerUpdate({ goals: { "2025": { sports: { cycling: { annualGoal: 1000 } } } } });
+      // Simulate Firestore update - wrap in act() since it triggers state update
+      act(() => {
+        triggerUpdate({ goals: { "2025": { sports: { cycling: { annualGoal: 1000 } } } } });
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual({ annualGoal: 1000 });
@@ -347,7 +349,7 @@ describe("useUserConfig", () => {
 
       expect(result.current.data).toEqual({ annualGoal: 500 });
 
-      // Call updateData (optimistic update) - should update immediately
+      // Call updateData (optimistic update) - wrap in act() since it triggers state update
       const newGoals: GoalsForYear = {
         goals: [
           {
@@ -359,14 +361,13 @@ describe("useUserConfig", () => {
           },
         ],
       };
-      const updatePromise = result.current.updateData(newGoals);
 
-      // Check optimistic update happened immediately (before promise resolves)
-      await waitFor(() => {
-        expect(result.current.data).toEqual(newGoals);
+      await act(async () => {
+        await result.current.updateData(newGoals);
       });
 
-      await updatePromise;
+      // Check optimistic update happened
+      expect(result.current.data).toEqual(newGoals);
       expect(setDoc).toHaveBeenCalled();
     });
 
@@ -413,7 +414,10 @@ describe("useUserConfig", () => {
           },
         ],
       };
-      await result.current.updateData(newGoals);
+
+      await act(async () => {
+        await result.current.updateData(newGoals);
+      });
 
       expect(setDoc).toHaveBeenCalled();
     });
@@ -451,7 +455,10 @@ describe("useUserConfig", () => {
         elevationUnit: "",
         defaultSport: "",
       };
-      await result.current.updateData(newPrefs);
+
+      await act(async () => {
+        await result.current.updateData(newPrefs);
+      });
 
       expect(setDoc).toHaveBeenCalled();
     });
@@ -633,12 +640,13 @@ describe("useUserConfig", () => {
           },
         ],
       };
-      await result.current.updateData(newGoals);
 
-      // Wait for saveError state to be set (mutation error, not read error)
-      await waitFor(() => {
-        expect(result.current.saveError).toEqual(updateError);
+      await act(async () => {
+        await result.current.updateData(newGoals);
       });
+
+      // saveError state should now be set (mutation error, not read error)
+      expect(result.current.saveError).toEqual(updateError);
 
       // isSaving should be false after completion
       expect(result.current.isSaving).toBe(false);
@@ -935,7 +943,10 @@ describe("useFullUserConfig", () => {
           },
         ],
       };
-      await result.current.updateSection("goals", newGoals, 2025, "cycling");
+
+      await act(async () => {
+        await result.current.updateSection("goals", newGoals, 2025, "cycling");
+      });
 
       expect(setDoc).toHaveBeenCalled();
       expect(result.current.error).toBeNull();
@@ -982,7 +993,10 @@ describe("useFullUserConfig", () => {
           },
         ],
       };
-      await result.current.updateSection("annotations", newAnnotations, 2025);
+
+      await act(async () => {
+        await result.current.updateSection("annotations", newAnnotations, 2025);
+      });
 
       expect(setDoc).toHaveBeenCalled();
     });
@@ -1020,7 +1034,10 @@ describe("useFullUserConfig", () => {
         elevationUnit: "",
         defaultSport: "",
       };
-      await result.current.updateSection("preferences", newPrefs);
+
+      await act(async () => {
+        await result.current.updateSection("preferences", newPrefs);
+      });
 
       expect(setDoc).toHaveBeenCalled();
     });
@@ -1065,12 +1082,13 @@ describe("useFullUserConfig", () => {
           },
         ],
       };
-      await result.current.updateSection("goals", newGoals, 2025, "cycling");
 
-      // Wait for error state to be set
-      await waitFor(() => {
-        expect(result.current.error).toEqual(updateError);
+      await act(async () => {
+        await result.current.updateSection("goals", newGoals, 2025, "cycling");
       });
+
+      // Error state should now be set
+      expect(result.current.error).toEqual(updateError);
 
       expect(consoleErrorSpy).toHaveBeenCalled();
 

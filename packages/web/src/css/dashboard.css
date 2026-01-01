@@ -1,12 +1,23 @@
+/**
+ * Dashboard Component Styles
+ *
+ * Bootstrap overrides and custom component styles for the dashboard.
+ * CSS variables are defined in variables.css
+ */
+
+/* ==========================================================================
+   Icons
+   ========================================================================== */
+
 .bi {
   display: inline-block;
   width: 1rem;
   height: 1rem;
 }
 
-/*
- * Sidebar
- */
+/* ==========================================================================
+   Layout: Sidebar
+   ========================================================================== */
 
 @media (min-width: 768px) {
   .sidebar {
@@ -34,9 +45,9 @@
   font-size: 0.75rem;
 }
 
-/*
- * Navbar
- */
+/* ==========================================================================
+   Layout: Navbar
+   ========================================================================== */
 
 .navbar-brand {
   padding-top: 0.75rem;
@@ -49,36 +60,9 @@
   padding: 0.75rem 1rem;
 }
 
-/*
- * Button Color Scheme
- * See constants/uiColors.ts for documentation
- *
- * Hierarchy:
- *   btn-accent         - Primary CTAs (solid cyan)
- *   btn-outline-slate  - Secondary actions (slate outline, cyan hover)
- *   btn-ghost-slate    - Tertiary/minor actions (subtle)
- */
-
-/* CSS Variables for the color scheme */
-:root {
-  /* Slate palette - neutrals */
-  --slate-dark: #2d3748;
-  --slate: #4a5568;
-  --slate-light: #718096;
-  --slate-lighter: #a0aec0;
-
-  /* Accent colors - NEON theme */
-  --accent-cyan: #00d4ff;
-  --accent-cyan-hover: #00b8e6;
-  --accent-cyan-glow: rgba(0, 212, 255, 0.15);
-  --accent-cyan-text: #1a202c;
-  --accent-magenta: #ff00ff;
-  --accent-magenta-glow: rgba(255, 0, 255, 0.15);
-}
-
-/*
- * Links - cyan default, magenta underline on hover
- */
+/* ==========================================================================
+   Links
+   ========================================================================== */
 a {
   color: var(--accent-cyan);
   text-decoration: none;
@@ -91,6 +75,12 @@ a.text-decoration-none:hover {
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
 }
+
+/* ==========================================================================
+   Buttons
+   Hierarchy: btn-accent (primary) > btn-outline-slate (secondary) > btn-ghost-slate (tertiary)
+   See constants/uiColors.ts for documentation
+   ========================================================================== */
 
 /* Primary - for main CTAs only (Try Demo, Sign In) */
 .btn-accent {
@@ -145,18 +135,20 @@ a.text-decoration-none:hover {
   background-color: rgba(0, 212, 255, 0.2);
 }
 
-/*
- * Form controls - override Bootstrap focus ring
- */
+/* ==========================================================================
+   Forms - Bootstrap overrides
+   ========================================================================== */
+
 .form-select:focus,
 .form-control:focus {
   border-color: var(--accent-cyan);
   box-shadow: 0 0 0 0.25rem var(--accent-cyan-glow);
 }
 
-/*
- * Navigation - override Bootstrap nav-pills blue
- */
+/* ==========================================================================
+   Navigation - Bootstrap overrides
+   ========================================================================== */
+
 .nav-pills .nav-link.active,
 .nav-pills .show > .nav-link {
   background-color: var(--slate, #4a5568);
@@ -173,9 +165,10 @@ a.text-decoration-none:hover {
   color: var(--accent-cyan-text, #1a202c);
 }
 
-/*
- * Time Range Selector - slate toggle buttons
- */
+/* ==========================================================================
+   Time Range Selector
+   ========================================================================== */
+
 .btn-time-range {
   background-color: transparent;
   border-color: var(--slate);
@@ -197,9 +190,10 @@ a.text-decoration-none:hover {
   color: #fff;
 }
 
-/*
- * Card hover - subtle border lightening
- */
+/* ==========================================================================
+   Cards
+   ========================================================================== */
+
 .card {
   border-color: var(--slate-light);
   transition: border-color 0.2s ease;
@@ -208,9 +202,31 @@ a.text-decoration-none:hover {
   border-color: var(--slate-lighter);
 }
 
-/*
- * Demo Mode Banner - NEON cyan theme (transparent)
- */
+/* ==========================================================================
+   Progress Bars - NEON gradient shine effect
+   ========================================================================== */
+
+.progress-neon {
+  overflow: visible;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+.progress-bar-neon {
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.1) 45%,
+    transparent 55%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  color: #000 !important;
+  font-weight: 600;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
+}
+
+/* ==========================================================================
+   Alerts - Demo Mode Banner
+   ========================================================================== */
+
 .alert-demo {
   background-color: rgba(0, 212, 255, 0.1);
   border: 1px solid rgba(0, 212, 255, 0.25);

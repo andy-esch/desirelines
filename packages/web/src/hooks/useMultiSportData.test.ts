@@ -2,21 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useMultiSportData } from "./useMultiSportData";
 
-// TODO: This test file causes OOM due to fixture imports not being properly mocked.
-// The vi.mock for fixtures isn't hoisting correctly before the useMultiSportData import.
-// Tracked in: https://github.com/vitest-dev/vitest/issues/8293
-// Workaround: Skip tests until we implement lazy loading for fixtures or database seeding.
-
 // Mock useAuth
 vi.mock("./useAuth", () => ({
   useAuth: vi.fn(),
 }));
 
-// Mock useAuthToken
+// Mock useAuthToken - must return stable reference to avoid infinite loops
+const mockGetToken = vi.fn().mockResolvedValue("mock-token");
 vi.mock("./useAuthToken", () => ({
-  useAuthToken: vi.fn(() => ({
-    getToken: vi.fn().mockResolvedValue("mock-token"),
-  })),
+  useAuthToken: () => ({
+    getToken: mockGetToken,
+  }),
 }));
 
 // Mock fetchSportMetrics
@@ -24,19 +20,28 @@ vi.mock("../api/activities", () => ({
   fetchSportMetrics: vi.fn(),
 }));
 
-// Mock fixtures
-vi.mock("../data/fixtures", () => ({
-  FIXTURE_SPORT_METRICS: {
-    cycling: {
-      2025: [{ date: "2025-01-01", distance: 10000, time: 60, activities: 1 }],
-    },
-    running: {
-      2025: [{ date: "2025-01-02", distance: 5000, time: 30, activities: 1 }],
-    },
-    yoga: {
-      2025: [{ date: "2025-01-03", time: 45, activities: 1 }],
-    },
-  },
+// Mock demoDataGenerator to return predictable data
+vi.mock("../utils/demoDataGenerator", () => ({
+  generateCoordinatedFillLevels: vi.fn(() => ({
+    cycling: "full",
+    running: "full",
+    yoga: "full",
+  })),
+  generateDemoMetrics: vi.fn((sport: string, year: number) => {
+    // Only return data for year 2025
+    if (year !== 2025) {
+      return [];
+    }
+    const mockData: Record<
+      string,
+      { date: string; distance?: number; time: number; activities: number }[]
+    > = {
+      cycling: [{ date: "2025-01-01", distance: 10000, time: 60, activities: 1 }],
+      running: [{ date: "2025-01-02", distance: 5000, time: 30, activities: 1 }],
+      yoga: [{ date: "2025-01-03", time: 45, activities: 1 }],
+    };
+    return mockData[sport] || [];
+  }),
 }));
 
 import { useAuth } from "./useAuth";
@@ -45,7 +50,7 @@ import { fetchSportMetrics } from "../api/activities";
 const mockUseAuth = vi.mocked(useAuth);
 const mockFetchSportMetrics = vi.mocked(fetchSportMetrics);
 
-describe.skip("useMultiSportData", () => {
+describe("useMultiSportData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -61,7 +66,7 @@ describe.skip("useMultiSportData", () => {
       });
     });
 
-    it("returns fixture data for unauthenticated users", async () => {
+    it("returns demo data for unauthenticated users", async () => {
       const { result } = renderHook(() => useMultiSportData(2025));
 
       await waitFor(() => {
@@ -78,7 +83,7 @@ describe.skip("useMultiSportData", () => {
       expect(result.current.error).toBeNull();
     });
 
-    it("returns empty arrays for year with no fixture data", async () => {
+    it("returns empty arrays for year with no demo data", async () => {
       const { result } = renderHook(() => useMultiSportData(2020));
 
       await waitFor(() => {
@@ -177,6 +182,7 @@ describe.skip("useMultiSportData", () => {
       const controlledPromise = new Promise((resolve) => {
         resolvePromise = resolve;
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockFetchSportMetrics.mockReturnValue(controlledPromise as Promise<any>);
 
       const { result } = renderHook(() => useMultiSportData(2025));
