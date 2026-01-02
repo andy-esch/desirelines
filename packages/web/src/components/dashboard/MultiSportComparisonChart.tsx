@@ -426,7 +426,11 @@ export default function MultiSportComparisonChart({
   const currentYear = new Date().getFullYear();
   const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
 
-  const { data, isLoading, error } = useMultiSportData(currentYear);
+  // Calculate date range for API query
+  const { from, to } = useMemo(() => getDateRangeFromTimeRange(timeRange), [timeRange]);
+
+  // Fetch data using date-range query (can span years seamlessly)
+  const { data, isLoading, error } = useMultiSportData({ year: currentYear, from, to });
 
   // Process data for each sport's sparkline
   // Order: cumulative -> daily deltas -> filter by range -> normalize 0-1

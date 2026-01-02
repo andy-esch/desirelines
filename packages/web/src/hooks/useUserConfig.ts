@@ -172,7 +172,9 @@ export function useUserConfig(
       } else if (configType === "annotations") {
         setData(defaultValue || ({ annotations: [] } as AnnotationsForYear));
       } else if (configType === "preferences") {
-        setData(defaultValue || ({ theme: "light", defaultYear: 2025 } as Preferences));
+        setData(
+          defaultValue || ({ theme: "light", defaultYear: new Date().getFullYear() } as Preferences)
+        );
       }
       setLoading(false);
       setError(null);
