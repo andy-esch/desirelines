@@ -93,9 +93,10 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     return estimateYearEndDistance(distanceData, year);
   }, [distanceData, year]);
 
-  // Calculate year boundaries
-  const startDate = useMemo(() => new Date(year, 0, 1), [year]);
-  const endDate = useMemo(() => new Date(year, 11, 31), [year]);
+  // Calculate year boundaries using UTC to ensure consistent display
+  // across timezones (Jan 1 - Dec 31 should show as Jan 1 - Dec 31 everywhere)
+  const startDate = useMemo(() => new Date(Date.UTC(year, 0, 1)), [year]);
+  const endDate = useMemo(() => new Date(Date.UTC(year, 11, 31)), [year]);
 
   // Use either full year or current date based on toggle
   const displayEndDate = showFullYear ? endDate : latestDate;
@@ -374,10 +375,16 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
               domain={[startDate.getTime(), displayEndDate.getTime()]}
               scale="time"
               tickFormatter={(timestamp) => {
+                // Use UTC formatting to avoid day shift when Recharts generates
+                // ticks at UTC midnight boundaries (which would show as previous
+                // day in local timezone like EST)
                 const date = new Date(timestamp);
-                const month = date.toLocaleDateString("en-US", { month: "short" });
-                const day = date.getDate();
-                return `${month} ${day}`;
+                const formatter = new Intl.DateTimeFormat("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  timeZone: "UTC",
+                });
+                return formatter.format(date);
               }}
               stroke={CHART_CONFIG.axis.stroke}
               tick={{ fontSize: 11 }}

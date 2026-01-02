@@ -4,9 +4,9 @@ import GoalSummaryTable from "./GoalSummaryTable";
 import type { Goals } from "../utils/goalCalculations";
 import { createYearContext } from "../utils/yearContext";
 
-// Mock the date for consistent testing
-// Use ISO string to ensure consistent interpretation across timezones
-const mockCurrentDate = new Date("2025-06-15T00:00:00.000Z"); // Mid-year (June 15 UTC)
+// Mock the date for consistent testing (local time)
+// June 15, 2025 = 166 days elapsed, 200 days remaining
+const mockCurrentDate = new Date(2025, 5, 15, 12, 0, 0); // Mid-year (June 15 local noon)
 
 describe("GoalSummaryTable", () => {
   beforeEach(() => {

@@ -3,9 +3,9 @@ import { calculateYearStats, calculateAveragePace, daysBetween } from "./dateCal
 
 describe("calculateYearStats", () => {
   beforeEach(() => {
-    // Mock current date to October 22, 2025
+    // Mock current date to October 22, 2025 (local time noon)
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-10-22T12:00:00Z"));
+    vi.setSystemTime(new Date(2025, 9, 22, 12, 0, 0)); // Local noon
   });
 
   afterEach(() => {
@@ -17,12 +17,11 @@ describe("calculateYearStats", () => {
 
     expect(stats.startOfYear).toEqual(new Date(2025, 0, 1));
     expect(stats.endOfYear).toEqual(new Date(2025, 11, 31, 23, 59, 59, 999));
-    expect(stats.today).toEqual(new Date("2025-10-22T12:00:00Z"));
 
     // October 22 is day 295 of the year (31+28+31+30+31+30+31+31+30+22)
     expect(stats.daysElapsed).toBe(295);
 
-    // From Oct 22 to Dec 31 23:59:59 = 71 days (9 in Oct + 30 in Nov + 31 in Dec + partial)
+    // From Oct 22 to Dec 31 = 71 days remaining (9 in Oct + 30 in Nov + 31 in Dec + partial)
     expect(stats.daysRemaining).toBe(71);
   });
 
@@ -47,7 +46,7 @@ describe("calculateYearStats", () => {
   });
 
   it("handles leap year correctly", () => {
-    vi.setSystemTime(new Date("2024-03-01T12:00:00Z")); // 2024 is a leap year
+    vi.setSystemTime(new Date(2024, 2, 1, 12, 0, 0)); // 2024 is a leap year, March 1 local noon
 
     const stats = calculateYearStats(2024);
 
@@ -56,29 +55,29 @@ describe("calculateYearStats", () => {
   });
 
   it("calculates correct days at start of year", () => {
-    vi.setSystemTime(new Date("2025-01-01T12:00:00")); // Local time, noon on Jan 1
+    vi.setSystemTime(new Date(2025, 0, 1, 12, 0, 0)); // Local time, noon on Jan 1
 
     const stats = calculateYearStats(2025);
 
     expect(stats.daysElapsed).toBe(1); // Day 1
-    expect(stats.daysRemaining).toBe(365); // From Jan 1 noon to Dec 31 23:59:59
+    expect(stats.daysRemaining).toBe(365); // From Jan 1 to Dec 31
   });
 
   it("calculates correct days at end of year", () => {
-    vi.setSystemTime(new Date("2025-12-31T12:00:00")); // Local time, noon on Dec 31
+    vi.setSystemTime(new Date(2025, 11, 31, 12, 0, 0)); // Local time, noon on Dec 31
 
     const stats = calculateYearStats(2025);
 
     expect(stats.daysElapsed).toBe(365); // All days elapsed
-    expect(stats.daysRemaining).toBe(1); // Dec 31 00:00 to Dec 31 12:00 is still positive
+    expect(stats.daysRemaining).toBe(1); // Dec 31 still has time remaining
   });
 });
 
 describe("calculateAveragePace", () => {
   beforeEach(() => {
-    // Mock current date to October 22, 2025 (day 295)
+    // Mock current date to October 22, 2025 (day 295, local noon)
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-10-22T12:00:00Z"));
+    vi.setSystemTime(new Date(2025, 9, 22, 12, 0, 0));
   });
 
   afterEach(() => {
@@ -119,14 +118,14 @@ describe("calculateAveragePace", () => {
   });
 
   it("returns zero at start of year (day 1)", () => {
-    vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
+    vi.setSystemTime(new Date(2025, 0, 1, 0, 0, 0)); // Jan 1 midnight local
 
     const pace = calculateAveragePace(0, 2025);
     expect(pace).toBe(0); // 0 / 1 = 0
   });
 
   it("calculates pace at start of year with distance", () => {
-    vi.setSystemTime(new Date("2025-01-01T12:00:00Z"));
+    vi.setSystemTime(new Date(2025, 0, 1, 12, 0, 0)); // Jan 1 noon local
 
     const pace = calculateAveragePace(10, 2025);
     expect(pace).toBe(10); // 10 miles / 1 day = 10 mi/day

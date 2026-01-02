@@ -3,9 +3,9 @@ import { render, screen } from "@testing-library/react";
 import KPICards from "./KPICards";
 import { createYearContext } from "../../utils/yearContext";
 
-// Mock the date for consistent testing
-// October 23, 2025 = 295 days elapsed, 70 days remaining (UTC calculation)
-const mockCurrentDate = new Date("2025-10-23T00:00:00.000Z");
+// Mock the date for consistent testing (local time)
+// October 22, 2025 = 295 days elapsed, 71 days remaining
+const mockCurrentDate = new Date(2025, 9, 22, 12, 0, 0); // Oct 22 local noon
 
 describe("KPICards", () => {
   let testYearContext: ReturnType<typeof createYearContext>;
@@ -58,7 +58,7 @@ describe("KPICards", () => {
     render(<KPICards {...getDefaultProps()} />);
 
     expect(screen.getByText("7.9")).toBeInTheDocument();
-    expect(screen.getByText(/miles \/ day · 70 days left/)).toBeInTheDocument();
+    expect(screen.getByText(/miles \/ day · 71 days left/)).toBeInTheDocument();
   });
 
   it("renders momentum indicator when provided", () => {
@@ -97,7 +97,7 @@ describe("KPICards", () => {
 
     expect(screen.getByText("3,000 miles reached!")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument(); // No pace needed
-    expect(screen.getByText(/70 days remaining/)).toBeInTheDocument();
+    expect(screen.getByText(/71 days remaining/)).toBeInTheDocument();
   });
 
   it("handles missing momentum indicator", () => {
@@ -179,7 +179,7 @@ describe("KPICards", () => {
     it("shows days remaining when no pace needed", () => {
       render(<KPICards {...getDefaultProps()} paceNeededForNextGoal={0} nextGoalGap={0} />);
 
-      expect(screen.getByText(/70 days remaining/)).toBeInTheDocument();
+      expect(screen.getByText(/71 days remaining/)).toBeInTheDocument();
     });
   });
 });

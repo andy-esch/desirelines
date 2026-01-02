@@ -111,7 +111,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                     <td>
                       <div
                         className="progress progress-neon"
-                        style={{ height: "20px", minWidth: "100px" }}
+                        style={{ height: "20px", minWidth: "100px", position: "relative" }}
                       >
                         <div
                           className="progress-bar progress-bar-neon"
@@ -124,9 +124,22 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                           aria-valuenow={progress}
                           aria-valuemin={0}
                           aria-valuemax={100}
+                        />
+                        {/* Percentage text positioned absolutely for visibility at any width */}
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: "50%",
+                            top: "50%",
+                            transform: "translate(-50%, -50%)",
+                            fontSize: "0.75rem",
+                            fontWeight: 500,
+                            color: progress > 50 ? "#fff" : "#333",
+                            textShadow: progress > 50 ? "0 0 2px rgba(0,0,0,0.5)" : "none",
+                          }}
                         >
                           {isLoading ? "--" : `${progress.toFixed(0)}%`}
-                        </div>
+                        </span>
                       </div>
                     </td>
                     <td>{isLoading ? "--" : `${remaining.toFixed(0)} ${unit}`}</td>
