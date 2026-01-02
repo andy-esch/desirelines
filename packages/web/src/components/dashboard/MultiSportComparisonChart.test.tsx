@@ -241,7 +241,7 @@ describe("MultiSportComparisonChart", () => {
       renderWithRouter(<MultiSportComparisonChart />);
 
       const twoWeeksBtn = screen.getByRole("button", { name: "2W" });
-      expect(twoWeeksBtn).toHaveClass("btn-secondary");
+      expect(twoWeeksBtn).toHaveClass("btn-time-range-active");
     });
 
     it("changes time range when selector clicked", () => {
@@ -250,8 +250,8 @@ describe("MultiSportComparisonChart", () => {
       const fourWeeksBtn = screen.getByRole("button", { name: "4W" });
       fireEvent.click(fourWeeksBtn);
 
-      expect(fourWeeksBtn).toHaveClass("btn-secondary");
-      expect(screen.getByRole("button", { name: "2W" })).toHaveClass("btn-outline-secondary");
+      expect(fourWeeksBtn).toHaveClass("btn-time-range-active");
+      expect(screen.getByRole("button", { name: "2W" })).toHaveClass("btn-time-range");
     });
 
     it("renders recent activities section", () => {

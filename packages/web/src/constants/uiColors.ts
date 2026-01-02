@@ -1,38 +1,91 @@
 /**
- * UI Color Scheme Documentation
+ * UI Color Scheme - Reference Documentation
  *
- * This file documents the UI color palette and button hierarchy.
- * The actual implementation is in CSS variables (see dashboard.css :root).
+ * PURPOSE: This file serves as TypeScript documentation for the UI color system.
+ * It mirrors the CSS custom properties defined in `src/css/variables.css`.
  *
- * Philosophy:
- * - NEON colors stay mostly on charts (see chartColors.ts)
- * - UI elements use calm/neutral slate tones that match the header
- * - Accent color (cyan) appears on hover and primary CTAs only
- * - This creates visual hierarchy without overdoing the NEON theme
+ * WHY THIS EXISTS:
+ * - Provides IntelliSense/autocomplete for color values in TypeScript
+ * - Documents the color system design decisions
+ * - Can be imported if programmatic color access is needed (e.g., for charts, dynamic styles)
  *
- * CSS Variables (defined in dashboard.css):
- *   --slate-dark:        #2d3748  (header background, darkest surfaces)
- *   --slate:             #4a5568  (button borders, card backgrounds)
- *   --slate-light:       #718096  (muted text, disabled states)
- *   --slate-lighter:     #a0aec0  (hover text, subtle highlights)
- *   --accent-cyan:       #00d4ff  (primary accent, 90% brightness)
- *   --accent-cyan-hover: #00b8e6  (darker cyan for hover states)
- *   --accent-cyan-glow:  rgba(0, 212, 255, 0.15)  (hover backgrounds)
- *   --accent-cyan-text:  #1a202c  (text on cyan backgrounds)
+ * IMPORTANT: The source of truth for runtime styles is `variables.css`.
+ * If you change colors, update BOTH files to keep them in sync.
  *
- * Button Classes:
- *   .btn-accent         - Primary CTAs (solid cyan) - use sparingly
- *   .btn-outline-slate  - Secondary actions (slate outline, cyan hover)
- *   .btn-ghost-slate    - Tertiary/minor actions (subtle)
+ * COLOR PHILOSOPHY:
+ * - NEON colors (full brightness) are reserved for charts (see chartColors.ts)
+ * - UI uses toned-down accents (cyan for interactive, magenta for hover accents)
+ * - Slate tones for neutral elements (matches header background)
  *
- * Other UI Classes:
- *   .alert-demo         - Demo mode banner (transparent cyan)
+ * HIERARCHY:
+ * - Primary: Cyan (`btn-accent`) - Main CTAs like "Try Demo", "Sign In"
+ * - Secondary: Slate outline (`btn-outline-slate`) - Important actions like "Add Goal"
+ * - Tertiary: Ghost slate (`btn-ghost-slate`) - Minor actions like "Load More"
+ *
+ * @see src/css/variables.css - CSS variables (source of truth)
+ * @see src/css/dashboard.css - Component styles
+ * @see src/constants/chartColors.ts - Chart-specific NEON colors
  */
 
-// Re-export for programmatic use if needed
+/**
+ * Slate palette - neutral grays derived from header background
+ */
+export const SLATE = {
+  DARK: "#2d3748",
+  DEFAULT: "#4a5568",
+  LIGHT: "#718096",
+  LIGHTER: "#a0aec0",
+} as const;
+
+/**
+ * Accent colors - toned-down NEON for UI interactions
+ */
+export const ACCENT = {
+  // Cyan - primary accent (buttons, links, focus states)
+  CYAN: "#00d4ff",
+  CYAN_HOVER: "#00b8e6",
+  CYAN_GLOW: "rgba(0, 212, 255, 0.15)",
+  CYAN_TEXT: "#1a202c", // Dark text on cyan backgrounds
+
+  // Magenta - secondary accent (link underlines, highlights)
+  MAGENTA: "#ff00ff",
+  MAGENTA_GLOW: "rgba(255, 0, 255, 0.15)",
+} as const;
+
+/**
+ * Semantic color assignments
+ */
 export const UI_COLORS = {
-  SLATE_DARK: "#2d3748",
-  SLATE: "#4a5568",
-  SLATE_LIGHT: "#718096",
-  ACCENT_CYAN: "#00d4ff",
+  // Backgrounds
+  headerBg: SLATE.DARK,
+  cardBg: SLATE.DEFAULT,
+
+  // Text
+  textMuted: SLATE.LIGHT,
+  textSubtle: SLATE.LIGHTER,
+
+  // Links
+  link: ACCENT.CYAN,
+  linkHoverUnderline: ACCENT.MAGENTA,
+
+  // Interactive
+  focusRing: ACCENT.CYAN_GLOW,
+  buttonPrimary: ACCENT.CYAN,
+  buttonPrimaryText: ACCENT.CYAN_TEXT,
+} as const;
+
+/**
+ * CSS variable names (for use with var())
+ * Use these when you need to reference CSS variables in inline styles
+ */
+export const CSS_VARS = {
+  slateDark: "var(--slate-dark)",
+  slate: "var(--slate)",
+  slateLight: "var(--slate-light)",
+  slateLighter: "var(--slate-lighter)",
+  accentCyan: "var(--accent-cyan)",
+  accentCyanHover: "var(--accent-cyan-hover)",
+  accentCyanGlow: "var(--accent-cyan-glow)",
+  accentMagenta: "var(--accent-magenta)",
+  accentMagentaGlow: "var(--accent-magenta-glow)",
 } as const;

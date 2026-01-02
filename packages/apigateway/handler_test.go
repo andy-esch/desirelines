@@ -51,6 +51,10 @@ func (m *mockActivityRepository) GetSportMetrics(ctx context.Context, year int, 
 	return m.sportMetrics, m.sportMetricsErr
 }
 
+func (m *mockActivityRepository) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*repository.SportMetrics, error) {
+	return m.sportMetrics, m.sportMetricsErr
+}
+
 func (m *mockActivityRepository) GetDailySummary(ctx context.Context, year int, sportTypes []string) (repository.DailySummary, error) {
 	return m.dailySummary, m.dailySummaryErr
 }
@@ -374,6 +378,106 @@ func TestHandlerMetrics(t *testing.T) {
 		handler := newTestHandlerWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=invalid", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	// Date range validation tests
+	t.Run("valid date range", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{sportMetrics: testMetrics}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2024-12-15&to=2025-01-01", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("only from provided without to", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2024-12-15", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("only to provided without from", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&to=2025-01-01", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("from date after to date", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2025-01-01&to=2024-12-15", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("date range exceeds maximum", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		// Request 2 years of data (exceeds 366 day limit)
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2023-01-01&to=2025-01-01", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("invalid from date format", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=invalid&to=2025-01-01", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("invalid to date format", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		handler := newTestHandlerWithDB(mockRepo)
+
+		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2024-12-15&to=invalid", nil)
 		w := httptest.NewRecorder()
 
 		handler.ServeHTTP(w, req)

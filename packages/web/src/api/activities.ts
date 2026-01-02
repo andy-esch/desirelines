@@ -133,22 +133,46 @@ export const fetchDistanceData = async (
 
 // MULTI-SPORT API FUNCTIONS
 
+/** Options for fetching sport metrics */
+export interface FetchSportMetricsOptions {
+  year: number;
+  sport: string;
+  from?: string; // YYYY-MM-DD - if provided with 'to', uses date range query
+  to?: string; // YYYY-MM-DD - if provided with 'from', uses date range query
+  signal?: AbortSignal;
+  idToken?: string;
+}
+
 export const fetchSportMetrics = async (
-  year: number,
-  sport: string,
+  yearOrOptions: number | FetchSportMetricsOptions,
+  sport?: string,
   signal?: AbortSignal,
   idToken?: string
 ): Promise<SportMetrics> => {
+  // Support both old signature (year, sport, signal, idToken) and new options object
+  const options: FetchSportMetricsOptions =
+    typeof yearOrOptions === "number"
+      ? { year: yearOrOptions, sport: sport!, signal, idToken }
+      : yearOrOptions;
+
   const apiBaseUrl = getApiBaseUrl();
-  const url = `${apiBaseUrl}/activities/${year}/metrics?sport=${sport}`;
+  let url = `${apiBaseUrl}/activities/${options.year}/metrics?sport=${options.sport}`;
+
+  // Add date range params if provided
+  if (options.from && options.to) {
+    url += `&from=${options.from}&to=${options.to}`;
+  }
 
   const headers: Record<string, string> = {};
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
+  if (options.idToken) {
+    headers.Authorization = `Bearer ${options.idToken}`;
   }
 
   try {
-    const { data } = await axios.get<SportMetricsResponse>(url, { signal, headers });
+    const { data } = await axios.get<SportMetricsResponse>(url, {
+      signal: options.signal,
+      headers,
+    });
     // Extract timeseries array from response wrapper
     // API always returns 200 with empty array when no data (not 404)
     return data.timeseries ?? [];

@@ -218,10 +218,14 @@ describe("migration utilities", () => {
     it("should migrate multiple years and return results", async () => {
       vi.spyOn(console, "log").mockImplementation(() => {});
 
-      // Setup localStorage data for multiple years
-      localStorage.setItem("desirelines_goals_2023", JSON.stringify({ goals: [] }));
-      localStorage.setItem("desirelines_goals_2024", JSON.stringify({ goals: [] }));
-      localStorage.setItem("desirelines_goals_2025", JSON.stringify({ goals: [] }));
+      // Default years are dynamically generated: [currentYear-2, currentYear-1, currentYear]
+      const currentYear = new Date().getFullYear();
+      const expectedYears = [currentYear - 2, currentYear - 1, currentYear];
+
+      // Setup localStorage data for the dynamic years
+      for (const year of expectedYears) {
+        localStorage.setItem(`desirelines_goals_${year}`, JSON.stringify({ goals: [] }));
+      }
 
       const mockService = {
         getConfigSection: vi.fn().mockResolvedValue(null),
@@ -230,11 +234,11 @@ describe("migration utilities", () => {
 
       const results = await migrateAllGoalsToFirestore(mockService);
 
-      expect(results).toEqual({
-        2023: true,
-        2024: true,
-        2025: true,
-      });
+      const expectedResults: Record<number, boolean> = {};
+      for (const year of expectedYears) {
+        expectedResults[year] = true;
+      }
+      expect(results).toEqual(expectedResults);
 
       expect(mockService.updateConfigSection).toHaveBeenCalledTimes(3);
     });
@@ -277,12 +281,17 @@ describe("migration utilities", () => {
       vi.spyOn(console, "log").mockImplementation(() => {});
       vi.spyOn(console, "error").mockImplementation(() => {});
 
-      // 2023 has data, will succeed
-      localStorage.setItem("desirelines_goals_2023", JSON.stringify({ goals: [] }));
-      // 2024 has no data, will return false
-      // 2025 has data but already migrated
-      localStorage.setItem("desirelines_goals_2025", JSON.stringify({ goals: [] }));
-      localStorage.setItem("desirelines_goals_2025_migrated", "2025-01-01T00:00:00Z");
+      // Default years are dynamically generated: [currentYear-2, currentYear-1, currentYear]
+      const currentYear = new Date().getFullYear();
+      const year2YearsAgo = currentYear - 2;
+      const lastYear = currentYear - 1;
+
+      // year2YearsAgo has data, will succeed
+      localStorage.setItem(`desirelines_goals_${year2YearsAgo}`, JSON.stringify({ goals: [] }));
+      // lastYear has no data, will return false
+      // currentYear has data but already migrated
+      localStorage.setItem(`desirelines_goals_${currentYear}`, JSON.stringify({ goals: [] }));
+      localStorage.setItem(`desirelines_goals_${currentYear}_migrated`, "2025-01-01T00:00:00Z");
 
       const mockService = {
         getConfigSection: vi.fn().mockResolvedValue(null),
@@ -291,11 +300,11 @@ describe("migration utilities", () => {
 
       const results = await migrateAllGoalsToFirestore(mockService);
 
-      expect(results).toEqual({
-        2023: true,
-        2024: false,
-        2025: false,
-      });
+      const expectedResults: Record<number, boolean> = {};
+      expectedResults[year2YearsAgo] = true;
+      expectedResults[lastYear] = false;
+      expectedResults[currentYear] = false;
+      expect(results).toEqual(expectedResults);
     });
   });
 

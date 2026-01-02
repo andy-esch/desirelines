@@ -109,13 +109,17 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                       {goal.value.toLocaleString()} {unit}
                     </td>
                     <td>
-                      <div className="progress" style={{ height: "20px", minWidth: "100px" }}>
+                      <div
+                        className="progress progress-neon"
+                        style={{ height: "20px", minWidth: "100px" }}
+                      >
                         <div
-                          className="progress-bar"
+                          className="progress-bar progress-bar-neon"
                           role="progressbar"
                           style={{
                             width: `${Math.min(100, progress)}%`,
                             backgroundColor: goalColor,
+                            boxShadow: `0 0 ${1 + (progress / 100) * 3}px ${goalColor}`,
                           }}
                           aria-valuenow={progress}
                           aria-valuemin={0}

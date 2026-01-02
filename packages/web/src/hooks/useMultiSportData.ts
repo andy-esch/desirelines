@@ -18,14 +18,37 @@ export interface MultiSportDataResult {
   error: Error | null;
 }
 
+/** Options for fetching multi-sport data */
+export interface UseMultiSportDataOptions {
+  /** Year for year-based queries (used by Goal pages) */
+  year?: number;
+  /** Start date (YYYY-MM-DD) for date-range queries (used by Dashboard) */
+  from?: string;
+  /** End date (YYYY-MM-DD) for date-range queries (used by Dashboard) */
+  to?: string;
+}
+
 /**
  * Hook for fetching metrics for all sports (cycling, running, yoga).
  * Automatically uses generated demo data for unauthenticated users and API for authenticated users.
  *
- * @param year - The year to fetch data for
+ * Supports two query modes:
+ * - Year-based: Pass a year number (for Goal pages)
+ * - Date-range: Pass { from, to } (for Dashboard, can span years)
+ *
+ * @param yearOrOptions - Year number for backwards compatibility, or options object
  * @returns Object containing data for all sports, loading state, and errors
  */
-export function useMultiSportData(year: number): MultiSportDataResult {
+export function useMultiSportData(
+  yearOrOptions: number | UseMultiSportDataOptions
+): MultiSportDataResult {
+  // Normalize to options object
+  const options: UseMultiSportDataOptions =
+    typeof yearOrOptions === "number" ? { year: yearOrOptions } : yearOrOptions;
+
+  // Determine query mode and effective year (for demo data generation)
+  const isDateRangeMode = !!(options.from && options.to);
+  const effectiveYear = options.year ?? new Date().getFullYear();
   const { user, loading: authLoading } = useAuth();
   const { getToken } = useAuthToken();
 
@@ -39,14 +62,39 @@ export function useMultiSportData(year: number): MultiSportDataResult {
 
   // Generate demo data using useMemo for stability
   // Uses coordinated fill levels to ensure at most one sport is empty
+  // When in date-range mode that spans years, generate data for both years
   const demoData = useMemo(() => {
     const fillLevels = generateCoordinatedFillLevels();
+    const previousYear = effectiveYear - 1;
+
+    // Check if date range spans into previous year
+    const needsPreviousYear =
+      isDateRangeMode && options.from && options.from.startsWith(String(previousYear));
+
+    if (needsPreviousYear) {
+      // Generate for both years and concatenate
+      return {
+        cycling: [
+          ...generateDemoMetrics("cycling", previousYear, fillLevels.cycling),
+          ...generateDemoMetrics("cycling", effectiveYear, fillLevels.cycling),
+        ],
+        running: [
+          ...generateDemoMetrics("running", previousYear, fillLevels.running),
+          ...generateDemoMetrics("running", effectiveYear, fillLevels.running),
+        ],
+        yoga: [
+          ...generateDemoMetrics("yoga", previousYear, fillLevels.yoga),
+          ...generateDemoMetrics("yoga", effectiveYear, fillLevels.yoga),
+        ],
+      };
+    }
+
     return {
-      cycling: generateDemoMetrics("cycling", year, fillLevels.cycling),
-      running: generateDemoMetrics("running", year, fillLevels.running),
-      yoga: generateDemoMetrics("yoga", year, fillLevels.yoga),
+      cycling: generateDemoMetrics("cycling", effectiveYear, fillLevels.cycling),
+      running: generateDemoMetrics("running", effectiveYear, fillLevels.running),
+      yoga: generateDemoMetrics("yoga", effectiveYear, fillLevels.yoga),
     };
-  }, [year]);
+  }, [effectiveYear, isDateRangeMode, options.from]);
 
   useEffect(() => {
     // Wait for auth to settle
@@ -65,10 +113,18 @@ export function useMultiSportData(year: number): MultiSportDataResult {
           // Authenticated: fetch from API
           const idToken = await getToken();
 
+          // Build fetch options based on query mode
+          const baseOptions = {
+            year: effectiveYear,
+            signal: controller.signal,
+            idToken,
+            ...(isDateRangeMode ? { from: options.from, to: options.to } : {}),
+          };
+
           const [cycling, running, yoga] = await Promise.all([
-            fetchSportMetrics(year, "cycling", controller.signal, idToken),
-            fetchSportMetrics(year, "running", controller.signal, idToken),
-            fetchSportMetrics(year, "yoga", controller.signal, idToken),
+            fetchSportMetrics({ ...baseOptions, sport: "cycling" }),
+            fetchSportMetrics({ ...baseOptions, sport: "running" }),
+            fetchSportMetrics({ ...baseOptions, sport: "yoga" }),
           ]);
 
           if (!controller.signal.aborted) {
@@ -92,7 +148,16 @@ export function useMultiSportData(year: number): MultiSportDataResult {
     loadData();
 
     return () => controller.abort();
-  }, [year, user, authLoading, getToken, demoData]);
+  }, [
+    effectiveYear,
+    options.from,
+    options.to,
+    isDateRangeMode,
+    user,
+    authLoading,
+    getToken,
+    demoData,
+  ]);
 
   return { data, isLoading, error };
 }

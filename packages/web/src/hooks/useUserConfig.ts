@@ -100,13 +100,17 @@ export function useUserConfig(
 
 // Implementation - parameters must be compatible with ALL overloads
 // This means all parameters except configType must be optional
+// Note: Using 'any' in implementation signature is a valid TypeScript pattern for overloaded functions
+// The actual types are enforced through the overload signatures above
 export function useUserConfig(
   configType: string,
   year?: number,
   sport?: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   defaultValue?: any,
   userId?: string,
   version?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any {
   // Get authenticated user
   const { user } = useAuth();
@@ -168,7 +172,9 @@ export function useUserConfig(
       } else if (configType === "annotations") {
         setData(defaultValue || ({ annotations: [] } as AnnotationsForYear));
       } else if (configType === "preferences") {
-        setData(defaultValue || ({ theme: "light", defaultYear: 2025 } as Preferences));
+        setData(
+          defaultValue || ({ theme: "light", defaultYear: new Date().getFullYear() } as Preferences)
+        );
       }
       setLoading(false);
       setError(null);

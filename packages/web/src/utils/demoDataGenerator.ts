@@ -16,22 +16,64 @@ import {
 // Re-export types for consumers
 export type { DemoSport, FillLevel };
 
+// =============================================================================
+// Constants
+// =============================================================================
+
 /**
- * Create a random number generator.
- * Uses Math.random() for truly random data on each page load.
+ * Fill level probability thresholds.
+ * Distribution: 50% full, 30% partial, 20% empty
  */
-function createRandom(): () => number {
-  return () => Math.random();
-}
+const FILL_LEVEL_THRESHOLDS = {
+  FULL: 0.5, // 0 to 0.5 = full (50%)
+  PARTIAL: 0.8, // 0.5 to 0.8 = partial (30%)
+  // 0.8 to 1.0 = empty (20%)
+} as const;
+
+/**
+ * Partial fill level configuration.
+ * When fill level is "partial", activities start later and are less frequent.
+ */
+const PARTIAL_FILL_CONFIG = {
+  ACTIVITY_RATE_MULTIPLIER: 0.5, // Half the normal activity rate
+  YEAR_START_OFFSET: 0.6, // Start activities after 60% of the year
+} as const;
+
+/**
+ * Activity generation parameters.
+ */
+const ACTIVITY_PARAMS = {
+  WEEKEND_BONUS: 1.3, // 30% more likely to exercise on weekends
+  ELEVATION_VARIANCE: 0.5, // ±50% variance for elevation
+  HOUR_RANGE_START: 6, // Activities start at 6 AM
+  HOUR_RANGE_SPAN: 14, // Activities can occur over 14 hours (6 AM to 8 PM)
+} as const;
+
+/**
+ * Activity list generation limits.
+ */
+const ACTIVITY_LIST_LIMITS = {
+  PARTIAL_MAX_DAYS_BACK: 60, // Only show recent 60 days for partial fill
+  FULL_MAX_DAYS_BACK: 180, // Show up to 180 days for full fill
+} as const;
+
+/**
+ * Milliseconds in one day - used for date arithmetic.
+ */
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
 /**
  * Randomly select a fill level for demo variety.
  * Weighted distribution: 50% full, 30% partial, 20% empty
  */
-function randomFillLevel(random: () => number): FillLevel {
-  const r = random();
-  if (r < 0.5) return "full";
-  if (r < 0.8) return "partial";
+function randomFillLevel(): FillLevel {
+  const r = Math.random();
+  if (r < FILL_LEVEL_THRESHOLDS.FULL) return "full";
+  if (r < FILL_LEVEL_THRESHOLDS.PARTIAL) return "partial";
   return "empty";
 }
 
@@ -42,13 +84,12 @@ function randomFillLevel(random: () => number): FillLevel {
  * @returns Record of sport to fill level
  */
 export function generateCoordinatedFillLevels(): Record<DemoSport, FillLevel> {
-  const random = createRandom();
   const sports = getDemoSports();
 
   // First pass: generate random fill levels
   const levels: Record<string, FillLevel> = {};
   for (const sport of sports) {
-    levels[sport] = randomFillLevel(random);
+    levels[sport] = randomFillLevel();
   }
 
   // Second pass: ensure at most one is empty
@@ -57,7 +98,7 @@ export function generateCoordinatedFillLevels(): Record<DemoSport, FillLevel> {
   if (emptyCount > 1) {
     // Pick one to stay empty, upgrade the rest to partial
     const emptySports = sports.filter((s) => levels[s] === "empty");
-    const keepEmpty = emptySports[Math.floor(random() * emptySports.length)];
+    const keepEmpty = emptySports[Math.floor(Math.random() * emptySports.length)];
 
     for (const sport of emptySports) {
       if (sport !== keepEmpty) {
@@ -72,15 +113,15 @@ export function generateCoordinatedFillLevels(): Record<DemoSport, FillLevel> {
 /**
  * Get a random element from an array
  */
-function randomChoice<T>(arr: T[], random: () => number): T {
-  return arr[Math.floor(random() * arr.length)];
+function randomChoice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 /**
  * Generate a value with variance
  */
-function withVariance(base: number, variance: number, random: () => number): number {
-  const multiplier = 1 + (random() * 2 - 1) * variance;
+function withVariance(base: number, variance: number): number {
+  const multiplier = 1 + (Math.random() * 2 - 1) * variance;
   return Math.max(0, base * multiplier);
 }
 
@@ -125,10 +166,9 @@ export function generateDemoMetrics(
   overrideFillLevel?: FillLevel
 ): MetricsEntry[] {
   const config = DEMO_SPORT_CONFIG[sport];
-  const random = createRandom();
 
   // Use override if provided, otherwise randomly select fill level
-  const fillLevel = overrideFillLevel ?? randomFillLevel(random);
+  const fillLevel = overrideFillLevel ?? randomFillLevel();
 
   // Empty fill level returns no data
   if (fillLevel === "empty") {
@@ -159,10 +199,10 @@ export function generateDemoMetrics(
 
   if (fillLevel === "partial") {
     // Partial: lower activity rate, start later in the year
-    effectiveActivityRate = config.activityRate * 0.5;
-    // Start activities after ~60% of the year
+    effectiveActivityRate = config.activityRate * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER;
+    // Start activities after configured offset
     const daysInYear = getDayOfYear(endDate);
-    startDayOffset = Math.floor(daysInYear * 0.6);
+    startDayOffset = Math.floor(daysInYear * PARTIAL_FILL_CONFIG.YEAR_START_OFFSET);
   }
 
   const metrics: MetricsEntry[] = [];
@@ -171,27 +211,28 @@ export function generateDemoMetrics(
   let cumulativeElevation = 0;
   let cumulativeActivities = 0;
 
-  // Generate day by day
-  const current = new Date(startDate);
-  while (current <= endDate) {
-    const dayOfYear = getDayOfYear(current);
+  // Generate day by day using timestamp arithmetic (avoids Date mutation)
+  const endTime = endDate.getTime();
+  for (let currentTime = startDate.getTime(); currentTime <= endTime; currentTime += ONE_DAY_MS) {
+    const currentDate = new Date(currentTime);
+    const dayOfYear = getDayOfYear(currentDate);
 
     // Determine if this day has activity
     let hasActivity = false;
     if (dayOfYear > startDayOffset) {
-      // Weekly pattern: less likely on certain days
-      const dayOfWeek = current.getDay();
-      const weekendBonus = dayOfWeek === 0 || dayOfWeek === 6 ? 1.3 : 1.0;
+      // Weekly pattern: more likely on weekends
+      const dayOfWeek = currentDate.getDay();
+      const weekendBonus = dayOfWeek === 0 || dayOfWeek === 6 ? ACTIVITY_PARAMS.WEEKEND_BONUS : 1.0;
 
-      hasActivity = random() < effectiveActivityRate * weekendBonus;
+      hasActivity = Math.random() < effectiveActivityRate * weekendBonus;
     }
 
     if (hasActivity) {
       // Generate activity for this day
-      const distance = withVariance(config.avgDistanceMeters, config.distanceVariance, random);
-      const duration = withVariance(config.avgDurationSeconds, config.durationVariance, random);
+      const distance = withVariance(config.avgDistanceMeters, config.distanceVariance);
+      const duration = withVariance(config.avgDurationSeconds, config.durationVariance);
       const elevation = config.avgElevationMeters
-        ? withVariance(config.avgElevationMeters, 0.5, random)
+        ? withVariance(config.avgElevationMeters, ACTIVITY_PARAMS.ELEVATION_VARIANCE)
         : 0;
 
       cumulativeDistance += distance;
@@ -202,7 +243,7 @@ export function generateDemoMetrics(
 
     // Add entry for this day (cumulative values)
     const entry: MetricsEntry = {
-      date: formatDate(current),
+      date: formatDate(currentDate),
       distance: Math.round(cumulativeDistance),
       time: Math.round(cumulativeTime / 60), // Convert to minutes
       activities: cumulativeActivities,
@@ -213,9 +254,6 @@ export function generateDemoMetrics(
     }
 
     metrics.push(entry);
-
-    // Move to next day
-    current.setDate(current.getDate() + 1);
   }
 
   return metrics;
@@ -234,10 +272,9 @@ export function generateDemoActivities(
   overrideFillLevel?: FillLevel
 ): ActivitySummary[] {
   const config = DEMO_SPORT_CONFIG[sport];
-  const random = createRandom();
 
   // Use override if provided, otherwise randomly select fill level
-  const fillLevel = overrideFillLevel ?? randomFillLevel(random);
+  const fillLevel = overrideFillLevel ?? randomFillLevel();
 
   // Empty fill level returns no activities
   if (fillLevel === "empty") {
@@ -253,7 +290,7 @@ export function generateDemoActivities(
   }
 
   const activities: ActivitySummary[] = [];
-  let activityId = 1000000000 + Math.floor(random() * 100000000);
+  let activityId = 1000000000 + Math.floor(Math.random() * 100000000);
 
   // Determine date range for activities
   let endDate: Date;
@@ -263,40 +300,47 @@ export function generateDemoActivities(
     endDate = today;
   }
 
-  // Generate activities going backwards from end date
-  const current = new Date(endDate);
+  // Generate activities going backwards from end date using timestamp arithmetic
+  let currentTime = endDate.getTime();
   let activitiesGenerated = 0;
+  const yearStart = new Date(year, 0, 1).getTime();
 
   // Adjust for partial fill - only recent activities
-  // Cap activities to prevent generating too many (use maxDaysBack as upper bound)
-  const maxDaysBack = fillLevel === "partial" ? 60 : 180;
+  const maxDaysBack =
+    fillLevel === "partial"
+      ? ACTIVITY_LIST_LIMITS.PARTIAL_MAX_DAYS_BACK
+      : ACTIVITY_LIST_LIMITS.FULL_MAX_DAYS_BACK;
   const maxActivities = Math.min(count, maxDaysBack);
 
   while (activitiesGenerated < maxActivities) {
-    // Skip some days based on activity rate
+    // Skip some days based on activity rate (going backwards)
     const daysToSkip = Math.ceil(1 / (config.activityRate || 0.3));
-    current.setDate(current.getDate() - Math.floor(random() * daysToSkip + 1));
+    const daysBack = Math.floor(Math.random() * daysToSkip + 1);
+    currentTime -= daysBack * ONE_DAY_MS;
 
-    // Stop if we've gone too far back
-    if (current.getFullYear() < year) {
+    // Stop if we've gone before the start of the year
+    if (currentTime < yearStart) {
       break;
     }
 
     // Generate activity
-    const distance = withVariance(config.avgDistanceMeters, config.distanceVariance, random);
-    const duration = withVariance(config.avgDurationSeconds, config.durationVariance, random);
+    const distance = withVariance(config.avgDistanceMeters, config.distanceVariance);
+    const duration = withVariance(config.avgDurationSeconds, config.durationVariance);
     const elevation = config.avgElevationMeters
-      ? withVariance(config.avgElevationMeters, 0.5, random)
+      ? withVariance(config.avgElevationMeters, ACTIVITY_PARAMS.ELEVATION_VARIANCE)
       : undefined;
 
-    // Pick a time of day
-    const hour = Math.floor(random() * 14) + 6; // 6am to 8pm
-    const activityDate = new Date(current);
-    activityDate.setHours(hour, Math.floor(random() * 60), 0, 0);
+    // Pick a time of day and create the activity date
+    const hour =
+      Math.floor(Math.random() * ACTIVITY_PARAMS.HOUR_RANGE_SPAN) +
+      ACTIVITY_PARAMS.HOUR_RANGE_START;
+    const minute = Math.floor(Math.random() * 60);
+    const activityDate = new Date(currentTime);
+    activityDate.setHours(hour, minute, 0, 0);
 
     activities.push({
       id: activityId++,
-      name: randomChoice(config.activityNames, random),
+      name: randomChoice(config.activityNames),
       type: DEMO_STRAVA_TYPES[sport],
       sport: sport,
       start_date_local: formatTimestamp(activityDate),

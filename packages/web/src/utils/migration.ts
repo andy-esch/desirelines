@@ -73,12 +73,15 @@ export async function migrateGoalsToFirestore(
  * Migrate all years of goals from localStorage to Firestore
  *
  * @param configService - UserConfigService instance
- * @param years - Array of years to migrate (defaults to 2023-2025)
+ * @param years - Array of years to migrate (defaults to current year and 2 prior)
  * @returns Object with migration results per year
  */
 export async function migrateAllGoalsToFirestore(
   configService: UserConfigService,
-  years: number[] = [2023, 2024, 2025]
+  years: number[] = (() => {
+    const currentYear = new Date().getFullYear();
+    return [currentYear - 2, currentYear - 1, currentYear];
+  })()
 ): Promise<Record<number, boolean>> {
   const results: Record<number, boolean> = {};
 

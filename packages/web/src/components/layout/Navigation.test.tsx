@@ -38,7 +38,8 @@ describe("Navigation", () => {
     });
 
     it("highlights Goals dropdown when on sport route", () => {
-      renderWithRouter(<Navigation />, { route: "/cycling/2025" });
+      const currentYear = new Date().getFullYear();
+      renderWithRouter(<Navigation />, { route: `/cycling/${currentYear}` });
       const goalsButton = screen.getByRole("button", { name: "Goals" });
       expect(goalsButton).toHaveClass("active");
     });
@@ -84,7 +85,8 @@ describe("Navigation", () => {
     });
 
     it("highlights active sport link", () => {
-      renderWithRouter(<Navigation vertical />, { route: "/running/2025" });
+      const currentYear = new Date().getFullYear();
+      renderWithRouter(<Navigation vertical />, { route: `/running/${currentYear}` });
       const runningLinks = screen.getAllByRole("link", { name: /Running/ });
       const activeLink = runningLinks.find((link) => link.classList.contains("active"));
       expect(activeLink).toBeTruthy();

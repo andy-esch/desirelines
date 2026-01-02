@@ -140,9 +140,15 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                 <tr key={activity.id}>
                   <td className="text-nowrap">{formatDate(activity.start_date_local)}</td>
                   <td>
-                    <span className="text-truncate d-inline-block" style={{ maxWidth: "200px" }}>
+                    <a
+                      href={`https://www.strava.com/activities/${activity.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-truncate d-inline-block text-decoration-none"
+                      style={{ maxWidth: "200px" }}
+                    >
                       {activity.name}
-                    </span>
+                    </a>
                   </td>
                   <td>
                     <span className={`badge ${getSportBadgeClass(activity.sport)}`}>

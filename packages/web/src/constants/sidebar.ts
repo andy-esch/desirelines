@@ -2,7 +2,21 @@
  * Shared constants for sidebar components
  */
 
-/** Years available for selection in the sidebar */
-export const AVAILABLE_YEARS = [2025, 2024, 2023] as const;
+/**
+ * Generate available years dynamically.
+ * Shows current year + 3 years of history.
+ */
+function generateAvailableYears(): number[] {
+  const currentYear = new Date().getFullYear();
+  const yearsOfHistory = 3;
+  const years: number[] = [];
+  for (let i = 0; i <= yearsOfHistory; i++) {
+    years.push(currentYear - i);
+  }
+  return years;
+}
 
-export type AvailableYear = (typeof AVAILABLE_YEARS)[number];
+/** Years available for selection in the sidebar */
+export const AVAILABLE_YEARS = generateAvailableYears();
+
+export type AvailableYear = number;
