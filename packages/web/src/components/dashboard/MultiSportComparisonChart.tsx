@@ -56,6 +56,16 @@ function toDailyValues(data: MetricsEntry[], sport: Sport): { date: string; valu
 }
 
 /**
+ * Parse a YYYY-MM-DD string as a local date (not UTC).
+ * new Date("2026-01-01") creates UTC midnight, which can be Dec 31 in local time.
+ * This function creates a date at local midnight instead.
+ */
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
  * Filter daily values by time range.
  */
 function filterDailyByTimeRange(
@@ -68,7 +78,7 @@ function filterDailyByTimeRange(
   const cutoff = getTimeRangeCutoff(now, timeRange);
 
   return data.filter((entry) => {
-    const entryDate = new Date(entry.date);
+    const entryDate = parseLocalDate(entry.date);
     return entryDate >= cutoff && entryDate <= now;
   });
 }
@@ -135,9 +145,10 @@ const SPORT_TEXT_COLORS: Record<Sport, string> = {
 
 /**
  * Format date for x-axis tick (e.g., "Dec 15").
+ * Uses parseLocalDate to avoid UTC conversion issues.
  */
 function formatAxisDate(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = parseLocalDate(dateStr);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
@@ -224,13 +235,25 @@ function SparklineRow({
 const PAGE_SIZE = 4;
 
 /**
+ * Format a date as YYYY-MM-DD in local timezone.
+ * Avoids toISOString() which converts to UTC and can shift the date.
+ */
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Convert TimeRange to from/to date strings for API.
+ * Uses local timezone to ensure "today" matches the user's actual day.
  */
 function getDateRangeFromTimeRange(timeRange: TimeRange): { from: string; to: string } {
   const now = new Date();
-  const to = now.toISOString().split("T")[0];
+  const to = toLocalDateString(now);
   const cutoff = getTimeRangeCutoff(now, timeRange);
-  const from = cutoff.toISOString().split("T")[0];
+  const from = toLocalDateString(cutoff);
   return { from, to };
 }
 
@@ -257,8 +280,10 @@ function formatDuration(seconds: number): string {
 
 /**
  * Format activity date as "Mon DD".
+ * Activity dates from API include time component, so regular parsing is safe.
  */
 function formatActivityDate(dateStr: string): string {
+  // Activity dates are in RFC3339 format with time, so Date parsing is safe
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
