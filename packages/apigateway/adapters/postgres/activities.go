@@ -34,6 +34,90 @@ func (r *ActivityRepository) Close() error {
 	return nil
 }
 
+// GetSportMetricsByDateRange returns cumulative metrics for an arbitrary date range.
+// Unlike GetSportMetrics, this can span multiple years (e.g., Dec 2025 - Jan 2026).
+// The query generates a dense timeseries from `from` to `to`,
+// left joining with actual activity data and using COALESCE to fill zeros for days without activity.
+// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
+func (r *ActivityRepository) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*repository.SportMetrics, error) {
+	query := `
+		SELECT
+			date,
+			SUM(distance) OVER (ORDER BY date) as distance,
+			SUM(elevation) OVER (ORDER BY date) as elevation,
+			SUM(time) OVER (ORDER BY date) as time,
+			SUM(activities) OVER (ORDER BY date)::int as activities
+		FROM (
+			SELECT
+				all_dates.date,
+				COALESCE(daily.distance, 0) as distance,
+				COALESCE(daily.elevation, 0) as elevation,
+				COALESCE(daily.time, 0) as time,
+				COALESCE(daily.activities, 0) as activities
+			FROM (
+				SELECT generate_series($1::date, $2::date, '1 day'::interval)::date as date
+			) all_dates
+			LEFT JOIN (
+				SELECT
+					start_date_local::date as date,
+					SUM(distance) as distance,
+					SUM(total_elevation_gain) as elevation,
+					SUM(moving_time) / 60.0 as time,
+					COUNT(*) as activities
+				FROM desirelines.activities
+				WHERE start_date_local::date >= $1::date
+				  AND start_date_local::date <= $2::date
+				  AND sport = ANY($3)
+				GROUP BY start_date_local::date
+			) daily ON all_dates.date = daily.date
+		) dense_daily
+		ORDER BY date ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, from, to, sportTypes)
+	if err != nil {
+		return nil, fmt.Errorf("query sport metrics by date range: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSportMetricsRows(rows)
+}
+
+// scanSportMetricsRows scans database rows into SportMetrics.
+// Shared by both GetSportMetrics and GetSportMetricsByDateRange.
+func scanSportMetricsRows(rows interface {
+	Next() bool
+	Scan(dest ...interface{}) error
+	Err() error
+}) (*repository.SportMetrics, error) {
+	timeseries := make([]repository.CumulativeMetricsEntry, 0)
+	for rows.Next() {
+		var date time.Time
+		var distance, elevation, timeMinutes float64
+		var activities int
+
+		if scanErr := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities); scanErr != nil {
+			return nil, fmt.Errorf("scan sport metrics row: %w", scanErr)
+		}
+
+		entry := repository.CumulativeMetricsEntry{
+			Date:       date.Format("2006-01-02"),
+			Distance:   &distance,
+			Elevation:  &elevation,
+			Time:       &timeMinutes,
+			Activities: &activities,
+		}
+
+		timeseries = append(timeseries, entry)
+	}
+
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate sport metrics rows: %w", rowsErr)
+	}
+
+	return &repository.SportMetrics{Timeseries: timeseries}, nil
+}
+
 // GetSportMetrics returns cumulative metrics timeseries for a sport category in a given year.
 // The query generates a dense timeseries from Jan 1 to today (or Dec 31 for past years),
 // left joining with actual activity data and using COALESCE to fill zeros for days without activity.
@@ -87,32 +171,7 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 	}
 	defer rows.Close()
 
-	timeseries := make([]repository.CumulativeMetricsEntry, 0) // Initialize as empty slice, not nil (JSON: [] not null)
-	for rows.Next() {
-		var date time.Time
-		var distance, elevation, timeMinutes float64
-		var activities int
-
-		if scanErr := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities); scanErr != nil {
-			return nil, fmt.Errorf("scan sport metrics row: %w", scanErr)
-		}
-
-		entry := repository.CumulativeMetricsEntry{
-			Date:       date.Format("2006-01-02"),
-			Distance:   &distance,
-			Elevation:  &elevation,
-			Time:       &timeMinutes,
-			Activities: &activities,
-		}
-
-		timeseries = append(timeseries, entry)
-	}
-
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, fmt.Errorf("iterate sport metrics rows: %w", rowsErr)
-	}
-
-	return &repository.SportMetrics{Timeseries: timeseries}, nil
+	return scanSportMetricsRows(rows)
 }
 
 // GetDailySummary returns daily activity summaries for a sport category in a given year.

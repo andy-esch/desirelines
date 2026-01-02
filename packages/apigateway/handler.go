@@ -1,16 +1,44 @@
 // Package apigateway provides HTTP API handlers for serving activity data
 // from PostgreSQL to the web frontend.
 //
-// API Contract for Empty/Missing Data:
+// # Endpoints
+//
+// GET /activities/{year}/metrics?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
+//
+//	Returns cumulative metrics timeseries for a sport category.
+//	- Without from/to: Returns data for the entire year
+//	- With from/to: Returns data for the date range (can span years)
+//	- Date range limit: 366 days maximum
+//
+// GET /activities/{year}/source?sport=X
+//
+//	Returns daily activity summaries for a sport category.
+//
+// GET /activities/{year}/metadata
+//
+//	Returns metadata about all sports for a year.
+//
+// GET /activities?from=&to=&sport=&limit=&cursor=
+//
+//	Returns paginated list of activities.
+//
+// GET /activities/{id}
+//
+//	Returns a single activity by ID.
+//
+// # API Contract for Empty/Missing Data
 //
 // The API follows a consistent pattern for handling missing data:
 //
 //	| Scenario              | HTTP Status | Response Body                              |
-//	|-----------------------|-------------|-------------------------------------------|
+//	|-----------------------|-------------|--------------------------------------------|
 //	| Year/sport has data   | 200         | { timeseries: [...] } or { sports: [...] } |
 //	| Year/sport NO data    | 200         | { timeseries: [] } or { sports: [] }       |
 //	| Invalid year format   | 400         | { error: "Invalid year format" }           |
 //	| Invalid sport         | 400         | { error: "Invalid sport: X" }              |
+//	| Invalid date format   | 400         | { error: "Invalid 'from/to' date format" } |
+//	| from > to             | 400         | { error: "'from' must be before 'to'" }    |
+//	| Date range too large  | 400         | { error: "Date range must not exceed..." } |
 //	| Auth failure          | 401/403     | { error: "..." }                           |
 //	| DB/Server error       | 500         | { error: "Internal server error" }         |
 //
@@ -293,24 +321,95 @@ func (h *Handler) validateSportAndYear(w http.ResponseWriter, r *http.Request, y
 }
 
 // handleMetrics serves sport-specific metrics data from PostgreSQL.
-//
-//nolint:dupl // Similar to handleSource but calls different repository method
+// Supports optional from/to query params for date-range queries (can span years).
+// Without from/to, falls back to year-based query for backwards compatibility.
 func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year string) {
-	sportTypes, yearInt, ok := h.validateSportAndYear(w, r, year)
+	sportTypes, ok := h.validateAndGetSportTypes(w, r)
 	if !ok {
 		return
 	}
 
-	metrics, err := h.activityRepo.GetSportMetrics(r.Context(), yearInt, sportTypes)
-	if err != nil {
-		logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
-			errMsgInternalServerError,
-			fmt.Sprintf("Database query failed: %v", err),
-		)
+	if h.activityRepo == nil {
+		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
 		apierrors.WriteError(w, r, apiErr, h.corsHandler)
 		return
+	}
+
+	// Check for optional date range params
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+
+	var metrics *repository.SportMetrics
+	var err error
+
+	// Validate: either both from and to are provided, or neither
+	if (fromStr != "" && toStr == "") || (fromStr == "" && toStr != "") {
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Both 'from' and 'to' must be provided together")
+		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		return
+	}
+
+	if fromStr != "" && toStr != "" {
+		// Date range mode - validate date formats
+		if !isValidDate(fromStr) {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+		if !isValidDate(toStr) {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+
+		// Validate: from must be <= to
+		fromDate, _ := time.Parse("2006-01-02", fromStr)
+		toDate, _ := time.Parse("2006-01-02", toStr)
+		if fromDate.After(toDate) {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "'from' date must be before or equal to 'to' date")
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+
+		// Validate: date range must not exceed 1 year (366 days)
+		maxDays := 366
+		if toDate.Sub(fromDate).Hours()/24 > float64(maxDays) {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Date range must not exceed %d days", maxDays))
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+
+		// Use date-range query (can span years)
+		metrics, err = h.activityRepo.GetSportMetricsByDateRange(r.Context(), fromStr, toStr, sportTypes)
+		if err != nil {
+			logger.Logger.Error("Database query failed", "error", err, "from", fromStr, "to", toStr, "sportTypes", sportTypes)
+			apiErr := apierrors.NewAPIErrorWithLog(
+				http.StatusInternalServerError,
+				errMsgInternalServerError,
+				fmt.Sprintf("Database query failed: %v", err),
+			)
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+	} else {
+		// Year mode - existing behavior for backwards compatibility
+		yearInt, parseErr := strconv.Atoi(year)
+		if parseErr != nil {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
+		metrics, err = h.activityRepo.GetSportMetrics(r.Context(), yearInt, sportTypes)
+		if err != nil {
+			logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
+			apiErr := apierrors.NewAPIErrorWithLog(
+				http.StatusInternalServerError,
+				errMsgInternalServerError,
+				fmt.Sprintf("Database query failed: %v", err),
+			)
+			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			return
+		}
 	}
 
 	h.respondJSON(w, r, http.StatusOK, metrics)
