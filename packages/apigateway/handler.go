@@ -320,6 +320,51 @@ func (h *Handler) validateSportAndYear(w http.ResponseWriter, r *http.Request, y
 	return sportTypes, yearInt, true
 }
 
+// validateDateRange validates from/to date parameters.
+// Returns an error message if validation fails, empty string if valid.
+func validateDateRange(fromStr, toStr string) string {
+	// Either both must be provided, or neither
+	if (fromStr != "" && toStr == "") || (fromStr == "" && toStr != "") {
+		return "Both 'from' and 'to' must be provided together"
+	}
+
+	// If neither provided, no validation needed
+	if fromStr == "" && toStr == "" {
+		return ""
+	}
+
+	// Validate date formats
+	if !isValidDate(fromStr) {
+		return "Invalid 'from' date format (expected YYYY-MM-DD)"
+	}
+	if !isValidDate(toStr) {
+		return "Invalid 'to' date format (expected YYYY-MM-DD)"
+	}
+
+	// Parse dates (format already validated, so errors are unexpected)
+	fromDate, fromErr := time.Parse("2006-01-02", fromStr)
+	if fromErr != nil {
+		return "Invalid 'from' date format (expected YYYY-MM-DD)"
+	}
+	toDate, toErr := time.Parse("2006-01-02", toStr)
+	if toErr != nil {
+		return "Invalid 'to' date format (expected YYYY-MM-DD)"
+	}
+
+	// Validate: from must be <= to
+	if fromDate.After(toDate) {
+		return "'from' date must be before or equal to 'to' date"
+	}
+
+	// Validate: date range must not exceed 1 year (366 days)
+	const maxDays = 366
+	if toDate.Sub(fromDate).Hours()/24 > float64(maxDays) {
+		return fmt.Sprintf("Date range must not exceed %d days", maxDays)
+	}
+
+	return ""
+}
+
 // handleMetrics serves sport-specific metrics data from PostgreSQL.
 // Supports optional from/to query params for date-range queries (can span years).
 // Without from/to, falls back to year-based query for backwards compatibility.
@@ -339,46 +384,17 @@ func (h *Handler) handleMetrics(w http.ResponseWriter, r *http.Request, year str
 	fromStr := r.URL.Query().Get("from")
 	toStr := r.URL.Query().Get("to")
 
-	var metrics *repository.SportMetrics
-	var err error
-
-	// Validate: either both from and to are provided, or neither
-	if (fromStr != "" && toStr == "") || (fromStr == "" && toStr != "") {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Both 'from' and 'to' must be provided together")
+	// Validate date range if provided
+	if errMsg := validateDateRange(fromStr, toStr); errMsg != "" {
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
 		apierrors.WriteError(w, r, apiErr, h.corsHandler)
 		return
 	}
 
+	var metrics *repository.SportMetrics
+	var err error
+
 	if fromStr != "" && toStr != "" {
-		// Date range mode - validate date formats
-		if !isValidDate(fromStr) {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
-			return
-		}
-		if !isValidDate(toStr) {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
-			return
-		}
-
-		// Validate: from must be <= to
-		fromDate, _ := time.Parse("2006-01-02", fromStr)
-		toDate, _ := time.Parse("2006-01-02", toStr)
-		if fromDate.After(toDate) {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "'from' date must be before or equal to 'to' date")
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
-			return
-		}
-
-		// Validate: date range must not exceed 1 year (366 days)
-		maxDays := 366
-		if toDate.Sub(fromDate).Hours()/24 > float64(maxDays) {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Date range must not exceed %d days", maxDays))
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
-			return
-		}
-
 		// Use date-range query (can span years)
 		metrics, err = h.activityRepo.GetSportMetricsByDateRange(r.Context(), fromStr, toStr, sportTypes)
 		if err != nil {

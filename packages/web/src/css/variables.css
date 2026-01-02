@@ -1,0 +1,27 @@
+/**
+ * CSS Variables - Design System Tokens
+ *
+ * Single source of truth for the UI color palette.
+ * See constants/uiColors.ts for TypeScript documentation of these values.
+ *
+ * Color Philosophy:
+ * - NEON colors (full brightness) are reserved for charts (see chartColors.ts)
+ * - UI uses toned-down accents: cyan for interactive, magenta for hover accents
+ * - Slate tones for neutral elements (matches header background)
+ */
+
+:root {
+  /* Slate palette - neutrals derived from header background */
+  --slate-dark: #2d3748;
+  --slate: #4a5568;
+  --slate-light: #718096;
+  --slate-lighter: #a0aec0;
+
+  /* Accent colors - toned-down NEON for UI interactions */
+  --accent-cyan: #00d4ff;
+  --accent-cyan-hover: #00b8e6;
+  --accent-cyan-glow: rgba(0, 212, 255, 0.15);
+  --accent-cyan-text: #1a202c;
+  --accent-magenta: #ff00ff;
+  --accent-magenta-glow: rgba(255, 0, 255, 0.15);
+}
