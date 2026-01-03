@@ -20,9 +20,7 @@ export function SettingRow({ label, description, children, readOnly }: SettingRo
     >
       <div className="me-3" style={{ flex: 1 }}>
         <div className="fw-medium">{label}</div>
-        {description && (
-          <div className="text-muted small mt-1">{description}</div>
-        )}
+        {description && <div className="text-muted small mt-1">{description}</div>}
       </div>
       <div
         className="d-flex align-items-center"

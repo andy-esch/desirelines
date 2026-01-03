@@ -146,10 +146,7 @@ export default function SettingsPage() {
           title="Display"
           description="Customize how data is displayed throughout the app"
         >
-          <SettingRow
-            label="Distance Unit"
-            description="Used for all distance measurements"
-          >
+          <SettingRow label="Distance Unit" description="Used for all distance measurements">
             <select
               className="form-select form-select-sm"
               value={distanceUnit}
@@ -162,10 +159,7 @@ export default function SettingsPage() {
             </select>
           </SettingRow>
 
-          <SettingRow
-            label="Elevation Unit"
-            description="Used for elevation gain measurements"
-          >
+          <SettingRow label="Elevation Unit" description="Used for elevation gain measurements">
             <select
               className="form-select form-select-sm"
               value={elevationUnit}
@@ -178,10 +172,7 @@ export default function SettingsPage() {
             </select>
           </SettingRow>
 
-          <SettingRow
-            label="Timezone"
-            description={`Browser timezone: ${browserTimezone}`}
-          >
+          <SettingRow label="Timezone" description={`Browser timezone: ${browserTimezone}`}>
             <select
               className="form-select form-select-sm"
               value={timezone}
@@ -228,21 +219,14 @@ export default function SettingsPage() {
         </SettingsSection>
 
         {/* Goal Management - Placeholder */}
-        <SettingsSection
-          title="Goals"
-          description="Manage your goals across all sports and years"
-        >
+        <SettingsSection title="Goals" description="Manage your goals across all sports and years">
           <p className="text-muted mb-0">
             Goal management table coming soon. For now, edit goals directly on each sport page.
           </p>
         </SettingsSection>
 
         {/* Saving indicator */}
-        {isSaving && (
-          <div className="text-muted small text-end">
-            Saving...
-          </div>
-        )}
+        {isSaving && <div className="text-muted small text-end">Saving...</div>}
       </div>
     </div>
   );

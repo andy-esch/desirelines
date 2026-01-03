@@ -538,7 +538,7 @@ describe("UserConfigService", () => {
             distanceUnit: "",
             elevationUnit: "",
             defaultSport: "",
-        timezone: "",
+            timezone: "",
           },
         }),
         { merge: true }
@@ -843,7 +843,7 @@ describe("UserConfigService", () => {
           distanceUnit: "",
           elevationUnit: "",
           defaultSport: "",
-        timezone: "",
+          timezone: "",
         },
       };
 

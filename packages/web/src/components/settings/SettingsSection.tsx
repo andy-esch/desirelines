@@ -14,12 +14,10 @@ export function SettingsSection({ title, description, children }: SettingsSectio
   return (
     <div className="card mb-4">
       <div className="card-header">
-        <h5 className="mb-0" style={{ color: "var(--accent-cyan, #00d4ff)" }}>
+        <h5 className="mb-0" style={{ color: "var(--slate-dark, #2d3748)" }}>
           {title}
         </h5>
-        {description && (
-          <p className="text-muted small mb-0 mt-1">{description}</p>
-        )}
+        {description && <p className="text-muted small mb-0 mt-1">{description}</p>}
       </div>
       <div className="card-body">{children}</div>
     </div>
