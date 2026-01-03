@@ -60,7 +60,7 @@ function createUserFriendlyError(error: unknown, operation: string): Error {
  * Current schema version for user config
  * Increment when making breaking changes to the data structure
  */
-const CURRENT_SCHEMA_VERSION = "2.0";
+const CURRENT_SCHEMA_VERSION = "2.1";
 
 /**
  * Service for managing user configuration in Firestore

@@ -190,6 +190,7 @@ describe("UserConfigService Integration Tests", () => {
         distanceUnit: "miles",
         elevationUnit: "feet",
         defaultSport: "cycling",
+        timezone: "",
       };
       await service.updateConfigSection("preferences", testPrefs);
 

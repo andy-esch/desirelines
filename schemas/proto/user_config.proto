@@ -69,6 +69,10 @@ message Preferences {
   string distance_unit = 4; // "miles", "kilometers", "meters" (default: "miles")
   string elevation_unit = 5; // "feet", "meters" (default: "feet")
   string default_sport = 6; // "cycling", "running", "yoga" (default: "cycling")
+
+  // Timezone for display (IANA format, e.g., "America/New_York")
+  // Default: browser timezone
+  string timezone = 7;
 }
 
 message ChartDefaults {

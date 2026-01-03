@@ -119,6 +119,7 @@ describe('UserConfig', () => {
         distanceUnit: '',
         elevationUnit: '',
         defaultSport: '',
+        timezone: '',
         chartDefaults: {
           showAverage: true,
           showGoals: false,
@@ -192,6 +193,7 @@ describe('UserConfig', () => {
         distanceUnit: '',
         elevationUnit: '',
         defaultSport: '',
+        timezone: '',
       },
       metadata: {
         createdAt: '2024-01-01T00:00:00Z',
@@ -297,6 +299,7 @@ describe('Preferences', () => {
       distanceUnit: '',
       elevationUnit: '',
       defaultSport: '',
+      timezone: '',
       chartDefaults: {
         showAverage: true,
         showGoals: true,
@@ -315,6 +318,7 @@ describe('Preferences', () => {
       distanceUnit: '',
       elevationUnit: '',
       defaultSport: '',
+      timezone: '',
     };
 
     expect(prefs.chartDefaults).toBeUndefined();
