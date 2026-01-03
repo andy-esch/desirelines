@@ -59,7 +59,7 @@ describe("UserConfigService", () => {
   describe("getConfig", () => {
     it("should return config when document exists", async () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "2.0",
+        schemaVersion: "2.1",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
@@ -130,7 +130,7 @@ describe("UserConfigService", () => {
 
   describe("getConfigSection", () => {
     const mockConfig: UserConfig = {
-      schemaVersion: "2.0",
+      schemaVersion: "2.1",
       userId: "test-user",
       lastUpdated: "2025-01-01T00:00:00Z",
       goals: {
@@ -305,7 +305,7 @@ describe("UserConfigService", () => {
 
     it("should return null when section does not exist in config", async () => {
       const configWithoutGoals: UserConfig = {
-        schemaVersion: "2.0",
+        schemaVersion: "2.1",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {},
@@ -327,7 +327,7 @@ describe("UserConfigService", () => {
   describe("updateConfigSection", () => {
     it("should update goals for specific year", async () => {
       const mockExistingConfig: UserConfig = {
-        schemaVersion: "2.0",
+        schemaVersion: "2.1",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
@@ -373,7 +373,7 @@ describe("UserConfigService", () => {
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
         expect.objectContaining({
-          schemaVersion: "2.0",
+          schemaVersion: "2.1",
           userId: "test-user",
           goals: {
             "2024": {
@@ -437,7 +437,7 @@ describe("UserConfigService", () => {
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
         expect.objectContaining({
-          schemaVersion: "2.0",
+          schemaVersion: "2.1",
           userId: "test-user",
           goals: {
             "2025": {
@@ -645,7 +645,7 @@ describe("UserConfigService", () => {
   describe("subscribeToConfig", () => {
     it("should call callback with config when document exists", () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "2.0",
+        schemaVersion: "2.1",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {},
@@ -733,7 +733,7 @@ describe("UserConfigService", () => {
   describe("subscribeToConfigSection", () => {
     it("should subscribe to goals for specific year", () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "2.0",
+        schemaVersion: "2.1",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
@@ -788,7 +788,7 @@ describe("UserConfigService", () => {
 
     it("should call callback with null when year has no data", () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "2.0",
+        schemaVersion: "2.1",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {
@@ -832,7 +832,7 @@ describe("UserConfigService", () => {
 
     it("should subscribe to preferences", () => {
       const mockConfig: UserConfig = {
-        schemaVersion: "2.0",
+        schemaVersion: "2.1",
         userId: "test-user",
         lastUpdated: "2025-01-01T00:00:00Z",
         goals: {},

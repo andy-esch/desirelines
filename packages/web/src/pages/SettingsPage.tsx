@@ -1,50 +1,25 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { SettingsSection } from "../components/settings/SettingsSection";
 import { SettingRow } from "../components/settings/SettingRow";
+import { GoalManagementTable } from "../components/settings/GoalManagementTable";
+import { CheckIcon } from "../components/icons";
 import NeonSpinner from "../components/NeonSpinner";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
+import {
+  COMMON_TIMEZONES,
+  DEFAULT_PREFERENCES,
+  DISTANCE_UNIT_OPTIONS,
+  ELEVATION_UNIT_OPTIONS,
+} from "../constants/settings";
 import type { Preferences } from "../types/generated/user_config";
-
-const CheckIcon = () => (
-  <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-    <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-  </svg>
-);
-
-// Common timezones for the selector
-const COMMON_TIMEZONES = [
-  { value: "", label: "Browser Default" },
-  { value: "America/New_York", label: "Eastern Time (US)" },
-  { value: "America/Chicago", label: "Central Time (US)" },
-  { value: "America/Denver", label: "Mountain Time (US)" },
-  { value: "America/Los_Angeles", label: "Pacific Time (US)" },
-  { value: "America/Anchorage", label: "Alaska Time" },
-  { value: "Pacific/Honolulu", label: "Hawaii Time" },
-  { value: "Europe/London", label: "London (GMT/BST)" },
-  { value: "Europe/Paris", label: "Central European" },
-  { value: "Europe/Berlin", label: "Berlin" },
-  { value: "Asia/Tokyo", label: "Tokyo" },
-  { value: "Asia/Shanghai", label: "China" },
-  { value: "Australia/Sydney", label: "Sydney" },
-];
-
-const DEFAULT_PREFERENCES: Preferences = {
-  theme: "dark",
-  defaultYear: new Date().getFullYear(),
-  distanceUnit: "miles",
-  elevationUnit: "feet",
-  defaultSport: "cycling",
-  timezone: "",
-};
 
 export default function SettingsPage() {
   const { user, loading: authLoading, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
 
-  // Load preferences
   const {
     data: preferences,
     updateData: updatePreferences,
@@ -53,62 +28,27 @@ export default function SettingsPage() {
     saveError,
   } = useUserConfig("preferences", undefined, undefined, DEFAULT_PREFERENCES);
 
-  // Local state for form values
-  const [distanceUnit, setDistanceUnit] = useState(preferences?.distanceUnit || "miles");
-  const [elevationUnit, setElevationUnit] = useState(preferences?.elevationUnit || "feet");
-  const [timezone, setTimezone] = useState(preferences?.timezone || "");
+  // Single handler for all preference updates
+  const handlePreferenceChange = useCallback(
+    async (field: keyof Preferences, value: string | number) => {
+      const updated: Preferences = {
+        ...DEFAULT_PREFERENCES,
+        ...preferences,
+        [field]: value,
+      };
+      await updatePreferences(updated);
+    },
+    [preferences, updatePreferences]
+  );
 
-  // Sync local state when preferences load
-  useEffect(() => {
-    if (preferences) {
-      setDistanceUnit(preferences.distanceUnit || "miles");
-      setElevationUnit(preferences.elevationUnit || "feet");
-      setTimezone(preferences.timezone || "");
-    }
-  }, [preferences]);
-
-  // Handle preference updates
-  const handleDistanceUnitChange = async (value: string) => {
-    setDistanceUnit(value);
-    await updatePreferences({
-      ...preferences,
-      ...DEFAULT_PREFERENCES,
-      distanceUnit: value,
-      elevationUnit,
-      timezone,
-    });
-  };
-
-  const handleElevationUnitChange = async (value: string) => {
-    setElevationUnit(value);
-    await updatePreferences({
-      ...preferences,
-      ...DEFAULT_PREFERENCES,
-      distanceUnit,
-      elevationUnit: value,
-      timezone,
-    });
-  };
-
-  const handleTimezoneChange = async (value: string) => {
-    setTimezone(value);
-    await updatePreferences({
-      ...preferences,
-      ...DEFAULT_PREFERENCES,
-      distanceUnit,
-      elevationUnit,
-      timezone: value,
-    });
-  };
-
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     setSigningOut(true);
     try {
       await signOut();
     } finally {
       setSigningOut(false);
     }
-  };
+  }, [signOut]);
 
   // Redirect unauthenticated users
   if (!authLoading && !user) {
@@ -129,19 +69,20 @@ export default function SettingsPage() {
 
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+  // Use preferences directly - no local state duplication needed
+  const currentPrefs = preferences ?? DEFAULT_PREFERENCES;
+
   return (
     <div className="flex-grow-1" style={{ background: pageBackgrounds.settings }}>
       <div className="container py-4" style={{ maxWidth: "800px" }}>
         <h1 className="h2 mb-4">Settings</h1>
 
-        {/* Save error alert */}
         {saveError && (
           <div className="alert alert-danger mb-4" role="alert">
             {saveError.message}
           </div>
         )}
 
-        {/* Display Settings */}
         <SettingsSection
           title="Display"
           description="Customize how data is displayed throughout the app"
@@ -149,34 +90,40 @@ export default function SettingsPage() {
           <SettingRow label="Distance Unit" description="Used for all distance measurements">
             <select
               className="form-select form-select-sm"
-              value={distanceUnit}
-              onChange={(e) => handleDistanceUnitChange(e.target.value)}
+              value={currentPrefs.distanceUnit || "miles"}
+              onChange={(e) => handlePreferenceChange("distanceUnit", e.target.value)}
               disabled={isSaving}
               style={{ width: "150px" }}
             >
-              <option value="miles">Miles</option>
-              <option value="kilometers">Kilometers</option>
+              {DISTANCE_UNIT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </SettingRow>
 
           <SettingRow label="Elevation Unit" description="Used for elevation gain measurements">
             <select
               className="form-select form-select-sm"
-              value={elevationUnit}
-              onChange={(e) => handleElevationUnitChange(e.target.value)}
+              value={currentPrefs.elevationUnit || "feet"}
+              onChange={(e) => handlePreferenceChange("elevationUnit", e.target.value)}
               disabled={isSaving}
               style={{ width: "150px" }}
             >
-              <option value="feet">Feet</option>
-              <option value="meters">Meters</option>
+              {ELEVATION_UNIT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </SettingRow>
 
           <SettingRow label="Timezone" description={`Browser timezone: ${browserTimezone}`}>
             <select
               className="form-select form-select-sm"
-              value={timezone}
-              onChange={(e) => handleTimezoneChange(e.target.value)}
+              value={currentPrefs.timezone || ""}
+              onChange={(e) => handlePreferenceChange("timezone", e.target.value)}
               disabled={isSaving}
               style={{ width: "200px" }}
             >
@@ -189,7 +136,6 @@ export default function SettingsPage() {
           </SettingRow>
         </SettingsSection>
 
-        {/* Account Section */}
         <SettingsSection title="Account">
           <SettingRow label="Email" readOnly>
             <span className="text-muted">{user?.email || "—"}</span>
@@ -200,7 +146,10 @@ export default function SettingsPage() {
           </SettingRow>
 
           <SettingRow label="Connected Account" readOnly>
-            <span className="d-flex align-items-center gap-1" style={{ color: "#68d391" }}>
+            <span
+              className="d-flex align-items-center gap-1"
+              style={{ color: "var(--bs-success, #68d391)" }}
+            >
               <CheckIcon />
               Strava
             </span>
@@ -218,14 +167,10 @@ export default function SettingsPage() {
           </div>
         </SettingsSection>
 
-        {/* Goal Management - Placeholder */}
         <SettingsSection title="Goals" description="Manage your goals across all sports and years">
-          <p className="text-muted mb-0">
-            Goal management table coming soon. For now, edit goals directly on each sport page.
-          </p>
+          <GoalManagementTable />
         </SettingsSection>
 
-        {/* Saving indicator */}
         {isSaving && <div className="text-muted small text-end">Saving...</div>}
       </div>
     </div>
