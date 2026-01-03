@@ -148,6 +148,7 @@ describe("useUserConfig", () => {
         distanceUnit: "",
         elevationUnit: "",
         defaultSport: "",
+        timezone: "",
         defaultYear: 2025,
       };
 
@@ -454,6 +455,7 @@ describe("useUserConfig", () => {
         distanceUnit: "",
         elevationUnit: "",
         defaultSport: "",
+        timezone: "",
       };
 
       await act(async () => {
@@ -1033,6 +1035,7 @@ describe("useFullUserConfig", () => {
         distanceUnit: "",
         elevationUnit: "",
         defaultSport: "",
+        timezone: "",
       };
 
       await act(async () => {

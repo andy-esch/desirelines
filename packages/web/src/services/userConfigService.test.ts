@@ -187,6 +187,7 @@ describe("UserConfigService", () => {
         distanceUnit: "",
         elevationUnit: "",
         defaultSport: "",
+        timezone: "",
         defaultYear: 2025,
       },
     };
@@ -286,6 +287,7 @@ describe("UserConfigService", () => {
         distanceUnit: "",
         elevationUnit: "",
         defaultSport: "",
+        timezone: "",
         defaultYear: 2025,
       });
     });
@@ -522,6 +524,7 @@ describe("UserConfigService", () => {
         distanceUnit: "",
         elevationUnit: "",
         defaultSport: "",
+        timezone: "",
       };
 
       await service.updateConfigSection("preferences", newPreferences);
@@ -535,6 +538,7 @@ describe("UserConfigService", () => {
             distanceUnit: "",
             elevationUnit: "",
             defaultSport: "",
+        timezone: "",
           },
         }),
         { merge: true }
@@ -839,6 +843,7 @@ describe("UserConfigService", () => {
           distanceUnit: "",
           elevationUnit: "",
           defaultSport: "",
+        timezone: "",
         },
       };
 
@@ -863,6 +868,7 @@ describe("UserConfigService", () => {
         distanceUnit: "",
         elevationUnit: "",
         defaultSport: "",
+        timezone: "",
         defaultYear: 2025,
       });
     });

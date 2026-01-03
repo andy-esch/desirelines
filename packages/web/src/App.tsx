@@ -10,6 +10,7 @@ import UnifiedSportPage from "./pages/UnifiedSportPage";
 import DemoSportPage from "./pages/DemoSportPage";
 import ActivitiesPage from "./pages/ActivitiesPage";
 import OriginsPage from "./pages/OriginsPage";
+import SettingsPage from "./pages/SettingsPage";
 
 const VALID_SPORTS = ["cycling", "running", "yoga"] as const;
 
@@ -31,6 +32,9 @@ function App() {
 
             {/* Origins/About page */}
             <Route path="/origins" element={<OriginsPage />} />
+
+            {/* Settings page (authenticated users only) */}
+            <Route path="/settings" element={<SettingsPage />} />
 
             {/* Sport detail pages - data source based on auth state */}
             {VALID_SPORTS.map((sport) => (
