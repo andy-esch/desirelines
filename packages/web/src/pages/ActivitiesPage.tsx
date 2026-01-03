@@ -4,6 +4,7 @@ import ActivityTable from "../components/ActivityTable";
 import { useActivities } from "../hooks/useActivities";
 import { useAuth } from "../hooks/useAuth";
 import { DEFAULT_USER_SETTINGS, type DistanceUnit, type ElevationUnit } from "../utils/units";
+import { pageBackgrounds } from "../styles/pageBackgrounds";
 
 type TimeRange = "2w" | "4w" | "2m" | "6m" | "ytd" | "all";
 
@@ -108,13 +109,15 @@ const ActivitiesPage: React.FC = () => {
   // Show login prompt for unauthenticated users
   if (!authLoading && !user) {
     return (
-      <div className="container py-4">
-        <div className="row justify-content-center">
-          <div className="col-md-6">
-            <div className="card text-center">
-              <div className="card-body py-5">
-                <h2 className="card-title">Sign In Required</h2>
-                <p className="card-text text-muted">Please sign in to view your activities.</p>
+      <div className="flex-grow-1" style={{ background: pageBackgrounds.activities }}>
+        <div className="container py-4">
+          <div className="row justify-content-center">
+            <div className="col-md-6">
+              <div className="card text-center">
+                <div className="card-body py-5">
+                  <h2 className="card-title">Sign In Required</h2>
+                  <p className="card-text text-muted">Please sign in to view your activities.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -124,66 +127,68 @@ const ActivitiesPage: React.FC = () => {
   }
 
   return (
-    <div className="container-fluid py-4">
-      {/* Header */}
-      <div className="row mb-3">
-        <div className="col">
-          <h1 className="h3 mb-0">Activities</h1>
+    <div className="flex-grow-1" style={{ background: pageBackgrounds.activities }}>
+      <div className="container-fluid py-4">
+        {/* Header */}
+        <div className="row mb-3">
+          <div className="col">
+            <h1 className="h3 mb-0">Activities</h1>
+          </div>
         </div>
+
+        {/* Filters */}
+        <div className="d-flex align-items-center gap-3 mb-4">
+          <div className="d-flex align-items-center gap-2">
+            <label htmlFor="timeRange" className="text-muted small mb-0">
+              Time:
+            </label>
+            <select
+              id="timeRange"
+              className="form-select form-select-sm"
+              value={selectedRange}
+              onChange={(e) => handleRangeChange(e.target.value as TimeRange)}
+              style={{ width: "auto" }}
+            >
+              {TIME_RANGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="d-flex align-items-center gap-2">
+            <label htmlFor="sportFilter" className="text-muted small mb-0">
+              Sport:
+            </label>
+            <select
+              id="sportFilter"
+              className="form-select form-select-sm"
+              value={selectedSport}
+              onChange={(e) => handleSportChange(e.target.value)}
+              style={{ width: "auto" }}
+            >
+              {SPORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Activity Table */}
+        <ActivityTable
+          activities={activities}
+          isLoading={isLoading}
+          error={error}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
+          onRetry={retry}
+          distanceUnit={DEFAULT_USER_SETTINGS.distanceUnit as DistanceUnit}
+          elevationUnit={DEFAULT_USER_SETTINGS.elevationUnit as ElevationUnit}
+        />
       </div>
-
-      {/* Filters */}
-      <div className="d-flex align-items-center gap-3 mb-4">
-        <div className="d-flex align-items-center gap-2">
-          <label htmlFor="timeRange" className="text-muted small mb-0">
-            Time:
-          </label>
-          <select
-            id="timeRange"
-            className="form-select form-select-sm"
-            value={selectedRange}
-            onChange={(e) => handleRangeChange(e.target.value as TimeRange)}
-            style={{ width: "auto" }}
-          >
-            {TIME_RANGE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="d-flex align-items-center gap-2">
-          <label htmlFor="sportFilter" className="text-muted small mb-0">
-            Sport:
-          </label>
-          <select
-            id="sportFilter"
-            className="form-select form-select-sm"
-            value={selectedSport}
-            onChange={(e) => handleSportChange(e.target.value)}
-            style={{ width: "auto" }}
-          >
-            {SPORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Activity Table */}
-      <ActivityTable
-        activities={activities}
-        isLoading={isLoading}
-        error={error}
-        hasMore={hasMore}
-        onLoadMore={loadMore}
-        onRetry={retry}
-        distanceUnit={DEFAULT_USER_SETTINGS.distanceUnit as DistanceUnit}
-        elevationUnit={DEFAULT_USER_SETTINGS.elevationUnit as ElevationUnit}
-      />
     </div>
   );
 };

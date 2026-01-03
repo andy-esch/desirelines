@@ -29,9 +29,5 @@ export default function UnifiedSportPage({ sport }: UnifiedSportPageProps) {
   }
 
   // Render appropriate page based on auth state
-  if (user) {
-    return <SportPage sport={sport} />;
-  }
-
-  return <DemoSportPage sport={sport} />;
+  return user ? <SportPage sport={sport} /> : <DemoSportPage sport={sport} />;
 }
