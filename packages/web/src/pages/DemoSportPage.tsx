@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { convertDistance, getUserSettings } from "../utils/units";
+import { pageBackgrounds } from "../styles/pageBackgrounds";
 import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
 import PacingMetricsChart from "../components/charts/PacingMetricsChart";
 import DemoSidebar from "../components/layout/DemoSidebar";
@@ -150,7 +151,10 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
             saveError={null}
           />
 
-          <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+          <main
+            className="col-md-9 ms-sm-auto col-lg-10 px-md-4"
+            style={{ background: pageBackgrounds.sport }}
+          >
             <div className="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3">
               <h1 className="h2">
                 {sport.charAt(0).toUpperCase() + sport.slice(1)} {currentYear}

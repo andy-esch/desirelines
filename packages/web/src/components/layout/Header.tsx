@@ -1,6 +1,7 @@
 import { useLocation } from "react-router-dom";
 import Logo from "../Logo";
-import AuthButton from "../AuthButton";
+import { useAuth } from "../../hooks/useAuth";
+import { AccountDropdown } from "./AccountDropdown";
 import Navigation from "./Navigation";
 
 const SPORT_ROUTES = ["/cycling", "/running", "/yoga"];
@@ -23,6 +24,7 @@ const GearIcon = () => (
 
 export default function Header() {
   const location = useLocation();
+  const { user, loading, signIn, signOut } = useAuth();
 
   // Show controls toggle only on sport detail pages
   const showControlsToggle = SPORT_ROUTES.some((route) => location.pathname.startsWith(route));
@@ -49,10 +51,10 @@ export default function Header() {
 
       <div className="d-none d-md-flex align-items-center gap-3 px-3 ms-auto">
         <div className="navbar-text text-white-50 small d-none d-lg-block">{currentDate}</div>
-        <AuthButton signInVariant="accent" />
+        <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>
 
-      {/* Mobile: Both buttons on right (nav hamburger, then controls gear) */}
+      {/* Mobile: hamburger, controls gear, and account dropdown on right */}
       <div className="d-md-none ms-auto d-flex align-items-center gap-1">
         <button
           className="navbar-toggler border-0 text-white"
@@ -78,6 +80,7 @@ export default function Header() {
             <GearIcon />
           </button>
         )}
+        <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>
 
       {/* Mobile Navigation Drawer (slides from left) */}
@@ -101,10 +104,6 @@ export default function Header() {
         </div>
         <div className="offcanvas-body">
           <Navigation vertical className="mb-4" />
-          <hr className="border-secondary" />
-          <div className="mt-3">
-            <AuthButton signInVariant="accent" />
-          </div>
         </div>
       </div>
     </header>

@@ -1,6 +1,7 @@
 import { useAuth } from "../hooks/useAuth";
 import MultiSportComparisonChart from "../components/dashboard/MultiSportComparisonChart";
 import NeonSpinner from "../components/NeonSpinner";
+import { pageBackgrounds } from "../styles/pageBackgrounds";
 
 /**
  * Dashboard landing page showing multi-sport overview.
@@ -20,17 +21,19 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div
-        className="container d-flex justify-content-center align-items-center"
-        style={{ minHeight: "60vh" }}
-      >
-        <NeonSpinner />
+      <div className="flex-grow-1" style={{ background: pageBackgrounds.dashboard }}>
+        <div
+          className="container d-flex justify-content-center align-items-center"
+          style={{ minHeight: "60vh" }}
+        >
+          <NeonSpinner />
+        </div>
       </div>
     );
   }
 
   return (
-    <>
+    <div className="flex-grow-1" style={{ background: pageBackgrounds.dashboard }}>
       {/* Demo mode banner for unauthenticated users */}
       {!user && (
         <div className="alert alert-demo mb-0 rounded-0" role="alert">
@@ -72,6 +75,6 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
