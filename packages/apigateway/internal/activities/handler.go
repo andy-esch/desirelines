@@ -36,15 +36,13 @@ const (
 type Handler struct {
 	repo        repository.ActivityRepository
 	sportConfig *config.SportConfig
-	corsHandler apierrors.CORSHandler
 }
 
 // NewHandler creates a new activities handler.
-func NewHandler(repo repository.ActivityRepository, sportConfig *config.SportConfig, corsHandler apierrors.CORSHandler) *Handler {
+func NewHandler(repo repository.ActivityRepository, sportConfig *config.SportConfig) *Handler {
 	return &Handler{
 		repo:        repo,
 		sportConfig: sportConfig,
-		corsHandler: corsHandler,
 	}
 }
 
@@ -58,7 +56,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 
 	if h.repo == nil {
 		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -66,7 +64,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// This should never happen since year is validated, but handle it properly
 		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -78,11 +76,11 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 			errMsgInternalServerError,
 			fmt.Sprintf("Database query failed: %v", err),
 		)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, metadata, h.corsHandler)
+	server.RespondJSON(w, r, http.StatusOK, metadata)
 }
 
 // HandleMetrics serves sport-specific metrics data from PostgreSQL.
@@ -102,7 +100,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 
 	if h.repo == nil {
 		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -113,7 +111,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	// Validate date range if provided
 	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
 		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -130,7 +128,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 				errMsgInternalServerError,
 				fmt.Sprintf("Database query failed: %v", err),
 			)
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			apierrors.WriteError(w, r, apiErr)
 			return
 		}
 	} else {
@@ -138,7 +136,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		yearInt, parseErr := strconv.Atoi(year)
 		if parseErr != nil {
 			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			apierrors.WriteError(w, r, apiErr)
 			return
 		}
 		metrics, err = h.repo.GetSportMetrics(r.Context(), yearInt, sportTypes)
@@ -149,12 +147,12 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 				errMsgInternalServerError,
 				fmt.Sprintf("Database query failed: %v", err),
 			)
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			apierrors.WriteError(w, r, apiErr)
 			return
 		}
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, metrics, h.corsHandler)
+	server.RespondJSON(w, r, http.StatusOK, metrics)
 }
 
 // HandleSource serves sport-specific source data from PostgreSQL.
@@ -172,14 +170,14 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 
 	if h.repo == nil {
 		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
 	yearInt, err := strconv.Atoi(year)
 	if err != nil {
 		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -191,11 +189,11 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 			errMsgInternalServerError,
 			fmt.Sprintf("Database query failed: %v", err),
 		)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, summary, h.corsHandler)
+	server.RespondJSON(w, r, http.StatusOK, summary)
 }
 
 // HandleGetActivity serves a single activity by ID.
@@ -203,7 +201,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	if h.repo == nil {
 		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -212,7 +210,7 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid activity ID format")
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -224,17 +222,17 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 			errMsgInternalServerError,
 			fmt.Sprintf("Database query failed: %v", err),
 		)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
 	if activity == nil {
 		apiErr := apierrors.NewAPIError(http.StatusNotFound, "Activity not found")
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, activity, h.corsHandler)
+	server.RespondJSON(w, r, http.StatusOK, activity)
 }
 
 // HandleListActivities serves a paginated list of activities.
@@ -242,7 +240,7 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	if h.repo == nil {
 		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -257,7 +255,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	if fromStr := query.Get("from"); fromStr != "" {
 		if !validate.Date(fromStr) {
 			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			apierrors.WriteError(w, r, apiErr)
 			return
 		}
 		filter.From = &fromStr
@@ -267,7 +265,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	if toStr := query.Get("to"); toStr != "" {
 		if !validate.Date(toStr) {
 			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			apierrors.WriteError(w, r, apiErr)
 			return
 		}
 		filter.To = &toStr
@@ -278,7 +276,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 		stravaTypes := h.sportConfig.GetStravaTypes(sport)
 		if stravaTypes == nil {
 			apiErr := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			apierrors.WriteError(w, r, apiErr)
 			return
 		}
 		filter.SportTypes = stravaTypes
@@ -289,7 +287,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 		limit, err := strconv.Atoi(limitStr)
 		if err != nil || limit < 1 || limit > 100 {
 			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-100)")
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			apierrors.WriteError(w, r, apiErr)
 			return
 		}
 		filter.Limit = limit
@@ -300,7 +298,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 		cursor, err := decodeCursor(cursorStr)
 		if err != nil {
 			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid cursor")
-			apierrors.WriteError(w, r, apiErr, h.corsHandler)
+			apierrors.WriteError(w, r, apiErr)
 			return
 		}
 		filter.Cursor = cursor
@@ -314,11 +312,11 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 			errMsgInternalServerError,
 			fmt.Sprintf("Database query failed: %v", err),
 		)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, result, h.corsHandler)
+	server.RespondJSON(w, r, http.StatusOK, result)
 }
 
 // validateAndGetYear extracts and validates the year path parameter.
@@ -327,7 +325,7 @@ func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (st
 	year := chi.URLParam(r, "year")
 	if !validate.Year(year) {
 		err := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		apierrors.WriteError(w, r, err, h.corsHandler)
+		apierrors.WriteError(w, r, err)
 		return "", false
 	}
 	return year, true
@@ -341,14 +339,14 @@ func (h *Handler) validateAndGetSportTypes(w http.ResponseWriter, r *http.Reques
 	sport := r.URL.Query().Get("sport")
 	if sport == "" {
 		err := apierrors.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
-		apierrors.WriteError(w, r, err, h.corsHandler)
+		apierrors.WriteError(w, r, err)
 		return nil, false
 	}
 
 	stravaTypes := h.sportConfig.GetStravaTypes(sport)
 	if stravaTypes == nil {
 		err := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
-		apierrors.WriteError(w, r, err, h.corsHandler)
+		apierrors.WriteError(w, r, err)
 		return nil, false
 	}
 

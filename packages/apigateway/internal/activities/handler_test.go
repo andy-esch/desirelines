@@ -12,17 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// mockCORSHandler implements apierrors.CORSHandler for testing
-type mockCORSHandler struct{}
-
-func (m *mockCORSHandler) SetHeaders(w http.ResponseWriter, r *http.Request) bool {
-	return true
-}
-
-func (m *mockCORSHandler) HandlePreflight(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // mockRepo implements repository.ActivityRepository for testing
 type mockRepo struct {
 	sportMetrics *repository.SportMetrics
@@ -56,7 +45,7 @@ func newTestHandler(t *testing.T) *Handler {
 	if err != nil {
 		t.Fatalf("failed to load sport config: %v", err)
 	}
-	return NewHandler(&mockRepo{}, sportConfig, &mockCORSHandler{})
+	return NewHandler(&mockRepo{}, sportConfig)
 }
 
 func TestDecodeCursor(t *testing.T) {
@@ -222,7 +211,7 @@ func TestHandler_nilRepoReturns503(t *testing.T) {
 	}
 
 	// Handler with nil repository
-	handler := NewHandler(nil, sportConfig, &mockCORSHandler{})
+	handler := NewHandler(nil, sportConfig)
 
 	tests := []struct {
 		name    string
@@ -268,7 +257,7 @@ func TestNewHandler(t *testing.T) {
 		t.Fatalf("failed to load sport config: %v", err)
 	}
 
-	handler := NewHandler(&mockRepo{}, sportConfig, &mockCORSHandler{})
+	handler := NewHandler(&mockRepo{}, sportConfig)
 
 	if handler == nil {
 		t.Fatal("NewHandler returned nil")
@@ -278,8 +267,5 @@ func TestNewHandler(t *testing.T) {
 	}
 	if handler.sportConfig == nil {
 		t.Error("Handler.sportConfig is nil")
-	}
-	if handler.corsHandler == nil {
-		t.Error("Handler.corsHandler is nil")
 	}
 }

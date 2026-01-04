@@ -50,12 +50,11 @@ func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
 // Test RespondJSON
 func TestRespondJSON(t *testing.T) {
 	t.Run("writes correct status and content type", func(t *testing.T) {
-		cors := &mockCORSHandler{originAllowed: true}
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		data := map[string]string{"message": "hello"}
-		RespondJSON(w, req, http.StatusOK, data, cors)
+		RespondJSON(w, req, http.StatusOK, data)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
@@ -64,14 +63,9 @@ func TestRespondJSON(t *testing.T) {
 		if ct := w.Header().Get("Content-Type"); ct != "application/json" {
 			t.Errorf("Content-Type = %q, want %q", ct, "application/json")
 		}
-
-		if !cors.setHeadersCalled {
-			t.Error("CORS SetHeaders was not called")
-		}
 	})
 
 	t.Run("encodes struct to JSON", func(t *testing.T) {
-		cors := &mockCORSHandler{originAllowed: true}
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
@@ -80,7 +74,7 @@ func TestRespondJSON(t *testing.T) {
 			Count int    `json:"count"`
 		}
 		data := TestData{Name: "test", Count: 42}
-		RespondJSON(w, req, http.StatusOK, data, cors)
+		RespondJSON(w, req, http.StatusOK, data)
 
 		var result TestData
 		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
@@ -100,11 +94,10 @@ func TestRespondJSON(t *testing.T) {
 		}
 
 		for _, code := range codes {
-			cors := &mockCORSHandler{originAllowed: true}
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 
-			RespondJSON(w, req, code, nil, cors)
+			RespondJSON(w, req, code, nil)
 
 			if w.Code != code {
 				t.Errorf("status for %d = %d", code, w.Code)
@@ -116,12 +109,11 @@ func TestRespondJSON(t *testing.T) {
 // Test RespondRawJSON
 func TestRespondRawJSON(t *testing.T) {
 	t.Run("writes raw JSON bytes", func(t *testing.T) {
-		cors := &mockCORSHandler{originAllowed: true}
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		rawJSON := []byte(`{"raw":"data","number":123}`)
-		RespondRawJSON(w, req, http.StatusOK, rawJSON, cors)
+		RespondRawJSON(w, req, http.StatusOK, rawJSON)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
@@ -137,13 +129,12 @@ func TestRespondRawJSON(t *testing.T) {
 	})
 
 	t.Run("does not double-encode JSON", func(t *testing.T) {
-		cors := &mockCORSHandler{originAllowed: true}
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		// Pre-marshaled JSON
 		rawJSON := []byte(`{"key":"value"}`)
-		RespondRawJSON(w, req, http.StatusOK, rawJSON, cors)
+		RespondRawJSON(w, req, http.StatusOK, rawJSON)
 
 		// Should be exactly the same, not escaped/quoted
 		if w.Body.String() != `{"key":"value"}` {

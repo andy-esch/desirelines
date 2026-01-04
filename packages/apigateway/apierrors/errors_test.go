@@ -98,27 +98,13 @@ func TestPredefinedErrors(t *testing.T) {
 	}
 }
 
-// mockCORSHandler for testing WriteError
-type mockCORSHandler struct {
-	called bool
-}
-
-func (m *mockCORSHandler) SetHeaders(w http.ResponseWriter, r *http.Request) bool {
-	m.called = true
-	w.Header().Set("Access-Control-Allow-Origin", "https://example.com")
-	return true
-}
-
-func (m *mockCORSHandler) HandlePreflight(w http.ResponseWriter, r *http.Request) {}
-
 func TestWriteError(t *testing.T) {
 	t.Run("writes correct status and JSON", func(t *testing.T) {
-		cors := &mockCORSHandler{}
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		err := NewAPIError(http.StatusBadRequest, "Invalid year format")
-		WriteError(w, req, err, cors)
+		WriteError(w, req, err)
 
 		// Check status code
 		if w.Code != http.StatusBadRequest {
@@ -128,11 +114,6 @@ func TestWriteError(t *testing.T) {
 		// Check content type
 		if ct := w.Header().Get("Content-Type"); ct != "application/json" {
 			t.Errorf("Content-Type = %q, want %q", ct, "application/json")
-		}
-
-		// Check CORS handler was called
-		if !cors.called {
-			t.Error("CORS handler was not called")
 		}
 
 		// Check response body
@@ -150,7 +131,7 @@ func TestWriteError(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		err := NewAPIError(http.StatusNotFound, "Not found")
-		WriteError(w, req, err, nil) // nil CORS handler
+		WriteError(w, req, err)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
@@ -174,7 +155,7 @@ func TestWriteError(t *testing.T) {
 			"Internal server error",
 			"SECRET: database password is hunter2",
 		)
-		WriteError(w, req, err, nil)
+		WriteError(w, req, err)
 
 		body := w.Body.String()
 		if contains(body, "SECRET") || contains(body, "hunter2") {
@@ -206,7 +187,7 @@ func TestWriteError(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			err := NewAPIError(code, "Test error")
-			WriteError(w, req, err, nil)
+			WriteError(w, req, err)
 
 			if w.Code != code {
 				t.Errorf("status for %d = %d", code, w.Code)

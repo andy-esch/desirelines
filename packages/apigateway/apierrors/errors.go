@@ -83,8 +83,7 @@ func NewAPIErrorWithLog(status int, message, logMessage string) APIError {
 }
 
 // WriteError writes an error response with proper HTTP headers.
-// If corsHandler is provided, CORS headers will be set.
-func WriteError(w http.ResponseWriter, r *http.Request, err APIError, corsHandler CORSHandler) {
+func WriteError(w http.ResponseWriter, r *http.Request, err APIError) {
 	// Log internal message if provided
 	// Note: Uses r.URL.Path (not r.URL.String()) to avoid logging query parameters
 	// which may contain sensitive data like tokens or user information
@@ -94,11 +93,6 @@ func WriteError(w http.ResponseWriter, r *http.Request, err APIError, corsHandle
 			"path", r.URL.Path,
 			"method", r.Method,
 			"status", err.Status)
-	}
-
-	// Set CORS headers if handler provided
-	if corsHandler != nil {
-		corsHandler.SetHeaders(w, r)
 	}
 
 	// Write JSON error response

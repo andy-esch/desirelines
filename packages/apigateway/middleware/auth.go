@@ -11,7 +11,6 @@ import (
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/andy-esch/desirelines/packages/apigateway/apierrors"
-	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
@@ -19,15 +18,11 @@ import (
 type AuthMiddleware struct {
 	authClient    *auth.Client
 	allowedEmails map[string]bool
-	corsHandler   apierrors.CORSHandler
 }
 
 // NewFirebaseAuth creates authentication middleware using Firebase Admin SDK.
 // It validates JWT tokens and checks the email against an allowlist from ALLOWED_EMAILS env var.
 func NewFirebaseAuth(ctx context.Context) (*AuthMiddleware, error) {
-	// Initialize CORS handler
-	corsHandler := cors.NewHandler()
-
 	// Parse allowed emails from environment variable
 	allowedEmails := parseAllowedEmails()
 
@@ -56,7 +51,6 @@ func NewFirebaseAuth(ctx context.Context) (*AuthMiddleware, error) {
 	return &AuthMiddleware{
 		authClient:    authClient,
 		allowedEmails: allowedEmails,
-		corsHandler:   corsHandler,
 	}, nil
 }
 
@@ -96,7 +90,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			logger.Logger.Warn("Auth: Authentication failed", "reason", "missing_header")
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized)
 			return
 		}
 
@@ -104,7 +98,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			logger.Logger.Warn("Auth: Authentication failed", "reason", "invalid_header_format")
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized)
 			return
 		}
 
@@ -114,7 +108,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		token, err := m.authClient.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
 			logger.Logger.Warn("Auth: Authentication failed", "reason", "token_verification_failed", "error", err)
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized)
 			return
 		}
 
@@ -122,14 +116,14 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		email, ok := token.Claims["email"].(string)
 		if !ok || email == "" {
 			logger.Logger.Warn("Auth: Authentication failed", "reason", "missing_email_claim")
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized)
 			return
 		}
 
 		// Check if email is in allowlist
 		if !m.allowedEmails[email] {
 			logger.Logger.Warn("Auth: Authorization failed", "reason", "email_not_authorized", "email", email)
-			apierrors.WriteError(w, r, apierrors.ErrForbidden, m.corsHandler)
+			apierrors.WriteError(w, r, apierrors.ErrForbidden)
 			return
 		}
 

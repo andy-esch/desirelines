@@ -5,14 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/andy-esch/desirelines/packages/apigateway/apierrors"
 	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
 // RespondJSON writes a JSON response with CORS headers.
-func RespondJSON(w http.ResponseWriter, r *http.Request, status int, data any, corsHandler apierrors.CORSHandler) {
-	corsHandler.SetHeaders(w, r)
-
+func RespondJSON(w http.ResponseWriter, r *http.Request, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
@@ -23,9 +20,7 @@ func RespondJSON(w http.ResponseWriter, r *http.Request, status int, data any, c
 
 // RespondRawJSON writes raw JSON bytes with CORS headers.
 // Use this for pre-marshaled JSON data to avoid double encoding.
-func RespondRawJSON(w http.ResponseWriter, r *http.Request, status int, data []byte, corsHandler apierrors.CORSHandler) {
-	corsHandler.SetHeaders(w, r)
-
+func RespondRawJSON(w http.ResponseWriter, r *http.Request, status int, data []byte) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 

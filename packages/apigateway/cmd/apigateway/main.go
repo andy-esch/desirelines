@@ -140,9 +140,9 @@ func initDependencies(ctx context.Context) (*Dependencies, error) {
 // buildRouter creates the HTTP router with all handlers wired up.
 func buildRouter(deps *Dependencies) http.Handler {
 	// Create feature handlers with their dependencies
-	healthHandler := health.NewHandler(deps.repo, deps.corsHandler)
-	sportsHandler := sports.NewHandler(deps.corsHandler)
-	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig, deps.corsHandler)
+	healthHandler := health.NewHandler(deps.repo)
+	sportsHandler := sports.NewHandler()
+	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig)
 
 	// Configure and create router
 	routerCfg := server.RouterConfig{

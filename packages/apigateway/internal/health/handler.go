@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/andy-esch/desirelines/packages/apigateway/apierrors"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
@@ -25,15 +24,13 @@ type Response struct {
 
 // Handler holds dependencies for the health check handler.
 type Handler struct {
-	repo        repository.ActivityRepository
-	corsHandler apierrors.CORSHandler
+	repo repository.ActivityRepository
 }
 
 // NewHandler creates a new health check handler.
-func NewHandler(repo repository.ActivityRepository, corsHandler apierrors.CORSHandler) *Handler {
+func NewHandler(repo repository.ActivityRepository) *Handler {
 	return &Handler{
-		repo:        repo,
-		corsHandler: corsHandler,
+		repo: repo,
 	}
 }
 
@@ -56,5 +53,5 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, response, h.corsHandler)
+	server.RespondJSON(w, r, http.StatusOK, response)
 }

@@ -12,15 +12,11 @@ import (
 )
 
 // Handler holds dependencies for the sport config handler.
-type Handler struct {
-	corsHandler apierrors.CORSHandler
-}
+type Handler struct{}
 
 // NewHandler creates a new sport config handler.
-func NewHandler(corsHandler apierrors.CORSHandler) *Handler {
-	return &Handler{
-		corsHandler: corsHandler,
-	}
+func NewHandler() *Handler {
+	return &Handler{}
 }
 
 // HandleConfig serves the sport configuration JSON.
@@ -34,7 +30,7 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 			"Failed to load sport config",
 			"Embedded sport config is not available",
 		)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -46,10 +42,10 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 			"Invalid sport config",
 			"JSON validation failed",
 		)
-		apierrors.WriteError(w, r, apiErr, h.corsHandler)
+		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
 	// Write raw JSON directly (no marshal/unmarshal cycle)
-	server.RespondRawJSON(w, r, http.StatusOK, data, h.corsHandler)
+	server.RespondRawJSON(w, r, http.StatusOK, data)
 }

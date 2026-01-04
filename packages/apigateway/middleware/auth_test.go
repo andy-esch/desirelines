@@ -6,40 +6,16 @@ import (
 	"testing"
 )
 
-// mockCORSHandler is a mock CORS handler for testing
-type mockCORSHandler struct{}
-
-func (m *mockCORSHandler) SetHeaders(w http.ResponseWriter, r *http.Request) bool {
-	// Mock implementation - just set a basic CORS header
-	origin := r.Header.Get("Origin")
-	if origin != "" {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-	}
-	return true
-}
-
-func (m *mockCORSHandler) HandlePreflight(w http.ResponseWriter, r *http.Request) {
-	// Mock implementation for preflight requests
-	m.SetHeaders(w, r)
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // TestAuthMiddleware_MissingAuthorizationHeader tests rejection of requests without auth header
 func TestAuthMiddleware_MissingAuthorizationHeader(t *testing.T) {
 	// Set CORS origins for test
 	t.Setenv("ALLOWED_ORIGINS", "https://example.com")
-
-	// Create CORS handler for test
-	corsHandler := &mockCORSHandler{}
 
 	// Create middleware with allowed emails
 	// authClient is nil so token verification would fail, but we test headers first
 	middleware := &AuthMiddleware{
 		allowedEmails: map[string]bool{"test@example.com": true},
 		authClient:    nil,
-		corsHandler:   corsHandler,
 	}
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -69,12 +45,9 @@ func TestAuthMiddleware_MissingAuthorizationHeader(t *testing.T) {
 func TestAuthMiddleware_InvalidAuthorizationHeaderFormat(t *testing.T) {
 	t.Setenv("ALLOWED_ORIGINS", "https://example.com")
 
-	corsHandler := &mockCORSHandler{}
-
 	middleware := &AuthMiddleware{
 		allowedEmails: map[string]bool{"test@example.com": true},
 		authClient:    nil,
-		corsHandler:   corsHandler,
 	}
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

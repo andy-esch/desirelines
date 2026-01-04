@@ -108,9 +108,9 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository) http.Handle
 	mockAuth := &mockAuthMiddleware{}
 
 	// Create feature handlers
-	healthHandler := health.NewHandler(activityRepo, corsHandler)
-	sportsHandler := sports.NewHandler(corsHandler)
-	activitiesHandler := activities.NewHandler(activityRepo, sportConfig, corsHandler)
+	healthHandler := health.NewHandler(activityRepo)
+	sportsHandler := sports.NewHandler()
+	activitiesHandler := activities.NewHandler(activityRepo, sportConfig)
 
 	// Configure and create router
 	routerCfg := server.RouterConfig{
