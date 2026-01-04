@@ -8,7 +8,7 @@ React + TypeScript frontend for multi-sport activity visualization (cycling, run
 npm install
 cp .env.development.local.example .env.development.local
 # Edit .env.development.local with Firebase credentials
-npm run dev  # http://localhost:5173
+npm run dev  # http://localhost:3000
 ```
 
 ## Environment Files
@@ -43,7 +43,7 @@ Get Firebase credentials: [Firebase Console](https://console.firebase.google.com
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Dev server (localhost:5173) |
+| `npm run dev` | Dev server (localhost:3000) |
 | `npm run build` | Production build |
 | `npm test` | Run tests (watch mode) |
 | `npm run test:ci` | Run tests once (CI) |
@@ -76,8 +76,8 @@ User → Components → API Layer → API Gateway (Go) → Cloud Storage (JSON)
 ```
 
 **Modes**:
-- **Fixture mode**: Local data, no API calls (anonymous users, tests)
-- **Smart mode**: Fixtures for anonymous, API for authenticated (production)
+- **Demo mode**: Client-side generated data, no API calls (anonymous users)
+- **Authenticated mode**: Real data via API Gateway (signed-in users)
 
 **User Data**:
 - User configuration (goals, annotations, preferences) stored in Firestore
@@ -90,14 +90,14 @@ User → Components → API Layer → API Gateway (Go) → Cloud Storage (JSON)
 ```
 src/
 ├── api/              # API client
-├── components/       # React components  
-├── data/fixtures/    # Demo data
+├── components/       # React components
+├── constants/        # App constants and config
 ├── hooks/            # Custom hooks
 ├── lib/              # Config, auth utilities
 ├── pages/            # Route components
 ├── services/         # Business logic
 ├── types/            # TypeScript types
-└── utils/            # Helpers (units, dates, goals)
+└── utils/            # Helpers (units, dates, demo data generator)
 ```
 
 ## Troubleshooting

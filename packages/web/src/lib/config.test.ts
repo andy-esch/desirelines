@@ -41,6 +41,8 @@ describe("config", () => {
 
       expect(config.emulators).toBeDefined();
       expect(typeof config.emulators.enabled).toBe("boolean");
+      expect(config.emulators.authHost).toBeDefined();
+      expect(config.emulators.authPort).toBeDefined();
       expect(config.emulators.firestoreHost).toBeDefined();
       expect(config.emulators.firestorePort).toBeDefined();
     });
@@ -56,6 +58,13 @@ describe("config", () => {
 
       expect(config.emulators.firestoreHost).toBe("127.0.0.1");
       expect(config.emulators.firestorePort).toBe(8089);
+    });
+
+    it("should set default Auth emulator host and port", () => {
+      const config = loadConfig();
+
+      expect(config.emulators.authHost).toBe("127.0.0.1");
+      expect(config.emulators.authPort).toBe(9099);
     });
   });
 
@@ -86,6 +95,24 @@ describe("config", () => {
       const config = loadConfig();
 
       expect(config.emulators.firestoreHost).toBe("192.168.1.100");
+    });
+
+    it("should use custom Auth port when specified", () => {
+      vi.stubEnv("VITE_AUTH_EMULATOR_PORT", "9199");
+      resetConfig();
+
+      const config = loadConfig();
+
+      expect(config.emulators.authPort).toBe(9199);
+    });
+
+    it("should use custom Auth host when specified", () => {
+      vi.stubEnv("VITE_AUTH_EMULATOR_HOST", "192.168.1.100");
+      resetConfig();
+
+      const config = loadConfig();
+
+      expect(config.emulators.authHost).toBe("192.168.1.100");
     });
   });
 });

@@ -1,222 +1,170 @@
 # Frontend Local Development Guide
 
-Quick start guide for developing the React web UI with local fixture data.
+Guide for developing the React web UI locally.
 
 ## Quick Start
 
 ```bash
-# Start the API Gateway with local fixtures
-make start-frontend
-
-# In a separate terminal, start the React web UI
-make site-start
+cd packages/web
+npm install
+npm run dev
 ```
 
-That's it! The web UI will be available at http://localhost:3000 and will connect to the local API Gateway serving fixture data.
+The web UI will be available at http://localhost:3000.
 
-## What Gets Started
+## Development Modes
 
-The frontend development stack consists of:
+### Demo Mode (Unauthenticated)
 
-1. **API Gateway** (port 8084) - Started with `make start-frontend`, serves local fixture data from `data/fixtures/`
-2. **PostgreSQL** (port 15430) - Local database for activity data
-3. **Firestore Emulator** (port 8089) - Local emulator for user config (goals, preferences)
-4. **Web UI** (port 3000) - Started with `make site-start`, React development server with hot reload (runs via npm, not Docker)
+When not signed in, the app displays **generated demo data**:
+- Realistic activity patterns created client-side
+- No backend services required
+- Perfect for UI development and testing
+
+Just run `npm run dev` and start developing.
+
+### Authenticated Mode (Local Emulators)
+
+For fully offline authenticated development using Firebase Emulators:
+
+1. **Start backend services**:
+   ```bash
+   make start-frontend  # Starts Firebase Emulators + API Gateway + PostgreSQL
+   ```
+
+2. **Enable emulators in frontend**:
+   ```bash
+   # In packages/web/.env.development.local:
+   VITE_USE_FIREBASE_EMULATORS=true
+   VITE_API_GATEWAY_URL=http://localhost:8084
+   ```
+
+3. **Start frontend dev server**:
+   ```bash
+   cd packages/web && npm run dev
+   ```
+
+Console should show:
+```
+🔐 Auth emulator connected: 127.0.0.1:9099
+🔥 Firestore emulator connected: 127.0.0.1:8089
+```
+
+The Firebase Emulator UI is available at http://localhost:4000 for managing test users.
+
+**Note:** Emulator data is in-memory only and resets when stopped.
+
+### Authenticated Mode (Cloud Firebase)
+
+To use real Firebase Auth with the local API Gateway:
+
+1. **Set up Application Default Credentials**:
+   ```bash
+   gcloud auth application-default login
+   ```
+
+2. **Configure `.env`** (in repo root):
+   ```bash
+   cp .env.local.example .env.local
+   # Edit .env.local with:
+   ALLOWED_EMAILS=your-email@example.com  # Must match your login email
+   ```
+
+3. **Update docker-compose.local.yml** to use cloud Firebase instead of emulators.
+
+4. **Start services**:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.local.yml --profile frontend up
+   ```
+
+### Use Deployed Dev API
+
+For simplest setup, point to the deployed dev API:
+```bash
+# In packages/web/.env.development.local:
+VITE_API_GATEWAY_URL=https://api-gateway-xxxxx.run.app
+```
+No local backend setup needed.
+
+## Environment Configuration
+
+Create `packages/web/.env.development.local` (gitignored) with your Firebase credentials:
+
+```bash
+# Firebase config (required for auth)
+VITE_FIREBASE_API_KEY=your-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+
+# Optional: Use Firebase emulators
+VITE_USE_FIREBASE_EMULATORS=true
+
+# Optional: Override API Gateway URL
+VITE_API_GATEWAY_URL=http://localhost:8084
+```
 
 ## Service URLs
 
-- 🌐 **Web UI**: http://localhost:3000
-- 🔌 **API Gateway**: http://localhost:8084
-- 📊 **Health Check**: http://localhost:8084/health
-- 🔥 **Firestore Emulator**: localhost:8089 (when enabled)
+| Service | URL | Notes |
+|---------|-----|-------|
+| Web UI | http://localhost:3000 | Vite dev server |
+| API Gateway | http://localhost:8084 | When running locally |
+| Firebase Emulator UI | http://localhost:4000 | Manage test users |
+| Auth Emulator | localhost:9099 | When emulators enabled |
+| Firestore Emulator | localhost:8089 | When emulators enabled |
 
-## Data Source Modes
+## Common Commands
 
-### Local Fixtures (Default)
-Uses data copied from the old production system (`progressor-341702`):
 ```bash
-make start-frontend
+# Start dev server
+npm run dev
+
+# Type checking
+npm run typecheck
+
+# Linting
+npm run lint
+
+# Run tests
+npm test
+
+# Run tests with UI
+npm run test:ui
 ```
-
-The API Gateway reads from `data/fixtures/activities/` directory, no cloud access needed.
-
-### Live Cloud Data
-To develop against live cloud storage:
-```bash
-DATA_SOURCE=cloud-storage make start-frontend
-```
-
-Requires `gcloud` authentication and access to the configured GCS bucket.
-
-## Firestore Emulator (User Config)
-
-User configuration (goals, preferences) is stored in Firestore. By default, the web app connects to cloud Firestore, but you can use a local emulator for fully offline development.
-
-### Enabling the Emulator
-
-1. **Start the emulator** (included in frontend profile):
-   ```bash
-   make start-frontend  # Starts api-gateway, postgres, AND firestore-emulator
-   ```
-
-2. **Enable in your environment** (add to `.env.development.local`):
-   ```bash
-   VITE_USE_FIREBASE_EMULATORS=true
-   ```
-
-3. **Restart the web dev server** to pick up the change.
-
-You should see in the browser console:
-```
-✓ Configuration loaded successfully
-  Emulators: enabled (Firestore: 127.0.0.1:8089)
-🔥 Firestore emulator connected: 127.0.0.1:8089 (database: (default))
-```
-
-### How It Works
-
-- **Firestore**: Uses local emulator on port 8089 (gcloud SDK emulators image)
-- **Auth**: Still uses cloud Firebase (emulator image doesn't include Auth)
-- **Data**: In-memory only, resets when container stops
-
-This means you can:
-- Save/load goals locally without cloud access
-- Test user config changes without affecting production
-- Still sign in with your real Google account (Auth uses cloud)
-
-### Emulator vs Cloud
-
-| Feature | Emulator | Cloud |
-|---------|----------|-------|
-| Goals persist across restarts | No (in-memory) | Yes |
-| Works offline | Yes | No |
-| Auth flow | Cloud Firebase | Cloud Firebase |
-| Database | `(default)` | `desirelines-user-configs` |
-
-### Disabling the Emulator
-
-To switch back to cloud Firestore:
-```bash
-# In .env.development.local, set:
-VITE_USE_FIREBASE_EMULATORS=false
-```
-
-Or simply remove the line (defaults to cloud).
-
-## Available API Endpoints
-
-All endpoints return JSON data:
-
-- `GET /health` - Health check with data source info
-- `GET /activities/{year}/summary` - Daily activity summaries
-- `GET /activities/{year}/distances` - Distance aggregations
-- `GET /activities/{year}/pacings` - Pacing analysis
-
-Example:
-```bash
-curl http://localhost:8084/activities/2024/summary
-```
-
-## Fixture Data
-
-Located in `data/fixtures/activities/`:
-- **2023-2025** data covering multiple years
-- **~6.2MB** total, 338 files
-- **Aggregated summaries**: distances.json, pacings.json, summary_activities.json
-
-See `data/fixtures/README.md` for detailed data structure.
 
 ## Development Workflow
 
-### Making Changes
-
-**Web UI changes:**
-- Edit files in `web/src/`
-- Hot reload will pick up changes automatically
+### UI Changes
+- Edit files in `packages/web/src/`
+- Hot reload picks up changes automatically
 - No restart needed
 
-**API Gateway changes:**
-- Edit Go code in `packages/apigateway/`
-- Restart: `make stop-frontend && make start-frontend`
-
-### Viewing Logs
-
-```bash
-# API Gateway logs
-make logs-api
-
-# Web UI logs (visible in the terminal where you ran `make site-start`)
-# Ctrl+C to stop the React dev server
-```
-
-## Memory Optimization
-
-The frontend stack is optimized for low-memory systems:
-
-**API Gateway (Docker):**
-- Memory limit: 128MB
-- Reserved: 32MB
-
-**Web UI (npm):**
-- Runs directly via npm (not containerized)
-- Uses default Node.js memory settings
-- Typically ~200-400MB depending on usage
-
-**Total frontend stack: ~300-500MB memory**
+### Testing Auth Flows
+- Use demo mode for UI development
+- Use Firebase Emulators for authenticated local testing
+- Create test users in Emulator UI (http://localhost:4000)
 
 ## Troubleshooting
 
 ### Port Already in Use
-If ports 3000 or 8084 are busy:
 ```bash
-# Stop API Gateway
-make stop-frontend
-
-# Stop Web UI (Ctrl+C in the terminal running it, or:)
-lsof -i :3000  # Find the process
-kill <PID>     # Kill the process
-
-# Check for other processes using the ports
 lsof -i :3000
-lsof -i :8084
+kill <PID>
 ```
 
-### API Gateway Build Issues
+### Dependencies Issues
 ```bash
-# Clean rebuild of API Gateway
-make stop-frontend
-docker compose --profile frontend build --no-cache api-gateway
-make start-frontend
-```
-
-### Web UI Issues
-```bash
-# Reinstall dependencies
-cd web
+cd packages/web
 rm -rf node_modules package-lock.json
 npm install
-
-# Start again
-make site-start
 ```
 
-### Fixture Data Not Loading
-Check the health endpoint and logs to verify configuration:
-```bash
-# Check API Gateway is running
-curl http://localhost:8084/health
-# Should return: {"status":"healthy"}
+### Firestore Permission Errors
+- Check if emulators are running: `docker ps | grep firebase`
+- Verify `VITE_USE_FIREBASE_EMULATORS=true` is set
+- Restart dev server after changing env vars
 
-# Check logs for data source confirmation
-make logs-api
-# Should show: "Using local fixtures from: /app/data/fixtures"
-```
-
-## Next Steps
-
-Once the local stack is running, you can:
-1. **Scope the UI** - Define requirements and user flows
-2. **Build components** - Create React components for data visualization
-3. **Test with data** - Develop against real production data locally
-
-See `docs/planning/project-master-plan.md` for the complete web UI rebuild plan.
+### Auth Emulator Issues
+- Verify `FIREBASE_AUTH_EMULATOR_HOST` is set in API Gateway logs
+- Check Emulator UI at http://localhost:4000 for test users
+- Ensure test user email is in `ALLOWED_EMAILS` in `.env.local`

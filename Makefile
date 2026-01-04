@@ -381,7 +381,7 @@ help:
 	@echo "  test-full-flow      - Test complete webhook flow"
 	@echo ""
 	@echo "Frontend Development (Docker):"
-	@echo "  start-frontend - Start Web UI + API Gateway with local fixtures"
+	@echo "  start-frontend - Start API Gateway + supporting services"
 	@echo "  stop-frontend  - Stop frontend services"
 	@echo "  logs-frontend  - View frontend logs (API Gateway + Web UI)"
 	@echo "  logs-api       - View API Gateway logs only"
@@ -621,18 +621,22 @@ rotate-webhook-verify-token:
 # Frontend Development (Web UI + API Gateway)
 # ==========================================
 
-# Start frontend development stack (API Gateway + Web UI with local fixtures)
+# Start frontend development stack (API Gateway + Firebase Emulators + PostgreSQL)
 start-frontend:
-	@echo "🎨 Starting frontend development stack (API Gateway + Web UI with local fixtures)..."
+	@echo "🎨 Starting frontend development stack..."
 	docker compose --profile frontend up --build --detach
 	@echo "✅ Frontend development stack is running!"
 	@echo "📋 Service URLs:"
-	@echo "  🌐 Web UI: http://localhost:3000"
-	@echo "  🔌 API Gateway: http://localhost:8084"
-	@echo "  📊 Data Source: Local fixtures (data/fixtures/)"
+	@echo "  🔌 API Gateway:         http://localhost:8084"
+	@echo "  🔥 Firebase Emulator UI: http://localhost:4000"
+	@echo "  🔐 Auth Emulator:        localhost:9099"
+	@echo "  📦 Firestore Emulator:   localhost:8089"
 	@echo ""
-	@echo "💡 To use live cloud data instead:"
-	@echo "  DATA_SOURCE=cloud-storage make start-frontend"
+	@echo "💡 To use emulators, add to packages/web/.env.development.local:"
+	@echo "   VITE_USE_FIREBASE_EMULATORS=true"
+	@echo "   VITE_API_GATEWAY_URL=http://localhost:8084"
+	@echo ""
+	@echo "   Then run: cd packages/web && npm run dev"
 
 # Stop frontend services
 stop-frontend:

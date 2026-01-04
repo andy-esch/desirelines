@@ -32,12 +32,13 @@ const FirebaseConfigSchema = z.object({
 
 /**
  * Emulator configuration schema
- * Settings for connecting to local Firestore emulator during development.
- * Note: Auth emulator requires full Firebase Emulator Suite (Java-based).
- * The gcloud SDK emulators image only supports Firestore, so auth uses cloud.
+ * Settings for connecting to local Firebase emulators during development.
+ * Both Auth and Firestore emulators are supported via Firebase Emulator Suite.
  */
 const EmulatorConfigSchema = z.object({
   enabled: z.boolean(),
+  authHost: z.string().optional(),
+  authPort: z.number().optional(),
   firestoreHost: z.string().optional(),
   firestorePort: z.number().optional(),
 });
@@ -82,6 +83,7 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
 export function loadConfig(): AppConfig {
   // Parse emulator settings
   const useEmulators = import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true";
+  const authPort = import.meta.env.VITE_AUTH_EMULATOR_PORT;
   const firestorePort = import.meta.env.VITE_FIRESTORE_EMULATOR_PORT;
 
   // Load raw environment variables
@@ -100,6 +102,8 @@ export function loadConfig(): AppConfig {
     },
     emulators: {
       enabled: useEmulators,
+      authHost: import.meta.env.VITE_AUTH_EMULATOR_HOST || "127.0.0.1",
+      authPort: authPort ? parseInt(authPort, 10) : 9099,
       firestoreHost: import.meta.env.VITE_FIRESTORE_EMULATOR_HOST || "127.0.0.1",
       firestorePort: firestorePort ? parseInt(firestorePort, 10) : 8089,
     },
@@ -180,7 +184,8 @@ export function getConfig(): AppConfig {
       console.log(`  API Gateway: ${configInstance.apiGatewayUrl || "not configured"}`);
       if (configInstance.emulators.enabled) {
         console.log(
-          `  Emulators: enabled (Firestore: ${configInstance.emulators.firestoreHost}:${configInstance.emulators.firestorePort})`
+          `  Emulators: enabled (Auth: ${configInstance.emulators.authHost}:${configInstance.emulators.authPort}, ` +
+            `Firestore: ${configInstance.emulators.firestoreHost}:${configInstance.emulators.firestorePort})`
         );
       }
       /* eslint-enable no-console */

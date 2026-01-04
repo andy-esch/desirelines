@@ -85,8 +85,8 @@ type Handler struct {
 func NewHandler(ctx context.Context) (*Handler, error) {
 	var err error
 
-	// Initialize auth middleware
-	authMiddleware, err := middleware.NewAuthMiddleware(ctx)
+	// Initialize auth middleware (Firebase JWT + email allowlist)
+	authMiddleware, err := middleware.NewFirebaseAuth(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize auth middleware: %w", err)
 	}

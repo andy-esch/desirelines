@@ -2,7 +2,7 @@
 
 ## Overview
 
-Firebase Authentication with email-based authorization protects personal Strava data. Only the developer's email is authorized to view real data; all other users see demo/fixture data.
+Firebase Authentication with email-based authorization protects personal Strava data. Only the developer's email is authorized to view real data; all other users see client-side generated demo data.
 
 ## Auth Flow
 
@@ -25,9 +25,9 @@ User → Firebase Auth (Google OAuth) → JWT Token → API Gateway → Email Al
 **User States**:
 | State | Result |
 |-------|--------|
-| Not signed in | Fixture/demo data |
-| Signed in + authorized | Real data from PostgreSQL |
-| Signed in + unauthorized | Auto sign-out → fixture data |
+| Not signed in | Client-side generated demo data (no API calls) |
+| Signed in + authorized | Real data from PostgreSQL via API Gateway |
+| Signed in + unauthorized | Auto sign-out → demo data |
 
 ## Security Properties
 
@@ -57,15 +57,21 @@ match /users/{userId}/config/{document=**} {
 const effectiveUserId = userId ?? user?.uid ?? "default";
 ```
 - Authenticated: Uses Firebase UID
-- Unauthenticated/local dev: Uses `"default"` (fixture mode)
+- Unauthenticated: Uses `"default"` (demo mode with client-side generated data)
 
 ## Local Development
 
-Set `DATA_SOURCE=local-fixtures` to skip auth validation:
-```bash
-# packages/apigateway/.env
-DATA_SOURCE=local-fixtures
-```
+**Demo Mode** (recommended for UI work):
+- No backend required - data generated client-side
+- Just run `npm run dev` in `packages/web/`
+
+**Authenticated Mode** (for testing auth flows):
+- Uses Firebase Emulator Suite (Auth + Firestore)
+- Run `make start-frontend` to start emulators + API Gateway
+- Create test users in Emulator UI at http://localhost:4000
+- Add test user emails to `ALLOWED_EMAILS` in `.env.local`
+
+See `docs/guides/frontend-local-dev.md` for detailed setup instructions.
 
 ## Key Files
 

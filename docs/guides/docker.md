@@ -15,7 +15,8 @@ packages/
     └── Dockerfile.postgres_writer  # Python/FastAPI - Cloud Run
 
 scripts/development/local-dev/
-└── Dockerfile.cloudevent_adapter   # Python/FastAPI - local dev only
+├── Dockerfile.cloudevent_adapter   # Python/FastAPI - local dev only
+└── Dockerfile.firebase-emulators   # Firebase Auth + Firestore emulators
 ```
 
 ## Building with Pants (Recommended)
@@ -72,7 +73,7 @@ docker compose build dispatcher
 ### Profiles
 
 - `backend` - Pipeline services (dispatcher, bq-inserter, postgres-writer, PubSub emulator)
-- `frontend` - Web services (api-gateway, postgres)
+- `frontend` - Web services (api-gateway, postgres, Firebase emulators)
 - `debug` - Debugging tools (PubSub UI)
 
 ### Port Mappings
@@ -85,8 +86,11 @@ docker compose build dispatcher
 | 8085 | PubSub Emulator |
 | 8086 | PostgreSQL Writer |
 | 8087 | CloudEvent Adapter |
-| 15430 | PostgreSQL |
+| 8089 | Firestore Emulator |
+| 9099 | Firebase Auth Emulator |
+| 4000 | Firebase Emulator UI |
 | 4200 | PubSub UI (debug) |
+| 15430 | PostgreSQL |
 
 ## Build Strategies
 

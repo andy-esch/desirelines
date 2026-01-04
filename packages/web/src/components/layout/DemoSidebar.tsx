@@ -29,7 +29,7 @@ interface SidebarSections {
 }
 
 /**
- * Sidebar for demo mode - uses fixture data, no API calls.
+ * Sidebar for demo mode - uses demo data, no API calls.
  */
 export default function DemoSidebar({
   currentYear,

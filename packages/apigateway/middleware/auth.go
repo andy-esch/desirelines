@@ -17,34 +17,32 @@ import (
 
 // AuthMiddleware validates Firebase ID tokens and checks email authorization.
 type AuthMiddleware struct {
-	authClient     *auth.Client
-	allowedEmails  map[string]bool
-	skipValidation bool // For local development
-	corsHandler    apierrors.CORSHandler
+	authClient    *auth.Client
+	allowedEmails map[string]bool
+	corsHandler   apierrors.CORSHandler
 }
 
-// NewAuthMiddleware creates a new authentication middleware.
-func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
-	// Initialize CORS handler (used for both local and production)
+// NewFirebaseAuth creates authentication middleware using Firebase Admin SDK.
+// It validates JWT tokens and checks the email against an allowlist from ALLOWED_EMAILS env var.
+func NewFirebaseAuth(ctx context.Context) (*AuthMiddleware, error) {
+	// Initialize CORS handler
 	corsHandler := cors.NewHandler()
 
-	// Parse allowed emails from environment variable (used in both modes)
+	// Parse allowed emails from environment variable
 	allowedEmails := parseAllowedEmails()
 
-	// Check if running in local mode
-	dataSource := os.Getenv("DATA_SOURCE")
-	if dataSource == "local-fixtures" {
-		logger.Logger.Info("Auth: Running in local mode", "validation", "skip")
-		return &AuthMiddleware{
-			skipValidation: true,
-			corsHandler:    corsHandler,
-			allowedEmails:  allowedEmails,
-		}, nil
+	// Initialize Firebase Admin SDK
+	// ProjectID is required for token verification (even with emulator)
+	// In Cloud Run, ADC provides credentials automatically
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
 	}
 
-	// Initialize Firebase Admin SDK
-	// In Cloud Run, this automatically uses Application Default Credentials
-	app, err := firebase.NewApp(ctx, nil)
+	config := &firebase.Config{
+		ProjectID: projectID,
+	}
+	app, err := firebase.NewApp(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Firebase app: %w", err)
 	}
@@ -54,7 +52,7 @@ func NewAuthMiddleware(ctx context.Context) (*AuthMiddleware, error) {
 		return nil, fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
 	}
 
-	logger.Logger.Info("Auth middleware initialized successfully")
+	logger.Logger.Info("Auth middleware initialized successfully", "project_id", projectID)
 	return &AuthMiddleware{
 		authClient:    authClient,
 		allowedEmails: allowedEmails,
@@ -94,12 +92,6 @@ func parseAllowedEmails() map[string]bool {
 // These reason codes can be used for log aggregation and alerting.
 func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip validation in local mode
-		if m.skipValidation {
-			next.ServeHTTP(w, r)
-			return
-		}
-
 		// Extract token from Authorization header
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {

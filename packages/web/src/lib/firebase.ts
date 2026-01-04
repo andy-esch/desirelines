@@ -9,7 +9,7 @@
  */
 
 import { initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, onAuthStateChanged, type Auth } from "firebase/auth";
+import { getAuth, connectAuthEmulator, onAuthStateChanged, type Auth } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
 import { getConfig } from "./config";
 
@@ -35,11 +35,19 @@ export const db: Firestore = getFirestore(app, databaseId);
 // Connect to Firebase emulators in development mode
 if (config.emulators.enabled) {
   /* eslint-disable no-console */
-  const { firestoreHost, firestorePort } = config.emulators;
+  const { authHost, authPort, firestoreHost, firestorePort } = config.emulators;
+
+  // Connect Auth emulator
+  if (authHost && authPort) {
+    try {
+      connectAuthEmulator(auth, `http://${authHost}:${authPort}`, { disableWarnings: true });
+      console.log(`🔐 Auth emulator connected: ${authHost}:${authPort}`);
+    } catch {
+      console.warn(`⚠️ Auth emulator not available at ${authHost}:${authPort}`);
+    }
+  }
 
   // Connect Firestore emulator
-  // Note: Auth emulator requires full Firebase Emulator Suite (not available in gcloud SDK image)
-  // When using gcloud emulators, auth continues to use cloud Firebase
   if (firestoreHost && firestorePort) {
     try {
       connectFirestoreEmulator(db, firestoreHost, firestorePort);
