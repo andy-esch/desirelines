@@ -1,4 +1,4 @@
-package apigateway
+package apigateway_test
 
 import (
 	"context"
@@ -10,9 +10,17 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/cors"
+	"github.com/andy-esch/desirelines/packages/apigateway/internal/activities"
+	"github.com/andy-esch/desirelines/packages/apigateway/internal/health"
+	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
+	"github.com/andy-esch/desirelines/packages/apigateway/internal/sports"
+	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
-	"github.com/andy-esch/desirelines/packages/apigateway/types"
-	"github.com/go-chi/chi/v5"
+)
+
+const (
+	statusHealthy   = "healthy"
+	statusUnhealthy = "unhealthy"
 )
 
 // mockAuthMiddleware is a no-op auth middleware for testing
@@ -74,50 +82,66 @@ func (m *mockActivityRepository) ListActivities(ctx context.Context, filter repo
 // Compile-time interface verification
 var _ repository.ActivityRepository = (*mockActivityRepository)(nil)
 
-// newTestHandler creates a handler with mock dependencies for testing (no database)
-func newTestHandler() *Handler {
-	return newTestHandlerWithDB(nil)
+// HealthResponse mirrors the health.Response type for test verification
+type HealthResponse struct {
+	Status   string `json:"status"`
+	Database string `json:"database,omitempty"`
 }
 
-// newTestHandlerWithDB creates a handler with mock database for testing
-func newTestHandlerWithDB(activityRepo repository.ActivityRepository) *Handler {
+// newTestRouter creates a router with mock dependencies for testing (no database)
+func newTestRouter() http.Handler {
+	return newTestRouterWithDB(nil)
+}
+
+// newTestRouterWithDB creates a router with mock database for testing
+func newTestRouterWithDB(activityRepo repository.ActivityRepository) http.Handler {
 	// Load sport config for tests (uses embedded config)
 	sportConfig, err := config.LoadSportConfig("")
 	if err != nil {
 		panic("Failed to load sport config for tests: " + err.Error())
 	}
 
-	// Create a mock auth middleware for testing
-	mockAuth := &mockAuthMiddleware{}
-
 	// Initialize CORS handler
 	corsHandler := cors.NewHandler()
 
-	// Initialize chi router
-	r := chi.NewRouter()
+	// Create a mock auth middleware for testing
+	mockAuth := &mockAuthMiddleware{}
 
-	h := &Handler{
-		activityRepo:   activityRepo,
-		authMiddleware: mockAuth,
-		corsHandler:    corsHandler,
-		router:         r,
-		sportConfig:    sportConfig,
+	// Create feature handlers
+	healthHandler := health.NewHandler(activityRepo, corsHandler)
+	sportsHandler := sports.NewHandler(corsHandler)
+	activitiesHandler := activities.NewHandler(activityRepo, sportConfig, corsHandler)
+
+	// Configure and create router
+	routerCfg := server.RouterConfig{
+		CORSHandler:    corsHandler,
+		AuthMiddleware: mockAuth,
 	}
 
-	// Register routes
-	h.registerRoutes()
+	publicRoutes := server.PublicRoutes{
+		Health:      healthHandler.Handle,
+		SportConfig: sportsHandler.HandleConfig,
+	}
 
-	return h
+	authRoutes := server.AuthenticatedRoutes{
+		GetMetadata:     activitiesHandler.HandleMetadata,
+		GetMetrics:      activitiesHandler.HandleMetrics,
+		GetSource:       activitiesHandler.HandleSource,
+		ListActivities:  activitiesHandler.HandleListActivities,
+		GetActivityByID: activitiesHandler.HandleGetActivity,
+	}
+
+	return server.NewRouter(routerCfg, publicRoutes, authRoutes)
 }
 
 func TestHandlerHealth(t *testing.T) {
 	t.Run("without database", func(t *testing.T) {
-		handler := newTestHandler()
+		router := newTestRouter()
 
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -129,7 +153,7 @@ func TestHandlerHealth(t *testing.T) {
 		}
 
 		// Parse response to verify database field is not present
-		var response types.HealthResponse
+		var response HealthResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
@@ -145,18 +169,18 @@ func TestHandlerHealth(t *testing.T) {
 
 	t.Run("with healthy database", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{pingErr: nil}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
 		}
 
-		var response types.HealthResponse
+		var response HealthResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
@@ -172,19 +196,19 @@ func TestHandlerHealth(t *testing.T) {
 
 	t.Run("with unhealthy database", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{pingErr: errors.New("connection refused")}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		// Health check should still return 200 (overall service is healthy)
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
 		}
 
-		var response types.HealthResponse
+		var response HealthResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
@@ -199,50 +223,19 @@ func TestHandlerHealth(t *testing.T) {
 	})
 }
 
-func TestHandlerClose(t *testing.T) {
-	t.Run("without database", func(t *testing.T) {
-		handler := newTestHandler()
-
-		err := handler.Close()
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-	})
-
-	t.Run("with database", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
-
-		err := handler.Close()
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-	})
-
-	t.Run("with database close error", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{closeErr: errors.New("close failed")}
-		handler := newTestHandlerWithDB(mockRepo)
-
-		err := handler.Close()
-		if err == nil {
-			t.Error("expected error, got nil")
-		}
-	})
-}
-
 func TestHandlerCORS(t *testing.T) {
 	t.Run("preflight with allowed origin", func(t *testing.T) {
 		// Set environment variable for this test
 		t.Setenv("ALLOWED_ORIGINS", "https://desirelines-dev.web.app,http://localhost:5173")
 
-		// Create handler AFTER setting env var so CORS handler reads correct config
-		handler := newTestHandler()
+		// Create router AFTER setting env var so CORS handler reads correct config
+		router := newTestRouter()
 
 		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
 		req.Header.Set("Origin", "https://desirelines-dev.web.app")
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusNoContent {
 			t.Errorf("expected status 204, got %d", w.Code)
@@ -263,14 +256,14 @@ func TestHandlerCORS(t *testing.T) {
 		// Set environment variable for this test
 		t.Setenv("ALLOWED_ORIGINS", "https://desirelines-dev.web.app,http://localhost:5173")
 
-		// Create handler AFTER setting env var so CORS handler reads correct config
-		handler := newTestHandler()
+		// Create router AFTER setting env var so CORS handler reads correct config
+		router := newTestRouter()
 
 		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
 		req.Header.Set("Origin", "https://evil.com")
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusNoContent {
 			t.Errorf("expected status 204, got %d", w.Code)
@@ -287,14 +280,14 @@ func TestHandlerCORS(t *testing.T) {
 		// Set environment variable for this test
 		t.Setenv("ALLOWED_ORIGINS", "https://desirelines-dev.web.app,http://localhost:5173")
 
-		// Create handler AFTER setting env var so CORS handler reads correct config
-		handler := newTestHandler()
+		// Create router AFTER setting env var so CORS handler reads correct config
+		router := newTestRouter()
 
 		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
 		req.Header.Set("Origin", "http://localhost:5173")
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		allowedOrigin := w.Header().Get("Access-Control-Allow-Origin")
 		if allowedOrigin != "http://localhost:5173" {
@@ -306,14 +299,14 @@ func TestHandlerCORS(t *testing.T) {
 		// Ensure ALLOWED_ORIGINS is not set
 		t.Setenv("ALLOWED_ORIGINS", "")
 
-		// Create handler AFTER setting env var so CORS handler reads correct config
-		handler := newTestHandler()
+		// Create router AFTER setting env var so CORS handler reads correct config
+		router := newTestRouter()
 
 		req := httptest.NewRequest(http.MethodOptions, "/health", nil)
 		req.Header.Set("Origin", "https://any-origin.com")
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		// Should NOT set any CORS header (secure by default)
 		allowedOrigin := w.Header().Get("Access-Control-Allow-Origin")
@@ -334,12 +327,12 @@ func TestHandlerMetrics(t *testing.T) {
 
 	t.Run("valid sport parameter with database", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{sportMetrics: testMetrics}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -347,12 +340,12 @@ func TestHandlerMetrics(t *testing.T) {
 	})
 
 	t.Run("returns 503 without database", func(t *testing.T) {
-		handler := newTestHandler() // No database
+		router := newTestRouter() // No database
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Errorf("expected status 503, got %d", w.Code)
@@ -361,12 +354,12 @@ func TestHandlerMetrics(t *testing.T) {
 
 	t.Run("missing sport parameter", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -375,12 +368,12 @@ func TestHandlerMetrics(t *testing.T) {
 
 	t.Run("invalid sport name", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=invalid", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -390,12 +383,12 @@ func TestHandlerMetrics(t *testing.T) {
 	// Date range validation tests
 	t.Run("valid date range", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{sportMetrics: testMetrics}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2024-12-15&to=2025-01-01", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -404,12 +397,12 @@ func TestHandlerMetrics(t *testing.T) {
 
 	t.Run("only from provided without to", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2024-12-15", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -418,12 +411,12 @@ func TestHandlerMetrics(t *testing.T) {
 
 	t.Run("only to provided without from", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&to=2025-01-01", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -432,12 +425,12 @@ func TestHandlerMetrics(t *testing.T) {
 
 	t.Run("from date after to date", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2025-01-01&to=2024-12-15", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -446,13 +439,13 @@ func TestHandlerMetrics(t *testing.T) {
 
 	t.Run("date range exceeds maximum", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		// Request 2 years of data (exceeds 366 day limit)
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2023-01-01&to=2025-01-01", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -461,12 +454,12 @@ func TestHandlerMetrics(t *testing.T) {
 
 	t.Run("invalid from date format", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=invalid&to=2025-01-01", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -475,12 +468,12 @@ func TestHandlerMetrics(t *testing.T) {
 
 	t.Run("invalid to date format", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2024-12-15&to=invalid", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -502,12 +495,12 @@ func TestHandlerSource(t *testing.T) {
 
 	t.Run("valid sport parameter with database", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{dailySummary: testSummary}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source?sport=running", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -515,12 +508,12 @@ func TestHandlerSource(t *testing.T) {
 	})
 
 	t.Run("returns 503 without database", func(t *testing.T) {
-		handler := newTestHandler() // No database
+		router := newTestRouter() // No database
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source?sport=running", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Errorf("expected status 503, got %d", w.Code)
@@ -529,12 +522,12 @@ func TestHandlerSource(t *testing.T) {
 
 	t.Run("missing sport parameter", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -543,12 +536,12 @@ func TestHandlerSource(t *testing.T) {
 
 	t.Run("invalid sport name", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source?sport=badminton", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -572,12 +565,12 @@ func TestHandlerMetadata(t *testing.T) {
 
 	t.Run("returns metadata successfully with database", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{yearMetadata: testMetadata}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metadata", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -585,12 +578,12 @@ func TestHandlerMetadata(t *testing.T) {
 	})
 
 	t.Run("returns 503 without database", func(t *testing.T) {
-		handler := newTestHandler() // No database
+		router := newTestRouter() // No database
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metadata", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Errorf("expected status 503, got %d", w.Code)
@@ -599,12 +592,12 @@ func TestHandlerMetadata(t *testing.T) {
 }
 
 func TestHandlerSportConfig(t *testing.T) {
-	handler := newTestHandler()
+	router := newTestRouter()
 
 	req := httptest.NewRequest(http.MethodGet, "/sports/config", nil)
 	w := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)
@@ -637,12 +630,12 @@ func TestHandlerGetActivity(t *testing.T) {
 
 	t.Run("returns activity successfully", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activity: testActivity}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/12345678901", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -663,12 +656,12 @@ func TestHandlerGetActivity(t *testing.T) {
 
 	t.Run("returns 404 for not found", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activity: nil} // Not found
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/99999999999", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("expected status 404, got %d", w.Code)
@@ -677,12 +670,12 @@ func TestHandlerGetActivity(t *testing.T) {
 
 	t.Run("returns 400 for invalid ID format", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/not-a-number", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -690,12 +683,12 @@ func TestHandlerGetActivity(t *testing.T) {
 	})
 
 	t.Run("returns 503 without database", func(t *testing.T) {
-		handler := newTestHandler() // No database
+		router := newTestRouter() // No database
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/12345678901", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Errorf("expected status 503, got %d", w.Code)
@@ -704,12 +697,12 @@ func TestHandlerGetActivity(t *testing.T) {
 
 	t.Run("returns 500 on database error", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityErr: errors.New("database error")}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities/12345678901", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -737,12 +730,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("returns activities successfully", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -760,12 +753,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("accepts date range parameters", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities?from=2025-12-01&to=2025-12-28", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -774,12 +767,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("accepts sport parameter", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities?sport=cycling", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -788,12 +781,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("accepts limit parameter", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities?limit=50", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -802,12 +795,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("returns 400 for invalid from date", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities?from=not-a-date", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -816,12 +809,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("returns 400 for invalid to date", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities?to=not-a-date", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -830,12 +823,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("returns 400 for invalid sport", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities?sport=badminton", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -844,12 +837,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("returns 400 for invalid limit", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities?limit=999", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -858,12 +851,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("returns 400 for invalid cursor", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities?cursor=not-valid-base64!!!", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -871,12 +864,12 @@ func TestHandlerListActivities(t *testing.T) {
 	})
 
 	t.Run("returns 503 without database", func(t *testing.T) {
-		handler := newTestHandler() // No database
+		router := newTestRouter() // No database
 
 		req := httptest.NewRequest(http.MethodGet, "/activities", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Errorf("expected status 503, got %d", w.Code)
@@ -885,12 +878,12 @@ func TestHandlerListActivities(t *testing.T) {
 
 	t.Run("returns 500 on database error", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityListErr: errors.New("database error")}
-		handler := newTestHandlerWithDB(mockRepo)
+		router := newTestRouterWithDB(mockRepo)
 
 		req := httptest.NewRequest(http.MethodGet, "/activities", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -898,64 +891,114 @@ func TestHandlerListActivities(t *testing.T) {
 	})
 }
 
-func TestDecodeCursor(t *testing.T) {
-	t.Run("decodes valid cursor", func(t *testing.T) {
-		// Encode a cursor: "2025-12-28T08:30:00Z|12345678901"
-		encoded := "MjAyNS0xMi0yOFQwODozMDowMFp8MTIzNDU2Nzg5MDE="
+// =============================================================================
+// Validation Package Tests
+// =============================================================================
 
-		cursor, err := decodeCursor(encoded)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if cursor.Timestamp != "2025-12-28T08:30:00Z" {
-			t.Errorf("expected timestamp '2025-12-28T08:30:00Z', got '%s'", cursor.Timestamp)
-		}
-		if cursor.ID != 12345678901 {
-			t.Errorf("expected ID 12345678901, got %d", cursor.ID)
+func TestValidateYear(t *testing.T) {
+	t.Run("valid year", func(t *testing.T) {
+		if !validate.Year("2024") {
+			t.Error("expected 2024 to be valid")
 		}
 	})
 
-	t.Run("returns error for invalid base64", func(t *testing.T) {
-		_, err := decodeCursor("not-valid-base64!!!")
-		if err == nil {
-			t.Error("expected error for invalid base64")
+	t.Run("year at min boundary", func(t *testing.T) {
+		if !validate.Year("2000") {
+			t.Error("expected 2000 to be valid")
 		}
 	})
 
-	t.Run("returns error for invalid format", func(t *testing.T) {
-		// Valid base64 but missing pipe separator
-		encoded := "bm8tcGlwZS1zZXBhcmF0b3I=" // "no-pipe-separator"
+	t.Run("year at max boundary", func(t *testing.T) {
+		if !validate.Year("2050") {
+			t.Error("expected 2050 to be valid")
+		}
+	})
 
-		_, err := decodeCursor(encoded)
-		if err == nil {
-			t.Error("expected error for invalid cursor format")
+	t.Run("year below min", func(t *testing.T) {
+		if validate.Year("1999") {
+			t.Error("expected 1999 to be invalid")
+		}
+	})
+
+	t.Run("year above max", func(t *testing.T) {
+		if validate.Year("2051") {
+			t.Error("expected 2051 to be invalid")
+		}
+	})
+
+	t.Run("non-numeric year", func(t *testing.T) {
+		if validate.Year("abcd") {
+			t.Error("expected abcd to be invalid")
+		}
+	})
+
+	t.Run("short year", func(t *testing.T) {
+		if validate.Year("24") {
+			t.Error("expected 24 to be invalid")
 		}
 	})
 }
 
-func TestIsValidDate(t *testing.T) {
+func TestValidateDate(t *testing.T) {
 	t.Run("valid date", func(t *testing.T) {
-		if !isValidDate("2025-12-28") {
+		if !validate.Date("2025-12-28") {
 			t.Error("expected 2025-12-28 to be valid")
 		}
 	})
 
 	t.Run("invalid format", func(t *testing.T) {
-		if isValidDate("12/28/2025") {
+		if validate.Date("12/28/2025") {
 			t.Error("expected 12/28/2025 to be invalid")
 		}
 	})
 
 	t.Run("invalid date", func(t *testing.T) {
-		if isValidDate("2025-13-45") {
+		if validate.Date("2025-13-45") {
 			t.Error("expected 2025-13-45 to be invalid")
 		}
 	})
 
 	t.Run("empty string", func(t *testing.T) {
-		if isValidDate("") {
+		if validate.Date("") {
 			t.Error("expected empty string to be invalid")
+		}
+	})
+}
+
+func TestValidateDateRange(t *testing.T) {
+	t.Run("valid range", func(t *testing.T) {
+		if err := validate.DateRange("2024-12-15", "2025-01-01"); err != "" {
+			t.Errorf("expected no error, got %s", err)
+		}
+	})
+
+	t.Run("neither provided", func(t *testing.T) {
+		if err := validate.DateRange("", ""); err != "" {
+			t.Errorf("expected no error for empty dates, got %s", err)
+		}
+	})
+
+	t.Run("only from provided", func(t *testing.T) {
+		if err := validate.DateRange("2024-12-15", ""); err == "" {
+			t.Error("expected error when only from provided")
+		}
+	})
+
+	t.Run("only to provided", func(t *testing.T) {
+		if err := validate.DateRange("", "2025-01-01"); err == "" {
+			t.Error("expected error when only to provided")
+		}
+	})
+
+	t.Run("from after to", func(t *testing.T) {
+		if err := validate.DateRange("2025-01-01", "2024-12-15"); err == "" {
+			t.Error("expected error when from after to")
+		}
+	})
+
+	t.Run("range too large", func(t *testing.T) {
+		if err := validate.DateRange("2023-01-01", "2025-01-01"); err == "" {
+			t.Error("expected error for range > 366 days")
 		}
 	})
 }
