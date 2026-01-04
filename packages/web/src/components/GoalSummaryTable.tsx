@@ -22,7 +22,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   sport = "cycling",
   isLoading = false,
 }) => {
-  const { year, isPastYear, daysRemaining } = yearContext;
+  const { year, isPastYear, daysElapsed, daysRemaining } = yearContext;
 
   // Get danger threshold for this sport
   const dangerThreshold = getDangerThreshold(sport);
@@ -43,6 +43,26 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
     return goalValue > 0 ? (currentDistance / goalValue) * 100 : 0;
   };
 
+  /**
+   * Calculate the prorated goal for the current point in the year.
+   * This is what you "should" have achieved by now if pacing linearly.
+   */
+  const calculateProratedGoal = (goalValue: number): number => {
+    const totalDays = daysElapsed + daysRemaining;
+    if (totalDays === 0) return goalValue;
+    return goalValue * (daysElapsed / totalDays);
+  };
+
+  /**
+   * Calculate pace ratio: actual progress vs expected progress at this point in year.
+   * ratio >= 1.0 means on track or ahead, < 1.0 means behind pace.
+   */
+  const calculatePaceRatio = (goalValue: number): number => {
+    const proratedGoal = calculateProratedGoal(goalValue);
+    if (proratedGoal === 0) return currentDistance > 0 ? Infinity : 1;
+    return currentDistance / proratedGoal;
+  };
+
   const getStatusText = (goalValue: number): string => {
     const progress = calculateProgress(goalValue);
 
@@ -51,11 +71,16 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
       return progress >= 100 ? "Achieved ✓" : "Not Met";
     }
 
-    // Present tense labels for current year - more granular for in-progress tracking
+    // Already achieved the full year goal
     if (progress >= 100) return "Achieved ✓";
-    if (progress >= 90) return "Nearly There";
-    if (progress >= 75) return "On Track";
-    if (progress >= 50) return "Behind";
+
+    // For current/future years, compare against prorated goal (where you should be now)
+    const paceRatio = calculatePaceRatio(goalValue);
+
+    if (paceRatio >= 1.1) return "Ahead";
+    if (paceRatio >= 0.9) return "On Track";
+    if (paceRatio >= 0.75) return "Slightly Behind";
+    if (paceRatio >= 0.5) return "Behind";
     return "Far Behind";
   };
 

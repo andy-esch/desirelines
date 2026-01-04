@@ -163,7 +163,13 @@ describe("GoalSummaryTable", () => {
     });
   });
 
-  describe("Status Text", () => {
+  describe("Status Text (Pace-Based)", () => {
+    // Mock date is June 15 = day 166 of 366 (45.4% through year)
+    // For a 1000-mile goal, prorated target by June 15 is ~454 miles
+    // Status is based on pace ratio (actual / prorated goal):
+    //   >= 1.1: "Ahead", >= 0.9: "On Track", >= 0.75: "Slightly Behind",
+    //   >= 0.5: "Behind", < 0.5: "Far Behind"
+
     it('shows "Achieved ✓" for completed goals', () => {
       render(
         <GoalSummaryTable
@@ -178,25 +184,29 @@ describe("GoalSummaryTable", () => {
       expect(screen.getByText("Achieved ✓")).toBeInTheDocument();
     });
 
-    it('shows "Nearly There" for 90-99% progress', () => {
+    it('shows "Ahead" when >10% ahead of pace', () => {
+      // Prorated goal: 1000 * (166/366) = 454 miles
+      // Need 454 * 1.1 = 500+ miles for "Ahead"
       render(
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
-          currentDistance={950}
+          currentDistance={550}
           yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
         />
       );
 
-      expect(screen.getByText("Nearly There")).toBeInTheDocument();
+      expect(screen.getByText("Ahead")).toBeInTheDocument();
     });
 
-    it('shows "On Track" for 75-89% progress', () => {
+    it('shows "On Track" when within 10% of pace', () => {
+      // Prorated goal: ~454 miles
+      // Pace ratio 0.9-1.1 = 409-499 miles
       render(
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
-          currentDistance={800}
+          currentDistance={450}
           yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
@@ -206,11 +216,29 @@ describe("GoalSummaryTable", () => {
       expect(screen.getByText("On Track")).toBeInTheDocument();
     });
 
-    it('shows "Behind" for 50-74% progress', () => {
+    it('shows "Slightly Behind" when 75-90% of pace', () => {
+      // Prorated goal: ~454 miles
+      // Pace ratio 0.75-0.9 = 341-408 miles
       render(
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
-          currentDistance={600}
+          currentDistance={370}
+          yearContext={createYearContext(2025)}
+          unit="miles"
+          sport="cycling"
+        />
+      );
+
+      expect(screen.getByText("Slightly Behind")).toBeInTheDocument();
+    });
+
+    it('shows "Behind" when 50-75% of pace', () => {
+      // Prorated goal: ~454 miles
+      // Pace ratio 0.5-0.75 = 227-340 miles
+      render(
+        <GoalSummaryTable
+          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          currentDistance={280}
           yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
@@ -220,11 +248,13 @@ describe("GoalSummaryTable", () => {
       expect(screen.getByText("Behind")).toBeInTheDocument();
     });
 
-    it('shows "Far Behind" for <50% progress', () => {
+    it('shows "Far Behind" when <50% of pace', () => {
+      // Prorated goal: ~454 miles
+      // Pace ratio < 0.5 = less than 227 miles
       render(
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
-          currentDistance={400}
+          currentDistance={100}
           yearContext={createYearContext(2025)}
           unit="miles"
           sport="cycling"
