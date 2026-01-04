@@ -12,7 +12,7 @@ services:
       # Use user credentials (mounted from host)
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
     env_file:
-      - .env
+      - .env.local
     volumes:
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
@@ -28,7 +28,7 @@ services:
       - GCP_BIGQUERY_DATASET=desirelines
       # Strava credentials loaded from mounted volume at /etc/secrets/strava_auth.json
     volumes:
-      - ./.env:/app/.env
+      - ./.env.local:/app/.env
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
 
@@ -44,13 +44,13 @@ services:
       # Default uses local postgres container
       # Strava credentials loaded from mounted volume at /etc/secrets/strava_auth.json
     volumes:
-      - ./.env:/app/.env
+      - ./.env.local:/app/.env
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
 
   # API Gateway - override to use real Firebase Auth instead of emulator
   # Requires: gcloud auth application-default login
-  # Requires: ALLOWED_EMAILS and GCP_PROJECT_ID_LIVE in .env
+  # Requires: ALLOWED_EMAILS and GCP_PROJECT_ID_LIVE in .env.local
   api-gateway:
     environment:
       # Allow CORS from local web dev server

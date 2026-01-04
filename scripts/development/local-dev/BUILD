@@ -6,6 +6,11 @@ python_sources(
 )
 
 files(
-    name="dockerfile",
-    sources=["Dockerfile.cloudevent_adapter"],
+    name="dockerfiles",
+    sources=["Dockerfile.*"],
+)
+
+files(
+    name="firebase_config",
+    sources=["firebase-emulators.json"],
 )

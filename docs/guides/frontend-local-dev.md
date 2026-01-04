@@ -65,8 +65,8 @@ To use real Firebase Auth with the local API Gateway:
 
 2. **Configure `.env`** (in repo root):
    ```bash
-   cp .env.example .env
-   # Edit .env with:
+   cp .env.local.example .env.local
+   # Edit .env.local with:
    ALLOWED_EMAILS=your-email@example.com  # Must match your login email
    ```
 

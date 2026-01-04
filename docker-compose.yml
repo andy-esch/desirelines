@@ -17,7 +17,7 @@ services:
       - GCP_PUBSUB_TOPIC=desirelines_activity_events
       - PORT=8080
     env_file:
-      - .env
+      - .env.local
     volumes:
       - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
@@ -51,7 +51,7 @@ services:
       - LOG_LEVEL=INFO
       - ENABLE_CLOUD_LOGGING=true
     env_file:
-      - .env
+      - .env.local
     volumes:
       - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
@@ -84,7 +84,7 @@ services:
       - LOG_LEVEL=INFO
       - ENABLE_CLOUD_LOGGING=true
     env_file:
-      - .env
+      - .env.local
     volumes:
       - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
     depends_on:
@@ -242,7 +242,7 @@ services:
       - GCP_PROJECT_ID=desirelines-local
       - POSTGRES_CONNECTION_STRING=postgresql://desirelines:local_dev_password@postgres:5432/desirelines_local?application_name=apigateway
     env_file:
-      - .env
+      - .env.local
     depends_on:
       postgres:
         condition: service_healthy
