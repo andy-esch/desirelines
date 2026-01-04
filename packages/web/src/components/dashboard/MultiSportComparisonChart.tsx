@@ -193,7 +193,7 @@ function SparklineRow({
       {/* Sparkline */}
       <div style={{ flex: 1, height: chartHeight, minWidth: 0 }}>
         {hasData ? (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={50} minHeight={30}>
             <LineChart
               data={data}
               margin={{ top: 4, right: 4, bottom: showXAxis ? 16 : 4, left: 4 }}
@@ -518,10 +518,10 @@ export default function MultiSportComparisonChart({
       ) : (
         <div className="row g-3 justify-content-center">
           {/* Left: Sparklines */}
-          <div className="col-md-6">
+          <div className="col-md-6" style={{ minWidth: 0 }}>
             <div
               className="border rounded p-2 h-100 d-flex flex-column justify-content-center gap-2"
-              style={{ minHeight: 185 }}
+              style={{ minHeight: 185, minWidth: 0 }}
             >
               {sparklineData.map(({ sport, data: sData }, index) => (
                 <SparklineRow

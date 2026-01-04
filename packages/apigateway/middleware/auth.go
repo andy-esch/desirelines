@@ -32,8 +32,17 @@ func NewFirebaseAuth(ctx context.Context) (*AuthMiddleware, error) {
 	allowedEmails := parseAllowedEmails()
 
 	// Initialize Firebase Admin SDK
-	// In Cloud Run, this automatically uses Application Default Credentials
-	app, err := firebase.NewApp(ctx, nil)
+	// ProjectID is required for token verification (even with emulator)
+	// In Cloud Run, ADC provides credentials automatically
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
+	}
+
+	config := &firebase.Config{
+		ProjectID: projectID,
+	}
+	app, err := firebase.NewApp(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Firebase app: %w", err)
 	}
@@ -43,7 +52,7 @@ func NewFirebaseAuth(ctx context.Context) (*AuthMiddleware, error) {
 		return nil, fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
 	}
 
-	logger.Logger.Info("Auth middleware initialized successfully")
+	logger.Logger.Info("Auth middleware initialized successfully", "project_id", projectID)
 	return &AuthMiddleware{
 		authClient:    authClient,
 		allowedEmails: allowedEmails,
