@@ -141,8 +141,8 @@ npm run test:ui
 
 ### Testing Auth Flows
 - Use demo mode for UI development
-- Sign in with Strava to test authenticated features
-- Use Firestore emulator for isolated testing
+- Use Firebase Emulators for authenticated local testing
+- Create test users in Emulator UI (http://localhost:4000)
 
 ## Troubleshooting
 
@@ -160,6 +160,11 @@ npm install
 ```
 
 ### Firestore Permission Errors
-- Check if emulator is running: `docker ps | grep firestore`
+- Check if emulators are running: `docker ps | grep firebase`
 - Verify `VITE_USE_FIREBASE_EMULATORS=true` is set
 - Restart dev server after changing env vars
+
+### Auth Emulator Issues
+- Verify `FIREBASE_AUTH_EMULATOR_HOST` is set in API Gateway logs
+- Check Emulator UI at http://localhost:4000 for test users
+- Ensure test user email is in `ALLOWED_EMAILS` in `.env.local`

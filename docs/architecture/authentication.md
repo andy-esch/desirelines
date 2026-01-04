@@ -61,11 +61,17 @@ const effectiveUserId = userId ?? user?.uid ?? "default";
 
 ## Local Development
 
-For most development, use demo mode (unauthenticated) which requires no backend.
+**Demo Mode** (recommended for UI work):
+- No backend required - data generated client-side
+- Just run `npm run dev` in `packages/web/`
 
-The API Gateway always requires valid Firebase authentication. Demo mode generates
-data client-side and never calls the API Gateway, so no auth setup is needed for
-UI development.
+**Authenticated Mode** (for testing auth flows):
+- Uses Firebase Emulator Suite (Auth + Firestore)
+- Run `make start-frontend` to start emulators + API Gateway
+- Create test users in Emulator UI at http://localhost:4000
+- Add test user emails to `ALLOWED_EMAILS` in `.env.local`
+
+See `docs/guides/frontend-local-dev.md` for detailed setup instructions.
 
 ## Key Files
 
