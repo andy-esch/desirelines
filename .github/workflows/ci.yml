@@ -190,9 +190,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Copy fixture data
-        run: npm run copy-fixtures
-
       - name: Lint
         run: npm run lint
 
