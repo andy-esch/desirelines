@@ -11,7 +11,6 @@ interface ImportMetaEnv {
   readonly MODE: string;
 
   // Application configuration
-  readonly VITE_USE_FIXTURES?: "true" | "false";
   readonly VITE_API_GATEWAY_URL?: string;
 
   // Firebase configuration (production project)
@@ -23,6 +22,13 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_MESSAGING_SENDER_ID?: string;
   readonly VITE_FIREBASE_APP_ID?: string;
   readonly VITE_FIREBASE_MEASUREMENT_ID?: string;
+
+  // Firebase emulator configuration (local development)
+  readonly VITE_USE_FIREBASE_EMULATORS?: string;
+  readonly VITE_AUTH_EMULATOR_HOST?: string;
+  readonly VITE_AUTH_EMULATOR_PORT?: string;
+  readonly VITE_FIRESTORE_EMULATOR_HOST?: string;
+  readonly VITE_FIRESTORE_EMULATOR_PORT?: string;
 
   // Legacy variable (deprecated, use VITE_API_GATEWAY_URL)
   readonly REACT_APP_API_URL?: string;

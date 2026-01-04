@@ -2,7 +2,7 @@
 
 ## Overview
 
-Firebase Authentication with email-based authorization protects personal Strava data. Only the developer's email is authorized to view real data; all other users see demo/fixture data.
+Firebase Authentication with email-based authorization protects personal Strava data. Only the developer's email is authorized to view real data; all other users see client-side generated demo data.
 
 ## Auth Flow
 
@@ -25,9 +25,9 @@ User → Firebase Auth (Google OAuth) → JWT Token → API Gateway → Email Al
 **User States**:
 | State | Result |
 |-------|--------|
-| Not signed in | Fixture/demo data |
-| Signed in + authorized | Real data from PostgreSQL |
-| Signed in + unauthorized | Auto sign-out → fixture data |
+| Not signed in | Client-side generated demo data (no API calls) |
+| Signed in + authorized | Real data from PostgreSQL via API Gateway |
+| Signed in + unauthorized | Auto sign-out → demo data |
 
 ## Security Properties
 
@@ -57,15 +57,15 @@ match /users/{userId}/config/{document=**} {
 const effectiveUserId = userId ?? user?.uid ?? "default";
 ```
 - Authenticated: Uses Firebase UID
-- Unauthenticated/local dev: Uses `"default"` (fixture mode)
+- Unauthenticated: Uses `"default"` (demo mode with client-side generated data)
 
 ## Local Development
 
-Set `DATA_SOURCE=local-fixtures` to skip auth validation:
-```bash
-# packages/apigateway/.env
-DATA_SOURCE=local-fixtures
-```
+For most development, use demo mode (unauthenticated) which requires no backend.
+
+The API Gateway always requires valid Firebase authentication. Demo mode generates
+data client-side and never calls the API Gateway, so no auth setup is needed for
+UI development.
 
 ## Key Files
 

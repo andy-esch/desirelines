@@ -8,7 +8,7 @@ import { pageBackgrounds } from "../styles/pageBackgrounds";
  *
  * Works for both authenticated and unauthenticated users:
  * - Authenticated: Shows real data from API
- * - Unauthenticated: Shows fixture/demo data
+ * - Unauthenticated: Shows demo data
  *
  * Layout:
  * - Header with welcome message

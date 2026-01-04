@@ -191,7 +191,7 @@ function SparklineRow({
       </Link>
 
       {/* Sparkline */}
-      <div style={{ flex: 1, height: chartHeight }}>
+      <div style={{ flex: 1, height: chartHeight, minWidth: 0 }}>
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart

@@ -11,7 +11,7 @@ interface UnifiedSportPageProps {
  * Unified sport page that renders the appropriate version based on auth state.
  *
  * - Authenticated users: SportPage with real API data
- * - Unauthenticated users: DemoSportPage with fixture data
+ * - Unauthenticated users: DemoSportPage with demo data
  */
 export default function UnifiedSportPage({ sport }: UnifiedSportPageProps) {
   const { user, loading } = useAuth();

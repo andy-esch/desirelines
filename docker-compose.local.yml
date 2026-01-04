@@ -48,47 +48,22 @@ services:
       # Mount your local gcloud config (Application Default Credentials)
       - ~/.config/gcloud:/app/.config/gcloud:ro
 
-  # API Gateway - Go implementation with local fixtures (default for frontend dev)
+  # API Gateway - override to use real Firebase Auth instead of emulator
+  # Requires: gcloud auth application-default login
+  # Requires: ALLOWED_EMAILS and GCP_PROJECT_ID_LIVE in .env
   api-gateway:
-    profiles: ["frontend"]
     environment:
-      # Use local fixture data
-      - DATA_SOURCE=local-fixtures
       # Allow CORS from local web dev server
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
-
-  # API Gateway - Go implementation with live Cloud Storage (manual start only)
-  api-gateway-live:
-    profiles: ["frontend"] # Only starts with --profile frontend
-    build:
-      context: .
-      dockerfile: functions/Dockerfile.apigateway
-      # Note: This builds from packages/apigateway/cmd/local for Docker development
-    ports:
-      - "8084:8080"
-    environment:
-      - PORT=8080
-      # Always use cloud storage for live mode
-      - DATA_SOURCE=cloud-storage
+      # Use real Firebase Auth (not emulator) - unset the emulator host
+      - FIREBASE_AUTH_EMULATOR_HOST=
+      # Use real GCP project for Firebase token verification
       - GCP_PROJECT_ID=${GCP_PROJECT_ID_LIVE}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
-      # Allow CORS from local web dev server
-      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
-    env_file:
-      - .env
     volumes:
-      # Mount your local gcloud config (Application Default Credentials)
+      # Mount gcloud credentials for Firebase Admin SDK
       - ~/.config/gcloud:/app/.config/gcloud:ro
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8080/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # Remove dependency on firebase-emulators when using real auth
+    depends_on:
+      postgres:
+        condition: service_healthy

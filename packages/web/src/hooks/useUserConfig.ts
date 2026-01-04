@@ -313,7 +313,7 @@ export function useUserConfig(
       setIsSaving(true);
 
       try {
-        // In fixture mode, persist to localStorage
+        // In demo mode, persist to localStorage
         if (isLocalStorageMode) {
           // Build localStorage key - include sport for goals
           let storageKey: string;
@@ -466,7 +466,7 @@ export function useFullUserConfig(userId?: string, version: string = "v1") {
       year?: number,
       sport?: string
     ): Promise<void> => {
-      // In fixture mode (unauthenticated), skip persistence
+      // In demo mode (unauthenticated), skip persistence
       if (isLocalStorageMode) {
         console.warn("Fixture mode: Changes not persisted", data);
         return;
