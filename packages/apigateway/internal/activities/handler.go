@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/apierrors"
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
@@ -365,6 +366,11 @@ func decodeCursor(s string) (*repository.ActivityCursor, error) {
 	parts := strings.SplitN(string(data), "|", 2)
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid cursor format")
+	}
+
+	// Validate timestamp format (RFC3339) to prevent database errors
+	if _, err = time.Parse(time.RFC3339, parts[0]); err != nil {
+		return nil, fmt.Errorf("invalid cursor timestamp: %w", err)
 	}
 
 	id, err := strconv.ParseInt(parts[1], 10, 64)

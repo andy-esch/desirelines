@@ -75,9 +75,9 @@ func TestDecodeCursor(t *testing.T) {
 			wantErr:       false,
 		},
 		{
-			name:          "valid cursor with simple timestamp",
-			input:         base64.URLEncoding.EncodeToString([]byte("2025-01-01|999")),
-			wantTimestamp: "2025-01-01",
+			name:          "valid cursor with full RFC3339 timestamp",
+			input:         base64.URLEncoding.EncodeToString([]byte("2025-01-01T12:00:00Z|999")),
+			wantTimestamp: "2025-01-01T12:00:00Z",
 			wantID:        999,
 			wantErr:       false,
 		},
@@ -97,16 +97,19 @@ func TestDecodeCursor(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "valid base64 but invalid timestamp format",
+			input:   base64.URLEncoding.EncodeToString([]byte("not-a-timestamp|123")),
+			wantErr: true,
+		},
+		{
 			name:    "empty string",
 			input:   "",
 			wantErr: true,
 		},
 		{
-			name:          "pipe only (empty timestamp)",
-			input:         base64.URLEncoding.EncodeToString([]byte("|123")),
-			wantTimestamp: "",
-			wantID:        123,
-			wantErr:       false,
+			name:    "pipe only (empty timestamp)",
+			input:   base64.URLEncoding.EncodeToString([]byte("|123")),
+			wantErr: true,
 		},
 	}
 
