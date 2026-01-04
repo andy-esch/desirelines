@@ -8,7 +8,12 @@ REST API serving activity data from PostgreSQL to the web frontend.
 # Run tests
 go test ./...
 
-# Run locally (requires DATABASE_URL or POSTGRES_CONNECTION_STRING)
+# Run locally (requires POSTGRES_CONNECTION_STRING with application_name parameter)
+# Example: postgresql://user:pass@localhost:5432/dbname?application_name=apigateway
+export POSTGRES_CONNECTION_STRING="postgresql://..."
+export ALLOWED_EMAILS="your-email@example.com"
+export ALLOWED_ORIGINS="http://localhost:3000"
+export GCP_PROJECT_ID="your-project-id"  # or GOOGLE_CLOUD_PROJECT
 go run ./cmd/apigateway
 
 # Build
@@ -33,7 +38,7 @@ All authenticated endpoints require `Authorization: Bearer <firebase-token>` hea
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/activities/{year}/metadata` | Year totals for all sports |
-| GET | `/activities/{year}/metrics?sport=X` | Cumulative timeseries for one sport |
+| GET | `/activities/{year}/metrics?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]` | Cumulative timeseries for one sport (optional date range can span years) |
 | GET | `/activities/{year}/source?sport=X` | Daily summaries for one sport |
 
 #### Individual Activities
@@ -96,11 +101,22 @@ packages/apigateway/
 │   ├── activities.go    # ActivityRepository interface
 │   └── types.go         # Domain types (Activity, SportMetrics, etc.)
 ├── middleware/          # HTTP middleware
-│   └── auth.go          # Firebase token validation
+│   └── auth.go          # Firebase token validation with email allowlist
 ├── config/              # Configuration
-│   └── sports.go        # Sport category mappings
+│   ├── sport_config.go  # Sport category mappings
+│   └── sport_types.json # Embedded sport configuration
+├── apierrors/           # API error handling
+│   └── errors.go        # Structured error types and responses
+├── cors/                # CORS handling
+│   └── cors.go          # Origin validation and header management
+├── logger/              # Structured logging
+│   └── logger.go        # slog-based logger
+├── types/               # API response types
+│   ├── responses.go     # HealthResponse, ErrorResponse
+│   └── generated/       # Generated protobuf types
 ├── handler.go           # HTTP handlers (routes registered here)
 ├── handler_test.go      # Handler tests
+├── openapi.yaml         # OpenAPI specification
 └── README.md
 ```
 
@@ -114,8 +130,12 @@ packages/apigateway/
 - Add new query methods here first
 - Implementations go in `adapters/postgres/`
 
-**`repository/types.go`** - Domain types for API responses.
-- Add new response types here
+**`repository/types.go`** - Domain types for data operations.
+- Domain entities and repository response types
+- Types that represent data layer contracts
+
+**`types/responses.go`** - API response types.
+- HTTP response structures (HealthResponse, ErrorResponse)
 - Keep types focused on API contract
 
 ### Adding a New Endpoint
@@ -135,15 +155,20 @@ packages/apigateway/
 PORT=8080                          # HTTP port (default: 8080)
 
 # Database (required)
-DATABASE_URL=postgres://...        # PostgreSQL connection string
-# OR
-POSTGRES_CONNECTION_STRING=postgres://...
+# Local development:
+POSTGRES_CONNECTION_STRING=postgresql://user:pass@host:port/db?application_name=apigateway
+# Cloud Run (uses secret mount):
+# /etc/secrets/postgres/connection_string
+# Note: Connection string MUST include application_name parameter for observability
 
-# Authentication
+# Authentication (Firebase)
+GCP_PROJECT_ID=your-project-id     # Google Cloud project ID (or GOOGLE_CLOUD_PROJECT)
 ALLOWED_EMAILS=user@example.com    # Comma-separated authorized emails
+# For local development with Firebase emulator:
+FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 
 # CORS
-ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com
+ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com  # Comma-separated origins
 ```
 
 ## Testing
