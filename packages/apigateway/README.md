@@ -89,64 +89,114 @@ To fetch the next page, pass `cursor=<next_cursor>` as a query parameter.
 
 ## Architecture
 
+This package follows **hexagonal architecture** (ports and adapters pattern):
+
 ```
 packages/apigateway/
-├── cmd/apigateway/      # Entry point
-│   └── main.go
-├── adapters/            # Infrastructure layer (hexagonal architecture)
-│   └── postgres/        # PostgreSQL implementation
-│       ├── activities.go
-│       └── pool.go
-├── repository/          # Domain interfaces and types
-│   ├── activities.go    # ActivityRepository interface
-│   └── types.go         # Domain types (Activity, SportMetrics, etc.)
-├── middleware/          # HTTP middleware
-│   └── auth.go          # Firebase token validation with email allowlist
-├── config/              # Configuration
-│   ├── sport_config.go  # Sport category mappings
-│   └── sport_types.json # Embedded sport configuration
-├── apierrors/           # API error handling
-│   └── errors.go        # Structured error types and responses
-├── cors/                # CORS handling
-│   └── cors.go          # Origin validation and header management
-├── logger/              # Structured logging
-│   └── logger.go        # slog-based logger
-├── types/               # API response types
-│   ├── responses.go     # HealthResponse, ErrorResponse
-│   └── generated/       # Generated protobuf types
-├── handler.go           # HTTP handlers (routes registered here)
-├── handler_test.go      # Handler tests
-├── openapi.yaml         # OpenAPI specification
+├── cmd/apigateway/
+│   └── main.go              # Composition root - wires all dependencies
+├── internal/                # Application layer (not importable externally)
+│   ├── activities/
+│   │   └── handler.go       # Activity endpoints (/activities/*)
+│   ├── health/
+│   │   └── handler.go       # Health check endpoint
+│   ├── sports/
+│   │   └── handler.go       # Sport config endpoint
+│   └── server/
+│       ├── router.go        # Route registration with chi
+│       ├── middleware.go    # CORS middleware
+│       └── response.go      # JSON response helpers
+├── pkg/                     # Shared utilities (importable)
+│   └── validate/
+│       └── validate.go      # Date, year validation helpers
+├── repository/              # Domain interfaces (ports)
+│   ├── activities.go        # ActivityRepository interface
+│   └── types.go             # Domain types (Activity, SportMetrics, etc.)
+├── adapters/                # Infrastructure implementations (adapters)
+│   └── postgres/
+│       ├── activities.go    # PostgreSQL repository implementation
+│       └── pool.go          # Connection pool management
+├── middleware/
+│   └── auth.go              # Firebase JWT + email allowlist
+├── config/
+│   ├── sport_config.go      # Sport category mappings
+│   └── sport_types.json     # Embedded sport configuration
+├── apierrors/
+│   └── errors.go            # Structured error types
+├── cors/
+│   └── cors.go              # Origin validation
+├── logger/
+│   └── logger.go            # slog-based structured logging
+├── handler_test.go          # Integration tests
 └── README.md
 ```
 
-### Key Files
+### Hexagonal Architecture Overview
 
-**`handler.go`** - Main entry point for routes. All HTTP handlers are defined here.
-- `registerRoutes()` - Where routes are registered
-- Handler methods follow pattern: `handle<Resource>` (e.g., `handleListActivities`)
+```
+                    ┌─────────────────────────────────────┐
+                    │           main.go                   │
+                    │      (Composition Root)             │
+                    │  Creates and wires all dependencies │
+                    └─────────────────┬───────────────────┘
+                                      │
+         ┌────────────────────────────┼────────────────────────────┐
+         │                            │                            │
+         ▼                            ▼                            ▼
+┌─────────────────┐      ┌─────────────────────┐      ┌─────────────────┐
+│ internal/health │      │ internal/activities │      │ internal/sports │
+│    Handler      │      │      Handler        │      │    Handler      │
+└────────┬────────┘      └──────────┬──────────┘      └─────────────────┘
+         │                          │
+         │                          ▼
+         │               ┌─────────────────────┐
+         │               │ repository.Activity │  ◄── Port (interface)
+         │               │     Repository      │
+         │               └──────────┬──────────┘
+         │                          │
+         │                          ▼
+         │               ┌─────────────────────┐
+         └──────────────►│ adapters/postgres   │  ◄── Adapter (implementation)
+                         │ ActivityRepository  │
+                         └─────────────────────┘
+```
 
-**`repository/activities.go`** - Interface defining all data operations.
+### Key Directories
+
+**`cmd/apigateway/main.go`** - Composition root
+- Creates all dependencies (config, auth, database pool)
+- Wires handlers with their dependencies
+- Builds and starts the HTTP server
+- Single place where all wiring happens
+
+**`internal/`** - Feature-based HTTP handlers
+- Each feature (health, sports, activities) has its own package
+- Handlers receive dependencies via constructor injection
+- `server/` contains shared HTTP utilities (router, middleware, response helpers)
+
+**`pkg/validate/`** - Shared validation
+- Reusable validation functions (year, date, date range)
+- Can be imported by any package
+
+**`repository/`** - Domain interfaces (ports)
+- `activities.go` - Interface defining all data operations
+- `types.go` - Domain types (Activity, SportMetrics, etc.)
 - Add new query methods here first
-- Implementations go in `adapters/postgres/`
 
-**`repository/types.go`** - Domain types for data operations.
-- Domain entities and repository response types
-- Types that represent data layer contracts
-
-**`types/responses.go`** - API response types.
-- HTTP response structures (HealthResponse, ErrorResponse)
-- Keep types focused on API contract
+**`adapters/postgres/`** - PostgreSQL implementation (adapter)
+- Implements `repository.ActivityRepository`
+- All SQL queries live here
 
 ### Adding a New Endpoint
 
-1. Add types to `repository/types.go` (if needed)
-2. Add interface method to `repository/activities.go`
-3. Implement in `adapters/postgres/activities.go`
-4. Add route in `handler.go` → `registerRoutes()`
-5. Add handler method in `handler.go`
-6. Add tests in `handler_test.go`
-7. Update this README
+1. **Define types** in `repository/types.go` (if needed)
+2. **Add interface method** to `repository/activities.go`
+3. **Implement query** in `adapters/postgres/activities.go`
+4. **Create/update handler** in appropriate `internal/*/handler.go`
+5. **Register route** in `internal/server/router.go`
+6. **Wire in main.go** if new handler package
+7. **Add tests** in `handler_test.go`
+8. **Update this README**
 
 ## Environment Variables
 
@@ -183,8 +233,11 @@ go test ./... -cover
 
 ### Test Structure
 
-- **Unit tests**: Mock the repository interface (`mockActivityRepository` in `handler_test.go`)
-- **Integration tests**: Would test against real database (not yet implemented)
+- **Integration tests** (`handler_test.go`): Test full HTTP request/response flow with mocked repository
+  - Uses `mockActivityRepository` to simulate database responses
+  - Tests route registration, validation, error handling, CORS
+- **Validation tests** (`handler_test.go`): Test `pkg/validate` functions directly
+- **Database tests** (`adapters/postgres/*_test.go`): Test PostgreSQL queries
 
 ## OpenAPI Specification
 

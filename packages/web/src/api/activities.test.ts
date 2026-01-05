@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import axios, { AxiosError } from "axios";
-import { fetchDistanceData } from "./activities";
+import { fetchDistanceData, fetchDailySummary } from "./activities";
 import { EMPTY_RIDE_DATA } from "../constants";
 
 // Mock axios but preserve AxiosError class
@@ -326,5 +326,40 @@ describe("fetchDistanceData", () => {
       expect(result.distance_traveled[0]).toEqual({ x: "2025-01-01", y: 100 });
       expect(result.distance_traveled[2]).toEqual({ x: "2025-01-03", y: 175 });
     });
+  });
+});
+
+describe("fetchDailySummary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should return unwrapped daily map from wrapped response", async () => {
+    // The API returns { daily: { ... } }
+    const mockResponse = {
+      daily: {
+        "2025-01-01": {
+          distanceMeters: 1000,
+          activities: 1,
+          activityIds: [123],
+        },
+      },
+    };
+
+    vi.mocked(axios.get).mockResolvedValue({ data: mockResponse });
+
+    const result = await fetchDailySummary(2025, "cycling");
+
+    // The function should return just the map
+    expect(result).toEqual(mockResponse.daily);
+    expect(result["2025-01-01"].distanceMeters).toBe(1000);
+  });
+
+  it("should return empty object if response is empty", async () => {
+    vi.mocked(axios.get).mockResolvedValue({ data: {} });
+
+    const result = await fetchDailySummary(2025, "cycling");
+
+    expect(result).toEqual({});
   });
 });

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 )
 
 func TestActivityRepository_Ping(t *testing.T) {
@@ -79,7 +80,7 @@ func TestActivityRepository_GetSportMetrics_SignatureAndTypes(t *testing.T) {
 	})
 
 	t.Run("SportMetrics has Timeseries field", func(t *testing.T) {
-		metrics := repository.SportMetrics{}
+		metrics := generated.SportMetrics{}
 		if metrics.Timeseries != nil {
 			t.Log("Timeseries field exists and is nil by default")
 		}
@@ -87,7 +88,7 @@ func TestActivityRepository_GetSportMetrics_SignatureAndTypes(t *testing.T) {
 
 	t.Run("CumulativeMetricsEntry has expected fields", func(t *testing.T) {
 		// Document the structure by constructing a valid instance
-		entry := repository.CumulativeMetricsEntry{
+		entry := generated.CumulativeMetricsEntry{
 			Date: "2024-01-15",
 		}
 		if entry.Date == "" {
@@ -100,27 +101,29 @@ func TestActivityRepository_GetDailySummary_SignatureAndTypes(t *testing.T) {
 	// This test documents the GetDailySummary method signature and return types
 	// Actual database queries are tested via integration tests
 
-	t.Run("returns DailySummary map and error", func(t *testing.T) {
+	t.Run("returns DailySummary pointer and error", func(t *testing.T) {
 		repo := &ActivityRepository{}
 
 		// Verify the method exists and can be called (compile-time check)
 		_ = repo.GetDailySummary
 	})
 
-	t.Run("DailySummary is a map type", func(t *testing.T) {
-		summary := make(repository.DailySummary)
-		summary["2024-01-15"] = &repository.DailyActivity{
+	t.Run("DailySummary has Daily map field", func(t *testing.T) {
+		summary := generated.DailySummary{
+			Daily: make(map[string]*generated.DailyActivity),
+		}
+		summary.Daily["2024-01-15"] = &generated.DailyActivity{
 			Activities: 1,
 		}
-		if len(summary) != 1 {
+		if len(summary.Daily) != 1 {
 			t.Error("expected 1 entry in summary")
 		}
 	})
 
 	t.Run("DailyActivity has expected fields", func(t *testing.T) {
-		entry := repository.DailyActivity{
+		entry := generated.DailyActivity{
 			Activities:  1,
-			ActivityIDs: []int64{12345},
+			ActivityIds: []int64{12345},
 		}
 		if entry.Activities != 1 {
 			t.Error("Activities field should be set")
@@ -140,7 +143,7 @@ func TestActivityRepository_GetYearMetadata_SignatureAndTypes(t *testing.T) {
 	})
 
 	t.Run("YearMetadata has expected fields", func(t *testing.T) {
-		meta := repository.YearMetadata{
+		meta := generated.YearMetadata{
 			Year:               2024,
 			Sports:             []string{"cycling"},
 			AggregationVersion: "2.0",
@@ -151,7 +154,7 @@ func TestActivityRepository_GetYearMetadata_SignatureAndTypes(t *testing.T) {
 	})
 
 	t.Run("SportTotals has expected fields", func(t *testing.T) {
-		totals := repository.SportTotals{
+		totals := generated.SportTotals{
 			Activities: 10,
 		}
 		if totals.Activities != 10 {
