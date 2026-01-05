@@ -89,154 +89,135 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	h.respondProtobuf(w, r, metadata)
 }
 
-// HandleMetrics serves sport-specific metrics data from PostgreSQL.
-// Supports optional from/to query params for date-range queries (can span years).
-// Without from/to, falls back to year-based query for backwards compatibility.
-// GET /activities/{year}/metrics?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
-func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
+// sportQueryParams holds validated parameters for sport-based queries.
+type sportQueryParams struct {
+	year         string
+	yearInt      int
+	sportTypes   []string
+	from         string // empty if not using date range
+	to           string // empty if not using date range
+	useDateRange bool
+}
+
+// validateSportQuery validates common parameters for metrics and source endpoints.
+// Returns nil and writes error response if validation fails.
+func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sportQueryParams {
 	year, ok := h.validateAndGetYear(w, r)
 	if !ok {
-		return
+		return nil
 	}
 
 	sportTypes, ok := h.validateAndGetSportTypes(w, r)
 	if !ok {
-		return
+		return nil
 	}
 
 	if h.repo == nil {
 		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
 		apierrors.WriteError(w, r, apiErr)
-		return
+		return nil
 	}
 
-	// Check for optional date range params
 	fromStr := r.URL.Query().Get("from")
 	toStr := r.URL.Query().Get("to")
 
-	// Validate date range if provided
 	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
 		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
 		apierrors.WriteError(w, r, apiErr)
-		return
+		return nil
 	}
 
-	var metrics *generated.SportMetrics
-	var err error
+	params := &sportQueryParams{
+		year:         year,
+		sportTypes:   sportTypes,
+		from:         fromStr,
+		to:           toStr,
+		useDateRange: fromStr != "" && toStr != "",
+	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
-	defer cancel()
-
-	if fromStr != "" && toStr != "" {
-		// Use date-range query (can span years)
-		metrics, err = h.repo.GetSportMetricsByDateRange(ctx, fromStr, toStr, sportTypes)
-		if err != nil {
-			logger.Logger.Error("Database query failed", "error", err, "from", fromStr, "to", toStr, "sportTypes", sportTypes)
-			apiErr := apierrors.NewAPIErrorWithLog(
-				http.StatusInternalServerError,
-				errMsgInternalServerError,
-				fmt.Sprintf("Database query failed: %v", err),
-			)
-			apierrors.WriteError(w, r, apiErr)
-			return
-		}
-	} else {
-		// Year mode - existing behavior for backwards compatibility
+	if !params.useDateRange {
 		yearInt, parseErr := strconv.Atoi(year)
 		if parseErr != nil {
 			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
 			apierrors.WriteError(w, r, apiErr)
-			return
+			return nil
 		}
-		metrics, err = h.repo.GetSportMetrics(ctx, yearInt, sportTypes)
-		if err != nil {
-			logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
-			apiErr := apierrors.NewAPIErrorWithLog(
-				http.StatusInternalServerError,
-				errMsgInternalServerError,
-				fmt.Sprintf("Database query failed: %v", err),
-			)
-			apierrors.WriteError(w, r, apiErr)
-			return
-		}
+		params.yearInt = yearInt
 	}
 
-	h.respondProtobuf(w, r, metrics)
+	return params
+}
+
+// logAndRespondDBError logs a database error and writes an error response.
+func (h *Handler) logAndRespondDBError(w http.ResponseWriter, r *http.Request, err error, params *sportQueryParams) {
+	if params.useDateRange {
+		logger.Logger.Error("Database query failed", "error", err, "from", params.from, "to", params.to, "sportTypes", params.sportTypes)
+	} else {
+		logger.Logger.Error("Database query failed", "error", err, "year", params.year, "sportTypes", params.sportTypes)
+	}
+	apiErr := apierrors.NewAPIErrorWithLog(
+		http.StatusInternalServerError,
+		errMsgInternalServerError,
+		fmt.Sprintf("Database query failed: %v", err),
+	)
+	apierrors.WriteError(w, r, apiErr)
+}
+
+// HandleMetrics serves sport-specific metrics data from PostgreSQL.
+// Supports optional from/to query params for date-range queries (can span years).
+// Without from/to, falls back to year-based query for backwards compatibility.
+// GET /activities/{year}/metrics?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
+//
+//nolint:dupl // HandleMetrics and HandleSource share structure but operate on different types
+func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
+	params := h.validateSportQuery(w, r)
+	if params == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+
+	var result *generated.SportMetrics
+	var err error
+	if params.useDateRange {
+		result, err = h.repo.GetSportMetricsByDateRange(ctx, params.from, params.to, params.sportTypes)
+	} else {
+		result, err = h.repo.GetSportMetrics(ctx, params.yearInt, params.sportTypes)
+	}
+	if err != nil {
+		h.logAndRespondDBError(w, r, err, params)
+		return
+	}
+	h.respondProtobuf(w, r, result)
 }
 
 // HandleSource serves sport-specific source data from PostgreSQL.
 // Supports optional from/to query params for date-range queries (can span years).
 // Without from/to, falls back to year-based query for backwards compatibility.
 // GET /activities/{year}/source?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
+//
+//nolint:dupl // HandleSource and HandleMetrics share structure but operate on different types
 func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
-	year, ok := h.validateAndGetYear(w, r)
-	if !ok {
+	params := h.validateSportQuery(w, r)
+	if params == nil {
 		return
 	}
-
-	sportTypes, ok := h.validateAndGetSportTypes(w, r)
-	if !ok {
-		return
-	}
-
-	if h.repo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr)
-		return
-	}
-
-	// Check for optional date range params
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
-
-	// Validate date range if provided
-	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr)
-		return
-	}
-
-	var summary *generated.DailySummary
-	var err error
-
 	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
 	defer cancel()
 
-	if fromStr != "" && toStr != "" {
-		// Use date-range query (can span years)
-		summary, err = h.repo.GetDailySummaryByDateRange(ctx, fromStr, toStr, sportTypes)
-		if err != nil {
-			logger.Logger.Error("Database query failed", "error", err, "from", fromStr, "to", toStr, "sportTypes", sportTypes)
-			apiErr := apierrors.NewAPIErrorWithLog(
-				http.StatusInternalServerError,
-				errMsgInternalServerError,
-				fmt.Sprintf("Database query failed: %v", err),
-			)
-			apierrors.WriteError(w, r, apiErr)
-			return
-		}
+	var result *generated.DailySummary
+	var err error
+	if params.useDateRange {
+		result, err = h.repo.GetDailySummaryByDateRange(ctx, params.from, params.to, params.sportTypes)
 	} else {
-		// Year mode - existing behavior for backwards compatibility
-		yearInt, parseErr := strconv.Atoi(year)
-		if parseErr != nil {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-			apierrors.WriteError(w, r, apiErr)
-			return
-		}
-		summary, err = h.repo.GetDailySummary(ctx, yearInt, sportTypes)
-		if err != nil {
-			logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
-			apiErr := apierrors.NewAPIErrorWithLog(
-				http.StatusInternalServerError,
-				errMsgInternalServerError,
-				fmt.Sprintf("Database query failed: %v", err),
-			)
-			apierrors.WriteError(w, r, apiErr)
-			return
-		}
+		result, err = h.repo.GetDailySummary(ctx, params.yearInt, params.sportTypes)
 	}
-
-	h.respondProtobuf(w, r, summary)
+	if err != nil {
+		h.logAndRespondDBError(w, r, err, params)
+		return
+	}
+	h.respondProtobuf(w, r, result)
 }
 
 // HandleGetActivity serves a single activity by ID.
