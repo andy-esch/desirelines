@@ -16,6 +16,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/sports"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 )
 
 const (
@@ -35,11 +36,11 @@ func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
 type mockActivityRepository struct {
 	pingErr         error
 	closeErr        error
-	sportMetrics    *repository.SportMetrics
+	sportMetrics    *generated.SportMetrics
 	sportMetricsErr error
-	dailySummary    repository.DailySummary
+	dailySummary    *generated.DailySummary
 	dailySummaryErr error
-	yearMetadata    *repository.YearMetadata
+	yearMetadata    *generated.YearMetadata
 	yearMetadataErr error
 	activity        *repository.Activity
 	activityErr     error
@@ -55,19 +56,19 @@ func (m *mockActivityRepository) Close() error {
 	return m.closeErr
 }
 
-func (m *mockActivityRepository) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*repository.SportMetrics, error) {
+func (m *mockActivityRepository) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*generated.SportMetrics, error) {
 	return m.sportMetrics, m.sportMetricsErr
 }
 
-func (m *mockActivityRepository) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*repository.SportMetrics, error) {
+func (m *mockActivityRepository) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.SportMetrics, error) {
 	return m.sportMetrics, m.sportMetricsErr
 }
 
-func (m *mockActivityRepository) GetDailySummary(ctx context.Context, year int, sportTypes []string) (repository.DailySummary, error) {
+func (m *mockActivityRepository) GetDailySummary(ctx context.Context, year int, sportTypes []string) (*generated.DailySummary, error) {
 	return m.dailySummary, m.dailySummaryErr
 }
 
-func (m *mockActivityRepository) GetYearMetadata(ctx context.Context, year int) (*repository.YearMetadata, error) {
+func (m *mockActivityRepository) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
 	return m.yearMetadata, m.yearMetadataErr
 }
 
@@ -319,8 +320,8 @@ func TestHandlerCORS(t *testing.T) {
 func TestHandlerMetrics(t *testing.T) {
 	distance := 68400.0
 	time := 120.0
-	testMetrics := &repository.SportMetrics{
-		Timeseries: []repository.CumulativeMetricsEntry{
+	testMetrics := &generated.SportMetrics{
+		Timeseries: []*generated.CumulativeMetricsEntry{
 			{Date: "2024-01-15", Distance: &distance, Time: &time},
 		},
 	}
@@ -484,12 +485,14 @@ func TestHandlerMetrics(t *testing.T) {
 func TestHandlerSource(t *testing.T) {
 	distance := 8370.0
 	time := 48.0
-	testSummary := repository.DailySummary{
-		"2024-01-15": &repository.DailyActivity{
-			DistanceMeters: &distance,
-			TimeMinutes:    &time,
-			Activities:     1,
-			ActivityIDs:    []int64{12345},
+	testSummary := &generated.DailySummary{
+		Daily: map[string]*generated.DailyActivity{
+			"2024-01-15": {
+				DistanceMeters: &distance,
+				TimeMinutes:    &time,
+				Activities:     1,
+				ActivityIds:    []int64{12345},
+			},
 		},
 	}
 
@@ -551,10 +554,10 @@ func TestHandlerSource(t *testing.T) {
 
 func TestHandlerMetadata(t *testing.T) {
 	distance := 136800.0
-	testMetadata := &repository.YearMetadata{
+	testMetadata := &generated.YearMetadata{
 		Year:   2024,
 		Sports: []string{"cycling", "running"},
-		Totals: map[string]*repository.SportTotals{
+		Totals: map[string]*generated.SportTotals{
 			"cycling": {
 				DistanceMeters: &distance,
 				Activities:     4,

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 )
 
 // ActivityRepository implements repository.ActivityRepository for PostgreSQL.
@@ -39,7 +40,7 @@ func (r *ActivityRepository) Close() error {
 // The query generates a dense timeseries from `from` to `to`,
 // left joining with actual activity data and using COALESCE to fill zeros for days without activity.
 // sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
-func (r *ActivityRepository) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*repository.SportMetrics, error) {
+func (r *ActivityRepository) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.SportMetrics, error) {
 	query := `
 		SELECT
 			date,
@@ -89,18 +90,18 @@ func scanSportMetricsRows(rows interface {
 	Next() bool
 	Scan(dest ...interface{}) error
 	Err() error
-}) (*repository.SportMetrics, error) {
-	timeseries := make([]repository.CumulativeMetricsEntry, 0)
+}) (*generated.SportMetrics, error) {
+	timeseries := make([]*generated.CumulativeMetricsEntry, 0)
 	for rows.Next() {
 		var date time.Time
 		var distance, elevation, timeMinutes float64
-		var activities int
+		var activities int32
 
 		if scanErr := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities); scanErr != nil {
 			return nil, fmt.Errorf("scan sport metrics row: %w", scanErr)
 		}
 
-		entry := repository.CumulativeMetricsEntry{
+		entry := &generated.CumulativeMetricsEntry{
 			Date:       date.Format("2006-01-02"),
 			Distance:   &distance,
 			Elevation:  &elevation,
@@ -115,14 +116,14 @@ func scanSportMetricsRows(rows interface {
 		return nil, fmt.Errorf("iterate sport metrics rows: %w", rowsErr)
 	}
 
-	return &repository.SportMetrics{Timeseries: timeseries}, nil
+	return &generated.SportMetrics{Timeseries: timeseries}, nil
 }
 
 // GetSportMetrics returns cumulative metrics timeseries for a sport category in a given year.
 // The query generates a dense timeseries from Jan 1 to today (or Dec 31 for past years),
 // left joining with actual activity data and using COALESCE to fill zeros for days without activity.
 // sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
-func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*repository.SportMetrics, error) {
+func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*generated.SportMetrics, error) {
 	// Query structure:
 	// 1. generate_series creates dates from Jan 1 to LEAST(today, Dec 31 of year)
 	// 2. Left join with daily activity aggregates (only days with activities)
@@ -177,7 +178,7 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 // GetDailySummary returns daily activity summaries for a sport category in a given year.
 // Returns a map keyed by date (YYYY-MM-DD) with daily totals (not cumulative).
 // sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
-func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, sportTypes []string) (repository.DailySummary, error) {
+func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, sportTypes []string) (*generated.DailySummary, error) {
 	query := `
 		SELECT
 			start_date_local::date as date,
@@ -199,11 +200,13 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 	}
 	defer rows.Close()
 
-	summary := make(repository.DailySummary)
+	summary := &generated.DailySummary{
+		Daily: make(map[string]*generated.DailyActivity),
+	}
 	for rows.Next() {
 		var date time.Time
 		var distance, elevation, timeMinutes float64
-		var activities int
+		var activities int32
 		var activityIDs []int64
 
 		if scanErr := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities, &activityIDs); scanErr != nil {
@@ -211,12 +214,12 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 		}
 
 		dateStr := date.Format("2006-01-02")
-		summary[dateStr] = &repository.DailyActivity{
+		summary.Daily[dateStr] = &generated.DailyActivity{
 			DistanceMeters:  &distance,
 			ElevationMeters: &elevation,
 			TimeMinutes:     &timeMinutes,
 			Activities:      activities,
-			ActivityIDs:     activityIDs,
+			ActivityIds:     activityIDs,
 		}
 	}
 
@@ -229,7 +232,7 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 
 // GetYearMetadata returns metadata about activities for a given year.
 // Includes list of sports, per-sport totals, and last updated timestamp.
-func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*repository.YearMetadata, error) {
+func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
 	query := `
 		SELECT
 			sport,
@@ -251,13 +254,13 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*re
 	defer rows.Close()
 
 	sports := make([]string, 0) // Initialize as empty slice, not nil (JSON: [] not null)
-	totals := make(map[string]*repository.SportTotals)
+	totals := make(map[string]*generated.SportTotals)
 	var latestUpdate *time.Time
 
 	for rows.Next() {
 		var sport string
 		var distance, elevation, timeMinutes float64
-		var activities int
+		var activities int32
 		var lastUpdated *time.Time
 
 		if scanErr := rows.Scan(&sport, &distance, &elevation, &timeMinutes, &activities, &lastUpdated); scanErr != nil {
@@ -265,7 +268,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*re
 		}
 
 		sports = append(sports, sport)
-		totals[sport] = &repository.SportTotals{
+		totals[sport] = &generated.SportTotals{
 			DistanceMeters:  &distance,
 			ElevationMeters: &elevation,
 			TimeMinutes:     &timeMinutes,
@@ -289,8 +292,8 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*re
 		lastUpdatedStr = &s
 	}
 
-	return &repository.YearMetadata{
-		Year:               year,
+	return &generated.YearMetadata{
+		Year:               int32(year),
 		Sports:             sports,
 		Totals:             totals,
 		LastUpdated:        lastUpdatedStr,

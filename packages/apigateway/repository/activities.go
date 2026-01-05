@@ -5,6 +5,8 @@ package repository
 import (
 	"context"
 	"io"
+
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 )
 
 // ActivityRepository defines read operations for activities.
@@ -20,21 +22,21 @@ type ActivityRepository interface {
 	// GetSportMetrics returns cumulative metrics timeseries for a sport category in a given year.
 	// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
 	// Used by: GET /activities/{year}/metrics?sport=X (without from/to params)
-	GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*SportMetrics, error)
+	GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*generated.SportMetrics, error)
 
 	// GetSportMetricsByDateRange returns cumulative metrics for a date range.
 	// Unlike GetSportMetrics, this can span multiple years (e.g., Dec 2025 - Jan 2026).
 	// Used by: GET /activities/{year}/metrics?sport=X&from=YYYY-MM-DD&to=YYYY-MM-DD
-	GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*SportMetrics, error)
+	GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.SportMetrics, error)
 
 	// GetDailySummary returns daily activity summaries for a sport category in a given year.
 	// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
 	// Used by: GET /activities/{year}/source?sport=X
-	GetDailySummary(ctx context.Context, year int, sportTypes []string) (DailySummary, error)
+	GetDailySummary(ctx context.Context, year int, sportTypes []string) (*generated.DailySummary, error)
 
 	// GetYearMetadata returns metadata about activities for a given year.
 	// Used by: GET /activities/{year}/metadata
-	GetYearMetadata(ctx context.Context, year int) (*YearMetadata, error)
+	GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error)
 
 	// GetActivityByID returns a single activity by its Strava ID.
 	// Returns nil (not error) if activity not found.

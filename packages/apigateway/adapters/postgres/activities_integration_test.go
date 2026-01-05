@@ -12,6 +12,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 )
 
 // TestIntegration_ActivityRepository runs integration tests against a real PostgreSQL database.
@@ -83,6 +84,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		// Values should be cumulative
 		// Jan 15: 10000m distance
 		// Jan 16: 10000 + 15000 = 25000m cumulative
+		// Protobuf optional fields are pointers, need to dereference
 		if metrics.Timeseries[1].Distance == nil || *metrics.Timeseries[1].Distance != 25000 {
 			t.Errorf("expected cumulative distance 25000, got %v", metrics.Timeseries[1].Distance)
 		}
@@ -106,12 +108,12 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("GetDailySummary failed: %v", err)
 		}
 
-		if len(summary) != 2 {
-			t.Errorf("expected 2 daily entries, got %d", len(summary))
+		if len(summary.Daily) != 2 {
+			t.Errorf("expected 2 daily entries, got %d", len(summary.Daily))
 		}
 
 		// Check Jan 15 entry
-		jan15 := summary["2024-01-15"]
+		jan15 := summary.Daily["2024-01-15"]
 		if jan15 == nil {
 			t.Fatal("expected entry for 2024-01-15")
 		}
@@ -124,8 +126,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Errorf("expected 1 activity, got %d", jan15.Activities)
 		}
 
-		if len(jan15.ActivityIDs) != 1 || jan15.ActivityIDs[0] != 1001 {
-			t.Errorf("expected activity ID [1001], got %v", jan15.ActivityIDs)
+		if len(jan15.ActivityIds) != 1 || jan15.ActivityIds[0] != 1001 {
+			t.Errorf("expected activity ID [1001], got %v", jan15.ActivityIds)
 		}
 	})
 

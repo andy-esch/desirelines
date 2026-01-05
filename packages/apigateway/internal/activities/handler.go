@@ -11,6 +11,7 @@
 package activities
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -24,12 +25,14 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	"github.com/go-chi/chi/v5"
 )
 
 const (
 	errMsgDatabaseUnavailable = "Database not available"
 	errMsgInternalServerError = "Internal server error"
+	dbTimeout                 = 10 * time.Second
 )
 
 // Handler holds dependencies for activity handlers.
@@ -68,7 +71,10 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metadata, err := h.repo.GetYearMetadata(r.Context(), yearInt)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+
+	metadata, err := h.repo.GetYearMetadata(ctx, yearInt)
 	if err != nil {
 		logger.Logger.Error("Database query failed", "error", err, "year", year)
 		apiErr := apierrors.NewAPIErrorWithLog(
@@ -80,7 +86,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, metadata)
+	h.respondProtobuf(w, r, metadata)
 }
 
 // HandleMetrics serves sport-specific metrics data from PostgreSQL.
@@ -115,12 +121,15 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var metrics *repository.SportMetrics
+	var metrics *generated.SportMetrics
 	var err error
+
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
 
 	if fromStr != "" && toStr != "" {
 		// Use date-range query (can span years)
-		metrics, err = h.repo.GetSportMetricsByDateRange(r.Context(), fromStr, toStr, sportTypes)
+		metrics, err = h.repo.GetSportMetricsByDateRange(ctx, fromStr, toStr, sportTypes)
 		if err != nil {
 			logger.Logger.Error("Database query failed", "error", err, "from", fromStr, "to", toStr, "sportTypes", sportTypes)
 			apiErr := apierrors.NewAPIErrorWithLog(
@@ -139,7 +148,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 			apierrors.WriteError(w, r, apiErr)
 			return
 		}
-		metrics, err = h.repo.GetSportMetrics(r.Context(), yearInt, sportTypes)
+		metrics, err = h.repo.GetSportMetrics(ctx, yearInt, sportTypes)
 		if err != nil {
 			logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
 			apiErr := apierrors.NewAPIErrorWithLog(
@@ -152,7 +161,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, metrics)
+	h.respondProtobuf(w, r, metrics)
 }
 
 // HandleSource serves sport-specific source data from PostgreSQL.
@@ -181,7 +190,10 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	summary, err := h.repo.GetDailySummary(r.Context(), yearInt, sportTypes)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+
+	summary, err := h.repo.GetDailySummary(ctx, yearInt, sportTypes)
 	if err != nil {
 		logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
 		apiErr := apierrors.NewAPIErrorWithLog(
@@ -193,7 +205,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, summary)
+	h.respondProtobuf(w, r, summary.Daily)
 }
 
 // HandleGetActivity serves a single activity by ID.
@@ -214,7 +226,10 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	activity, err := h.repo.GetActivityByID(r.Context(), id)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+
+	activity, err := h.repo.GetActivityByID(ctx, id)
 	if err != nil {
 		logger.Logger.Error("Database query failed", "error", err, "activityId", id)
 		apiErr := apierrors.NewAPIErrorWithLog(
@@ -304,7 +319,10 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 		filter.Cursor = cursor
 	}
 
-	result, err := h.repo.ListActivities(r.Context(), filter)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+
+	result, err := h.repo.ListActivities(ctx, filter)
 	if err != nil {
 		logger.Logger.Error("Database query failed", "error", err)
 		apiErr := apierrors.NewAPIErrorWithLog(

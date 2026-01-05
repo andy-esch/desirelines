@@ -9,27 +9,28 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	"github.com/go-chi/chi/v5"
 )
 
 // mockRepo implements repository.ActivityRepository for testing
 type mockRepo struct {
-	sportMetrics *repository.SportMetrics
+	sportMetrics *generated.SportMetrics
 	err          error
 }
 
 func (m *mockRepo) Ping(ctx context.Context) error { return nil }
 func (m *mockRepo) Close() error                   { return nil }
-func (m *mockRepo) GetYearMetadata(ctx context.Context, year int) (*repository.YearMetadata, error) {
+func (m *mockRepo) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
 	return nil, m.err
 }
-func (m *mockRepo) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*repository.SportMetrics, error) {
+func (m *mockRepo) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*generated.SportMetrics, error) {
 	return m.sportMetrics, m.err
 }
-func (m *mockRepo) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*repository.SportMetrics, error) {
+func (m *mockRepo) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.SportMetrics, error) {
 	return m.sportMetrics, m.err
 }
-func (m *mockRepo) GetDailySummary(ctx context.Context, year int, sportTypes []string) (repository.DailySummary, error) {
+func (m *mockRepo) GetDailySummary(ctx context.Context, year int, sportTypes []string) (*generated.DailySummary, error) {
 	return nil, m.err
 }
 func (m *mockRepo) GetActivityByID(ctx context.Context, id int64) (*repository.Activity, error) {

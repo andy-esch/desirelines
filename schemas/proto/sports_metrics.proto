@@ -82,6 +82,6 @@ message YearMetadata {
   int32 year = 1;
   repeated string sports = 2; // ["cycling", "running", "yoga"]
   map<string, SportTotals> totals = 3; // Per-sport totals
-  string last_updated = 4; // ISO timestamp
+  optional string last_updated = 4; // ISO timestamp
   string aggregation_version = 5; // "1.0"
 }
