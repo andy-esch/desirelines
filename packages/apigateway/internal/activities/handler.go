@@ -205,7 +205,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.respondProtobuf(w, r, summary.Daily)
+	h.respondProtobuf(w, r, summary)
 }
 
 // HandleGetActivity serves a single activity by ID.

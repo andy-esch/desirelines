@@ -60,14 +60,14 @@ export interface YearMetadata {
   totals: Record<
     string,
     {
-      distance_meters?: number; // FULL field name in metadata (meters)
-      time_minutes?: number; // FULL field name in metadata (minutes)
-      elevation_meters?: number; // FULL field name in metadata (meters)
+      distanceMeters?: number; // FULL field name in metadata (meters)
+      timeMinutes?: number; // FULL field name in metadata (minutes)
+      elevationMeters?: number; // FULL field name in metadata (meters)
       activities: number;
     }
   >;
-  last_updated: string; // ISO timestamp
-  aggregation_version: string; // "1.0"
+  lastUpdated: string; // ISO timestamp
+  aggregationVersion: string; // "1.0"
 }
 
 // API Response - Matches protobuf sport config structure
@@ -85,6 +85,20 @@ export interface SportConfig {
       has_elevation: boolean; // true for cycling/running, false for yoga
     }
   >;
+}
+
+// API Response - Matches protobuf DailyActivity
+export interface DailyActivity {
+  distanceMeters?: number;
+  timeMinutes?: number;
+  elevationMeters?: number;
+  activities: number;
+  activityIds: number[];
+}
+
+// API Response - Matches protobuf DailySummary (wrapped)
+export interface DailySummaryResponse {
+  daily: Record<string, DailyActivity>;
 }
 
 export const fetchDistanceData = async (
@@ -262,6 +276,40 @@ export const fetchSportConfig = async (
       throw new Error("Access denied. Please sign in with an authorized account.");
     }
     console.error("Failed to fetch sport config:", err instanceof Error ? err.message : err);
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+};
+
+export const fetchDailySummary = async (
+  year: number,
+  sport: string,
+  signal?: AbortSignal,
+  idToken?: string
+): Promise<Record<string, DailyActivity>> => {
+  const apiBaseUrl = getApiBaseUrl();
+  const url = `${apiBaseUrl}/activities/${year}/source?sport=${sport}`;
+
+  const headers: Record<string, string> = {};
+  if (idToken) {
+    headers.Authorization = `Bearer ${idToken}`;
+  }
+
+  try {
+    // Expecting wrapped response: { daily: { ... } }
+    const { data } = await axios.get<DailySummaryResponse>(url, { signal, headers });
+    return data.daily ?? {};
+  } catch (err: unknown) {
+    if (axios.isCancel(err)) {
+      return {};
+    }
+    if (
+      err instanceof AxiosError &&
+      (err.response?.status === 401 || err.response?.status === 403)
+    ) {
+      console.error("Authentication failed - user not authorized");
+      throw new Error("Access denied. Please sign in with an authorized account.");
+    }
+    console.error("Failed to fetch daily summary:", err instanceof Error ? err.message : err);
     throw err instanceof Error ? err : new Error(String(err));
   }
 };
