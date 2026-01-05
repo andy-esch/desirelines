@@ -280,23 +280,40 @@ export const fetchSportConfig = async (
   }
 };
 
+/** Options for fetchDailySummary */
+export interface FetchDailySummaryOptions {
+  year: number;
+  sport: string;
+  signal?: AbortSignal;
+  idToken?: string;
+  /** Start date (YYYY-MM-DD) for date-range queries */
+  from?: string;
+  /** End date (YYYY-MM-DD) for date-range queries */
+  to?: string;
+}
+
 export const fetchDailySummary = async (
-  year: number,
-  sport: string,
-  signal?: AbortSignal,
-  idToken?: string
+  options: FetchDailySummaryOptions
 ): Promise<Record<string, DailyActivity>> => {
   const apiBaseUrl = getApiBaseUrl();
-  const url = `${apiBaseUrl}/activities/${year}/source?sport=${sport}`;
+  let url = `${apiBaseUrl}/activities/${options.year}/source?sport=${options.sport}`;
+
+  // Add date range params if provided
+  if (options.from && options.to) {
+    url += `&from=${options.from}&to=${options.to}`;
+  }
 
   const headers: Record<string, string> = {};
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
+  if (options.idToken) {
+    headers.Authorization = `Bearer ${options.idToken}`;
   }
 
   try {
     // Expecting wrapped response: { daily: { ... } }
-    const { data } = await axios.get<DailySummaryResponse>(url, { signal, headers });
+    const { data } = await axios.get<DailySummaryResponse>(url, {
+      signal: options.signal,
+      headers,
+    });
     return data.daily ?? {};
   } catch (err: unknown) {
     if (axios.isCancel(err)) {

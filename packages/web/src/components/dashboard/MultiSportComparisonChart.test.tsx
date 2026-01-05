@@ -3,9 +3,9 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import MultiSportComparisonChart from "./MultiSportComparisonChart";
 
-// Mock useMultiSportData hook
-vi.mock("../../hooks/useMultiSportData", () => ({
-  useMultiSportData: vi.fn(),
+// Mock useDailySportData hook
+vi.mock("../../hooks/useDailySportData", () => ({
+  useDailySportData: vi.fn(),
 }));
 
 // Mock useAuth hook
@@ -32,11 +32,11 @@ vi.mock("recharts", () => ({
   Tooltip: () => null,
 }));
 
-import { useMultiSportData } from "../../hooks/useMultiSportData";
+import { useDailySportData } from "../../hooks/useDailySportData";
 import { useAuth } from "../../hooks/useAuth";
 import { useActivities } from "../../hooks/useActivities";
 
-const mockUseMultiSportData = vi.mocked(useMultiSportData);
+const mockUseDailySportData = vi.mocked(useDailySportData);
 const mockUseAuth = vi.mocked(useAuth);
 const mockUseActivities = vi.mocked(useActivities);
 
@@ -122,8 +122,8 @@ describe("MultiSportComparisonChart", () => {
 
   describe("loading state", () => {
     it("shows loading spinner when data is loading", () => {
-      mockUseMultiSportData.mockReturnValue({
-        data: { cycling: [], running: [], yoga: [] },
+      mockUseDailySportData.mockReturnValue({
+        data: { cycling: {}, running: {}, yoga: {} },
         isLoading: true,
         error: null,
       });
@@ -135,8 +135,8 @@ describe("MultiSportComparisonChart", () => {
     });
 
     it("shows Recent Activity header while loading", () => {
-      mockUseMultiSportData.mockReturnValue({
-        data: { cycling: [], running: [], yoga: [] },
+      mockUseDailySportData.mockReturnValue({
+        data: { cycling: {}, running: {}, yoga: {} },
         isLoading: true,
         error: null,
       });
@@ -149,8 +149,8 @@ describe("MultiSportComparisonChart", () => {
 
   describe("error state", () => {
     it("shows error message when data fails to load", () => {
-      mockUseMultiSportData.mockReturnValue({
-        data: { cycling: [], running: [], yoga: [] },
+      mockUseDailySportData.mockReturnValue({
+        data: { cycling: {}, running: {}, yoga: {} },
         isLoading: false,
         error: new Error("Failed to fetch"),
       });
@@ -163,8 +163,8 @@ describe("MultiSportComparisonChart", () => {
 
   describe("empty state", () => {
     it("shows no data message when no activities", () => {
-      mockUseMultiSportData.mockReturnValue({
-        data: { cycling: [], running: [], yoga: [] },
+      mockUseDailySportData.mockReturnValue({
+        data: { cycling: {}, running: {}, yoga: {} },
         isLoading: false,
         error: null,
       });
@@ -177,20 +177,21 @@ describe("MultiSportComparisonChart", () => {
 
   describe("with data", () => {
     beforeEach(() => {
-      mockUseMultiSportData.mockReturnValue({
+      // New format: Record<string, DailyActivity> maps (keyed by date)
+      mockUseDailySportData.mockReturnValue({
         data: {
-          cycling: [
-            { date: "2025-12-20", distance: 20000, time: 60, activities: 1 },
-            { date: "2025-12-22", distance: 50000, time: 120, activities: 2 },
-          ],
-          running: [
-            { date: "2025-12-21", distance: 5000, time: 30, activities: 1 },
-            { date: "2025-12-23", distance: 10000, time: 50, activities: 2 },
-          ],
-          yoga: [
-            { date: "2025-12-20", time: 30, activities: 1 },
-            { date: "2025-12-24", time: 75, activities: 2 },
-          ],
+          cycling: {
+            "2025-12-20": { distanceMeters: 20000, timeMinutes: 60, activities: 1, activityIds: [1] },
+            "2025-12-22": { distanceMeters: 50000, timeMinutes: 120, activities: 2, activityIds: [2, 3] },
+          },
+          running: {
+            "2025-12-21": { distanceMeters: 5000, timeMinutes: 30, activities: 1, activityIds: [4] },
+            "2025-12-23": { distanceMeters: 10000, timeMinutes: 50, activities: 2, activityIds: [5, 6] },
+          },
+          yoga: {
+            "2025-12-20": { timeMinutes: 30, activities: 1, activityIds: [7] },
+            "2025-12-24": { timeMinutes: 75, activities: 2, activityIds: [8, 9] },
+          },
         },
         isLoading: false,
         error: null,
@@ -272,8 +273,8 @@ describe("MultiSportComparisonChart", () => {
 
   describe("className prop", () => {
     it("applies custom className", () => {
-      mockUseMultiSportData.mockReturnValue({
-        data: { cycling: [], running: [], yoga: [] },
+      mockUseDailySportData.mockReturnValue({
+        data: { cycling: {}, running: {}, yoga: {} },
         isLoading: false,
         error: null,
       });

@@ -165,7 +165,9 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleSource serves sport-specific source data from PostgreSQL.
-// GET /activities/{year}/source?sport=X
+// Supports optional from/to query params for date-range queries (can span years).
+// Without from/to, falls back to year-based query for backwards compatibility.
+// GET /activities/{year}/source?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
 func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	year, ok := h.validateAndGetYear(w, r)
 	if !ok {
@@ -183,26 +185,55 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	yearInt, err := strconv.Atoi(year)
-	if err != nil {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+	// Check for optional date range params
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+
+	// Validate date range if provided
+	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
 		apierrors.WriteError(w, r, apiErr)
 		return
 	}
 
+	var summary *generated.DailySummary
+	var err error
+
 	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
 	defer cancel()
 
-	summary, err := h.repo.GetDailySummary(ctx, yearInt, sportTypes)
-	if err != nil {
-		logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
-			errMsgInternalServerError,
-			fmt.Sprintf("Database query failed: %v", err),
-		)
-		apierrors.WriteError(w, r, apiErr)
-		return
+	if fromStr != "" && toStr != "" {
+		// Use date-range query (can span years)
+		summary, err = h.repo.GetDailySummaryByDateRange(ctx, fromStr, toStr, sportTypes)
+		if err != nil {
+			logger.Logger.Error("Database query failed", "error", err, "from", fromStr, "to", toStr, "sportTypes", sportTypes)
+			apiErr := apierrors.NewAPIErrorWithLog(
+				http.StatusInternalServerError,
+				errMsgInternalServerError,
+				fmt.Sprintf("Database query failed: %v", err),
+			)
+			apierrors.WriteError(w, r, apiErr)
+			return
+		}
+	} else {
+		// Year mode - existing behavior for backwards compatibility
+		yearInt, parseErr := strconv.Atoi(year)
+		if parseErr != nil {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+			apierrors.WriteError(w, r, apiErr)
+			return
+		}
+		summary, err = h.repo.GetDailySummary(ctx, yearInt, sportTypes)
+		if err != nil {
+			logger.Logger.Error("Database query failed", "error", err, "year", year, "sportTypes", sportTypes)
+			apiErr := apierrors.NewAPIErrorWithLog(
+				http.StatusInternalServerError,
+				errMsgInternalServerError,
+				fmt.Sprintf("Database query failed: %v", err),
+			)
+			apierrors.WriteError(w, r, apiErr)
+			return
+		}
 	}
 
 	h.respondProtobuf(w, r, summary)

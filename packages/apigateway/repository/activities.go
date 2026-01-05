@@ -31,8 +31,13 @@ type ActivityRepository interface {
 
 	// GetDailySummary returns daily activity summaries for a sport category in a given year.
 	// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
-	// Used by: GET /activities/{year}/source?sport=X
+	// Used by: GET /activities/{year}/source?sport=X (without from/to params)
 	GetDailySummary(ctx context.Context, year int, sportTypes []string) (*generated.DailySummary, error)
+
+	// GetDailySummaryByDateRange returns daily activity summaries for a date range.
+	// Unlike GetDailySummary, this can span multiple years (e.g., Dec 2025 - Jan 2026).
+	// Used by: GET /activities/{year}/source?sport=X&from=YYYY-MM-DD&to=YYYY-MM-DD
+	GetDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.DailySummary, error)
 
 	// GetYearMetadata returns metadata about activities for a given year.
 	// Used by: GET /activities/{year}/metadata

@@ -1,5 +1,6 @@
 import { useAuth } from "../hooks/useAuth";
 import MultiSportComparisonChart from "../components/dashboard/MultiSportComparisonChart";
+import ActivityCalendarHeatmap from "../components/dashboard/ActivityCalendarHeatmap";
 import NeonSpinner from "../components/NeonSpinner";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
 
@@ -59,6 +60,9 @@ export default function Dashboard() {
 
         {/* Multi-Sport Comparison Chart */}
         <MultiSportComparisonChart className="mb-4" />
+
+        {/* Activity Calendar Heatmap - only show for authenticated users */}
+        {user && <ActivityCalendarHeatmap className="mb-4" />}
 
         {/* Sign-in prompt for unauthenticated users */}
         {!user && (
