@@ -292,6 +292,11 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*ge
 		lastUpdatedStr = &s
 	}
 
+	// Range check for year to satisfy G115 (integer overflow)
+	if year < 0 || year > 9999 {
+		return nil, fmt.Errorf("year %d out of valid range", year)
+	}
+
 	return &generated.YearMetadata{
 		Year:               int32(year),
 		Sports:             sports,
