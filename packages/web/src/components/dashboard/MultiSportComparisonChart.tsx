@@ -40,10 +40,7 @@ function getPrimaryMetric(activity: DailyActivity, sport: Sport): number {
 /**
  * Convert daily sport data (map) to sorted array with primary metric values.
  */
-function toDailyArray(
-  data: DailySportData,
-  sport: Sport
-): { date: string; value: number }[] {
+function toDailyArray(data: DailySportData, sport: Sport): { date: string; value: number }[] {
   const entries = Object.entries(data);
   if (entries.length === 0) return [];
 

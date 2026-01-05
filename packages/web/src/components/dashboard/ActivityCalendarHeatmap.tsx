@@ -116,7 +116,9 @@ function getMonthLabels(
         // Include year for January or first label
         const includeYear = month === 0 || labels.length === 0;
         labels.push({
-          label: includeYear ? `${MONTH_LABELS[month]} '${String(year).slice(2)}` : MONTH_LABELS[month],
+          label: includeYear
+            ? `${MONTH_LABELS[month]} '${String(year).slice(2)}`
+            : MONTH_LABELS[month],
           weekIndex,
           year: includeYear ? year : undefined,
         });
@@ -131,7 +133,12 @@ function getMonthLabels(
 /**
  * Calculate date range for a time range option.
  */
-function getDateRange(option: TimeRangeOption): { startDate: Date; endDate: Date; from: string; to: string } {
+function getDateRange(option: TimeRangeOption): {
+  startDate: Date;
+  endDate: Date;
+  from: string;
+  to: string;
+} {
   const today = new Date();
   let startDate: Date;
   let endDate: Date;

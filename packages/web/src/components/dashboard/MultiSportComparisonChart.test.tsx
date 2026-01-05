@@ -181,12 +181,32 @@ describe("MultiSportComparisonChart", () => {
       mockUseDailySportData.mockReturnValue({
         data: {
           cycling: {
-            "2025-12-20": { distanceMeters: 20000, timeMinutes: 60, activities: 1, activityIds: [1] },
-            "2025-12-22": { distanceMeters: 50000, timeMinutes: 120, activities: 2, activityIds: [2, 3] },
+            "2025-12-20": {
+              distanceMeters: 20000,
+              timeMinutes: 60,
+              activities: 1,
+              activityIds: [1],
+            },
+            "2025-12-22": {
+              distanceMeters: 50000,
+              timeMinutes: 120,
+              activities: 2,
+              activityIds: [2, 3],
+            },
           },
           running: {
-            "2025-12-21": { distanceMeters: 5000, timeMinutes: 30, activities: 1, activityIds: [4] },
-            "2025-12-23": { distanceMeters: 10000, timeMinutes: 50, activities: 2, activityIds: [5, 6] },
+            "2025-12-21": {
+              distanceMeters: 5000,
+              timeMinutes: 30,
+              activities: 1,
+              activityIds: [4],
+            },
+            "2025-12-23": {
+              distanceMeters: 10000,
+              timeMinutes: 50,
+              activities: 2,
+              activityIds: [5, 6],
+            },
           },
           yoga: {
             "2025-12-20": { timeMinutes: 30, activities: 1, activityIds: [7] },

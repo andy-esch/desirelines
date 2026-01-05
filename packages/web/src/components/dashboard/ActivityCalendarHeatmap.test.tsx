@@ -63,11 +63,26 @@ describe("ActivityCalendarHeatmap", () => {
       mockUseDailySportData.mockReturnValue({
         data: {
           cycling: {
-            "2026-01-02": { distanceMeters: 20000, timeMinutes: 60, activities: 1, activityIds: [1] },
-            "2026-01-03": { distanceMeters: 50000, timeMinutes: 120, activities: 2, activityIds: [2, 3] },
+            "2026-01-02": {
+              distanceMeters: 20000,
+              timeMinutes: 60,
+              activities: 1,
+              activityIds: [1],
+            },
+            "2026-01-03": {
+              distanceMeters: 50000,
+              timeMinutes: 120,
+              activities: 2,
+              activityIds: [2, 3],
+            },
           },
           running: {
-            "2026-01-02": { distanceMeters: 5000, timeMinutes: 30, activities: 1, activityIds: [4] },
+            "2026-01-02": {
+              distanceMeters: 5000,
+              timeMinutes: 30,
+              activities: 1,
+              activityIds: [4],
+            },
           },
           yoga: {
             "2026-01-01": { timeMinutes: 30, activities: 1, activityIds: [5] },
