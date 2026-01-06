@@ -1,21 +1,23 @@
-package dispatcher
+package domain_test
 
 import (
 	"testing"
+
+	"github.com/andy-esch/desirelines/packages/dispatcher/domain"
 )
 
 func TestWebhookRequest_Validate_Success(t *testing.T) {
 	tests := []struct {
 		name    string
-		webhook WebhookRequest
+		webhook domain.WebhookRequest
 	}{
 		{
 			name: "valid create activity webhook",
-			webhook: WebhookRequest{
-				AspectType:     AspectCreate,
+			webhook: domain.WebhookRequest{
+				AspectType:     domain.AspectCreate,
 				EventTime:      1693536000,
 				ObjectID:       12345,
-				ObjectType:     ObjectActivity,
+				ObjectType:     domain.ObjectActivity,
 				OwnerID:        67890,
 				SubscriptionID: 123456,
 				Updates:        map[string]any{},
@@ -23,11 +25,11 @@ func TestWebhookRequest_Validate_Success(t *testing.T) {
 		},
 		{
 			name: "valid update activity webhook",
-			webhook: WebhookRequest{
-				AspectType:     AspectUpdate,
+			webhook: domain.WebhookRequest{
+				AspectType:     domain.AspectUpdate,
 				EventTime:      1693536000,
 				ObjectID:       12345,
-				ObjectType:     ObjectActivity,
+				ObjectType:     domain.ObjectActivity,
 				OwnerID:        67890,
 				SubscriptionID: 123456,
 				Updates:        map[string]any{"title": "New Title"},
@@ -35,11 +37,11 @@ func TestWebhookRequest_Validate_Success(t *testing.T) {
 		},
 		{
 			name: "valid delete activity webhook",
-			webhook: WebhookRequest{
-				AspectType:     AspectDelete,
+			webhook: domain.WebhookRequest{
+				AspectType:     domain.AspectDelete,
 				EventTime:      1693536000,
 				ObjectID:       12345,
-				ObjectType:     ObjectActivity,
+				ObjectType:     domain.ObjectActivity,
 				OwnerID:        67890,
 				SubscriptionID: 123456,
 				Updates:        map[string]any{},
@@ -47,11 +49,11 @@ func TestWebhookRequest_Validate_Success(t *testing.T) {
 		},
 		{
 			name: "valid athlete webhook",
-			webhook: WebhookRequest{
-				AspectType:     AspectUpdate,
+			webhook: domain.WebhookRequest{
+				AspectType:     domain.AspectUpdate,
 				EventTime:      1693536000,
 				ObjectID:       12345,
-				ObjectType:     ObjectAthlete,
+				ObjectType:     domain.ObjectAthlete,
 				OwnerID:        67890,
 				SubscriptionID: 123456,
 				Updates:        map[string]any{"authorized": "false"},
@@ -70,7 +72,7 @@ func TestWebhookRequest_Validate_Success(t *testing.T) {
 }
 
 func TestWebhookRequest_Validate_InvalidAspectType(t *testing.T) {
-	webhook := WebhookRequest{
+	webhook := domain.WebhookRequest{
 		AspectType:     "invalid",
 		EventTime:      1693536000,
 		ObjectID:       12345,
@@ -91,8 +93,8 @@ func TestWebhookRequest_Validate_InvalidAspectType(t *testing.T) {
 }
 
 func TestWebhookRequest_Validate_InvalidObjectType(t *testing.T) {
-	webhook := WebhookRequest{
-		AspectType:     AspectCreate,
+	webhook := domain.WebhookRequest{
+		AspectType:     domain.AspectCreate,
 		EventTime:      1693536000,
 		ObjectID:       12345,
 		ObjectType:     "invalid", // Neither "activity" nor "athlete"
@@ -115,14 +117,14 @@ func TestWebhookRequest_Validate_MissingRequiredFields(t *testing.T) {
 	tests := []struct {
 		name        string
 		expectedErr string
-		webhook     WebhookRequest
+		webhook     domain.WebhookRequest
 	}{
 		{
 			name: "missing event_time",
-			webhook: WebhookRequest{
-				AspectType:     AspectCreate,
+			webhook: domain.WebhookRequest{
+				AspectType:     domain.AspectCreate,
 				ObjectID:       12345,
-				ObjectType:     ObjectActivity,
+				ObjectType:     domain.ObjectActivity,
 				OwnerID:        67890,
 				SubscriptionID: 123456,
 			},
@@ -130,10 +132,10 @@ func TestWebhookRequest_Validate_MissingRequiredFields(t *testing.T) {
 		},
 		{
 			name: "missing object_id",
-			webhook: WebhookRequest{
-				AspectType:     AspectCreate,
+			webhook: domain.WebhookRequest{
+				AspectType:     domain.AspectCreate,
 				EventTime:      1693536000,
-				ObjectType:     ObjectActivity,
+				ObjectType:     domain.ObjectActivity,
 				OwnerID:        67890,
 				SubscriptionID: 123456,
 			},
@@ -141,22 +143,22 @@ func TestWebhookRequest_Validate_MissingRequiredFields(t *testing.T) {
 		},
 		{
 			name: "missing owner_id",
-			webhook: WebhookRequest{
-				AspectType:     AspectCreate,
+			webhook: domain.WebhookRequest{
+				AspectType:     domain.AspectCreate,
 				EventTime:      1693536000,
 				ObjectID:       12345,
-				ObjectType:     ObjectActivity,
+				ObjectType:     domain.ObjectActivity,
 				SubscriptionID: 123456,
 			},
 			expectedErr: "owner_id is required",
 		},
 		{
 			name: "missing subscription_id",
-			webhook: WebhookRequest{
-				AspectType: AspectCreate,
+			webhook: domain.WebhookRequest{
+				AspectType: domain.AspectCreate,
 				EventTime:  1693536000,
 				ObjectID:   12345,
-				ObjectType: ObjectActivity,
+				ObjectType: domain.ObjectActivity,
 				OwnerID:    67890,
 			},
 			expectedErr: "subscription_id is required",
@@ -182,15 +184,15 @@ func TestWebhookRequest_Validate_MissingRequiredFields(t *testing.T) {
 func TestAspectType_Valid(t *testing.T) {
 	tests := []struct {
 		name       string
-		aspectType AspectType
+		aspectType domain.AspectType
 		want       bool
 	}{
-		{name: "valid create", aspectType: AspectCreate, want: true},
-		{name: "valid update", aspectType: AspectUpdate, want: true},
-		{name: "valid delete", aspectType: AspectDelete, want: true},
-		{name: "invalid empty", aspectType: AspectType(""), want: false},
-		{name: "invalid unknown", aspectType: AspectType("unknown"), want: false},
-		{name: "invalid case mismatch", aspectType: AspectType("Create"), want: false},
+		{name: "valid create", aspectType: domain.AspectCreate, want: true},
+		{name: "valid update", aspectType: domain.AspectUpdate, want: true},
+		{name: "valid delete", aspectType: domain.AspectDelete, want: true},
+		{name: "invalid empty", aspectType: domain.AspectType(""), want: false},
+		{name: "invalid unknown", aspectType: domain.AspectType("unknown"), want: false},
+		{name: "invalid case mismatch", aspectType: domain.AspectType("Create"), want: false},
 	}
 
 	for _, tt := range tests {
@@ -206,14 +208,14 @@ func TestAspectType_Valid(t *testing.T) {
 func TestObjectType_Valid(t *testing.T) {
 	tests := []struct {
 		name       string
-		objectType ObjectType
+		objectType domain.ObjectType
 		want       bool
 	}{
-		{name: "valid activity", objectType: ObjectActivity, want: true},
-		{name: "valid athlete", objectType: ObjectAthlete, want: true},
-		{name: "invalid empty", objectType: ObjectType(""), want: false},
-		{name: "invalid unknown", objectType: ObjectType("unknown"), want: false},
-		{name: "invalid case mismatch", objectType: ObjectType("Activity"), want: false},
+		{name: "valid activity", objectType: domain.ObjectActivity, want: true},
+		{name: "valid athlete", objectType: domain.ObjectAthlete, want: true},
+		{name: "invalid empty", objectType: domain.ObjectType(""), want: false},
+		{name: "invalid unknown", objectType: domain.ObjectType("unknown"), want: false},
+		{name: "invalid case mismatch", objectType: domain.ObjectType("Activity"), want: false},
 	}
 
 	for _, tt := range tests {
@@ -229,12 +231,12 @@ func TestObjectType_Valid(t *testing.T) {
 func TestAspectType_String(t *testing.T) {
 	tests := []struct {
 		name       string
-		aspectType AspectType
+		aspectType domain.AspectType
 		want       string
 	}{
-		{name: "create", aspectType: AspectCreate, want: "create"},
-		{name: "update", aspectType: AspectUpdate, want: "update"},
-		{name: "delete", aspectType: AspectDelete, want: "delete"},
+		{name: "create", aspectType: domain.AspectCreate, want: "create"},
+		{name: "update", aspectType: domain.AspectUpdate, want: "update"},
+		{name: "delete", aspectType: domain.AspectDelete, want: "delete"},
 	}
 
 	for _, tt := range tests {
@@ -250,11 +252,11 @@ func TestAspectType_String(t *testing.T) {
 func TestObjectType_String(t *testing.T) {
 	tests := []struct {
 		name       string
-		objectType ObjectType
+		objectType domain.ObjectType
 		want       string
 	}{
-		{name: "activity", objectType: ObjectActivity, want: "activity"},
-		{name: "athlete", objectType: ObjectAthlete, want: "athlete"},
+		{name: "activity", objectType: domain.ObjectActivity, want: "activity"},
+		{name: "athlete", objectType: domain.ObjectAthlete, want: "athlete"},
 	}
 
 	for _, tt := range tests {

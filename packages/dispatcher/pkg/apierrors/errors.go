@@ -133,4 +133,3 @@ func WriteError(w http.ResponseWriter, r *http.Request, err APIError, logger *sl
 		logger.Error("Failed to encode error response", "error", encErr, "request_id", requestID)
 	}
 }
-

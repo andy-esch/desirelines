@@ -1,4 +1,10 @@
-package dispatcher
+// Package domain defines the core business logic and models for the dispatcher service.
+//
+// TODO: Migrate to protobuf schema for cross-language type safety.
+// The webhook types here are also needed by stravapipe (Python). A shared
+// protobuf schema would provide a single source of truth and generated code
+// for both languages. See: tasks/ready-to-start/create-protobuf-schema-webhook-events.md
+package domain //nolint:revive // Generic name acceptable for hexagonal architecture; protobuf migration planned
 
 import (
 	"fmt"

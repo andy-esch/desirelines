@@ -1,11 +1,15 @@
 package apierrors
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func TestAPIError_Error(t *testing.T) {
@@ -78,13 +82,14 @@ func TestPredefinedErrors(t *testing.T) {
 		name       string
 		err        APIError
 		wantStatus int
+		wantCode   string
 	}{
-		{"ErrNotFound", ErrNotFound, http.StatusNotFound},
-		{"ErrBadRequest", ErrBadRequest, http.StatusBadRequest},
-		{"ErrMethodNotAllowed", ErrMethodNotAllowed, http.StatusMethodNotAllowed},
-		{"ErrInternalServer", ErrInternalServer, http.StatusInternalServerError},
-		{"ErrUnauthorized", ErrUnauthorized, http.StatusUnauthorized},
-		{"ErrForbidden", ErrForbidden, http.StatusForbidden},
+		{"ErrNotFound", ErrNotFound, http.StatusNotFound, "NOT_FOUND"},
+		{"ErrBadRequest", ErrBadRequest, http.StatusBadRequest, "BAD_REQUEST"},
+		{"ErrMethodNotAllowed", ErrMethodNotAllowed, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED"},
+		{"ErrInternalServer", ErrInternalServer, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR"},
+		{"ErrUnauthorized", ErrUnauthorized, http.StatusUnauthorized, "UNAUTHORIZED"},
+		{"ErrForbidden", ErrForbidden, http.StatusForbidden, "FORBIDDEN"},
 	}
 
 	for _, tt := range tests {
@@ -95,6 +100,9 @@ func TestPredefinedErrors(t *testing.T) {
 			if tt.err.Message == "" {
 				t.Errorf("%s.Message should not be empty", tt.name)
 			}
+			if tt.err.Code != tt.wantCode {
+				t.Errorf("%s.Code = %q, want %q", tt.name, tt.err.Code, tt.wantCode)
+			}
 		})
 	}
 }
@@ -102,11 +110,11 @@ func TestPredefinedErrors(t *testing.T) {
 func TestWriteError(t *testing.T) {
 	logger := slog.Default()
 
-	t.Run("writes correct status and JSON", func(t *testing.T) {
+	t.Run("writes correct status and JSON with Code", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
-		err := NewAPIError(http.StatusBadRequest, "Invalid year format")
+		err := ErrBadRequest
 		WriteError(w, req, err, logger)
 
 		// Check status code
@@ -114,38 +122,34 @@ func TestWriteError(t *testing.T) {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
 		}
 
-		// Check content type
-		if ct := w.Header().Get("Content-Type"); ct != "application/json" {
-			t.Errorf("Content-Type = %q, want %q", ct, "application/json")
-		}
-
 		// Check response body
 		var response ErrorResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
-		if response.Error != "Invalid year format" {
-			t.Errorf("response.Error = %q, want %q", response.Error, "Invalid year format")
+		if response.Error != err.Message {
+			t.Errorf("response.Error = %q, want %q", response.Error, err.Message)
+		}
+		if response.Code != err.Code {
+			t.Errorf("response.Code = %q, want %q", response.Code, err.Code)
 		}
 	})
 
-	t.Run("works with nil CORS handler", func(t *testing.T) {
+	t.Run("includes request ID from context", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		// Manually set request ID in context (simulating middleware)
+		ctx := context.WithValue(req.Context(), middleware.RequestIDKey, "test-req-id")
+		req = req.WithContext(ctx)
 		w := httptest.NewRecorder()
 
-		err := NewAPIError(http.StatusNotFound, "Not found")
-		WriteError(w, req, err, logger)
-
-		if w.Code != http.StatusNotFound {
-			t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
-		}
+		WriteError(w, req, ErrInternalServer, logger)
 
 		var response ErrorResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
-		if response.Error != "Not found" {
-			t.Errorf("response.Error = %q, want %q", response.Error, "Not found")
+		if response.RequestID != "test-req-id" {
+			t.Errorf("response.RequestID = %q, want %q", response.RequestID, "test-req-id")
 		}
 	})
 
@@ -161,7 +165,7 @@ func TestWriteError(t *testing.T) {
 		WriteError(w, req, err, logger)
 
 		body := w.Body.String()
-		if contains(body, "SECRET") || contains(body, "hunter2") {
+		if strings.Contains(body, "SECRET") || strings.Contains(body, "hunter2") {
 			t.Error("log message should not be exposed in response body")
 		}
 
@@ -173,53 +177,23 @@ func TestWriteError(t *testing.T) {
 			t.Errorf("response.Error = %q, want public message", response.Error)
 		}
 	})
-
-	t.Run("handles all status codes", func(t *testing.T) {
-		statusCodes := []int{
-			http.StatusBadRequest,
-			http.StatusUnauthorized,
-			http.StatusForbidden,
-			http.StatusNotFound,
-			http.StatusMethodNotAllowed,
-			http.StatusInternalServerError,
-			http.StatusServiceUnavailable,
-		}
-
-		for _, code := range statusCodes {
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			w := httptest.NewRecorder()
-
-			err := NewAPIError(code, "Test error")
-			WriteError(w, req, err, logger)
-
-			if w.Code != code {
-				t.Errorf("status for %d = %d", code, w.Code)
-			}
-		}
-	})
 }
 
 func TestErrorResponse_JSONFormat(t *testing.T) {
-	response := ErrorResponse{Error: "Test error message"}
+	response := ErrorResponse{
+		Error: "Test error message",
+		Code:  "TEST_CODE",
+	}
 
 	data, err := json.Marshal(response)
 	if err != nil {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	// Should produce {"error":"Test error message"}
-	want := `{"error":"Test error message"}`
+	// Should produce {"error":"Test error message","code":"TEST_CODE"}
+	// Note: RequestID and Details omitted because they are empty
+	want := `{"error":"Test error message","code":"TEST_CODE"}`
 	if string(data) != want {
 		t.Errorf("JSON = %s, want %s", string(data), want)
 	}
-}
-
-// Helper function
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

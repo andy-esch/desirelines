@@ -1,0 +1,39 @@
+// Package portstest provides mock implementations of port interfaces for testing.
+package portstest
+
+import (
+	"context"
+
+	"github.com/andy-esch/desirelines/packages/dispatcher/domain"
+)
+
+// MockPublisher is a mock implementation of the Publisher interface for testing.
+type MockPublisher struct {
+	PublishErr error
+	Published  []domain.WebhookRequest
+}
+
+// Publish implements the mock publisher.
+func (m *MockPublisher) Publish(ctx context.Context, webhook domain.WebhookRequest, correlationID string) error {
+	if m.PublishErr == nil {
+		m.Published = append(m.Published, webhook)
+	}
+	return m.PublishErr
+}
+
+// Close implements the Publisher interface for MockPublisher.
+func (m *MockPublisher) Close() error {
+	return nil
+}
+
+// MockSecretProvider is a mock implementation of SecretProvider for testing.
+type MockSecretProvider struct {
+	VerifyToken    string
+	SubscriptionID int
+	Err            error
+}
+
+// GetSecrets implements the SecretProvider interface.
+func (m *MockSecretProvider) GetSecrets() (string, int, error) {
+	return m.VerifyToken, m.SubscriptionID, m.Err
+}

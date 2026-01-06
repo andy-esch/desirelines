@@ -1,21 +1,15 @@
-package dispatcher
+// Package logger provides structured logging for the API Gateway using Go's slog package.
+// It configures logging to output JSON format compatible with Google Cloud Logging.
+package logger
 
 import (
 	"log/slog"
 	"os"
 )
 
-// Logger interface for testability and dependency injection.
-type Logger interface {
-	Info(msg string, args ...any)
-	Error(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Debug(msg string, args ...any)
-}
-
-// setupCloudLogger configures slog for Google Cloud structured logging.
+// New configures slog for Google Cloud structured logging.
 // Maps slog keys to Google Cloud Logging expected field names and severity levels.
-func setupCloudLogger() *slog.Logger {
+func New() *slog.Logger {
 	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
@@ -55,7 +49,3 @@ func setupCloudLogger() *slog.Logger {
 
 	return slog.New(handler)
 }
-
-// DefaultLogger is the package-level structured logger for Cloud Run.
-// Deprecated: Use dependency injection via Handler constructors instead.
-var DefaultLogger Logger = setupCloudLogger()

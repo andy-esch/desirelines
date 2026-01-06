@@ -184,7 +184,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 		GetActivityByID: activitiesHandler.HandleGetActivity,
 	}
 
-	return server.NewRouter(routerCfg, publicRoutes, authRoutes)
+	return server.NewRouter(routerCfg, publicRoutes, authRoutes, deps.logger)
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
