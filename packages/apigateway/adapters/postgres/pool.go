@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"

@@ -145,10 +145,10 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 		// Only warn if connection string is missing, allowing startup without DB
 		log.Warn("Could not load connection string, continuing without database", "error", err)
 	} else {
-		pool, err := postgres.NewPool(ctx, connString, log)
-		if err != nil {
+		pool, poolErr := postgres.NewPool(ctx, connString, log)
+		if poolErr != nil {
 			// Graceful degradation: warn but don't fail startup
-			log.Warn("Database initialization failed, continuing without database", "error", err)
+			log.Warn("Database initialization failed, continuing without database", "error", poolErr)
 		} else {
 			deps.repo = postgres.NewActivityRepository(pool)
 			log.Info("Database repository initialized")
