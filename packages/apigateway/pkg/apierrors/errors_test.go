@@ -2,6 +2,7 @@ package apierrors
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -99,12 +100,14 @@ func TestPredefinedErrors(t *testing.T) {
 }
 
 func TestWriteError(t *testing.T) {
+	logger := slog.Default()
+
 	t.Run("writes correct status and JSON", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		err := NewAPIError(http.StatusBadRequest, "Invalid year format")
-		WriteError(w, req, err)
+		WriteError(w, req, err, logger)
 
 		// Check status code
 		if w.Code != http.StatusBadRequest {
@@ -131,7 +134,7 @@ func TestWriteError(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		err := NewAPIError(http.StatusNotFound, "Not found")
-		WriteError(w, req, err)
+		WriteError(w, req, err, logger)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
@@ -155,7 +158,7 @@ func TestWriteError(t *testing.T) {
 			"Internal server error",
 			"SECRET: database password is hunter2",
 		)
-		WriteError(w, req, err)
+		WriteError(w, req, err, logger)
 
 		body := w.Body.String()
 		if contains(body, "SECRET") || contains(body, "hunter2") {
@@ -187,7 +190,7 @@ func TestWriteError(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			err := NewAPIError(code, "Test error")
-			WriteError(w, req, err)
+			WriteError(w, req, err, logger)
 
 			if w.Code != code {
 				t.Errorf("status for %d = %d", code, w.Code)

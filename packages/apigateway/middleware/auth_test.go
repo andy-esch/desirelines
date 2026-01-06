@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,11 +12,14 @@ func TestAuthMiddleware_MissingAuthorizationHeader(t *testing.T) {
 	// Set CORS origins for test
 	t.Setenv("ALLOWED_ORIGINS", "https://example.com")
 
+	logger := slog.Default()
+
 	// Create middleware with allowed emails
 	// authClient is nil so token verification would fail, but we test headers first
 	middleware := &AuthMiddleware{
 		allowedEmails: map[string]bool{"test@example.com": true},
 		authClient:    nil,
+		logger:        logger,
 	}
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -45,9 +49,12 @@ func TestAuthMiddleware_MissingAuthorizationHeader(t *testing.T) {
 func TestAuthMiddleware_InvalidAuthorizationHeaderFormat(t *testing.T) {
 	t.Setenv("ALLOWED_ORIGINS", "https://example.com")
 
+	logger := slog.Default()
+
 	middleware := &AuthMiddleware{
 		allowedEmails: map[string]bool{"test@example.com": true},
 		authClient:    nil,
+		logger:        logger,
 	}
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +95,8 @@ func TestAuthMiddleware_InvalidAuthorizationHeaderFormat(t *testing.T) {
 func TestParseAllowedEmails_Empty(t *testing.T) {
 	t.Setenv("ALLOWED_EMAILS", "")
 
-	allowedEmails := parseAllowedEmails()
+	logger := slog.Default()
+	allowedEmails := parseAllowedEmails(logger)
 
 	if len(allowedEmails) != 0 {
 		t.Error("Expected empty allowedEmails map when ALLOWED_EMAILS not set")
@@ -99,7 +107,8 @@ func TestParseAllowedEmails_Empty(t *testing.T) {
 func TestParseAllowedEmails_WithEmails(t *testing.T) {
 	t.Setenv("ALLOWED_EMAILS", "user1@example.com, user2@example.com, admin@example.com")
 
-	allowedEmails := parseAllowedEmails()
+	logger := slog.Default()
+	allowedEmails := parseAllowedEmails(logger)
 
 	expectedEmails := map[string]bool{
 		"user1@example.com": true,
@@ -122,7 +131,8 @@ func TestParseAllowedEmails_WithEmails(t *testing.T) {
 func TestParseAllowedEmails_TrimsWhitespace(t *testing.T) {
 	t.Setenv("ALLOWED_EMAILS", "  user@example.com  ,  admin@example.com  ")
 
-	allowedEmails := parseAllowedEmails()
+	logger := slog.Default()
+	allowedEmails := parseAllowedEmails(logger)
 
 	if !allowedEmails["user@example.com"] {
 		t.Error("Expected 'user@example.com' (trimmed) to be in allowlist")

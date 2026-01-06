@@ -3,9 +3,8 @@ package apierrors
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
-
-	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
 // APIError represents a standardized API error with HTTP status and message.
@@ -83,12 +82,12 @@ func NewAPIErrorWithLog(status int, message, logMessage string) APIError {
 }
 
 // WriteError writes an error response with proper HTTP headers.
-func WriteError(w http.ResponseWriter, r *http.Request, err APIError) {
+func WriteError(w http.ResponseWriter, r *http.Request, err APIError, logger *slog.Logger) {
 	// Log internal message if provided
 	// Note: Uses r.URL.Path (not r.URL.String()) to avoid logging query parameters
 	// which may contain sensitive data like tokens or user information
 	if err.LogMessage != "" {
-		logger.Logger.Error("API Error",
+		logger.Error("API Error",
 			"message", err.LogMessage,
 			"path", r.URL.Path,
 			"method", r.Method,
@@ -101,12 +100,6 @@ func WriteError(w http.ResponseWriter, r *http.Request, err APIError) {
 
 	response := ErrorResponse{Error: err.Message}
 	if encErr := json.NewEncoder(w).Encode(response); encErr != nil {
-		logger.Logger.Error("Failed to encode error response", "error", encErr)
+		logger.Error("Failed to encode error response", "error", encErr)
 	}
-}
-
-// CORSHandler interface for setting CORS headers.
-type CORSHandler interface {
-	SetHeaders(w http.ResponseWriter, r *http.Request) bool
-	HandlePreflight(w http.ResponseWriter, r *http.Request)
 }

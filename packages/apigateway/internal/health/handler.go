@@ -3,11 +3,11 @@ package health
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
-	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 )
 
@@ -24,13 +24,15 @@ type Response struct {
 
 // Handler holds dependencies for the health check handler.
 type Handler struct {
-	repo repository.ActivityRepository
+	repo   repository.ActivityRepository
+	logger *slog.Logger
 }
 
 // NewHandler creates a new health check handler.
-func NewHandler(repo repository.ActivityRepository) *Handler {
+func NewHandler(repo repository.ActivityRepository, logger *slog.Logger) *Handler {
 	return &Handler{
-		repo: repo,
+		repo:   repo,
+		logger: logger,
 	}
 }
 
@@ -46,12 +48,12 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 
 		if err := h.repo.Ping(ctx); err != nil {
-			logger.Logger.Warn("Database health check failed", "error", err)
+			h.logger.Warn("Database health check failed", "error", err)
 			response.Database = statusUnhealthy
 		} else {
 			response.Database = statusHealthy
 		}
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, response)
+	server.RespondJSON(w, r, http.StatusOK, response, h.logger)
 }

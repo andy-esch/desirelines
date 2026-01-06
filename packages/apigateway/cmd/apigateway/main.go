@@ -10,33 +10,36 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
-	"github.com/andy-esch/desirelines/packages/apigateway/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/activities"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/health"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/sports"
-	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
+	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
+	"github.com/andy-esch/desirelines/packages/apigateway/pkg/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 )
 
 func main() {
-	logger.Logger.Info("Starting API Gateway")
+	log := logger.New()
+	log.Info("Starting API Gateway")
 
 	ctx := context.Background()
 
 	// Initialize all dependencies
-	deps, err := initDependencies(ctx)
+	deps, err := initDependencies(ctx, log)
 	if err != nil {
-		logger.Logger.Error("Failed to initialize dependencies", "error", err)
+		log.Error("Failed to initialize dependencies", "error", err)
 		os.Exit(1)
 	}
 	defer deps.Close()
@@ -56,9 +59,9 @@ func main() {
 
 	// Start server in goroutine to allow graceful shutdown
 	go func() {
-		logger.Logger.Info("Server listening", "port", port)
+		log.Info("Server listening", "port", port)
 		if serverErr := srv.ListenAndServe(); serverErr != nil && serverErr != http.ErrServerClosed {
-			logger.Logger.Error("Server failed", "error", serverErr)
+			log.Error("Server failed", "error", serverErr)
 			os.Exit(1)
 		}
 	}()
@@ -68,18 +71,18 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Logger.Info("Shutting down server...")
+	log.Info("Shutting down server...")
 
 	// Give server 30 seconds to finish in-flight requests
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
-		logger.Logger.Error("Server forced to shutdown", "error", shutdownErr)
+		log.Error("Server forced to shutdown", "error", shutdownErr)
 		os.Exit(1)
 	}
 
-	logger.Logger.Info("Server exited gracefully")
+	log.Info("Server exited gracefully")
 }
 
 // Dependencies holds all initialized dependencies for the application.
@@ -88,50 +91,68 @@ type Dependencies struct {
 	authMiddleware server.AuthMiddleware
 	corsHandler    *cors.Handler
 	sportConfig    *config.SportConfig
+	logger         *slog.Logger
 }
 
 // Close releases all dependency resources.
 func (d *Dependencies) Close() {
 	if d.repo != nil {
 		if err := d.repo.Close(); err != nil {
-			logger.Logger.Error("Error closing repository", "error", err)
+			d.logger.Error("Error closing repository", "error", err)
 		}
 	}
 }
 
 // initDependencies creates and wires all application dependencies.
 // This is the composition root following hexagonal architecture.
-func initDependencies(ctx context.Context) (*Dependencies, error) {
-	deps := &Dependencies{}
+func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, error) {
+	deps := &Dependencies{
+		logger: log,
+	}
 
 	// 1. Load sport configuration (embedded in binary via go:embed)
 	sportConfig, err := config.LoadSportConfig("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load sport config: %w", err)
 	}
-	logger.Logger.Info("Loaded sport config", "sport_count", len(sportConfig.ListSports()))
+	log.Info("Loaded sport config", "sport_count", len(sportConfig.ListSports()))
 	deps.sportConfig = sportConfig
 
 	// 2. Initialize CORS handler
-	deps.corsHandler = cors.NewHandler()
+	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
+	var allowedOrigins []string
+	if allowedOriginsEnv != "" {
+		parts := strings.Split(allowedOriginsEnv, ",")
+		for _, o := range parts {
+			if trimmed := strings.TrimSpace(o); trimmed != "" {
+				allowedOrigins = append(allowedOrigins, trimmed)
+			}
+		}
+	}
+	deps.corsHandler = cors.NewHandler(allowedOrigins, log)
 
 	// 3. Initialize auth middleware (Firebase JWT + email allowlist)
-	authMiddleware, err := middleware.NewFirebaseAuth(ctx)
+	allowedEmails := getAllowedEmails()
+	authMiddleware, err := middleware.NewFirebaseAuth(ctx, allowedEmails, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize auth middleware: %w", err)
 	}
 	deps.authMiddleware = authMiddleware
 
 	// 4. Initialize PostgreSQL repository
-	pool, err := postgres.NewPool(ctx)
+	connString, err := getConnectionString()
 	if err != nil {
-		// Graceful degradation: warn but don't fail startup
-		// This allows the service to start even if database is temporarily unavailable
-		logger.Logger.Warn("Database initialization failed, continuing without database",
-			"error", err)
+		// Only warn if connection string is missing, allowing startup without DB
+		log.Warn("Could not load connection string, continuing without database", "error", err)
 	} else {
-		deps.repo = postgres.NewActivityRepository(pool)
-		logger.Logger.Info("Database repository initialized")
+		pool, err := postgres.NewPool(ctx, connString, log)
+		if err != nil {
+			// Graceful degradation: warn but don't fail startup
+			log.Warn("Database initialization failed, continuing without database", "error", err)
+		} else {
+			deps.repo = postgres.NewActivityRepository(pool)
+			log.Info("Database repository initialized")
+		}
 	}
 
 	return deps, nil
@@ -140,9 +161,9 @@ func initDependencies(ctx context.Context) (*Dependencies, error) {
 // buildRouter creates the HTTP router with all handlers wired up.
 func buildRouter(deps *Dependencies) http.Handler {
 	// Create feature handlers with their dependencies
-	healthHandler := health.NewHandler(deps.repo)
-	sportsHandler := sports.NewHandler()
-	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig)
+	healthHandler := health.NewHandler(deps.repo, deps.logger)
+	sportsHandler := sports.NewHandler(deps.logger)
+	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig, deps.logger)
 
 	// Configure and create router
 	routerCfg := server.RouterConfig{
@@ -171,4 +192,36 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// getAllowedEmails reads allowed emails from environment variable.
+func getAllowedEmails() []string {
+	allowedEmailsEnv := os.Getenv("ALLOWED_EMAILS")
+	if allowedEmailsEnv == "" {
+		return nil
+	}
+
+	var emails []string
+	for _, email := range strings.Split(allowedEmailsEnv, ",") {
+		if trimmed := strings.TrimSpace(email); trimmed != "" {
+			emails = append(emails, trimmed)
+		}
+	}
+	return emails
+}
+
+// getConnectionString reads PostgreSQL connection string from secret mount or environment variable.
+func getConnectionString() (string, error) {
+	// Try secret mount first (Cloud Run)
+	const secretPath = "/etc/secrets/postgres/connection_string" //nolint:gosec // G101: Not credentials, just a file path
+	if data, err := os.ReadFile(secretPath); err == nil {
+		return strings.TrimSpace(string(data)), nil
+	}
+
+	// Fallback to env var (local dev)
+	if connStr := os.Getenv("POSTGRES_CONNECTION_STRING"); connStr != "" {
+		return connStr, nil
+	}
+
+	return "", fmt.Errorf("no connection string found (checked %s and POSTGRES_CONNECTION_STRING)", secretPath)
 }

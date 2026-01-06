@@ -4,7 +4,7 @@ package server
 import (
 	"net/http"
 
-	"github.com/andy-esch/desirelines/packages/apigateway/apierrors"
+	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -15,7 +15,7 @@ type AuthMiddleware interface {
 
 // RouterConfig holds the dependencies needed to configure routes.
 type RouterConfig struct {
-	CORSHandler    apierrors.CORSHandler
+	CORSHandler    *cors.Handler
 	AuthMiddleware AuthMiddleware
 }
 
