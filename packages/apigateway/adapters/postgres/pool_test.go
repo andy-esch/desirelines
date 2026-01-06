@@ -2,8 +2,6 @@ package postgres
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -114,70 +112,6 @@ func TestValidateApplicationName(t *testing.T) {
 	if !errors.Is(err, ErrMissingApplicationName) {
 		t.Errorf("validateApplicationName() error = %v, want ErrMissingApplicationName", err)
 	}
-}
-
-func TestLoadConnectionString(t *testing.T) {
-	t.Run("reads from env var when no secret file", func(t *testing.T) {
-		t.Setenv("POSTGRES_CONNECTION_STRING", "postgresql://test@host/db?application_name=test")
-
-		connStr, err := loadConnectionString()
-		if err != nil {
-			t.Fatalf("loadConnectionString() error = %v", err)
-		}
-
-		expected := "postgresql://test@host/db?application_name=test"
-		if connStr != expected {
-			t.Errorf("loadConnectionString() = %v, want %v", connStr, expected)
-		}
-	})
-
-	t.Run("returns error when no connection string found", func(t *testing.T) {
-		// Clear env var
-		t.Setenv("POSTGRES_CONNECTION_STRING", "")
-
-		_, err := loadConnectionString()
-		if err == nil {
-			t.Error("loadConnectionString() error = nil, want error")
-		}
-	})
-
-	t.Run("prefers secret file over env var", func(t *testing.T) {
-		// Create temp directory and file to simulate secret mount
-		tmpDir := t.TempDir()
-		secretDir := filepath.Join(tmpDir, "etc", "secrets", "postgres")
-		if err := os.MkdirAll(secretDir, 0750); err != nil { //nolint:gosec // G301: Test directory, not production
-			t.Fatalf("Failed to create secret dir: %v", err)
-		}
-
-		secretFile := filepath.Join(secretDir, "connection_string")
-		secretValue := "postgresql://secret@host/db?application_name=from-secret" //nolint:gosec // G101: Test data, not real credentials
-		if err := os.WriteFile(secretFile, []byte(secretValue), 0600); err != nil {
-			t.Fatalf("Failed to write secret file: %v", err)
-		}
-
-		// Set env var to different value
-		t.Setenv("POSTGRES_CONNECTION_STRING", "postgresql://env@host/db?application_name=from-env")
-
-		// Note: We can't actually test this without modifying the hardcoded path
-		// This test documents the expected behavior - secret file takes precedence
-		// In production, the secret file is at /etc/secrets/postgres/connection_string
-	})
-
-	t.Run("trims whitespace from connection string", func(t *testing.T) {
-		t.Setenv("POSTGRES_CONNECTION_STRING", "  postgresql://test@host/db?application_name=test  ")
-
-		connStr, err := loadConnectionString()
-		if err != nil {
-			t.Fatalf("loadConnectionString() error = %v", err)
-		}
-
-		// Note: env var whitespace is NOT trimmed - only secret file content is
-		// This tests the actual behavior
-		expected := "  postgresql://test@host/db?application_name=test  "
-		if connStr != expected {
-			t.Errorf("loadConnectionString() = %q, want %q", connStr, expected)
-		}
-	})
 }
 
 func TestSentinelErrors(t *testing.T) {

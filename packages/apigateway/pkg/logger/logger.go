@@ -7,9 +7,9 @@ import (
 	"os"
 )
 
-// setupCloudLogger configures slog for Google Cloud structured logging.
+// New configures slog for Google Cloud structured logging.
 // Maps slog keys to Google Cloud Logging expected field names and severity levels.
-func setupCloudLogger() *slog.Logger {
+func New() *slog.Logger {
 	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
@@ -49,6 +49,3 @@ func setupCloudLogger() *slog.Logger {
 
 	return slog.New(handler)
 }
-
-// Logger is the package-level structured logger for Cloud Run
-var Logger = setupCloudLogger()

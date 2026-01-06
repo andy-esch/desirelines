@@ -1,15 +1,18 @@
 package cors
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
 func TestNewHandler(t *testing.T) {
+	logger := slog.Default()
+
 	t.Run("no origins configured", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "")
-		h := NewHandler()
+		h := NewHandler([]string{}, logger)
 
 		if h == nil {
 			t.Fatal("NewHandler returned nil")
@@ -20,8 +23,7 @@ func TestNewHandler(t *testing.T) {
 	})
 
 	t.Run("single origin", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "https://example.com")
-		h := NewHandler()
+		h := NewHandler([]string{"https://example.com"}, logger)
 
 		if len(h.allowedOrigins) != 1 {
 			t.Errorf("expected 1 allowed origin, got %d", len(h.allowedOrigins))
@@ -32,32 +34,10 @@ func TestNewHandler(t *testing.T) {
 	})
 
 	t.Run("multiple origins", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "https://example.com,http://localhost:3000,https://app.example.com")
-		h := NewHandler()
+		h := NewHandler([]string{"https://example.com", "http://localhost:3000", "https://app.example.com"}, logger)
 
 		if len(h.allowedOrigins) != 3 {
 			t.Errorf("expected 3 allowed origins, got %d", len(h.allowedOrigins))
-		}
-	})
-
-	t.Run("trims whitespace", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "  https://example.com , http://localhost:3000  ")
-		h := NewHandler()
-
-		if len(h.allowedOrigins) != 2 {
-			t.Errorf("expected 2 allowed origins, got %d", len(h.allowedOrigins))
-		}
-		if h.allowedOrigins[0] != "https://example.com" {
-			t.Errorf("expected trimmed origin, got %q", h.allowedOrigins[0])
-		}
-	})
-
-	t.Run("ignores empty entries", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "https://example.com,,http://localhost:3000,")
-		h := NewHandler()
-
-		if len(h.allowedOrigins) != 2 {
-			t.Errorf("expected 2 allowed origins (ignoring empty), got %d", len(h.allowedOrigins))
 		}
 	})
 }
@@ -135,10 +115,15 @@ func TestHandler_SetHeaders(t *testing.T) {
 		},
 	}
 
+	logger := slog.Default()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("ALLOWED_ORIGINS", tt.allowedOrigins)
-			h := NewHandler()
+			var origins []string
+			if tt.allowedOrigins != "" {
+				origins = strings.Split(tt.allowedOrigins, ",")
+			}
+			h := NewHandler(origins, logger)
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			if tt.requestOrigin != "" {
@@ -169,9 +154,10 @@ func TestHandler_SetHeaders(t *testing.T) {
 }
 
 func TestHandler_HandlePreflight(t *testing.T) {
+	logger := slog.Default()
+
 	t.Run("sets all preflight headers", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "https://example.com")
-		h := NewHandler()
+		h := NewHandler([]string{"https://example.com"}, logger)
 
 		req := httptest.NewRequest(http.MethodOptions, "/test", nil)
 		req.Header.Set("Origin", "https://example.com")
@@ -201,8 +187,7 @@ func TestHandler_HandlePreflight(t *testing.T) {
 	})
 
 	t.Run("disallowed origin still gets method headers", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "https://example.com")
-		h := NewHandler()
+		h := NewHandler([]string{"https://example.com"}, logger)
 
 		req := httptest.NewRequest(http.MethodOptions, "/test", nil)
 		req.Header.Set("Origin", "https://evil.com")
@@ -229,9 +214,10 @@ func TestHandler_HandlePreflight(t *testing.T) {
 
 // Security-focused tests
 func TestHandler_SecurityCases(t *testing.T) {
+	logger := slog.Default()
+
 	t.Run("null origin rejected", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "https://example.com")
-		h := NewHandler()
+		h := NewHandler([]string{"https://example.com"}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Origin", "null")
@@ -244,8 +230,7 @@ func TestHandler_SecurityCases(t *testing.T) {
 	})
 
 	t.Run("wildcard not supported", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "*")
-		h := NewHandler()
+		h := NewHandler([]string{"*"}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Origin", "https://example.com")
@@ -259,8 +244,7 @@ func TestHandler_SecurityCases(t *testing.T) {
 	})
 
 	t.Run("subdomain not automatically allowed", func(t *testing.T) {
-		t.Setenv("ALLOWED_ORIGINS", "https://example.com")
-		h := NewHandler()
+		h := NewHandler([]string{"https://example.com"}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Origin", "https://sub.example.com")

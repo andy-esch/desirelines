@@ -5,14 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/andy-esch/desirelines/packages/apigateway/logger"
 )
 
 // Sentinel errors for connection string validation.
@@ -32,15 +29,9 @@ type Pool struct {
 }
 
 // NewPool creates a PostgreSQL connection pool optimized for serverless environments.
-// Reads connection string from /etc/secrets/postgres/connection_string (Cloud Run)
-// or POSTGRES_CONNECTION_STRING environment variable (local dev).
+// Connection string must be provided by the caller.
 // Validates that application_name is present for observability.
-func NewPool(ctx context.Context) (*Pool, error) {
-	connString, err := loadConnectionString()
-	if err != nil {
-		return nil, fmt.Errorf("load connection string: %w", err)
-	}
-
+func NewPool(ctx context.Context, connString string, logger *slog.Logger) (*Pool, error) {
 	// Validate connection string format and required parameters
 	if validateErr := validateConnectionString(connString); validateErr != nil {
 		return nil, validateErr
@@ -59,7 +50,7 @@ func NewPool(ctx context.Context) (*Pool, error) {
 	config.MaxConnIdleTime = 5 * time.Minute  // Release idle connections quickly
 	config.HealthCheckPeriod = 1 * time.Minute
 
-	logger.Logger.Info("Creating PostgreSQL connection pool",
+	logger.Info("Creating PostgreSQL connection pool",
 		"max_conns", config.MaxConns,
 		"min_conns", config.MinConns,
 	)
@@ -75,25 +66,9 @@ func NewPool(ctx context.Context) (*Pool, error) {
 		return nil, fmt.Errorf("ping database: %w", pingErr)
 	}
 
-	logger.Logger.Info("PostgreSQL connection pool established")
+	logger.Info("PostgreSQL connection pool established")
 
 	return &Pool{Pool: pool}, nil
-}
-
-// loadConnectionString reads from secret mount or environment variable.
-func loadConnectionString() (string, error) {
-	// Try secret mount first (Cloud Run)
-	const secretPath = "/etc/secrets/postgres/connection_string" //nolint:gosec // G101: Not credentials, just a file path
-	if data, err := os.ReadFile(secretPath); err == nil {
-		return strings.TrimSpace(string(data)), nil
-	}
-
-	// Fallback to env var (local dev)
-	if connStr := os.Getenv("POSTGRES_CONNECTION_STRING"); connStr != "" {
-		return connStr, nil
-	}
-
-	return "", fmt.Errorf("no connection string found (checked %s and POSTGRES_CONNECTION_STRING)", secretPath)
 }
 
 // validateConnectionString validates the connection string has required elements:

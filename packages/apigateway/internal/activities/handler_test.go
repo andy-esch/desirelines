@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -49,7 +50,7 @@ func newTestHandler(t *testing.T) *Handler {
 	if err != nil {
 		t.Fatalf("failed to load sport config: %v", err)
 	}
-	return NewHandler(&mockRepo{}, sportConfig)
+	return NewHandler(&mockRepo{}, sportConfig, slog.Default())
 }
 
 func TestDecodeCursor(t *testing.T) {
@@ -215,7 +216,7 @@ func TestHandler_nilRepoReturns503(t *testing.T) {
 	}
 
 	// Handler with nil repository
-	handler := NewHandler(nil, sportConfig)
+	handler := NewHandler(nil, sportConfig, slog.Default())
 
 	tests := []struct {
 		name    string
@@ -261,7 +262,7 @@ func TestNewHandler(t *testing.T) {
 		t.Fatalf("failed to load sport config: %v", err)
 	}
 
-	handler := NewHandler(&mockRepo{}, sportConfig)
+	handler := NewHandler(&mockRepo{}, sportConfig, slog.Default())
 
 	if handler == nil {
 		t.Fatal("NewHandler returned nil")
@@ -271,5 +272,8 @@ func TestNewHandler(t *testing.T) {
 	}
 	if handler.sportConfig == nil {
 		t.Error("Handler.sportConfig is nil")
+	}
+	if handler.logger == nil {
+		t.Error("Handler.logger is nil")
 	}
 }
