@@ -68,6 +68,10 @@ func (m *mockActivityRepository) GetDailySummary(ctx context.Context, year int, 
 	return m.dailySummary, m.dailySummaryErr
 }
 
+func (m *mockActivityRepository) GetDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.DailySummary, error) {
+	return m.dailySummary, m.dailySummaryErr
+}
+
 func (m *mockActivityRepository) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
 	return m.yearMetadata, m.yearMetadataErr
 }

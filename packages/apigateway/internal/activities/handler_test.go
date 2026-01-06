@@ -33,6 +33,9 @@ func (m *mockRepo) GetSportMetricsByDateRange(ctx context.Context, from, to stri
 func (m *mockRepo) GetDailySummary(ctx context.Context, year int, sportTypes []string) (*generated.DailySummary, error) {
 	return nil, m.err
 }
+func (m *mockRepo) GetDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.DailySummary, error) {
+	return nil, m.err
+}
 func (m *mockRepo) GetActivityByID(ctx context.Context, id int64) (*repository.Activity, error) {
 	return nil, m.err
 }

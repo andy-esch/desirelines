@@ -8,13 +8,39 @@ vi.mock("../hooks/useAuth", () => ({
   useAuth: vi.fn(),
 }));
 
-// Mock useMultiSportData hook (used by MultiSportComparisonChart)
-vi.mock("../hooks/useMultiSportData", () => ({
-  useMultiSportData: vi.fn(() => ({
-    data: { cycling: null, running: null, yoga: null },
+// Mock useDailySportData hook (used by MultiSportComparisonChart and ActivityCalendarHeatmap)
+vi.mock("../hooks/useDailySportData", () => ({
+  useDailySportData: vi.fn(() => ({
+    data: { cycling: {}, running: {}, yoga: {} },
     isLoading: false,
     error: null,
   })),
+}));
+
+// Mock useActivities hook (used by RecentActivitiesList)
+vi.mock("../hooks/useActivities", () => ({
+  useActivities: vi.fn(() => ({
+    activities: [],
+    isLoading: false,
+    error: null,
+    hasMore: false,
+    loadMore: vi.fn(),
+    retry: vi.fn(),
+  })),
+}));
+
+// Mock recharts to avoid rendering issues in tests
+vi.mock("recharts", () => ({
+  LineChart: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="line-chart">{children}</div>
+  ),
+  Line: () => <div data-testid="chart-line" />,
+  XAxis: () => null,
+  YAxis: () => null,
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="responsive-container">{children}</div>
+  ),
+  Tooltip: () => null,
 }));
 
 import { useAuth } from "../hooks/useAuth";

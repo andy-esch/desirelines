@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { LineChart, Line, ResponsiveContainer, XAxis } from "recharts";
-import { useMultiSportData, type Sport } from "../../hooks/useMultiSportData";
+import { useDailySportData, type Sport, type DailySportData } from "../../hooks/useDailySportData";
 import { useActivities } from "../../hooks/useActivities";
 import { useAuth } from "../../hooks/useAuth";
 import type { TimeRange } from "../../utils/dataNormalization";
 import TimeRangeSelector from "./TimeRangeSelector";
-import type { MetricsEntry } from "../../api/activities";
+import type { DailyActivity } from "../../api/activities";
 import NeonSpinner from "../NeonSpinner";
 
 // Sport colors - NEON theme (CMY)
@@ -27,32 +27,29 @@ interface MultiSportComparisonChartProps {
 }
 
 /**
- * Get the primary metric value for a sport.
+ * Get the primary metric value for a sport from daily activity data.
+ * Returns distance for cycling/running, time for yoga.
  */
-function getMetricValue(entry: MetricsEntry, sport: Sport): number {
+function getPrimaryMetric(activity: DailyActivity, sport: Sport): number {
   if (sport === "yoga") {
-    return entry.time ?? 0;
+    return activity.timeMinutes ?? 0;
   }
-  return entry.distance ?? 0;
+  return activity.distanceMeters ?? 0;
 }
 
 /**
- * Convert cumulative data to daily values (deltas).
+ * Convert daily sport data (map) to sorted array with primary metric values.
  */
-function toDailyValues(data: MetricsEntry[], sport: Sport): { date: string; value: number }[] {
-  if (data.length === 0) return [];
+function toDailyArray(data: DailySportData, sport: Sport): { date: string; value: number }[] {
+  const entries = Object.entries(data);
+  if (entries.length === 0) return [];
 
-  const result: { date: string; value: number }[] = [];
-  let prevValue = 0;
-
-  for (const entry of data) {
-    const currentValue = getMetricValue(entry, sport);
-    const dailyValue = Math.max(0, currentValue - prevValue);
-    result.push({ date: entry.date, value: dailyValue });
-    prevValue = currentValue;
-  }
-
-  return result;
+  return entries
+    .map(([date, activity]) => ({
+      date,
+      value: getPrimaryMetric(activity, sport),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
@@ -63,24 +60,6 @@ function toDailyValues(data: MetricsEntry[], sport: Sport): { date: string; valu
 function parseLocalDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split("-").map(Number);
   return new Date(year, month - 1, day);
-}
-
-/**
- * Filter daily values by time range.
- */
-function filterDailyByTimeRange(
-  data: { date: string; value: number }[],
-  timeRange: TimeRange
-): { date: string; value: number }[] {
-  if (data.length === 0) return [];
-
-  const now = new Date();
-  const cutoff = getTimeRangeCutoff(now, timeRange);
-
-  return data.filter((entry) => {
-    const entryDate = parseLocalDate(entry.date);
-    return entryDate >= cutoff && entryDate <= now;
-  });
 }
 
 /**
@@ -455,24 +434,21 @@ export default function MultiSportComparisonChart({
   const { from, to } = useMemo(() => getDateRangeFromTimeRange(timeRange), [timeRange]);
 
   // Fetch data using date-range query (can span years seamlessly)
-  const { data, isLoading, error } = useMultiSportData({ year: currentYear, from, to });
+  const { data, isLoading, error } = useDailySportData({ year: currentYear, from, to });
 
   // Process data for each sport's sparkline
-  // Order: cumulative -> daily deltas -> filter by range -> normalize 0-1
+  // API returns daily values already filtered by date range - just convert and normalize
   const sparklineData = useMemo(() => {
     const sports: Sport[] = ["cycling", "running", "yoga"];
 
     return sports.map((sport) => {
-      const sportData = data[sport] || [];
-      // 1. Convert cumulative to daily values (needs full dataset)
-      const dailyValues = toDailyValues(sportData, sport);
-      // 2. Filter to time range
-      const filtered = filterDailyByTimeRange(dailyValues, timeRange);
-      // 3. Normalize to 0-1 for sparkline display
-      const normalized = normalizeToRange(filtered);
+      // 1. Convert daily data map to sorted array (API already returns daily values filtered by date range)
+      const dailyValues = toDailyArray(data[sport], sport);
+      // 2. Normalize to 0-1 for sparkline display
+      const normalized = normalizeToRange(dailyValues);
       return { sport, data: normalized };
     });
-  }, [data, timeRange]);
+  }, [data]);
 
   if (isLoading) {
     return (

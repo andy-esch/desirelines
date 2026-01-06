@@ -68,7 +68,7 @@ func (r *ActivityRepository) GetSportMetricsByDateRange(ctx context.Context, fro
 				FROM desirelines.activities
 				WHERE start_date_local::date >= $1::date
 				  AND start_date_local::date <= $2::date
-				  AND sport = ANY($3)
+				  AND type = ANY($3)
 				GROUP BY start_date_local::date
 			) daily ON all_dates.date = daily.date
 		) dense_daily
@@ -159,7 +159,7 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 					COUNT(*) as activities
 				FROM desirelines.activities
 				WHERE year = $1
-				  AND sport = ANY($2)
+				  AND type = ANY($2)
 				GROUP BY start_date_local::date
 			) daily ON all_dates.date = daily.date
 		) dense_daily
@@ -189,7 +189,7 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 			array_agg(id) as activity_ids
 		FROM desirelines.activities
 		WHERE year = $1
-		  AND sport = ANY($2)
+		  AND type = ANY($2)
 		GROUP BY start_date_local::date
 		ORDER BY start_date_local::date ASC
 	`
@@ -197,6 +197,62 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 	rows, err := r.pool.Query(ctx, query, year, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query daily summary: %w", err)
+	}
+	defer rows.Close()
+
+	summary := &generated.DailySummary{
+		Daily: make(map[string]*generated.DailyActivity),
+	}
+	for rows.Next() {
+		var date time.Time
+		var distance, elevation, timeMinutes float64
+		var activities int32
+		var activityIDs []int64
+
+		if scanErr := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities, &activityIDs); scanErr != nil {
+			return nil, fmt.Errorf("scan daily summary row: %w", scanErr)
+		}
+
+		dateStr := date.Format("2006-01-02")
+		summary.Daily[dateStr] = &generated.DailyActivity{
+			DistanceMeters:  &distance,
+			ElevationMeters: &elevation,
+			TimeMinutes:     &timeMinutes,
+			Activities:      activities,
+			ActivityIds:     activityIDs,
+		}
+	}
+
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate daily summary rows: %w", rowsErr)
+	}
+
+	return summary, nil
+}
+
+// GetDailySummaryByDateRange returns daily activity summaries for a date range.
+// Returns a map keyed by date (YYYY-MM-DD) with daily totals (not cumulative).
+// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
+func (r *ActivityRepository) GetDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.DailySummary, error) {
+	query := `
+		SELECT
+			start_date_local::date as date,
+			SUM(distance) as distance,
+			SUM(total_elevation_gain) as elevation,
+			SUM(moving_time) / 60.0 as time,
+			COUNT(*) as activities,
+			array_agg(id) as activity_ids
+		FROM desirelines.activities
+		WHERE start_date_local::date >= $1::date
+		  AND start_date_local::date <= $2::date
+		  AND type = ANY($3)
+		GROUP BY start_date_local::date
+		ORDER BY start_date_local::date ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, from, to, sportTypes)
+	if err != nil {
+		return nil, fmt.Errorf("query daily summary by date range: %w", err)
 	}
 	defer rows.Close()
 
@@ -395,9 +451,9 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		argNum++
 	}
 
-	// Add sport filter
+	// Add sport filter (filter on 'type' column which contains Strava types)
 	if len(filter.SportTypes) > 0 {
-		query += fmt.Sprintf(" AND sport = ANY($%d)", argNum)
+		query += fmt.Sprintf(" AND type = ANY($%d)", argNum)
 		args = append(args, filter.SportTypes)
 		argNum++
 	}
