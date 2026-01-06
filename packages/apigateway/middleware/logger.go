@@ -13,7 +13,7 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			
+
 			// Wrap the response writer to capture the status code
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
