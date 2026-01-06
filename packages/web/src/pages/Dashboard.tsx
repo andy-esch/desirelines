@@ -61,8 +61,8 @@ export default function Dashboard() {
         {/* Multi-Sport Comparison Chart */}
         <MultiSportComparisonChart className="mb-4" />
 
-        {/* Activity Calendar Heatmap - only show for authenticated users */}
-        {user && <ActivityCalendarHeatmap className="mb-4" />}
+        {/* Activity Calendar Heatmap */}
+        <ActivityCalendarHeatmap className="mb-4" />
 
         {/* Sign-in prompt for unauthenticated users */}
         {!user && (

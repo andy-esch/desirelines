@@ -1,7 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { fetchActivities, type ActivitySummary, type ActivityListFilter } from "../api/activities";
 import { useAuth } from "./useAuth";
 import { useAuthToken } from "./useAuthToken";
+import {
+  generateDemoActivities,
+  generateCoordinatedFillLevels,
+  type DemoSport,
+} from "../utils/demoDataGenerator";
 
 export interface UseActivitiesResult {
   activities: ActivitySummary[];
@@ -32,7 +37,7 @@ export interface UseActivitiesResult {
  * ```
  */
 export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseActivitiesResult {
-  const { loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { getToken } = useAuthToken();
 
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
@@ -41,6 +46,23 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Generate demo activities for unauthenticated users
+  const demoActivities = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const fillLevels = generateCoordinatedFillLevels();
+    const sports: DemoSport[] = ["cycling", "running", "yoga"];
+
+    // Generate activities for all sports and combine
+    const allActivities = sports.flatMap((sport) =>
+      generateDemoActivities(sport, currentYear, 10, fillLevels[sport])
+    );
+
+    // Sort by date descending (most recent first)
+    return allActivities.sort(
+      (a, b) => new Date(b.start_date_local).getTime() - new Date(a.start_date_local).getTime()
+    );
+  }, []);
 
   // Reset when filter changes
   useEffect(() => {
@@ -52,6 +74,14 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
   // Fetch activities
   useEffect(() => {
     if (authLoading) {
+      return;
+    }
+
+    // For unauthenticated users, use demo data
+    if (!user) {
+      setActivities(demoActivities);
+      setHasMore(false);
+      setIsLoading(false);
       return;
     }
 
@@ -87,7 +117,17 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
     };
     // Note: cursor is intentionally excluded to prevent infinite loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter.from, filter.to, filter.sport, filter.limit, authLoading, retryCount, getToken]);
+  }, [
+    filter.from,
+    filter.to,
+    filter.sport,
+    filter.limit,
+    authLoading,
+    retryCount,
+    getToken,
+    user,
+    demoActivities,
+  ]);
 
   const loadMore = useCallback(() => {
     if (!isLoading && hasMore && cursor) {

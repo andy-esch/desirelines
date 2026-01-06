@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "./useAuth";
 import { useAuthToken } from "./useAuthToken";
 import { fetchDailySummary, type DailyActivity } from "../api/activities";
+import { generateDemoDailyData, generateCoordinatedFillLevels } from "../utils/demoDataGenerator";
 
 export type Sport = "cycling" | "running" | "yoga";
 
@@ -34,7 +35,7 @@ export interface UseDailySportDataOptions {
  * Hook for fetching daily activity data for all sports from the /source endpoint.
  * Returns daily totals (not cumulative) for each day with activity.
  *
- * For unauthenticated users, returns empty data (demo mode not implemented for daily data).
+ * For unauthenticated users, generates demo data with coordinated fill levels.
  */
 export function useDailySportData(options: UseDailySportDataOptions): DailySportDataResult {
   const { user, loading: authLoading } = useAuth();
@@ -50,6 +51,17 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
 
   // Memoize options to prevent unnecessary re-fetches
   const { year, from, to } = options;
+
+  // Generate demo data using useMemo for stability
+  // Uses coordinated fill levels to ensure at most one sport is empty
+  const demoData = useMemo(() => {
+    const fillLevels = generateCoordinatedFillLevels();
+    return {
+      cycling: generateDemoDailyData("cycling", from, to, fillLevels.cycling),
+      running: generateDemoDailyData("running", from, to, fillLevels.running),
+      yoga: generateDemoDailyData("yoga", from, to, fillLevels.yoga),
+    };
+  }, [from, to]);
 
   useEffect(() => {
     // Wait for auth to settle
@@ -99,12 +111,12 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
             setData({ cycling, running, yoga });
           }
         } else {
-          // Unauthenticated: return empty data
-          // (Could generate demo data here if needed)
-          setData({ cycling: {}, running: {}, yoga: {} });
+          // Unauthenticated: use generated demo data
+          setData(demoData);
         }
       } catch (err) {
         if (!controller.signal.aborted) {
+          console.error("[useDailySportData] Error fetching data:", err);
           setError(err instanceof Error ? err : new Error("Failed to load data"));
         }
       } finally {
@@ -117,7 +129,7 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
     loadData();
 
     return () => controller.abort();
-  }, [year, from, to, user, authLoading, getToken]);
+  }, [year, from, to, user, authLoading, getToken, demoData]);
 
   return { data, isLoading, error };
 }

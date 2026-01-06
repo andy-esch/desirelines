@@ -68,7 +68,7 @@ func (r *ActivityRepository) GetSportMetricsByDateRange(ctx context.Context, fro
 				FROM desirelines.activities
 				WHERE start_date_local::date >= $1::date
 				  AND start_date_local::date <= $2::date
-				  AND sport = ANY($3)
+				  AND type = ANY($3)
 				GROUP BY start_date_local::date
 			) daily ON all_dates.date = daily.date
 		) dense_daily
@@ -159,7 +159,7 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 					COUNT(*) as activities
 				FROM desirelines.activities
 				WHERE year = $1
-				  AND sport = ANY($2)
+				  AND type = ANY($2)
 				GROUP BY start_date_local::date
 			) daily ON all_dates.date = daily.date
 		) dense_daily
@@ -189,7 +189,7 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 			array_agg(id) as activity_ids
 		FROM desirelines.activities
 		WHERE year = $1
-		  AND sport = ANY($2)
+		  AND type = ANY($2)
 		GROUP BY start_date_local::date
 		ORDER BY start_date_local::date ASC
 	`
@@ -245,7 +245,7 @@ func (r *ActivityRepository) GetDailySummaryByDateRange(ctx context.Context, fro
 		FROM desirelines.activities
 		WHERE start_date_local::date >= $1::date
 		  AND start_date_local::date <= $2::date
-		  AND sport = ANY($3)
+		  AND type = ANY($3)
 		GROUP BY start_date_local::date
 		ORDER BY start_date_local::date ASC
 	`
@@ -451,9 +451,9 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		argNum++
 	}
 
-	// Add sport filter
+	// Add sport filter (filter on 'type' column which contains Strava types)
 	if len(filter.SportTypes) > 0 {
-		query += fmt.Sprintf(" AND sport = ANY($%d)", argNum)
+		query += fmt.Sprintf(" AND type = ANY($%d)", argNum)
 		args = append(args, filter.SportTypes)
 		argNum++
 	}

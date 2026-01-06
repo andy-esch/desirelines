@@ -379,3 +379,126 @@ export function generateDemoGoals(sport: DemoSport): {
 export function getDemoSports(): DemoSport[] {
   return Object.keys(DEMO_SPORT_CONFIG) as DemoSport[];
 }
+
+/**
+ * Daily activity data for demo mode (matches DailyActivity API type).
+ */
+export interface DemoDailyActivity {
+  distanceMeters?: number;
+  timeMinutes?: number;
+  elevationMeters?: number;
+  activities: number;
+  activityIds: number[];
+}
+
+/**
+ * Generate demo daily data for a sport within a date range.
+ *
+ * Returns a Record<string, DemoDailyActivity> keyed by date (YYYY-MM-DD).
+ * Only includes days that have activity (sparse map).
+ *
+ * Fill level is randomly selected on each call unless overridden.
+ */
+export function generateDemoDailyData(
+  sport: DemoSport,
+  fromDate: string,
+  toDate: string,
+  overrideFillLevel?: FillLevel
+): Record<string, DemoDailyActivity> {
+  const config = DEMO_SPORT_CONFIG[sport];
+
+  // Use override if provided, otherwise randomly select fill level
+  const fillLevel = overrideFillLevel ?? randomFillLevel();
+
+  // Empty fill level returns no data
+  if (fillLevel === "empty") {
+    return {};
+  }
+
+  const result: Record<string, DemoDailyActivity> = {};
+
+  // Parse date range
+  const [fromYear, fromMonth, fromDay] = fromDate.split("-").map(Number);
+  const [toYear, toMonth, toDay] = toDate.split("-").map(Number);
+  const startDate = new Date(fromYear, fromMonth - 1, fromDay);
+  const endDate = new Date(toYear, toMonth - 1, toDay);
+
+  // Don't generate for future dates
+  const today = new Date();
+  const effectiveEnd = endDate > today ? today : endDate;
+
+  // Adjust activity rate based on fill level
+  let effectiveActivityRate = config.activityRate;
+  let startDayOffset = 0;
+
+  if (fillLevel === "partial") {
+    effectiveActivityRate = config.activityRate * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER;
+    // For partial, only show recent activities
+    const totalDays = Math.ceil((effectiveEnd.getTime() - startDate.getTime()) / ONE_DAY_MS);
+    startDayOffset = Math.floor(totalDays * PARTIAL_FILL_CONFIG.YEAR_START_OFFSET);
+  }
+
+  let activityIdCounter = 2000000000 + Math.floor(Math.random() * 100000000);
+  let dayIndex = 0;
+
+  // Generate day by day
+  for (
+    let currentTime = startDate.getTime();
+    currentTime <= effectiveEnd.getTime();
+    currentTime += ONE_DAY_MS
+  ) {
+    dayIndex++;
+    const currentDate = new Date(currentTime);
+
+    // Skip days before start offset (for partial fill)
+    if (dayIndex <= startDayOffset) {
+      continue;
+    }
+
+    // Determine if this day has activity
+    const dayOfWeek = currentDate.getDay();
+    const weekendBonus = dayOfWeek === 0 || dayOfWeek === 6 ? ACTIVITY_PARAMS.WEEKEND_BONUS : 1.0;
+    const hasActivity = Math.random() < effectiveActivityRate * weekendBonus;
+
+    if (hasActivity) {
+      // Generate 1-2 activities for this day
+      const numActivities = Math.random() < 0.2 ? 2 : 1;
+      const activityIds: number[] = [];
+
+      let totalDistance = 0;
+      let totalTime = 0;
+      let totalElevation = 0;
+
+      for (let i = 0; i < numActivities; i++) {
+        activityIds.push(activityIdCounter++);
+        totalDistance += withVariance(config.avgDistanceMeters, config.distanceVariance);
+        totalTime += withVariance(config.avgDurationSeconds, config.durationVariance);
+        if (config.avgElevationMeters) {
+          totalElevation += withVariance(
+            config.avgElevationMeters,
+            ACTIVITY_PARAMS.ELEVATION_VARIANCE
+          );
+        }
+      }
+
+      const dateStr = formatDate(currentDate);
+      const entry: DemoDailyActivity = {
+        timeMinutes: Math.round(totalTime / 60),
+        activities: numActivities,
+        activityIds,
+      };
+
+      // Only include distance/elevation for sports that have them
+      if (config.avgDistanceMeters > 0) {
+        entry.distanceMeters = Math.round(totalDistance);
+      }
+      if (config.avgElevationMeters) {
+        entry.elevationMeters = Math.round(totalElevation);
+      }
+
+      result[dateStr] = entry;
+    }
+  }
+
+  return result;
+}

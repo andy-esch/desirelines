@@ -9,13 +9,13 @@ interface ActivityCalendarHeatmapProps {
 /** Time range option for the heatmap */
 type TimeRangeOption = "trailing12" | number; // "trailing12" or a specific year
 
-/** Color scale for activity intensity (GitHub-style green) */
+/** Color scale for activity intensity (NEON purple/magenta theme) */
 const INTENSITY_COLORS = [
   "var(--bs-gray-200)", // 0 activities - light gray
-  "rgb(155, 233, 168)", // 1 activity - light green
-  "rgb(64, 196, 99)", // 2-3 activities - medium green
-  "rgb(48, 161, 78)", // 4-5 activities - darker green
-  "rgb(33, 110, 57)", // 6+ activities - dark green
+  "rgb(180, 130, 200)", // 1 activity - soft purple
+  "rgb(200, 100, 220)", // 2-3 activities - medium purple
+  "rgb(220, 60, 255)", // 4-5 activities - bright purple
+  "rgb(255, 0, 255)", // 6+ activities - neon magenta
 ];
 
 /** Get color for activity count */
@@ -101,9 +101,10 @@ function toLocalDateString(date: Date): string {
  */
 function getMonthLabels(
   weeks: (Date | null)[][]
-): { label: string; weekIndex: number; year?: number }[] {
-  const labels: { label: string; weekIndex: number; year?: number }[] = [];
+): { label: string; weekIndex: number; showYear: boolean; year: number }[] {
+  const labels: { label: string; weekIndex: number; showYear: boolean; year: number }[] = [];
   let lastMonthKey = "";
+  let lastYear = 0;
 
   weeks.forEach((week, weekIndex) => {
     // Find the first non-null date in the week
@@ -113,16 +114,16 @@ function getMonthLabels(
       const year = firstDate.getFullYear();
       const monthKey = `${year}-${month}`;
       if (monthKey !== lastMonthKey) {
-        // Include year for January or first label
-        const includeYear = month === 0 || labels.length === 0;
+        // Show year when it changes (January or first occurrence of a new year)
+        const showYear = year !== lastYear;
         labels.push({
-          label: includeYear
-            ? `${MONTH_LABELS[month]} '${String(year).slice(2)}`
-            : MONTH_LABELS[month],
+          label: MONTH_LABELS[month],
           weekIndex,
-          year: includeYear ? year : undefined,
+          showYear,
+          year,
         });
         lastMonthKey = monthKey;
+        lastYear = year;
       }
     }
   });
@@ -132,6 +133,8 @@ function getMonthLabels(
 
 /**
  * Calculate date range for a time range option.
+ * For specific years, always returns full year (Jan 1 - Dec 31) for stable layout.
+ * Data beyond today will just show as 0 activities.
  */
 function getDateRange(option: TimeRangeOption): {
   startDate: Date;
@@ -150,10 +153,10 @@ function getDateRange(option: TimeRangeOption): {
     startDate.setFullYear(startDate.getFullYear() - 1);
     startDate.setDate(startDate.getDate() + 1); // Start day after same date last year
   } else {
-    // Specific year
+    // Specific year - always show full year for stable layout
     const year = option;
     startDate = new Date(year, 0, 1);
-    endDate = today.getFullYear() === year ? today : new Date(year, 11, 31);
+    endDate = new Date(year, 11, 31);
   }
 
   return {
@@ -257,7 +260,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
   const cellSize = 11;
   const cellGap = 3;
   const dayLabelWidth = 28;
-  const headerHeight = 16;
+  const headerHeight = 14;
 
   return (
     <div className={className}>
@@ -284,7 +287,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
         </select>
       </div>
 
-      <div className="border rounded p-2 overflow-auto" style={{ maxWidth: "100%" }}>
+      <div className="border rounded p-2 overflow-auto d-flex flex-column align-items-center">
         <div
           style={{
             display: "inline-block",
@@ -302,9 +305,10 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
               display: "flex",
               fontSize: "9px",
               color: "var(--bs-gray-600)",
+              whiteSpace: "nowrap",
             }}
           >
-            {monthLabels.map(({ label, weekIndex }) => (
+            {monthLabels.map(({ label, weekIndex, showYear, year }) => (
               <div
                 key={`${label}-${weekIndex}`}
                 style={{
@@ -312,7 +316,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
                   left: weekIndex * (cellSize + cellGap),
                 }}
               >
-                {label}
+                {showYear ? `${label} '${String(year).slice(2)}` : label}
               </div>
             ))}
           </div>
