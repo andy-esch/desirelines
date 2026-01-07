@@ -26,14 +26,19 @@ packages/stravapipe/
 │   │   └── aggregator/         # Summary generation
 │   ├── adapters/               # External service clients
 │   │   ├── strava/             # Strava API
-│   │   └── gcp/                # BigQuery, Cloud Storage
+│   │   ├── gcp/                # BigQuery, Cloud Storage
+│   │   └── proto/              # Protobuf adapters (webhook)
 │   ├── domain/                 # Domain models
+│   ├── types/                  # Type definitions
+│   │   └── generated/          # Protobuf generated code
 │   ├── config/                 # Configuration
 │   └── exceptions.py
 ├── tests/
 ├── Dockerfile.bq_inserter
 └── Dockerfile.postgres_writer
 ```
+
+**Type Definitions:** Webhook types are defined in `schemas/proto/webhook.proto` and shared with the Go dispatcher. See `make proto-gen-python`.
 
 ## Development
 
