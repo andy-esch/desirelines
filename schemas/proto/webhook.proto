@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package desirelines.webhook.v1;
+
+// Go code generated to dispatcher for webhook handling
+// Python code generated to stravapipe for webhook processing
+option go_package = "github.com/andy-esch/desirelines/packages/dispatcher/types/generated";
+
+// AspectType represents the type of change in a webhook event.
+enum AspectType {
+  // Unknown aspect type (proto3 default).
+  ASPECT_TYPE_UNSPECIFIED = 0;
+
+  // A new resource was created.
+  ASPECT_TYPE_CREATE = 1;
+
+  // An existing resource was updated.
+  ASPECT_TYPE_UPDATE = 2;
+
+  // A resource was deleted.
+  ASPECT_TYPE_DELETE = 3;
+}
+
+// ObjectType represents the type of Strava object in a webhook event.
+enum ObjectType {
+  // Unknown object type (proto3 default).
+  OBJECT_TYPE_UNSPECIFIED = 0;
+
+  // Activity object (run, ride, swim, etc.).
+  OBJECT_TYPE_ACTIVITY = 1;
+
+  // Athlete object (user profile).
+  OBJECT_TYPE_ATHLETE = 2;
+}
+
+// WebhookEvent represents a Strava webhook notification.
+// This is the canonical definition used by both dispatcher (Go) and stravapipe (Python).
+// See: https://developers.strava.com/docs/webhooks/
+message WebhookEvent {
+  // The type of change (create, update, delete).
+  AspectType aspect_type = 1;
+
+  // The type of object (activity, athlete).
+  ObjectType object_type = 2;
+
+  // Unique identifier for the object.
+  // For activity events, the activity's ID. For athlete events, the athlete's ID.
+  int64 object_id = 3;
+
+  // Unique identifier for the athlete/owner.
+  int64 owner_id = 4;
+
+  // Unix timestamp of when the event occurred.
+  int64 event_time = 5;
+
+  // Strava webhook subscription ID.
+  int32 subscription_id = 6;
+
+  // Optional updates map for update events.
+  // For activity update events, keys can contain 'title', 'type', and 'private'.
+  // For app deauthorization events, contains 'authorized': 'false'.
+  map<string, string> updates = 7;
+}
+
+// WebhookVerificationRequest represents the initial webhook verification challenge.
+// Strava sends this when setting up a webhook subscription.
+message WebhookVerificationRequest {
+  // Hub mode (should be "subscribe").
+  string hub_mode = 1;
+
+  // Challenge string to echo back.
+  string hub_challenge = 2;
+
+  // Verification token to validate.
+  string hub_verify_token = 3;
+}
+
+// WebhookVerificationResponse is sent in response to verification.
+message WebhookVerificationResponse {
+  // Echo back the challenge string.
+  string hub_challenge = 1;
+}

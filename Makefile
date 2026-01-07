@@ -1,4 +1,4 @@
-.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-typescript proto-clean proto-fmt proto-lint sync-schemas sync-sport-config verify-schemas db-connect-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-ro db-connect-prod-ro db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info db-clean-dev
+.PHONY: help deploy test local lint format typecheck py-test py-lint py-format go-lint go-lint-fix js-lint js-format js-dev start stop logs clean build proto-gen proto-gen-go proto-gen-go-apigateway proto-gen-go-dispatcher proto-gen-python proto-gen-typescript proto-clean proto-fmt proto-lint sync-schemas sync-sport-config verify-schemas db-connect-local db-migrate-local db-clean-local db-connect-dev db-connect-prod db-connect-dev-ro db-connect-prod-ro db-migrate-dev db-migrate-dev-info db-migrate-prod db-migrate-prod-info db-clean-dev
 
 # GCP Configuration - automatically detected from gcloud config
 GCP_PROJECT_ID ?= $(shell gcloud config get-value project)
@@ -125,17 +125,21 @@ proto-gen-pants:
 	@mkdir -p packages/stravapipe/src/stravapipe/types/generated
 	cp dist/codegen/schemas/proto/sports_metrics_pb2.py packages/stravapipe/src/stravapipe/types/generated/
 	cp dist/codegen/schemas/proto/sports_metrics_pb2.pyi packages/stravapipe/src/stravapipe/types/generated/
-	@# Note: user_config not needed by stravapipe (only apigateway uses it)
+	cp dist/codegen/schemas/proto/webhook_pb2.py packages/stravapipe/src/stravapipe/types/generated/
+	cp dist/codegen/schemas/proto/webhook_pb2.pyi packages/stravapipe/src/stravapipe/types/generated/
 	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
 	@echo "📋 Copying Go generated code to apigateway..."
 	@mkdir -p packages/apigateway/types/generated
 	cp dist/codegen/schemas/proto/sports_metrics.pb.go packages/apigateway/types/generated/
 	cp dist/codegen/schemas/proto/user_config.pb.go packages/apigateway/types/generated/
+	@echo "📋 Copying Go generated code to dispatcher..."
+	@mkdir -p packages/dispatcher/types/generated
+	cp dist/codegen/schemas/proto/webhook.pb.go packages/dispatcher/types/generated/
 	@echo "✅ Pants-generated code copied to source tree (Python + Go)"
 	@echo "ℹ️  TypeScript still uses npm (run 'make proto-gen-typescript' separately if needed)"
 
 # Generate Python code from proto files
-# stravapipe only needs: sports_metrics.proto (not user_config)
+# stravapipe needs: sports_metrics.proto, webhook.proto (not user_config)
 proto-gen-python:
 	@echo "🔨 Generating Python code from proto files..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
@@ -143,15 +147,19 @@ proto-gen-python:
 	protoc --python_out=packages/stravapipe/src/stravapipe/types/generated \
 		--pyi_out=packages/stravapipe/src/stravapipe/types/generated \
 		-I schemas/proto \
-		schemas/proto/sports_metrics.proto
+		schemas/proto/sports_metrics.proto \
+		schemas/proto/webhook.proto
 	@# Create __init__.py to make it a proper Python package
 	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
 	@echo "✅ Python protobuf code generated in packages/stravapipe/src/stravapipe/types/generated/"
 
-# Generate Go code from proto files
-# apigateway needs all proto files (serves all data types)
-proto-gen-go:
-	@echo "🔨 Generating Go code from proto files..."
+# Generate Go code from proto files for all Go packages
+proto-gen-go: proto-gen-go-apigateway proto-gen-go-dispatcher
+	@echo "✅ All Go protobuf code generated"
+
+# Generate Go code for apigateway (sports_metrics, user_config)
+proto-gen-go-apigateway:
+	@echo "🔨 Generating Go code for apigateway..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
 	@command -v protoc-gen-go >/dev/null 2>&1 || { echo "❌ Error: protoc-gen-go not found. Install with: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest"; exit 1; }
 	@mkdir -p packages/apigateway/types/generated
@@ -161,6 +169,18 @@ proto-gen-go:
 		schemas/proto/sports_metrics.proto \
 		schemas/proto/user_config.proto
 	@echo "✅ Go protobuf code generated in packages/apigateway/types/generated/"
+
+# Generate Go code for dispatcher (webhook)
+proto-gen-go-dispatcher:
+	@echo "🔨 Generating Go code for dispatcher..."
+	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
+	@command -v protoc-gen-go >/dev/null 2>&1 || { echo "❌ Error: protoc-gen-go not found. Install with: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest"; exit 1; }
+	@mkdir -p packages/dispatcher/types/generated
+	protoc --go_out=packages/dispatcher/types/generated \
+		--go_opt=paths=source_relative \
+		-I schemas/proto \
+		schemas/proto/webhook.proto
+	@echo "✅ Go protobuf code generated in packages/dispatcher/types/generated/"
 
 # Generate TypeScript code from proto files
 # web needs all proto files (displays all data types)
@@ -182,6 +202,7 @@ proto-clean:
 	@echo "🧹 Cleaning generated protobuf code..."
 	rm -rf packages/stravapipe/src/stravapipe/types/generated
 	rm -rf packages/apigateway/types/generated
+	rm -rf packages/dispatcher/types/generated
 	rm -rf packages/web/src/types/generated
 	@echo "✅ Generated protobuf code cleaned"
 
