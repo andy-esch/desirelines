@@ -5,8 +5,8 @@ import pytest
 from stravapipe.adapters.proto import (
     dict_to_webhook_event,
     proto_to_dict,
-    pydantic_to_proto,
     proto_to_pydantic,
+    pydantic_to_proto,
     validate_webhook_event,
 )
 from stravapipe.domain.webhook import AspectType, WebhookRequest
