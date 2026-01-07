@@ -239,7 +239,9 @@ class StravaBackfiller:
                 logger.info(f"  ... and {len(activities) - 10} more")
             return (len(activities), 0, 0)
 
-        logger.info(f"Inserting {len(activities)} activities to PostgreSQL in batches...")
+        logger.info(
+            f"Inserting {len(activities)} activities to PostgreSQL in batches..."
+        )
         session_factory = self._initialize_postgres()
 
         inserted_count = 0
@@ -259,7 +261,9 @@ class StravaBackfiller:
                     for activity in batch:
                         # Convert SummaryStravaActivity → StandardActivity
                         # StandardActivity uses extra="ignore" so we can parse from dict
-                        standard = StandardActivity.model_validate(activity.model_dump())
+                        standard = StandardActivity.model_validate(
+                            activity.model_dump()
+                        )
 
                         # Insert returns True if inserted, False if already existed
                         if uow.activities.insert(standard):
