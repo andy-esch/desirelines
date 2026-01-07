@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/andy-esch/desirelines/packages/dispatcher/domain"
+	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/pkg/logger"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
+	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 )
 
 func TestHandler_HandleVerification(t *testing.T) {
@@ -108,14 +109,15 @@ func TestHandler_HandleVerification(t *testing.T) {
 }
 
 func TestHandler_HandleEvent(t *testing.T) {
-	validPayload := domain.WebhookRequest{
-		AspectType:     domain.AspectCreate,
+	// Use StravaWebhookJSON to simulate incoming JSON payload from Strava (string enums)
+	validPayload := webhookproto.StravaWebhookJSON{
+		AspectType:     "create",
 		EventTime:      1234567890,
 		ObjectID:       12345,
-		ObjectType:     domain.ObjectActivity,
+		ObjectType:     "activity",
 		OwnerID:        67890,
 		SubscriptionID: 123,
-		Updates:        map[string]any{},
+		Updates:        map[string]string{},
 	}
 
 	tests := []struct {
@@ -144,7 +146,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			contentType:    "application/json",
 			payload:        validPayload,
 			expectedStatus: http.StatusMethodNotAllowed,
-			expectedBody:   "", // chi default 405 body is empty
+			expectedBody:   "", // chi default 405 body
 		},
 		{
 			name:           "Invalid content type",
@@ -163,12 +165,12 @@ func TestHandler_HandleEvent(t *testing.T) {
 			expectedBody:   "Invalid JSON payload",
 		},
 		{
-			name:           "Validation error (missing field)",
+			name:           "Parse error (missing object_type)",
 			method:         "POST",
 			contentType:    "application/json",
-			payload:        domain.WebhookRequest{AspectType: domain.AspectCreate}, // Missing required fields
+			payload:        webhookproto.StravaWebhookJSON{AspectType: "create"}, // Missing object_type fails at parse
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   "Webhook validation failed",
+			expectedBody:   "Invalid JSON payload",
 		},
 		{
 			name:           "Configuration error",
@@ -192,11 +194,11 @@ func TestHandler_HandleEvent(t *testing.T) {
 			name:        "Non-activity event (ignored)",
 			method:      "POST",
 			contentType: "application/json",
-			payload: domain.WebhookRequest{
-				AspectType:     domain.AspectCreate,
+			payload: webhookproto.StravaWebhookJSON{
+				AspectType:     "create",
 				EventTime:      1234567890,
 				ObjectID:       12345,
-				ObjectType:     domain.ObjectAthlete, // Not activity
+				ObjectType:     "athlete", // Not activity
 				OwnerID:        67890,
 				SubscriptionID: 123,
 			},
@@ -261,6 +263,15 @@ func TestHandler_HandleEvent(t *testing.T) {
 			if tt.expectedStatus == http.StatusCreated && tt.name == "Valid event" {
 				if len(mockPublisher.Published) != 1 {
 					t.Error("expected 1 published event")
+				} else {
+					// Verify the published event content
+					event := mockPublisher.Published[0]
+					if event.ObjectId != 12345 {
+						t.Errorf("expected object_id 12345, got %d", event.ObjectId)
+					}
+					if event.ObjectType != generated.ObjectType_OBJECT_TYPE_ACTIVITY {
+						t.Errorf("expected object_type ACTIVITY, got %v", event.ObjectType)
+					}
 				}
 			}
 		})

@@ -4,17 +4,17 @@ package portstest
 import (
 	"context"
 
-	"github.com/andy-esch/desirelines/packages/dispatcher/domain"
+	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 )
 
 // MockPublisher is a mock implementation of the Publisher interface for testing.
 type MockPublisher struct {
 	PublishErr error
-	Published  []domain.WebhookRequest
+	Published  []*generated.WebhookEvent
 }
 
 // Publish implements the mock publisher.
-func (m *MockPublisher) Publish(ctx context.Context, webhook domain.WebhookRequest, correlationID string) error {
+func (m *MockPublisher) Publish(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) error {
 	if m.PublishErr == nil {
 		m.Published = append(m.Published, webhook)
 	}

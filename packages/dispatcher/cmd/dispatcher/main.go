@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/env"
+	envadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/env"
 	httpadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/http"
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/pubsub"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
@@ -42,7 +42,7 @@ func main() {
 		}
 	}()
 
-	secretProvider := env.NewDefaultSecretCache(log)
+	secretProvider := envadapter.NewDefaultSecretCache(log)
 
 	// Create handler with injected dependencies
 	handler := httpadapter.NewHandler(publisher, secretProvider, log)

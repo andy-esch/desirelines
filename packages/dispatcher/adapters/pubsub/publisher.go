@@ -3,12 +3,12 @@ package pubsub
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
 	"cloud.google.com/go/pubsub/v2"
-	"github.com/andy-esch/desirelines/packages/dispatcher/domain"
+	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
+	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 )
 
 // Publisher is a Pub/Sub adapter that implements the repository.Publisher interface.
@@ -37,8 +37,11 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 }
 
 // Publish sends a webhook event to the configured Pub/Sub topic.
-func (p *Publisher) Publish(ctx context.Context, webhook domain.WebhookRequest, correlationID string) error {
-	data, err := json.Marshal(webhook)
+func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) error {
+	// Use ToStravaJSON to serialize with string enums ("create", "activity")
+	// instead of protojson which outputs numeric enums (1, 1).
+	// This maintains compatibility with stravapipe's Pydantic WebhookRequest model.
+	data, err := webhookproto.ToStravaJSON(webhook)
 	if err != nil {
 		return fmt.Errorf("failed to marshal webhook data: %w", err)
 	}
@@ -59,9 +62,9 @@ func (p *Publisher) Publish(ctx context.Context, webhook domain.WebhookRequest, 
 	p.logger.Info("Successfully published webhook to PubSub",
 		"message_id", id,
 		"correlation_id", correlationID,
-		"object_id", webhook.ObjectID,
-		"aspect_type", webhook.AspectType,
-		"owner_id", webhook.OwnerID)
+		"object_id", webhook.ObjectId,
+		"aspect_type", webhookproto.AspectTypeToString(webhook.AspectType),
+		"owner_id", webhook.OwnerId)
 	return nil
 }
 

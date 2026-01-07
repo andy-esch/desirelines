@@ -5,14 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 
-	"github.com/andy-esch/desirelines/packages/dispatcher/domain"
+	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/middleware"
 	"github.com/andy-esch/desirelines/packages/dispatcher/pkg/apierrors"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
+	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -107,23 +109,38 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Check that request is under maxRequestBodySize
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
-	var webhook domain.WebhookRequest
-	if err := json.NewDecoder(r.Body).Decode(&webhook); err != nil {
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusBadRequest,
+			"Failed to read request body",
+			fmt.Sprintf("Read failed: %v", err),
+		)
+		apiErr.Code = "READ_FAILED"
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
+	}
+
+	// Parse JSON into Protobuf using adapter
+	webhook, err := webhookproto.ParseStravaWebhook(bodyBytes)
+	if err != nil {
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Invalid JSON payload",
-			fmt.Sprintf("JSON decode failed: %v", err),
+			fmt.Sprintf("Proto parse failed: %v", err),
 		)
 		apiErr.Code = "INVALID_JSON"
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
-	if err := webhook.Validate(); err != nil {
+	// Validate proto event
+	if validateErr := webhookproto.Validate(webhook); validateErr != nil {
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Webhook validation failed",
-			fmt.Sprintf("Validation error: %v", err),
+			fmt.Sprintf("Validation error: %v", validateErr),
 		)
 		apiErr.Code = "VALIDATION_FAILED"
 		apierrors.WriteError(w, r, apiErr, h.logger)
@@ -143,14 +160,15 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if webhook.SubscriptionID != subscriptionID {
+	// Note: proto SubscriptionId is int32, config uses int. Cast safely.
+	if int(webhook.SubscriptionId) != subscriptionID {
 		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
 		apiErr.Code = "INVALID_SUBSCRIPTION_ID"
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
-	if webhook.ObjectType != domain.ObjectActivity {
+	if webhook.ObjectType != generated.ObjectType_OBJECT_TYPE_ACTIVITY {
 		h.writeSuccess(w)
 		return
 	}
@@ -180,6 +198,7 @@ func (h *Handler) writeSuccess(w http.ResponseWriter) {
 
 // Close releases resources held by the handler (PubSub client, etc.).
 func (h *Handler) Close(ctx context.Context) error {
+	// Context is accepted for future use (e.g. graceful shutdown with timeout)
 	_ = ctx
 	return h.publisher.Close()
 }

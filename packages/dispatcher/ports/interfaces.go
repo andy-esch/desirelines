@@ -4,12 +4,12 @@ package ports
 import (
 	"context"
 
-	"github.com/andy-esch/desirelines/packages/dispatcher/domain"
+	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 )
 
 // Publisher defines the outbound port for publishing webhook events.
 type Publisher interface {
-	Publish(ctx context.Context, webhook domain.WebhookRequest, correlationID string) error
+	Publish(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) error
 	Close() error
 }
 
