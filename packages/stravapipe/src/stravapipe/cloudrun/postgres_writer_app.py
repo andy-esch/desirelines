@@ -11,12 +11,13 @@ import uuid
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import ValidationError
 
+from stravapipe.adapters.proto import dict_to_webhook_event
 from stravapipe.application.postgres_sync import make_postgres_write_service
 from stravapipe.cfutils.logging import setup_cloud_function_logging
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_postgres_writer_config
-from stravapipe.domain import AspectType, WebhookRequest
 from stravapipe.exceptions import ActivityNotFoundError
+from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_cloud_function_logging(__name__)
 
@@ -75,12 +76,12 @@ async def handle_pubsub(request: Request):
             },
         )
 
-        # Validate webhook request
+        # Validate and parse webhook event using proto adapter
         try:
-            parsed_request = WebhookRequest(**event_data)
-        except ValidationError as err:
+            event = dict_to_webhook_event(event_data)
+        except ValueError as err:
             logger.error(
-                "Webhook validation failed: %s",
+                "Webhook parsing failed: %s",
                 err,
                 extra={"correlation_id": correlation_id},
             )
@@ -88,22 +89,45 @@ async def handle_pubsub(request: Request):
                 status_code=422, detail=f"Invalid webhook: {err}"
             ) from err
 
+        # We only handle activity webhooks
+        if event.object_type != pb.OBJECT_TYPE_ACTIVITY:
+            obj_name = pb.ObjectType.Name(event.object_type)
+            logger.info(
+                "Skipping non-activity webhook",
+                extra={
+                    "correlation_id": correlation_id,
+                    "object_type": obj_name,
+                },
+            )
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unsupported object_type: {obj_name}. Only 'activity' is supported",
+            )
+
+        # Get Strava string names for logging and response
+        aspect_name = event_data.get("aspect_type", "unknown")
+
         logger.info(
             "Processing webhook",
-            extra={"correlation_id": correlation_id, **parsed_request.model_dump()},
+            extra={
+                "correlation_id": correlation_id,
+                "aspect_type": aspect_name,
+                "object_type": "activity",
+                "object_id": event.object_id,
+            },
         )
 
         # Route by aspect type
-        if parsed_request.aspect_type == AspectType.CREATE:
-            return await _handle_create(parsed_request, correlation_id)
-        elif parsed_request.aspect_type == AspectType.UPDATE:
-            return await _handle_update(parsed_request, correlation_id)
-        elif parsed_request.aspect_type == AspectType.DELETE:
-            return await _handle_delete(parsed_request, correlation_id)
+        if event.aspect_type == pb.ASPECT_TYPE_CREATE:
+            return await _handle_create(event, correlation_id)
+        elif event.aspect_type == pb.ASPECT_TYPE_UPDATE:
+            return await _handle_update(event, correlation_id)
+        elif event.aspect_type == pb.ASPECT_TYPE_DELETE:
+            return await _handle_delete(event, correlation_id)
         else:
             logger.info(
                 "Skipping unknown aspect type: %s",
-                parsed_request.aspect_type,
+                aspect_name,
                 extra={"correlation_id": correlation_id},
             )
             return {
@@ -125,53 +149,53 @@ async def handle_pubsub(request: Request):
         raise HTTPException(status_code=500, detail=str(err)) from err
 
 
-async def _handle_create(request: WebhookRequest, correlation_id: str) -> dict:
+async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
     """Handle CREATE events - insert new activity to PostgreSQL."""
     try:
         service = make_postgres_write_service()
-        inserted = service.create_activity(request.object_id)
+        inserted = service.create_activity(event.object_id)
 
         if inserted:
             logger.info(
                 "Created activity %s in PostgreSQL",
-                request.object_id,
+                event.object_id,
                 extra={"correlation_id": correlation_id},
             )
             return {
                 "status": "created",
-                "activity_id": request.object_id,
+                "activity_id": event.object_id,
                 "correlation_id": correlation_id,
             }
         else:
             logger.warning(
                 "Activity %s already exists (duplicate CREATE)",
-                request.object_id,
+                event.object_id,
                 extra={"correlation_id": correlation_id},
             )
             return {
                 "status": "skipped",
                 "reason": "already_exists",
-                "activity_id": request.object_id,
+                "activity_id": event.object_id,
                 "correlation_id": correlation_id,
             }
 
     except ActivityNotFoundError:
         logger.warning(
             "Activity %s not found in Strava",
-            request.object_id,
+            event.object_id,
             extra={"correlation_id": correlation_id},
         )
         return {
             "status": "skipped",
             "reason": "activity_not_found",
-            "activity_id": request.object_id,
+            "activity_id": event.object_id,
             "correlation_id": correlation_id,
         }
 
 
-async def _handle_update(request: WebhookRequest, correlation_id: str) -> dict:
+async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
     """Handle UPDATE events - update metadata or backfill if missing."""
-    updates = request.updates or {}
+    updates = dict(event.updates) if event.updates else {}
     relevant_updates = {k: v for k, v in updates.items() if k in ("title", "type")}
 
     if not relevant_updates:
@@ -179,14 +203,14 @@ async def _handle_update(request: WebhookRequest, correlation_id: str) -> dict:
             "Skipping UPDATE with no relevant changes",
             extra={
                 "correlation_id": correlation_id,
-                "activity_id": request.object_id,
+                "activity_id": event.object_id,
                 "updates": updates,
             },
         )
         return {
             "status": "skipped",
             "reason": "no_relevant_updates",
-            "activity_id": request.object_id,
+            "activity_id": event.object_id,
             "correlation_id": correlation_id,
         }
 
@@ -194,86 +218,86 @@ async def _handle_update(request: WebhookRequest, correlation_id: str) -> dict:
         service = make_postgres_write_service()
 
         # Check if activity exists - if not, treat as CREATE (backfill)
-        if not service.activity_exists(request.object_id):
+        if not service.activity_exists(event.object_id):
             logger.info(
                 "Activity %s not in PostgreSQL, backfilling from Strava",
-                request.object_id,
+                event.object_id,
                 extra={"correlation_id": correlation_id},
             )
-            inserted = service.create_activity(request.object_id)
+            inserted = service.create_activity(event.object_id)
             if inserted:
                 return {
                     "status": "created",
-                    "activity_id": request.object_id,
+                    "activity_id": event.object_id,
                     "correlation_id": correlation_id,
                 }
             return {
                 "status": "skipped",
                 "reason": "already_exists",
-                "activity_id": request.object_id,
+                "activity_id": event.object_id,
                 "correlation_id": correlation_id,
             }
 
         # Activity exists - update metadata only
-        updated = service.update_activity_metadata(request.object_id, relevant_updates)
+        updated = service.update_activity_metadata(event.object_id, relevant_updates)
 
         if updated:
             logger.info(
                 "Updated activity %s metadata",
-                request.object_id,
+                event.object_id,
                 extra={"correlation_id": correlation_id, "updates": relevant_updates},
             )
             return {
                 "status": "updated",
-                "activity_id": request.object_id,
+                "activity_id": event.object_id,
                 "correlation_id": correlation_id,
             }
         return {
             "status": "skipped",
             "reason": "not_found",
-            "activity_id": request.object_id,
+            "activity_id": event.object_id,
             "correlation_id": correlation_id,
         }
 
     except ActivityNotFoundError:
         logger.warning(
             "Activity %s not found in Strava during backfill",
-            request.object_id,
+            event.object_id,
             extra={"correlation_id": correlation_id},
         )
         return {
             "status": "skipped",
             "reason": "activity_not_found",
-            "activity_id": request.object_id,
+            "activity_id": event.object_id,
             "correlation_id": correlation_id,
         }
 
 
-async def _handle_delete(request: WebhookRequest, correlation_id: str) -> dict:
+async def _handle_delete(event: pb.WebhookEvent, correlation_id: str) -> dict:
     """Handle DELETE events - remove activity from PostgreSQL."""
     service = make_postgres_write_service()
-    deleted = service.delete_activity(request.object_id)
+    deleted = service.delete_activity(event.object_id)
 
     if deleted:
         logger.info(
             "Deleted activity %s from PostgreSQL",
-            request.object_id,
+            event.object_id,
             extra={"correlation_id": correlation_id},
         )
         return {
             "status": "deleted",
-            "activity_id": request.object_id,
+            "activity_id": event.object_id,
             "correlation_id": correlation_id,
         }
     else:
         logger.info(
             "Activity %s not found in PostgreSQL (already deleted or never synced)",
-            request.object_id,
+            event.object_id,
             extra={"correlation_id": correlation_id},
         )
         return {
             "status": "skipped",
             "reason": "not_found",
-            "activity_id": request.object_id,
+            "activity_id": event.object_id,
             "correlation_id": correlation_id,
         }

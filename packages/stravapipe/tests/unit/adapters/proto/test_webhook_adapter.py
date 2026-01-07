@@ -5,11 +5,8 @@ import pytest
 from stravapipe.adapters.proto import (
     dict_to_webhook_event,
     proto_to_dict,
-    proto_to_pydantic,
-    pydantic_to_proto,
     validate_webhook_event,
 )
-from stravapipe.domain.webhook import AspectType, WebhookRequest
 from stravapipe.types.generated import webhook_pb2 as pb
 
 
@@ -125,61 +122,6 @@ class TestProtoToDict:
         result = proto_to_dict(event)
 
         assert result["updates"] == {}
-
-
-class TestPydanticToProto:
-    """Tests for pydantic_to_proto function."""
-
-    def test_create_activity(self):
-        """Test converting Pydantic WebhookRequest to proto."""
-        request = WebhookRequest(
-            aspect_type=AspectType.CREATE,
-            object_type="activity",
-            object_id=12345,
-            owner_id=67890,
-            event_time=1704067200,
-            subscription_id=999,
-        )
-        event = pydantic_to_proto(request)
-
-        assert event.aspect_type == pb.ASPECT_TYPE_CREATE
-        assert event.object_type == pb.OBJECT_TYPE_ACTIVITY
-        assert event.object_id == 12345
-
-    def test_with_updates(self):
-        """Test converting with updates dict."""
-        request = WebhookRequest(
-            aspect_type=AspectType.UPDATE,
-            object_type="activity",
-            object_id=12345,
-            owner_id=67890,
-            event_time=1704067200,
-            subscription_id=999,
-            updates={"title": "Updated Title"},
-        )
-        event = pydantic_to_proto(request)
-
-        assert dict(event.updates) == {"title": "Updated Title"}
-
-
-class TestProtoToPydantic:
-    """Tests for proto_to_pydantic function."""
-
-    def test_create_activity(self):
-        """Test converting proto to Pydantic WebhookRequest."""
-        event = pb.WebhookEvent(
-            aspect_type=pb.ASPECT_TYPE_CREATE,
-            object_type=pb.OBJECT_TYPE_ACTIVITY,
-            object_id=12345,
-            owner_id=67890,
-            event_time=1704067200,
-            subscription_id=999,
-        )
-        request = proto_to_pydantic(event)
-
-        assert request.aspect_type == AspectType.CREATE
-        assert request.object_type == "activity"
-        assert request.object_id == 12345
 
 
 class TestValidateWebhookEvent:

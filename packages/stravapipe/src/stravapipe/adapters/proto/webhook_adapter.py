@@ -1,9 +1,7 @@
-"""Adapters for converting between Strava JSON, Pydantic, and protobuf webhook types."""
+"""Adapters for converting between Strava JSON and protobuf webhook types."""
 
 from typing import Any
 
-from stravapipe.domain.webhook import AspectType as PydanticAspectType
-from stravapipe.domain.webhook import WebhookRequest as PydanticWebhookRequest
 from stravapipe.types.generated import webhook_pb2 as pb
 
 
@@ -57,67 +55,6 @@ def proto_to_dict(event: pb.WebhookEvent) -> dict[str, Any]:
         "subscription_id": event.subscription_id,
         "updates": dict(event.updates) if event.updates else {},
     }
-
-
-def pydantic_to_proto(request: PydanticWebhookRequest) -> pb.WebhookEvent:
-    """Convert a Pydantic WebhookRequest to protobuf WebhookEvent.
-
-    Args:
-        request: Pydantic WebhookRequest model.
-
-    Returns:
-        WebhookEvent protobuf message.
-    """
-    aspect_map = {
-        PydanticAspectType.CREATE: pb.ASPECT_TYPE_CREATE,
-        PydanticAspectType.UPDATE: pb.ASPECT_TYPE_UPDATE,
-        PydanticAspectType.DELETE: pb.ASPECT_TYPE_DELETE,
-    }
-
-    # Convert updates dict - ensure all values are strings
-    updates = {}
-    if request.updates:
-        updates = {str(k): str(v) for k, v in request.updates.items()}
-
-    return pb.WebhookEvent(
-        aspect_type=aspect_map.get(request.aspect_type, pb.ASPECT_TYPE_UNSPECIFIED),
-        object_type=_parse_object_type(request.object_type),
-        object_id=request.object_id,
-        owner_id=request.owner_id,
-        event_time=request.event_time,
-        subscription_id=request.subscription_id,
-        updates=updates,
-    )
-
-
-def proto_to_pydantic(event: pb.WebhookEvent) -> PydanticWebhookRequest:
-    """Convert a protobuf WebhookEvent to Pydantic WebhookRequest.
-
-    Args:
-        event: WebhookEvent protobuf message.
-
-    Returns:
-        Pydantic WebhookRequest model.
-
-    Note:
-        This may raise ValidationError if the proto data doesn't meet
-        Pydantic validation rules (e.g., object_type must be "activity").
-    """
-    aspect_map = {
-        pb.ASPECT_TYPE_CREATE: PydanticAspectType.CREATE,
-        pb.ASPECT_TYPE_UPDATE: PydanticAspectType.UPDATE,
-        pb.ASPECT_TYPE_DELETE: PydanticAspectType.DELETE,
-    }
-
-    return PydanticWebhookRequest(
-        aspect_type=aspect_map.get(event.aspect_type, PydanticAspectType.CREATE),
-        object_type=_object_type_to_string(event.object_type),
-        object_id=event.object_id,
-        owner_id=event.owner_id,
-        event_time=event.event_time,
-        subscription_id=event.subscription_id,
-        updates=dict(event.updates) if event.updates else {},
-    )
 
 
 def validate_webhook_event(event: pb.WebhookEvent) -> list[str]:
