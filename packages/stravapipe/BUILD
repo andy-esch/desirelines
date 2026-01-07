@@ -27,6 +27,11 @@ python_sources(
             "skip_ruff": True,
             "skip_mypy": True,
         },
+        # Generated protobuf files - don't lint or type-check
+        "src/stravapipe/types/generated/webhook_pb2.py": {
+            "skip_ruff": True,
+            "skip_mypy": True,
+        },
     },
 )
 

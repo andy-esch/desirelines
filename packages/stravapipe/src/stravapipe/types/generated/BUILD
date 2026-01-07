@@ -5,7 +5,7 @@
 # The .py files are already covered by packages/stravapipe:lib (src/**/*.py)
 # This target only includes .pyi stubs to avoid duplication
 python_sources(
-    name="generated",
+    name="sports_metrics",
     sources=[
         "sports_metrics_pb2.pyi",
     ],
@@ -26,8 +26,11 @@ python_sources(
 #   - packages/stravapipe:docker_sources
 #   - packages/stravapipe:lib
 python_sources(
-    name="generated0",
+    name="strava_webhook",
     sources=[
         "webhook_pb2.pyi",
     ],
+    resolve="stravapipe",
+    skip_ruff=True,  # Generated files, don't lint
+    skip_mypy=True,  # Generated files, don't type-check
 )
