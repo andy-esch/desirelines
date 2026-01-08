@@ -9,10 +9,9 @@ from contextlib import asynccontextmanager
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import ValidationError
 
 from stravapipe.adapters.proto import dict_to_webhook_event
-from stravapipe.application.bq_inserter import make_sync_service, make_delete_service
+from stravapipe.application.bq_inserter import make_delete_service, make_sync_service
 from stravapipe.cfutils.logging import setup_cloud_function_logging
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_bq_inserter_config

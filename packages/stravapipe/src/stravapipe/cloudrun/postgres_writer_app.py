@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import ValidationError
 
 from stravapipe.adapters.proto import dict_to_webhook_event
 from stravapipe.application.postgres_sync import make_postgres_write_service
