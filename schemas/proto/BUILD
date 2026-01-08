@@ -13,7 +13,6 @@ protobuf_sources(
 protobuf_sources(
     name="user_config",
     sources=["desirelines/config/v1/user_config.proto"],
-    python_resolve="stravapipe",
     go_mod_address="packages/apigateway:mod",
 )
 
@@ -26,14 +25,14 @@ protobuf_sources(
     go_mod_address="packages/dispatcher:mod",
 )
 
-# Aggregate target for apigateway protos (excludes webhook which uses dispatcher)
+# Aggregate target for apigateway Go protos (excludes webhook which uses dispatcher)
+# Note: No python_resolve here - Python generation uses individual targets above
 protobuf_sources(
     name="apigateway",
     sources=[
         "desirelines/sports/v1/sports_metrics.proto",
         "desirelines/config/v1/user_config.proto",
     ],
-    python_resolve="stravapipe",
     go_mod_address="packages/apigateway:mod",
 )
 

@@ -124,9 +124,10 @@ proto-gen-backend:
 	@command -v pants >/dev/null 2>&1 || { echo "❌ Error: pants not found."; exit 1; }
 	pants export-codegen schemas/proto::
 	@echo "📋 Syncing generated code to source tree..."
-	# Python: Copy all _pb2.py and .pyi files to stravapipe
+	# Python: Copy sports_metrics and webhook protos to stravapipe (not user_config)
 	@mkdir -p packages/stravapipe/src/stravapipe/types/generated
-	@find dist/codegen/schemas/proto -name "*_pb2.py*" -exec cp {} packages/stravapipe/src/stravapipe/types/generated/ \;
+	@find dist/codegen/schemas/proto -name "sports_metrics_pb2.py*" -exec cp {} packages/stravapipe/src/stravapipe/types/generated/ \;
+	@find dist/codegen/schemas/proto -name "webhook_pb2.py*" -exec cp {} packages/stravapipe/src/stravapipe/types/generated/ \;
 	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
 	# Go: Copy .pb.go files to apigateway and dispatcher
 	@mkdir -p packages/apigateway/types/generated packages/dispatcher/types/generated

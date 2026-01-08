@@ -13,7 +13,8 @@ file(
 
 python_sources(
     name="lib",
-    sources=["src/**/*.py"],
+    # Exclude generated protobuf files - they're handled by types/generated/BUILD
+    sources=["src/**/*.py", "!src/stravapipe/types/generated/*_pb2.py"],
     resolve="stravapipe",
     # Overrides for specific files
     overrides={
@@ -21,21 +22,6 @@ python_sources(
         # Pants can't auto-infer Path(__file__).parent / "file.json" dependencies
         "src/stravapipe/config/sport_config.py": {
             "dependencies": ["packages/stravapipe/src/stravapipe/config:sport_config_json"],
-        },
-        # Generated protobuf files - don't lint or type-check
-        "src/stravapipe/types/generated/sports_metrics_pb2.py": {
-            "skip_ruff": True,
-            "skip_mypy": True,
-        },
-        # Generated protobuf files - don't lint or type-check
-        "src/stravapipe/types/generated/webhook_pb2.py": {
-            "skip_ruff": True,
-            "skip_mypy": True,
-        },
-        # Generated protobuf files - don't lint or type-check
-        "src/stravapipe/types/generated/user_config_pb2.py": {
-            "skip_ruff": True,
-            "skip_mypy": True,
         },
     },
 )
