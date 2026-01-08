@@ -8,7 +8,7 @@ Data schemas and contracts for the desirelines monorepo.
 |-----------|---------|---------|
 | [`bigquery/`](bigquery/) | BigQuery table schemas | `bq-inserter` (stravapipe) |
 | [`database/`](database/) | PostgreSQL migrations (Flyway) | `postgres-writer` (stravapipe), `api-gateway` |
-| [`proto/`](proto/) | Protocol Buffer contracts | `api-gateway` ↔ `web` frontend |
+| [`proto/`](proto/) | Protocol Buffer contracts | `api-gateway`, `dispatcher`, `stravapipe`, `web` |
 | [`sports/`](sports/) | Sport type configuration | `api-gateway`, `web` frontend |
 
 ## Overview
@@ -17,6 +17,11 @@ Data schemas and contracts for the desirelines monorepo.
 
 - **Database**: Flyway migrations for PostgreSQL (Neon-hosted). Shared by `postgres-writer` and `api-gateway`.
 
-- **Proto**: Protocol Buffer definitions for API contracts. `sports_metrics.proto` defines the response format for activity metrics; `user_config.proto` defines user settings stored in Firestore.
+- **Proto**: Protocol Buffer definitions for cross-language type sharing:
+  - `sports_metrics.proto` - Activity metrics API response (`api-gateway` → `web`)
+  - `user_config.proto` - User settings stored in Firestore (`api-gateway` ↔ `web`)
+  - `webhook.proto` - Strava webhook events (`dispatcher` → `stravapipe`)
+
+  See [`proto/README.md`](proto/README.md) for code generation commands.
 
 - **Sports**: JSON configuration mapping Strava sport types to app categories with their available metrics.

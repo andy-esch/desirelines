@@ -10,6 +10,7 @@
 
 - **[Local Testing](local-testing.md)** - Testing the full pipeline locally
 - **[Frontend Development](frontend-local-dev.md)** - React app development
+- **[Protobuf Development](protobuf-development.md)** - Schema changes and code generation
 - **[Docker](docker.md)** - Container builds and local services
 
 ## Operations

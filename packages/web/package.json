@@ -14,8 +14,8 @@
     "zod": "^4.1.12"
   },
   "scripts": {
-    "postinstall": "cd ../.. && make proto-gen-typescript || echo 'Warning: Protobuf generation skipped (protoc may not be installed)'",
-    "proto:gen": "cd ../.. && make proto-gen-typescript",
+    "postinstall": "cd ../.. && make proto-gen-web || echo 'Warning: Protobuf generation skipped (protoc may not be installed)'",
+    "proto:gen": "cd ../.. && make proto-gen-web",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
