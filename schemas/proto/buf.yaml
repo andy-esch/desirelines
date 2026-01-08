@@ -3,11 +3,6 @@ version: v1
 lint:
   use:
     - STANDARD
-  except:
-    # Allow flat directory structure instead of nested package directories
-    # Our proto files are in schemas/proto/ rather than schemas/proto/desirelines/activities/v1/
-    - PACKAGE_DIRECTORY_MATCH
-    - DIRECTORY_SAME_PACKAGE
 
 # Buf linting configuration for Desirelines protobuf schemas
 #
@@ -15,5 +10,3 @@ lint:
 #   - MINIMAL: Critical rules (e.g., valid syntax, no name conflicts)
 #   - BASIC: Common best practices (e.g., field naming conventions)
 #   - DEFAULT: Documentation and style requirements
-#
-# We disable directory structure rules to maintain a flat proto/ directory

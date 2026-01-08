@@ -2,13 +2,33 @@
 
 Cross-language type definitions for Desirelines services.
 
+## Directory Structure
+
+The directory structure mirrors protobuf package names (`desirelines.<domain>.v1`):
+
+```
+schemas/proto/
+├── buf.yaml                              # Buf linting config
+├── BUILD                                 # Pants build targets
+└── desirelines/
+    ├── config/
+    │   └── v1/
+    │       └── user_config.proto         # User settings (Firestore)
+    ├── sports/
+    │   └── v1/
+    │       └── sports_metrics.proto      # Activity metrics API
+    └── webhook/
+        └── v1/
+            └── webhook.proto             # Strava webhook events
+```
+
 ## Files
 
-| File | Purpose | Consumers | Status |
+| File | Package | Consumers | Status |
 |------|---------|-----------|--------|
-| `sports_metrics.proto` | Activity metrics API response | apigateway (Go), web (TS) | Active |
-| `user_config.proto` | User settings (Firestore) | apigateway (Go), web (TS) | Active |
-| `webhook.proto` | Strava webhook events | dispatcher (Go), stravapipe (Python) | Active |
+| `desirelines/sports/v1/sports_metrics.proto` | `desirelines.sports.v1` | apigateway (Go), web (TS), stravapipe (Python) | Active |
+| `desirelines/config/v1/user_config.proto` | `desirelines.config.v1` | apigateway (Go), web (TS) | Active |
+| `desirelines/webhook/v1/webhook.proto` | `desirelines.webhook.v1` | dispatcher (Go), stravapipe (Python) | Active |
 
 ## `sports_metrics.proto`
 
@@ -53,13 +73,19 @@ Defines the canonical Strava webhook event structure shared between Go and Pytho
 ## Code Generation
 
 ```bash
-# Generate all (Go, Python, TypeScript)
+# Generate all (backend + web)
 make proto-gen
 
-# Individual targets
-make proto-gen-go
-make proto-gen-python
-make proto-gen-typescript
+# Backend only (Go + Python via Pants)
+make proto-gen-backend
+
+# Web only (TypeScript via protoc)
+make proto-gen-web
+
+# Maintenance
+make proto-fmt    # Format proto files
+make proto-lint   # Lint proto files
+make proto-clean  # Remove generated code
 ```
 
 **Generated code locations:**
@@ -67,14 +93,6 @@ make proto-gen-typescript
 - Go (dispatcher): `packages/dispatcher/types/generated/`
 - Python: `packages/stravapipe/src/stravapipe/types/generated/`
 - TypeScript: `packages/web/src/types/generated/`
-
-**Individual targets:**
-```bash
-make proto-gen-go-apigateway   # sports_metrics, user_config → apigateway
-make proto-gen-go-dispatcher   # webhook → dispatcher
-make proto-gen-python          # sports_metrics, webhook → stravapipe
-make proto-gen-typescript      # sports_metrics, user_config → web
-```
 
 ## Related
 
