@@ -128,45 +128,52 @@ proto-gen-backend:
 	@mkdir -p packages/stravapipe/src/stravapipe/types/generated
 	@find dist/codegen/schemas/proto -name "*_pb2.py*" -exec cp {} packages/stravapipe/src/stravapipe/types/generated/ \;
 	@touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
-	# Go: Copy all .pb.go files to apigateway and dispatcher
+	# Go: Copy .pb.go files to apigateway and dispatcher
 	@mkdir -p packages/apigateway/types/generated packages/dispatcher/types/generated
-	@find dist/codegen/schemas/proto -name "sports_metrics.pb.go" -o -name "user_config.pb.go" | xargs -I {} cp {} packages/apigateway/types/generated/
-	@find dist/codegen/schemas/proto -name "webhook.pb.go" | xargs -I {} cp {} packages/dispatcher/types/generated/
+	@find dist/codegen/schemas/proto \( -name "sports_metrics.pb.go" -o -name "user_config.pb.go" \) -exec cp {} packages/apigateway/types/generated/ \;
+	@find dist/codegen/schemas/proto -name "webhook.pb.go" -exec cp {} packages/dispatcher/types/generated/ \;
 	@echo "✅ Backend generation complete"
 
 # Frontend: Use protoc-gen-ts_proto (via npm)
-# Pick up all proto files in the new nested structure
+# Web uses sports_metrics and user_config (not webhook - that's backend-only)
 .PHONY: proto-gen-web
 proto-gen-web:
 	@echo "🔨 Generating TypeScript code..."
+	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
 	@test -f packages/web/node_modules/.bin/protoc-gen-ts_proto || { echo "❌ Error: ts-proto not found. Run: cd packages/web && npm install"; exit 1; }
 	@mkdir -p packages/web/src/types/generated
 	protoc --plugin=packages/web/node_modules/.bin/protoc-gen-ts_proto \
 		--ts_proto_out=packages/web/src/types/generated \
 		--ts_proto_opt=outputJsonMethods=false,outputPartialMethods=false,useOptionals=messages,oneof=unions \
 		-I schemas/proto \
-		$$(find schemas/proto -name "*.proto")
+		schemas/proto/desirelines/sports/v1/sports_metrics.proto \
+		schemas/proto/desirelines/config/v1/user_config.proto
 	@echo "✅ Web generation complete"
 
 # Maintenance
 .PHONY: proto-fmt
 proto-fmt:
 	@echo "🎨 Formatting protobuf files..."
+	@command -v buf >/dev/null 2>&1 || { echo "❌ Error: buf not found. Install with: brew install bufbuild/buf/buf"; exit 1; }
 	buf format -w schemas/proto
+	@echo "✅ Protobuf files formatted"
 
 .PHONY: proto-lint
 proto-lint:
 	@echo "🔍 Linting protobuf files..."
+	@command -v buf >/dev/null 2>&1 || { echo "❌ Error: buf not found. Install with: brew install bufbuild/buf/buf"; exit 1; }
 	buf lint schemas/proto
+	@echo "✅ Protobuf files linted"
 
 .PHONY: proto-clean
 proto-clean:
 	@echo "🧹 Cleaning generated code..."
 	rm -rf dist/codegen
-	rm -rf packages/stravapipe/src/stravapipe/types/generated/*
-	rm -rf packages/apigateway/types/generated/*
-	rm -rf packages/dispatcher/types/generated/*
-	rm -rf packages/web/src/types/generated/*
+	rm -f packages/stravapipe/src/stravapipe/types/generated/*_pb2.py*
+	rm -f packages/apigateway/types/generated/*.pb.go
+	rm -f packages/dispatcher/types/generated/*.pb.go
+	rm -f packages/web/src/types/generated/*.ts
+	@echo "✅ Generated code cleaned"
 
 # ==========================================
 # Schema Sync (Proto + Sport Config)
