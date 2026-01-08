@@ -3,5 +3,3 @@
 This package contains:
 - generated/ - Protocol buffer generated types (NEW - use these for new code)
 """
-
-__all__ = []
