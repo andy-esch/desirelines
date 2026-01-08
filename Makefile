@@ -137,18 +137,25 @@ proto-gen-backend:
 
 # Frontend: Use protoc-gen-ts_proto (via npm)
 # Web uses sports_metrics and user_config (not webhook - that's backend-only)
+# Output is flattened to match existing import paths (e.g., types/generated/user_config)
 .PHONY: proto-gen-web
 proto-gen-web:
 	@echo "🔨 Generating TypeScript code..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
 	@test -f packages/web/node_modules/.bin/protoc-gen-ts_proto || { echo "❌ Error: ts-proto not found. Run: cd packages/web && npm install"; exit 1; }
 	@mkdir -p packages/web/src/types/generated
+	@# Generate to temp directory first (protoc creates nested structure)
+	@rm -rf packages/web/src/types/generated/.tmp
+	@mkdir -p packages/web/src/types/generated/.tmp
 	protoc --plugin=packages/web/node_modules/.bin/protoc-gen-ts_proto \
-		--ts_proto_out=packages/web/src/types/generated \
+		--ts_proto_out=packages/web/src/types/generated/.tmp \
 		--ts_proto_opt=outputJsonMethods=false,outputPartialMethods=false,useOptionals=messages,oneof=unions \
 		-I schemas/proto \
 		schemas/proto/desirelines/sports/v1/sports_metrics.proto \
 		schemas/proto/desirelines/config/v1/user_config.proto
+	@# Flatten: copy files from nested dirs to root of generated/
+	@find packages/web/src/types/generated/.tmp -name "*.ts" -exec cp {} packages/web/src/types/generated/ \;
+	@rm -rf packages/web/src/types/generated/.tmp
 	@echo "✅ Web generation complete"
 
 # Maintenance
