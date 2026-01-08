@@ -8,16 +8,27 @@ Receives Strava webhook events and publishes to PubSub for downstream processing
 Strava Webhook → Dispatcher (Cloud Run) → PubSub Topic → Eventarc → downstream services
 ```
 
-**Package Structure:**
+**Package Structure (Hexagonal Architecture):**
 
 ```
 packages/dispatcher/
-├── cmd/dispatcher/main.go  # HTTP server entrypoint
-├── handler.go              # HTTP handler
-├── publisher.go            # PubSub publishing
-├── webhook.go              # Webhook validation
-└── Dockerfile              # Cloud Run container
+├── cmd/dispatcher/main.go       # HTTP server entrypoint
+├── adapters/
+│   ├── http/handler.go          # HTTP handler (inbound adapter)
+│   ├── pubsub/publisher.go      # PubSub publishing (outbound adapter)
+│   ├── proto/webhook_adapter.go # JSON ↔ protobuf conversion
+│   └── env/secrets.go           # Environment/secrets adapter
+├── ports/interfaces.go          # Port interfaces (Publisher, SecretProvider)
+├── types/generated/webhook.pb.go # Generated protobuf types
+├── config/config.go             # Configuration loading
+├── middleware/logger.go         # HTTP middleware
+├── pkg/                         # Shared utilities
+│   ├── apierrors/               # API error handling
+│   └── logger/                  # Structured logging
+└── Dockerfile                   # Cloud Run container
 ```
+
+**Type Definitions:** Webhook types are defined in `schemas/proto/webhook.proto` and shared with stravapipe (Python) via protobuf code generation. See `make proto-gen-go-dispatcher`.
 
 ## Environment Variables
 

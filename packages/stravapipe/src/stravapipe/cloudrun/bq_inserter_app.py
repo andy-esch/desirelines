@@ -9,14 +9,14 @@ from contextlib import asynccontextmanager
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import ValidationError
 
+from stravapipe.adapters.proto import dict_to_webhook_event
 from stravapipe.application.bq_inserter import make_delete_service, make_sync_service
 from stravapipe.cfutils.logging import setup_cloud_function_logging
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_bq_inserter_config
-from stravapipe.domain import AspectType, WebhookRequest
 from stravapipe.exceptions import ActivityNotFoundError
+from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_cloud_function_logging(__name__)
 
@@ -75,12 +75,12 @@ async def handle_pubsub(request: Request):
             },
         )
 
-        # Validate webhook request
+        # Validate and parse webhook event using proto adapter
         try:
-            parsed_request = WebhookRequest(**event_data)
-        except ValidationError as err:
+            event = dict_to_webhook_event(event_data)
+        except ValueError as err:
             logger.error(
-                "Webhook validation failed: %s",
+                "Webhook parsing failed: %s",
                 err,
                 extra={"correlation_id": correlation_id},
             )
@@ -88,26 +88,49 @@ async def handle_pubsub(request: Request):
                 status_code=422, detail=f"Invalid webhook: {err}"
             ) from err
 
+        # We only handle activity webhooks
+        if event.object_type != pb.OBJECT_TYPE_ACTIVITY:
+            obj_name = pb.ObjectType.Name(event.object_type)
+            logger.info(
+                "Skipping non-activity webhook",
+                extra={
+                    "correlation_id": correlation_id,
+                    "object_type": obj_name,
+                },
+            )
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unsupported object_type: {obj_name}. Only 'activity' is supported",
+            )
+
+        # Get Strava string names for logging and response
+        aspect_name = event_data.get("aspect_type", "unknown")
+
         logger.info(
             "Processing webhook",
-            extra={"correlation_id": correlation_id, **parsed_request.model_dump()},
+            extra={
+                "correlation_id": correlation_id,
+                "aspect_type": aspect_name,
+                "object_type": "activity",
+                "object_id": event.object_id,
+            },
         )
 
         # Route by aspect type
-        if parsed_request.aspect_type == AspectType.CREATE:
-            return await _handle_create(parsed_request, correlation_id)
-        elif parsed_request.aspect_type == AspectType.DELETE:
-            return await _handle_delete(parsed_request, correlation_id)
+        if event.aspect_type == pb.ASPECT_TYPE_CREATE:
+            return await _handle_create(event, correlation_id)
+        elif event.aspect_type == pb.ASPECT_TYPE_DELETE:
+            return await _handle_delete(event, correlation_id)
         else:
             # Skip UPDATE events (not implemented for BQ inserter)
             logger.info(
                 "Skipping event type: %s",
-                parsed_request.aspect_type.value,
+                aspect_name,
                 extra={"correlation_id": correlation_id},
             )
             return {
                 "status": "skipped",
-                "reason": parsed_request.aspect_type.value,
+                "reason": aspect_name,
                 "details": "Event type not implemented",
                 "correlation_id": correlation_id,
             }
@@ -125,50 +148,50 @@ async def handle_pubsub(request: Request):
         raise HTTPException(status_code=500, detail=str(err)) from err
 
 
-async def _handle_create(request: WebhookRequest, correlation_id: str) -> dict:
+async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
     """Handle CREATE events - sync activity to BigQuery."""
     try:
         service = make_sync_service()
-        service.run(request.object_id)
+        service.run(event.object_id)
 
         logger.info(
             "Synced activity %s to BigQuery",
-            request.object_id,
+            event.object_id,
             extra={"correlation_id": correlation_id},
         )
         return {
             "status": "created",
-            "activity_id": request.object_id,
+            "activity_id": event.object_id,
             "correlation_id": correlation_id,
         }
 
     except ActivityNotFoundError:
         logger.warning(
             "Activity %s not found in Strava",
-            request.object_id,
+            event.object_id,
             extra={"correlation_id": correlation_id},
         )
         return {
             "status": "skipped",
             "reason": "activity_not_found",
-            "activity_id": request.object_id,
+            "activity_id": event.object_id,
             "correlation_id": correlation_id,
         }
 
 
-async def _handle_delete(request: WebhookRequest, correlation_id: str) -> dict:
+async def _handle_delete(event: pb.WebhookEvent, correlation_id: str) -> dict:
     """Handle DELETE events - archive and remove from BigQuery."""
     logger.info(
         "Processing delete event for activity %s",
-        request.object_id,
+        event.object_id,
         extra={"correlation_id": correlation_id},
     )
 
     service = make_delete_service()
     result = service.run(
-        activity_id=request.object_id,
+        activity_id=event.object_id,
         correlation_id=correlation_id,
-        event_time=request.event_time,
+        event_time=event.event_time,
     )
 
     return result

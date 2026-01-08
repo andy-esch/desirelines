@@ -1,13 +1,34 @@
 # Protocol Buffer Schemas
 
-API contracts between `api-gateway` (Go) and `web` frontend (TypeScript).
+Cross-language type definitions for Desirelines services.
+
+## Directory Structure
+
+The directory structure mirrors protobuf package names (`desirelines.<domain>.v1`):
+
+```
+schemas/proto/
+├── buf.yaml                              # Buf linting config
+├── BUILD                                 # Pants build targets
+└── desirelines/
+    ├── config/
+    │   └── v1/
+    │       └── user_config.proto         # User settings (Firestore)
+    ├── sports/
+    │   └── v1/
+    │       └── sports_metrics.proto      # Activity metrics API
+    └── webhook/
+        └── v1/
+            └── webhook.proto             # Strava webhook events
+```
 
 ## Files
 
-| File | Purpose | Status |
-|------|---------|--------|
-| `sports_metrics.proto` | Activity metrics API response | Active |
-| `user_config.proto` | User settings (Firestore) | Active |
+| File | Package | Consumers | Status |
+|------|---------|-----------|--------|
+| `desirelines/sports/v1/sports_metrics.proto` | `desirelines.sports.v1` | apigateway (Go), web (TS), stravapipe (Python) | Active |
+| `desirelines/config/v1/user_config.proto` | `desirelines.config.v1` | apigateway (Go), web (TS) | Active |
+| `desirelines/webhook/v1/webhook.proto` | `desirelines.webhook.v1` | dispatcher (Go), stravapipe (Python) | Active |
 
 ## `sports_metrics.proto`
 
@@ -32,25 +53,51 @@ Defines user configuration stored in Firestore.
 
 **Storage:** Firestore `users/{userId}/config/v1`
 
+## `webhook.proto`
+
+Defines the canonical Strava webhook event structure shared between Go and Python.
+
+**Key types:**
+- `WebhookEvent` - Strava webhook notification (create/update/delete)
+- `AspectType` - Enum: CREATE, UPDATE, DELETE
+- `ObjectType` - Enum: ACTIVITY, ATHLETE
+- `WebhookVerificationRequest/Response` - Subscription verification
+
+**Producer:** Strava API sends webhooks to dispatcher
+**Consumer:** dispatcher (Go) receives and publishes to PubSub, stravapipe (Python) processes
+
+**Adapter locations:**
+- Go: `packages/dispatcher/adapters/proto/` - JSON ↔ proto conversion
+- Python: `packages/stravapipe/src/stravapipe/adapters/proto/` - dict/Pydantic ↔ proto conversion
+
 ## Code Generation
 
 ```bash
-# Generate all (Go, Python, TypeScript)
+# Generate all (backend + web)
 make proto-gen
 
-# Individual targets
-make proto-gen-go
-make proto-gen-python
-make proto-gen-typescript
+# Backend only (Go + Python via Pants)
+make proto-gen-backend
+
+# Web only (TypeScript via protoc)
+make proto-gen-web
+
+# Maintenance
+make proto-fmt    # Format proto files
+make proto-lint   # Lint proto files
+make proto-clean  # Remove generated code
 ```
 
 **Generated code locations:**
-- Go: `packages/apigateway/types/generated/`
+- Go (apigateway): `packages/apigateway/types/generated/`
+- Go (dispatcher): `packages/dispatcher/types/generated/`
 - Python: `packages/stravapipe/src/stravapipe/types/generated/`
 - TypeScript: `packages/web/src/types/generated/`
 
 ## Related
 
 - [API Gateway handler](../../packages/apigateway/handler.go)
+- [Dispatcher proto adapter](../../packages/dispatcher/adapters/proto/)
+- [Stravapipe proto adapter](../../packages/stravapipe/src/stravapipe/adapters/proto/)
 - [Frontend API client](../../packages/web/src/api/activities.ts)
 - [Frontend types](../../packages/web/src/types/generated/)

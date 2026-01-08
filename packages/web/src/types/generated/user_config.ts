@@ -2,7 +2,7 @@
 // versions:
 //   protoc-gen-ts_proto  v2.10.0
 //   protoc               v6.33.2
-// source: user_config.proto
+// source: desirelines/config/v1/user_config.proto
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";

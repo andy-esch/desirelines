@@ -2,7 +2,7 @@
 // versions:
 //   protoc-gen-ts_proto  v2.10.0
 //   protoc               v6.33.2
-// source: sports_metrics.proto
+// source: desirelines/sports/v1/sports_metrics.proto
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
@@ -112,7 +112,9 @@ export interface YearMetadata {
   /** Per-sport totals */
   totals: { [key: string]: SportTotals };
   /** ISO timestamp */
-  lastUpdated: string;
+  lastUpdated?:
+    | string
+    | undefined;
   /** "1.0" */
   aggregationVersion: string;
 }
@@ -616,7 +618,7 @@ export const SportTotals: MessageFns<SportTotals> = {
 };
 
 function createBaseYearMetadata(): YearMetadata {
-  return { year: 0, sports: [], totals: {}, lastUpdated: "", aggregationVersion: "" };
+  return { year: 0, sports: [], totals: {}, lastUpdated: undefined, aggregationVersion: "" };
 }
 
 export const YearMetadata: MessageFns<YearMetadata> = {
@@ -630,7 +632,7 @@ export const YearMetadata: MessageFns<YearMetadata> = {
     Object.entries(message.totals).forEach(([key, value]) => {
       YearMetadata_TotalsEntry.encode({ key: key as any, value }, writer.uint32(26).fork()).join();
     });
-    if (message.lastUpdated !== "") {
+    if (message.lastUpdated !== undefined) {
       writer.uint32(34).string(message.lastUpdated);
     }
     if (message.aggregationVersion !== "") {

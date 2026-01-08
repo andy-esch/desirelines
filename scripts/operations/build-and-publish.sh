@@ -18,10 +18,10 @@ echo ""
 # =============================================================================
 echo "🐳 Building and publishing Cloud Run images..."
 GIT_COMMIT=$SHA pants publish \
-  packages/dispatcher:dispatcher \
-  packages/apigateway:apigateway \
-  packages/stravapipe:bq-inserter \
-  packages/stravapipe:postgres-writer
+	packages/dispatcher:dispatcher \
+	packages/apigateway:apigateway \
+	packages/stravapipe:bq-inserter \
+	packages/stravapipe:postgres-writer
 
 echo "✅ Docker images published to Artifact Registry"
 echo ""

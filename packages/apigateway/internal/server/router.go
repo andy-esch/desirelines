@@ -2,10 +2,13 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 
+	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/go-chi/chi/v5"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
 // AuthMiddleware defines the interface for authentication middleware.
@@ -35,8 +38,14 @@ type AuthenticatedRoutes struct {
 }
 
 // NewRouter creates a configured chi router with all routes registered.
-func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes) chi.Router {
+func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, logger *slog.Logger) chi.Router {
 	r := chi.NewRouter()
+
+	// Essential middleware
+	r.Use(chiMiddleware.RequestID)
+	r.Use(chiMiddleware.RealIP)
+	r.Use(middleware.Logger(logger))
+	r.Use(chiMiddleware.Recoverer)
 
 	// CORS middleware for all routes
 	r.Use(CORSMiddleware(cfg.CORSHandler))

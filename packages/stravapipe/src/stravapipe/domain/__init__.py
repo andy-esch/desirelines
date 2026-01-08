@@ -1,5 +1,3 @@
-"""Domain models for Strava webhook processing."""
-
 from stravapipe.domain.activity import (
     DetailedStravaActivity,
     MetaAthlete,
@@ -9,10 +7,8 @@ from stravapipe.domain.activity import (
     SummaryStravaActivity,
 )
 from stravapipe.domain.auth import StravaTokenSet
-from stravapipe.domain.webhook import AspectType, WebhookRequest
 
 __all__ = [
-    "AspectType",
     "DetailedStravaActivity",
     "MetaAthlete",
     "MinimalStravaActivity",
@@ -20,5 +16,4 @@ __all__ = [
     "StandardActivity",
     "StravaTokenSet",
     "SummaryStravaActivity",
-    "WebhookRequest",
 ]

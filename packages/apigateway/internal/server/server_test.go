@@ -199,7 +199,7 @@ func TestCORSMiddleware(t *testing.T) {
 }
 
 // newTestRouter creates a router with no-op handlers for testing
-func newTestRouter(c *cors.Handler, auth *mockAuthMiddleware) chi.Router {
+func newTestRouter(c *cors.Handler, auth *mockAuthMiddleware, logger *slog.Logger) chi.Router {
 	return NewRouter(
 		RouterConfig{CORSHandler: c, AuthMiddleware: auth},
 		PublicRoutes{
@@ -213,6 +213,7 @@ func newTestRouter(c *cors.Handler, auth *mockAuthMiddleware) chi.Router {
 			ListActivities:  func(w http.ResponseWriter, r *http.Request) {},
 			GetActivityByID: func(w http.ResponseWriter, r *http.Request) {},
 		},
+		logger,
 	)
 }
 
@@ -239,7 +240,7 @@ func TestNewRouter_RouteRegistration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := cors.NewHandler([]string{"https://example.com"}, logger)
 			auth := &mockAuthMiddleware{}
-			router := newTestRouter(c, auth)
+			router := newTestRouter(c, auth, logger)
 
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			req.Header.Set("Origin", "https://example.com")
@@ -273,6 +274,7 @@ func TestNewRouter_AuthBlocking(t *testing.T) {
 			ListActivities:  func(w http.ResponseWriter, r *http.Request) {},
 			GetActivityByID: func(w http.ResponseWriter, r *http.Request) {},
 		},
+		logger,
 	)
 
 	req := httptest.NewRequest(http.MethodGet, "/activities/2024/metadata", nil)
@@ -308,6 +310,7 @@ func TestNewRouter_PublicBypassesAuth(t *testing.T) {
 			ListActivities:  func(w http.ResponseWriter, r *http.Request) {},
 			GetActivityByID: func(w http.ResponseWriter, r *http.Request) {},
 		},
+		logger,
 	)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -325,7 +328,7 @@ func TestNewRouter_CORSPreflight(t *testing.T) {
 	logger := slog.Default()
 	c := cors.NewHandler([]string{"https://example.com"}, logger)
 	auth := &mockAuthMiddleware{}
-	router := newTestRouter(c, auth)
+	router := newTestRouter(c, auth, logger)
 
 	paths := []string{"/health", "/activities/2024/metrics"}
 	for _, path := range paths {
@@ -345,7 +348,7 @@ func TestNewRouter_UndefinedRoutes(t *testing.T) {
 	logger := slog.Default()
 	c := cors.NewHandler([]string{"https://example.com"}, logger)
 	auth := &mockAuthMiddleware{}
-	router := newTestRouter(c, auth)
+	router := newTestRouter(c, auth, logger)
 
 	t.Run("POST to GET-only endpoint returns 405", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/health", nil)
