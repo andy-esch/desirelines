@@ -14,12 +14,10 @@ go_package(
 files(
   name="sources",
   sources=[
+    "**/*.go",                  # All Go files recursively
     "*.mod",                    # go.mod
     "*.sum",                    # go.sum
-    "*.go",                     # All root Go files
-    "**/*.go",                  # Include go files from subdirectories
     "!BUILD",
-    "cmd/apigateway/*.go",      # Include application entrypoint main.go
     "config/sport_types.json",  # Embedded JSON file for go:embed
   ],
 )
