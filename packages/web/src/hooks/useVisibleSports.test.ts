@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useVisibleSports } from "./useVisibleSports";
-import type { Preferences } from "../services/userConfigService";
 
 // Mock Firebase modules
 vi.mock("firebase/app", () => ({

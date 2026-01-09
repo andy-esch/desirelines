@@ -29,14 +29,22 @@ CI runs on every pull request and push to main via GitHub Actions (`.github/work
 
 ## CI Workflow Jobs
 
-### 1. Sport Config Sync
-Verifies `sport_types.json` copies are synchronized across packages.
+### 1. Schema Sync
+Verifies all schema files are synchronized across packages.
 
 ```bash
-make verify-sport-config
+make verify-schemas
 ```
 
-**Why:** Ensures config consistency between Python and Go packages.
+**What it checks:**
+- `sport_types.json` is identical in `schemas/sports/`, `packages/stravapipe/`, and `packages/apigateway/`
+
+**Fix if failing:**
+```bash
+make sync-schemas  # Syncs proto codegen + sport config
+```
+
+**Why:** Schemas live in `schemas/` as source of truth but are copied to packages for build isolation.
 
 ### 2. Python (Pants)
 Tests, lints, and type-checks Python code using Pants.
