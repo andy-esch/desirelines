@@ -29,12 +29,7 @@ import axios from "axios";
 import type { RideBlobType } from "../types/activity";
 import { EMPTY_RIDE_DATA } from "../constants";
 import { API_BASE_URL } from "../config";
-import {
-  isCancellationError,
-  is404Error,
-  buildAuthHeaders,
-  throwApiError,
-} from "./errors";
+import { isCancellationError, is404Error, buildAuthHeaders, throwApiError } from "./errors";
 
 const getApiBaseUrl = (): string => {
   return API_BASE_URL || "http://localhost:8084";

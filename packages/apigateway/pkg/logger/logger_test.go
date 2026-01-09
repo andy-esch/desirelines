@@ -2,6 +2,7 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"testing"
@@ -60,7 +61,7 @@ func TestSeverityMapping(t *testing.T) {
 		var buf bytes.Buffer
 		logger := NewWithWriter(&buf)
 
-		logger.Log(nil, tt.level, "test")
+		logger.Log(context.TODO(), tt.level, "test")
 
 		var entry map[string]any
 		if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
@@ -103,8 +104,8 @@ func TestNestedGroups(t *testing.T) {
 		t.Fatalf("failed to parse log entry: %v", err)
 	}
 
-	nested, ok := entry["nested"].(map[string]any)
-	if !ok {
+	nested, entryOk := entry["nested"].(map[string]any)
+	if !entryOk {
 		t.Fatal("expected nested group")
 	}
 
