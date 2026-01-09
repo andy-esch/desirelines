@@ -12,21 +12,14 @@ go_package(
 )
 # All source files for Docker build context
 files(
-  name="sources",
-  sources=[
-    "go.mod",
-    "go.sum",
-    "cmd/apigateway/*.go",
-    "config/*.go",
-    "config/sport_types.json",
-    "adapters/**/*.go",
-    "internal/**/*.go",
-    "middleware/*.go",
-    "pkg/**/*.go",
-    "repository/**/*.go",
-    "types/**/*.go",
-    "!**/BUILD",
-  ],
+    name="sources",
+    sources=[
+        "go.mod",
+        "go.sum",
+        "**/*.go",
+        "!**/BUILD",
+        "config/sport_types.json",  # Embedded via go:embed
+    ],
 )
 
 # Docker image for Cloud Run deployment

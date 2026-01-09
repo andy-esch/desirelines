@@ -18,7 +18,7 @@ backend_packages = [
   "pants.backend.experimental.python.lint.ruff.format",
   "pants.backend.python.typecheck.mypy",
 
-  # Go ecosystem (experimental as of 2.29)
+  # Go ecosystem (experimental)
   "pants.backend.experimental.go",
   "pants.backend.experimental.go.lint.golangci_lint",
 

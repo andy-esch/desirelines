@@ -5,25 +5,14 @@ go_mod(
     name="mod",
 )
 
-go_package(
-    name="lib",
-)
-
 # All source files for Docker build context
 files(
     name="sources",
     sources=[
         "go.mod",
         "go.sum",
-        "cmd/dispatcher/*.go",
-        "config/*.go",
-        "adapters/**/*.go",
-        "domain/*.go",
-        "middleware/*.go",
-        "pkg/**/*.go",
-        "ports/**/*.go",
-        "types/**/*.go",
-        "!**/BUILD",           # Exclude all BUILD files
+        "**/*.go",
+        "!**/BUILD",
     ],
 )
 
