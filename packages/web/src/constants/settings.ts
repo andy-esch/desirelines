@@ -31,6 +31,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   elevationUnit: "feet",
   defaultSport: "cycling",
   timezone: "",
+  visibleSports: ["cycling", "running", "yoga"],
 };
 
 /**
