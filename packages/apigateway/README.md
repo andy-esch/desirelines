@@ -276,6 +276,18 @@ Cloud Run uses `/health` endpoint:
 }
 ```
 
+## Protobuf Types
+
+API response types are generated from `schemas/proto/`:
+
+```
+types/generated/
+├── sports_metrics.pb.go  # SportMetrics, CumulativeMetricsEntry
+└── user_config.pb.go     # UserConfig, Goal, Annotation
+```
+
+Run `make proto-gen-backend` to regenerate. See [`schemas/proto/README.md`](../../schemas/proto/README.md).
+
 ## Related Documentation
 
 - [Deployment Guide](../../docs/guides/deployment.md)

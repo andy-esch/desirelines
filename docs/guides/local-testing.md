@@ -1,249 +1,230 @@
-# Local Testing Environment Setup
+# Local Testing Guide
 
-This guide helps you set up a local testing environment that connects to the live Strava API and writes data to a BigQuery table for ad hoc testing and development.
+How to test the Desirelines pipeline locally using docker-compose and emulators.
 
-## 🎯 Overview
-
-The local testing environment allows you to:
-- Fetch real activity data from the Strava API
-- Write data to a dedicated BigQuery testing table
-- Test the complete pipeline end-to-end
-- Experiment with data transformations safely
-
-## 📋 Prerequisites
-
-### 1. Google Cloud Setup
-- A GCP project with BigQuery API enabled
-- `gcloud` CLI installed and authenticated
-- `bq` CLI available (comes with gcloud)
-
-### 2. Strava API Credentials
-You need the following from your Strava API application:
-- `STRAVA_CLIENT_ID`
-- `STRAVA_CLIENT_SECRET` 
-- `STRAVA_REFRESH_TOKEN`
-
-> **Getting Strava Credentials**: If you don't have these, see the [Strava API Documentation](https://developers.strava.com/docs/getting-started/) for setting up an application and obtaining OAuth tokens.
-
-## 🚀 Quick Setup
-
-### 1. Set Environment Variables
+## Quick Start
 
 ```bash
-export GCP_PROJECT_ID="your-gcp-project"
-export STRAVA_CLIENT_ID="your_client_id"
-export STRAVA_CLIENT_SECRET="your_client_secret"
-export STRAVA_REFRESH_TOKEN="your_refresh_token"
+# Start full backend pipeline
+make start-backend
+
+# In another terminal, start frontend stack
+make start-frontend
+
+# Send a test webhook
+curl -X POST http://localhost:8081/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"aspect_type":"create","event_time":1234567890,"object_id":12345,"object_type":"activity","owner_id":67890,"subscription_id":123456}'
 ```
 
-### 2. Run Setup Script
+## Testing Modes
+
+### 1. Backend Pipeline Testing
+
+Tests the full event processing pipeline: Dispatcher → PubSub → stravapipe services.
 
 ```bash
-chmod +x scripts/setup_local_testing.sh
-./scripts/setup_local_testing.sh
+make start-backend
 ```
 
-This script will:
-- ✅ Create a BigQuery dataset (`local_testing`)
-- ✅ Create an activities table with proper schema
-- ✅ Generate a `.env` file for local development
-- ✅ Configure authentication
+**Services started:**
+| Service | Port | Description |
+|---------|------|-------------|
+| Dispatcher | 8081 | Webhook receiver |
+| BQ Inserter | 8083 | BigQuery sync (mocked locally) |
+| PostgreSQL Writer | 8086 | PostgreSQL sync |
+| PubSub Emulator | 8085 | Google PubSub emulator |
+| CloudEvent Adapter | 8087 | Converts PubSub → CloudEvents |
 
-## 🧪 Testing the Setup
+**Test webhook delivery:**
+```bash
+# Create event
+curl -X POST http://localhost:8081/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"aspect_type":"create","object_id":12345,"object_type":"activity","owner_id":67890,"subscription_id":123456,"event_time":1704067200}'
 
-### 1. Test Strava API Connection
+# Watch logs
+docker compose logs -f dispatcher bq-inserter postgres-writer
+```
+
+### 2. Frontend + API Testing
+
+Tests the web UI with API Gateway and PostgreSQL.
 
 ```bash
-uv run python scripts/test_strava_connection.py
+make start-frontend
 ```
 
-This will:
-- Refresh your Strava tokens
-- Fetch a sample of your activities
-- Verify API connectivity
+**Services started:**
+| Service | Port | Description |
+|---------|------|-------------|
+| API Gateway | 8084 | REST API |
+| PostgreSQL | 15430 | Local database |
+| Firebase Emulators | 9099, 8089 | Auth + Firestore |
+| Firebase UI | 4000 | Emulator dashboard |
 
-### 2. Test BigQuery Write
+**Test API:**
+```bash
+# Health check
+curl http://localhost:8084/health
+
+# Sport config (public)
+curl http://localhost:8084/sports/config
+```
+
+See [frontend-local-dev.md](./frontend-local-dev.md) for authenticated testing.
+
+### 3. Full Stack Testing
+
+Run both profiles together:
 
 ```bash
-uv run python scripts/test_bq_write.py
+# Terminal 1
+make start-backend
+
+# Terminal 2
+make start-frontend
+
+# Terminal 3
+cd packages/web && npm run dev
 ```
 
-This will:
-- Create a test activity record
-- Write it to your BigQuery table
-- Verify the write succeeded
+This gives you the complete flow: webhook → processing → API → UI.
 
-### 3. End-to-End Pipeline Test
+## Testing Scenarios
+
+### Webhook Processing
 
 ```bash
-# Test with default settings (current year, 5 activities)
-uv run python scripts/test_end_to_end.py
+# Test create event
+curl -X POST http://localhost:8081/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"aspect_type":"create","object_id":123,"object_type":"activity","owner_id":456,"subscription_id":123456,"event_time":1704067200}'
 
-# Test specific year and limit
-uv run python scripts/test_end_to_end.py --year 2024 --limit 10
+# Test delete event
+curl -X POST http://localhost:8081/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"aspect_type":"delete","object_id":123,"object_type":"activity","owner_id":456,"subscription_id":123456,"event_time":1704067200}'
+
+# Test webhook verification (GET)
+curl "http://localhost:8081/webhook?hub.mode=subscribe&hub.challenge=test123&hub.verify_token=your_verify_token"
 ```
 
-This will:
-- Fetch real activities from Strava
-- Write them to BigQuery
-- Show a summary of processed data
+### Database Queries
 
-## 📊 BigQuery Table Structure
+```bash
+# Connect to local PostgreSQL
+docker compose exec postgres psql -U postgres -d desirelines
 
-The testing table (`activities_adhoc`) uses the schema defined in `schemas/bigquery/activities_full.json`:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | INTEGER | Strava activity ID (primary key) |
-| `athlete_id` | INTEGER | Strava athlete ID |
-| `name` | STRING | Activity name/title |
-| `distance_meters` | FLOAT | Distance in meters |
-| `activity_type` | STRING | Activity type (Ride, Run, etc.) |
-| `start_date` | TIMESTAMP | Activity start time (UTC) |
-| `average_watts` | FLOAT | Average power output |
-| `created_at` | TIMESTAMP | ETL timestamp |
-| ... | ... | [Full schema](../../schemas/bigquery/activities_full.json) |
-
-**Features:**
-- ⚡ **Time partitioned** by `start_date` for efficient querying
-- 🔍 **Optimized** for analytical queries
-- 📝 **Well-documented** fields with clear descriptions
-
-## 💡 Usage Examples
-
-### Query Recent Activities
+# Or use connection string
+psql "postgresql://postgres:postgres@localhost:15430/desirelines"
+```
 
 ```sql
-SELECT 
-    name,
-    activity_type,
-    distance_meters / 1000 as distance_km,
-    start_date
-FROM `your-project.local_testing.activities_adhoc`
-WHERE start_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-ORDER BY start_date DESC
-LIMIT 10
+-- Check activities
+SELECT id, name, sport_type, start_date FROM activities ORDER BY start_date DESC LIMIT 10;
+
+-- Check daily summaries
+SELECT * FROM daily_activity_summary WHERE year = 2024 LIMIT 10;
 ```
 
-### Power Analysis
-
-```sql
-SELECT 
-    activity_type,
-    AVG(average_watts) as avg_watts,
-    MAX(average_watts) as max_watts,
-    COUNT(*) as activity_count
-FROM `your-project.local_testing.activities_adhoc`
-WHERE average_watts IS NOT NULL
-GROUP BY activity_type
-ORDER BY avg_watts DESC
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-The setup creates a `.env` file with these key variables:
+### PubSub Messages
 
 ```bash
-# GCP Configuration  
-GCP_PROJECT_ID=your-project-id
-GCP_BIGQUERY_DATASET=local_testing
-
-# Strava API (Live)
-STRAVA_CLIENT_ID=your_client_id
-STRAVA_CLIENT_SECRET=your_client_secret  
-STRAVA_REFRESH_TOKEN=your_refresh_token
-
-# Logging
-LOG_LEVEL=INFO
+# View PubSub emulator UI (if debug profile enabled)
+make start-backend PROFILE=debug
+# Open http://localhost:4200
 ```
 
-### Customization
+## Running Tests
 
-To use a different dataset or table:
+### Unit Tests
 
 ```bash
-export GCP_BIGQUERY_DATASET="my_custom_dataset"
-./scripts/setup_local_testing.sh
+make test                    # All tests
+make py-test                 # Python only
+make go-test                 # Go only
+make web-test                # Frontend only
 ```
 
-## 🎛️ Advanced Usage
+### Integration Tests
 
-### Custom Data Processing
-
-Create your own testing scripts by following the pattern in the example scripts:
-
-```python
-from stravabqsync.config import BQInserterConfig
-from stravabqsync.application.services import make_sync_service
-
-# Load config
-config = BQInserterConfig()
-sync_service = make_sync_service(config)
-
-# Your custom logic here...
-```
-
-### Data Cleanup
-
-To clean up test data:
-
-```sql
-DELETE FROM `your-project.local_testing.activities_adhoc`
-WHERE id >= 999999999  -- Test activity IDs
-```
-
-## 🚨 Important Notes
-
-### Cost Management
-- **BigQuery**: Queries are charged based on data scanned
-- **Strava API**: Has rate limits (100 requests per 15 minutes, 1000 per day)
-- **Storage**: Minimal costs for testing data
-
-### Data Privacy
-- Test data may contain real activity information
-- Use appropriate GCP IAM policies for access control
-- Consider using a separate project for testing
-
-### Rate Limiting
-The Strava API has limits:
-- **Short-term**: 100 requests per 15 minutes  
-- **Daily**: 1000 requests per day
-
-The testing scripts respect these limits but be mindful when running multiple tests.
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**"Permission denied" errors**
 ```bash
-gcloud auth login
-gcloud config set project your-project-id
+# Python integration tests (require services running)
+cd packages/stravapipe
+uv run pytest tests/integration/ -v
+
+# Go integration tests
+cd packages/apigateway
+go test -tags=integration ./...
 ```
 
-**"Invalid refresh token"**
-- Your Strava refresh token may have expired
-- Re-authorize your Strava application
+## Troubleshooting
 
-**"Table not found"**
-- Run the setup script again
-- Check that your GCP project has BigQuery enabled
+### Services Won't Start
 
-**"Rate limit exceeded"**
-- Wait 15 minutes and try again
-- Reduce the `--limit` parameter in tests
+```bash
+# Check what's using ports
+lsof -i :8081,:8084,:8085
 
-### Getting Help
+# Clean restart
+docker compose down -v
+make start-backend
+```
 
-1. Check the logs for detailed error messages
-2. Verify your environment variables are set correctly
-3. Ensure your GCP project has the necessary APIs enabled
-4. Confirm your Strava credentials are valid
+### PubSub Messages Not Processing
 
-## 🔗 Related Documentation
+```bash
+# Check emulator is running
+curl http://localhost:8085
 
-- [Strava API Documentation](https://developers.strava.com/docs/)
-- [BigQuery Documentation](https://cloud.google.com/bigquery/docs)
-- [Project Architecture](../CLAUDE.md)
+# Check subscription exists
+docker compose logs pubsub-bootstrap
+
+# Verify CloudEvent adapter is forwarding
+docker compose logs cloudevent-adapter
+```
+
+### Database Connection Issues
+
+```bash
+# Check PostgreSQL is healthy
+docker compose exec postgres pg_isready
+
+# Reset database
+docker compose down -v
+make start-frontend
+```
+
+### Strava API Issues (Real Data Testing)
+
+For testing with real Strava data, you need:
+1. Strava API credentials configured
+2. OAuth2 authorization completed
+
+See [strava-webhook.md](./strava-webhook.md) for credential setup.
+
+For production data backfills, see [scripts/data/README.md](../../scripts/data/README.md).
+
+## Environment Variables
+
+Local testing uses `.env` in repo root. Key variables:
+
+```bash
+# PubSub
+PUBSUB_EMULATOR_HOST=localhost:8085
+GCP_PUBSUB_TOPIC=desirelines_activity_events
+
+# Database
+POSTGRES_CONNECTION_STRING=postgresql://postgres:postgres@localhost:15430/desirelines
+
+# Auth (for API Gateway)
+ALLOWED_EMAILS=test@example.com
+FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
+```
+
+## Related
+
+- [Frontend Development](./frontend-local-dev.md) - React UI development
+- [Docker Guide](./docker.md) - Container builds
+- [Data Scripts](../../scripts/data/README.md) - Backfill tools

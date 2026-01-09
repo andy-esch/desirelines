@@ -75,6 +75,10 @@ a.text-decoration-none:hover {
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
 }
+a.logo-link,
+a.logo-link:hover {
+  text-decoration: none !important;
+}
 
 /* ==========================================================================
    Buttons

@@ -97,8 +97,11 @@ src/
 ├── pages/            # Route components
 ├── services/         # Business logic
 ├── types/            # TypeScript types
+│   └── generated/    # Protobuf types (sports_metrics, user_config)
 └── utils/            # Helpers (units, dates, demo data generator)
 ```
+
+**Protobuf Types:** API response types are generated from `schemas/proto/`. Run `make proto-gen-web` to regenerate.
 
 ## Troubleshooting
 

@@ -1,4 +1,4 @@
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import Logo from "../Logo";
 import { useAuth } from "../../hooks/useAuth";
 import { AccountDropdown } from "./AccountDropdown";
@@ -40,11 +40,11 @@ export default function Header() {
       className="navbar sticky-top flex-md-nowrap p-2 shadow"
       style={{ backgroundColor: "var(--slate-dark, #2d3748)" }}
     >
-      <div className="me-0 px-2 d-flex align-items-center">
+      <Link to="/" className="logo-link me-0 px-2 d-flex align-items-center">
         <div style={{ transform: "translateY(-1px)" }}>
           <Logo />
         </div>
-      </div>
+      </Link>
 
       {/* Desktop navigation */}
       <Navigation className="d-none d-md-flex ms-3" />
