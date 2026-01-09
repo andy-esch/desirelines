@@ -112,6 +112,11 @@ export interface Preferences {
    * Default: browser timezone
    */
   timezone: string;
+  /**
+   * Sports to show in the UI (default: ["cycling", "running", "yoga"])
+   * Empty array treated as default. Invalid keys filtered on read.
+   */
+  visibleSports: string[];
 }
 
 export interface ChartDefaults {
@@ -728,6 +733,7 @@ function createBasePreferences(): Preferences {
     elevationUnit: "",
     defaultSport: "",
     timezone: "",
+    visibleSports: [],
   };
 }
 
@@ -753,6 +759,9 @@ export const Preferences: MessageFns<Preferences> = {
     }
     if (message.timezone !== "") {
       writer.uint32(58).string(message.timezone);
+    }
+    for (const v of message.visibleSports) {
+      writer.uint32(66).string(v!);
     }
     return writer;
   },
@@ -818,6 +827,14 @@ export const Preferences: MessageFns<Preferences> = {
           }
 
           message.timezone = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.visibleSports.push(reader.string());
           continue;
         }
       }
