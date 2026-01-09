@@ -71,7 +71,9 @@ func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent
 // Close releases resources held by the PubSub client.
 func (p *Publisher) Close() error {
 	if p.client != nil {
-		return p.client.Close()
+		err := p.client.Close()
+		p.client = nil
+		return err
 	}
 	return nil
 }

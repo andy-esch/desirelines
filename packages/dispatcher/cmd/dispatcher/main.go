@@ -63,6 +63,7 @@ func main() {
 	}
 
 	// Setup graceful shutdown
+	done := make(chan struct{})
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -85,10 +86,13 @@ func main() {
 		}
 
 		log.Info("Shutdown complete")
+		close(done)
 	}()
 
 	if serverErr := server.ListenAndServe(); serverErr != nil && serverErr != http.ErrServerClosed {
 		log.Error("Server error", "error", serverErr)
 		os.Exit(1)
 	}
+
+	<-done
 }
