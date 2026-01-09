@@ -26,8 +26,8 @@ func TestValidateSport(t *testing.T) {
 		t.Error("Expected yoga to be valid")
 	}
 
-	if config.ValidateSport("swimming") {
-		t.Error("Expected swimming to be invalid (not configured)")
+	if config.ValidateSport("underwater_basket_weaving") {
+		t.Error("Expected underwater_basket_weaving to be invalid (not configured)")
 	}
 }
 
@@ -63,8 +63,8 @@ func TestListSports(t *testing.T) {
 	}
 
 	sports := config.ListSports()
-	if len(sports) != 3 {
-		t.Errorf("Expected 3 sports, got %d", len(sports))
+	if len(sports) != 16 {
+		t.Errorf("Expected 16 sports, got %d", len(sports))
 	}
 
 	// Check all expected sports are present
