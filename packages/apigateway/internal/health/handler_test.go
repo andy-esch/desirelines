@@ -57,8 +57,8 @@ func TestHandler_Handle(t *testing.T) {
 		expectedBody   Response
 	}{
 		{
-			name: "Healthy database",
-			repo: &mockRepo{pingErr: nil},
+			name:           "Healthy database",
+			repo:           &mockRepo{pingErr: nil},
 			expectedStatus: http.StatusOK,
 			expectedBody: Response{
 				Status:   statusHealthy,
@@ -66,8 +66,8 @@ func TestHandler_Handle(t *testing.T) {
 			},
 		},
 		{
-			name: "Unhealthy database",
-			repo: &mockRepo{pingErr: errors.New("connection refused")},
+			name:           "Unhealthy database",
+			repo:           &mockRepo{pingErr: errors.New("connection refused")},
 			expectedStatus: http.StatusOK,
 			expectedBody: Response{
 				Status:   statusHealthy,
@@ -75,8 +75,8 @@ func TestHandler_Handle(t *testing.T) {
 			},
 		},
 		{
-			name: "Nil repository (no database)",
-			repo: nil,
+			name:           "Nil repository (no database)",
+			repo:           nil,
 			expectedStatus: http.StatusOK,
 			expectedBody: Response{
 				Status:   statusHealthy,

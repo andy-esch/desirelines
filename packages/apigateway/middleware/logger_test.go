@@ -26,7 +26,10 @@ func TestLogger(t *testing.T) {
 	// Define test handler
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte("ok"))
+		_, err := w.Write([]byte("ok"))
+		if err != nil {
+			t.Fatalf("failed to write response: %v", err)
+		}
 	})
 
 	// Perform request

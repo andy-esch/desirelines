@@ -20,8 +20,8 @@ def test_categorize_activities():
     assert config.categorize_activity("VirtualRun") == "running"
     assert config.categorize_activity("TrailRun") == "running"
     assert config.categorize_activity("Yoga") == "yoga"
-    assert config.categorize_activity("EBikeRide") is None  # Excluded
-    assert config.categorize_activity("Walk") is None  # Not configured
+    assert config.categorize_activity("EBikeRide") == "ebike"
+    assert config.categorize_activity("Walk") == "walking"
 
 
 def test_sport_properties():
@@ -60,7 +60,7 @@ def test_list_sports():
     assert "cycling" in sports
     assert "running" in sports
     assert "yoga" in sports
-    assert len(sports) == 3
+    assert len(sports) == 16
 
 
 def test_unsupported_version_fails(tmp_path):
