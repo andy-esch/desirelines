@@ -7,6 +7,7 @@ import SidebarSection from "./SidebarSection";
 import FilterControls from "./FilterControls";
 import type { Goals } from "../../utils/goalCalculations";
 import { fetchYearMetadata, fetchSportConfig } from "../../api/activities";
+import { isCancellationError } from "../../api/errors";
 import type { MetricUnit } from "../../utils/units";
 import { useAuth } from "../../hooks/useAuth";
 import { useAuthToken } from "../../hooks/useAuthToken";
@@ -94,7 +95,10 @@ export default function Sidebar({
           setAvailableSports(categoriesWithData);
         }
       } catch (err) {
-        console.warn("Failed to fetch available sports, using defaults:", err);
+        // Only log real errors, not cancellations (which are expected behavior)
+        if (!isCancellationError(err)) {
+          console.warn("Failed to fetch available sports, using defaults:", err);
+        }
       }
     }
 

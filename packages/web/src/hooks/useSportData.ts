@@ -5,6 +5,7 @@ import {
   type SportMetrics,
   type SportConfig,
 } from "../api/activities";
+import { isCancellationError } from "../api/errors";
 import { useAuth } from "./useAuth";
 import { useAuthToken } from "./useAuthToken";
 
@@ -73,8 +74,10 @@ export function useSportData(year: number, sport: string): SportDataResult {
         setMetrics(metricsData);
         setSportConfig(configData);
       } catch (err) {
-        if (err instanceof Error && err.message !== "Request cancelled") {
-          setError(err);
+        // API functions return empty data on cancellation, so this catch
+        // should only trigger for real errors. Still check for edge cases.
+        if (!isCancellationError(err)) {
+          setError(err instanceof Error ? err : new Error(String(err)));
         }
       } finally {
         setIsLoading(false);

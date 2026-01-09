@@ -1,91 +1,120 @@
 package middleware
 
 import (
+	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"firebase.google.com/go/v4/auth"
 )
 
-// TestAuthMiddleware_MissingAuthorizationHeader tests rejection of requests without auth header
-func TestAuthMiddleware_MissingAuthorizationHeader(t *testing.T) {
-	// Set CORS origins for test
-	t.Setenv("ALLOWED_ORIGINS", "https://example.com")
-
-	logger := slog.Default()
-
-	// Create middleware with allowed emails
-	// authClient is nil so token verification would fail, but we test headers first
-	middleware := &AuthMiddleware{
-		allowedEmails: map[string]bool{"test@example.com": true},
-		authClient:    nil,
-		logger:        logger,
-	}
-
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("Next handler should not be called")
-	})
-
-	handler := middleware.Middleware(nextHandler)
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Origin", "https://example.com")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("Expected status 401, got %d", w.Code)
-	}
-
-	// Check response contains error
-	body := w.Body.String()
-	if body == "" {
-		t.Error("Expected error response body")
-	}
+// MockTokenVerifier implements TokenVerifier interface
+type MockTokenVerifier struct {
+	VerifyErr error
+	Token     *auth.Token
 }
 
-// TestAuthMiddleware_InvalidAuthorizationHeaderFormat tests malformed auth headers
-func TestAuthMiddleware_InvalidAuthorizationHeaderFormat(t *testing.T) {
-	t.Setenv("ALLOWED_ORIGINS", "https://example.com")
+func (m *MockTokenVerifier) VerifyIDToken(ctx context.Context, idToken string) (*auth.Token, error) {
+	return m.Token, m.VerifyErr
+}
 
-	logger := slog.Default()
-
-	middleware := &AuthMiddleware{
-		allowedEmails: map[string]bool{"test@example.com": true},
-		authClient:    nil,
-		logger:        logger,
+func TestAuthMiddleware(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	allowedEmails := map[string]bool{
+		"allowed@example.com": true,
 	}
 
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("Next handler should not be called")
-	})
-
-	handler := middleware.Middleware(nextHandler)
-
-	testCases := []struct {
-		name      string
-		authValue string
+	tests := []struct {
+		name           string
+		header         string
+		mockVerifier   *MockTokenVerifier
+		expectedStatus int
 	}{
-		{"No Bearer prefix", "InvalidToken123"},
-		{"Wrong scheme", "Basic dXNlcjpwYXNz"},
-		{"Only Bearer", "Bearer"},
-		{"Empty", ""},
+		{
+			name:           "Missing Authorization header",
+			header:         "",
+			mockVerifier:   &MockTokenVerifier{},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "Invalid header format",
+			header:         "InvalidToken",
+			mockVerifier:   &MockTokenVerifier{},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:   "Invalid token",
+			header: "Bearer invalid-token",
+			mockVerifier: &MockTokenVerifier{
+				VerifyErr: errors.New("invalid token"),
+			},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:   "Valid token but missing email claim",
+			header: "Bearer valid-token",
+			mockVerifier: &MockTokenVerifier{
+				Token: &auth.Token{
+					Claims: map[string]interface{}{},
+				},
+			},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:   "Valid token but unauthorized email",
+			header: "Bearer valid-token",
+			mockVerifier: &MockTokenVerifier{
+				Token: &auth.Token{
+					Claims: map[string]interface{}{
+						"email": "denied@example.com",
+					},
+				},
+			},
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:   "Valid token and authorized email",
+			header: "Bearer valid-token",
+			mockVerifier: &MockTokenVerifier{
+				Token: &auth.Token{
+					Claims: map[string]interface{}{
+						"email": "allowed@example.com",
+					},
+				},
+			},
+			expectedStatus: http.StatusOK,
+		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			if tc.authValue != "" {
-				req.Header.Set("Authorization", tc.authValue)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			am := &AuthMiddleware{
+				verifier:      tt.mockVerifier,
+				allowedEmails: allowedEmails,
+				logger:        logger,
 			}
-			req.Header.Set("Origin", "https://example.com")
+
+			// Create a dummy handler that returns 200 OK
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			handler := am.Middleware(nextHandler)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.header != "" {
+				req.Header.Set("Authorization", tt.header)
+			}
 			w := httptest.NewRecorder()
 
 			handler.ServeHTTP(w, req)
 
-			if w.Code != http.StatusUnauthorized {
-				t.Errorf("Expected status 401, got %d", w.Code)
+			if w.Code != tt.expectedStatus {
+				t.Errorf("status = %d, want %d", w.Code, tt.expectedStatus)
 			}
 		})
 	}

@@ -20,7 +20,10 @@ schemas/proto/
 ## Quick Reference
 
 ```bash
-# Generate all languages
+# Generate AND sync all schemas (recommended)
+make sync-schemas
+
+# Generate all languages (proto only, no sport config)
 make proto-gen
 
 # Generate backend only (Go + Python)
@@ -29,12 +32,46 @@ make proto-gen-backend
 # Generate web only (TypeScript)
 make proto-gen-web
 
+# Verify schemas are in sync (runs in CI)
+make verify-schemas
+
 # Lint schemas
 make proto-lint
 
 # Format schemas
 make proto-fmt
 ```
+
+## Schema Sync Workflow
+
+The `schemas/` directory is the **source of truth**. Generated code and config copies live in packages:
+
+```
+schemas/
+├── proto/                    # Proto definitions (source)
+│   └── desirelines/...
+└── sports/
+    └── sport_types.json      # Sport config (source)
+
+packages/
+├── apigateway/
+│   ├── config/sport_types.json     # Copy (synced)
+│   └── types/generated/*.pb.go     # Generated
+├── stravapipe/
+│   └── src/stravapipe/
+│       ├── config/sport_types.json # Copy (synced)
+│       └── types/generated/*_pb2.py # Generated
+└── web/
+    └── src/types/generated/*.ts     # Generated
+```
+
+**After modifying any schema:**
+```bash
+make sync-schemas   # Regenerates code + copies config
+git add schemas/ packages/*/types/generated/ packages/*/config/
+```
+
+**CI checks:** The `Schema Sync` job runs `make verify-schemas` to ensure copies are in sync.
 
 ## Adding a New Proto File
 

@@ -150,6 +150,7 @@ describe("useUserConfig", () => {
         defaultSport: "",
         timezone: "",
         defaultYear: 2025,
+        visibleSports: [],
       };
 
       const { onSnapshot } = await import("firebase/firestore");
@@ -456,6 +457,7 @@ describe("useUserConfig", () => {
         elevationUnit: "",
         defaultSport: "",
         timezone: "",
+        visibleSports: [],
       };
 
       await act(async () => {
@@ -1036,6 +1038,7 @@ describe("useFullUserConfig", () => {
         elevationUnit: "",
         defaultSport: "",
         timezone: "",
+        visibleSports: [],
       };
 
       await act(async () => {

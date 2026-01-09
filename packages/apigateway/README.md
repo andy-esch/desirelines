@@ -290,5 +290,6 @@ Run `make proto-gen-backend` to regenerate. See [`schemas/proto/README.md`](../.
 
 ## Related Documentation
 
+- [Frontend API Client](../web/src/api/README.md) - TypeScript client error handling patterns
 - [Deployment Guide](../../docs/guides/deployment.md)
 - [Docker Guide](../../docs/guides/docker.md)

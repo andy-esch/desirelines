@@ -73,6 +73,10 @@ message Preferences {
   // Timezone for display (IANA format, e.g., "America/New_York")
   // Default: browser timezone
   string timezone = 7;
+
+  // Sports to show in the UI (default: ["cycling", "running", "yoga"])
+  // Empty array treated as default. Invalid keys filtered on read.
+  repeated string visible_sports = 8;
 }
 
 message ChartDefaults {

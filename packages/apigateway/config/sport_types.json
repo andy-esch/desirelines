@@ -3,8 +3,17 @@
   "sport_categories": {
     "cycling": {
       "display_name": "Cycling",
-      "strava_types": ["Ride", "VirtualRide"],
-      "excluded_types": ["EBikeRide"],
+      "strava_types": ["Ride", "VirtualRide", "GravelRide", "MountainBikeRide", "Handcycle", "Velomobile"],
+      "excluded_types": ["EBikeRide", "EMountainBikeRide"],
+      "primary_metric": "distance_meters",
+      "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
+      "has_distance": true,
+      "has_elevation": true
+    },
+    "ebike": {
+      "display_name": "E-Bike",
+      "strava_types": ["EBikeRide", "EMountainBikeRide"],
+      "excluded_types": [],
       "primary_metric": "distance_meters",
       "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
       "has_distance": true,
@@ -19,6 +28,33 @@
       "has_distance": true,
       "has_elevation": true
     },
+    "walking": {
+      "display_name": "Walking",
+      "strava_types": ["Walk"],
+      "excluded_types": [],
+      "primary_metric": "distance_meters",
+      "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
+      "has_distance": true,
+      "has_elevation": true
+    },
+    "hiking": {
+      "display_name": "Hiking",
+      "strava_types": ["Hike"],
+      "excluded_types": [],
+      "primary_metric": "distance_meters",
+      "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
+      "has_distance": true,
+      "has_elevation": true
+    },
+    "swimming": {
+      "display_name": "Swimming",
+      "strava_types": ["Swim"],
+      "excluded_types": [],
+      "primary_metric": "distance_meters",
+      "metrics": ["distance_meters", "time_minutes", "activities", "activity_ids"],
+      "has_distance": true,
+      "has_elevation": false
+    },
     "yoga": {
       "display_name": "Yoga",
       "strava_types": ["Yoga"],
@@ -26,6 +62,87 @@
       "primary_metric": "time_minutes",
       "metrics": ["time_minutes", "activities", "activity_ids"],
       "has_distance": false,
+      "has_elevation": false
+    },
+    "workout": {
+      "display_name": "Workout",
+      "strava_types": ["WeightTraining", "Crossfit", "Workout", "Pilates", "Elliptical", "StairStepper", "HIIT"],
+      "excluded_types": [],
+      "primary_metric": "time_minutes",
+      "metrics": ["time_minutes", "activities", "activity_ids"],
+      "has_distance": false,
+      "has_elevation": false
+    },
+    "watersports": {
+      "display_name": "Water Sports",
+      "strava_types": ["Rowing", "Kayaking", "Canoeing", "StandUpPaddling", "Surfing", "Kitesurfing", "Windsurfing", "Sailing"],
+      "excluded_types": [],
+      "primary_metric": "distance_meters",
+      "metrics": ["distance_meters", "time_minutes", "activities", "activity_ids"],
+      "has_distance": true,
+      "has_elevation": false
+    },
+    "winter_sports": {
+      "display_name": "Winter Sports",
+      "strava_types": ["AlpineSki", "Snowboard", "BackcountrySki", "NordicSki", "IceSkate", "Snowshoe"],
+      "excluded_types": [],
+      "primary_metric": "distance_meters",
+      "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
+      "has_distance": true,
+      "has_elevation": true
+    },
+    "golf": {
+      "display_name": "Golf",
+      "strava_types": ["Golf"],
+      "excluded_types": [],
+      "primary_metric": "time_minutes",
+      "metrics": ["time_minutes", "activities", "activity_ids"],
+      "has_distance": false,
+      "has_elevation": false
+    },
+    "racket_sports": {
+      "display_name": "Racket Sports",
+      "strava_types": ["Tennis", "Pickleball", "Badminton", "Squash", "Racquetball", "TableTennis"],
+      "excluded_types": [],
+      "primary_metric": "time_minutes",
+      "metrics": ["time_minutes", "activities", "activity_ids"],
+      "has_distance": false,
+      "has_elevation": false
+    },
+    "team_sports": {
+      "display_name": "Team Sports",
+      "strava_types": ["Soccer", "Football", "Basketball", "Hockey", "Lacrosse", "Rugby", "Volleyball"],
+      "excluded_types": [],
+      "primary_metric": "time_minutes",
+      "metrics": ["time_minutes", "activities", "activity_ids"],
+      "has_distance": false,
+      "has_elevation": false
+    },
+    "skating": {
+      "display_name": "Skating",
+      "strava_types": ["InlineSkate", "Skateboard", "RollerSki"],
+      "excluded_types": [],
+      "primary_metric": "distance_meters",
+      "metrics": ["distance_meters", "time_minutes", "activities", "activity_ids"],
+      "has_distance": true,
+      "has_elevation": false
+    },
+    "climbing": {
+      "display_name": "Climbing",
+      "strava_types": ["RockClimbing"],
+      "excluded_types": [],
+      "primary_metric": "time_minutes",
+      "metrics": ["time_minutes", "activities", "activity_ids"],
+      "has_distance": false,
+      "has_elevation": false
+    },
+    "wheelchair": {
+      "display_name": "Wheelchair",
+      "strava_types": ["Wheelchair"],
+      "excluded_types": [],
+      "primary_metric": "distance_meters",
+      "metrics": ["distance_meters", "time_minutes", "activities", "activity_ids"],
+      "has_distance": true,
       "has_elevation": false
     }
   }

@@ -25,25 +25,57 @@ env:
 
 jobs:
   # ===========================================================================
-  # Schema Sync Check (sport config copied from schemas/ to packages)
+  # Validation: Schema sync, Proto validation, BUILD files
+  # Fast checks first, slow BUILD check last (fail fast strategy)
   # ===========================================================================
-  schema-sync:
-    name: Schema Sync
+  validation:
+    name: Validation
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # --- Fast checks first (fail fast) ---
+
       - name: Verify schemas are in sync
         run: make verify-schemas
 
+      - name: Install buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ github.token }}
+
+      - name: Lint proto files
+        run: make proto-lint
+
+      # --- Slow check last (~4 min) ---
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Pants
+        uses: pantsbuild/actions/init-pants@v10
+        with:
+          gha-cache-key: v1-validation
+          named-caches-hash: ${{ hashFiles('pants.toml') }}
+
+      - name: Verify BUILD files
+        run: "pants tailor --check ::"
+
   # ===========================================================================
-  # Pants: Test & Lint (Python only)
-  # Go uses native tooling (faster, better multi-module support)
+  # Python: Test, Lint, Type check (via Pants)
   # ===========================================================================
   pants-python:
-    name: Python (Pants)
+    name: Python
     runs-on: ubuntu-latest
 
     steps:
@@ -89,10 +121,11 @@ jobs:
         run: "pants check packages/stravapipe::"
 
   # ===========================================================================
-  # Go Testing (native go test - faster than Pants)
+  # Go: Test, Lint, Format check (combined for efficiency)
+  # Matrix runs packages in parallel
   # ===========================================================================
-  go-test:
-    name: Go Tests
+  go-quality:
+    name: Go (${{ matrix.package }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -112,7 +145,7 @@ jobs:
       - name: Download dependencies
         run: go work sync && go mod download
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
           cd packages/${{ matrix.package }}
           go test -v -race -coverprofile=coverage.out ./...
@@ -125,28 +158,6 @@ jobs:
           flags: go-${{ matrix.package }}
           name: go-${{ matrix.package }}-coverage
           fail_ci_if_error: false
-
-  # ===========================================================================
-  # Go Linting (golangci-lint-action)
-  # Kept separate for inline PR annotations
-  # ===========================================================================
-  go-lint:
-    name: Go Lint
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        package: [dispatcher, apigateway]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
-          cache-dependency-path: go.work.sum
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
@@ -166,8 +177,7 @@ jobs:
           fi
 
   # ===========================================================================
-  # Web/React (Node ecosystem)
-  # Kept separate - Pants Node support is experimental
+  # Web/React: Test, Lint, Format, Type check, Build
   # ===========================================================================
   web-quality:
     name: Web/React
@@ -215,8 +225,7 @@ jobs:
         run: npm run build
 
   # ===========================================================================
-  # Terraform Validation
-  # Infrastructure as Code checks
+  # Terraform: Format, Init, Validate
   # ===========================================================================
   terraform-validate:
     name: Terraform
@@ -248,35 +257,3 @@ jobs:
           terraform fmt -check
           terraform init -backend=false
           terraform validate
-
-  # ===========================================================================
-  # BUILD file validation
-  # Ensures Pants BUILD files are up to date
-  # ===========================================================================
-  pants-build-files:
-    name: BUILD files up to date
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
-          cache-dependency-path: go.work.sum
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Set up Pants
-        uses: pantsbuild/actions/init-pants@v10
-        with:
-          gha-cache-key: v1-tailor
-          named-caches-hash: ${{ hashFiles('pants.toml') }}
-
-      - name: Verify BUILD files
-        run: "pants tailor --check ::"

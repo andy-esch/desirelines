@@ -8,13 +8,20 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
-	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 )
 
 const (
 	statusHealthy   = "healthy"
 	statusUnhealthy = "unhealthy"
 )
+
+// Pinger is a minimal interface for health checking database connectivity.
+// This follows the Interface Segregation Principle - the health handler only
+// needs Ping(), not the full ActivityRepository interface. Any type with a
+// Ping method (including repository.ActivityRepository) satisfies this interface.
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
 
 // Response is the JSON structure returned by the health endpoint.
 type Response struct {
@@ -24,14 +31,16 @@ type Response struct {
 
 // Handler holds dependencies for the health check handler.
 type Handler struct {
-	repo   repository.ActivityRepository
+	pinger Pinger
 	logger *slog.Logger
 }
 
 // NewHandler creates a new health check handler.
-func NewHandler(repo repository.ActivityRepository, logger *slog.Logger) *Handler {
+// The pinger parameter can be nil if no database is configured, or any type
+// that implements Ping() (e.g., repository.ActivityRepository).
+func NewHandler(pinger Pinger, logger *slog.Logger) *Handler {
 	return &Handler{
-		repo:   repo,
+		pinger: pinger,
 		logger: logger,
 	}
 }
@@ -42,12 +51,12 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		Status: statusHealthy,
 	}
 
-	// Check database connectivity if repository is available
-	if h.repo != nil {
+	// Check database connectivity if a pinger is configured
+	if h.pinger != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
 
-		if err := h.repo.Ping(ctx); err != nil {
+		if err := h.pinger.Ping(ctx); err != nil {
 			h.logger.Warn("Database health check failed", "error", err)
 			response.Database = statusUnhealthy
 		} else {

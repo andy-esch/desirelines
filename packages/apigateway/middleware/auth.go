@@ -14,9 +14,15 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/apierrors"
 )
 
+// TokenVerifier defines the interface for verifying ID tokens.
+// This allows mocking the Firebase Auth client in tests.
+type TokenVerifier interface {
+	VerifyIDToken(ctx context.Context, idToken string) (*auth.Token, error)
+}
+
 // AuthMiddleware validates Firebase ID tokens and checks email authorization.
 type AuthMiddleware struct {
-	authClient    *auth.Client
+	verifier      TokenVerifier
 	allowedEmails map[string]bool
 	logger        *slog.Logger
 }
@@ -61,7 +67,7 @@ func NewFirebaseAuth(ctx context.Context, allowedEmails []string, logger *slog.L
 
 	logger.Info("Auth middleware initialized successfully", "project_id", projectID)
 	return &AuthMiddleware{
-		authClient:    authClient,
+		verifier:      authClient,
 		allowedEmails: emailMap,
 		logger:        logger,
 	}, nil
@@ -98,7 +104,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		idToken := parts[1]
 
 		// Verify the ID token with Firebase
-		token, err := m.authClient.VerifyIDToken(r.Context(), idToken)
+		token, err := m.verifier.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
 			m.logger.Warn("Auth: Authentication failed", "reason", "token_verification_failed", "error", err)
 			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
