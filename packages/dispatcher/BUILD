@@ -13,10 +13,17 @@ go_package(
 files(
     name="sources",
     sources=[
-        "**/*.go",             # All Go files recursively
-        "*.mod",               # go.mod
-        "*.sum",               # go.sum
-        "!BUILD",              # Exclude the BUILD file itself
+        "go.mod",
+        "go.sum",
+        "cmd/dispatcher/*.go",
+        "config/*.go",
+        "adapters/**/*.go",
+        "domain/*.go",
+        "middleware/*.go",
+        "pkg/**/*.go",
+        "ports/**/*.go",
+        "types/**/*.go",
+        "!**/BUILD",           # Exclude all BUILD files
     ],
 )
 
