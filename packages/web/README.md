@@ -89,7 +89,7 @@ User → Components → API Layer → API Gateway (Go) → Cloud Storage (JSON)
 
 ```
 src/
-├── api/              # API client
+├── api/              # API client (see [API README](src/api/README.md))
 ├── components/       # React components
 ├── constants/        # App constants and config
 ├── hooks/            # Custom hooks
