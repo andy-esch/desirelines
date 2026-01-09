@@ -8,6 +8,13 @@ import (
 	"testing"
 )
 
+// expectedSportCount is the number of sport categories in sport_types.json.
+// Update this constant when adding/removing sports from the config.
+// Current sports: cycling, ebike, running, walking, hiking, swimming, yoga,
+// workout, watersports, winter_sports, golf, racket_sports, team_sports,
+// skating, climbing, wheelchair
+const expectedSportCount = 16
+
 func TestValidateSport(t *testing.T) {
 	config, err := LoadSportConfig("sport_types.json")
 	if err != nil {
@@ -63,8 +70,8 @@ func TestListSports(t *testing.T) {
 	}
 
 	sports := config.ListSports()
-	if len(sports) != 16 {
-		t.Errorf("Expected 16 sports, got %d", len(sports))
+	if len(sports) != expectedSportCount {
+		t.Errorf("Expected %d sports, got %d", expectedSportCount, len(sports))
 	}
 
 	// Check all expected sports are present
@@ -75,6 +82,50 @@ func TestListSports(t *testing.T) {
 
 	if !sportMap["cycling"] || !sportMap["running"] || !sportMap["yoga"] {
 		t.Error("Expected cycling, running, and yoga in sports list")
+	}
+}
+
+// TestExcludedTypesLoaded verifies that excluded_types are properly loaded from config.
+// Note: Go doesn't currently have a Matches() method like Python - excluded_types
+// are loaded but filtering is done at the Python pipeline level. This test ensures
+// the field is properly parsed for when/if Go needs to use it.
+func TestExcludedTypesLoaded(t *testing.T) {
+	config, err := LoadSportConfig("sport_types.json")
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Cycling should have EBikeRide and EMountainBikeRide excluded
+	cycling, ok := config.GetCategory("cycling")
+	if !ok {
+		t.Fatal("Expected cycling category to exist")
+	}
+
+	if len(cycling.ExcludedTypes) != 2 {
+		t.Errorf("Expected cycling to have 2 excluded types, got %d", len(cycling.ExcludedTypes))
+	}
+
+	// Verify specific excluded types
+	excludedMap := make(map[string]bool)
+	for _, et := range cycling.ExcludedTypes {
+		excludedMap[et] = true
+	}
+
+	if !excludedMap["EBikeRide"] {
+		t.Error("Expected EBikeRide to be in cycling excluded_types")
+	}
+	if !excludedMap["EMountainBikeRide"] {
+		t.Error("Expected EMountainBikeRide to be in cycling excluded_types")
+	}
+
+	// Running should have no excluded types
+	running, ok := config.GetCategory("running")
+	if !ok {
+		t.Fatal("Expected running category to exist")
+	}
+
+	if len(running.ExcludedTypes) != 0 {
+		t.Errorf("Expected running to have 0 excluded types, got %d", len(running.ExcludedTypes))
 	}
 }
 

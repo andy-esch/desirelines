@@ -3,14 +3,20 @@
 package logger
 
 import (
+	"io"
 	"log/slog"
 	"os"
 )
 
-// New configures slog for Google Cloud structured logging.
-// Maps slog keys to Google Cloud Logging expected field names and severity levels.
+// New configures slog for Google Cloud structured logging writing to stderr.
 func New() *slog.Logger {
-	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+	return NewWithWriter(os.Stderr)
+}
+
+// NewWithWriter configures slog for Google Cloud structured logging writing to w.
+// Maps slog keys to Google Cloud Logging expected field names and severity levels.
+func NewWithWriter(w io.Writer) *slog.Logger {
+	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			// Don't modify attributes in nested groups

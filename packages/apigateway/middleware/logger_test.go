@@ -61,8 +61,8 @@ func TestLogger(t *testing.T) {
 	if logEntry["path"] != "/test" {
 		t.Errorf("path = %q, want %q", logEntry["path"], "/test")
 	}
-	if status, ok := logEntry["status"].(float64); !ok || status != 201 {
-		t.Errorf("status = %v, want 201", logEntry["status"])
+	if status, ok := logEntry["status"].(float64); !ok || int(status) != http.StatusCreated {
+		t.Errorf("status = %v, want %d", logEntry["status"], http.StatusCreated)
 	}
 	if logEntry["remote_ip"] != "1.2.3.4:1234" {
 		t.Errorf("remote_ip = %q, want %q", logEntry["remote_ip"], "1.2.3.4:1234")

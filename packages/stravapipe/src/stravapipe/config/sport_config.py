@@ -53,7 +53,14 @@ class SportCategory:
 class SportConfig:
     """Sport configuration manager."""
 
-    def __init__(self, config_path: Path):
+    def __init__(self, config_path: Path, *, validate_version: bool = True):
+        """Load and validate sport configuration.
+
+        Args:
+            config_path: Path to sport_types.json file.
+            validate_version: If True, raise ValueError for unsupported versions.
+                Set to False for testing version handling without triggering errors.
+        """
         with open(config_path) as f:
             data = json.load(f)
 
@@ -64,6 +71,15 @@ class SportConfig:
             raise ValueError(f"Invalid sport config schema:\n{e}") from e
 
         self.version = validated.version
+
+        # Validate version (fail fast, consistent with Go implementation)
+        if validate_version and self.version not in SUPPORTED_CONFIG_VERSIONS:
+            raise ValueError(
+                f"Unsupported sport config version: {self.version}\n"
+                f"This code supports: {SUPPORTED_CONFIG_VERSIONS}\n"
+                f"Update application code or rollback config version."
+            )
+
         self.categories = {
             name: SportCategory(name, config.model_dump())
             for name, config in validated.sport_categories.items()
@@ -87,7 +103,15 @@ class SportConfig:
 
 @lru_cache(maxsize=1)
 def load_sport_config() -> SportConfig:
-    """Load sport configuration (cached, validated)."""
+    """Load sport configuration (cached, validated).
+
+    Returns:
+        SportConfig instance with validated schema and version.
+
+    Raises:
+        FileNotFoundError: If sport_types.json is missing.
+        ValueError: If schema is invalid or version is unsupported.
+    """
     config_path = Path(__file__).parent / "sport_types.json"
 
     if not config_path.exists():
@@ -95,14 +119,5 @@ def load_sport_config() -> SportConfig:
             f"Sport config not found: {config_path}\nRun: make sync-sport-config"
         )
 
-    config = SportConfig(config_path)
-
-    # Validate version (fail fast)
-    if config.version not in SUPPORTED_CONFIG_VERSIONS:
-        raise ValueError(
-            f"Unsupported sport config version: {config.version}\n"
-            f"This code supports: {SUPPORTED_CONFIG_VERSIONS}\n"
-            f"Update application code or rollback config version."
-        )
-
-    return config
+    # Version validation happens in SportConfig.__init__
+    return SportConfig(config_path)
