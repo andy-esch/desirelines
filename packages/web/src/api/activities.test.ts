@@ -4,7 +4,7 @@ import axios, { AxiosError } from "axios";
 import { fetchDistanceData, fetchDailySummary } from "./activities";
 import { EMPTY_RIDE_DATA } from "../constants";
 
-// Mock axios but preserve AxiosError class
+// Mock axios but preserve AxiosError class and utility functions
 vi.mock("axios", async () => {
   const actual = await vi.importActual<typeof import("axios")>("axios");
   return {
@@ -12,6 +12,7 @@ vi.mock("axios", async () => {
     default: {
       get: vi.fn(),
       isCancel: vi.fn(),
+      isAxiosError: actual.default.isAxiosError,
       Cancel: actual.default.Cancel,
     },
     AxiosError: actual.AxiosError,
@@ -215,7 +216,7 @@ describe("fetchDistanceData", () => {
       await expect(fetchDistanceData(2025)).rejects.toThrow();
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Failed to fetch distance data:",
+        "fetchDistanceData:",
         "Request failed with status code 500"
       );
 
@@ -230,10 +231,7 @@ describe("fetchDistanceData", () => {
 
       await expect(fetchDistanceData(2025)).rejects.toThrow("Network Error");
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Failed to fetch distance data:",
-        "Network Error"
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("fetchDistanceData:", "Network Error");
 
       consoleErrorSpy.mockRestore();
     });

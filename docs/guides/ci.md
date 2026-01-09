@@ -29,24 +29,29 @@ CI runs on every pull request and push to main via GitHub Actions (`.github/work
 
 ## CI Workflow Jobs
 
-### 1. Schema Sync
-Verifies all schema files are synchronized across packages.
+### 1. Validation
+Combined job for schema sync, proto linting, and BUILD file checks. Fast checks run first (fail fast), slow BUILD check runs last.
 
 ```bash
-make verify-schemas
+# Run locally
+make verify-schemas    # Check sport_types.json sync (~10 sec)
+make proto-lint        # Lint proto files with buf (~10 sec)
+pants tailor --check :: # Check BUILD files (~4 min)
 ```
 
 **What it checks:**
-- `sport_types.json` is identical in `schemas/sports/`, `packages/stravapipe/`, and `packages/apigateway/`
+- `sport_types.json` is identical across `schemas/sports/`, `packages/stravapipe/`, and `packages/apigateway/`
+- Proto files pass buf lint rules
+- Pants BUILD files are up to date
 
 **Fix if failing:**
 ```bash
-make sync-schemas  # Syncs proto codegen + sport config
+make sync-schemas      # Sync sport config + regenerate proto
+make proto-fmt         # Format proto files
+pants tailor ::        # Update BUILD files
 ```
 
-**Why:** Schemas live in `schemas/` as source of truth but are copied to packages for build isolation.
-
-### 2. Python (Pants)
+### 2. Python
 Tests, lints, and type-checks Python code using Pants.
 
 ```bash
@@ -71,46 +76,32 @@ pants check packages/stravapipe::
 - Keyed by `packages/stravapipe/uv.lock` and `pants.toml`
 - 30-60% speedup on cached runs
 
-### 3. Go Tests
-Native Go testing with coverage, runs in parallel for each package.
+### 3. Go Quality
+Combined testing, linting, and format checking for Go packages. Runs in parallel for each package via matrix strategy.
 
 ```bash
 # Run locally
-cd packages/dispatcher && go test -v -race -coverprofile=coverage.out ./...
-cd packages/apigateway && go test -v -race -coverprofile=coverage.out ./...
-
-# Or use make targets
-make go-test
+make go-test    # Tests for both packages
+make go-lint    # Lint + format check for both packages
 ```
 
-**Matrix strategy:** Runs `dispatcher` and `apigateway` tests in parallel.
+**Matrix strategy:** Runs `dispatcher` and `apigateway` in parallel.
 
-**Why native Go:**
-- ~6x faster than Pants Go backend (1min vs 6-7min)
-- Better multi-module workspace support
+**Checks performed (per package):**
+1. `go test -v -race -coverprofile=coverage.out ./...`
+2. `golangci-lint run` (with inline PR annotations)
+3. `gofmt -l .` (format verification)
+
+**Configuration:** `.golangci.yml` in repository root.
+
+**Why native Go (not Pants):**
+- ~6x faster than Pants Go backend
+- Better multi-module workspace support (`go.work`)
 - Pants Go support is experimental
 
 **Coverage:** Uploaded to Codecov per package.
 
-### 4. Go Lint
-Runs `golangci-lint` for each Go package with inline PR annotations.
-
-```bash
-# Run locally
-cd packages/dispatcher && golangci-lint run
-cd packages/apigateway && golangci-lint run
-
-# Or use make target
-make go-lint
-```
-
-**Configuration:** `.golangci.yml` in repository root.
-
-**Format check:** Uses `gofmt -l` to verify Go code formatting.
-
-**Why separate from Pants:** Pants golangci-lint backend doesn't support multi-module repos (`go.work`).
-
-### 5. Web/React Quality
+### 4. Web/React
 Tests, lints, type-checks, and builds the React frontend.
 
 ```bash
@@ -130,30 +121,20 @@ npm run build
 
 **Coverage:** Uploaded to Codecov.
 
-### 6. Terraform Validation
+### 5. Terraform
 Validates Terraform configuration for all environments.
 
 ```bash
-# Validates local, dev, prod environments + module
-cd terraform/environments/{env}
-terraform fmt -check
-terraform init -backend=false
-terraform validate
-```
-
-**Why:** Catches Terraform syntax errors before deployment.
-
-### 7. BUILD File Validation
-Ensures Pants BUILD files are up to date.
-
-```bash
 # Run locally
-pants tailor --check ::
+make tf-validate-all
 ```
 
-**Why:** Catches missing BUILD files or outdated configurations.
+**Checks performed:**
+- `terraform fmt -check` - Format validation
+- `terraform init -backend=false` - Configuration loading
+- `terraform validate` - Syntax and consistency
 
-**Fix:** Run `pants tailor ::` to update BUILD files.
+**Environments validated:** artifacts, dev, prod, plus the shared module.
 
 ## Running CI Locally
 
@@ -190,9 +171,9 @@ make tf-validate-all
 ## CI Performance
 
 ### Typical Run Times
-- **Python (Pants):** 2-3 min (first run), 1-2 min (cached)
-- **Go Tests:** ~1 min per package (parallel: ~1 min total)
-- **Go Lint:** ~30-45 sec per package (parallel: ~45 sec total)
+- **Validation:** ~4-5 min (BUILD check is slowest; fast checks fail first)
+- **Python:** 2-3 min (first run), 1-2 min (cached)
+- **Go Quality:** ~2 min per package (parallel: ~2 min total)
 - **Web/React:** 2-3 min
 - **Terraform:** ~30 sec
 - **Total:** ~5-7 min (parallel execution)

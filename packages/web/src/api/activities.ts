@@ -25,10 +25,16 @@
  * - Cancelled requests: Silently ignore (return empty data)
  */
 
-import axios, { AxiosError } from "axios";
+import axios from "axios";
 import type { RideBlobType } from "../types/activity";
 import { EMPTY_RIDE_DATA } from "../constants";
 import { API_BASE_URL } from "../config";
+import {
+  isCancellationError,
+  is404Error,
+  buildAuthHeaders,
+  throwApiError,
+} from "./errors";
 
 const getApiBaseUrl = (): string => {
   return API_BASE_URL || "http://localhost:8084";
@@ -106,42 +112,23 @@ export const fetchDistanceData = async (
   signal?: AbortSignal,
   idToken?: string
 ): Promise<RideBlobType> => {
-  const apiBaseUrl = getApiBaseUrl();
-  const url = `${apiBaseUrl}/activities/${year}/metrics?sport=cycling`;
-
-  // Build headers with optional auth token
-  const headers: Record<string, string> = {};
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
-  }
+  const url = `${getApiBaseUrl()}/activities/${year}/metrics?sport=cycling`;
 
   try {
-    const { data } = await axios.get<RideBlobType>(url, { signal, headers });
+    const { data } = await axios.get<RideBlobType>(url, {
+      signal,
+      headers: buildAuthHeaders(idToken),
+    });
     return data;
   } catch (err: unknown) {
-    // Request was cancelled - don't treat as error
-    if (axios.isCancel(err)) {
-      // Silently return empty data - cancellation is expected behavior
+    if (isCancellationError(err)) {
       return EMPTY_RIDE_DATA;
     }
-    // LEGACY: 404 handling for old API endpoints that returned 404 for missing data.
-    // New API contract returns 200 with empty arrays, so this is only hit for:
-    // 1. Truly non-existent endpoints (wrong URL)
-    // 2. Old backend versions before empty data normalization
-    if (err instanceof AxiosError && err.response?.status === 404) {
+    // LEGACY: 404 handling for old API endpoints that returned 404 for missing data
+    if (is404Error(err)) {
       return EMPTY_RIDE_DATA;
     }
-    // 401/403 means authentication/authorization failed
-    if (
-      err instanceof AxiosError &&
-      (err.response?.status === 401 || err.response?.status === 403)
-    ) {
-      console.error("Authentication failed - user not authorized");
-      throw new Error("Access denied. Please sign in with an authorized account.");
-    }
-    // Real errors (network, 500s, etc.) should propagate
-    console.error("Failed to fetch distance data:", err instanceof Error ? err.message : err);
-    throw err instanceof Error ? err : new Error(String(err));
+    throwApiError(err, "fetchDistanceData");
   }
 };
 
@@ -169,44 +156,32 @@ export const fetchSportMetrics = async (
       ? { year: yearOrOptions, sport: sport!, signal, idToken }
       : yearOrOptions;
 
-  const apiBaseUrl = getApiBaseUrl();
-  let url = `${apiBaseUrl}/activities/${options.year}/metrics?sport=${options.sport}`;
-
-  // Add date range params if provided
+  let url = `${getApiBaseUrl()}/activities/${options.year}/metrics?sport=${options.sport}`;
   if (options.from && options.to) {
     url += `&from=${options.from}&to=${options.to}`;
-  }
-
-  const headers: Record<string, string> = {};
-  if (options.idToken) {
-    headers.Authorization = `Bearer ${options.idToken}`;
   }
 
   try {
     const { data } = await axios.get<SportMetricsResponse>(url, {
       signal: options.signal,
-      headers,
+      headers: buildAuthHeaders(options.idToken),
     });
-    // Extract timeseries array from response wrapper
-    // API always returns 200 with empty array when no data (not 404)
     return data.timeseries ?? [];
   } catch (err: unknown) {
-    // Request was cancelled - not an error, return empty
-    if (axios.isCancel(err)) {
+    if (isCancellationError(err)) {
       return [];
     }
-    // 401/403 means authentication/authorization failed
-    if (
-      err instanceof AxiosError &&
-      (err.response?.status === 401 || err.response?.status === 403)
-    ) {
-      console.error("Authentication failed - user not authorized");
-      throw new Error("Access denied. Please sign in with an authorized account.");
-    }
-    // Real errors (network, 500s, etc.) should propagate
-    console.error("Failed to fetch sport metrics:", err instanceof Error ? err.message : err);
-    throw err instanceof Error ? err : new Error(String(err));
+    throwApiError(err, "fetchSportMetrics");
   }
+};
+
+/** Empty metadata response for cancelled requests or error recovery */
+const EMPTY_YEAR_METADATA: YearMetadata = {
+  year: 0,
+  sports: [],
+  totals: {},
+  lastUpdated: "",
+  aggregationVersion: "",
 };
 
 export const fetchYearMetadata = async (
@@ -214,17 +189,13 @@ export const fetchYearMetadata = async (
   signal?: AbortSignal,
   idToken?: string
 ): Promise<YearMetadata> => {
-  const apiBaseUrl = getApiBaseUrl();
-  const url = `${apiBaseUrl}/activities/${year}/metadata`;
-
-  const headers: Record<string, string> = {};
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
-  }
+  const url = `${getApiBaseUrl()}/activities/${year}/metadata`;
 
   try {
-    const { data } = await axios.get<YearMetadata>(url, { signal, headers });
-    // API always returns 200 with empty sports/totals when no data (not 404)
+    const { data } = await axios.get<YearMetadata>(url, {
+      signal,
+      headers: buildAuthHeaders(idToken),
+    });
     // Ensure arrays are never null for safe iteration
     return {
       ...data,
@@ -232,51 +203,36 @@ export const fetchYearMetadata = async (
       totals: data.totals ?? {},
     };
   } catch (err: unknown) {
-    if (axios.isCancel(err)) {
-      throw new Error("Request cancelled");
+    if (isCancellationError(err)) {
+      return { ...EMPTY_YEAR_METADATA, year };
     }
-    // 401/403 means authentication/authorization failed
-    if (
-      err instanceof AxiosError &&
-      (err.response?.status === 401 || err.response?.status === 403)
-    ) {
-      console.error("Authentication failed - user not authorized");
-      throw new Error("Access denied. Please sign in with an authorized account.");
-    }
-    console.error("Failed to fetch year metadata:", err instanceof Error ? err.message : err);
-    throw err instanceof Error ? err : new Error(String(err));
+    throwApiError(err, "fetchYearMetadata");
   }
+};
+
+/** Empty sport config for cancelled requests or error recovery */
+const EMPTY_SPORT_CONFIG: SportConfig = {
+  version: "",
+  sport_categories: {},
 };
 
 export const fetchSportConfig = async (
   signal?: AbortSignal,
   idToken?: string
 ): Promise<SportConfig> => {
-  const apiBaseUrl = getApiBaseUrl();
-  const url = `${apiBaseUrl}/sports/config`;
-
-  const headers: Record<string, string> = {};
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
-  }
+  const url = `${getApiBaseUrl()}/sports/config`;
 
   try {
-    const { data } = await axios.get<SportConfig>(url, { signal, headers });
+    const { data } = await axios.get<SportConfig>(url, {
+      signal,
+      headers: buildAuthHeaders(idToken),
+    });
     return data;
   } catch (err: unknown) {
-    if (axios.isCancel(err)) {
-      throw new Error("Request cancelled");
+    if (isCancellationError(err)) {
+      return EMPTY_SPORT_CONFIG;
     }
-    // 401/403 means authentication/authorization failed
-    if (
-      err instanceof AxiosError &&
-      (err.response?.status === 401 || err.response?.status === 403)
-    ) {
-      console.error("Authentication failed - user not authorized");
-      throw new Error("Access denied. Please sign in with an authorized account.");
-    }
-    console.error("Failed to fetch sport config:", err instanceof Error ? err.message : err);
-    throw err instanceof Error ? err : new Error(String(err));
+    throwApiError(err, "fetchSportConfig");
   }
 };
 
@@ -295,39 +251,22 @@ export interface FetchDailySummaryOptions {
 export const fetchDailySummary = async (
   options: FetchDailySummaryOptions
 ): Promise<Record<string, DailyActivity>> => {
-  const apiBaseUrl = getApiBaseUrl();
-  let url = `${apiBaseUrl}/activities/${options.year}/source?sport=${options.sport}`;
-
-  // Add date range params if provided
+  let url = `${getApiBaseUrl()}/activities/${options.year}/source?sport=${options.sport}`;
   if (options.from && options.to) {
     url += `&from=${options.from}&to=${options.to}`;
   }
 
-  const headers: Record<string, string> = {};
-  if (options.idToken) {
-    headers.Authorization = `Bearer ${options.idToken}`;
-  }
-
   try {
-    // Expecting wrapped response: { daily: { ... } }
     const { data } = await axios.get<DailySummaryResponse>(url, {
       signal: options.signal,
-      headers,
+      headers: buildAuthHeaders(options.idToken),
     });
     return data.daily ?? {};
   } catch (err: unknown) {
-    if (axios.isCancel(err)) {
+    if (isCancellationError(err)) {
       return {};
     }
-    if (
-      err instanceof AxiosError &&
-      (err.response?.status === 401 || err.response?.status === 403)
-    ) {
-      console.error("Authentication failed - user not authorized");
-      throw new Error("Access denied. Please sign in with an authorized account.");
-    }
-    console.error("Failed to fetch daily summary:", err instanceof Error ? err.message : err);
-    throw err instanceof Error ? err : new Error(String(err));
+    throwApiError(err, "fetchDailySummary");
   }
 };
 
@@ -386,33 +325,23 @@ export const fetchActivity = async (
   signal?: AbortSignal,
   idToken?: string
 ): Promise<Activity | null> => {
-  const apiBaseUrl = getApiBaseUrl();
-  const url = `${apiBaseUrl}/activities/${id}`;
-
-  const headers: Record<string, string> = {};
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
-  }
+  const url = `${getApiBaseUrl()}/activities/${id}`;
 
   try {
-    const { data } = await axios.get<Activity>(url, { signal, headers });
+    const { data } = await axios.get<Activity>(url, {
+      signal,
+      headers: buildAuthHeaders(idToken),
+    });
     return data;
   } catch (err: unknown) {
-    if (axios.isCancel(err)) {
+    if (isCancellationError(err)) {
       return null;
     }
-    if (err instanceof AxiosError && err.response?.status === 404) {
+    // 404 means activity not found - return null, not an error
+    if (is404Error(err)) {
       return null;
     }
-    if (
-      err instanceof AxiosError &&
-      (err.response?.status === 401 || err.response?.status === 403)
-    ) {
-      console.error("Authentication failed - user not authorized");
-      throw new Error("Access denied. Please sign in with an authorized account.");
-    }
-    console.error("Failed to fetch activity:", err instanceof Error ? err.message : err);
-    throw err instanceof Error ? err : new Error(String(err));
+    throwApiError(err, "fetchActivity");
   }
 };
 
@@ -424,41 +353,29 @@ export const fetchActivities = async (
   signal?: AbortSignal,
   idToken?: string
 ): Promise<ActivityListResponse> => {
-  const apiBaseUrl = getApiBaseUrl();
   const params = new URLSearchParams();
-
   if (filter.from) params.set("from", filter.from);
   if (filter.to) params.set("to", filter.to);
   if (filter.sport) params.set("sport", filter.sport);
   if (filter.limit) params.set("limit", filter.limit.toString());
   if (filter.cursor) params.set("cursor", filter.cursor);
 
-  const url = `${apiBaseUrl}/activities?${params.toString()}`;
-
-  const headers: Record<string, string> = {};
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
-  }
+  const url = `${getApiBaseUrl()}/activities?${params.toString()}`;
 
   try {
-    const { data } = await axios.get<ActivityListResponse>(url, { signal, headers });
+    const { data } = await axios.get<ActivityListResponse>(url, {
+      signal,
+      headers: buildAuthHeaders(idToken),
+    });
     return {
       activities: data.activities ?? [],
       next_cursor: data.next_cursor,
       has_more: data.has_more ?? false,
     };
   } catch (err: unknown) {
-    if (axios.isCancel(err)) {
+    if (isCancellationError(err)) {
       return { activities: [], has_more: false };
     }
-    if (
-      err instanceof AxiosError &&
-      (err.response?.status === 401 || err.response?.status === 403)
-    ) {
-      console.error("Authentication failed - user not authorized");
-      throw new Error("Access denied. Please sign in with an authorized account.");
-    }
-    console.error("Failed to fetch activities:", err instanceof Error ? err.message : err);
-    throw err instanceof Error ? err : new Error(String(err));
+    throwApiError(err, "fetchActivities");
   }
 };
