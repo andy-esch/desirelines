@@ -30,8 +30,8 @@ services:
           "wget",
           "--quiet",
           "--tries=1",
-          "--method=HEAD",
-          "http://localhost:8080/",
+          "--spider",
+          "http://localhost:8080/health",
         ]
       interval: 30s
       timeout: 10s

@@ -44,11 +44,17 @@ func (h *Handler) RegisterRoutes() http.Handler {
 	r.Use(middleware.Logger(h.logger))
 	r.Use(chiMiddleware.Recoverer)
 
-	r.Get("/", h.handleVerification)
-	r.Post("/", h.handleEvent)
+	// Health check endpoint for Cloud Run / docker health checks
 	r.Head("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Strava webhook endpoints
+	r.Get("/webhook", h.handleVerification)
+	r.Post("/webhook", h.handleEvent)
 
 	return r
 }

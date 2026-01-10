@@ -30,6 +30,17 @@ packages/dispatcher/
 
 **Type Definitions:** Webhook types are defined in `schemas/proto/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `make proto-gen-backend`.
 
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/webhook` | Strava subscription verification (hub.mode, hub.challenge, hub.verify_token) |
+| `POST` | `/webhook` | Receive Strava webhook events |
+| `GET` | `/health` | Health check endpoint |
+| `HEAD` | `/` | Health probe for Cloud Run |
+
+**Note:** The Strava webhook callback URL must include the `/webhook` path (e.g., `https://your-service.run.app/webhook`).
+
 ## Environment Variables
 
 ```bash

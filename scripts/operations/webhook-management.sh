@@ -52,10 +52,11 @@ case "$COMMAND" in
 		exit 1
 	fi
 
-	CALLBACK_URL=$(gcloud run services describe "$SERVICE_NAME" \
+	BASE_URL=$(gcloud run services describe "$SERVICE_NAME" \
 		--region=$REGION \
 		--project="$GCP_PROJECT_ID" \
 		--format="value(status.url)")
+	CALLBACK_URL="${BASE_URL}/webhook"
 	echo "📍 Found dispatcher: $SERVICE_NAME"
 	echo "📍 Callback URL: $CALLBACK_URL"
 
