@@ -87,7 +87,7 @@ func TestHandler_HandleVerification(t *testing.T) {
 			handler := NewHandler(mockPublisher, mockSecrets, log)
 			router := handler.RegisterRoutes()
 
-			req := httptest.NewRequest(tt.method, "/", nil)
+			req := httptest.NewRequest(tt.method, "/webhook", nil)
 			q := req.URL.Query()
 			for k, v := range tt.queryParams {
 				q.Add(k, v)
@@ -243,7 +243,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 				}
 			}
 
-			req := httptest.NewRequest(tt.method, "/", strings.NewReader(string(body)))
+			req := httptest.NewRequest(tt.method, "/webhook", strings.NewReader(string(body)))
 			if tt.contentType != "" {
 				req.Header.Set("Content-Type", tt.contentType)
 			}
@@ -273,6 +273,45 @@ func TestHandler_HandleEvent(t *testing.T) {
 						t.Errorf("expected object_type ACTIVITY, got %v", event.ObjectType)
 					}
 				}
+			}
+		})
+	}
+}
+
+// Test health endpoints
+func TestHandler_Health(t *testing.T) {
+	log := logger.NewNoOpLogger()
+	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockSecretProvider{}, log)
+	router := handler.RegisterRoutes()
+
+	tests := []struct {
+		name           string
+		method         string
+		path           string
+		expectedStatus int
+	}{
+		{
+			name:           "HEAD / returns 200",
+			method:         "HEAD",
+			path:           "/",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "GET /health returns 200",
+			method:         "GET",
+			path:           "/health",
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
 			}
 		})
 	}
