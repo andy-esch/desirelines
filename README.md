@@ -17,7 +17,7 @@ A web app that transforms your Strava data into visual progress tracking. Set an
 
 ```bash
 # Complete local setup
-./scripts/development/local-dev/setup-local-environment.sh
+./scripts/ops/setup/setup-local.sh
 
 # Or manually:
 uv sync
@@ -35,13 +35,17 @@ cp .env.example .env
 
 ## Development
 
-We use [`just`](https://github.com/casey/just) as our task runner.
+We use [`just`](https://github.com/casey/just) as our task runner. Commands default to fast native tools (`uv`, `go`, `npm`) but can optionally use Pants.
 
 ```bash
-just test            # Run all tests
-just lint            # Lint all code
+just test            # Run all tests (native tools)
+just lint            # Lint all code (native tools)
 just web-dev         # Start web dev server
 just --list          # List all available commands
+
+# Use Pants for specific commands
+just py-test --pants
+just go-test --pants
 ```
 
 For full environment orchestration (Docker):

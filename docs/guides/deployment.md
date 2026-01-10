@@ -85,10 +85,10 @@ Create `.env.staging.local` or `.env.production.local` (see `packages/web/README
 
 ```bash
 # Dev/staging
-./scripts/infrastructure/deploy-web.sh dev
+just deploy-web dev
 
 # Production
-./scripts/infrastructure/deploy-web.sh prod
+just deploy-web prod
 ```
 
 ---

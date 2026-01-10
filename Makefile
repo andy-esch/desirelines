@@ -172,14 +172,18 @@ proto-gen-web:
 
 # Maintenance
 .PHONY: proto-fmt
+# [MIGRATED] Replaced by 'just proto-fmt'
 proto-fmt:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just proto-fmt'"
 	@echo "🎨 Formatting protobuf files..."
 	@command -v buf >/dev/null 2>&1 || { echo "❌ Error: buf not found. Install with: brew install bufbuild/buf/buf"; exit 1; }
 	buf format -w schemas/proto
 	@echo "✅ Protobuf files formatted"
 
 .PHONY: proto-lint
+# [MIGRATED] Replaced by 'just proto-lint'
 proto-lint:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just proto-lint'"
 	@echo "🔍 Linting protobuf files..."
 	@command -v buf >/dev/null 2>&1 || { echo "❌ Error: buf not found. Install with: brew install bufbuild/buf/buf"; exit 1; }
 	buf lint schemas/proto
@@ -277,7 +281,9 @@ tf-local-destroy:
 
 # Terraform formatting and validation
 .PHONY: tf-fmt
+# [MIGRATED] Replaced by 'just tf-fmt'
 tf-fmt:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-fmt'"
 	@echo "🎨 Formatting all Terraform files..."
 	@terraform fmt -recursive terraform/
 

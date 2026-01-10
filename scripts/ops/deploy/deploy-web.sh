@@ -17,7 +17,7 @@ set -euo pipefail
 
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 WEB_DIR="${PROJECT_ROOT}/packages/web"
 
 # Check arguments
