@@ -95,7 +95,8 @@ elif [ "$SECRET_TYPE" = "postgres" ]; then
 	fi
 fi
 
-FULL_SECRET_NAME="${SECRET_NAME}-${ENV_NAME}"
+# Secret names don't need environment suffix - each GCP project is already env-specific
+FULL_SECRET_NAME="${SECRET_NAME}"
 
 echo "🔐 Deploying $SECRET_TYPE secret for $ENV_NAME environment $INPUT_DESC..."
 echo "📍 Using GCP project: $GCP_PROJECT_ID"

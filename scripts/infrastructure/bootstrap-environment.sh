@@ -216,20 +216,24 @@ echo "4️⃣ Deploying secrets..."
 
 # Deploy secrets (API already enabled above)
 
+# Local file can have environment suffix for clarity, but secret name is just "strava-auth"
+# Each GCP project is already environment-specific, so no suffix needed in secret name
 SECRET_FILE="strava-auth-$ENV_NAME.json"
+SECRET_NAME="strava-auth"
+
 if [[ ! -f "$SECRET_FILE" ]]; then
 	echo "❌ Error: $SECRET_FILE not found"
 	echo "   Please create this file with your Strava API credentials"
 	exit 1
 fi
 
-# Create secret
-gcloud secrets create "strava-auth-$ENV_NAME" --data-file="$SECRET_FILE" --quiet ||
-	gcloud secrets versions add "strava-auth-$ENV_NAME" --data-file="$SECRET_FILE" --quiet
+# Create secret (no environment suffix - each project is already env-specific)
+gcloud secrets create "$SECRET_NAME" --data-file="$SECRET_FILE" --quiet ||
+	gcloud secrets versions add "$SECRET_NAME" --data-file="$SECRET_FILE" --quiet
 
 # Grant access to terraform service account (for initial deployment)
 # Terraform will create the runtime service accounts and update permissions later
-gcloud secrets add-iam-policy-binding "strava-auth-$ENV_NAME" \
+gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
 	--member="serviceAccount:$SA_EMAIL" \
 	--role="roles/secretmanager.secretAccessor" --quiet
 
