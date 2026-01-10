@@ -103,7 +103,9 @@ web-build:
 	@echo "🔨 Building production bundle..."
 	cd packages/web && npm run build
 
+# [MIGRATED] Replaced by 'just web-dev'
 web-dev:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just web-dev'"
 	@echo "⚡ Starting Vite dev server..."
 	cd packages/web && npm run dev
 
@@ -113,13 +115,17 @@ web-dev:
 
 # Generate protobuf code for all languages
 .PHONY: proto-gen
+# [MIGRATED] Replaced by 'just proto-gen'
 proto-gen: proto-gen-backend proto-gen-web
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just proto-gen'"
 	@echo "✅ All schemas generated"
 
 # Backend: Use Pants to generate Go & Python code and copy to source tree
 # This provides Pants dependency tracking with source tree observability
 .PHONY: proto-gen-backend
+# [MIGRATED] Replaced by 'just proto-gen-backend'
 proto-gen-backend:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just proto-gen-backend'"
 	@echo "🔨 Generating Go & Python code with Pants..."
 	@command -v pants >/dev/null 2>&1 || { echo "❌ Error: pants not found."; exit 1; }
 	pants export-codegen schemas/proto::
@@ -142,7 +148,9 @@ proto-gen-backend:
 # Web uses sports_metrics and user_config (not webhook - that's backend-only)
 # Output is flattened to match existing import paths (e.g., types/generated/user_config)
 .PHONY: proto-gen-web
+# [MIGRATED] Replaced by 'just proto-gen-web'
 proto-gen-web:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just proto-gen-web'"
 	@echo "🔨 Generating TypeScript code..."
 	@command -v protoc >/dev/null 2>&1 || { echo "❌ Error: protoc not found. Install with: brew install protobuf"; exit 1; }
 	@test -f packages/web/node_modules/.bin/protoc-gen-ts_proto || { echo "❌ Error: ts-proto not found. Run: cd packages/web && npm install"; exit 1; }
@@ -194,11 +202,15 @@ proto-clean:
 # Sync all schemas from schemas/ to packages that need them
 # Run after modifying any schema file (proto or sport config)
 .PHONY: sync-schemas
+# [MIGRATED] Replaced by 'just sync-schemas'
 sync-schemas: proto-gen-backend sync-sport-config
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just sync-schemas'"
 	@echo "✅ All schemas synced"
 
 .PHONY: sync-sport-config
+# [MIGRATED] Replaced by 'just sync-sport-config'
 sync-sport-config:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just sync-sport-config'"
 	@echo "📋 Syncing sport config to packages..."
 	@mkdir -p packages/stravapipe/src/stravapipe/config
 	@mkdir -p packages/apigateway/config
@@ -420,9 +432,15 @@ help:
 	@echo "  Use Terraform for deployment (see terraform/ directory)"
 
 # Combined commands
+# [MIGRATED] Replaced by 'just test'
 test: verify-schemas py-test go-test web-test
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just test'"
+# [MIGRATED] Replaced by 'just lint'
 lint: py-lint go-lint web-lint proto-lint
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just lint'"
+# [MIGRATED] Replaced by 'just format'
 format: py-format go-format web-format tf-fmt proto-fmt
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just format'"
 typecheck: py-typecheck web-typecheck
 
 

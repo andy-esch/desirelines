@@ -30,15 +30,25 @@ cp .env.example .env
 - [`uv`](https://docs.astral.sh/uv/) - Python package manager
 - [Go 1.25+](https://go.dev/)
 - [Pants](https://www.pantsbuild.org/) - Build system
+- [just](https://github.com/casey/just) - Task runner
 - Docker, Terraform, Google Cloud SDK
 
 ## Development
 
+We use [`just`](https://github.com/casey/just) as our task runner.
+
+```bash
+just test            # Run all tests
+just lint            # Lint all code
+just web-dev         # Start web dev server
+just --list          # List all available commands
+```
+
+For full environment orchestration (Docker):
+
 ```bash
 make start-backend   # Backend pipeline with PubSub emulator
 make start-frontend  # Frontend + API gateway + Postgres
-make test            # Run all tests
-make lint            # Lint all code
 ```
 
 ## Architecture
