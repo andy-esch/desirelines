@@ -1,4 +1,4 @@
-module github.com/andy-esch/desirelines/scripts/data
+module github.com/andy-esch/desirelines/scripts/ops/backfills
 
 go 1.25.1
 

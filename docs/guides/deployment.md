@@ -33,35 +33,35 @@ See [ci.md](./ci.md) for workflow details.
 
 ```bash
 # Build and push images
-make build-publish
+just build-publish
 
 # Plan and apply
-make tf-dev-plan
-make tf-dev-apply  # requires typing "dev"
+just tf-dev-plan
+just tf-dev-apply  # requires typing "dev"
 ```
 
 ### Prod Deploy (Manual)
 
 ```bash
 # Ensure tests pass
-make test
+just test
 
 # Build with version
-make build-publish
+just build-publish
 
 # Plan and apply
-make tf-prod-plan
-make tf-prod-apply  # requires typing "production"
+just tf-prod-plan
+just tf-prod-apply  # requires typing "production"
 
 # Update webhook if dispatcher URL changed
-make delete-webhook prod && make create-webhook prod
+just delete-webhook prod && just create-webhook prod
 ```
 
 ### Check for Drift
 
 ```bash
-make tf-dev-drift   # Quick drift check
-make tf-prod-drift
+just tf-dev-drift   # Quick drift check
+just tf-prod-drift
 ```
 
 ### Verify Deployment
@@ -98,8 +98,8 @@ just deploy-web prod
 PostgreSQL migrations managed by Flyway.
 
 ```bash
-make db-migrate-dev-info  # Check status
-make db-migrate-dev       # Run migrations
+just db-migrate-dev-info  # Check status
+just db-migrate-dev       # Run migrations
 ```
 
 See `schemas/database/README.md` for details.
@@ -109,8 +109,8 @@ See `schemas/database/README.md` for details.
 ## Strava Webhook
 
 ```bash
-make view-webhook dev      # View current subscription
-make create-webhook dev    # Create subscription
+just view-webhook dev      # View current subscription
+just create-webhook dev    # Create subscription
 ```
 
 See [strava-webhook.md](./strava-webhook.md) for OAuth2 setup.
@@ -139,7 +139,7 @@ terraform apply -var="deployment_version=PREVIOUS_SHA"
 | `denied: Permission denied` | `gcloud auth configure-docker us-central1-docker.pkg.dev` |
 | `.env.*.local not found` | Create env file per `packages/web/README.md` |
 | Webhook not receiving events | Check OAuth2 - see [strava-webhook.md](./strava-webhook.md) |
-| `ModuleNotFoundError` | Rebuild: `make build-publish` then `make tf-dev-apply` |
+| `ModuleNotFoundError` | Rebuild: `just build-publish` then `just tf-dev-apply` |
 
 ### Check Service Health
 

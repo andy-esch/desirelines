@@ -69,8 +69,8 @@ This directory contains scripts specifically for local development environment s
 ### 1. Pure Local Mode
 
 ```bash
-make start-frontend # for postgres + apigateway
-make web-dev # start web dev server
+just start-frontend # for postgres + apigateway
+just web-dev # start web dev server
 ```
 
 - **Infrastructure**: PubSub emulator + local storage simulation
@@ -80,7 +80,7 @@ make web-dev # start web dev server
 ### 2. Hybrid Local Mode
 
 ```bash
-make start-local
+just start-local
 ```
 
 - **Infrastructure**: Terraform-managed BigQuery & Cloud Storage + PubSub emulator
@@ -90,8 +90,8 @@ make start-local
 ### 3. Frontend Development
 
 ```bash
-make start-frontend
-make start-local --profile frontend
+just start-frontend
+just start-local --profile frontend
 ```
 
 - **Additional**: React web app + API gateway
@@ -128,8 +128,8 @@ scripts/
 ### Getting Started
 
 1. **First Time Setup**: `./scripts/development/local-dev/setup-local-environment.sh`
-2. **Daily Development**: `make start` or `make start-local`
-3. **Frontend Work**: Add `--profile frontend` to any make command
+2. **Daily Development**: `just start` or `just start-local`
+3. **Frontend Work**: Add `--profile frontend` to any just command
 
 This organization follows the principle of **"local development should be simple and self-contained"** while keeping production deployment scripts separate and focused.
 

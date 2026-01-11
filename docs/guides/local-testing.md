@@ -6,10 +6,10 @@ How to test the Desirelines pipeline locally using docker-compose and emulators.
 
 ```bash
 # Start full backend pipeline
-make start-backend
+just start-backend
 
 # In another terminal, start frontend stack
-make start-frontend
+just start-frontend
 
 # Send a test webhook
 curl -X POST http://localhost:8081/webhook \
@@ -24,7 +24,7 @@ curl -X POST http://localhost:8081/webhook \
 Tests the full event processing pipeline: Dispatcher → PubSub → stravapipe services.
 
 ```bash
-make start-backend
+just start-backend
 ```
 
 **Services started:**
@@ -52,7 +52,7 @@ docker compose logs -f dispatcher bq-inserter postgres-writer
 Tests the web UI with API Gateway and PostgreSQL.
 
 ```bash
-make start-frontend
+just start-frontend
 ```
 
 **Services started:**
@@ -80,10 +80,10 @@ Run both profiles together:
 
 ```bash
 # Terminal 1
-make start-backend
+just start-backend
 
 # Terminal 2
-make start-frontend
+just start-frontend
 
 # Terminal 3
 cd packages/web && npm run dev
@@ -132,7 +132,7 @@ SELECT * FROM daily_activity_summary WHERE year = 2024 LIMIT 10;
 
 ```bash
 # View PubSub emulator UI (if debug profile enabled)
-make start-backend PROFILE=debug
+just start-backend PROFILE=debug
 # Open http://localhost:4200
 ```
 
@@ -141,10 +141,10 @@ make start-backend PROFILE=debug
 ### Unit Tests
 
 ```bash
-make test                    # All tests
-make py-test                 # Python only
-make go-test                 # Go only
-make web-test                # Frontend only
+just test                    # All tests
+just py-test                 # Python only
+just go-test                 # Go only
+just web-test                # Frontend only
 ```
 
 ### Integration Tests
@@ -169,7 +169,7 @@ lsof -i :8081,:8084,:8085
 
 # Clean restart
 docker compose down -v
-make start-backend
+just start-backend
 ```
 
 ### PubSub Messages Not Processing
@@ -193,7 +193,7 @@ docker compose exec postgres pg_isready
 
 # Reset database
 docker compose down -v
-make start-frontend
+just start-frontend
 ```
 
 ### Strava API Issues (Real Data Testing)
@@ -204,7 +204,7 @@ For testing with real Strava data, you need:
 
 See [strava-webhook.md](./strava-webhook.md) for credential setup.
 
-For production data backfills, see [scripts/data/README.md](../../scripts/data/README.md).
+For production data backfills, see [scripts/ops/backfills/README.md](../../scripts/ops/backfills/README.md).
 
 ## Environment Variables
 
@@ -227,4 +227,4 @@ FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 
 - [Frontend Development](./frontend-local-dev.md) - React UI development
 - [Docker Guide](./docker.md) - Container builds
-- [Data Scripts](../../scripts/data/README.md) - Backfill tools
+- [Data Scripts](../../scripts/ops/backfills/README.md) - Backfill tools

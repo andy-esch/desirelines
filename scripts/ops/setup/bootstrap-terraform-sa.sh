@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Bootstrap Terraform Service Account for New Environment
-# Usage: ./scripts/infrastructure/bootstrap-terraform-sa.sh <environment>
-# Example: ./scripts/infrastructure/bootstrap-terraform-sa.sh dev
+# Usage: ./scripts/ops/setup/bootstrap-terraform-sa.sh <environment>
+# Example: ./scripts/ops/setup/bootstrap-terraform-sa.sh dev
 
 set -e
 
@@ -116,6 +116,6 @@ fi
 echo ""
 echo "🔄 Next steps:"
 echo "   1. Set up temporary impersonation:"
-echo "      make impersonate-terraform"
+echo "      just auth-impersonate"
 echo "   2. Run terraform bootstrap:"
 echo "      cd terraform && terraform apply -var=\"gcp_project_id=$PROJECT_ID\""

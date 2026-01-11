@@ -1,10 +1,10 @@
 #!/bin/bash
 # Build and publish all artifacts via Pants
 #
-# Usage: ./scripts/operations/build-and-publish.sh [SHA]
+# Usage: ./scripts/ops/deploy/build-and-publish.sh [SHA]
 # Examples:
-#   ./scripts/operations/build-and-publish.sh               # Use current git SHA
-#   ./scripts/operations/build-and-publish.sh abc1234       # Use specific SHA
+#   ./scripts/ops/deploy/build-and-publish.sh               # Use current git SHA
+#   ./scripts/ops/deploy/build-and-publish.sh abc1234       # Use specific SHA
 
 set -euo pipefail
 

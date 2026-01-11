@@ -10,13 +10,13 @@ are properly excluded and all current activities are included.
 
 Usage:
     # Dry run to preview activities
-    python scripts/data/backfill_from_strava.py --years 2024 --dry-run
+    python scripts/ops/backfills/backfill_from_strava.py --years 2024 --dry-run
 
     # Backfill single year
-    python scripts/data/backfill_from_strava.py --years 2024
+    python scripts/ops/backfills/backfill_from_strava.py --years 2024
 
     # Backfill multiple years
-    python scripts/data/backfill_from_strava.py --years 2023 2024 2025
+    python scripts/ops/backfills/backfill_from_strava.py --years 2023 2024 2025
 
 Environment Variables:
     # GCP

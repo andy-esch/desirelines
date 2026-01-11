@@ -150,7 +150,7 @@ jobs:
             echo ""
             echo "❌ Missing images:$MISSING"
             echo ""
-            echo "Run 'make build-publish' to build and push images first."
+            echo "Run 'just build-publish' to build and push images first."
             exit 1
           fi
 

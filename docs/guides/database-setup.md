@@ -126,13 +126,13 @@ gcloud secrets list --project=desirelines-$ENV --filter="name:postgres-conn"
 
 ```bash
 # Check status first
-make db-migrate-dev-info
+just db-migrate-dev-info
 
 # Run migrations
-make db-migrate-dev
+just db-migrate-dev
 
 # Verify tables created
-make db-connect-dev
+just db-connect-dev
 \dt desirelines.*
 ```
 
@@ -158,7 +158,7 @@ psql "postgres://writer:PASSWORD@HOST-pooler/desirelines?sslmode=require" \
 | `reader`     | ro_grp  | General read-only access  |
 | `admin`      | ddl_grp | Manual admin access       |
 
-| Make Target            | Description              |
+| Just Recipe            | Description              |
 | ---------------------- | ------------------------ |
 | `db-migrate-dev`       | Run migrations (dev)     |
 | `db-migrate-dev-info`  | Check migration status   |

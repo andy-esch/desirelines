@@ -55,10 +55,10 @@ Get Firebase credentials: [Firebase Console](https://console.firebase.google.com
 
 ```bash
 # Dev/staging
-./scripts/infrastructure/deploy-web.sh dev
+just deploy-web dev
 
 # Production
-./scripts/infrastructure/deploy-web.sh prod
+just deploy-web prod
 ```
 
 Deploy script checks for required `.env.*.local` files and fails with helpful error if missing.
@@ -115,5 +115,5 @@ src/
 ## Docs
 
 - **Environment setup**: See table above + `.env.*.local.example` files
-- **Deployment**: `./scripts/infrastructure/deploy-web.sh --help`
+- **Deployment**: `just deploy-web --help`
 - **Architecture**: `docs/architecture/`

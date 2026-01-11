@@ -1,9 +1,7 @@
 go 1.25.1
 
 use (
-	// ./functions/activity_dispatcher
-	// ./functions/apigateway
 	./packages/apigateway
 	./packages/dispatcher
-	./scripts/data/webhook-replay
+  ./scripts/ops/backfills
 )

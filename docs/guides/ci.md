@@ -34,8 +34,8 @@ Combined job for schema sync, proto linting, and BUILD file checks. Fast checks 
 
 ```bash
 # Run locally
-make verify-schemas    # Check sport_types.json sync (~10 sec)
-make proto-lint        # Lint proto files with buf (~10 sec)
+just verify-schemas    # Check sport_types.json sync (~10 sec)
+just proto-lint        # Lint proto files with buf (~10 sec)
 pants tailor --check :: # Check BUILD files (~4 min)
 ```
 
@@ -46,8 +46,8 @@ pants tailor --check :: # Check BUILD files (~4 min)
 
 **Fix if failing:**
 ```bash
-make sync-schemas      # Sync sport config + regenerate proto
-make proto-fmt         # Format proto files
+just sync-schemas      # Sync sport config + regenerate proto
+just proto-fmt         # Format proto files
 pants tailor ::        # Update BUILD files
 ```
 
@@ -81,8 +81,8 @@ Combined testing, linting, and format checking for Go packages. Runs in parallel
 
 ```bash
 # Run locally
-make go-test    # Tests for both packages
-make go-lint    # Lint + format check for both packages
+just go-test    # Tests for both packages
+just go-lint    # Lint + format check for both packages
 ```
 
 **Matrix strategy:** Runs `dispatcher` and `apigateway` in parallel.
@@ -126,7 +126,7 @@ Validates Terraform configuration for all environments.
 
 ```bash
 # Run locally
-make tf-validate-all
+just tf-validate-all
 ```
 
 **Checks performed:**
@@ -141,10 +141,10 @@ make tf-validate-all
 ### Full CI Suite
 ```bash
 # Mimics entire CI workflow
-make test           # All tests (Python, Go, Web)
-make lint           # All linting
-make py-typecheck   # Python type checking
-make tf-validate-all # Terraform validation
+just test           # All tests (Python, Go, Web)
+just lint           # All linting
+just py-typecheck   # Python type checking
+just tf-validate-all # Terraform validation
 ```
 
 ### Individual Checks
@@ -155,8 +155,8 @@ pants lint packages/stravapipe::
 pants check packages/stravapipe::
 
 # Go only
-make go-test
-make go-lint
+just go-test
+just go-lint
 
 # Web only
 cd packages/web
@@ -165,7 +165,7 @@ npm run lint
 npm run typecheck
 
 # Terraform only
-make tf-validate-all
+just tf-validate-all
 ```
 
 ## CI Performance
@@ -260,9 +260,9 @@ run: pants test ::    # Fails - YAML interprets :: as syntax
 
 ### Making Changes
 1. **Write code** - Make your changes
-2. **Run tests locally** - `make test` or specific test commands
+2. **Run tests locally** - `just test` or specific test commands
 3. **Fix issues** - Address any failures
-4. **Run formatters** - `make format` (Python + Go)
+4. **Run formatters** - `just format` (Python + Go)
 5. **Commit** - Commit your changes
 6. **Push** - Push to GitHub
 7. **CI runs** - GitHub Actions runs all checks
@@ -332,8 +332,8 @@ The `drift-detection.yml` workflow runs daily to detect infrastructure drift:
 
 Check drift locally:
 ```bash
-make tf-dev-drift
-make tf-prod-drift
+just tf-dev-drift
+just tf-prod-drift
 ```
 
 ## Related Documentation

@@ -25,23 +25,33 @@ define check_project_and_run
 endef
 
 # Python commands
+# [MIGRATED] Replaced by 'just py-test'
 py-test:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just py-test'"
 	cd packages/stravapipe && uv run pytest tests/
 
 py-test-coverage:
 	cd packages/stravapipe && uv run pytest tests/ --cov=src --cov-report=xml --cov-report=term
 
+# [MIGRATED] Replaced by 'just py-lint'
 py-lint:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just py-lint'"
 	cd packages/stravapipe && uv run ruff check . --fix
 
+# [MIGRATED] Replaced by 'just py-format'
 py-format:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just py-format'"
 	cd packages/stravapipe && uv run ruff format .
 
+# [MIGRATED] Replaced by 'just py-typecheck'
 py-typecheck:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just py-typecheck'"
 	cd packages/stravapipe && uv run mypy src/
 
 # Go commands
+# [MIGRATED] Replaced by 'just go-test'
 go-test:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just go-test'"
 	@echo "🧪 Running Go tests for local packages..."
 	cd packages/dispatcher && go test -v ./...
 	cd packages/apigateway && go test -v ./...
@@ -55,7 +65,9 @@ go-test-coverage:
 	cd packages/dispatcher && go test -v -coverprofile=coverage.out -covermode=atomic ./...
 	cd packages/apigateway && go test -v -coverprofile=coverage.out -covermode=atomic ./...
 
+# [MIGRATED] Replaced by 'just go-lint'
 go-lint:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just go-lint'"
 	@echo "🔍 Running golangci-lint..."
 	golangci-lint run ./packages/dispatcher/... ./packages/apigateway/...
 
@@ -63,7 +75,9 @@ go-lint-fix:
 	@echo "🔧 Running golangci-lint with auto-fix..."
 	golangci-lint run --fix ./packages/dispatcher/... ./packages/apigateway/...
 
+# [MIGRATED] Replaced by 'just go-format'
 go-format:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just go-format'"
 	cd packages/dispatcher && go fmt ./...
 	cd packages/apigateway && go fmt ./...
 
@@ -71,7 +85,9 @@ go-build:
 	cd packages/dispatcher && go build -v .
 
 # Web/React commands
+# [MIGRATED] Replaced by 'just web-test'
 web-test:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just web-test'"
 	@echo "🧪 Running React tests..."
 	cd packages/web && npm test -- --coverage
 
@@ -79,7 +95,9 @@ web-test-integration:
 	@echo "🧪 Running React integration tests..."
 	cd packages/web && npm run test:integration
 
+# [MIGRATED] Replaced by 'just web-lint'
 web-lint:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just web-lint'"
 	@echo "🔍 Running ESLint..."
 	cd packages/web && npm run lint
 
@@ -87,7 +105,9 @@ web-lint-fix:
 	@echo "🔧 Running ESLint with auto-fix..."
 	cd packages/web && npm run lint:fix
 
+# [MIGRATED] Replaced by 'just web-format'
 web-format:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just web-format'"
 	@echo "🎨 Formatting code with Prettier..."
 	cd packages/web && npm run format
 
@@ -95,7 +115,9 @@ web-format-check:
 	@echo "🔍 Checking code formatting..."
 	cd packages/web && npm run format:check
 
+# [MIGRATED] Replaced by 'just web-typecheck'
 web-typecheck:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just web-typecheck'"
 	@echo "🔍 Running TypeScript type checking..."
 	cd packages/web && npm run typecheck
 
@@ -360,82 +382,10 @@ setup-local: impersonate-terraform tf-local-init tf-local-plan
 
 # Help target
 help:
-	@echo "Available targets:"
-	@echo ""
-	@echo "Authentication:"
-	@echo "  impersonate-terraform  - Impersonate terraform service account"
-	@echo "  stop-impersonate      - Stop impersonating service account"
-	@echo "  check-auth            - Show current authentication status"
-	@echo ""
-	@echo "Terraform (Local):"
-	@echo "  tf-local-init         - Initialize local Terraform"
-	@echo "  tf-local-plan         - Plan local deployment"
-	@echo "  tf-local-apply        - Apply local deployment"
-	@echo "  tf-local-destroy      - Destroy local resources"
-	@echo "  setup-local           - Complete local environment setup"
-	@echo "  tf-fmt                - Format all Terraform files"
-	@echo "  tf-validate-all       - Validate all Terraform configurations"
-	@echo ""
-	@echo "Backend Pipeline (Docker):"
-	@echo "  start-backend       - Start backend pipeline (dispatcher, bq-inserter, postgres-writer)"
-	@echo "  start-backend-local - Start backend with Terraform-managed GCP resources"
-	@echo "  start-backend-debug - Start backend with PubSub UI for debugging (port 4200)"
-	@echo "  logs                - View logs from all backend services"
-	@echo "  logs-dispatcher     - View dispatcher logs"
-	@echo "  logs-bq             - View bq-inserter logs"
-	@echo "  logs-postgres       - View postgres-writer logs"
-	@echo "  test-full-flow      - Test complete webhook flow"
-	@echo ""
-	@echo "Frontend Development (Docker):"
-	@echo "  start-frontend - Start API Gateway + supporting services"
-	@echo "  stop-frontend  - Stop frontend services"
-	@echo "  logs-frontend  - View frontend logs (API Gateway + Web UI)"
-	@echo "  logs-api       - View API Gateway logs only"
-	@echo "  logs-web       - View Web UI logs only"
-	@echo ""
-	@echo "Database:"
-	@echo "  db-connect-local       - Connect to local PostgreSQL database (psql)"
-	@echo "  db-migrate-local     - Run database migrations (Flyway)"
-	@echo "  db-clean-local       - Clean local database (drops all objects, with confirmation)"
-	@echo ""
-	@echo "General:"
-	@echo "  stop  - Stop all services (backend + frontend)"
-	@echo "  build - Build all Docker images"
-	@echo "  clean - Clean up Docker resources"
-	@echo ""
-	@echo "Code Quality:"
-	@echo "  test           - Run all tests (Python + fast Go tests)"
-	@echo "  lint           - Run all linters (Python + Go)"
-	@echo "  format         - Format all code (Python + Go)"
-	@echo "  py-test        - Run Python tests only"
-	@echo "  go-test        - Run fast Go tests for local packages"
-	@echo "  go-test-all    - Run all Go tests in the workspace (more intensive)"
-	@echo "  go-test-coverage - Run Go tests with coverage report"
-	@echo ""
-	@echo "Protocol Buffers & Schemas:"
-	@echo "  proto-gen         - Generate code for all languages (Python + Go + TypeScript)"
-	@echo "  proto-gen-backend - Generate Python + Go code via Pants"
-	@echo "  proto-gen-web     - Generate TypeScript code via protoc + ts-proto"
-	@echo "  proto-fmt         - Format .proto files with buf"
-	@echo "  proto-lint        - Lint .proto files with buf"
-	@echo "  proto-clean       - Clean generated protobuf code"
-	@echo "  sync-schemas      - Regenerate proto code + sync config files to packages"
-	@echo "  verify-schemas    - Verify schema files are in sync (runs in CI)"
-	@echo ""
-	@echo "Build and Publish (Pants):"
-	@echo "  build-publish                        - Build and publish all Cloud Run images"
-	@echo "  build-publish-tag TAG=abc1234        - Build and publish with specific git SHA"
-	@echo ""
-	@echo "Secret Management & Webhooks (uses current gcloud project):"
-	@echo "  deploy-secrets SECRET_FILE=file.json - Deploy secrets from JSON file with IAM bindings"
-	@echo "  create-webhook                - Create webhook subscription"
-	@echo "  view-webhook                  - View webhook subscriptions"
-	@echo "  delete-webhook                - Delete webhook subscription"
-	@echo "  generate-webhook-verify-token - Generate and store secure webhook verify token"
-	@echo "  rotate-webhook-verify-token   - Rotate webhook token and update webhook"
-	@echo ""
-	@echo "GCP Deployment:"
-	@echo "  Use Terraform for deployment (see terraform/ directory)"
+	@echo "⚠️  The Makefile is deprecated. Please use 'just' for all commands."
+	@echo "   Run 'just --list' (or 'just help') to see available recipes."
+
+# (Legacy help text removed to avoid confusion)
 
 # Combined commands
 # [MIGRATED] Replaced by 'just test'
@@ -447,8 +397,9 @@ lint: py-lint go-lint web-lint proto-lint
 # [MIGRATED] Replaced by 'just format'
 format: py-format go-format web-format tf-fmt proto-fmt
 	@echo "⚠️  [DEPRECATED] This command is migrated to 'just format'"
+# [MIGRATED] Replaced by 'just typecheck'
 typecheck: py-typecheck web-typecheck
-
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just typecheck'"
 
 # ==========================================
 # Docker-based Local Development
@@ -567,7 +518,7 @@ clean:
 # Build and publish all Cloud Run images
 .PHONY: build-publish
 build-publish:
-	@./scripts/operations/build-and-publish.sh
+	@./scripts/ops/deploy/build-and-publish.sh
 
 # Build and publish with specific tag
 .PHONY: build-publish-tag
@@ -577,7 +528,7 @@ build-publish-tag:
 		echo "Usage: make build-publish-tag TAG=abc1234"; \
 		exit 1; \
 	fi
-	@./scripts/operations/build-and-publish.sh $(TAG)
+	@./scripts/ops/deploy/build-and-publish.sh $(TAG)
 
 # ==========================================
 # Secret Management & Webhooks
@@ -588,13 +539,13 @@ deploy-secrets:
 		echo "❌ Error: Please specify secret file: make deploy-secrets SECRET_FILE=strava-auth.json"; \
 		exit 1; \
 	fi
-	@./scripts/infrastructure/deploy-secrets.sh $(SECRET_FILE)
+	@./scripts/ops/deploy/deploy-secrets.sh $(SECRET_FILE)
 
 create-webhook:
-	$(call check_project_and_run,./scripts/operations/webhook-management.sh create)
+	$(call check_project_and_run,./scripts/ops/webhook-management.sh create)
 
 view-webhook:
-	$(call check_project_and_run,./scripts/operations/webhook-management.sh view)
+	$(call check_project_and_run,./scripts/ops/webhook-management.sh view)
 
 delete-webhook:
 	@CURRENT_PROJECT="$(GCP_PROJECT_ID)"; \
@@ -617,16 +568,16 @@ delete-webhook:
 	echo "   Project: $$CURRENT_PROJECT"; \
 	read -p "Are you sure? (y/N): " confirm; \
 	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
-		./scripts/operations/webhook-management.sh delete $$ENV_NAME; \
+		./scripts/ops/webhook-management.sh delete $$ENV_NAME; \
 	else \
 		echo "❌ Cancelled webhook deletion"; \
 	fi
 
 generate-webhook-verify-token:
-	$(call check_project_and_run,./scripts/operations/webhook-management.sh generate-token)
+	$(call check_project_and_run,./scripts/ops/webhook-management.sh generate-token)
 
 rotate-webhook-verify-token:
-	$(call check_project_and_run,./scripts/operations/webhook-management.sh rotate-token)
+	$(call check_project_and_run,./scripts/ops/webhook-management.sh rotate-token)
 
 
 

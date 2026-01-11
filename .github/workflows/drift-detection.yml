@@ -102,7 +102,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: existingIssue.number,
-                body: `Drift still detected as of ${new Date().toISOString()}\n\nRun \`make tf-${environment}-plan\` locally to see details.`
+                body: `Drift still detected as of ${new Date().toISOString()}\n\nRun \`just tf ${environment} plan\` locally to see details.`
               });
               console.log(`Updated existing issue #${existingIssue.number}`);
             } else {
@@ -111,7 +111,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title: title,
-                body: `## Drift Detected\n\nThe scheduled drift detection found changes between Terraform state and actual infrastructure in the **${environment}** environment.\n\n### Next Steps\n\n1. Run \`make tf-${environment}-plan\` locally to see the specific changes\n2. Determine if the drift is expected (manual change) or unexpected\n3. Either:\n   - Apply Terraform to reconcile: \`make tf-${environment}-apply\`\n   - Or update Terraform config to match reality\n4. Close this issue once resolved\n\n---\n*This issue was automatically created by the drift detection workflow.*`,
+                body: `## Drift Detected\n\nThe scheduled drift detection found changes between Terraform state and actual infrastructure in the **${environment}** environment.\n\n### Next Steps\n\n1. Run \`just tf ${environment} plan\` locally to see the specific changes\n2. Determine if the drift is expected (manual change) or unexpected\n3. Either:\n   - Apply Terraform to reconcile: \`just tf ${environment} apply\`\n   - Or update Terraform config to match reality\n4. Close this issue once resolved\n\n---\n*This issue was automatically created by the drift detection workflow.*`,
                 labels: ['terraform', 'drift', environment]
               });
               console.log('Created new drift issue');

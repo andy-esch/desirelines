@@ -195,7 +195,7 @@ if gcloud auth application-default print-access-token >/dev/null 2>&1; then
 	echo "   ✅ Authentication already configured"
 else
 	echo "   ⚠️  Please configure impersonation manually:"
-	echo "      make impersonate-terraform"
+	echo "      just auth-impersonate"
 	echo "   This sets temporary impersonation (recommended over permanent application default credentials)"
 	exit 1
 fi

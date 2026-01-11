@@ -38,7 +38,7 @@ packages/stravapipe/
 └── Dockerfile.postgres_writer
 ```
 
-**Type Definitions:** Webhook and sports metrics types are defined in `schemas/proto/` and shared with Go services. Generated code lives in `types/generated/`. See `make proto-gen-backend`.
+**Type Definitions:** Webhook and sports metrics types are defined in `schemas/proto/` and shared with Go services. Generated code lives in `types/generated/`. See `just proto-gen-backend`.
 
 ## Development
 

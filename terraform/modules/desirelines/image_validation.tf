@@ -31,19 +31,19 @@ resource "terraform_data" "image_validation" {
   lifecycle {
     precondition {
       condition     = data.external.image_exists["dispatcher"].result.exists == "true"
-      error_message = "Image not found: ${var.external_artifact_registry}/dispatcher:${var.deployment_version}\nRun 'make build-publish' first."
+      error_message = "Image not found: ${var.external_artifact_registry}/dispatcher:${var.deployment_version}\nRun 'just build-publish' first."
     }
     precondition {
       condition     = data.external.image_exists["apigateway"].result.exists == "true"
-      error_message = "Image not found: ${var.external_artifact_registry}/apigateway:${var.deployment_version}\nRun 'make build-publish' first."
+      error_message = "Image not found: ${var.external_artifact_registry}/apigateway:${var.deployment_version}\nRun 'just build-publish' first."
     }
     precondition {
       condition     = data.external.image_exists["bq_inserter"].result.exists == "true"
-      error_message = "Image not found: ${var.external_artifact_registry}/bq-inserter:${var.deployment_version}\nRun 'make build-publish' first."
+      error_message = "Image not found: ${var.external_artifact_registry}/bq-inserter:${var.deployment_version}\nRun 'just build-publish' first."
     }
     precondition {
       condition     = data.external.image_exists["postgres_writer"].result.exists == "true"
-      error_message = "Image not found: ${var.external_artifact_registry}/postgres-writer:${var.deployment_version}\nRun 'make build-publish' first."
+      error_message = "Image not found: ${var.external_artifact_registry}/postgres-writer:${var.deployment_version}\nRun 'just build-publish' first."
     }
   }
 }

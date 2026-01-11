@@ -112,7 +112,7 @@ pants test --loop packages/stravapipe::
 
 ## Performance Comparison
 
-| Scenario | Makefile | Pants (first) | Pants (cached) | Speedup |
+| Scenario | Legacy (Make) | Pants (first) | Pants (cached) | Speedup |
 |----------|----------|---------------|----------------|---------|
 | Python tests | 3.5s | ~60s | 1.7s | **2x faster** |
 | All tests | ~65s | ~90s | ~10s | **6.5x faster** |
@@ -200,15 +200,18 @@ jobs:
           files: dist/coverage/python/coverage.xml
 ```
 
-## Legacy Makefile Commands
+## Legacy (Make) Commands
 
-The Makefile still works as a thin wrapper:
+The Legacy (Make) still works as a thin wrapper (now using Just):
 
 ```bash
-# These still work (wrapper around Pants)
-make test          # → pants test ::
-make py-test       # → pants test packages/stravapipe::
-make go-test       # → pants test packages/dispatcher:: packages/apigateway::
+# These still work (using native tools by default)
+just test          # → Run all tests (uv/go/npm)
+just py-test       # → uv run pytest ...
+just go-test       # → go test ...
+
+# Use --pants flag to run via Pants
+just test --pants
 ```
 
 **Recommendation:** Use Pants commands directly for better performance and features.

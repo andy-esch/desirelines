@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Deploy web application to Firebase Hosting
-# Usage: ./scripts/infrastructure/deploy-web.sh <environment>
-# Example: ./scripts/infrastructure/deploy-web.sh dev
+# Usage: ./scripts/ops/deploy/deploy-web.sh <environment>
+# Example: ./scripts/ops/deploy/deploy-web.sh dev
 #
 # This script:
 # 1. Builds the web app with environment-specific configuration

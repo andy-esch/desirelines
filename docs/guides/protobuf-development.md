@@ -22,25 +22,25 @@ schemas/proto/
 
 ```bash
 # Generate AND sync all schemas (recommended)
-make sync-schemas
+just sync-schemas
 
 # Generate all languages (proto only, no sport config)
-make proto-gen
+just proto-gen
 
 # Generate backend only (Go + Python)
-make proto-gen-backend
+just proto-gen-backend
 
 # Generate web only (TypeScript)
-make proto-gen-web
+just proto-gen-web
 
 # Verify schemas are in sync (runs in CI)
-make verify-schemas
+just verify-schemas
 
 # Lint schemas
-make proto-lint
+just proto-lint
 
 # Format schemas
-make proto-fmt
+just proto-fmt
 ```
 
 ## Schema Sync Workflow
@@ -68,11 +68,11 @@ packages/
 
 **After modifying any schema:**
 ```bash
-make sync-schemas   # Regenerates code + copies config
+just sync-schemas   # Regenerates code + copies config
 git add schemas/ packages/*/types/generated/ packages/*/config/
 ```
 
-**CI checks:** The `Schema Sync` job runs `make verify-schemas` to ensure copies are in sync.
+**CI checks:** The `Schema Sync` job runs `just verify-schemas` to ensure copies are in sync.
 
 ## Adding a New Proto File
 
@@ -144,10 +144,10 @@ protobuf_sources(
 
 ```bash
 # Generate for all languages
-make proto-gen
+just proto-gen
 
 # Or just backend (Go + Python)
-make proto-gen-backend
+just proto-gen-backend
 ```
 
 ### 4. Use Generated Types
@@ -208,7 +208,7 @@ message Activity {
 
 Then regenerate:
 ```bash
-make proto-gen
+just proto-gen
 git add schemas/proto/ packages/*/types/generated/
 git commit -m "feat: add description and tags to Activity proto"
 ```
@@ -258,7 +258,7 @@ protobuf_sources(
 )
 ```
 
-Generation happens in `dist/codegen/`, then Makefile copies to package directories.
+Generation happens in `dist/codegen/`, then Justfile copies to package directories.
 
 ### Frontend (protoc + ts-proto)
 
@@ -326,7 +326,7 @@ message Activity {
 
 ```bash
 # Lint with buf
-make proto-lint
+just proto-lint
 
 # Common issues:
 # - Package name doesn't match directory structure
@@ -351,8 +351,8 @@ protobuf_sources(
 
 Check that proto files are included in `proto-gen-web` target:
 ```bash
-# In Makefile, verify files are listed
-grep proto-gen-web Makefile
+# In Justfile, verify files are listed
+grep proto-gen-web Justfile
 ```
 
 ### Python import errors
@@ -370,8 +370,8 @@ protobuf_sources(
 
 ```bash
 # Clean and regenerate
-make proto-clean
-make proto-gen
+just proto-clean
+just proto-gen
 
 # Verify changes
 git diff packages/*/types/generated/

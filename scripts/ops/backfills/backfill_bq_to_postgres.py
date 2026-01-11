@@ -10,13 +10,13 @@ Usage:
     export POSTGRES_CONNECTION_STRING="postgresql://user:pass@host/db?sslmode=require"
 
     # Run backfill (defaults to desirelines-dev project)
-    python scripts/data/backfill_bq_to_postgres.py
+    python scripts/ops/backfills/backfill_bq_to_postgres.py
 
     # Dry run (show what would be inserted)
-    python scripts/data/backfill_bq_to_postgres.py --dry-run
+    python scripts/ops/backfills/backfill_bq_to_postgres.py --dry-run
 
     # Specify different project
-    python scripts/data/backfill_bq_to_postgres.py --project desirelines-prod
+    python scripts/ops/backfills/backfill_bq_to_postgres.py --project desirelines-prod
 """
 
 import argparse
