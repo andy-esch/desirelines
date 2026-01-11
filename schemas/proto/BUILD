@@ -16,6 +16,13 @@ protobuf_sources(
     go_mod_address="packages/apigateway:mod",
 )
 
+# Activities protos (used by API Gateway for activity list/detail endpoints)
+protobuf_sources(
+    name="activities",
+    sources=["desirelines/activities/v1/activities.proto"],
+    go_mod_address="packages/apigateway:mod",
+)
+
 # Webhook proto (used by dispatcher Go module)
 # Canonical definition for Strava webhook events shared between Go and Python
 protobuf_sources(
@@ -32,6 +39,7 @@ protobuf_sources(
     sources=[
         "desirelines/sports/v1/sports_metrics.proto",
         "desirelines/config/v1/user_config.proto",
+        "desirelines/activities/v1/activities.proto",
     ],
     go_mod_address="packages/apigateway:mod",
 )

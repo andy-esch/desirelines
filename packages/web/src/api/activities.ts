@@ -266,6 +266,7 @@ export const fetchDailySummary = async (
 };
 
 // ACTIVITY LIST API TYPES
+// Note: Field names are camelCase to match protojson serialization from the backend
 
 /** Activity summary returned in list responses */
 export interface ActivitySummary {
@@ -273,10 +274,10 @@ export interface ActivitySummary {
   name: string;
   type: string;
   sport: string;
-  start_date_local: string;
-  distance_meters: number;
-  moving_time_seconds: number;
-  elevation_meters?: number;
+  startDateLocal: string;
+  distanceMeters: number;
+  movingTimeSeconds: number;
+  elevationMeters?: number;
 }
 
 /** Full activity details */
@@ -285,22 +286,22 @@ export interface Activity {
   name: string;
   type: string;
   sport: string;
-  start_date_local: string;
-  distance_meters: number;
-  moving_time_seconds: number;
-  elapsed_time_seconds: number;
-  elevation_meters?: number;
-  average_speed_mps?: number;
-  max_speed_mps?: number;
-  average_heartrate?: number;
-  max_heartrate?: number;
+  startDateLocal: string;
+  distanceMeters: number;
+  movingTimeSeconds: number;
+  elapsedTimeSeconds: number;
+  elevationMeters?: number;
+  averageSpeedMps?: number;
+  maxSpeedMps?: number;
+  averageHeartrate?: number;
+  maxHeartrate?: number;
 }
 
 /** Paginated activity list response */
 export interface ActivityListResponse {
   activities: ActivitySummary[];
-  next_cursor?: string;
-  has_more: boolean;
+  nextCursor?: string;
+  hasMore: boolean;
 }
 
 /** Filter options for listing activities */
@@ -364,12 +365,12 @@ export const fetchActivities = async (
     });
     return {
       activities: data.activities ?? [],
-      next_cursor: data.next_cursor,
-      has_more: data.has_more ?? false,
+      nextCursor: data.nextCursor,
+      hasMore: data.hasMore ?? false,
     };
   } catch (err: unknown) {
     if (isCancellationError(err)) {
-      return { activities: [], has_more: false };
+      return { activities: [], hasMore: false };
     }
     throwApiError(err, "fetchActivities");
   }

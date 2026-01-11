@@ -376,13 +376,13 @@ function RecentActivitiesList({ timeRange }: { timeRange: TimeRange }) {
                 </a>
               </td>
               <td className="text-muted text-end px-1 py-1" style={{ whiteSpace: "nowrap" }}>
-                {formatDistance(activity.distance_meters)}
+                {formatDistance(activity.distanceMeters)}
               </td>
               <td className="text-muted text-end px-1 py-1" style={{ whiteSpace: "nowrap" }}>
-                {formatDuration(activity.moving_time_seconds)}
+                {formatDuration(activity.movingTimeSeconds)}
               </td>
               <td className="text-muted text-end ps-1 pe-0 py-1" style={{ whiteSpace: "nowrap" }}>
-                {formatActivityDate(activity.start_date_local)}
+                {formatActivityDate(activity.startDateLocal)}
               </td>
             </tr>
           ))}

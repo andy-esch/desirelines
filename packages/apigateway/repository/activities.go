@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
+	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 )
 
 // ActivityRepository defines read operations for activities.
@@ -46,10 +47,10 @@ type ActivityRepository interface {
 	// GetActivityByID returns a single activity by its Strava ID.
 	// Returns nil (not error) if activity not found.
 	// Used by: GET /activities/{id}
-	GetActivityByID(ctx context.Context, id int64) (*Activity, error)
+	GetActivityByID(ctx context.Context, id int64) (*activitiesv1.Activity, error)
 
 	// ListActivities returns activities matching the filter criteria.
 	// Uses cursor-based pagination for efficient sequential access.
 	// Used by: GET /activities
-	ListActivities(ctx context.Context, filter ActivityListFilter) (*ActivityListResponse, error)
+	ListActivities(ctx context.Context, filter ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error)
 }

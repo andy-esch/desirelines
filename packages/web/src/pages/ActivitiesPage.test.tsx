@@ -25,10 +25,10 @@ describe("ActivitiesPage", () => {
       name: "Morning Ride",
       type: "Ride",
       sport: "cycling",
-      start_date_local: "2025-12-28T08:30:00",
-      distance_meters: 45000,
-      moving_time_seconds: 5400,
-      elevation_meters: 450,
+      startDateLocal: "2025-12-28T08:30:00",
+      distanceMeters: 45000,
+      movingTimeSeconds: 5400,
+      elevationMeters: 450,
     },
   ];
 

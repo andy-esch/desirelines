@@ -8,6 +8,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
+	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 )
 
 // ActivityRepository implements repository.ActivityRepository for PostgreSQL.
@@ -364,7 +365,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*ge
 
 // GetActivityByID returns a single activity by its Strava ID.
 // Returns nil (not error) if the activity is not found.
-func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*repository.Activity, error) {
+func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*activitiesv1.Activity, error) {
 	query := `
 		SELECT
 			id, name, type, sport, start_date_local,
@@ -377,19 +378,22 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*re
 
 	row := r.pool.QueryRow(ctx, query, id)
 
-	var activity repository.Activity
+	var activityID int64
+	var name, activityType, sport string
 	var startDateLocal time.Time
+	var distanceMeters float64
+	var movingTime, elapsedTime int32
 	var elevation, avgSpeed, maxSpeed, avgHR, maxHR *float64
 
 	err := row.Scan(
-		&activity.ID,
-		&activity.Name,
-		&activity.Type,
-		&activity.Sport,
+		&activityID,
+		&name,
+		&activityType,
+		&sport,
 		&startDateLocal,
-		&activity.DistanceMeters,
-		&activity.MovingTimeSeconds,
-		&activity.ElapsedTimeSeconds,
+		&distanceMeters,
+		&movingTime,
+		&elapsedTime,
 		&elevation,
 		&avgSpeed,
 		&maxSpeed,
@@ -405,20 +409,27 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*re
 		return nil, fmt.Errorf("query activity by id: %w", err)
 	}
 
-	activity.StartDateLocal = startDateLocal.Format(time.RFC3339)
-	activity.ElevationMeters = elevation
-	activity.AverageSpeedMps = avgSpeed
-	activity.MaxSpeedMps = maxSpeed
-	activity.AverageHeartrate = avgHR
-	activity.MaxHeartrate = maxHR
-
-	return &activity, nil
+	return &activitiesv1.Activity{
+		Id:                 activityID,
+		Name:               name,
+		Type:               activityType,
+		Sport:              sport,
+		StartDateLocal:     startDateLocal.Format(time.RFC3339),
+		DistanceMeters:     distanceMeters,
+		MovingTimeSeconds:  movingTime,
+		ElapsedTimeSeconds: elapsedTime,
+		ElevationMeters:    elevation,
+		AverageSpeedMps:    avgSpeed,
+		MaxSpeedMps:        maxSpeed,
+		AverageHeartrate:   avgHR,
+		MaxHeartrate:       maxHR,
+	}, nil
 }
 
 // ListActivities returns activities matching the filter criteria with cursor-based pagination.
 // Results are ordered by (start_date_local DESC, id DESC) for stable ordering.
 // Uses keyset pagination for O(1) performance regardless of offset.
-func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*repository.ActivityListResponse, error) {
+func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
 	// Build query dynamically based on filter
 	// We fetch limit+1 to determine if there are more results
 
@@ -487,29 +498,50 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	}
 	defer rows.Close()
 
-	activities := make([]repository.ActivitySummary, 0, limit)
+	// Internal struct for scanning rows before building proto messages
+	type scannedActivity struct {
+		id             int64
+		name           string
+		activityType   string
+		sport          string
+		startDateLocal string
+		distanceMeters float64
+		movingTime     int32
+		elevation      *float64
+	}
+
+	scannedActivities := make([]scannedActivity, 0, limit)
 	for rows.Next() {
-		var activity repository.ActivitySummary
+		var id int64
+		var name, activityType, sport string
 		var startDateLocal time.Time
+		var distanceMeters float64
+		var movingTime int32
 		var elevation *float64
 
 		if scanErr := rows.Scan(
-			&activity.ID,
-			&activity.Name,
-			&activity.Type,
-			&activity.Sport,
+			&id,
+			&name,
+			&activityType,
+			&sport,
 			&startDateLocal,
-			&activity.DistanceMeters,
-			&activity.MovingTimeSeconds,
+			&distanceMeters,
+			&movingTime,
 			&elevation,
 		); scanErr != nil {
 			return nil, fmt.Errorf("scan activity row: %w", scanErr)
 		}
 
-		activity.StartDateLocal = startDateLocal.Format(time.RFC3339)
-		activity.ElevationMeters = elevation
-
-		activities = append(activities, activity)
+		scannedActivities = append(scannedActivities, scannedActivity{
+			id:             id,
+			name:           name,
+			activityType:   activityType,
+			sport:          sport,
+			startDateLocal: startDateLocal.Format(time.RFC3339),
+			distanceMeters: distanceMeters,
+			movingTime:     movingTime,
+			elevation:      elevation,
+		})
 	}
 
 	if rowsErr := rows.Err(); rowsErr != nil {
@@ -517,25 +549,40 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	}
 
 	// Determine if there are more results
-	hasMore := len(activities) > limit
+	hasMore := len(scannedActivities) > limit
 	if hasMore {
 		// Remove the extra row we fetched
-		activities = activities[:limit]
+		scannedActivities = scannedActivities[:limit]
+	}
+
+	// Build proto messages
+	activities := make([]*activitiesv1.ActivitySummary, 0, len(scannedActivities))
+	for _, a := range scannedActivities {
+		activities = append(activities, &activitiesv1.ActivitySummary{
+			Id:                a.id,
+			Name:              a.name,
+			Type:              a.activityType,
+			Sport:             a.sport,
+			StartDateLocal:    a.startDateLocal,
+			DistanceMeters:    a.distanceMeters,
+			MovingTimeSeconds: a.movingTime,
+			ElevationMeters:   a.elevation,
+		})
 	}
 
 	// Build next cursor from last activity
 	var nextCursor *string
-	if hasMore && len(activities) > 0 {
-		lastActivity := activities[len(activities)-1]
+	if hasMore && len(scannedActivities) > 0 {
+		lastActivity := scannedActivities[len(scannedActivities)-1]
 		cursor := repository.ActivityCursor{
-			Timestamp: lastActivity.StartDateLocal,
-			ID:        lastActivity.ID,
+			Timestamp: lastActivity.startDateLocal,
+			ID:        lastActivity.id,
 		}
 		encoded := encodeCursor(&cursor)
 		nextCursor = &encoded
 	}
 
-	return &repository.ActivityListResponse{
+	return &activitiesv1.ListActivitiesResponse{
 		Activities: activities,
 		NextCursor: nextCursor,
 		HasMore:    hasMore,

@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
-	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/apierrors"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
@@ -261,7 +260,7 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, activity, h.logger)
+	h.respondProtobuf(w, r, activity)
 }
 
 // HandleListActivities serves a paginated list of activities.
@@ -348,7 +347,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, result, h.logger)
+	h.respondProtobuf(w, r, result)
 }
 
 // validateAndGetYear extracts and validates the year path parameter.
