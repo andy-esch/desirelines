@@ -60,7 +60,7 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
 
     // Sort by date descending (most recent first)
     return allActivities.sort(
-      (a, b) => new Date(b.start_date_local).getTime() - new Date(a.start_date_local).getTime()
+      (a, b) => new Date(b.startDateLocal).getTime() - new Date(a.startDateLocal).getTime()
     );
   }, []);
 
@@ -97,9 +97,9 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
         const response = await fetchActivities({ ...filter, cursor }, controller.signal, idToken);
 
         setActivities((prev) => (cursor ? [...prev, ...response.activities] : response.activities));
-        setHasMore(response.has_more);
-        if (response.next_cursor) {
-          setCursor(response.next_cursor);
+        setHasMore(response.hasMore);
+        if (response.nextCursor) {
+          setCursor(response.nextCursor);
         }
       } catch (err) {
         if (err instanceof Error && err.message !== "Request cancelled") {

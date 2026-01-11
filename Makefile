@@ -133,6 +133,9 @@ proto-gen-backend:
 	@mkdir -p packages/apigateway/types/generated packages/dispatcher/types/generated
 	@find dist/codegen/schemas/proto \( -name "sports_metrics.pb.go" -o -name "user_config.pb.go" \) -exec cp {} packages/apigateway/types/generated/ \;
 	@find dist/codegen/schemas/proto -name "webhook.pb.go" -exec cp {} packages/dispatcher/types/generated/ \;
+	# Activities proto goes in subdirectory to match package name
+	@mkdir -p packages/apigateway/types/generated/activitiesv1
+	@find dist/codegen/schemas/proto -name "activities.pb.go" -exec cp {} packages/apigateway/types/generated/activitiesv1/ \;
 	@echo "✅ Backend generation complete"
 
 # Frontend: Use protoc-gen-ts_proto (via npm)
@@ -152,7 +155,8 @@ proto-gen-web:
 		--ts_proto_opt=outputJsonMethods=false,outputPartialMethods=false,useOptionals=messages,oneof=unions \
 		-I schemas/proto \
 		schemas/proto/desirelines/sports/v1/sports_metrics.proto \
-		schemas/proto/desirelines/config/v1/user_config.proto
+		schemas/proto/desirelines/config/v1/user_config.proto \
+		schemas/proto/desirelines/activities/v1/activities.proto
 	@# Flatten: copy files from nested dirs to root of generated/
 	@find packages/web/src/types/generated/.tmp -name "*.ts" -exec cp {} packages/web/src/types/generated/ \;
 	@rm -rf packages/web/src/types/generated/.tmp

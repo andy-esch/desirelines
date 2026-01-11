@@ -11,6 +11,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
+	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -37,10 +38,10 @@ func (m *mockRepo) GetDailySummary(ctx context.Context, year int, sportTypes []s
 func (m *mockRepo) GetDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.DailySummary, error) {
 	return nil, m.err
 }
-func (m *mockRepo) GetActivityByID(ctx context.Context, id int64) (*repository.Activity, error) {
+func (m *mockRepo) GetActivityByID(ctx context.Context, id int64) (*activitiesv1.Activity, error) {
 	return nil, m.err
 }
-func (m *mockRepo) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*repository.ActivityListResponse, error) {
+func (m *mockRepo) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
 	return nil, m.err
 }
 

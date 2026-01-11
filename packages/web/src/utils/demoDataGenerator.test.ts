@@ -233,9 +233,9 @@ describe("generateDemoActivities", () => {
       expect(activity).toHaveProperty("name");
       expect(activity).toHaveProperty("type");
       expect(activity).toHaveProperty("sport");
-      expect(activity).toHaveProperty("start_date_local");
-      expect(activity).toHaveProperty("distance_meters");
-      expect(activity).toHaveProperty("moving_time_seconds");
+      expect(activity).toHaveProperty("startDateLocal");
+      expect(activity).toHaveProperty("distanceMeters");
+      expect(activity).toHaveProperty("movingTimeSeconds");
     });
 
     it("cycling activities have elevation", () => {
@@ -243,8 +243,8 @@ describe("generateDemoActivities", () => {
       const activities = generateDemoActivities("cycling", 2024, 20, "full");
       const activity = activities[0];
 
-      expect(activity.elevation_meters).toBeDefined();
-      expect(activity.elevation_meters).toBeGreaterThan(0);
+      expect(activity.elevationMeters).toBeDefined();
+      expect(activity.elevationMeters).toBeGreaterThan(0);
     });
 
     it("uses correct Strava type for sport", () => {
@@ -288,8 +288,8 @@ describe("generateDemoActivities", () => {
       const activities = generateDemoActivities("cycling", 2024, 20, "full");
 
       for (let i = 1; i < activities.length; i++) {
-        const prevDate = new Date(activities[i - 1].start_date_local);
-        const currDate = new Date(activities[i].start_date_local);
+        const prevDate = new Date(activities[i - 1].startDateLocal);
+        const currDate = new Date(activities[i].startDateLocal);
         expect(prevDate.getTime()).toBeGreaterThanOrEqual(currDate.getTime());
       }
     });
@@ -307,7 +307,7 @@ describe("generateDemoActivities", () => {
       const partialActivities = generateDemoActivities("cycling", 2024, 50, "partial");
 
       if (partialActivities.length > 0) {
-        const oldest = new Date(partialActivities[partialActivities.length - 1].start_date_local);
+        const oldest = new Date(partialActivities[partialActivities.length - 1].startDateLocal);
         const endOf2024 = new Date(2024, 11, 31);
         const daysDiff = Math.floor(
           (endOf2024.getTime() - oldest.getTime()) / (1000 * 60 * 60 * 24)
@@ -454,14 +454,14 @@ describe("realistic data generation", () => {
     const runningActivities = generateDemoActivities("running", 2024, 10, "full");
 
     cyclingActivities.forEach((a) => {
-      const miles = a.distance_meters / 1609.344;
+      const miles = a.distanceMeters / 1609.344;
       // Cycling: 25 miles avg with 40% variance = ~15-35 miles
       expect(miles).toBeGreaterThan(5);
       expect(miles).toBeLessThan(60);
     });
 
     runningActivities.forEach((a) => {
-      const miles = a.distance_meters / 1609.344;
+      const miles = a.distanceMeters / 1609.344;
       // Running: 5 miles avg with 50% variance = ~2.5-7.5 miles
       expect(miles).toBeGreaterThan(1);
       expect(miles).toBeLessThan(15);
@@ -474,14 +474,14 @@ describe("realistic data generation", () => {
     const runningActivities = generateDemoActivities("running", 2024, 10, "full");
 
     cyclingActivities.forEach((a) => {
-      const hours = a.moving_time_seconds / 3600;
+      const hours = a.movingTimeSeconds / 3600;
       // Cycling: 1.5h avg with 30% variance = ~1-2 hours
       expect(hours).toBeGreaterThan(0.5);
       expect(hours).toBeLessThan(4);
     });
 
     runningActivities.forEach((a) => {
-      const mins = a.moving_time_seconds / 60;
+      const mins = a.movingTimeSeconds / 60;
       // Running: 45 min avg with 30% variance = ~30-60 mins
       expect(mins).toBeGreaterThan(15);
       expect(mins).toBeLessThan(120);

@@ -17,20 +17,20 @@ describe("useActivities", () => {
       name: "Morning Ride",
       type: "Ride",
       sport: "cycling",
-      start_date_local: "2025-12-28T08:30:00",
-      distance_meters: 45000,
-      moving_time_seconds: 5400,
-      elevation_meters: 450,
+      startDateLocal: "2025-12-28T08:30:00",
+      distanceMeters: 45000,
+      movingTimeSeconds: 5400,
+      elevationMeters: 450,
     },
     {
       id: 123456790,
       name: "Evening Run",
       type: "Run",
       sport: "running",
-      start_date_local: "2025-12-27T18:00:00",
-      distance_meters: 8000,
-      moving_time_seconds: 2400,
-      elevation_meters: 50,
+      startDateLocal: "2025-12-27T18:00:00",
+      distanceMeters: 8000,
+      movingTimeSeconds: 2400,
+      elevationMeters: 50,
     },
   ];
 
@@ -73,8 +73,8 @@ describe("useActivities", () => {
 
     vi.spyOn(activitiesApi, "fetchActivities").mockResolvedValue({
       activities: mockActivities,
-      has_more: true,
-      next_cursor: "cursor-123",
+      hasMore: true,
+      nextCursor: "cursor-123",
     });
 
     const { result } = renderHook(() =>
@@ -109,7 +109,7 @@ describe("useActivities", () => {
 
     vi.spyOn(activitiesApi, "fetchActivities").mockResolvedValue({
       activities: [],
-      has_more: false,
+      hasMore: false,
     });
 
     const { result } = renderHook(() => useActivities({ limit: 20 }));
@@ -195,7 +195,7 @@ describe("useActivities", () => {
       .mockRejectedValueOnce(error)
       .mockResolvedValueOnce({
         activities: mockActivities,
-        has_more: false,
+        hasMore: false,
       });
 
     const { result } = renderHook(() => useActivities({ limit: 20 }));
@@ -233,8 +233,8 @@ describe("useActivities", () => {
     const runningActivities = [mockActivities[1]];
 
     vi.spyOn(activitiesApi, "fetchActivities")
-      .mockResolvedValueOnce({ activities: cyclingActivities, has_more: false })
-      .mockResolvedValueOnce({ activities: runningActivities, has_more: false });
+      .mockResolvedValueOnce({ activities: cyclingActivities, hasMore: false })
+      .mockResolvedValueOnce({ activities: runningActivities, hasMore: false });
 
     const { result, rerender } = renderHook(({ sport }) => useActivities({ sport, limit: 20 }), {
       initialProps: { sport: "cycling" },
@@ -268,7 +268,7 @@ describe("useActivities", () => {
 
     vi.spyOn(activitiesApi, "fetchActivities").mockResolvedValue({
       activities: [mockActivities[0]],
-      has_more: false,
+      hasMore: false,
     });
 
     const { result } = renderHook(() => useActivities({ sport: "cycling", limit: 20 }));
@@ -299,7 +299,7 @@ describe("useActivities", () => {
 
     vi.spyOn(activitiesApi, "fetchActivities").mockResolvedValue({
       activities: mockActivities,
-      has_more: false,
+      hasMore: false,
     });
 
     const { result } = renderHook(() =>

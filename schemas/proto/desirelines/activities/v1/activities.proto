@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package desirelines.activities.v1;
+
+// Go code generated to apigateway for activity handling
+option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1";
+
+// =============================================================================
+// Resource Definitions
+// =============================================================================
+
+// Activity represents a single activity with full details.
+// Used for GET /activities/{id} responses.
+message Activity {
+  // Strava activity ID.
+  int64 id = 1;
+
+  // Activity name/title.
+  string name = 2;
+
+  // Strava activity type (Run, Ride, VirtualRide, etc.).
+  string type = 3;
+
+  // Categorized sport (running, cycling, yoga).
+  string sport = 4;
+
+  // Local start time as ISO 8601 timestamp.
+  string start_date_local = 5;
+
+  // Distance in meters.
+  double distance_meters = 6;
+
+  // Moving time in seconds.
+  int32 moving_time_seconds = 7;
+
+  // Total elapsed time in seconds.
+  int32 elapsed_time_seconds = 8;
+
+  // Elevation gain in meters (nullable).
+  optional double elevation_meters = 9;
+
+  // Average speed in m/s (nullable).
+  optional double average_speed_mps = 10;
+
+  // Max speed in m/s (nullable).
+  optional double max_speed_mps = 11;
+
+  // Average heart rate in bpm (nullable).
+  optional double average_heartrate = 12;
+
+  // Max heart rate in bpm (nullable).
+  optional double max_heartrate = 13;
+}
+
+// ActivitySummary represents a condensed activity for list views.
+// Omits detailed stats not needed in list/table displays.
+message ActivitySummary {
+  // Strava activity ID.
+  int64 id = 1;
+
+  // Activity name/title.
+  string name = 2;
+
+  // Strava activity type (Run, Ride, VirtualRide, etc.).
+  string type = 3;
+
+  // Categorized sport (running, cycling, yoga).
+  string sport = 4;
+
+  // Local start time as ISO 8601 timestamp.
+  string start_date_local = 5;
+
+  // Distance in meters.
+  double distance_meters = 6;
+
+  // Moving time in seconds.
+  int32 moving_time_seconds = 7;
+
+  // Elevation gain in meters (nullable).
+  optional double elevation_meters = 8;
+}
+
+// =============================================================================
+// List Activities
+// =============================================================================
+
+// ListActivitiesRequest contains filters for listing activities.
+// Used for GET /activities endpoint.
+message ListActivitiesRequest {
+  // Start date filter (YYYY-MM-DD), inclusive.
+  optional string from = 1;
+
+  // End date filter (YYYY-MM-DD), inclusive.
+  optional string to = 2;
+
+  // Sport filter (cycling, running, yoga).
+  optional string sport = 3;
+
+  // Maximum number of results to return (default: 50, max: 100).
+  optional int32 limit = 4;
+
+  // Pagination cursor from previous response.
+  optional string cursor = 5;
+}
+
+// ListActivitiesResponse contains a paginated list of activities.
+message ListActivitiesResponse {
+  // List of activity summaries.
+  repeated ActivitySummary activities = 1;
+
+  // Opaque cursor for fetching the next page.
+  // Empty/absent if no more results.
+  optional string next_cursor = 2;
+
+  // True if more results are available.
+  bool has_more = 3;
+}
+
+// =============================================================================
+// Get Activity
+// =============================================================================
+
+// GetActivityRequest identifies a single activity to retrieve.
+// Used for GET /activities/{id} endpoint.
+message GetActivityRequest {
+  // Strava activity ID.
+  int64 id = 1;
+}
+
+// GetActivityResponse wraps the activity response.
+// Note: Could return Activity directly, but wrapper allows future metadata.
+message GetActivityResponse {
+  // The requested activity.
+  Activity activity = 1;
+}
+
+// =============================================================================
+// Service Definition (for documentation/future gRPC)
+// =============================================================================
+
+// ActivityService defines the Activities API contract.
+// Currently used for code generation; may become gRPC service later.
+service ActivityService {
+  // List activities with optional filters and pagination.
+  rpc ListActivities(ListActivitiesRequest) returns (ListActivitiesResponse);
+
+  // Get a single activity by ID.
+  rpc GetActivity(GetActivityRequest) returns (GetActivityResponse);
+}

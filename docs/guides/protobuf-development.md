@@ -12,6 +12,7 @@ Protobufs define cross-language type contracts shared between:
 ```
 schemas/proto/
 └── desirelines/
+    ├── activities/v1/activities.proto   # Activity list/detail API
     ├── config/v1/user_config.proto      # User settings (Firestore)
     ├── sports/v1/sports_metrics.proto   # Activity metrics API
     └── webhook/v1/webhook.proto         # Strava webhook events
@@ -89,20 +90,38 @@ syntax = "proto3";
 
 package desirelines.activities.v1;
 
-option go_package = "desirelines/apigateway/types/generated";
+// Go code generated to apigateway for activity handling
+option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1";
 
+// Activity represents a single activity with full details.
 message Activity {
   int64 id = 1;
   string name = 2;
-  string sport_type = 3;
-  double distance_meters = 4;
-  int32 moving_time_seconds = 5;
-  string start_date = 6;  // ISO 8601
+  string type = 3;                      // Strava activity type
+  string sport = 4;                     // Categorized sport
+  string start_date_local = 5;          // ISO 8601 timestamp
+  double distance_meters = 6;
+  int32 moving_time_seconds = 7;
+  int32 elapsed_time_seconds = 8;
+  optional double elevation_meters = 9; // Nullable
 }
 
-message ActivityListResponse {
-  repeated Activity activities = 1;
-  string next_cursor = 2;
+// ActivitySummary for list views (omits detailed stats).
+message ActivitySummary {
+  int64 id = 1;
+  string name = 2;
+  string type = 3;
+  string sport = 4;
+  string start_date_local = 5;
+  double distance_meters = 6;
+  int32 moving_time_seconds = 7;
+  optional double elevation_meters = 8;
+}
+
+message ListActivitiesResponse {
+  repeated ActivitySummary activities = 1;
+  optional string next_cursor = 2;
+  bool has_more = 3;
 }
 ```
 
@@ -135,25 +154,28 @@ make proto-gen-backend
 
 **Go (apigateway):**
 ```go
-import pb "desirelines/apigateway/types/generated"
+import (
+    activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
+)
 
 func handleActivities(w http.ResponseWriter, r *http.Request) {
-    response := &pb.ActivityListResponse{
-        Activities: []*pb.Activity{
-            {Id: 123, Name: "Morning Run", SportType: "Run"},
+    response := &activitiesv1.ListActivitiesResponse{
+        Activities: []*activitiesv1.ActivitySummary{
+            {Id: 123, Name: "Morning Run", Type: "Run", Sport: "running"},
         },
+        HasMore: false,
     }
-    respondProtobuf(w, response)  // Uses protojson for camelCase
+    respondProtobuf(w, response)  // Uses protojson for camelCase JSON output
 }
 ```
 
 **TypeScript (web):**
 ```typescript
-import { Activity, ActivityListResponse } from '../types/generated/activities';
+import type { ActivitySummary, ListActivitiesResponse } from '../types/generated/activities';
 
-const response: ActivityListResponse = await api.get('/activities');
-response.activities.forEach((a: Activity) => {
-    console.log(a.name, a.distanceMeters);  // camelCase in TS
+const response: ListActivitiesResponse = await api.get('/activities');
+response.activities.forEach((a: ActivitySummary) => {
+    console.log(a.name, a.distanceMeters, a.startDateLocal);  // camelCase in TS
 });
 ```
 
@@ -254,6 +276,7 @@ protoc \
 
 | Proto | Go | Python | TypeScript |
 |-------|-----|--------|------------|
+| `activities.proto` | apigateway | - | web |
 | `sports_metrics.proto` | apigateway | stravapipe | web |
 | `user_config.proto` | apigateway | - | web |
 | `webhook.proto` | dispatcher | stravapipe | - |

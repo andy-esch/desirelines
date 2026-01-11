@@ -7,6 +7,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
+	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 )
 
 func TestActivityRepository_Ping(t *testing.T) {
@@ -175,8 +176,8 @@ func TestActivityRepository_GetActivityByID_SignatureAndTypes(t *testing.T) {
 	})
 
 	t.Run("Activity has expected fields", func(t *testing.T) {
-		activity := repository.Activity{
-			ID:                 12345,
+		activity := activitiesv1.Activity{
+			Id:                 12345,
 			Name:               "Morning Ride",
 			Type:               "Ride",
 			Sport:              "cycling",
@@ -185,8 +186,8 @@ func TestActivityRepository_GetActivityByID_SignatureAndTypes(t *testing.T) {
 			MovingTimeSeconds:  1800,
 			ElapsedTimeSeconds: 2000,
 		}
-		if activity.ID != 12345 {
-			t.Error("ID field should be set")
+		if activity.Id != 12345 {
+			t.Error("Id field should be set")
 		}
 		if activity.Name != "Morning Ride" {
 			t.Error("Name field should be set")
@@ -205,10 +206,10 @@ func TestActivityRepository_ListActivities_SignatureAndTypes(t *testing.T) {
 		_ = repo.ListActivities
 	})
 
-	t.Run("ActivityListResponse has expected fields", func(t *testing.T) {
+	t.Run("ListActivitiesResponse has expected fields", func(t *testing.T) {
 		cursor := "abc123"
-		response := repository.ActivityListResponse{
-			Activities: []repository.ActivitySummary{},
+		response := activitiesv1.ListActivitiesResponse{
+			Activities: []*activitiesv1.ActivitySummary{},
 			NextCursor: &cursor,
 			HasMore:    true,
 		}
@@ -222,8 +223,8 @@ func TestActivityRepository_ListActivities_SignatureAndTypes(t *testing.T) {
 
 	t.Run("ActivitySummary has expected fields", func(t *testing.T) {
 		elevation := 100.0
-		summary := repository.ActivitySummary{
-			ID:                12345,
+		summary := activitiesv1.ActivitySummary{
+			Id:                12345,
 			Name:              "Morning Ride",
 			Type:              "Ride",
 			Sport:             "cycling",
@@ -232,8 +233,8 @@ func TestActivityRepository_ListActivities_SignatureAndTypes(t *testing.T) {
 			MovingTimeSeconds: 1800,
 			ElevationMeters:   &elevation,
 		}
-		if summary.ID != 12345 {
-			t.Error("ID field should be set")
+		if summary.Id != 12345 {
+			t.Error("Id field should be set")
 		}
 	})
 

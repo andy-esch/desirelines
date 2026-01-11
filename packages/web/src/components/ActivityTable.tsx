@@ -138,7 +138,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
             <tbody>
               {activities.map((activity) => (
                 <tr key={activity.id}>
-                  <td className="text-nowrap">{formatDate(activity.start_date_local)}</td>
+                  <td className="text-nowrap">{formatDate(activity.startDateLocal)}</td>
                   <td>
                     <a
                       href={`https://www.strava.com/activities/${activity.id}`}
@@ -156,22 +156,22 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                     </span>
                   </td>
                   <td className="text-end text-nowrap">
-                    {activity.distance_meters > 0
-                      ? formatDistance(activity.distance_meters, distanceUnit)
+                    {activity.distanceMeters > 0
+                      ? formatDistance(activity.distanceMeters, distanceUnit)
                       : "-"}
                   </td>
                   <td className="text-end text-nowrap">
-                    {formatDuration(activity.moving_time_seconds)}
+                    {formatDuration(activity.movingTimeSeconds)}
                   </td>
                   <td className="text-end text-nowrap">
-                    {activity.elevation_meters
-                      ? formatElevation(activity.elevation_meters, elevationUnit)
+                    {activity.elevationMeters
+                      ? formatElevation(activity.elevationMeters, elevationUnit)
                       : "-"}
                   </td>
                   <td className="text-end text-nowrap">
                     {formatPaceOrSpeed(
-                      activity.distance_meters,
-                      activity.moving_time_seconds,
+                      activity.distanceMeters,
+                      activity.movingTimeSeconds,
                       activity.sport,
                       distanceUnit
                     )}

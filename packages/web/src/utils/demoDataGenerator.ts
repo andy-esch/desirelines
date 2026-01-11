@@ -343,10 +343,10 @@ export function generateDemoActivities(
       name: randomChoice(config.activityNames),
       type: DEMO_STRAVA_TYPES[sport],
       sport: sport,
-      start_date_local: formatTimestamp(activityDate),
-      distance_meters: Math.round(distance),
-      moving_time_seconds: Math.round(duration),
-      elevation_meters: elevation ? Math.round(elevation) : undefined,
+      startDateLocal: formatTimestamp(activityDate),
+      distanceMeters: Math.round(distance),
+      movingTimeSeconds: Math.round(duration),
+      elevationMeters: elevation ? Math.round(elevation) : undefined,
     });
 
     activitiesGenerated++;
@@ -354,7 +354,7 @@ export function generateDemoActivities(
 
   // Sort by date descending (most recent first)
   activities.sort(
-    (a, b) => new Date(b.start_date_local).getTime() - new Date(a.start_date_local).getTime()
+    (a, b) => new Date(b.startDateLocal).getTime() - new Date(a.startDateLocal).getTime()
   );
 
   return activities;

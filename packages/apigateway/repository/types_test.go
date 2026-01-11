@@ -1,51 +1,46 @@
 package repository
 
 import (
-	"encoding/json"
-	"strings"
 	"testing"
 )
 
-func TestActivityListResponse_EmptySerialization(t *testing.T) {
-	// Test that empty slice serializes to [] not null
-	resp := ActivityListResponse{
-		Activities: make([]ActivitySummary, 0),
-		HasMore:    false,
+// Note: JSON serialization tests for Activity and ActivitySummary have been
+// moved to the protojson layer since these types are now defined in the
+// activitiesv1 proto package. See internal/activities/helper_test.go for
+// protobuf serialization tests.
+
+func TestActivityCursor_Fields(t *testing.T) {
+	// Verify cursor struct has expected fields
+	cursor := ActivityCursor{
+		Timestamp: "2025-01-01T12:00:00Z",
+		ID:        123456,
 	}
 
-	data, err := json.Marshal(resp)
-	if err != nil {
-		t.Fatalf("failed to marshal: %v", err)
+	if cursor.Timestamp != "2025-01-01T12:00:00Z" {
+		t.Errorf("got timestamp %s, want 2025-01-01T12:00:00Z", cursor.Timestamp)
 	}
-
-	want := `{"activities":[],"has_more":false}`
-	if string(data) != want {
-		t.Errorf("got %s, want %s", string(data), want)
+	if cursor.ID != 123456 {
+		t.Errorf("got id %d, want 123456", cursor.ID)
 	}
 }
 
-func TestActivity_OptionalFields(t *testing.T) {
-	// Test omitempty behavior
-	val := 100.0
-	activity := Activity{
-		ID:              1,
-		Name:            "Run",
-		ElevationMeters: &val, // Set
-		AverageSpeedMps: nil,  // Unset
-	}
+func TestActivityListFilter_Defaults(t *testing.T) {
+	// Verify filter zero values
+	filter := ActivityListFilter{}
 
-	data, err := json.Marshal(activity)
-	if err != nil {
-		t.Fatalf("failed to marshal: %v", err)
+	if filter.From != nil {
+		t.Error("expected From to be nil by default")
 	}
-
-	// Should contain elevation_meters
-	if !strings.Contains(string(data), `"elevation_meters":100`) {
-		t.Error("expected elevation_meters in output")
+	if filter.To != nil {
+		t.Error("expected To to be nil by default")
 	}
-
-	// Should NOT contain average_speed_mps
-	if strings.Contains(string(data), "average_speed_mps") {
-		t.Error("expected average_speed_mps to be omitted")
+	if len(filter.SportTypes) != 0 {
+		t.Error("expected SportTypes to be empty by default")
+	}
+	if filter.Limit != 0 {
+		t.Error("expected Limit to be 0 by default")
+	}
+	if filter.Cursor != nil {
+		t.Error("expected Cursor to be nil by default")
 	}
 }
