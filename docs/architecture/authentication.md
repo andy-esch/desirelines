@@ -67,7 +67,7 @@ const effectiveUserId = userId ?? user?.uid ?? "default";
 
 **Authenticated Mode** (for testing auth flows):
 - Uses Firebase Emulator Suite (Auth + Firestore)
-- Run `make start-frontend` to start emulators + API Gateway
+- Run `just start-frontend` to start emulators + API Gateway
 - Create test users in Emulator UI at http://localhost:4000
 - Add test user emails to `ALLOWED_EMAILS` in `.env.local`
 

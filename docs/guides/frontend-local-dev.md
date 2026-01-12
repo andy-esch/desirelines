@@ -29,7 +29,7 @@ For fully offline authenticated development using Firebase Emulators:
 
 1. **Start backend services**:
    ```bash
-   make start-frontend  # Starts Firebase Emulators + API Gateway + PostgreSQL
+   just start-frontend  # Starts Firebase Emulators + API Gateway + PostgreSQL
    ```
 
 2. **Enable emulators in frontend**:

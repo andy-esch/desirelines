@@ -34,10 +34,10 @@ GIT_COMMIT=$(git rev-parse --short HEAD) pants publish \
   packages/stravapipe:postgres-writer
 ```
 
-Or use the Make target:
+Or use the Just recipe:
 
 ```bash
-make build-publish
+just build-publish
 ```
 
 This:
