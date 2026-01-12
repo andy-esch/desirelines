@@ -28,16 +28,16 @@ Fetches activities from Strava API and inserts into BigQuery, then generates Clo
 
 ```bash
 # Preview (recommended first)
-uv run python scripts/data/backfill_from_strava.py --years 2024 --dry-run
+uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024 --dry-run
 
 # Backfill single year
-uv run python scripts/data/backfill_from_strava.py --years 2024
+uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024
 
 # Multiple years
-uv run python scripts/data/backfill_from_strava.py --years 2023 2024 2025
+uv run python scripts/ops/backfills/backfill_from_strava.py --years 2023 2024 2025
 
 # Verbose logging
-uv run python scripts/data/backfill_from_strava.py --years 2024 --verbose
+uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024 --verbose
 ```
 
 ### Requirements
@@ -64,13 +64,13 @@ One-time migration tool to populate PostgreSQL from existing BigQuery data. Usef
 export POSTGRES_CONNECTION_STRING="postgresql://user:pass@host/db?sslmode=require"
 
 # Dry run
-uv run python scripts/data/backfill_bq_to_postgres.py --dry-run
+uv run python scripts/ops/backfills/backfill_bq_to_postgres.py --dry-run
 
 # Run backfill (defaults to desirelines-dev)
-uv run python scripts/data/backfill_bq_to_postgres.py
+uv run python scripts/ops/backfills/backfill_bq_to_postgres.py
 
 # Specify project
-uv run python scripts/data/backfill_bq_to_postgres.py --project desirelines-prod
+uv run python scripts/ops/backfills/backfill_bq_to_postgres.py --project desirelines-prod
 ```
 
 ### Requirements
@@ -96,7 +96,7 @@ Replays synthetic webhook events to simulate production load. Useful for:
 ### Usage
 
 ```bash
-cd scripts/data/webhook-replay
+cd scripts/ops/backfills/webhook-replay
 go build backfill_activities.go
 
 # Run with rate limiting (0.2 req/sec = 1 per 5 seconds)

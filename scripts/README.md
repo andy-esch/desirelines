@@ -6,67 +6,49 @@ Operational scripts for desirelines monorepo management, deployment, and data op
 
 ```
 scripts/
-├── data/             # Data backfill and migration
+├── database/         # Database connection/migration (PostgreSQL)
 ├── development/      # Local development tooling
-├── infrastructure/   # Environment setup
-├── operations/       # Build and deployment
-└── schema/           # Schema utilities
+└── ops/              # Operational scripts (Setup, Deploy, Backfills)
+    ├── backfills/    # Data backfill/migration
+    ├── deploy/       # Deployment scripts
+    └── setup/        # Bootstrap scripts
 ```
 
 ## Quick Reference
 
 | Task | Command |
 |------|---------|
-| Local dev setup | `./scripts/development/local-dev/setup-local-environment.sh` |
-| Build & publish images | `make build-publish` |
-| Deploy secrets | `./scripts/infrastructure/deploy-secrets.sh StravaAuth-dev.json` |
-| Create webhook | `./scripts/operations/webhook-management.sh create dev` |
-| Backfill from Strava | `uv run python scripts/data/backfill_from_strava.py --years 2024` |
-| Migrate BQ→PostgreSQL | `uv run python scripts/data/backfill_bq_to_postgres.py` |
+| Local dev setup | `./scripts/ops/setup/setup-local.sh` |
+| Build & publish | `pants publish ::` |
+| Deploy web | `just deploy-web <env>` |
+| Deploy secrets | `./scripts/ops/deploy/deploy-secrets.sh StravaAuth-dev.json` |
+| Backfill Strava | `uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024` |
 
 ## By Directory
 
-### `data/`
+### `ops/`
 
-Data backfill and migration scripts. See [scripts/data/README.md](data/README.md).
+Consolidated operational scripts.
 
-- `backfill_from_strava.py` - Backfill from Strava API → BigQuery
-- `backfill_bq_to_postgres.py` - Migrate BigQuery → PostgreSQL
-- `webhook-replay/` - Load testing via webhook replay
+- **`ops/setup/`**: Bootstrapping (`bootstrap-environment.sh`, `setup-local.sh`).
+- **`ops/deploy/`**: Deployment (`deploy-web.sh`, `deploy-secrets.sh`).
+- **`ops/backfills/`**: Data tools (`backfill_from_strava.py`).
+- **`ops/webhook-management.sh`**: Webhook operations.
+
+### `database/`
+
+Database connection and migration helpers (PostgreSQL).
+
+- `connect.sh` - Connect via psql
+- `migrate.sh` - Run Flyway migrations
 
 ### `development/`
 
 Local development environment setup.
 
-- `local-dev/setup-local-environment.sh` - One-command local setup
-- `local-dev/bootstrap_pubsub.sh` - PubSub emulator configuration
-- `local-dev/cloudevent_adapter.py` - CloudEvent wrapper for local dev
-- `api-gateway-tunnel.sh` - SSH tunnel to VPC-only API Gateway
-
-See [scripts/development/local-dev/README.md](development/local-dev/README.md).
-
-### `infrastructure/`
-
-Environment bootstrap and secrets management.
-
-- `bootstrap-environment.sh` - Complete environment bootstrap
-- `deploy-secrets.sh` - Deploy secrets to Secret Manager
-
-### `operations/`
-
-Build and deployment tasks.
-
-- `build-and-publish.sh` - Build and push Docker images to Artifact Registry
-- `webhook-management.sh` - Manage Strava webhook subscriptions
-
-### `schema/`
-
-Schema utilities.
-
-- `schema_to_bq.py` - Convert JSON schemas to BigQuery CLI format
+- `local-dev/` - Docker-compose helpers (under review).
 
 ## Related Documentation
 
 - [Bootstrap Guide](../docs/guides/bootstrap.md)
-- [Local Testing Setup](../docs/guides/local-testing.md)
 - [Deployment Guide](../docs/guides/deployment.md)

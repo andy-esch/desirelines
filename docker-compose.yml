@@ -1,7 +1,7 @@
 services:
   # ==========================================
   # BACKEND PIPELINE SERVICES
-  # Start with: make start (or docker compose up)
+  # Start with: just start (or docker compose up)
   # ==========================================
 
   dispatcher:
@@ -179,7 +179,7 @@ services:
 
   # ==========================================
   # FRONTEND SERVICES
-  # Start with: make start-frontend
+  # Start with: just start-frontend
   # ==========================================
 
   # PostgreSQL database (local development)

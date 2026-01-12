@@ -24,7 +24,8 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
 ]
 
-# Development dependencies - Pants-compatible format (PEP 621)
+# Development dependencies - Pants-compatible format
+# Note: Since these are extras, use 'uv sync --extra dev' or 'uv pip install -e ".[dev]"' to install them.
 [project.optional-dependencies]
 dev = [
     # Testing

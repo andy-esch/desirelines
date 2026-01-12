@@ -11,10 +11,10 @@ For setting up a database from scratch read [Database Setup Playbook](../../docs
 docker compose --profile backend up -d postgres
 
 # Run migrations
-make db-migrate-local
+just db-migrate-local
 
 # Connect to database
-make db-connect-local
+just db-connect-local
 ```
 
 ## Production Deployment
@@ -23,16 +23,16 @@ make db-connect-local
 
 ```bash
 # Dev environment
-make db-migrate-dev-info     # Check status (dry-run)
-make db-migrate-dev          # Run migrations
-make db-connect-dev          # Connect (read-only)
-make db-connect-dev-admin    # Connect (admin)
+just db-migrate-dev-info     # Check status (dry-run)
+just db-migrate-dev          # Run migrations
+just db-connect-dev          # Connect (read-only)
+just db-connect-dev-admin    # Connect (admin)
 
 # Prod environment (requires "yes" confirmation)
-make db-migrate-prod-info    # Check status
-make db-migrate-prod         # Run migrations
-make db-connect-prod         # Connect (read-only)
-make db-connect-prod-admin   # Connect (admin)
+just db-migrate-prod-info    # Check status
+just db-migrate-prod         # Run migrations
+just db-connect-prod         # Connect (read-only)
+just db-connect-prod-admin   # Connect (admin)
 ```
 
 **First-time setup**: See [Database Setup Playbook](../../docs/guides/database-setup.md) for complete steps including pre-migration setup (schemas, extensions, roles) that must be done as `neondb_owner` before Flyway runs.

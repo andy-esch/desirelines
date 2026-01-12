@@ -57,8 +57,8 @@ Strava webhooks require three main steps:
 After OAuth2 authorization, create the webhook subscription:
 
 ```bash
-# Using our make command
-make create-webhook dev  # or prod
+# Using our just command
+just create-webhook dev  # or prod
 ```
 
 ## Environment-Specific Setup
@@ -81,7 +81,7 @@ make create-webhook dev  # or prod
 
 If webhooks aren't working, verify:
 
-1. ✅ **Webhook subscription exists**: `make view-subscription dev`
+1. ✅ **Webhook subscription exists**: `just view-subscription dev`
 2. ✅ **Function is reachable**: `curl https://your-function-url`
 3. ✅ **OAuth2 authorization completed**: Check if you can access Strava API with your tokens
 4. ✅ **Activity account matches**: Activities must be on the authorized account

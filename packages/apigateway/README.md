@@ -251,7 +251,7 @@ Build and publish via Pants:
 
 ```bash
 # Build all services
-make build-publish
+just build-publish
 
 # Build only apigateway
 GIT_COMMIT=$(git rev-parse --short HEAD) pants publish packages/apigateway:apigateway
@@ -286,7 +286,7 @@ types/generated/
 └── user_config.pb.go     # UserConfig, Goal, Annotation
 ```
 
-Run `make proto-gen-backend` to regenerate. See [`schemas/proto/README.md`](../../schemas/proto/README.md).
+Run `just proto-gen-backend` to regenerate. See [`schemas/proto/README.md`](../../schemas/proto/README.md).
 
 ## Related Documentation
 

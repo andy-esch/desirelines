@@ -74,18 +74,18 @@ Defines the canonical Strava webhook event structure shared between Go and Pytho
 
 ```bash
 # Generate all (backend + web)
-make proto-gen
+just proto-gen
 
 # Backend only (Go + Python via Pants)
-make proto-gen-backend
+just proto-gen-backend
 
 # Web only (TypeScript via protoc)
-make proto-gen-web
+just proto-gen-web
 
 # Maintenance
-make proto-fmt    # Format proto files
-make proto-lint   # Lint proto files
-make proto-clean  # Remove generated code
+just proto-fmt    # Format proto files
+just proto-lint   # Lint proto files
+just proto-clean  # Remove generated code
 ```
 
 **Generated code locations:**

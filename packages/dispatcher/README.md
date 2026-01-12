@@ -28,7 +28,7 @@ packages/dispatcher/
 └── Dockerfile                   # Cloud Run container
 ```
 
-**Type Definitions:** Webhook types are defined in `schemas/proto/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `make proto-gen-backend`.
+**Type Definitions:** Webhook types are defined in `schemas/proto/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `just proto-gen-backend`.
 
 ## API Endpoints
 

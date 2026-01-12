@@ -13,17 +13,17 @@ Terraform configurations for Desirelines infrastructure.
 
 ```bash
 # Dev environment
-make tf-dev-init
-make tf-dev-plan
-make tf-dev-apply   # requires confirmation
+just tf-dev-init
+just tf-dev-plan
+just tf-dev-apply   # requires confirmation
 
 # Prod environment
-make tf-prod-init
-make tf-prod-plan
-make tf-prod-apply  # requires typing "production"
+just tf-prod-init
+just tf-prod-plan
+just tf-prod-apply  # requires typing "production"
 ```
 
-## Makefile Targets
+## Task Runner (just)
 
 | Target | Description |
 |--------|-------------|
@@ -95,7 +95,7 @@ If images are missing, `terraform plan` fails with a clear error:
 
 ```
 Error: Image not found: .../dispatcher:abc1234
-Run 'make build-publish' first.
+Run 'just build-publish' first.
 ```
 
 This prevents partial deployments when images haven't been built.

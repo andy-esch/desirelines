@@ -38,8 +38,11 @@ jobs:
 
       # --- Fast checks first (fail fast) ---
 
+      - name: Set up Just
+        uses: extractions/setup-just@v3
+
       - name: Verify schemas are in sync
-        run: make verify-schemas
+        run: just verify-schemas
 
       - name: Install buf
         uses: bufbuild/buf-setup-action@v1
@@ -47,7 +50,7 @@ jobs:
           github_token: ${{ github.token }}
 
       - name: Lint proto files
-        run: make proto-lint
+        run: just proto-lint
 
       # --- Slow check last (~4 min) ---
 

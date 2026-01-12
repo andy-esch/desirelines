@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+echo "⚠️  [DEPRECATED] This script is under review and may be removed."
+
 # Setup script for local testing environment with live Strava API and BigQuery
 # This script creates the necessary BigQuery resources for ad hoc testing
 
@@ -50,7 +52,7 @@ fi
 
 # Generate and create table schema
 echo "🏗️  Creating BigQuery table..."
-SCHEMA_CLI=$(uv run scripts/schema/schema_to_bq.py activities)
+SCHEMA_CLI=$(uv run schemas/bigquery/scripts/schema_to_bq.py activities)
 
 # Create or update the table
 echo "  Creating table: $LOCAL_TABLE"

@@ -1,0 +1,1 @@
+# Deployment Scripts\n\nScripts for deploying applications and infrastructure.\n\n- `deploy-web.sh`: Deploy React frontend to Firebase.\n- `deploy-secrets.sh`: Deploy secrets to Secret Manager.\n- `build-and-publish.sh`: Build and publish Docker images (Pants wrapper).

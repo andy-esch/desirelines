@@ -195,7 +195,7 @@ if gcloud auth application-default print-access-token >/dev/null 2>&1; then
 	echo "   ✅ Authentication already configured"
 else
 	echo "   ⚠️  Please configure impersonation manually:"
-	echo "      make impersonate-terraform"
+	echo "      just auth-impersonate"
 	echo "   This sets temporary impersonation (recommended over permanent application default credentials)"
 	exit 1
 fi
@@ -250,7 +250,7 @@ if [[ "$ENV_NAME" == "local" ]]; then
 	CURRENT_SHA="local-dev"
 else
 	echo "5️⃣ Packaging functions..."
-	./scripts/operations/package-functions.sh
+	pants package functions::
 	CURRENT_SHA=$(git rev-parse --short HEAD)
 	echo "✅ Functions packaged with SHA: $CURRENT_SHA"
 fi
@@ -286,6 +286,6 @@ echo "   • Verify BigQuery datasets were created"
 echo "   • Check Cloud Functions are deployed"
 echo ""
 echo "⚡ To deploy updates:"
-echo "   ./scripts/operations/package-functions.sh"
+echo "   pants package functions::"
 echo "   cd terraform/environments/$ENV_NAME"
 echo "   terraform apply -var=\"function_source_tag=\$(git rev-parse --short HEAD)\""
