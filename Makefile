@@ -455,30 +455,6 @@ start-backend:
 	@echo "🧪 Test the full flow:"
 	@echo "  make test-full-flow"
 
-# Start backend with local Terraform-managed GCP resources (hybrid mode)
-start-backend-local:
-	@echo "⚠️  [DEPRECATED] This command is migrated to 'just start mode=hybrid'"
-	@echo "🚀 Starting backend with local GCP resources (PubSub emulator + Terraform-created BigQuery/Storage)..."
-	@if [ ! -f "$$HOME/.config/gcloud/application_default_credentials.json" ]; then \
-		echo "❌ Error: No gcloud application default credentials found"; \
-		echo "   Please run: gcloud auth application-default login"; \
-		echo "   This will authenticate your local environment for GCP access"; \
-		exit 1; \
-	fi
-	docker compose -f docker-compose.yml -f docker-compose.local.yml up --build --detach
-	@echo "✅ All backend services are running with local GCP resources!"
-	@echo "📋 Service URLs:"
-	@echo "  Dispatcher:        http://localhost:8081 (→ PubSub Emulator forwarding)"
-	@echo "  BQ Inserter:       http://localhost:8083 (→ Terraform-managed BigQuery)"
-	@echo "  PostgreSQL Writer: http://localhost:8086 (→ Terraform-managed Cloud SQL)"
-	@echo "  PubSub Emulator:   http://localhost:8085"
-	@echo ""
-	@echo "🧪 Test the full flow:"
-	@echo "  make test-full-flow"
-	@echo ""
-	@echo "💡 Data will be written to: desirelines.activities (BQ) + PostgreSQL"
-	@echo "🔐 Using your gcloud application default credentials"
-
 # Start backend with PubSub UI for debugging
 start-backend-debug:
 	@echo "⚠️  [DEPRECATED] This command is migrated to 'just start mode=debug'"

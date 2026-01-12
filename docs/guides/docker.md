@@ -14,9 +14,11 @@ packages/
     ├── Dockerfile.bq_inserter      # Python/FastAPI - Cloud Run
     └── Dockerfile.postgres_writer  # Python/FastAPI - Cloud Run
 
-scripts/development/local-dev/
-├── Dockerfile.cloudevent_adapter   # Python/FastAPI - local dev only
-└── Dockerfile.firebase-emulators   # Firebase Auth + Firestore emulators
+local-dev/containers/
+├── cloudevent-adapter/
+│   └── Dockerfile                  # Python/FastAPI - local dev only
+└── firebase-emulators/
+    └── Dockerfile                  # Firebase Auth + Firestore emulators
 ```
 
 ## Building with Pants (Recommended)

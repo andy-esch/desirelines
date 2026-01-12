@@ -70,7 +70,7 @@ The PubSub emulator doesn't send CloudEvent headers. A **CloudEvent Adapter** br
 PubSub Emulator → CloudEvent Adapter → [adds ce-* headers] → Services
 ```
 
-See `scripts/development/local-dev/cloudevent_adapter.py`.
+See `local-dev/containers/cloudevent-adapter/cloudevent_adapter.py`.
 
 ## Related Files
 
