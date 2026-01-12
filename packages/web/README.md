@@ -101,7 +101,7 @@ src/
 └── utils/            # Helpers (units, dates, demo data generator)
 ```
 
-**Protobuf Types:** API response types are generated from `schemas/proto/`. Run `make proto-gen-web` to regenerate.
+**Protobuf Types:** API response types are generated from `schemas/proto/`. Run `just proto-gen-web` to regenerate.
 
 ## Troubleshooting
 

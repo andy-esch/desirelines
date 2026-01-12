@@ -31,6 +31,7 @@ py-test:
 	cd packages/stravapipe && uv run pytest tests/
 
 py-test-coverage:
+	@echo "⚠️  [DEPRECATED] Use 'just py-test --cov=src --cov-report=xml --cov-report=term'"
 	cd packages/stravapipe && uv run pytest tests/ --cov=src --cov-report=xml --cov-report=term
 
 # [MIGRATED] Replaced by 'just py-lint'
@@ -57,10 +58,12 @@ go-test:
 	cd packages/apigateway && go test -v ./...
 
 go-test-all:
+	@echo "⚠️  [DEPRECATED] Use 'just go-test' (it runs all tests in the package)"
 	@echo "🧪 Running all Go tests in workspace (parallelism=2)..."
 	go test -v -p 2 all
 
 go-test-coverage:
+	@echo "⚠️  [DEPRECATED] Use 'just go-test -coverprofile=coverage.out'"
 	@echo "🧪 Running Go tests with coverage..."
 	cd packages/dispatcher && go test -v -coverprofile=coverage.out -covermode=atomic ./...
 	cd packages/apigateway && go test -v -coverprofile=coverage.out -covermode=atomic ./...
@@ -72,6 +75,7 @@ go-lint:
 	golangci-lint run ./packages/dispatcher/... ./packages/apigateway/...
 
 go-lint-fix:
+	@echo "⚠️  [DEPRECATED] Use 'just go-lint --fix'"
 	@echo "🔧 Running golangci-lint with auto-fix..."
 	golangci-lint run --fix ./packages/dispatcher/... ./packages/apigateway/...
 
@@ -82,6 +86,7 @@ go-format:
 	cd packages/apigateway && go fmt ./...
 
 go-build:
+	@echo "⚠️  [DEPRECATED] Use direct 'go build' or rely on pants"
 	cd packages/dispatcher && go build -v .
 
 # Web/React commands
@@ -92,6 +97,7 @@ web-test:
 	cd packages/web && npm test -- --coverage
 
 web-test-integration:
+	@echo "⚠️  [DEPRECATED] Use 'cd packages/web && npm run test:integration'"
 	@echo "🧪 Running React integration tests..."
 	cd packages/web && npm run test:integration
 
@@ -102,6 +108,7 @@ web-lint:
 	cd packages/web && npm run lint
 
 web-lint-fix:
+	@echo "⚠️  [DEPRECATED] Use 'cd packages/web && npm run lint:fix'"
 	@echo "🔧 Running ESLint with auto-fix..."
 	cd packages/web && npm run lint:fix
 
@@ -112,6 +119,7 @@ web-format:
 	cd packages/web && npm run format
 
 web-format-check:
+	@echo "⚠️  [DEPRECATED] Use 'cd packages/web && npm run format:check'"
 	@echo "🔍 Checking code formatting..."
 	cd packages/web && npm run format:check
 
@@ -122,6 +130,7 @@ web-typecheck:
 	cd packages/web && npm run typecheck
 
 web-build:
+	@echo "⚠️  [DEPRECATED] Use 'cd packages/web && npm run build' or 'just build-publish'"
 	@echo "🔨 Building production bundle..."
 	cd packages/web && npm run build
 
@@ -131,15 +140,16 @@ web-dev:
 	@echo "⚡ Starting Vite dev server..."
 	cd packages/web && npm run dev
 
-# ==========================================
+# ========================================== 
 # Protocol Buffer Code Generation
-# ==========================================
+# ========================================== 
 
 # Generate protobuf code for all languages
 .PHONY: proto-gen
 # [MIGRATED] Replaced by 'just proto-gen'
-proto-gen: proto-gen-backend proto-gen-web
+proto-gen:
 	@echo "⚠️  [DEPRECATED] This command is migrated to 'just proto-gen'"
+	proto-gen-backend proto-gen-web
 	@echo "✅ All schemas generated"
 
 # Backend: Use Pants to generate Go & Python code and copy to source tree
@@ -184,9 +194,9 @@ proto-gen-web:
 		--ts_proto_out=packages/web/src/types/generated/.tmp \
 		--ts_proto_opt=outputJsonMethods=false,outputPartialMethods=false,useOptionals=messages,oneof=unions \
 		-I schemas/proto \
-		schemas/proto/desirelines/sports/v1/sports_metrics.proto \
-		schemas/proto/desirelines/config/v1/user_config.proto \
-		schemas/proto/desirelines/activities/v1/activities.proto
+	schemas/proto/desirelines/sports/v1/sports_metrics.proto \
+	schemas/proto/desirelines/config/v1/user_config.proto \
+	schemas/proto/desirelines/activities/v1/activities.proto
 	@# Flatten: copy files from nested dirs to root of generated/
 	@find packages/web/src/types/generated/.tmp -name "*.ts" -exec cp {} packages/web/src/types/generated/ \;
 	@rm -rf packages/web/src/types/generated/.tmp
@@ -213,6 +223,7 @@ proto-lint:
 
 .PHONY: proto-clean
 proto-clean:
+	@echo "⚠️  [DEPRECATED] No direct just equivalent yet. Manually clean if needed."
 	@echo "🧹 Cleaning generated code..."
 	rm -rf dist/codegen
 	rm -f packages/stravapipe/src/stravapipe/types/generated/*_pb2.py*
@@ -221,16 +232,17 @@ proto-clean:
 	rm -f packages/web/src/types/generated/*.ts
 	@echo "✅ Generated code cleaned"
 
-# ==========================================
+# ========================================== 
 # Schema Sync (Proto + Sport Config)
-# ==========================================
+# ========================================== 
 
 # Sync all schemas from schemas/ to packages that need them
 # Run after modifying any schema file (proto or sport config)
 .PHONY: sync-schemas
 # [MIGRATED] Replaced by 'just sync-schemas'
-sync-schemas: proto-gen-backend sync-sport-config
+sync-schemas:
 	@echo "⚠️  [DEPRECATED] This command is migrated to 'just sync-schemas'"
+	proto-gen-backend sync-sport-config
 	@echo "✅ All schemas synced"
 
 .PHONY: sync-sport-config
@@ -246,6 +258,7 @@ sync-sport-config:
 
 .PHONY: verify-schemas
 verify-schemas:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just verify-schemas'"
 	@echo "🔍 Verifying schemas are in sync..."
 	@diff -q schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/sport_types.json || \
 		(echo "❌ stravapipe sport config out of sync! Run: make sync-schemas" && exit 1)
@@ -253,13 +266,14 @@ verify-schemas:
 		(echo "❌ apigateway sport config out of sync! Run: make sync-schemas" && exit 1)
 	@echo "✅ All schemas in sync"
 
-# ==========================================
+# ========================================== 
 # Service Account Management
-# ==========================================
+# ========================================== 
 
 # Service Account Management
 .PHONY: impersonate-terraform
 impersonate-terraform:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just auth-impersonate'"
 	$(call check_project)
 	@echo "🔑 Impersonating terraform-desirelines service account..." && \
 	gcloud config set auth/impersonate_service_account terraform-desirelines@$(GCP_PROJECT_ID).iam.gserviceaccount.com && \
@@ -267,37 +281,43 @@ impersonate-terraform:
 
 .PHONY: stop-impersonate
 stop-impersonate:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just auth-stop'"
 	@echo "🔑 Stopping service account impersonation..."
 	@gcloud config unset auth/impersonate_service_account
 	@echo "✅ Now using your user account"
 
 .PHONY: check-auth
 check-auth:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just auth-status'"
 	@echo "🔍 Current authentication status:"
 	@echo "Active account: $$(gcloud config get-value account)"
 	@echo "Impersonating: $$(gcloud config get-value auth/impersonate_service_account || echo 'None')"
 
-# ==========================================
+# ========================================== 
 # Terraform Operations
-# ==========================================
+# ========================================== 
 
 .PHONY: tf-local-init
 tf-local-init:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-init local'"
 	@echo "🏗️ Initializing local Terraform environment..."
 	@cd terraform/environments/local && terraform init
 
 .PHONY: tf-local-plan
 tf-local-plan:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-plan local'"
 	@echo "📋 Planning local Terraform deployment..."
 	@cd terraform/environments/local && terraform plan
 
 .PHONY: tf-local-apply
 tf-local-apply:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-apply local'"
 	@echo "🚀 Applying local Terraform deployment..."
 	@cd terraform/environments/local && terraform apply
 
 .PHONY: tf-local-destroy
 tf-local-destroy:
+	@echo "⚠️  [DEPRECATED] Use 'just tf local destroy'"
 	@echo "💥 Destroying local Terraform resources..."
 	@cd terraform/environments/local && terraform destroy
 
@@ -311,6 +331,7 @@ tf-fmt:
 
 .PHONY: tf-validate-all
 tf-validate-all:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-validate-all'"
 	@echo "🔍 Validating all Terraform configurations..."
 	@cd terraform/environments/artifacts && terraform init -backend=false && terraform validate
 	@cd terraform/environments/dev && terraform init -backend=false && terraform validate
@@ -322,16 +343,19 @@ tf-validate-all:
 # Dev environment operations
 .PHONY: tf-dev-init
 tf-dev-init:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-init dev'"
 	@echo "🏗️ Initializing dev Terraform environment..."
 	@cd terraform/environments/dev && terraform init
 
 .PHONY: tf-dev-plan
 tf-dev-plan:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-plan dev'"
 	@echo "📋 Planning dev Terraform deployment..."
 	@cd terraform/environments/dev && terraform plan -var="deployment_version=$$(git rev-parse --short HEAD)"
 
 .PHONY: tf-dev-apply
 tf-dev-apply:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-apply dev'"
 	@echo "⚠️  This will apply changes to DEV environment."
 	@echo "    Consider using CI/CD for deployments instead."
 	@read -p "Type 'dev' to continue: " confirm && [ "$$confirm" = "dev" ] || (echo "Aborted." && exit 1)
@@ -339,6 +363,7 @@ tf-dev-apply:
 
 .PHONY: tf-dev-drift
 tf-dev-drift:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-drift dev'"
 	@echo "🔍 Checking for drift in dev environment..."
 	@cd terraform/environments/dev && \
 	terraform plan -detailed-exitcode -var="deployment_version=$$(git rev-parse --short HEAD)" > /dev/null 2>&1; \
@@ -350,16 +375,19 @@ tf-dev-drift:
 # Prod environment operations
 .PHONY: tf-prod-init
 tf-prod-init:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-init prod'"
 	@echo "🏗️ Initializing prod Terraform environment..."
 	@cd terraform/environments/prod && terraform init
 
 .PHONY: tf-prod-plan
 tf-prod-plan:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-plan prod'"
 	@echo "📋 Planning prod Terraform deployment..."
 	@cd terraform/environments/prod && terraform plan -var="deployment_version=$$(git rev-parse --short HEAD)"
 
 .PHONY: tf-prod-apply
 tf-prod-apply:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-apply prod'"
 	@echo "🚨 WARNING: This will apply changes to PRODUCTION environment!"
 	@echo "    Deployments should go through CI/CD with proper review."
 	@read -p "Type 'production' to continue: " confirm && [ "$$confirm" = "production" ] || (echo "Aborted." && exit 1)
@@ -367,6 +395,7 @@ tf-prod-apply:
 
 .PHONY: tf-prod-drift
 tf-prod-drift:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just tf-drift prod'"
 	@echo "🔍 Checking for drift in prod environment..."
 	@cd terraform/environments/prod && \
 	terraform plan -detailed-exitcode -var="deployment_version=$$(git rev-parse --short HEAD)" > /dev/null 2>&1; \
@@ -377,7 +406,9 @@ tf-prod-drift:
 
 # Combined workflows
 .PHONY: setup-local
-setup-local: impersonate-terraform tf-local-init tf-local-plan
+setup-local:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just setup-local'"
+	impersonate-terraform tf-local-init tf-local-plan
 	@echo "✅ Local environment ready! Run 'make tf-local-apply' to create resources."
 
 # Help target
@@ -389,24 +420,29 @@ help:
 
 # Combined commands
 # [MIGRATED] Replaced by 'just test'
-test: verify-schemas py-test go-test web-test
+test:
 	@echo "⚠️  [DEPRECATED] This command is migrated to 'just test'"
+	verify-schemas py-test go-test web-test
 # [MIGRATED] Replaced by 'just lint'
-lint: py-lint go-lint web-lint proto-lint
+lint:
 	@echo "⚠️  [DEPRECATED] This command is migrated to 'just lint'"
+	py-lint go-lint web-lint proto-lint
 # [MIGRATED] Replaced by 'just format'
-format: py-format go-format web-format tf-fmt proto-fmt
+format:
 	@echo "⚠️  [DEPRECATED] This command is migrated to 'just format'"
+	py-format go-format web-format tf-fmt proto-fmt
 # [MIGRATED] Replaced by 'just typecheck'
-typecheck: py-typecheck web-typecheck
+typecheck:
 	@echo "⚠️  [DEPRECATED] This command is migrated to 'just typecheck'"
+	py-typecheck web-typecheck
 
-# ==========================================
+# ========================================== 
 # Docker-based Local Development
-# ==========================================
+# ========================================== 
 
 # Start backend pipeline locally with PubSub emulator
 start-backend:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just start'"
 	@echo "🚀 Starting backend pipeline locally (PubSub emulator + local storage)..."
 	docker compose --profile backend up --build --detach
 	@echo "✅ All backend services are running!"
@@ -421,6 +457,7 @@ start-backend:
 
 # Start backend with local Terraform-managed GCP resources (hybrid mode)
 start-backend-local:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just start mode=hybrid'"
 	@echo "🚀 Starting backend with local GCP resources (PubSub emulator + Terraform-created BigQuery/Storage)..."
 	@if [ ! -f "$$HOME/.config/gcloud/application_default_credentials.json" ]; then \
 		echo "❌ Error: No gcloud application default credentials found"; \
@@ -444,6 +481,7 @@ start-backend-local:
 
 # Start backend with PubSub UI for debugging
 start-backend-debug:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just start mode=debug'"
 	@echo "🐛 Starting backend pipeline with PubSub debugging UI..."
 	docker compose --profile backend --profile debug up --build --detach
 	@echo "✅ All backend services are running with debugging UI!"
@@ -459,32 +497,39 @@ start-backend-debug:
 
 # View logs from all backend services
 logs:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just logs'"
 	docker compose --profile backend logs -f
 
 # View dispatcher logs
 logs-dispatcher:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just logs dispatcher'"
 	docker compose --profile backend logs -f dispatcher
 
 # View bq-inserter logs
 logs-bq:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just logs bq-inserter'"
 	docker compose --profile backend logs -f bq-inserter
 
 # View postgres-writer logs
 logs-postgres:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just logs postgres-writer'"
 	docker compose --profile backend logs -f postgres-writer
 
 # Stop services and cleanup
 stop:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just stop'"
 	@echo "🛑 Stopping all services..."
 	docker compose --profile backend --profile debug --profile frontend down
 
 # Build all images
 build:
+	@echo "⚠️  [DEPRECATED] No direct just equivalent. Use docker compose build."
 	@echo "🔨 Building all Docker images..."
 	docker compose build
 
 # Test the full end-to-end flow
 test-full-flow:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just test-flow'"
 	@echo "🧪 Testing full Strava webhook flow..."
 	@echo ""
 	@echo "1️⃣ Sending CREATE webhook to dispatcher..."
@@ -506,23 +551,26 @@ test-full-flow:
 
 # Clean up Docker resources
 clean:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just clean'"
 	@echo "🧹 Cleaning up Docker resources..."
 	docker compose down --rmi all --volumes --remove-orphans
 	docker system prune -f
 
 
-# ==========================================
+# ========================================== 
 # Build and Publish (Pants)
-# ==========================================
+# ========================================== 
 
 # Build and publish all Cloud Run images
 .PHONY: build-publish
 build-publish:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just build-publish'"
 	@./scripts/ops/deploy/build-and-publish.sh
 
 # Build and publish with specific tag
 .PHONY: build-publish-tag
 build-publish-tag:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just build-publish tag=...'"
 	@if [ -z "$(TAG)" ]; then \
 		echo "❌ Error: Please specify TAG"; \
 		echo "Usage: make build-publish-tag TAG=abc1234"; \
@@ -530,11 +578,12 @@ build-publish-tag:
 	fi
 	@./scripts/ops/deploy/build-and-publish.sh $(TAG)
 
-# ==========================================
+# ========================================== 
 # Secret Management & Webhooks
-# ==========================================
+# ========================================== 
 
 deploy-secrets:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just secret-deploy'"
 	@if [ -z "$(SECRET_FILE)" ]; then \
 		echo "❌ Error: Please specify secret file: make deploy-secrets SECRET_FILE=strava-auth.json"; \
 		exit 1; \
@@ -542,12 +591,15 @@ deploy-secrets:
 	@./scripts/ops/deploy/deploy-secrets.sh $(SECRET_FILE)
 
 create-webhook:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just webhook create ...'"
 	$(call check_project_and_run,./scripts/ops/webhook-management.sh create)
 
 view-webhook:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just webhook view ...'"
 	$(call check_project_and_run,./scripts/ops/webhook-management.sh view)
 
 delete-webhook:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just webhook delete ...'"
 	@CURRENT_PROJECT="$(GCP_PROJECT_ID)"; \
 	if [ "$$CURRENT_PROJECT" = "desirelines-dev" ]; then \
 		ENV_NAME="dev"; \
@@ -574,19 +626,22 @@ delete-webhook:
 	fi
 
 generate-webhook-verify-token:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just webhook generate-token ...'"
 	$(call check_project_and_run,./scripts/ops/webhook-management.sh generate-token)
 
 rotate-webhook-verify-token:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just webhook rotate-token ...'"
 	$(call check_project_and_run,./scripts/ops/webhook-management.sh rotate-token)
 
 
 
-# ==========================================
+# ========================================== 
 # Frontend Development (Web UI + API Gateway)
-# ==========================================
+# ========================================== 
 
 # Start frontend development stack (API Gateway + Firebase Emulators + PostgreSQL)
 start-frontend:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just start-frontend'"
 	@echo "🎨 Starting frontend development stack..."
 	docker compose --profile frontend up --build --detach
 	@echo "✅ Frontend development stack is running!"
@@ -604,26 +659,30 @@ start-frontend:
 
 # Stop frontend services
 stop-frontend:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just stop'"
 	@echo "🛑 Stopping frontend services..."
 	docker compose --profile frontend down
 
-# ==========================================
+# ========================================== 
 # Database Management
-# ==========================================
+# ========================================== 
 
 # Connect to local PostgreSQL database
 db-connect-local:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-connect-local'"
 	@echo "🔌 Connecting to local PostgreSQL database..."
 	docker compose --profile backend exec postgres psql -U desirelines -d desirelines_local
 
 # Run database migrations
 db-migrate-local:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-migrate-local'"
 	@echo "🚀 Running database migrations..."
 	docker compose build flyway
 	docker compose --profile backend run --rm flyway migrate
 
 # Clean local database (drops all objects in desirelines schema)
 db-clean-local:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-clean-local'"
 	@echo "🧹 Cleaning local PostgreSQL database..."
 	@echo "⚠️  This will drop all objects in the desirelines schema!"
 	@read -p "Are you sure? (y/N): " confirm; \
@@ -634,40 +693,49 @@ db-clean-local:
 	fi
 
 # Production Database Operations
-# ==========================================
+# ========================================== 
 
 # Connect to dev database (admin - default)
 db-connect-dev:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-connect dev'"
 	@./scripts/database/connect.sh dev --admin
 
 # Connect to prod database (admin - default)
 db-connect-prod:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-connect prod'"
 	@./scripts/database/connect.sh prod --admin
 
 # Connect to dev database (apigateway read-only role)
 db-connect-dev-ro:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-connect dev apigateway'"
 	@./scripts/database/connect.sh dev --apigateway
 
 # Connect to prod database (apigateway read-only role)
 db-connect-prod-ro:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-connect prod apigateway'"
 	@./scripts/database/connect.sh prod --apigateway
 
 # Run migrations against dev (with dry-run first)
 db-migrate-dev:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-migrate dev'"
 	@./scripts/database/migrate.sh dev
 
 # Run migrations against dev (dry-run only - shows status)
 db-migrate-dev-info:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-migrate dev info'"
 	@./scripts/database/migrate.sh dev --dry-run
 
 # Run migrations against prod (requires confirmation)
 db-migrate-prod:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-migrate prod'"
 	@./scripts/database/migrate.sh prod
 
 # Run migrations against prod (dry-run only - shows status)
 db-migrate-prod-info:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-migrate prod info'"
 	@./scripts/database/migrate.sh prod --dry-run
 
 # Clean dev database (drops all objects in desirelines schema)
 db-clean-dev:
+	@echo "⚠️  [DEPRECATED] This command is migrated to 'just db-clean dev'"
 	@./scripts/database/migrate.sh dev clean

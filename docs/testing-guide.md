@@ -112,7 +112,7 @@ pants test --loop packages/stravapipe::
 
 ## Performance Comparison
 
-| Scenario | Legacy (Make) | Pants (first) | Pants (cached) | Speedup |
+| Scenario | Traditional (Native) | Pants (first) | Pants (cached) | Speedup |
 |----------|----------|---------------|----------------|---------|
 | Python tests | 3.5s | ~60s | 1.7s | **2x faster** |
 | All tests | ~65s | ~90s | ~10s | **6.5x faster** |
@@ -200,21 +200,22 @@ jobs:
           files: dist/coverage/python/coverage.xml
 ```
 
-## Legacy (Make) Commands
+## Just Integration
 
-The Legacy (Make) still works as a thin wrapper (now using Just):
+You can use `just` as a convenient wrapper for testing, which supports both native tools (default) and Pants:
 
 ```bash
-# These still work (using native tools by default)
-just test          # → Run all tests (uv/go/npm)
-just py-test       # → uv run pytest ...
-just go-test       # → go test ...
+# Run tests using native tools (uv, go, npm) - fast for small changes
+just test
+just py-test
+just go-test
 
-# Use --pants flag to run via Pants
+# Use --pants flag to run via Pants (leveraging caching)
 just test --pants
+just py-test --pants
 ```
 
-**Recommendation:** Use Pants commands directly for better performance and features.
+**Recommendation:** Use `just` for daily workflows and `pants` directly for advanced features like change detection or debugging.
 
 ## Advanced Features
 
