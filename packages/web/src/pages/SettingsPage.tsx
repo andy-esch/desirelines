@@ -1,10 +1,10 @@
 import { useState, useCallback } from "react";
-import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { SettingsSection } from "../components/settings/SettingsSection";
 import { SettingRow } from "../components/settings/SettingRow";
 import { GoalManagementTable } from "../components/settings/GoalManagementTable";
+import { SportVisibilitySettings } from "../components/settings/SportVisibilitySettings";
 import { CheckIcon } from "../components/icons";
 import NeonSpinner from "../components/NeonSpinner";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
@@ -50,10 +50,8 @@ export default function SettingsPage() {
     }
   }, [signOut]);
 
-  // Redirect unauthenticated users
-  if (!authLoading && !user) {
-    return <Navigate to="/" replace />;
-  }
+  // Note: Settings page works for both authenticated users (Firestore) and
+  // demo mode (localStorage) - no redirect needed
 
   // Show loading state
   if (authLoading || prefsLoading) {
@@ -136,36 +134,45 @@ export default function SettingsPage() {
           </SettingRow>
         </SettingsSection>
 
-        <SettingsSection title="Account">
-          <SettingRow label="Email" readOnly>
-            <span className="text-muted">{user?.email || "—"}</span>
-          </SettingRow>
-
-          <SettingRow label="Name" readOnly>
-            <span className="text-muted">{user?.displayName || "—"}</span>
-          </SettingRow>
-
-          <SettingRow label="Connected Account" readOnly>
-            <span
-              className="d-flex align-items-center gap-1"
-              style={{ color: "var(--bs-success, #68d391)" }}
-            >
-              <CheckIcon />
-              Strava
-            </span>
-          </SettingRow>
-
-          <div className="pt-3">
-            <button
-              type="button"
-              className="btn btn-outline-danger btn-sm"
-              onClick={handleSignOut}
-              disabled={signingOut}
-            >
-              {signingOut ? "Signing out..." : "Sign Out"}
-            </button>
-          </div>
+        <SettingsSection
+          title="Visible Sports"
+          description="Choose which sports appear in your dashboard and navigation"
+        >
+          <SportVisibilitySettings />
         </SettingsSection>
+
+        {user && (
+          <SettingsSection title="Account">
+            <SettingRow label="Email" readOnly>
+              <span className="text-muted">{user.email || "—"}</span>
+            </SettingRow>
+
+            <SettingRow label="Name" readOnly>
+              <span className="text-muted">{user.displayName || "—"}</span>
+            </SettingRow>
+
+            <SettingRow label="Connected Account" readOnly>
+              <span
+                className="d-flex align-items-center gap-1"
+                style={{ color: "var(--bs-success, #68d391)" }}
+              >
+                <CheckIcon />
+                Strava
+              </span>
+            </SettingRow>
+
+            <div className="pt-3">
+              <button
+                type="button"
+                className="btn btn-outline-danger btn-sm"
+                onClick={handleSignOut}
+                disabled={signingOut}
+              >
+                {signingOut ? "Signing out..." : "Sign Out"}
+              </button>
+            </div>
+          </SettingsSection>
+        )}
 
         <SettingsSection title="Goals" description="Manage your goals across all sports and years">
           <GoalManagementTable />

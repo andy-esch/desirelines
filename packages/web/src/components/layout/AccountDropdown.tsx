@@ -46,7 +46,7 @@ const UserIcon = () => (
  *
  * Shows user information and auth controls in a dropdown:
  * - Authenticated: email, Strava status, Settings link, Sign Out
- * - Demo mode: "Not logged in", Sign In button
+ * - Demo mode: "Not logged in", Settings link, Sign In button
  */
 export function AccountDropdown({
   user,
@@ -263,21 +263,19 @@ export function AccountDropdown({
           </div>
 
           {/* Menu Items */}
-          {user && (
-            <Link
-              to="/settings"
-              role="menuitem"
-              style={menuItemStyle}
-              onClick={handleSettingsClick}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = menuItemHoverStyle)}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            >
-              <SettingsIcon />
-              <span>Settings</span>
-            </Link>
-          )}
+          <Link
+            to="/settings"
+            role="menuitem"
+            style={menuItemStyle}
+            onClick={handleSettingsClick}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = menuItemHoverStyle)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+          >
+            <SettingsIcon />
+            <span>Settings</span>
+          </Link>
 
-          <div style={{ borderTop: user ? "1px solid var(--slate, #4a5568)" : "none" }}>
+          <div style={{ borderTop: "1px solid var(--slate, #4a5568)" }}>
             {user ? (
               <button
                 type="button"
