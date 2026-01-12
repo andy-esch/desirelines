@@ -1,5 +1,7 @@
 import { useMemo, useCallback } from "react";
 import { useUserConfig } from "./useUserConfig";
+import { useAuth } from "./useAuth";
+import { DEFAULT_PREFERENCES } from "../constants/settings";
 
 /**
  * Default visible sports when user hasn't set preferences.
@@ -33,6 +35,7 @@ const DEFAULT_VISIBLE_SPORTS = ["cycling", "running", "yoga"];
  * ```
  */
 export function useVisibleSports(knownSports?: string[]) {
+  const { loading: authLoading } = useAuth();
   const {
     data: prefs,
     loading,
@@ -77,8 +80,6 @@ export function useVisibleSports(knownSports?: string[]) {
    */
   const setVisibleSports = useCallback(
     async (sports: string[]) => {
-      if (!prefs) return;
-
       // Filter to known sports if provided
       let validSports = sports;
       if (knownSports && knownSports.length > 0) {
@@ -91,7 +92,9 @@ export function useVisibleSports(knownSports?: string[]) {
         return;
       }
 
+      // Create prefs object if it doesn't exist yet, using defaults
       await updateData({
+        ...DEFAULT_PREFERENCES,
         ...prefs,
         visibleSports: validSports,
       });
@@ -104,8 +107,8 @@ export function useVisibleSports(knownSports?: string[]) {
     visibleSports,
     /** Update the visible sports list */
     setVisibleSports,
-    /** True while loading preferences from storage */
-    isLoading: loading,
+    /** True while loading auth or preferences from storage */
+    isLoading: authLoading || loading,
     /** Error loading preferences (null if no error) */
     error,
     /** True while saving to storage */
