@@ -1,16 +1,7 @@
-# Start backend services (mode: local, debug)
-start mode='local':
-    #!/usr/bin/env bash
-    if [[ "{{mode}}" == "local" ]]; then
-        echo "🚀 Starting backend (Local Mode)..."
-        docker compose --profile backend up --build --detach
-    elif [[ "{{mode}}" == "debug" ]]; then
-        echo "🐛 Starting backend (Debug Mode)..."
-        docker compose --profile backend --profile debug up --build --detach
-    else
-        echo "❌ Unknown mode: {{mode}}"
-        exit 1
-    fi
+# Start backend services
+start-backend:
+    @echo "🚀 Starting backend (Local Mode)..."
+    docker compose --profile backend up --build --detach
 
 # Start frontend stack
 start-frontend:
@@ -24,7 +15,7 @@ stop:
 
 # View logs (service: dispatcher, bq-inserter, etc. Default: all)
 logs service='':
-    docker compose --profile backend logs -f {{service}}
+    docker compose --profile backend logs -f {{ service }}
 
 # Clean Docker resources
 clean:
