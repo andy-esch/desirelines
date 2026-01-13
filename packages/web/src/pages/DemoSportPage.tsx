@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { convertDistance, getUserSettings } from "../utils/units";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
 import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
@@ -161,6 +161,29 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
               </h1>
             </div>
 
+            {/* No data banner - show when viewing current year with no activities */}
+            {!isLoading && currentValue === 0 && currentYear === new Date().getFullYear() && (
+              <div
+                className="alert d-flex align-items-center mb-3"
+                role="alert"
+                style={{
+                  backgroundColor: "rgba(0, 212, 255, 0.1)",
+                  border: "1px solid rgba(0, 212, 255, 0.3)",
+                  color: "var(--slate-light, #94a3b8)",
+                }}
+              >
+                <span>
+                  No {sport} activities recorded for {currentYear}.{" "}
+                  <Link
+                    to={`/demo/${sport}/${currentYear - 1}`}
+                    style={{ color: "var(--accent-cyan, #00d4ff)" }}
+                  >
+                    View {currentYear - 1} instead →
+                  </Link>
+                </span>
+              </div>
+            )}
+
             <KPICards
               currentDistance={currentValue}
               nextGoal={nextGoal}
@@ -175,7 +198,14 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
             />
 
             {!isLoading && !error && chartData.length === 0 ? (
-              <EmptyState sport={sport} year={currentYear} unit={metricUnit} />
+              <EmptyState
+                sport={sport}
+                year={currentYear}
+                unit={metricUnit}
+                suggestedYear={
+                  currentYear === new Date().getFullYear() ? currentYear - 1 : undefined
+                }
+              />
             ) : (
               <GoalSummaryTable
                 goals={goals}

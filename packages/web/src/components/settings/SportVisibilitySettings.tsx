@@ -1,8 +1,11 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
-import { CheckIcon, CloseIcon } from "../icons";
+import { CheckIcon, CloseIcon, EyeIcon, EyeSlashIcon } from "../icons";
 import NeonSpinner from "../NeonSpinner";
+
+/** Duration to show "Saved" indicator */
+const SAVE_SUCCESS_DURATION = 2000;
 
 /** Sport entry with parsed config */
 interface SportEntry {
@@ -23,17 +26,30 @@ function formatMetricLabel(metric: string): string {
   return labels[metric] || metric;
 }
 
+/** Check if a Set and array have the same elements */
+function setsMatch(set: Set<string>, arr: string[]): boolean {
+  if (set.size !== arr.length) return false;
+  for (const item of arr) {
+    if (!set.has(item)) return false;
+  }
+  return true;
+}
+
+/** Check if a Set differs from a baseline array */
+function selectionDiffers(selection: Set<string>, baseline: string[] | null): boolean {
+  if (baseline === null) return false;
+  return !setsMatch(selection, baseline);
+}
+
 /** Reusable sport table for both visible and hidden sections */
 function SportTable({
   sports,
-  actionLabel,
   actionVariant,
   onAction,
   disabled,
   emptyMessage,
 }: {
   sports: SportEntry[];
-  actionLabel: string;
   actionVariant: "show" | "hide";
   onAction: (key: string) => void;
   disabled?: (key: string) => boolean;
@@ -43,6 +59,10 @@ function SportTable({
     return <div className="text-muted py-2 small">{emptyMessage}</div>;
   }
 
+  // Use eye icons: EyeIcon for "show" (make visible), EyeSlashIcon for "hide"
+  const ActionIcon = actionVariant === "show" ? EyeIcon : EyeSlashIcon;
+  const actionTitle = actionVariant === "show" ? "Show sport" : "Hide sport";
+
   return (
     <div className="table-responsive">
       <table className="table table-sm mb-0">
@@ -51,7 +71,7 @@ function SportTable({
             <th style={{ width: "130px" }}>Sport</th>
             <th>Strava Types</th>
             <th style={{ width: "130px" }}>Metrics</th>
-            <th style={{ width: "70px" }}></th>
+            <th style={{ width: "44px" }}></th>
           </tr>
         </thead>
         <tbody>
@@ -80,13 +100,10 @@ function SportTable({
                         type="button"
                         className="btn btn-sm btn-outline-secondary"
                         disabled
-                        style={{
-                          fontSize: "0.75rem",
-                          padding: "0.15rem 0.5rem",
-                          pointerEvents: "none",
-                        }}
+                        style={{ padding: "0.25rem 0.4rem", pointerEvents: "none" }}
+                        aria-label={actionTitle}
                       >
-                        {actionLabel}
+                        <ActionIcon size={14} />
                       </button>
                     </span>
                   ) : (
@@ -94,9 +111,11 @@ function SportTable({
                       type="button"
                       className={`btn btn-sm ${actionVariant === "show" ? "btn-outline-success" : "btn-outline-secondary"}`}
                       onClick={() => onAction(sport.key)}
-                      style={{ fontSize: "0.75rem", padding: "0.15rem 0.5rem" }}
+                      style={{ padding: "0.25rem 0.4rem" }}
+                      title={actionTitle}
+                      aria-label={`${actionTitle}: ${sport.displayName}`}
                     >
-                      {actionLabel}
+                      <ActionIcon size={14} />
                     </button>
                   )}
                 </td>
@@ -109,6 +128,9 @@ function SportTable({
   );
 }
 
+/** Auto-save debounce delay in milliseconds */
+const AUTO_SAVE_DELAY = 500;
+
 /**
  * Sport visibility settings component.
  *
@@ -117,7 +139,7 @@ function SportTable({
  * - Two-box layout: Visible Sports and Hidden Sports
  * - Live filter box (filters as you type)
  * - Shows display name, Strava types, and available metrics
- * - Explicit "Save Changes" button (no auto-save)
+ * - Auto-saves changes after a brief debounce
  * - Validates at least one sport must be selected
  */
 export function SportVisibilitySettings() {
@@ -130,39 +152,50 @@ export function SportVisibilitySettings() {
     saveError,
   } = useVisibleSports();
 
-  // Local state for unsaved changes
+  // Local state for UI
   const [localSelection, setLocalSelection] = useState<Set<string>>(new Set());
   const [filterText, setFilterText] = useState("");
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
 
   // Track what visibleSports we last synced from
   const lastSyncedRef = useRef<string[] | null>(null);
+  // Track if we're initialized (to prevent auto-save on initial load)
+  const isInitializedRef = useRef(false);
+  // Debounce timer for auto-save
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Timer for success message dismissal (for cleanup)
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync localSelection with visibleSports when it changes
-  // But only if user hasn't made unsaved edits (localSelection matches lastSynced)
+  // Sync localSelection with visibleSports when it changes from external source
+  // But only if user hasn't made unsaved edits
   useEffect(() => {
     if (visibleSports.length === 0) return;
 
     const lastSynced = lastSyncedRef.current;
 
     // Check if visibleSports actually changed from what we last synced
-    const visibleSportsChanged =
-      lastSynced === null ||
-      lastSynced.length !== visibleSports.length ||
-      !lastSynced.every((s) => visibleSports.includes(s));
+    // (Use Set for O(1) lookup instead of array.includes which is O(n))
+    const visibleSet = new Set(visibleSports);
+    const visibleSportsChanged = lastSynced === null || !setsMatch(visibleSet, lastSynced);
 
     if (!visibleSportsChanged) return; // No change, nothing to do
 
+    // Check if localSelection already matches visibleSports (avoid unnecessary Set creation)
+    if (setsMatch(localSelection, visibleSports)) {
+      // Just update the ref, no need to create new Set
+      lastSyncedRef.current = visibleSports;
+      isInitializedRef.current = true;
+      return;
+    }
+
     // Check if user has unsaved edits (localSelection differs from lastSynced)
-    const hasUnsavedEdits =
-      lastSynced !== null &&
-      (localSelection.size !== lastSynced.length ||
-        !lastSynced.every((s) => localSelection.has(s)));
+    const hasUnsavedEdits = lastSynced !== null && !setsMatch(localSelection, lastSynced);
 
     if (!hasUnsavedEdits) {
       // Safe to sync - user hasn't made changes
       setLocalSelection(new Set(visibleSports));
       lastSyncedRef.current = visibleSports;
+      isInitializedRef.current = true;
     }
     // Note: if user has unsaved edits, we don't sync (preserve their work)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -211,25 +244,6 @@ export function SportVisibilitySettings() {
     return { visibleFiltered: visible, hiddenFiltered: hidden };
   }, [sportEntries, localSelection, filterText]);
 
-  /**
-   * Check if local selection differs from last synced (i.e., user made changes).
-   *
-   * NOTE: Reading lastSyncedRef.current inside useMemo is intentional.
-   * The ref is used instead of state to avoid re-renders when we update
-   * lastSynced (in handleSave and the sync useEffect). This works because
-   * localSelection always changes at the same time as lastSynced in this
-   * component's flow, so the memo re-computes when needed.
-   */
-  const hasChanges = useMemo(() => {
-    const lastSynced = lastSyncedRef.current;
-    if (lastSynced === null) return false; // Not initialized yet
-    if (localSelection.size !== lastSynced.length) return true;
-    for (const sport of localSelection) {
-      if (!lastSynced.includes(sport)) return true;
-    }
-    return false;
-  }, [localSelection]);
-
   // Show a sport (add to selection)
   const showSport = useCallback((sportKey: string) => {
     setLocalSelection((prev) => new Set([...prev, sportKey]));
@@ -245,27 +259,55 @@ export function SportVisibilitySettings() {
     });
   }, []);
 
-  // Save changes
-  const handleSave = useCallback(async () => {
-    const sportsToSave = Array.from(localSelection);
-    try {
-      await setVisibleSports(sportsToSave);
-      // Only update lastSynced on success so hasChanges stays accurate
-      lastSyncedRef.current = sportsToSave;
-      setShowSaveSuccess(true);
-      setTimeout(() => setShowSaveSuccess(false), 2000);
-    } catch (err) {
-      // Error is exposed via saveError from the hook, no need to handle here
-      console.error("Failed to save visible sports:", err);
-    }
-  }, [localSelection, setVisibleSports]);
+  // Auto-save effect: debounced save when localSelection changes
+  useEffect(() => {
+    // Don't save during initial load or if not initialized
+    if (!isInitializedRef.current) return;
+    // Check for changes at effect time (not render time) to avoid stale ref reads
+    if (!selectionDiffers(localSelection, lastSyncedRef.current)) return;
 
-  // Reset to last saved state
-  const handleReset = useCallback(() => {
-    if (lastSyncedRef.current) {
-      setLocalSelection(new Set(lastSyncedRef.current));
+    // Clear any pending save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
-  }, []);
+
+    // Schedule save after debounce delay
+    saveTimeoutRef.current = setTimeout(async () => {
+      // Re-check at save time in case sync effect updated the ref
+      if (!selectionDiffers(localSelection, lastSyncedRef.current)) return;
+
+      const sportsToSave = Array.from(localSelection);
+      // Update lastSynced BEFORE async call to prevent race with sync effect
+      // (React may re-render during the await, and sync effect would see stale ref)
+      lastSyncedRef.current = sportsToSave;
+      try {
+        await setVisibleSports(sportsToSave);
+        setShowSaveSuccess(true);
+        // Clear any existing success timeout before setting a new one
+        if (successTimeoutRef.current) {
+          clearTimeout(successTimeoutRef.current);
+        }
+        successTimeoutRef.current = setTimeout(
+          () => setShowSaveSuccess(false),
+          SAVE_SUCCESS_DURATION
+        );
+      } catch (err) {
+        // Rollback ref on error so retry is possible
+        lastSyncedRef.current = null;
+        console.error("Failed to auto-save visible sports:", err);
+      }
+    }, AUTO_SAVE_DELAY);
+
+    // Cleanup timeouts on unmount or re-run
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+      }
+    };
+  }, [localSelection, setVisibleSports]);
 
   // Loading state
   if (configLoading || prefsLoading) {
@@ -330,7 +372,6 @@ export function SportVisibilitySettings() {
             </h6>
             <SportTable
               sports={visibleFiltered}
-              actionLabel="Hide"
               actionVariant="hide"
               onAction={hideSport}
               disabled={(key) => localSelection.size === 1 && localSelection.has(key)}
@@ -348,7 +389,6 @@ export function SportVisibilitySettings() {
             </h6>
             <SportTable
               sports={hiddenFiltered}
-              actionLabel="Show"
               actionVariant="show"
               onAction={showSport}
               emptyMessage={filterText ? "No hidden sports match filter" : "No sports hidden"}
@@ -357,7 +397,7 @@ export function SportVisibilitySettings() {
         </>
       )}
 
-      {/* Summary and actions */}
+      {/* Summary and save status */}
       <div className="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
         {!noFilterResults && (
           <span className="text-muted small">
@@ -366,32 +406,16 @@ export function SportVisibilitySettings() {
         )}
         {noFilterResults && <span />}
 
-        <div className="d-flex align-items-center gap-2">
+        {/* Auto-save status indicator */}
+        <span className="small d-flex align-items-center gap-1">
+          {isSaving && <span className="text-muted">Saving...</span>}
           {showSaveSuccess && (
-            <span className="text-success small d-flex align-items-center gap-1">
+            <span className="text-success d-flex align-items-center gap-1">
               <CheckIcon />
               Saved
             </span>
           )}
-          {hasChanges && (
-            <button
-              type="button"
-              className="btn btn-outline-secondary btn-sm"
-              onClick={handleReset}
-              disabled={isSaving}
-            >
-              Reset
-            </button>
-          )}
-          <button
-            type="button"
-            className={`btn btn-sm ${hasChanges ? "btn-primary" : "btn-outline-secondary"}`}
-            onClick={handleSave}
-            disabled={!hasChanges || isSaving}
-          >
-            {isSaving ? "Saving..." : hasChanges ? "Save Changes" : "Saved"}
-          </button>
-        </div>
+        </span>
       </div>
 
       {/* Save error */}
