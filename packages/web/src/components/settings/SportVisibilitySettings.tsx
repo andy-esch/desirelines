@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
+import { CheckIcon, CloseIcon } from "../icons";
 import NeonSpinner from "../NeonSpinner";
 
 /** Sport entry with parsed config */
@@ -72,7 +73,6 @@ function SportTable({
                     <span
                       className="d-inline-block"
                       tabIndex={0}
-                      data-bs-toggle="tooltip"
                       title="At least one sport must be visible"
                       style={{ cursor: "not-allowed" }}
                     >
@@ -211,8 +211,15 @@ export function SportVisibilitySettings() {
     return { visibleFiltered: visible, hiddenFiltered: hidden };
   }, [sportEntries, localSelection, filterText]);
 
-  // Check if there are unsaved changes
-  // Check if local selection differs from last synced (i.e., user made changes)
+  /**
+   * Check if local selection differs from last synced (i.e., user made changes).
+   *
+   * NOTE: Reading lastSyncedRef.current inside useMemo is intentional.
+   * The ref is used instead of state to avoid re-renders when we update
+   * lastSynced (in handleSave and the sync useEffect). This works because
+   * localSelection always changes at the same time as lastSynced in this
+   * component's flow, so the memo re-computes when needed.
+   */
   const hasChanges = useMemo(() => {
     const lastSynced = lastSyncedRef.current;
     if (lastSynced === null) return false; // Not initialized yet
@@ -303,9 +310,7 @@ export function SportVisibilitySettings() {
             aria-label="Clear filter"
             style={{ lineHeight: 1 }}
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
-            </svg>
+            <CloseIcon />
           </button>
         )}
       </div>
@@ -364,9 +369,7 @@ export function SportVisibilitySettings() {
         <div className="d-flex align-items-center gap-2">
           {showSaveSuccess && (
             <span className="text-success small d-flex align-items-center gap-1">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-              </svg>
+              <CheckIcon />
               Saved
             </span>
           )}

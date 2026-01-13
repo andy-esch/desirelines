@@ -5,9 +5,9 @@ import { DEFAULT_PREFERENCES } from "../constants/settings";
 
 /**
  * Default visible sports when user hasn't set preferences.
- * These are the "core" sports most users will have data for.
+ * Uses DEFAULT_PREFERENCES as the single source of truth.
  */
-const DEFAULT_VISIBLE_SPORTS = ["cycling", "running", "yoga"];
+const DEFAULT_VISIBLE_SPORTS = DEFAULT_PREFERENCES.visibleSports;
 
 /**
  * Hook for managing which sports are visible in the UI.
@@ -86,7 +86,10 @@ export function useVisibleSports(knownSports?: string[]) {
         validSports = sports.filter((s) => knownSports.includes(s));
       }
 
-      // Ensure at least one sport is selected
+      // Ensure at least one sport is selected.
+      // Silent return is acceptable here - the UI (SportVisibilitySettings)
+      // prevents this case by disabling the "Hide" button on the last sport.
+      // This is a defensive check, not a user-facing validation.
       if (validSports.length === 0) {
         console.warn("At least one sport must be visible, keeping current selection");
         return;
