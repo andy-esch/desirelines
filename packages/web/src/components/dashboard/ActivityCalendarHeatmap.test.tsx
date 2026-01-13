@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ActivityCalendarHeatmap from "./ActivityCalendarHeatmap";
+import {
+  mockMinimalSportConfig,
+  mockSportConfigReturn,
+  mockVisibleSportsReturn,
+  mockDailySportDataReturn,
+  emptyDailySportData,
+} from "../../test/fixtures/sportConfig";
 
 // Mock useDailySportData hook
 vi.mock("../../hooks/useDailySportData", () => ({
@@ -25,70 +32,24 @@ const mockUseDailySportData = vi.mocked(useDailySportData);
 const mockUseVisibleSports = vi.mocked(useVisibleSports);
 const mockUseSportConfig = vi.mocked(useSportConfig);
 
-/** Mock sport config for tests */
-const mockSportConfig = {
-  version: "1.0",
-  sport_categories: {
-    cycling: {
-      display_name: "Cycling",
-      strava_types: ["Ride"],
-      excluded_types: [],
-      primary_metric: "distance_meters",
-      metrics: ["distance_meters", "time_minutes"],
-      has_distance: true,
-      has_elevation: true,
-    },
-    running: {
-      display_name: "Running",
-      strava_types: ["Run"],
-      excluded_types: [],
-      primary_metric: "distance_meters",
-      metrics: ["distance_meters", "time_minutes"],
-      has_distance: true,
-      has_elevation: true,
-    },
-    yoga: {
-      display_name: "Yoga",
-      strava_types: ["Yoga"],
-      excluded_types: [],
-      primary_metric: "time_minutes",
-      metrics: ["time_minutes", "activities"],
-      has_distance: false,
-      has_elevation: false,
-    },
-  },
-};
-
 describe("ActivityCalendarHeatmap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Default: user has 3 visible sports
-    mockUseVisibleSports.mockReturnValue({
-      visibleSports: ["cycling", "running", "yoga"],
-      setVisibleSports: vi.fn(),
-      isLoading: false,
-      error: null,
-      isSaving: false,
-      saveError: null,
-    });
+    mockUseVisibleSports.mockReturnValue(mockVisibleSportsReturn());
 
-    // Default: sport config loaded
-    mockUseSportConfig.mockReturnValue({
-      sportConfig: mockSportConfig,
-      isLoading: false,
-      error: null,
-      retry: vi.fn(),
-    });
+    // Default: sport config loaded (using minimal config with 3 sports)
+    mockUseSportConfig.mockReturnValue(
+      mockSportConfigReturn({ sportConfig: mockMinimalSportConfig })
+    );
   });
 
   describe("loading state", () => {
     it("shows loading spinner when data is loading", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: true,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
+      );
 
       render(<ActivityCalendarHeatmap />);
 
@@ -97,11 +58,9 @@ describe("ActivityCalendarHeatmap", () => {
     });
 
     it("shows Activity Calendar header while loading", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: true,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
+      );
 
       render(<ActivityCalendarHeatmap />);
 
@@ -111,11 +70,9 @@ describe("ActivityCalendarHeatmap", () => {
 
   describe("error state", () => {
     it("shows error message when data fails to load", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: false,
-        error: new Error("Failed to fetch"),
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, error: new Error("Failed to fetch") })
+      );
 
       render(<ActivityCalendarHeatmap />);
 
@@ -218,11 +175,9 @@ describe("ActivityCalendarHeatmap", () => {
 
   describe("empty data", () => {
     it("renders calendar with 0 activities", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: false,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData })
+      );
 
       render(<ActivityCalendarHeatmap />);
 
@@ -233,11 +188,9 @@ describe("ActivityCalendarHeatmap", () => {
 
   describe("className prop", () => {
     it("applies custom className", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: false,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData })
+      );
 
       const { container } = render(<ActivityCalendarHeatmap className="custom-class" />);
 

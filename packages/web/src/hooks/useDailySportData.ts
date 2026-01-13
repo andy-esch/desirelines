@@ -85,10 +85,23 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
 
   const { year, from, to } = options;
 
-  // Memoize sports array to avoid recreating on every render
+  /**
+   * Memoize sports array to maintain referential stability.
+   *
+   * WHY: Callers often pass inline arrays like `sports={["cycling", "running"]}`.
+   * These create new array references on every render, causing unnecessary
+   * re-fetches and re-renders.
+   *
+   * HOW: Using `join(",")` as the dependency creates a stable string key.
+   * The sports array only updates when the actual sport names change,
+   * not when the array reference changes.
+   *
+   * IMPORTANT: Do not "fix" this by removing the join() - it will break
+   * the hook for callers using inline arrays.
+   */
   const sports = useMemo(
     () => options.sports ?? DEFAULT_SPORTS,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- options.sports is a stable array from caller
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: use string key for value-based comparison
     [options.sports?.join(",")]
   );
 

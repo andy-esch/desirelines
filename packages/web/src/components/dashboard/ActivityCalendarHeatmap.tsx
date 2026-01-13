@@ -3,6 +3,7 @@ import { useDailySportData } from "../../hooks/useDailySportData";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { filterValidSports } from "../../utils/sportConfig";
+import { toLocalDateString } from "../../utils/dateUtils";
 import NeonSpinner from "../NeonSpinner";
 
 interface ActivityCalendarHeatmapProps {
@@ -53,6 +54,19 @@ const MONTH_LABELS = [
 ];
 
 /**
+ * Calendar grid layout constants.
+ * These values are tuned for a compact, readable GitHub-style calendar.
+ */
+/** Size of each day cell in pixels */
+const CELL_SIZE = 11;
+/** Gap between cells in pixels */
+const CELL_GAP = 3;
+/** Width reserved for day labels (Sun, Mon, etc.) */
+const DAY_LABEL_WIDTH = 28;
+/** Height reserved for month labels header */
+const HEADER_HEIGHT = 14;
+
+/**
  * Generate weeks for a date range, organized by weeks.
  * Returns array of weeks, each containing 7 days (or nulls for padding).
  */
@@ -89,16 +103,6 @@ function generateWeeksForRange(startDate: Date, endDate: Date): (Date | null)[][
   }
 
   return weeks;
-}
-
-/**
- * Format a Date as YYYY-MM-DD in local timezone.
- */
-function toLocalDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -296,11 +300,6 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
     );
   }
 
-  const cellSize = 11;
-  const cellGap = 3;
-  const dayLabelWidth = 28;
-  const headerHeight = 14;
-
   return (
     <div className={className}>
       <div className="d-flex justify-content-between align-items-center mb-2">
@@ -356,8 +355,8 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
           style={{
             display: "inline-block",
             position: "relative",
-            paddingLeft: dayLabelWidth,
-            paddingTop: headerHeight,
+            paddingLeft: DAY_LABEL_WIDTH,
+            paddingTop: HEADER_HEIGHT,
           }}
         >
           {/* Month labels */}
@@ -365,7 +364,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
             style={{
               position: "absolute",
               top: 0,
-              left: dayLabelWidth,
+              left: DAY_LABEL_WIDTH,
               display: "flex",
               fontSize: "9px",
               color: "var(--bs-gray-600)",
@@ -377,7 +376,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
                 key={`${label}-${weekIndex}`}
                 style={{
                   position: "absolute",
-                  left: weekIndex * (cellSize + cellGap),
+                  left: weekIndex * (CELL_SIZE + CELL_GAP),
                 }}
               >
                 {showYear ? `${label} '${String(year).slice(2)}` : label}
@@ -389,21 +388,21 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
           <div
             style={{
               position: "absolute",
-              top: headerHeight,
+              top: HEADER_HEIGHT,
               left: 0,
               display: "flex",
               flexDirection: "column",
               fontSize: "9px",
               color: "var(--bs-gray-600)",
-              gap: cellGap,
+              gap: CELL_GAP,
             }}
           >
             {DAY_LABELS.map((label, i) => (
               <div
                 key={label}
                 style={{
-                  height: cellSize,
-                  lineHeight: `${cellSize}px`,
+                  height: CELL_SIZE,
+                  lineHeight: `${CELL_SIZE}px`,
                   visibility: i % 2 === 1 ? "visible" : "hidden", // Only show Mon, Wed, Fri
                 }}
               >
@@ -416,7 +415,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
           <div
             style={{
               display: "flex",
-              gap: cellGap,
+              gap: CELL_GAP,
             }}
           >
             {weeks.map((week, weekIndex) => (
@@ -425,7 +424,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: cellGap,
+                  gap: CELL_GAP,
                 }}
               >
                 {week.map((date, dayIndex) => {
@@ -434,8 +433,8 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
                       <div
                         key={dayIndex}
                         style={{
-                          width: cellSize,
-                          height: cellSize,
+                          width: CELL_SIZE,
+                          height: CELL_SIZE,
                           background: "transparent",
                         }}
                       />
@@ -451,8 +450,8 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
                       key={dateStr}
                       title={`${dateStr}: ${count} ${count === 1 ? "activity" : "activities"}`}
                       style={{
-                        width: cellSize,
-                        height: cellSize,
+                        width: CELL_SIZE,
+                        height: CELL_SIZE,
                         background: color,
                         borderRadius: 2,
                         cursor: "default",
@@ -475,8 +474,8 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
             <div
               key={i}
               style={{
-                width: cellSize,
-                height: cellSize,
+                width: CELL_SIZE,
+                height: CELL_SIZE,
                 background: color,
                 borderRadius: 2,
               }}

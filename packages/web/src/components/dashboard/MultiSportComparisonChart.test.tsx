@@ -2,6 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import MultiSportComparisonChart from "./MultiSportComparisonChart";
+import {
+  mockMinimalSportConfig,
+  mockActivities,
+  mockSportConfigReturn,
+  mockVisibleSportsReturn,
+  mockDailySportDataReturn,
+  mockActivitiesReturn,
+  mockAuthReturn,
+  emptyDailySportData,
+} from "../../test/fixtures/sportConfig";
 
 // Mock useDailySportData hook
 vi.mock("../../hooks/useDailySportData", () => ({
@@ -54,145 +64,34 @@ const mockUseActivities = vi.mocked(useActivities);
 const mockUseVisibleSports = vi.mocked(useVisibleSports);
 const mockUseSportConfig = vi.mocked(useSportConfig);
 
-const mockActivities = [
-  {
-    id: 123456789,
-    name: "Morning Ride",
-    type: "Ride",
-    sport: "cycling",
-    startDateLocal: "2025-12-28T08:30:00",
-    distanceMeters: 45000,
-    movingTimeSeconds: 5400,
-    elevationMeters: 450,
-  },
-  {
-    id: 123456790,
-    name: "Evening Run",
-    type: "Run",
-    sport: "running",
-    startDateLocal: "2025-12-27T18:00:00",
-    distanceMeters: 8000,
-    movingTimeSeconds: 2400,
-    elevationMeters: 50,
-  },
-  {
-    id: 123456791,
-    name: "Yoga Flow",
-    type: "Yoga",
-    sport: "yoga",
-    startDateLocal: "2025-12-26T07:00:00",
-    distanceMeters: 0,
-    movingTimeSeconds: 1500,
-  },
-  {
-    id: 123456792,
-    name: "Hill Climb",
-    type: "Ride",
-    sport: "cycling",
-    startDateLocal: "2025-12-25T10:00:00",
-    distanceMeters: 30000,
-    movingTimeSeconds: 4200,
-    elevationMeters: 800,
-  },
-  {
-    id: 123456793,
-    name: "Recovery Run",
-    type: "Run",
-    sport: "running",
-    startDateLocal: "2025-12-24T16:00:00",
-    distanceMeters: 5000,
-    movingTimeSeconds: 1800,
-    elevationMeters: 20,
-  },
-];
-
 // Helper to render with router
 function renderWithRouter(component: React.ReactElement) {
   return render(<MemoryRouter>{component}</MemoryRouter>);
 }
-
-/** Mock sport config that matches test expectations */
-const mockSportConfig = {
-  version: "1.0",
-  sport_categories: {
-    cycling: {
-      display_name: "Cycling",
-      strava_types: ["Ride"],
-      excluded_types: [],
-      primary_metric: "distance_meters",
-      metrics: ["distance_meters", "time_minutes", "elevation_meters", "activities"],
-      has_distance: true,
-      has_elevation: true,
-    },
-    running: {
-      display_name: "Running",
-      strava_types: ["Run"],
-      excluded_types: [],
-      primary_metric: "distance_meters",
-      metrics: ["distance_meters", "time_minutes", "activities"],
-      has_distance: true,
-      has_elevation: true,
-    },
-    yoga: {
-      display_name: "Yoga",
-      strava_types: ["Yoga"],
-      excluded_types: [],
-      primary_metric: "time_minutes",
-      metrics: ["time_minutes", "activities"],
-      has_distance: false,
-      has_elevation: false,
-    },
-  },
-};
 
 describe("MultiSportComparisonChart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Default: authenticated user with activities
-    mockUseAuth.mockReturnValue({
-      user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
-      loading: false,
-      signIn: vi.fn(),
-      signOut: vi.fn(),
-      error: null,
-    });
+    mockUseAuth.mockReturnValue(mockAuthReturn());
 
-    mockUseActivities.mockReturnValue({
-      activities: mockActivities,
-      isLoading: false,
-      error: null,
-      hasMore: true,
-      loadMore: vi.fn(),
-      retry: vi.fn(),
-    });
+    mockUseActivities.mockReturnValue(mockActivitiesReturn({ hasMore: true }));
 
     // Default: user has 3 visible sports
-    mockUseVisibleSports.mockReturnValue({
-      visibleSports: ["cycling", "running", "yoga"],
-      setVisibleSports: vi.fn(),
-      isLoading: false,
-      error: null,
-      isSaving: false,
-      saveError: null,
-    });
+    mockUseVisibleSports.mockReturnValue(mockVisibleSportsReturn());
 
-    // Default: sport config loaded
-    mockUseSportConfig.mockReturnValue({
-      sportConfig: mockSportConfig,
-      isLoading: false,
-      error: null,
-      retry: vi.fn(),
-    });
+    // Default: sport config loaded (using minimal config with 3 sports)
+    mockUseSportConfig.mockReturnValue(
+      mockSportConfigReturn({ sportConfig: mockMinimalSportConfig })
+    );
   });
 
   describe("loading state", () => {
     it("shows loading spinner when data is loading", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: true,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
+      );
 
       renderWithRouter(<MultiSportComparisonChart />);
 
@@ -201,11 +100,9 @@ describe("MultiSportComparisonChart", () => {
     });
 
     it("shows Recent Activity header while loading", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: true,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
+      );
 
       renderWithRouter(<MultiSportComparisonChart />);
 
@@ -215,11 +112,9 @@ describe("MultiSportComparisonChart", () => {
 
   describe("error state", () => {
     it("shows error message when data fails to load", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: false,
-        error: new Error("Failed to fetch"),
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, error: new Error("Failed to fetch") })
+      );
 
       renderWithRouter(<MultiSportComparisonChart />);
 
@@ -229,11 +124,9 @@ describe("MultiSportComparisonChart", () => {
 
   describe("empty state", () => {
     it("shows no data message when no activities", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: false,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData })
+      );
 
       renderWithRouter(<MultiSportComparisonChart />);
 
@@ -359,11 +252,9 @@ describe("MultiSportComparisonChart", () => {
 
   describe("className prop", () => {
     it("applies custom className", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: false,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData })
+      );
 
       const { container } = renderWithRouter(
         <MultiSportComparisonChart className="custom-class" />
