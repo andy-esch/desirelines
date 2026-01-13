@@ -1,28 +1,55 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ActivityCalendarHeatmap from "./ActivityCalendarHeatmap";
+import {
+  mockMinimalSportConfig,
+  mockSportConfigReturn,
+  mockVisibleSportsReturn,
+  mockDailySportDataReturn,
+  emptyDailySportData,
+} from "../../test/fixtures/sportConfig";
 
 // Mock useDailySportData hook
 vi.mock("../../hooks/useDailySportData", () => ({
   useDailySportData: vi.fn(),
 }));
 
+// Mock useVisibleSports hook
+vi.mock("../../hooks/useVisibleSports", () => ({
+  useVisibleSports: vi.fn(),
+}));
+
+// Mock useSportConfig hook
+vi.mock("../../hooks/useSportConfig", () => ({
+  useSportConfig: vi.fn(),
+}));
+
 import { useDailySportData } from "../../hooks/useDailySportData";
+import { useVisibleSports } from "../../hooks/useVisibleSports";
+import { useSportConfig } from "../../hooks/useSportConfig";
 
 const mockUseDailySportData = vi.mocked(useDailySportData);
+const mockUseVisibleSports = vi.mocked(useVisibleSports);
+const mockUseSportConfig = vi.mocked(useSportConfig);
 
 describe("ActivityCalendarHeatmap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Default: user has 3 visible sports
+    mockUseVisibleSports.mockReturnValue(mockVisibleSportsReturn());
+
+    // Default: sport config loaded (using minimal config with 3 sports)
+    mockUseSportConfig.mockReturnValue(
+      mockSportConfigReturn({ sportConfig: mockMinimalSportConfig })
+    );
   });
 
   describe("loading state", () => {
     it("shows loading spinner when data is loading", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: true,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
+      );
 
       render(<ActivityCalendarHeatmap />);
 
@@ -31,11 +58,9 @@ describe("ActivityCalendarHeatmap", () => {
     });
 
     it("shows Activity Calendar header while loading", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: true,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
+      );
 
       render(<ActivityCalendarHeatmap />);
 
@@ -45,11 +70,9 @@ describe("ActivityCalendarHeatmap", () => {
 
   describe("error state", () => {
     it("shows error message when data fails to load", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: false,
-        error: new Error("Failed to fetch"),
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, error: new Error("Failed to fetch") })
+      );
 
       render(<ActivityCalendarHeatmap />);
 
@@ -152,11 +175,9 @@ describe("ActivityCalendarHeatmap", () => {
 
   describe("empty data", () => {
     it("renders calendar with 0 activities", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: false,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData })
+      );
 
       render(<ActivityCalendarHeatmap />);
 
@@ -167,15 +188,78 @@ describe("ActivityCalendarHeatmap", () => {
 
   describe("className prop", () => {
     it("applies custom className", () => {
-      mockUseDailySportData.mockReturnValue({
-        data: { cycling: {}, running: {}, yoga: {} },
-        isLoading: false,
-        error: null,
-      });
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData })
+      );
 
       const { container } = render(<ActivityCalendarHeatmap className="custom-class" />);
 
       expect(container.querySelector(".custom-class")).toBeInTheDocument();
+    });
+  });
+
+  describe("sport filter toggle", () => {
+    beforeEach(() => {
+      mockUseDailySportData.mockReturnValue({
+        data: {
+          cycling: {
+            "2026-01-02": {
+              distanceMeters: 20000,
+              timeMinutes: 60,
+              activities: 1,
+              activityIds: [1],
+            },
+          },
+          running: {
+            "2026-01-02": {
+              distanceMeters: 5000,
+              timeMinutes: 30,
+              activities: 1,
+              activityIds: [2],
+            },
+          },
+          yoga: {},
+        },
+        isLoading: false,
+        error: null,
+      });
+    });
+
+    it("renders sport filter toggle buttons", () => {
+      render(<ActivityCalendarHeatmap />);
+
+      const filterGroup = screen.getByRole("group", { name: "Sport filter" });
+      expect(filterGroup).toBeInTheDocument();
+
+      expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Visible" })).toBeInTheDocument();
+    });
+
+    it("defaults to All sports mode", () => {
+      render(<ActivityCalendarHeatmap />);
+
+      const allButton = screen.getByRole("button", { name: "All" });
+      const visibleButton = screen.getByRole("button", { name: "Visible" });
+
+      expect(allButton).toHaveAttribute("aria-pressed", "true");
+      expect(visibleButton).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("switches to Visible sports mode when Visible button clicked", () => {
+      render(<ActivityCalendarHeatmap />);
+
+      const visibleButton = screen.getByRole("button", { name: "Visible" });
+      fireEvent.click(visibleButton);
+
+      expect(visibleButton).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("Visible button shows tooltip with visible sports list", () => {
+      render(<ActivityCalendarHeatmap />);
+
+      const visibleButton = screen.getByRole("button", { name: "Visible" });
+      expect(visibleButton).toHaveAttribute("title", "Show only: cycling, running, yoga");
     });
   });
 });

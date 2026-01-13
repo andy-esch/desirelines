@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import { useDailySportData, type Sport } from "../../hooks/useDailySportData";
+import { useDailySportData } from "../../hooks/useDailySportData";
+import { useVisibleSports } from "../../hooks/useVisibleSports";
+import { useSportConfig } from "../../hooks/useSportConfig";
+import { filterValidSports } from "../../utils/sportConfig";
+import { toLocalDateString } from "../../utils/dateUtils";
 import NeonSpinner from "../NeonSpinner";
 
 interface ActivityCalendarHeatmapProps {
@@ -8,6 +12,9 @@ interface ActivityCalendarHeatmapProps {
 
 /** Time range option for the heatmap */
 type TimeRangeOption = "trailing12" | number; // "trailing12" or a specific year
+
+/** Sport filter mode for the heatmap */
+type SportFilterMode = "all" | "visible";
 
 /** Color scale for activity intensity (NEON purple/magenta theme) */
 const INTENSITY_COLORS = [
@@ -47,6 +54,19 @@ const MONTH_LABELS = [
 ];
 
 /**
+ * Calendar grid layout constants.
+ * These values are tuned for a compact, readable GitHub-style calendar.
+ */
+/** Size of each day cell in pixels */
+const CELL_SIZE = 11;
+/** Gap between cells in pixels */
+const CELL_GAP = 3;
+/** Width reserved for day labels (Sun, Mon, etc.) */
+const DAY_LABEL_WIDTH = 28;
+/** Height reserved for month labels header */
+const HEADER_HEIGHT = 14;
+
+/**
  * Generate weeks for a date range, organized by weeks.
  * Returns array of weeks, each containing 7 days (or nulls for padding).
  */
@@ -83,16 +103,6 @@ function generateWeeksForRange(startDate: Date, endDate: Date): (Date | null)[][
   }
 
   return weeks;
-}
-
-/**
- * Format a Date as YYYY-MM-DD in local timezone.
- */
-function toLocalDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -183,33 +193,66 @@ function getYearOptions(): number[] {
 /**
  * GitHub-style activity calendar heatmap showing activity intensity by day.
  * Defaults to trailing 12 months, with dropdown to select specific years.
+ * Supports filtering by visible sports or showing all sports.
  */
 export default function ActivityCalendarHeatmap({ className = "" }: ActivityCalendarHeatmapProps) {
   const [timeRange, setTimeRange] = useState<TimeRangeOption>("trailing12");
+  const [sportFilter, setSportFilter] = useState<SportFilterMode>("all");
   const currentYear = new Date().getFullYear();
   const yearOptions = useMemo(() => getYearOptions(), []);
+
+  // Get user's visible sports and sport config
+  const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
+  const { sportConfig, isLoading: configLoading } = useSportConfig();
+
+  // Determine which sports to include based on filter mode
+  const allSports = useMemo(() => {
+    if (!sportConfig?.sport_categories) {
+      return ["cycling", "running", "yoga"]; // Fallback
+    }
+    return Object.keys(sportConfig.sport_categories);
+  }, [sportConfig]);
+
+  const validVisibleSports = useMemo(
+    () => filterValidSports(visibleSports, sportConfig),
+    [visibleSports, sportConfig]
+  );
+
+  const activeSports = sportFilter === "all" ? allSports : validVisibleSports;
 
   // Calculate date range based on selected option
   const { startDate, endDate, from, to } = useMemo(() => getDateRange(timeRange), [timeRange]);
 
-  // Fetch daily data for all sports
+  // Fetch daily data for selected sports
   // Note: year param is used for URL path, but from/to params filter the actual data
-  const { data, isLoading, error } = useDailySportData({ year: currentYear, from, to });
+  const {
+    data,
+    isLoading: dataLoading,
+    error,
+  } = useDailySportData({
+    year: currentYear,
+    from,
+    to,
+    sports: activeSports,
+  });
 
-  // Build activity count map: date -> total activities across all sports
+  const isLoading = prefsLoading || configLoading || dataLoading;
+
+  // Build activity count map: date -> total activities across selected sports
   const activityCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    const sports: Sport[] = ["cycling", "running", "yoga"];
 
-    sports.forEach((sport) => {
+    activeSports.forEach((sport) => {
       const sportData = data[sport];
-      Object.entries(sportData).forEach(([date, activity]) => {
-        counts[date] = (counts[date] || 0) + activity.activities;
-      });
+      if (sportData) {
+        Object.entries(sportData).forEach(([date, activity]) => {
+          counts[date] = (counts[date] || 0) + activity.activities;
+        });
+      }
     });
 
     return counts;
-  }, [data]);
+  }, [data, activeSports]);
 
   // Generate calendar weeks for the date range
   const weeks = useMemo(() => generateWeeksForRange(startDate, endDate), [startDate, endDate]);
@@ -257,11 +300,6 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
     );
   }
 
-  const cellSize = 11;
-  const cellGap = 3;
-  const dayLabelWidth = 28;
-  const headerHeight = 14;
-
   return (
     <div className={className}>
       <div className="d-flex justify-content-between align-items-center mb-2">
@@ -271,20 +309,45 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
             {totalActivities} activities in {rangeLabel}
           </span>
         </h2>
-        <select
-          className="form-select form-select-sm"
-          style={{ width: "auto", fontSize: "0.75rem" }}
-          value={timeRange === "trailing12" ? "trailing12" : String(timeRange)}
-          onChange={handleTimeRangeChange}
-          aria-label="Select time range"
-        >
-          <option value="trailing12">Past 12 months</option>
-          {yearOptions.map((year) => (
-            <option key={year} value={year}>
-              {year}
-            </option>
-          ))}
-        </select>
+        <div className="d-flex align-items-center gap-2">
+          {/* Sport filter toggle */}
+          <div className="btn-group btn-group-sm" role="group" aria-label="Sport filter">
+            <button
+              type="button"
+              className={`btn btn-outline-secondary py-0 px-2 ${sportFilter === "all" ? "active" : ""}`}
+              style={{ fontSize: "0.7rem" }}
+              onClick={() => setSportFilter("all")}
+              aria-pressed={sportFilter === "all"}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`btn btn-outline-secondary py-0 px-2 ${sportFilter === "visible" ? "active" : ""}`}
+              style={{ fontSize: "0.7rem" }}
+              onClick={() => setSportFilter("visible")}
+              aria-pressed={sportFilter === "visible"}
+              title={`Show only: ${validVisibleSports.join(", ")}`}
+            >
+              Visible
+            </button>
+          </div>
+          {/* Time range selector */}
+          <select
+            className="form-select form-select-sm"
+            style={{ width: "auto", fontSize: "0.75rem" }}
+            value={timeRange === "trailing12" ? "trailing12" : String(timeRange)}
+            onChange={handleTimeRangeChange}
+            aria-label="Select time range"
+          >
+            <option value="trailing12">Past 12 months</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="border rounded p-2 overflow-auto d-flex flex-column align-items-center">
@@ -292,8 +355,8 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
           style={{
             display: "inline-block",
             position: "relative",
-            paddingLeft: dayLabelWidth,
-            paddingTop: headerHeight,
+            paddingLeft: DAY_LABEL_WIDTH,
+            paddingTop: HEADER_HEIGHT,
           }}
         >
           {/* Month labels */}
@@ -301,7 +364,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
             style={{
               position: "absolute",
               top: 0,
-              left: dayLabelWidth,
+              left: DAY_LABEL_WIDTH,
               display: "flex",
               fontSize: "9px",
               color: "var(--bs-gray-600)",
@@ -313,7 +376,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
                 key={`${label}-${weekIndex}`}
                 style={{
                   position: "absolute",
-                  left: weekIndex * (cellSize + cellGap),
+                  left: weekIndex * (CELL_SIZE + CELL_GAP),
                 }}
               >
                 {showYear ? `${label} '${String(year).slice(2)}` : label}
@@ -325,21 +388,21 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
           <div
             style={{
               position: "absolute",
-              top: headerHeight,
+              top: HEADER_HEIGHT,
               left: 0,
               display: "flex",
               flexDirection: "column",
               fontSize: "9px",
               color: "var(--bs-gray-600)",
-              gap: cellGap,
+              gap: CELL_GAP,
             }}
           >
             {DAY_LABELS.map((label, i) => (
               <div
                 key={label}
                 style={{
-                  height: cellSize,
-                  lineHeight: `${cellSize}px`,
+                  height: CELL_SIZE,
+                  lineHeight: `${CELL_SIZE}px`,
                   visibility: i % 2 === 1 ? "visible" : "hidden", // Only show Mon, Wed, Fri
                 }}
               >
@@ -352,7 +415,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
           <div
             style={{
               display: "flex",
-              gap: cellGap,
+              gap: CELL_GAP,
             }}
           >
             {weeks.map((week, weekIndex) => (
@@ -361,7 +424,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: cellGap,
+                  gap: CELL_GAP,
                 }}
               >
                 {week.map((date, dayIndex) => {
@@ -370,8 +433,8 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
                       <div
                         key={dayIndex}
                         style={{
-                          width: cellSize,
-                          height: cellSize,
+                          width: CELL_SIZE,
+                          height: CELL_SIZE,
                           background: "transparent",
                         }}
                       />
@@ -387,8 +450,8 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
                       key={dateStr}
                       title={`${dateStr}: ${count} ${count === 1 ? "activity" : "activities"}`}
                       style={{
-                        width: cellSize,
-                        height: cellSize,
+                        width: CELL_SIZE,
+                        height: CELL_SIZE,
                         background: color,
                         borderRadius: 2,
                         cursor: "default",
@@ -411,8 +474,8 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
             <div
               key={i}
               style={{
-                width: cellSize,
-                height: cellSize,
+                width: CELL_SIZE,
+                height: CELL_SIZE,
                 background: color,
                 borderRadius: 2,
               }}

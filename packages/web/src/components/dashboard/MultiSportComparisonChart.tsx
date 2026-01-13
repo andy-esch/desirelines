@@ -1,26 +1,23 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { LineChart, Line, ResponsiveContainer, XAxis } from "recharts";
-import { useDailySportData, type Sport, type DailySportData } from "../../hooks/useDailySportData";
+import { useDailySportData, type DailySportData } from "../../hooks/useDailySportData";
+import { useVisibleSports } from "../../hooks/useVisibleSports";
+import { useSportConfig } from "../../hooks/useSportConfig";
 import { useActivities } from "../../hooks/useActivities";
 import { useAuth } from "../../hooks/useAuth";
 import type { TimeRange } from "../../utils/dataNormalization";
+import {
+  getSportColor,
+  getSportTextColor,
+  getSportDisplayName,
+  isDistanceSport,
+  filterValidSports,
+} from "../../utils/sportConfig";
+import { toLocalDateString, parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
 import TimeRangeSelector from "./TimeRangeSelector";
-import type { DailyActivity } from "../../api/activities";
+import type { DailyActivity, SportConfig } from "../../api/activities";
 import NeonSpinner from "../NeonSpinner";
-
-// Sport colors - NEON theme (CMY)
-const SPORT_COLORS: Record<Sport, string> = {
-  cycling: "rgb(0, 255, 255)", // Cyan
-  running: "rgb(255, 0, 255)", // Magenta
-  yoga: "rgb(0, 255, 128)", // Green-Cyan
-};
-
-const SPORT_LABELS: Record<Sport, string> = {
-  cycling: "Cycling",
-  running: "Running",
-  yoga: "Yoga",
-};
 
 interface MultiSportComparisonChartProps {
   className?: string;
@@ -28,38 +25,36 @@ interface MultiSportComparisonChartProps {
 
 /**
  * Get the primary metric value for a sport from daily activity data.
- * Returns distance for cycling/running, time for yoga.
+ * Returns distance for distance-based sports, time for time-based sports.
  */
-function getPrimaryMetric(activity: DailyActivity, sport: Sport): number {
-  if (sport === "yoga") {
-    return activity.timeMinutes ?? 0;
+function getMetricValue(
+  activity: DailyActivity,
+  sport: string,
+  sportConfig: SportConfig | null
+): number {
+  if (isDistanceSport(sport, sportConfig)) {
+    return activity.distanceMeters ?? 0;
   }
-  return activity.distanceMeters ?? 0;
+  return activity.timeMinutes ?? 0;
 }
 
 /**
  * Convert daily sport data (map) to sorted array with primary metric values.
  */
-function toDailyArray(data: DailySportData, sport: Sport): { date: string; value: number }[] {
+function toDailyArray(
+  data: DailySportData,
+  sport: string,
+  sportConfig: SportConfig | null
+): { date: string; value: number }[] {
   const entries = Object.entries(data);
   if (entries.length === 0) return [];
 
   return entries
     .map(([date, activity]) => ({
       date,
-      value: getPrimaryMetric(activity, sport),
+      value: getMetricValue(activity, sport, sportConfig),
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
-}
-
-/**
- * Parse a YYYY-MM-DD string as a local date (not UTC).
- * new Date("2026-01-01") creates UTC midnight, which can be Dec 31 in local time.
- * This function creates a date at local midnight instead.
- */
-function parseLocalDate(dateStr: string): Date {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  return new Date(year, month - 1, day);
 }
 
 /**
@@ -115,58 +110,73 @@ function normalizeToRange(
   }));
 }
 
-// Darker text colors for readability on light backgrounds
-const SPORT_TEXT_COLORS: Record<Sport, string> = {
-  cycling: "rgb(0, 160, 160)", // Darker cyan
-  running: "rgb(180, 0, 180)", // Darker magenta
-  yoga: "rgb(0, 160, 80)", // Darker green
-};
-
 /**
  * Format date for x-axis tick (e.g., "Dec 15").
- * Uses parseLocalDate to avoid UTC conversion issues.
+ * Uses parseLocalDateStrict to avoid UTC conversion issues.
  */
 function formatAxisDate(dateStr: string): string {
-  const date = parseLocalDate(dateStr);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const date = parseLocalDateStrict(dateStr);
+  return formatDisplayDate(date);
 }
+
+/** Sparkline row height in pixels */
+const SPARKLINE_ROW_HEIGHT = 36;
+/** Extra height when showing x-axis */
+const SPARKLINE_XAXIS_HEIGHT = 24;
+/** Minimum number of sports for layout stability */
+const MIN_SPORTS_FOR_HEIGHT = 3;
+/** Maximum sports before scrolling */
+const MAX_SPORTS_DISPLAY = 8;
 
 /**
  * Individual sparkline row component.
  */
 function SparklineRow({
   sport,
+  displayName,
   data,
   color,
+  textColor,
   showXAxis = false,
 }: {
-  sport: Sport;
+  sport: string;
+  displayName: string;
   data: { date: string; value: number }[];
   color: string;
+  textColor: string;
   showXAxis?: boolean;
 }) {
   const hasData = data.length > 0;
-  const textColor = SPORT_TEXT_COLORS[sport];
   const currentYear = new Date().getFullYear();
 
+  // Link to the year with most recent activity (data is sorted by date)
+  // Falls back to current year if no data
+  const linkYear = hasData ? parseInt(data[data.length - 1].date.split("-")[0], 10) : currentYear;
+
   // Height is taller when showing x-axis (need room for axis labels)
-  const chartHeight = showXAxis ? 60 : 36;
+  const chartHeight = showXAxis
+    ? SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT
+    : SPARKLINE_ROW_HEIGHT;
 
   return (
     <div className={`d-flex gap-2 ${showXAxis ? "align-items-start" : "align-items-center"}`}>
       {/* Label - links to sport page */}
       <Link
-        to={`/${sport}/${currentYear}`}
+        to={`/${sport}/${linkYear}`}
         className="text-end small text-decoration-none"
         style={{
-          width: 55,
+          width: 70,
           color: textColor,
           fontWeight: 600,
           fontSize: "0.75rem",
           paddingTop: showXAxis ? 12 : 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
+        title={displayName}
       >
-        {SPORT_LABELS[sport]}
+        {displayName}
       </Link>
 
       {/* Sparkline */}
@@ -211,17 +221,25 @@ function SparklineRow({
   );
 }
 
-const PAGE_SIZE = 4;
-
 /**
- * Format a date as YYYY-MM-DD in local timezone.
- * Avoids toISOString() which converts to UTC and can shift the date.
+ * Determine how many activities to show based on available height.
+ *
+ * RATIONALE: The activity list shares vertical space with sparklines.
+ * As more sports are visible (more sparkline rows), the container grows taller,
+ * so we can display more activities without the list feeling cramped.
+ *
+ * The page size values were chosen empirically to maintain visual balance:
+ * - 3 or fewer sports: 4 activities (short list, compact layout)
+ * - 4-5 sports: 5 activities (medium height)
+ * - 6-7 sports: 6 activities (taller layout)
+ * - 8+ sports: 7 activities (maximum before scrolling kicks in)
  */
-function toLocalDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function getActivityPageSize(sportCount: number): number {
+  const effectiveCount = Math.max(sportCount, MIN_SPORTS_FOR_HEIGHT);
+  if (effectiveCount <= 3) return 4;
+  if (effectiveCount <= 5) return 5;
+  if (effectiveCount <= 7) return 6;
+  return 7;
 }
 
 /**
@@ -270,7 +288,7 @@ function formatActivityDate(dateStr: string): string {
 /**
  * Recent activities table component with pagination.
  */
-function RecentActivitiesList({ timeRange }: { timeRange: TimeRange }) {
+function RecentActivitiesList({ timeRange, pageSize }: { timeRange: TimeRange; pageSize: number }) {
   const { user } = useAuth();
   const [page, setPage] = useState(0);
 
@@ -288,9 +306,9 @@ function RecentActivitiesList({ timeRange }: { timeRange: TimeRange }) {
     setPage(0);
   }, [from, to]);
 
-  const totalPages = Math.ceil(activities.length / PAGE_SIZE);
-  const startIdx = page * PAGE_SIZE;
-  const visibleActivities = activities.slice(startIdx, startIdx + PAGE_SIZE);
+  const totalPages = Math.ceil(activities.length / pageSize);
+  const startIdx = page * pageSize;
+  const visibleActivities = activities.slice(startIdx, startIdx + pageSize);
 
   const canGoUp = page > 0;
   const canGoDown = page < totalPages - 1 || hasMore;
@@ -430,25 +448,62 @@ export default function MultiSportComparisonChart({
   const currentYear = new Date().getFullYear();
   const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
 
+  // Get visible sports and sport config
+  const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
+  const { sportConfig, isLoading: configLoading } = useSportConfig();
+
+  // Filter visible sports to only those in config (handles edge case of stale prefs)
+  const validSports = useMemo(
+    () => filterValidSports(visibleSports, sportConfig),
+    [visibleSports, sportConfig]
+  );
+
   // Calculate date range for API query
   const { from, to } = useMemo(() => getDateRangeFromTimeRange(timeRange), [timeRange]);
 
-  // Fetch data using date-range query (can span years seamlessly)
-  const { data, isLoading, error } = useDailySportData({ year: currentYear, from, to });
+  // Fetch data for visible sports only
+  const {
+    data,
+    isLoading: dataLoading,
+    error,
+  } = useDailySportData({
+    year: currentYear,
+    from,
+    to,
+    sports: validSports,
+  });
 
   // Process data for each sport's sparkline
-  // API returns daily values already filtered by date range - just convert and normalize
   const sparklineData = useMemo(() => {
-    const sports: Sport[] = ["cycling", "running", "yoga"];
-
-    return sports.map((sport) => {
-      // 1. Convert daily data map to sorted array (API already returns daily values filtered by date range)
-      const dailyValues = toDailyArray(data[sport], sport);
+    return validSports.map((sport) => {
+      const sportData = data[sport] ?? {};
+      // 1. Convert daily data map to sorted array
+      const dailyValues = toDailyArray(sportData, sport, sportConfig);
       // 2. Normalize to 0-1 for sparkline display
       const normalized = normalizeToRange(dailyValues);
-      return { sport, data: normalized };
+      return {
+        sport,
+        displayName: getSportDisplayName(sport, sportConfig),
+        color: getSportColor(sport),
+        textColor: getSportTextColor(sport),
+        data: normalized,
+      };
     });
-  }, [data]);
+  }, [validSports, data, sportConfig]);
+
+  // Calculate dynamic height based on number of sports
+  const displayCount = Math.min(
+    Math.max(validSports.length, MIN_SPORTS_FOR_HEIGHT),
+    MAX_SPORTS_DISPLAY
+  );
+  const sparklineContainerHeight =
+    displayCount * SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT + 16; // 16 for padding
+
+  // Calculate page size for activities
+  const activityPageSize = getActivityPageSize(validSports.length);
+
+  // Combined loading state
+  const isLoading = prefsLoading || configLoading || dataLoading;
 
   if (isLoading) {
     return (
@@ -458,7 +513,7 @@ export default function MultiSportComparisonChart({
         </div>
         <div
           className="bg-light rounded d-flex align-items-center justify-content-center"
-          style={{ height: 140 }}
+          style={{ height: sparklineContainerHeight }}
         >
           <NeonSpinner size="sm" />
         </div>
@@ -487,24 +542,31 @@ export default function MultiSportComparisonChart({
       {!hasAnyData ? (
         <div
           className="bg-light rounded d-flex align-items-center justify-content-center"
-          style={{ height: 140 }}
+          style={{ height: sparklineContainerHeight }}
         >
           <p className="text-muted mb-0">No activity data for selected time range</p>
         </div>
       ) : (
         <div className="row g-3 justify-content-center">
           {/* Left: Sparklines */}
-          <div className="col-md-6" style={{ minWidth: 0 }}>
+          <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
             <div
               className="border rounded p-2 h-100 d-flex flex-column justify-content-center gap-2"
-              style={{ minHeight: 185, minWidth: 0 }}
+              style={{
+                minHeight: sparklineContainerHeight,
+                maxHeight: MAX_SPORTS_DISPLAY * SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT + 32,
+                overflowY: validSports.length >= MAX_SPORTS_DISPLAY ? "auto" : "visible",
+                minWidth: 0,
+              }}
             >
-              {sparklineData.map(({ sport, data: sData }, index) => (
+              {sparklineData.map(({ sport, displayName, data: sData, color, textColor }, index) => (
                 <SparklineRow
                   key={sport}
                   sport={sport}
+                  displayName={displayName}
                   data={sData}
-                  color={SPORT_COLORS[sport]}
+                  color={color}
+                  textColor={textColor}
                   showXAxis={index === sparklineData.length - 1}
                 />
               ))}
@@ -513,8 +575,11 @@ export default function MultiSportComparisonChart({
 
           {/* Right: Recent Activities */}
           <div className="col-md-6">
-            <div className="border rounded p-2 h-100 overflow-hidden" style={{ minHeight: 185 }}>
-              <RecentActivitiesList timeRange={timeRange} />
+            <div
+              className="border rounded p-2 h-100 overflow-hidden"
+              style={{ minHeight: sparklineContainerHeight }}
+            >
+              <RecentActivitiesList timeRange={timeRange} pageSize={activityPageSize} />
             </div>
           </div>
         </div>
