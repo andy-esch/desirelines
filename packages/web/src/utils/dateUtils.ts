@@ -73,11 +73,7 @@ export function parseLocalDate(dateStr: string): Date | null {
   const date = new Date(year, month, day);
 
   // Verify the date is valid (handles cases like Feb 30)
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month ||
-    date.getDate() !== day
-  ) {
+  if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
     return null;
   }
 

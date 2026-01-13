@@ -2,7 +2,7 @@ import "bootstrap/dist/css/bootstrap.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "./css/variables.css";
 import "./css/dashboard.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import Header from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import Dashboard from "./pages/Dashboard";
@@ -12,7 +12,8 @@ import ActivitiesPage from "./pages/ActivitiesPage";
 import OriginsPage from "./pages/OriginsPage";
 import SettingsPage from "./pages/SettingsPage";
 
-const VALID_SPORTS = ["cycling", "running", "yoga"] as const;
+/** Sports with demo data generators (unauthenticated experience) */
+const DEMO_SPORTS = ["cycling", "running", "yoga"] as const;
 
 function App() {
   const currentYear = new Date().getFullYear();
@@ -36,32 +37,20 @@ function App() {
             {/* Settings page (authenticated users only) */}
             <Route path="/settings" element={<SettingsPage />} />
 
-            {/* Sport detail pages - data source based on auth state */}
-            {VALID_SPORTS.map((sport) => (
-              <Route
-                key={sport}
-                path={`/${sport}`}
-                element={<Navigate to={`/${sport}/${currentYear}`} replace />}
-              />
-            ))}
-            {VALID_SPORTS.map((sport) => (
-              <Route
-                key={`${sport}-year`}
-                path={`/${sport}/:year`}
-                element={<UnifiedSportPage sport={sport} />}
-              />
-            ))}
+            {/* Sport detail pages - dynamic routing for any sport */}
+            <Route path="/:sport" element={<SportRedirect currentYear={currentYear} />} />
+            <Route path="/:sport/:year" element={<DynamicSportPage />} />
 
-            {/* Demo routes - dedicated demo experience */}
+            {/* Demo routes - dedicated demo experience (only for sports with demo data) */}
             <Route path="/demo" element={<Dashboard />} />
-            {VALID_SPORTS.map((sport) => (
+            {DEMO_SPORTS.map((sport) => (
               <Route
                 key={`demo-${sport}`}
                 path={`/demo/${sport}`}
                 element={<Navigate to={`/demo/${sport}/${currentYear}`} replace />}
               />
             ))}
-            {VALID_SPORTS.map((sport) => (
+            {DEMO_SPORTS.map((sport) => (
               <Route
                 key={`demo-${sport}-year`}
                 path={`/demo/${sport}/:year`}
@@ -77,6 +66,21 @@ function App() {
       </div>
     </BrowserRouter>
   );
+}
+
+/** Redirect /:sport to /:sport/:currentYear */
+function SportRedirect({ currentYear }: { currentYear: number }) {
+  const { sport } = useParams<{ sport: string }>();
+  return <Navigate to={`/${sport}/${currentYear}`} replace />;
+}
+
+/** Dynamic sport page that extracts sport from URL params */
+function DynamicSportPage() {
+  const { sport } = useParams<{ sport: string }>();
+  if (!sport) {
+    return <Navigate to="/" replace />;
+  }
+  return <UnifiedSportPage sport={sport} />;
 }
 
 export default App;

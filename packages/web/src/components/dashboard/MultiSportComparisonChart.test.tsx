@@ -4,7 +4,6 @@ import { MemoryRouter } from "react-router-dom";
 import MultiSportComparisonChart from "./MultiSportComparisonChart";
 import {
   mockMinimalSportConfig,
-  mockActivities,
   mockSportConfigReturn,
   mockVisibleSportsReturn,
   mockDailySportDataReturn,
@@ -199,22 +198,20 @@ describe("MultiSportComparisonChart", () => {
       expect(screen.getByRole("button", { name: "YTD" })).toBeInTheDocument();
     });
 
-    it("renders sport labels as links", () => {
+    it("renders sport labels as links to year with most recent activity", () => {
       renderWithRouter(<MultiSportComparisonChart />);
 
-      const currentYear = new Date().getFullYear();
+      // Mock data has dates in 2025, so links should point to 2025
+      // (not current year) based on most recent activity date
       expect(screen.getByRole("link", { name: "Cycling" })).toHaveAttribute(
         "href",
-        `/cycling/${currentYear}`
+        "/cycling/2025"
       );
       expect(screen.getByRole("link", { name: "Running" })).toHaveAttribute(
         "href",
-        `/running/${currentYear}`
+        "/running/2025"
       );
-      expect(screen.getByRole("link", { name: "Yoga" })).toHaveAttribute(
-        "href",
-        `/yoga/${currentYear}`
-      );
+      expect(screen.getByRole("link", { name: "Yoga" })).toHaveAttribute("href", "/yoga/2025");
     });
 
     it("defaults to 2 weeks time range", () => {

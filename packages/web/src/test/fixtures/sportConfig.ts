@@ -17,6 +17,7 @@
  */
 
 import type { SportConfig } from "../../api/activities";
+import type { MultiSportData, DailySportDataResult } from "../../hooks/useDailySportData";
 
 /**
  * Complete mock sport config matching the production schema.
@@ -147,7 +148,7 @@ export function mockVisibleSportsReturn(overrides?: {
  * Mock daily sport data for testing.
  * Provides sample activity data across multiple sports and dates.
  */
-export const mockDailySportData = {
+export const mockDailySportData: MultiSportData = {
   cycling: {
     "2026-01-02": {
       distanceMeters: 45000,
@@ -209,7 +210,7 @@ export const mockDailySportData = {
 /**
  * Empty daily sport data for testing empty states.
  */
-export const emptyDailySportData = {
+export const emptyDailySportData: MultiSportData = {
   cycling: {},
   running: {},
   yoga: {},
@@ -219,10 +220,10 @@ export const emptyDailySportData = {
  * Factory function for useDailySportData mock return value.
  */
 export function mockDailySportDataReturn(overrides?: {
-  data?: Record<string, Record<string, unknown>>;
+  data?: MultiSportData;
   isLoading?: boolean;
   error?: Error | null;
-}) {
+}): DailySportDataResult {
   return {
     data: overrides?.data ?? mockDailySportData,
     isLoading: overrides?.isLoading ?? false,
@@ -313,7 +314,11 @@ export function mockAuthReturn(overrides?: {
   error?: Error | null;
 }) {
   return {
-    user: overrides?.user ?? { uid: "user-123", email: "test@example.com", displayName: "Test User" },
+    user: overrides?.user ?? {
+      uid: "user-123",
+      email: "test@example.com",
+      displayName: "Test User",
+    },
     loading: overrides?.loading ?? false,
     error: overrides?.error ?? null,
     signIn: vi.fn(),

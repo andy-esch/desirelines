@@ -14,11 +14,7 @@ import {
   isDistanceSport,
   filterValidSports,
 } from "../../utils/sportConfig";
-import {
-  toLocalDateString,
-  parseLocalDateStrict,
-  formatDisplayDate,
-} from "../../utils/dateUtils";
+import { toLocalDateString, parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
 import TimeRangeSelector from "./TimeRangeSelector";
 import type { DailyActivity, SportConfig } from "../../api/activities";
 import NeonSpinner from "../NeonSpinner";
@@ -153,6 +149,10 @@ function SparklineRow({
   const hasData = data.length > 0;
   const currentYear = new Date().getFullYear();
 
+  // Link to the year with most recent activity (data is sorted by date)
+  // Falls back to current year if no data
+  const linkYear = hasData ? parseInt(data[data.length - 1].date.split("-")[0], 10) : currentYear;
+
   // Height is taller when showing x-axis (need room for axis labels)
   const chartHeight = showXAxis
     ? SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT
@@ -162,7 +162,7 @@ function SparklineRow({
     <div className={`d-flex gap-2 ${showXAxis ? "align-items-start" : "align-items-center"}`}>
       {/* Label - links to sport page */}
       <Link
-        to={`/${sport}/${currentYear}`}
+        to={`/${sport}/${linkYear}`}
         className="text-end small text-decoration-none"
         style={{
           width: 70,
@@ -549,13 +549,13 @@ export default function MultiSportComparisonChart({
       ) : (
         <div className="row g-3 justify-content-center">
           {/* Left: Sparklines */}
-          <div className="col-md-6" style={{ minWidth: 0 }}>
+          <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
             <div
               className="border rounded p-2 h-100 d-flex flex-column justify-content-center gap-2"
               style={{
                 minHeight: sparklineContainerHeight,
                 maxHeight: MAX_SPORTS_DISPLAY * SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT + 32,
-                overflowY: validSports.length > MAX_SPORTS_DISPLAY ? "auto" : "visible",
+                overflowY: validSports.length >= MAX_SPORTS_DISPLAY ? "auto" : "visible",
                 minWidth: 0,
               }}
             >
