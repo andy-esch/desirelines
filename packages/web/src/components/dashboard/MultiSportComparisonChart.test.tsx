@@ -18,6 +18,16 @@ vi.mock("../../hooks/useActivities", () => ({
   useActivities: vi.fn(),
 }));
 
+// Mock useVisibleSports hook
+vi.mock("../../hooks/useVisibleSports", () => ({
+  useVisibleSports: vi.fn(),
+}));
+
+// Mock useSportConfig hook
+vi.mock("../../hooks/useSportConfig", () => ({
+  useSportConfig: vi.fn(),
+}));
+
 // Mock recharts to avoid rendering issues in tests
 vi.mock("recharts", () => ({
   LineChart: ({ children }: { children: React.ReactNode }) => (
@@ -35,10 +45,14 @@ vi.mock("recharts", () => ({
 import { useDailySportData } from "../../hooks/useDailySportData";
 import { useAuth } from "../../hooks/useAuth";
 import { useActivities } from "../../hooks/useActivities";
+import { useVisibleSports } from "../../hooks/useVisibleSports";
+import { useSportConfig } from "../../hooks/useSportConfig";
 
 const mockUseDailySportData = vi.mocked(useDailySportData);
 const mockUseAuth = vi.mocked(useAuth);
 const mockUseActivities = vi.mocked(useActivities);
+const mockUseVisibleSports = vi.mocked(useVisibleSports);
+const mockUseSportConfig = vi.mocked(useSportConfig);
 
 const mockActivities = [
   {
@@ -97,6 +111,40 @@ function renderWithRouter(component: React.ReactElement) {
   return render(<MemoryRouter>{component}</MemoryRouter>);
 }
 
+/** Mock sport config that matches test expectations */
+const mockSportConfig = {
+  version: "1.0",
+  sport_categories: {
+    cycling: {
+      display_name: "Cycling",
+      strava_types: ["Ride"],
+      excluded_types: [],
+      primary_metric: "distance_meters",
+      metrics: ["distance_meters", "time_minutes", "elevation_meters", "activities"],
+      has_distance: true,
+      has_elevation: true,
+    },
+    running: {
+      display_name: "Running",
+      strava_types: ["Run"],
+      excluded_types: [],
+      primary_metric: "distance_meters",
+      metrics: ["distance_meters", "time_minutes", "activities"],
+      has_distance: true,
+      has_elevation: true,
+    },
+    yoga: {
+      display_name: "Yoga",
+      strava_types: ["Yoga"],
+      excluded_types: [],
+      primary_metric: "time_minutes",
+      metrics: ["time_minutes", "activities"],
+      has_distance: false,
+      has_elevation: false,
+    },
+  },
+};
+
 describe("MultiSportComparisonChart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -116,6 +164,24 @@ describe("MultiSportComparisonChart", () => {
       error: null,
       hasMore: true,
       loadMore: vi.fn(),
+      retry: vi.fn(),
+    });
+
+    // Default: user has 3 visible sports
+    mockUseVisibleSports.mockReturnValue({
+      visibleSports: ["cycling", "running", "yoga"],
+      setVisibleSports: vi.fn(),
+      isLoading: false,
+      error: null,
+      isSaving: false,
+      saveError: null,
+    });
+
+    // Default: sport config loaded
+    mockUseSportConfig.mockReturnValue({
+      sportConfig: mockSportConfig,
+      isLoading: false,
+      error: null,
       retry: vi.fn(),
     });
   });
