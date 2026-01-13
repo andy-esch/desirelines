@@ -82,6 +82,7 @@ root_patterns = [
   "/packages/*",      # flat-layout packages
   "/schemas",
   "/scripts",
+  "/local-dev/containers/*",
 ]
 
 # Python dependency inference

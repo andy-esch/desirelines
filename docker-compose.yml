@@ -99,8 +99,8 @@ services:
   cloudevent-adapter:
     profiles: ["backend"] # Backend pipeline only
     build:
-      context: ./scripts/development/local-dev
-      dockerfile: Dockerfile.cloudevent_adapter
+      context: ./local-dev/containers/cloudevent-adapter
+      dockerfile: Dockerfile
     ports:
       - "8087:8080"
     environment:
@@ -130,7 +130,7 @@ services:
       - PROJECT_ID=local-dev
       - TOPIC_NAME=desirelines_activity_events
     volumes:
-      - ./scripts/development/local-dev/bootstrap_pubsub.sh:/bootstrap_pubsub.sh:ro
+      - ./local-dev/bootstrap/pubsub-emulator.sh:/bootstrap_pubsub.sh:ro
     command: /bootstrap_pubsub.sh
     depends_on:
       - pubsub-emulator
@@ -151,8 +151,8 @@ services:
   firebase-emulators:
     profiles: ["frontend"]
     build:
-      context: ./scripts/development/local-dev
-      dockerfile: Dockerfile.firebase-emulators
+      context: ./local-dev/containers/firebase-emulators
+      dockerfile: Dockerfile
     ports:
       - "9099:9099" # Auth emulator
       - "8089:8080" # Firestore emulator
@@ -196,7 +196,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Init script creates login roles (writer, apigateway, flyway, admin)
-      - ./scripts/development/local-dev/init-db-roles.sql:/docker-entrypoint-initdb.d/01-init-roles.sql:ro
+      - ./schemas/database/local/init-roles.sql:/docker-entrypoint-initdb.d/01-init-roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U desirelines -d desirelines_local"]
       interval: 10s

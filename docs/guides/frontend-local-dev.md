@@ -54,29 +54,6 @@ The Firebase Emulator UI is available at http://localhost:4000 for managing test
 
 **Note:** Emulator data is in-memory only and resets when stopped.
 
-### Authenticated Mode (Cloud Firebase)
-
-To use real Firebase Auth with the local API Gateway:
-
-1. **Set up Application Default Credentials**:
-   ```bash
-   gcloud auth application-default login
-   ```
-
-2. **Configure `.env`** (in repo root):
-   ```bash
-   cp .env.local.example .env.local
-   # Edit .env.local with:
-   ALLOWED_EMAILS=your-email@example.com  # Must match your login email
-   ```
-
-3. **Update docker-compose.local.yml** to use cloud Firebase instead of emulators.
-
-4. **Start services**:
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.local.yml --profile frontend up
-   ```
-
 ### Use Deployed Dev API
 
 For simplest setup, point to the deployed dev API:

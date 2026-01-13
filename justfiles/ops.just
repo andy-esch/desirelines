@@ -1,24 +1,7 @@
-# Start backend services (mode: local, hybrid, debug)
-start mode='local':
-    #!/usr/bin/env bash
-    if [[ "{{mode}}" == "local" ]]; then
-        echo "🚀 Starting backend (Local Mode)..."
-        docker compose --profile backend up --build --detach
-    elif [[ "{{mode}}" == "hybrid" ]]; then
-        echo "🚀 Starting backend (Hybrid Mode)..."
-        # Check auth
-        if [ ! -f "$HOME/.config/gcloud/application_default_credentials.json" ]; then
-            echo "❌ Error: No application_default_credentials found."
-            exit 1
-        fi
-        docker compose -f docker-compose.yml -f docker-compose.local.yml up --build --detach
-    elif [[ "{{mode}}" == "debug" ]]; then
-        echo "🐛 Starting backend (Debug Mode)..."
-        docker compose --profile backend --profile debug up --build --detach
-    else
-        echo "❌ Unknown mode: {{mode}}"
-        exit 1
-    fi
+# Start backend services
+start-backend:
+    @echo "🚀 Starting backend (Local Mode)..."
+    docker compose --profile backend up --build --detach
 
 # Start frontend stack
 start-frontend:
@@ -32,19 +15,13 @@ stop:
 
 # View logs (service: dispatcher, bq-inserter, etc. Default: all)
 logs service='':
-    docker compose --profile backend logs -f {{service}}
+    docker compose --profile backend logs -f {{ service }}
 
 # Clean Docker resources
 clean:
     @echo "🧹 Cleaning Docker resources..."
     docker compose down --rmi all --volumes --remove-orphans
     docker system prune -f
-
-# Setup local environment (Terraform)
-setup-local:
-    just auth-impersonate
-    just tf-init local
-    just tf-plan local
 
 # Run end-to-end webhook flow test
 test-flow:
