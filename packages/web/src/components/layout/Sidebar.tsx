@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import GoalControls from "../GoalControls";
 import AuthButton from "../AuthButton";
@@ -12,6 +12,7 @@ import type { MetricUnit } from "../../utils/units";
 import { useAuth } from "../../hooks/useAuth";
 import { useAuthToken } from "../../hooks/useAuthToken";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
+import { useVisibleSports } from "../../hooks/useVisibleSports";
 
 interface SidebarProps {
   currentYear: number;
@@ -51,7 +52,8 @@ export default function Sidebar({
   const navigate = useNavigate();
   const { loading } = useAuth();
   const { getToken } = useAuthToken();
-  const [availableSports, setAvailableSports] = useState<string[]>(["cycling"]);
+  const { visibleSports } = useVisibleSports();
+  const [sportCounts, setSportCounts] = useState<Record<string, number>>({});
 
   const [expandedSections, setExpandedSections] = useLocalStorage<SidebarSections>(
     "sidebar-sections",
@@ -65,13 +67,13 @@ export default function Sidebar({
     });
   };
 
-  // Fetch available sports from metadata
+  // Fetch activity counts per sport category
   useEffect(() => {
     if (loading) return;
 
     const controller = new AbortController();
 
-    async function loadSports() {
+    async function loadCounts() {
       try {
         const idToken = await getToken();
         const [metadata, sportConfig] = await Promise.all([
@@ -79,32 +81,38 @@ export default function Sidebar({
           fetchSportConfig(controller.signal, idToken),
         ]);
 
-        const rawSportsWithData = new Set(metadata.sports || []);
-        const categoriesWithData: string[] = [];
+        // Aggregate activity counts by sport category
+        const categoryCounts: Record<string, number> = {};
 
         for (const [category, config] of Object.entries(sportConfig.sport_categories)) {
-          const hasData = config.strava_types.some((stravaType) =>
-            rawSportsWithData.has(stravaType)
-          );
-          if (hasData) {
-            categoriesWithData.push(category);
+          // Sum up activity counts from all strava types in this category
+          let totalActivities = 0;
+          for (const stravaType of config.strava_types) {
+            const totals = metadata.totals[stravaType];
+            if (totals?.activities) {
+              totalActivities += totals.activities;
+            }
           }
+          categoryCounts[category] = totalActivities;
         }
 
-        if (categoriesWithData.length > 0) {
-          setAvailableSports(categoriesWithData);
-        }
+        setSportCounts(categoryCounts);
       } catch (err) {
         // Only log real errors, not cancellations (which are expected behavior)
         if (!isCancellationError(err)) {
-          console.warn("Failed to fetch available sports, using defaults:", err);
+          console.warn("Failed to fetch sport counts, using defaults:", err);
         }
       }
     }
 
-    loadSports();
+    loadCounts();
     return () => controller.abort();
   }, [currentYear, loading, getToken]);
+
+  // Sort visible sports by activity count (descending)
+  const sortedVisibleSports = useMemo(() => {
+    return [...visibleSports].sort((a, b) => (sportCounts[b] ?? 0) - (sportCounts[a] ?? 0));
+  }, [visibleSports, sportCounts]);
 
   const handleSportChange = (newSport: string) => {
     navigate(`/${newSport}/${currentYear}`);
@@ -149,7 +157,8 @@ export default function Sidebar({
           >
             <FilterControls
               sport={sport}
-              availableSports={availableSports}
+              availableSports={sortedVisibleSports}
+              sportCounts={sportCounts}
               onSportChange={handleSportChange}
               currentYear={currentYear}
               onYearChange={onYearClick}
