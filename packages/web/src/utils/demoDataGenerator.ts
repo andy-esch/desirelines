@@ -2,7 +2,9 @@
  * Demo Data Generator
  *
  * Generates realistic-looking demo data for the demo experience.
- * Data is generated fresh on each call, creating variety between page loads.
+ * Fill levels are coordinated per session (stored in sessionStorage) to ensure
+ * consistent data across all components within a browser session.
+ * Refreshing the page generates a new random distribution.
  */
 
 import type { MetricsEntry, ActivitySummary } from "../api/activities";
@@ -61,6 +63,50 @@ const ACTIVITY_LIST_LIMITS = {
  * Milliseconds in one day - used for date arithmetic.
  */
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Session storage key for coordinated fill levels.
+ * Ensures consistent demo experience within a browser session.
+ */
+const SESSION_FILL_LEVELS_KEY = "demo-fill-levels";
+
+// =============================================================================
+// Session Storage for Fill Levels
+// =============================================================================
+
+/**
+ * Get coordinated fill levels from session storage, or generate and store new ones.
+ * This ensures all demo components see the same fill levels within a session.
+ */
+function getSessionFillLevels(): Record<DemoSport, FillLevel> {
+  // Try to read from session storage
+  try {
+    const stored = sessionStorage.getItem(SESSION_FILL_LEVELS_KEY);
+    if (stored) {
+      return JSON.parse(stored) as Record<DemoSport, FillLevel>;
+    }
+  } catch {
+    // Session storage not available or invalid data - generate fresh
+  }
+
+  // Generate new coordinated levels and store them
+  const levels = generateCoordinatedFillLevels();
+  try {
+    sessionStorage.setItem(SESSION_FILL_LEVELS_KEY, JSON.stringify(levels));
+  } catch {
+    // Storage full or not available - still return the levels
+  }
+  return levels;
+}
+
+/**
+ * Get the fill level for a specific sport from session storage.
+ * Falls back to "full" if sport not found (safe default for demo).
+ */
+function getSessionFillLevelForSport(sport: DemoSport): FillLevel {
+  const levels = getSessionFillLevels();
+  return levels[sport] ?? "full";
+}
 
 // =============================================================================
 // Helper Functions
@@ -157,8 +203,8 @@ function formatTimestamp(date: Date): string {
  * Returns an array of MetricsEntry representing cumulative totals per day.
  * The data grows realistically from Jan 1 to "today".
  *
- * Fill level is randomly selected on each call unless overridden,
- * creating variety between page loads.
+ * Fill level is coordinated per session (stored in sessionStorage) to ensure
+ * consistent demo experience. Override with explicit fill level for testing.
  */
 export function generateDemoMetrics(
   sport: DemoSport,
@@ -167,8 +213,8 @@ export function generateDemoMetrics(
 ): MetricsEntry[] {
   const config = DEMO_SPORT_CONFIG[sport];
 
-  // Use override if provided, otherwise randomly select fill level
-  const fillLevel = overrideFillLevel ?? randomFillLevel();
+  // Use override if provided, otherwise use session-coordinated fill level
+  const fillLevel = overrideFillLevel ?? getSessionFillLevelForSport(sport);
 
   // Empty fill level returns no data
   if (fillLevel === "empty") {
@@ -263,7 +309,7 @@ export function generateDemoMetrics(
  * Generate a list of recent activities for a sport.
  *
  * Returns activities from the last few weeks with realistic names and values.
- * Fill level is randomly selected on each call unless overridden.
+ * Fill level is coordinated per session for consistent demo experience.
  */
 export function generateDemoActivities(
   sport: DemoSport,
@@ -273,8 +319,8 @@ export function generateDemoActivities(
 ): ActivitySummary[] {
   const config = DEMO_SPORT_CONFIG[sport];
 
-  // Use override if provided, otherwise randomly select fill level
-  const fillLevel = overrideFillLevel ?? randomFillLevel();
+  // Use override if provided, otherwise use session-coordinated fill level
+  const fillLevel = overrideFillLevel ?? getSessionFillLevelForSport(sport);
 
   // Empty fill level returns no activities
   if (fillLevel === "empty") {
@@ -397,7 +443,7 @@ export interface DemoDailyActivity {
  * Returns a Record<string, DemoDailyActivity> keyed by date (YYYY-MM-DD).
  * Only includes days that have activity (sparse map).
  *
- * Fill level is randomly selected on each call unless overridden.
+ * Fill level is coordinated per session for consistent demo experience.
  */
 export function generateDemoDailyData(
   sport: DemoSport,
@@ -407,8 +453,8 @@ export function generateDemoDailyData(
 ): Record<string, DemoDailyActivity> {
   const config = DEMO_SPORT_CONFIG[sport];
 
-  // Use override if provided, otherwise randomly select fill level
-  const fillLevel = overrideFillLevel ?? randomFillLevel();
+  // Use override if provided, otherwise use session-coordinated fill level
+  const fillLevel = overrideFillLevel ?? getSessionFillLevelForSport(sport);
 
   // Empty fill level returns no data
   if (fillLevel === "empty") {
