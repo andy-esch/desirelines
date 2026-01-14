@@ -1,10 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
-
-const SPORTS = [
-  { id: "cycling", label: "Cycling", icon: "\u{1F6B2}" },
-  { id: "running", label: "Running", icon: "\u{1F3C3}" },
-  { id: "yoga", label: "Yoga", icon: "\u{1F9D8}" },
-] as const;
+import { useVisibleSports } from "../../hooks/useVisibleSports";
+import { useSportConfig } from "../../hooks/useSportConfig";
 
 interface NavigationProps {
   className?: string;
@@ -19,9 +15,19 @@ interface NavigationProps {
 export default function Navigation({ className = "", vertical = false }: NavigationProps) {
   const currentYear = new Date().getFullYear();
   const location = useLocation();
+  const { visibleSports } = useVisibleSports();
+  const { sportConfig } = useSportConfig();
+
+  // Build sports list from visible sports with display names from config
+  // Fallback to capitalized id if config not loaded yet
+  const sports = visibleSports.map((id) => ({
+    id,
+    label:
+      sportConfig?.sport_categories[id]?.display_name || id.charAt(0).toUpperCase() + id.slice(1),
+  }));
 
   // Determine if we're on a sport/goals page
-  const isOnSportPage = SPORTS.some((s) => location.pathname.startsWith(`/${s.id}`));
+  const isOnSportPage = sports.some((s) => location.pathname.startsWith(`/${s.id}`));
 
   const linkClasses = ({ isActive }: { isActive: boolean }) =>
     `nav-link ${isActive ? "active" : "text-white-50"}`;
@@ -41,14 +47,13 @@ export default function Navigation({ className = "", vertical = false }: Navigat
             Goals
           </span>
         </div>
-        {SPORTS.map((sport) => (
+        {sports.map((sport) => (
           <NavLink
             key={sport.id}
             to={`/${sport.id}/${currentYear}`}
             className={linkClasses}
             style={{ paddingLeft: "1rem" }}
           >
-            <span className="me-2">{sport.icon}</span>
             {sport.label}
           </NavLink>
         ))}
@@ -80,15 +85,12 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           Goals
         </button>
         <ul className="dropdown-menu">
-          {SPORTS.map((sport) => (
+          {sports.map((sport) => (
             <li key={sport.id}>
               <NavLink
                 to={`/${sport.id}/${currentYear}`}
-                className={({ isActive }) =>
-                  `dropdown-item d-flex align-items-center ${isActive ? "active" : ""}`
-                }
+                className={({ isActive }) => `dropdown-item ${isActive ? "active" : ""}`}
               >
-                <span className="me-2">{sport.icon}</span>
                 {sport.label}
               </NavLink>
             </li>
