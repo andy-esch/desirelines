@@ -369,7 +369,7 @@ function RecentActivitiesList({ timeRange, pageSize }: { timeRange: TimeRange; p
     <div className="d-flex h-100">
       {/* Activities table */}
       <table
-        className="table table-sm table-borderless mb-0 flex-grow-1"
+        className="table table-sm table-borderless table-dark-transparent mb-0 flex-grow-1"
         style={{ fontSize: "0.8rem", lineHeight: 1.2 }}
       >
         <tbody>
@@ -512,8 +512,8 @@ export default function MultiSportComparisonChart({
           <h2 className="h5 mb-0">Recent Activity</h2>
         </div>
         <div
-          className="bg-light rounded d-flex align-items-center justify-content-center"
-          style={{ height: sparklineContainerHeight }}
+          className="border rounded d-flex align-items-center justify-content-center"
+          style={{ height: sparklineContainerHeight, background: "transparent" }}
         >
           <NeonSpinner size="sm" />
         </div>
@@ -541,8 +541,8 @@ export default function MultiSportComparisonChart({
 
       {!hasAnyData ? (
         <div
-          className="bg-light rounded d-flex align-items-center justify-content-center"
-          style={{ height: sparklineContainerHeight }}
+          className="border rounded d-flex align-items-center justify-content-center"
+          style={{ height: sparklineContainerHeight, background: "transparent" }}
         >
           <p className="text-muted mb-0">No activity data for selected time range</p>
         </div>
@@ -557,6 +557,7 @@ export default function MultiSportComparisonChart({
                 maxHeight: MAX_SPORTS_DISPLAY * SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT + 32,
                 overflowY: validSports.length >= MAX_SPORTS_DISPLAY ? "auto" : "visible",
                 minWidth: 0,
+                background: "transparent",
               }}
             >
               {sparklineData.map(({ sport, displayName, data: sData, color, textColor }, index) => (
@@ -577,7 +578,7 @@ export default function MultiSportComparisonChart({
           <div className="col-md-6">
             <div
               className="border rounded p-2 h-100 overflow-hidden"
-              style={{ minHeight: sparklineContainerHeight }}
+              style={{ minHeight: sparklineContainerHeight, background: "transparent" }}
             >
               <RecentActivitiesList timeRange={timeRange} pageSize={activityPageSize} />
             </div>

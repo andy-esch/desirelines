@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import GoalControls from "../GoalControls";
 import ProgressSummary from "./ProgressSummary";
@@ -7,6 +8,7 @@ import type { Goals } from "../../utils/goalCalculations";
 import type { MetricUnit } from "../../utils/units";
 import { getDemoAvailableSports } from "../../hooks/useDemoData";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
+import { generateDemoMetrics, type DemoSport } from "../../utils/demoDataGenerator";
 
 interface DemoSidebarProps {
   currentYear: number;
@@ -46,6 +48,20 @@ export default function DemoSidebar({
 }: DemoSidebarProps) {
   const navigate = useNavigate();
   const availableSports = getDemoAvailableSports();
+
+  // Generate demo activity counts for each sport
+  const { sportCounts, sortedSports } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const sportId of availableSports) {
+      const metrics = generateDemoMetrics(sportId as DemoSport, currentYear);
+      // Get final activity count from last entry (cumulative)
+      const lastEntry = metrics[metrics.length - 1];
+      counts[sportId] = lastEntry?.activities ?? 0;
+    }
+    // Sort by count descending
+    const sorted = [...availableSports].sort((a, b) => (counts[b] ?? 0) - (counts[a] ?? 0));
+    return { sportCounts: counts, sortedSports: sorted };
+  }, [availableSports, currentYear]);
 
   const [expandedSections, setExpandedSections] = useLocalStorage<SidebarSections>(
     "sidebar-sections",
@@ -102,7 +118,8 @@ export default function DemoSidebar({
           >
             <FilterControls
               sport={sport}
-              availableSports={availableSports}
+              availableSports={sortedSports}
+              sportCounts={sportCounts}
               onSportChange={handleSportChange}
               currentYear={currentYear}
               onYearChange={onYearClick}

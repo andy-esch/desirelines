@@ -1,11 +1,14 @@
 import { AVAILABLE_YEARS } from "../../constants/sidebar";
 import { capitalizeFirst } from "../../utils/format";
+import SportVisibilityHint from "../SportVisibilityHint";
 
 interface FilterControlsProps {
   /** Currently selected sport */
   sport: string;
   /** List of available sports to choose from */
   availableSports: string[];
+  /** Activity counts per sport (optional, for display) */
+  sportCounts?: Record<string, number>;
   /** Callback when sport selection changes */
   onSportChange: (sport: string) => void;
   /** Currently selected year */
@@ -21,6 +24,7 @@ interface FilterControlsProps {
 export default function FilterControls({
   sport,
   availableSports,
+  sportCounts,
   onSportChange,
   currentYear,
   onYearChange,
@@ -28,7 +32,7 @@ export default function FilterControls({
   return (
     <>
       {/* Sport Selector */}
-      <div className="d-flex align-items-center mb-2">
+      <div className="d-flex align-items-center mb-1">
         <label className="form-label small text-muted mb-0 text-start" style={{ minWidth: "65px" }}>
           Sport
         </label>
@@ -37,13 +41,21 @@ export default function FilterControls({
           value={sport}
           onChange={(e) => onSportChange(e.target.value)}
         >
-          {availableSports.map((sportId) => (
-            <option key={sportId} value={sportId}>
-              {capitalizeFirst(sportId)}
-            </option>
-          ))}
+          {availableSports.map((sportId) => {
+            const count = sportCounts?.[sportId];
+            const label =
+              count !== undefined
+                ? `${capitalizeFirst(sportId)} (${count})`
+                : capitalizeFirst(sportId);
+            return (
+              <option key={sportId} value={sportId}>
+                {label}
+              </option>
+            );
+          })}
         </select>
       </div>
+      <SportVisibilityHint className="mb-2" style={{ paddingLeft: "65px" }} />
 
       {/* Year Selector */}
       <div className="d-flex align-items-center">
