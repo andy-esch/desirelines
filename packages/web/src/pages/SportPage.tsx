@@ -17,6 +17,7 @@ import { useUserConfig } from "../hooks/useUserConfig";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
 import { useSportData } from "../hooks/useSportData";
+import { useSidebarSportData } from "../hooks/useSidebarSportData";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
@@ -35,6 +36,9 @@ export default function SportPage({ sport }: SportPageProps) {
 
   // Fetch sport metrics and config
   const { metrics, sportConfig, isLoading, error, retry } = useSportData(currentYear, sport);
+
+  // Fetch sidebar sport data (available sports and counts)
+  const { availableSports, sportCounts } = useSidebarSportData(currentYear);
 
   // Load user preferences for unit settings (BEFORE using them in calculations)
   const { data: preferences } = useUserConfig("preferences");
@@ -144,12 +148,14 @@ export default function SportPage({ sport }: SportPageProps) {
           goals={goals}
           onGoalsChange={handleGoalsChange}
           estimatedYearEnd={estimatedYearEnd}
-          currentDistance={currentValue}
+          currentValue={currentValue}
           unit={metricUnit}
           isLoading={isLoading || !!error}
           isSaving={isGoalsSaving}
           saveError={goalsSaveError}
           onClearSaveError={clearGoalsSaveError}
+          availableSports={availableSports}
+          sportCounts={sportCounts}
         />
 
         <main

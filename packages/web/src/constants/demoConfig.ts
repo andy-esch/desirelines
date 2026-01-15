@@ -7,7 +7,7 @@
 
 export type FillLevel = "full" | "partial" | "empty";
 
-export type DemoSport = "cycling" | "running" | "yoga";
+export type DemoSport = "cycling" | "running" | "yoga" | "hiking" | "workout";
 
 export interface DemoSportConfig {
   /** How much data to generate */
@@ -96,10 +96,10 @@ export const DEMO_SPORT_CONFIG: Record<DemoSport, DemoSportConfig> = {
   },
   yoga: {
     fillLevel: "empty",
-    activityRate: 0, // No data - shows empty state
+    activityRate: 0.15, // ~15% of days
     avgDistanceMeters: 0,
     distanceVariance: 0,
-    avgDurationSeconds: 3600, // 1 hour (used if we ever generate yoga data)
+    avgDurationSeconds: 3600, // 1 hour
     durationVariance: 0.2,
     goals: {
       conservative: 100, // hours
@@ -119,6 +119,57 @@ export const DEMO_SPORT_CONFIG: Record<DemoSport, DemoSportConfig> = {
       "Meditation & Stretch",
     ],
   },
+  hiking: {
+    fillLevel: "full",
+    activityRate: 0.15, // ~15% of days (weekend warrior)
+    avgDistanceMeters: 12000, // ~7.5 miles average
+    distanceVariance: 0.5,
+    avgDurationSeconds: 10800, // 3 hours
+    durationVariance: 0.4,
+    avgElevationMeters: 500,
+    goals: {
+      conservative: 200, // miles
+      target: 300,
+      stretch: 400,
+    },
+    activityNames: [
+      "Morning Hike",
+      "Trail Exploration",
+      "Summit Attempt",
+      "Nature Walk",
+      "Canyon Trek",
+      "Ridge Walk",
+      "Forest Trail",
+      "Weekend Adventure",
+      "Peak Bagging",
+      "Backcountry Hike",
+    ],
+  },
+  workout: {
+    fillLevel: "full",
+    activityRate: 0.4, // ~40% of days
+    avgDistanceMeters: 0, // Time-based sport
+    distanceVariance: 0,
+    avgDurationSeconds: 3600, // 1 hour
+    durationVariance: 0.3,
+    goals: {
+      conservative: 150, // hours
+      target: 200,
+      stretch: 250,
+    },
+    activityNames: [
+      "Strength Training",
+      "HIIT Session",
+      "CrossFit WOD",
+      "Upper Body Day",
+      "Lower Body Day",
+      "Core Workout",
+      "Cardio Session",
+      "Circuit Training",
+      "Recovery Session",
+      "Full Body Workout",
+    ],
+  },
 };
 
 /**
@@ -128,6 +179,8 @@ export const DEMO_SPORT_LABELS: Record<DemoSport, string> = {
   cycling: "Cycling",
   running: "Running",
   yoga: "Yoga",
+  hiking: "Hiking",
+  workout: "Workout",
 };
 
 /**
@@ -137,4 +190,6 @@ export const DEMO_STRAVA_TYPES: Record<DemoSport, string> = {
   cycling: "Ride",
   running: "Run",
   yoga: "Yoga",
+  hiking: "Hike",
+  workout: "Workout",
 };

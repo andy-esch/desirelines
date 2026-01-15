@@ -1,7 +1,8 @@
 import type { MetricUnit } from "../../utils/units";
 
 interface ProgressSummaryProps {
-  currentDistance: number;
+  /** Current cumulative value (distance or session count) */
+  currentValue: number;
   estimatedYearEnd: number;
   unit: MetricUnit;
   isLoading?: boolean;
@@ -12,7 +13,7 @@ interface ProgressSummaryProps {
  * Used at the top of the sidebar to provide key context.
  */
 export default function ProgressSummary({
-  currentDistance,
+  currentValue,
   estimatedYearEnd,
   unit,
   isLoading = false,
@@ -26,7 +27,7 @@ export default function ProgressSummary({
     <div className="px-3 pt-3 pb-2">
       <div className="d-flex justify-content-between small">
         <span className="text-muted">Current</span>
-        <span className="fw-semibold">{formatValue(currentDistance)}</span>
+        <span className="fw-semibold">{formatValue(currentValue)}</span>
       </div>
       <div className="d-flex justify-content-between small">
         <span className="text-muted">Est. Year-End</span>

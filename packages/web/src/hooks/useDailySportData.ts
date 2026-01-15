@@ -2,11 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "./useAuth";
 import { useAuthToken } from "./useAuthToken";
 import { fetchDailySummary, type DailyActivity } from "../api/activities";
-import {
-  generateDemoDailyData,
-  generateCoordinatedFillLevels,
-  type DemoSport,
-} from "../utils/demoDataGenerator";
+import { generateDemoDailyData, getSessionFillLevels } from "../utils/demoDataGenerator";
 
 /**
  * @deprecated Use string sport keys instead. Kept for backwards compatibility.
@@ -51,15 +47,12 @@ export interface UseDailySportDataOptions {
   sports?: string[];
 }
 
-/** Sports that have demo data configured */
-const DEMO_SPORTS = new Set(["cycling", "running", "yoga"]);
-
 /**
  * Hook for fetching daily activity data for multiple sports from the /source endpoint.
  * Returns daily totals (not cumulative) for each day with activity.
  *
- * For unauthenticated users, generates demo data for cycling/running/yoga.
- * Other sports return empty data in demo mode.
+ * For unauthenticated users, generates demo data for all sports using
+ * sensible defaults based on sport properties.
  *
  * @example
  * ```tsx
@@ -123,21 +116,18 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
   const prevSportsKeyRef = useRef(sportsKey);
 
   // Generate demo data using useMemo for stability
-  // Uses coordinated fill levels to ensure at most one sport is empty
+  // Uses session-stored fill levels to ensure consistency across components
   const demoData = useMemo(() => {
-    const fillLevels = generateCoordinatedFillLevels();
+    // Get coordinated fill levels for all requested sports
+    const fillLevels = getSessionFillLevels(sports);
     const result: MultiSportData = {};
 
     for (const sport of sports) {
-      if (DEMO_SPORTS.has(sport)) {
-        // Generate demo data for known demo sports
-        const demoSport = sport as DemoSport;
-        const fillLevel = fillLevels[demoSport] ?? "empty";
-        result[sport] = generateDemoDailyData(demoSport, from, to, fillLevel);
-      } else {
-        // Other sports get empty data in demo mode
-        result[sport] = {};
-      }
+      const fillLevel = fillLevels[sport] ?? "full";
+      result[sport] = generateDemoDailyData(sport, from, to, {
+        overrideFillLevel: fillLevel,
+        allSports: sports,
+      });
     }
 
     return result;
