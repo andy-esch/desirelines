@@ -26,6 +26,15 @@ vi.mock("../utils/demoDataGenerator", () => ({
     cycling: "full",
     running: "full",
     yoga: "full",
+    hiking: "full",
+    workout: "full",
+  })),
+  getSessionFillLevels: vi.fn(() => ({
+    cycling: "full",
+    running: "full",
+    yoga: "full",
+    hiking: "full",
+    workout: "full",
   })),
   generateDemoMetrics: vi.fn((sport: string, year: number) => {
     // Only return data for year 2025
@@ -39,6 +48,8 @@ vi.mock("../utils/demoDataGenerator", () => ({
       cycling: [{ date: "2025-01-01", distance: 10000, time: 60, activities: 1 }],
       running: [{ date: "2025-01-02", distance: 5000, time: 30, activities: 1 }],
       yoga: [{ date: "2025-01-03", time: 45, activities: 1 }],
+      hiking: [{ date: "2025-01-04", distance: 8000, time: 120, activities: 1 }],
+      workout: [{ date: "2025-01-05", time: 60, activities: 1 }],
     };
     return mockData[sport] || [];
   }),

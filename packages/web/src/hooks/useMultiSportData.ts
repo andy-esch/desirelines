@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "./useAuth";
 import { useAuthToken } from "./useAuthToken";
 import { fetchSportMetrics, type SportMetrics } from "../api/activities";
-import { generateDemoMetrics, generateCoordinatedFillLevels } from "../utils/demoDataGenerator";
+import { generateDemoMetrics, getSessionFillLevels } from "../utils/demoDataGenerator";
 
 export type Sport = "cycling" | "running" | "yoga";
 
@@ -61,10 +61,10 @@ export function useMultiSportData(
   const [error, setError] = useState<Error | null>(null);
 
   // Generate demo data using useMemo for stability
-  // Uses coordinated fill levels to ensure at most one sport is empty
+  // Uses session-stored fill levels to ensure consistency across components
   // When in date-range mode that spans years, generate data for both years
   const demoData = useMemo(() => {
-    const fillLevels = generateCoordinatedFillLevels();
+    const fillLevels = getSessionFillLevels();
     const previousYear = effectiveYear - 1;
 
     // Check if date range spans into previous year

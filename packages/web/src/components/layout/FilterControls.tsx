@@ -19,7 +19,7 @@ interface FilterControlsProps {
 
 /**
  * Sport and Year filter controls for the sidebar.
- * Reusable across Sidebar and DemoSidebar.
+ * Used in both authenticated and demo modes.
  */
 export default function FilterControls({
   sport,
@@ -29,6 +29,12 @@ export default function FilterControls({
   currentYear,
   onYearChange,
 }: FilterControlsProps) {
+  // Ensure current sport is in the list (prevents invalid dropdown state)
+  const sportsToShow =
+    availableSports.length > 0 && !availableSports.includes(sport)
+      ? [sport, ...availableSports]
+      : availableSports;
+
   return (
     <>
       {/* Sport Selector */}
@@ -36,24 +42,30 @@ export default function FilterControls({
         <label className="form-label small text-muted mb-0 text-start" style={{ minWidth: "65px" }}>
           Sport
         </label>
-        <select
-          className="form-select form-select-sm flex-grow-1"
-          value={sport}
-          onChange={(e) => onSportChange(e.target.value)}
-        >
-          {availableSports.map((sportId) => {
-            const count = sportCounts?.[sportId];
-            const label =
-              count !== undefined
-                ? `${capitalizeFirst(sportId)} (${count})`
-                : capitalizeFirst(sportId);
-            return (
-              <option key={sportId} value={sportId}>
-                {label}
-              </option>
-            );
-          })}
-        </select>
+        {sportsToShow.length === 0 ? (
+          <select className="form-select form-select-sm flex-grow-1" disabled>
+            <option>No sports available</option>
+          </select>
+        ) : (
+          <select
+            className="form-select form-select-sm flex-grow-1"
+            value={sport}
+            onChange={(e) => onSportChange(e.target.value)}
+          >
+            {sportsToShow.map((sportId) => {
+              const count = sportCounts?.[sportId];
+              const label =
+                count !== undefined
+                  ? `${capitalizeFirst(sportId)} (${count})`
+                  : capitalizeFirst(sportId);
+              return (
+                <option key={sportId} value={sportId}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+        )}
       </div>
       <SportVisibilityHint className="mb-2" style={{ paddingLeft: "65px" }} />
 

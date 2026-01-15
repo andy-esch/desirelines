@@ -5,18 +5,21 @@
  * Fill levels are coordinated per session (stored in sessionStorage) to ensure
  * consistent data across all components within a browser session.
  * Refreshing the page generates a new random distribution.
+ *
+ * Supports any sport from the API's sport_types.json - unknown sports get
+ * sensible defaults based on their has_distance/has_elevation properties.
  */
 
 import type { MetricsEntry, ActivitySummary } from "../api/activities";
 import {
   DEMO_SPORT_CONFIG,
   DEMO_STRAVA_TYPES,
-  type DemoSport,
+  type DemoSportConfig,
   type FillLevel,
 } from "../constants/demoConfig";
 
 // Re-export types for consumers
-export type { DemoSport, FillLevel };
+export type { FillLevel };
 
 // =============================================================================
 // Constants
@@ -24,12 +27,14 @@ export type { DemoSport, FillLevel };
 
 /**
  * Fill level probability thresholds.
- * Distribution: 50% full, 30% partial, 20% empty
+ * Distribution: 60% full, 15% partial, 25% empty
+ * Note: generateCoordinatedFillLevels() caps empty at 1 sport max,
+ * so effective distribution is ~75% with data, ~25% empty (max 1).
  */
 const FILL_LEVEL_THRESHOLDS = {
-  FULL: 0.5, // 0 to 0.5 = full (50%)
-  PARTIAL: 0.8, // 0.5 to 0.8 = partial (30%)
-  // 0.8 to 1.0 = empty (20%)
+  FULL: 0.6, // 0 to 0.6 = full (60%)
+  PARTIAL: 0.75, // 0.6 to 0.75 = partial (15%)
+  // 0.75 to 1.0 = empty (25%, capped at 1)
 } as const;
 
 /**
@@ -70,29 +75,54 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
  */
 const SESSION_FILL_LEVELS_KEY = "demo-fill-levels";
 
+/**
+ * Session storage key for cached activity counts.
+ * Avoids regenerating full metrics arrays just to get counts.
+ */
+const SESSION_ACTIVITY_COUNTS_KEY = "demo-activity-counts";
+
 // =============================================================================
 // Session Storage for Fill Levels
 // =============================================================================
 
+interface StoredFillLevels {
+  sports: string[];
+  levels: Record<string, FillLevel>;
+}
+
 /**
  * Get coordinated fill levels from session storage, or generate and store new ones.
  * This ensures all demo components see the same fill levels within a session.
+ *
+ * @param sports - List of sports to generate levels for. If the stored sports
+ *                 don't match, new levels are generated.
  */
-function getSessionFillLevels(): Record<DemoSport, FillLevel> {
+export function getSessionFillLevels(sports?: string[]): Record<string, FillLevel> {
+  const targetSports = sports ?? getDemoSports();
+  const targetKey = targetSports.sort().join(",");
+
   // Try to read from session storage
   try {
     const stored = sessionStorage.getItem(SESSION_FILL_LEVELS_KEY);
     if (stored) {
-      return JSON.parse(stored) as Record<DemoSport, FillLevel>;
+      const parsed: StoredFillLevels = JSON.parse(stored);
+      const storedKey = parsed.sports.sort().join(",");
+
+      // If sports match, use stored levels
+      if (storedKey === targetKey) {
+        return parsed.levels;
+      }
+      // Sports changed - regenerate
     }
   } catch {
     // Session storage not available or invalid data - generate fresh
   }
 
   // Generate new coordinated levels and store them
-  const levels = generateCoordinatedFillLevels();
+  const levels = generateCoordinatedFillLevelsForSports(targetSports);
   try {
-    sessionStorage.setItem(SESSION_FILL_LEVELS_KEY, JSON.stringify(levels));
+    const toStore: StoredFillLevels = { sports: targetSports, levels };
+    sessionStorage.setItem(SESSION_FILL_LEVELS_KEY, JSON.stringify(toStore));
   } catch {
     // Storage full or not available - still return the levels
   }
@@ -102,10 +132,65 @@ function getSessionFillLevels(): Record<DemoSport, FillLevel> {
 /**
  * Get the fill level for a specific sport from session storage.
  * Falls back to "full" if sport not found (safe default for demo).
+ *
+ * @param sport - Sport key
+ * @param allSports - Optional list of all sports (for generating coordinated levels)
  */
-function getSessionFillLevelForSport(sport: DemoSport): FillLevel {
-  const levels = getSessionFillLevels();
+function getSessionFillLevelForSport(sport: string, allSports?: string[]): FillLevel {
+  const levels = getSessionFillLevels(allSports);
   return levels[sport] ?? "full";
+}
+
+// =============================================================================
+// Cached Activity Counts
+// =============================================================================
+
+interface CachedActivityCounts {
+  year: number;
+  counts: Record<string, number>;
+}
+
+/**
+ * Get cached activity counts for all demo sports.
+ * Generates and caches counts on first call for each year.
+ * This avoids regenerating full metrics arrays just to get sidebar counts.
+ *
+ * @param year - The year to get counts for
+ * @returns Record of sport to activity count
+ */
+export function getDemoActivityCounts(year: number): Record<string, number> {
+  // Try to read from cache
+  try {
+    const stored = sessionStorage.getItem(SESSION_ACTIVITY_COUNTS_KEY);
+    if (stored) {
+      const cached: CachedActivityCounts = JSON.parse(stored);
+      if (cached.year === year) {
+        return cached.counts;
+      }
+    }
+  } catch {
+    // Cache miss or invalid data
+  }
+
+  // Generate counts by getting the last entry from each sport's metrics
+  const sports = getDemoSports();
+  const counts: Record<string, number> = {};
+
+  for (const sport of sports) {
+    const metrics = generateDemoMetrics(sport, year);
+    const lastEntry = metrics[metrics.length - 1];
+    counts[sport] = lastEntry?.activities ?? 0;
+  }
+
+  // Cache for this year
+  try {
+    const toCache: CachedActivityCounts = { year, counts };
+    sessionStorage.setItem(SESSION_ACTIVITY_COUNTS_KEY, JSON.stringify(toCache));
+  } catch {
+    // Storage full or not available
+  }
+
+  return counts;
 }
 
 // =============================================================================
@@ -124,14 +209,15 @@ function randomFillLevel(): FillLevel {
 }
 
 /**
- * Generate coordinated fill levels for all sports.
+ * Generate coordinated fill levels for a list of sports.
  * Ensures at most ONE sport has empty state (for better demo UX).
  *
+ * @param sports - List of sport keys to generate levels for
  * @returns Record of sport to fill level
  */
-export function generateCoordinatedFillLevels(): Record<DemoSport, FillLevel> {
-  const sports = getDemoSports();
-
+export function generateCoordinatedFillLevelsForSports(
+  sports: string[]
+): Record<string, FillLevel> {
   // First pass: generate random fill levels
   const levels: Record<string, FillLevel> = {};
   for (const sport of sports) {
@@ -142,18 +228,26 @@ export function generateCoordinatedFillLevels(): Record<DemoSport, FillLevel> {
   const emptyCount = Object.values(levels).filter((l) => l === "empty").length;
 
   if (emptyCount > 1) {
-    // Pick one to stay empty, upgrade the rest to partial
+    // Pick one to stay empty, upgrade the rest to full (not partial, since partial looks sparse)
     const emptySports = sports.filter((s) => levels[s] === "empty");
     const keepEmpty = emptySports[Math.floor(Math.random() * emptySports.length)];
 
     for (const sport of emptySports) {
       if (sport !== keepEmpty) {
-        levels[sport] = "partial";
+        levels[sport] = "full";
       }
     }
   }
 
-  return levels as Record<DemoSport, FillLevel>;
+  return levels;
+}
+
+/**
+ * Generate coordinated fill levels for default demo sports.
+ * @deprecated Use generateCoordinatedFillLevelsForSports with explicit sport list
+ */
+export function generateCoordinatedFillLevels(): Record<string, FillLevel> {
+  return generateCoordinatedFillLevelsForSports(getDemoSports());
 }
 
 /**
@@ -197,6 +291,99 @@ function formatTimestamp(date: Date): string {
   return date.toISOString();
 }
 
+// =============================================================================
+// Sport Config Helpers
+// =============================================================================
+
+/**
+ * Default config for distance-based sports (running, hiking, etc.)
+ */
+const DEFAULT_DISTANCE_SPORT_CONFIG: DemoSportConfig = {
+  fillLevel: "full",
+  activityRate: 0.3,
+  avgDistanceMeters: 10000, // ~6 miles
+  distanceVariance: 0.4,
+  avgDurationSeconds: 3600, // 1 hour
+  durationVariance: 0.3,
+  avgElevationMeters: 100,
+  goals: { conservative: 500, target: 750, stretch: 1000 },
+  activityNames: ["Morning Session", "Afternoon Session", "Weekend Activity"],
+};
+
+/**
+ * Default config for time-based sports (yoga, workout, etc.)
+ */
+const DEFAULT_TIME_SPORT_CONFIG: DemoSportConfig = {
+  fillLevel: "full",
+  activityRate: 0.25,
+  avgDistanceMeters: 0,
+  distanceVariance: 0,
+  avgDurationSeconds: 3600, // 1 hour
+  durationVariance: 0.3,
+  goals: { conservative: 100, target: 150, stretch: 200 }, // hours
+  activityNames: ["Morning Session", "Afternoon Session", "Evening Session"],
+};
+
+/**
+ * Get demo config for a sport.
+ *
+ * Returns the hardcoded config if available, otherwise generates sensible
+ * defaults based on sport properties from the API config.
+ *
+ * @param sport - Sport key
+ * @param sportInfo - Optional sport info from API (has_distance, has_elevation)
+ */
+export function getDemoConfigForSport(
+  sport: string,
+  sportInfo?: { has_distance?: boolean; has_elevation?: boolean }
+): DemoSportConfig {
+  // Use hardcoded config if available
+  if (sport in DEMO_SPORT_CONFIG) {
+    return DEMO_SPORT_CONFIG[sport as keyof typeof DEMO_SPORT_CONFIG];
+  }
+
+  // Generate defaults based on sport properties
+  const hasDistance = sportInfo?.has_distance ?? false;
+  const hasElevation = sportInfo?.has_elevation ?? false;
+
+  if (hasDistance) {
+    return {
+      ...DEFAULT_DISTANCE_SPORT_CONFIG,
+      avgElevationMeters: hasElevation ? 100 : undefined,
+    };
+  }
+
+  return DEFAULT_TIME_SPORT_CONFIG;
+}
+
+/**
+ * Get Strava type for a sport.
+ * Falls back to capitalized sport name if not in the mapping.
+ */
+function getStravaTypeForSport(sport: string): string {
+  if (sport in DEMO_STRAVA_TYPES) {
+    return DEMO_STRAVA_TYPES[sport as keyof typeof DEMO_STRAVA_TYPES];
+  }
+  // Capitalize first letter as fallback
+  return sport.charAt(0).toUpperCase() + sport.slice(1);
+}
+
+// =============================================================================
+// Demo Data Generation
+// =============================================================================
+
+/**
+ * Options for generateDemoMetrics
+ */
+export interface GenerateDemoMetricsOptions {
+  /** Override fill level (for testing) */
+  overrideFillLevel?: FillLevel;
+  /** Sport info from API (for generating defaults for unknown sports) */
+  sportInfo?: { has_distance?: boolean; has_elevation?: boolean };
+  /** All sports in the session (for coordinated fill levels) */
+  allSports?: string[];
+}
+
 /**
  * Generate cumulative metrics for a sport.
  *
@@ -205,16 +392,22 @@ function formatTimestamp(date: Date): string {
  *
  * Fill level is coordinated per session (stored in sessionStorage) to ensure
  * consistent demo experience. Override with explicit fill level for testing.
+ *
+ * Supports any sport - unknown sports get sensible defaults based on sportInfo.
  */
 export function generateDemoMetrics(
-  sport: DemoSport,
+  sport: string,
   year: number,
-  overrideFillLevel?: FillLevel
+  options?: GenerateDemoMetricsOptions | FillLevel
 ): MetricsEntry[] {
-  const config = DEMO_SPORT_CONFIG[sport];
+  // Handle legacy signature: generateDemoMetrics(sport, year, fillLevel)
+  const opts: GenerateDemoMetricsOptions =
+    typeof options === "string" ? { overrideFillLevel: options } : (options ?? {});
+
+  const config = getDemoConfigForSport(sport, opts.sportInfo);
 
   // Use override if provided, otherwise use session-coordinated fill level
-  const fillLevel = overrideFillLevel ?? getSessionFillLevelForSport(sport);
+  const fillLevel = opts.overrideFillLevel ?? getSessionFillLevelForSport(sport, opts.allSports);
 
   // Empty fill level returns no data
   if (fillLevel === "empty") {
@@ -306,21 +499,44 @@ export function generateDemoMetrics(
 }
 
 /**
+ * Options for generateDemoActivities
+ */
+export interface GenerateDemoActivitiesOptions {
+  /** Number of activities to generate */
+  count?: number;
+  /** Override fill level (for testing) */
+  overrideFillLevel?: FillLevel;
+  /** Sport info from API (for generating defaults for unknown sports) */
+  sportInfo?: { has_distance?: boolean; has_elevation?: boolean };
+  /** All sports in the session (for coordinated fill levels) */
+  allSports?: string[];
+}
+
+/**
  * Generate a list of recent activities for a sport.
  *
  * Returns activities from the last few weeks with realistic names and values.
  * Fill level is coordinated per session for consistent demo experience.
+ *
+ * Supports any sport - unknown sports get sensible defaults based on sportInfo.
  */
 export function generateDemoActivities(
-  sport: DemoSport,
+  sport: string,
   year: number,
-  count: number = 20,
+  countOrOptions?: number | GenerateDemoActivitiesOptions,
   overrideFillLevel?: FillLevel
 ): ActivitySummary[] {
-  const config = DEMO_SPORT_CONFIG[sport];
+  // Handle both old and new signatures
+  const opts: GenerateDemoActivitiesOptions =
+    typeof countOrOptions === "number"
+      ? { count: countOrOptions, overrideFillLevel }
+      : (countOrOptions ?? {});
+
+  const count = opts.count ?? 20;
+  const config = getDemoConfigForSport(sport, opts.sportInfo);
 
   // Use override if provided, otherwise use session-coordinated fill level
-  const fillLevel = overrideFillLevel ?? getSessionFillLevelForSport(sport);
+  const fillLevel = opts.overrideFillLevel ?? getSessionFillLevelForSport(sport, opts.allSports);
 
   // Empty fill level returns no activities
   if (fillLevel === "empty") {
@@ -387,7 +603,7 @@ export function generateDemoActivities(
     activities.push({
       id: activityId++,
       name: randomChoice(config.activityNames),
-      type: DEMO_STRAVA_TYPES[sport],
+      type: getStravaTypeForSport(sport),
       sport: sport,
       startDateLocal: formatTimestamp(activityDate),
       distanceMeters: Math.round(distance),
@@ -410,20 +626,26 @@ export function generateDemoActivities(
  * Generate demo goals for a sport.
  *
  * Returns goal values in display units (miles for distance sports, hours for time sports).
+ * Supports any sport - unknown sports get sensible defaults.
  */
-export function generateDemoGoals(sport: DemoSport): {
+export function generateDemoGoals(
+  sport: string,
+  sportInfo?: { has_distance?: boolean; has_elevation?: boolean }
+): {
   conservative: number;
   target: number;
   stretch: number;
 } {
-  return DEMO_SPORT_CONFIG[sport].goals;
+  const config = getDemoConfigForSport(sport, sportInfo);
+  return config.goals;
 }
 
 /**
- * Get all demo sports (derived from config)
+ * Get default demo sports (from hardcoded config).
+ * For dynamic sports, use the API's sport config instead.
  */
-export function getDemoSports(): DemoSport[] {
-  return Object.keys(DEMO_SPORT_CONFIG) as DemoSport[];
+export function getDemoSports(): string[] {
+  return Object.keys(DEMO_SPORT_CONFIG);
 }
 
 /**
@@ -438,23 +660,40 @@ export interface DemoDailyActivity {
 }
 
 /**
+ * Options for generateDemoDailyData
+ */
+export interface GenerateDemoDailyDataOptions {
+  /** Override fill level (for testing) */
+  overrideFillLevel?: FillLevel;
+  /** Sport info from API (for generating defaults for unknown sports) */
+  sportInfo?: { has_distance?: boolean; has_elevation?: boolean };
+  /** All sports in the session (for coordinated fill levels) */
+  allSports?: string[];
+}
+
+/**
  * Generate demo daily data for a sport within a date range.
  *
  * Returns a Record<string, DemoDailyActivity> keyed by date (YYYY-MM-DD).
  * Only includes days that have activity (sparse map).
  *
  * Fill level is coordinated per session for consistent demo experience.
+ * Supports any sport - unknown sports get sensible defaults based on sportInfo.
  */
 export function generateDemoDailyData(
-  sport: DemoSport,
+  sport: string,
   fromDate: string,
   toDate: string,
-  overrideFillLevel?: FillLevel
+  options?: GenerateDemoDailyDataOptions | FillLevel
 ): Record<string, DemoDailyActivity> {
-  const config = DEMO_SPORT_CONFIG[sport];
+  // Handle legacy signature
+  const opts: GenerateDemoDailyDataOptions =
+    typeof options === "string" ? { overrideFillLevel: options } : (options ?? {});
+
+  const config = getDemoConfigForSport(sport, opts.sportInfo);
 
   // Use override if provided, otherwise use session-coordinated fill level
-  const fillLevel = overrideFillLevel ?? getSessionFillLevelForSport(sport);
+  const fillLevel = opts.overrideFillLevel ?? getSessionFillLevelForSport(sport, opts.allSports);
 
   // Empty fill level returns no data
   if (fillLevel === "empty") {

@@ -4,7 +4,8 @@ import { convertDistance, getUserSettings } from "../utils/units";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
 import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
 import PacingMetricsChart from "../components/charts/PacingMetricsChart";
-import DemoSidebar from "../components/layout/DemoSidebar";
+import Sidebar from "../components/layout/Sidebar";
+import { useDemoSidebarSportData } from "../hooks/useSidebarSportData";
 import KPICards from "../components/dashboard/KPICards";
 import GoalSummaryTable from "../components/GoalSummaryTable";
 import EmptyState from "../components/EmptyState";
@@ -33,6 +34,9 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
 
   // Fetch generated demo data
   const { metrics, sportConfig, isLoading, error } = useDemoData(currentYear, sport);
+
+  // Fetch sidebar sport data for demo mode
+  const { availableSports, sportCounts } = useDemoSidebarSportData(currentYear);
 
   // Use hardcoded settings for demo (no Firestore)
   const userSettings = getUserSettings(null);
@@ -135,7 +139,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
 
       <div className="container-fluid">
         <div className="row">
-          <DemoSidebar
+          <Sidebar
             currentYear={currentYear}
             sport={sport}
             onYearClick={(newYear) => {
@@ -144,11 +148,15 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
             goals={goals}
             onGoalsChange={handleGoalsChange}
             estimatedYearEnd={estimatedYearEnd}
-            currentDistance={currentValue}
+            currentValue={currentValue}
             unit={metricUnit}
             isLoading={isLoading}
             isSaving={false}
             saveError={null}
+            availableSports={availableSports}
+            sportCounts={sportCounts}
+            navigationPrefix="/demo/"
+            showAuthButton={false}
           />
 
           <main
@@ -232,6 +240,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
                   onAchievementsChange={setShowAchievements}
                   unit={metricUnit}
                   sport={sport}
+                  onRetry={undefined} // Demo data cannot error
                 />
               </div>
             </div>
@@ -247,6 +256,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
                   showFullYear={showFullYear}
                   unit={metricUnit}
                   sport={sport}
+                  onRetry={undefined} // Demo data cannot error
                 />
               </div>
             </div>
