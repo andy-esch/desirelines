@@ -99,14 +99,16 @@ interface StoredFillLevels {
  */
 export function getSessionFillLevels(sports?: string[]): Record<string, FillLevel> {
   const targetSports = sports ?? getDemoSports();
-  const targetKey = targetSports.sort().join(",");
+  // Sort a copy to avoid mutating the input array
+  const targetKey = [...targetSports].sort().join(",");
 
   // Try to read from session storage
   try {
     const stored = sessionStorage.getItem(SESSION_FILL_LEVELS_KEY);
     if (stored) {
       const parsed: StoredFillLevels = JSON.parse(stored);
-      const storedKey = parsed.sports.sort().join(",");
+      // Sort a copy to avoid mutating stored data
+      const storedKey = [...parsed.sports].sort().join(",");
 
       // If sports match, use stored levels
       if (storedKey === targetKey) {
@@ -121,7 +123,7 @@ export function getSessionFillLevels(sports?: string[]): Record<string, FillLeve
   // Generate new coordinated levels and store them
   const levels = generateCoordinatedFillLevelsForSports(targetSports);
   try {
-    const toStore: StoredFillLevels = { sports: targetSports, levels };
+    const toStore: StoredFillLevels = { sports: [...targetSports], levels };
     sessionStorage.setItem(SESSION_FILL_LEVELS_KEY, JSON.stringify(toStore));
   } catch {
     // Storage full or not available - still return the levels
@@ -147,24 +149,42 @@ function getSessionFillLevelForSport(sport: string, allSports?: string[]): FillL
 
 interface CachedActivityCounts {
   year: number;
+  sportsKey: string;
   counts: Record<string, number>;
 }
 
 /**
- * Get cached activity counts for all demo sports.
- * Generates and caches counts on first call for each year.
+ * Options for getDemoActivityCounts
+ */
+export interface GetDemoActivityCountsOptions {
+  /** Sports to get counts for (defaults to getDemoSports()) */
+  sports?: string[];
+  /** Sport info for generating defaults for unknown sports */
+  sportInfoMap?: Record<string, { has_distance?: boolean; has_elevation?: boolean }>;
+}
+
+/**
+ * Get cached activity counts for demo sports.
+ * Generates and caches counts on first call for each year/sports combination.
  * This avoids regenerating full metrics arrays just to get sidebar counts.
  *
  * @param year - The year to get counts for
+ * @param options - Optional sports list and sport info
  * @returns Record of sport to activity count
  */
-export function getDemoActivityCounts(year: number): Record<string, number> {
+export function getDemoActivityCounts(
+  year: number,
+  options?: GetDemoActivityCountsOptions
+): Record<string, number> {
+  const sports = options?.sports ?? getDemoSports();
+  const sportsKey = [...sports].sort().join(",");
+
   // Try to read from cache
   try {
     const stored = sessionStorage.getItem(SESSION_ACTIVITY_COUNTS_KEY);
     if (stored) {
       const cached: CachedActivityCounts = JSON.parse(stored);
-      if (cached.year === year) {
+      if (cached.year === year && cached.sportsKey === sportsKey) {
         return cached.counts;
       }
     }
@@ -172,19 +192,30 @@ export function getDemoActivityCounts(year: number): Record<string, number> {
     // Cache miss or invalid data
   }
 
-  // Generate counts by getting the last entry from each sport's metrics
-  const sports = getDemoSports();
+  // Get coordinated fill levels for these sports
+  const fillLevels = getSessionFillLevels(sports);
   const counts: Record<string, number> = {};
 
   for (const sport of sports) {
-    const metrics = generateDemoMetrics(sport, year);
-    const lastEntry = metrics[metrics.length - 1];
-    counts[sport] = lastEntry?.activities ?? 0;
+    const fillLevel = fillLevels[sport] ?? "full";
+
+    if (fillLevel === "empty") {
+      counts[sport] = 0;
+    } else {
+      const sportInfo = options?.sportInfoMap?.[sport];
+      const metrics = generateDemoMetrics(sport, year, {
+        sportInfo,
+        allSports: sports,
+        overrideFillLevel: fillLevel,
+      });
+      const lastEntry = metrics[metrics.length - 1];
+      counts[sport] = lastEntry?.activities ?? 0;
+    }
   }
 
-  // Cache for this year
+  // Cache for this year/sports
   try {
-    const toCache: CachedActivityCounts = { year, counts };
+    const toCache: CachedActivityCounts = { year, sportsKey, counts };
     sessionStorage.setItem(SESSION_ACTIVITY_COUNTS_KEY, JSON.stringify(toCache));
   } catch {
     // Storage full or not available

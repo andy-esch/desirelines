@@ -1,12 +1,16 @@
-import { useState, useEffect, useMemo } from "react";
-import type { SportMetrics, SportConfig } from "../api/activities";
+import { useMemo } from "react";
+import type { MetricsEntry, SportConfig } from "../api/activities";
 import { usePublicSportConfig } from "./usePublicSportConfig";
 import { generateDemoMetrics, generateDemoGoals } from "../utils/demoDataGenerator";
 
 export interface DemoDataResult {
-  metrics: SportMetrics | null;
+  /** Generated metrics array for the sport/year */
+  metrics: MetricsEntry[];
+  /** Sport configuration from API */
   sportConfig: SportConfig | null;
+  /** True while fetching sport config */
   isLoading: boolean;
+  /** Error from sport config fetch, if any */
   error: Error | null;
 }
 
@@ -20,14 +24,19 @@ export interface DemoDataResult {
  * @returns Object containing metrics, config, and loading state
  */
 export function useDemoData(year: number, sport: string): DemoDataResult {
-  const [isGenerating, setIsGenerating] = useState(true);
   const { sportConfig, isLoading: configLoading, error: configError } = usePublicSportConfig();
+
+  // Memoize allSports to avoid creating new array reference on every render
+  const allSports = useMemo(
+    () => (sportConfig ? Object.keys(sportConfig.sport_categories) : undefined),
+    [sportConfig]
+  );
 
   // Get sport info from API config for generating realistic data
   const sportInfo = sportConfig?.sport_categories?.[sport];
-  const allSports = sportConfig ? Object.keys(sportConfig.sport_categories) : undefined;
 
   // Generate metrics using the data generator
+  // Data generation is synchronous - no artificial delay needed
   const metrics = useMemo(() => {
     if (!sportConfig) {
       return []; // Wait for config
@@ -41,33 +50,12 @@ export function useDemoData(year: number, sport: string): DemoDataResult {
     });
   }, [year, sport, sportConfig, sportInfo, allSports]);
 
-  useEffect(() => {
-    // Simulate async loading for smooth UX
-    setIsGenerating(true);
-
-    // Small delay to prevent flash of loading state
-    const timer = setTimeout(() => {
-      setIsGenerating(false);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [year, sport]);
-
   return {
     metrics,
     sportConfig,
-    isLoading: configLoading || isGenerating,
+    isLoading: configLoading,
     error: configError,
   };
-}
-
-/**
- * Get list of available sports from API sport config.
- * Returns empty array if config not loaded yet.
- */
-export function getDemoAvailableSportsFromConfig(sportConfig: SportConfig | null): string[] {
-  if (!sportConfig) return [];
-  return Object.keys(sportConfig.sport_categories);
 }
 
 /**
