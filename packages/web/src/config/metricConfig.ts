@@ -68,7 +68,7 @@ const BASE_METRIC_CONFIGS: Record<string, MetricConfig> = {
   distance: {
     id: "distance",
     displayName: "Distance",
-    unit: "mi",
+    unit: "miles",
     chartLabel: "mi",
     chartAxisLabel: "mi",
     perDayLabel: "mi / day",
@@ -102,7 +102,7 @@ const BASE_METRIC_CONFIGS: Record<string, MetricConfig> = {
   time: {
     id: "time",
     displayName: "Time",
-    unit: "min",
+    unit: "minutes",
     chartLabel: "min",
     chartAxisLabel: "min",
     perDayLabel: "min / day",
@@ -119,7 +119,7 @@ const BASE_METRIC_CONFIGS: Record<string, MetricConfig> = {
   elevation: {
     id: "elevation",
     displayName: "Elevation",
-    unit: "ft",
+    unit: "feet",
     chartLabel: "ft",
     chartAxisLabel: "ft",
     perDayLabel: "ft / day",

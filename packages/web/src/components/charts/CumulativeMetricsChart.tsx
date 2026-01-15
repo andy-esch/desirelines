@@ -1,5 +1,5 @@
 // Recharts implementation of CumulativeMetricsChart
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import {
   LineChart,
   Line,
@@ -596,4 +596,4 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
   );
 };
 
-export default CumulativeMetricsChart;
+export default memo(CumulativeMetricsChart);

@@ -9,7 +9,3 @@ export type PacingEntry = {
   x: string;
   y: number;
 };
-
-export interface RideBlobType {
-  distance_traveled: DistanceEntry[];
-}

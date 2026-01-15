@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { usePublicSportConfig } from "./usePublicSportConfig";
 import * as activitiesApi from "../api/activities";
 
 // Mock the API module
@@ -184,7 +183,7 @@ describe("usePublicSportConfig", () => {
     const abortError = new DOMException("Aborted", "AbortError");
     vi.spyOn(activitiesApi, "fetchSportConfig").mockRejectedValue(abortError);
 
-    const { result, unmount } = renderHook(() => freshHook());
+    const { unmount } = renderHook(() => freshHook());
 
     // Unmount to trigger abort
     unmount();
