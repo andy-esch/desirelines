@@ -5,7 +5,7 @@ import { useAuth } from "./useAuth";
 import { useAuthToken } from "./useAuthToken";
 import { useVisibleSports } from "./useVisibleSports";
 import { usePublicSportConfig } from "./usePublicSportConfig";
-import { getSessionFillLevels, generateDemoMetrics } from "../utils/demoDataGenerator";
+import { getDemoActivityCounts } from "../utils/demoDataGenerator";
 
 export interface SidebarSportData {
   /** Sports available in dropdown, sorted by count descending */
@@ -91,51 +91,46 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
 /**
  * Hook for getting sidebar sport data in demo mode.
  * Fetches sport config from API (public endpoint) to get full sport list.
- * Generates activity counts for visible sports.
+ * Uses cached activity counts to avoid expensive regeneration.
  */
 export function useDemoSidebarSportData(currentYear: number): SidebarSportData {
-  const { sportConfig, isLoading: configLoading } = usePublicSportConfig();
+  const { sportConfig, isLoading: configLoading, error: configError } = usePublicSportConfig();
   const { visibleSports } = useVisibleSports();
 
-  // Get sport counts for visible sports
+  // Build sport info map for the generator (memoized)
+  const sportInfoMap = useMemo(() => {
+    if (!sportConfig) return undefined;
+    const map: Record<string, { has_distance?: boolean; has_elevation?: boolean }> = {};
+    for (const sport of visibleSports) {
+      const info = sportConfig.sport_categories[sport];
+      if (info) {
+        map[sport] = { has_distance: info.has_distance, has_elevation: info.has_elevation };
+      }
+    }
+    return map;
+  }, [sportConfig, visibleSports]);
+
+  // Get cached activity counts (avoids regenerating full metrics arrays)
   const { sportCounts, sortedSports } = useMemo(() => {
     if (!sportConfig) {
       return { sportCounts: {}, sortedSports: visibleSports };
     }
 
-    // Get coordinated fill levels for all visible sports
-    const fillLevels = getSessionFillLevels(visibleSports);
-    const counts: Record<string, number> = {};
-
-    for (const sport of visibleSports) {
-      const sportInfo = sportConfig.sport_categories[sport];
-      const fillLevel = fillLevels[sport] ?? "full";
-
-      // Generate metrics and get activity count
-      if (fillLevel === "empty") {
-        counts[sport] = 0;
-      } else {
-        const metrics = generateDemoMetrics(sport, currentYear, {
-          sportInfo: sportInfo
-            ? { has_distance: sportInfo.has_distance, has_elevation: sportInfo.has_elevation }
-            : undefined,
-          allSports: visibleSports,
-          overrideFillLevel: fillLevel,
-        });
-        const lastEntry = metrics[metrics.length - 1];
-        counts[sport] = lastEntry?.activities ?? 0;
-      }
-    }
+    // Use cached counts function - generates once, caches in sessionStorage
+    const counts = getDemoActivityCounts(currentYear, {
+      sports: visibleSports,
+      sportInfoMap,
+    });
 
     // Sort by count descending
     const sorted = [...visibleSports].sort((a, b) => (counts[b] ?? 0) - (counts[a] ?? 0));
     return { sportCounts: counts, sortedSports: sorted };
-  }, [sportConfig, visibleSports, currentYear]);
+  }, [sportConfig, visibleSports, currentYear, sportInfoMap]);
 
   return {
     availableSports: sortedSports,
     sportCounts,
     isLoading: configLoading,
-    error: null,
+    error: configError, // Propagate error from sport config fetch
   };
 }
