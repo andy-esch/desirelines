@@ -18,6 +18,7 @@ import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
 import { useSportData } from "../hooks/useSportData";
 import { useSidebarSportData } from "../hooks/useSidebarSportData";
+import { getMetricConfig } from "../config/metricConfig";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
@@ -73,19 +74,23 @@ export default function SportPage({ sport }: SportPageProps) {
       }));
   }, [metrics, sportInfo, userSettings.distanceUnit]);
 
+  // Get sport-specific configuration from MetricConfig system
+  const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
+
   // Calculate current values
   const estimatedYearEnd = useMemo(() => {
-    if (chartData.length === 0) return 2500;
+    if (chartData.length === 0) return metricConfig.defaultGoalValue;
     return estimateYearEndDistance(chartData, currentYear);
-  }, [chartData, currentYear]);
+  }, [chartData, currentYear, metricConfig.defaultGoalValue]);
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
   // Goals management - memoize to prevent infinite loop
   // Sport-specific fallback values ensure appropriate defaults when no data exists yet
+
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
-    // Use sport-specific fallback values when estimatedYearEnd is not available
-    const fallbackValue = sport === "yoga" ? 100 : sport === "running" ? 1000 : 2500;
+    // Use sport-specific fallback values from MetricConfig when estimatedYearEnd is not available
+    const fallbackValue = metricConfig.defaultGoalValue;
 
     return {
       goals: generateDefaultGoals(estimatedYearEnd || fallbackValue).map((goal) => ({
@@ -96,7 +101,7 @@ export default function SportPage({ sport }: SportPageProps) {
         updatedAt: new Date().toISOString(),
       })),
     };
-  }, [estimatedYearEnd, sport]);
+  }, [estimatedYearEnd, metricConfig]);
 
   const {
     data: goalsData,

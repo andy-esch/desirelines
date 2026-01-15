@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { LineChart, Line, ResponsiveContainer, XAxis } from "recharts";
-import { useDailySportData, type DailySportData } from "../../hooks/useDailySportData";
+import { useDailySportData } from "../../hooks/useDailySportData";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { useActivities } from "../../hooks/useActivities";
@@ -11,103 +11,15 @@ import {
   getSportColor,
   getSportTextColor,
   getSportDisplayName,
-  isDistanceSport,
   filterValidSports,
 } from "../../utils/sportConfig";
 import { toLocalDateString, parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
+import { toDailyArray, getTimeRangeCutoff, normalizeToRange } from "../../utils/chartUtils";
 import TimeRangeSelector from "./TimeRangeSelector";
-import type { DailyActivity, SportConfig } from "../../api/activities";
 import NeonSpinner from "../NeonSpinner";
 
 interface MultiSportComparisonChartProps {
   className?: string;
-}
-
-/**
- * Get the primary metric value for a sport from daily activity data.
- * Returns distance for distance-based sports, time for time-based sports.
- */
-function getMetricValue(
-  activity: DailyActivity,
-  sport: string,
-  sportConfig: SportConfig | null
-): number {
-  if (isDistanceSport(sport, sportConfig)) {
-    return activity.distanceMeters ?? 0;
-  }
-  return activity.timeMinutes ?? 0;
-}
-
-/**
- * Convert daily sport data (map) to sorted array with primary metric values.
- */
-function toDailyArray(
-  data: DailySportData,
-  sport: string,
-  sportConfig: SportConfig | null
-): { date: string; value: number }[] {
-  const entries = Object.entries(data);
-  if (entries.length === 0) return [];
-
-  return entries
-    .map(([date, activity]) => ({
-      date,
-      value: getMetricValue(activity, sport, sportConfig),
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-}
-
-/**
- * Get the cutoff date for a time range.
- */
-function getTimeRangeCutoff(now: Date, timeRange: TimeRange): Date {
-  const cutoff = new Date(now);
-
-  switch (timeRange) {
-    case "2weeks":
-      cutoff.setDate(now.getDate() - 14);
-      break;
-    case "4weeks":
-      cutoff.setDate(now.getDate() - 28);
-      break;
-    case "2months":
-      cutoff.setMonth(now.getMonth() - 2);
-      break;
-    case "6months":
-      cutoff.setMonth(now.getMonth() - 6);
-      break;
-    case "ytd":
-      cutoff.setMonth(0);
-      cutoff.setDate(1);
-      cutoff.setHours(0, 0, 0, 0);
-      break;
-  }
-
-  return cutoff;
-}
-
-/**
- * Normalize daily values to 0-1 scale.
- */
-function normalizeToRange(
-  data: { date: string; value: number }[]
-): { date: string; value: number }[] {
-  if (data.length === 0) return [];
-
-  const values = data.map((d) => d.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min;
-
-  // If no range, return flat line at 0.5
-  if (range === 0) {
-    return data.map((d) => ({ date: d.date, value: 0.5 }));
-  }
-
-  return data.map((d) => ({
-    date: d.date,
-    value: (d.value - min) / range,
-  }));
 }
 
 /**

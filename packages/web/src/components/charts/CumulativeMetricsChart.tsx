@@ -25,6 +25,7 @@ import {
 } from "../../utils/goalCalculations";
 import ChartTooltip from "./ChartTooltip";
 import { getDistanceLabel, type DistanceUnit, type MetricUnit } from "../../utils/units";
+import { getMetricConfig, generateYAxisTicks } from "../../config/metricConfig";
 
 interface CumulativeMetricsChartProps {
   year: number;
@@ -220,7 +221,10 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     average: (currentActualData?.average as number) || 0,
   };
 
-  // Calculate Y-axis ticks based on data range
+  // Get sport-specific metric configuration
+  const metricConfig = useMemo(() => getMetricConfig(sport || "cycling"), [sport]);
+
+  // Calculate Y-axis ticks based on data range using MetricConfig thresholds
   const yAxisTicks = useMemo(() => {
     const maxValue = Math.max(
       ...mergedData.flatMap(
@@ -235,18 +239,8 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
       )
     );
 
-    let interval = 250;
-    if (maxValue < 500) interval = 100;
-    else if (maxValue < 2000) interval = 250;
-    else if (maxValue < 5000) interval = 500;
-    else interval = 1000;
-
-    const ticks = [];
-    for (let i = 0; i <= maxValue + interval; i += interval) {
-      ticks.push(i);
-    }
-    return ticks;
-  }, [mergedData]);
+    return generateYAxisTicks(maxValue, metricConfig);
+  }, [mergedData, metricConfig]);
 
   // Early returns for loading/error states (must be after all hooks)
   if (isLoading) {
