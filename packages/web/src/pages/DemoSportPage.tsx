@@ -13,6 +13,7 @@ import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
 import { useDemoData, getDemoGoalsForSport } from "../hooks/useDemoData";
+import { getMetricConfig } from "../config/metricConfig";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
 import { createYearContext } from "../utils/yearContext";
@@ -68,11 +69,14 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
       }));
   }, [metrics, sportInfo, userSettings.distanceUnit]);
 
+  // Get sport-specific configuration from MetricConfig system
+  const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
+
   // Calculate current values
   const estimatedYearEnd = useMemo(() => {
-    if (chartData.length === 0) return 2500;
+    if (chartData.length === 0) return metricConfig.defaultGoalValue;
     return estimateYearEndDistance(chartData, currentYear);
-  }, [chartData, currentYear]);
+  }, [chartData, currentYear, metricConfig.defaultGoalValue]);
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 

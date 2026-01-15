@@ -107,6 +107,48 @@ describe("MultiSportComparisonChart", () => {
 
       expect(screen.getByRole("heading", { name: "Recent Activity" })).toBeInTheDocument();
     });
+
+    it("shows loading spinner when useVisibleSports is loading", () => {
+      // Data is ready, but visible sports preferences are still loading
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData })
+      );
+      mockUseVisibleSports.mockReturnValue(mockVisibleSportsReturn({ isLoading: true }));
+
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      expect(screen.getByRole("status")).toBeInTheDocument();
+      expect(screen.getByText("Loading...")).toBeInTheDocument();
+    });
+
+    it("shows loading spinner when useSportConfig is loading", () => {
+      // Data is ready, but sport config is still loading
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData })
+      );
+      mockUseSportConfig.mockReturnValue(
+        mockSportConfigReturn({ sportConfig: null, isLoading: true })
+      );
+
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      expect(screen.getByRole("status")).toBeInTheDocument();
+      expect(screen.getByText("Loading...")).toBeInTheDocument();
+    });
+
+    it("shows loading spinner when all hooks are loading simultaneously", () => {
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
+      );
+      mockUseVisibleSports.mockReturnValue(mockVisibleSportsReturn({ isLoading: true }));
+      mockUseSportConfig.mockReturnValue(
+        mockSportConfigReturn({ sportConfig: null, isLoading: true })
+      );
+
+      renderWithRouter(<MultiSportComparisonChart />);
+
+      expect(screen.getByRole("status")).toBeInTheDocument();
+    });
   });
 
   describe("error state", () => {
@@ -244,6 +286,376 @@ describe("MultiSportComparisonChart", () => {
       // Should have up/down buttons
       expect(screen.getByRole("button", { name: "Newer activities" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Older activities" })).toBeInTheDocument();
+    });
+  });
+
+  describe("edge cases", () => {
+    describe("empty visibleSports array", () => {
+      it("shows no data message when visibleSports is empty", () => {
+        mockUseDailySportData.mockReturnValue(mockDailySportDataReturn({ data: {} }));
+        mockUseVisibleSports.mockReturnValue(mockVisibleSportsReturn({ visibleSports: [] }));
+
+        renderWithRouter(<MultiSportComparisonChart />);
+
+        expect(screen.getByText("No activity data for selected time range")).toBeInTheDocument();
+      });
+
+      it("does not crash when visibleSports is empty", () => {
+        mockUseDailySportData.mockReturnValue(mockDailySportDataReturn({ data: {} }));
+        mockUseVisibleSports.mockReturnValue(mockVisibleSportsReturn({ visibleSports: [] }));
+
+        // Should render without throwing
+        expect(() => renderWithRouter(<MultiSportComparisonChart />)).not.toThrow();
+      });
+    });
+
+    describe("unknown sport (fallback color)", () => {
+      it("renders sparkline for sport not in SPORT_COLORS with fallback color", () => {
+        // Mock a sport that doesn't exist in SPORT_COLORS
+        const unknownSportConfig = {
+          version: "1.0",
+          sport_categories: {
+            unicycling: {
+              display_name: "Unicycling",
+              strava_types: ["Unicycle"],
+              excluded_types: [],
+              primary_metric: "distance_meters",
+              metrics: ["distance_meters", "time_minutes"],
+              has_distance: true,
+              has_elevation: false,
+            },
+          },
+        };
+
+        mockUseVisibleSports.mockReturnValue(
+          mockVisibleSportsReturn({ visibleSports: ["unicycling"] })
+        );
+        mockUseSportConfig.mockReturnValue(
+          mockSportConfigReturn({ sportConfig: unknownSportConfig })
+        );
+        mockUseDailySportData.mockReturnValue({
+          data: {
+            unicycling: {
+              "2026-01-02": {
+                distanceMeters: 5000,
+                timeMinutes: 30,
+                activities: 1,
+                activityIds: [1],
+              },
+            },
+          },
+          isLoading: false,
+          error: null,
+        });
+
+        renderWithRouter(<MultiSportComparisonChart />);
+
+        // Should render the sport label (uses fallback display name formatting)
+        expect(screen.getByRole("link", { name: "Unicycling" })).toBeInTheDocument();
+        // Should render a sparkline
+        expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
+      });
+    });
+
+    describe("dynamic height with different sport counts", () => {
+      it("renders with single sport", () => {
+        mockUseVisibleSports.mockReturnValue(
+          mockVisibleSportsReturn({ visibleSports: ["cycling"] })
+        );
+        mockUseSportConfig.mockReturnValue(
+          mockSportConfigReturn({
+            sportConfig: {
+              version: "1.0",
+              sport_categories: {
+                cycling: mockMinimalSportConfig.sport_categories.cycling,
+              },
+            },
+          })
+        );
+        mockUseDailySportData.mockReturnValue({
+          data: {
+            cycling: {
+              "2026-01-02": {
+                distanceMeters: 20000,
+                timeMinutes: 60,
+                activities: 1,
+                activityIds: [1],
+              },
+            },
+          },
+          isLoading: false,
+          error: null,
+        });
+
+        renderWithRouter(<MultiSportComparisonChart />);
+
+        // Should render 1 sparkline
+        expect(screen.getAllByTestId("responsive-container")).toHaveLength(1);
+        expect(screen.getByRole("link", { name: "Cycling" })).toBeInTheDocument();
+      });
+
+      it("renders with 5 sports", () => {
+        const fiveSportConfig = {
+          version: "1.0",
+          sport_categories: {
+            cycling: mockMinimalSportConfig.sport_categories.cycling,
+            running: mockMinimalSportConfig.sport_categories.running,
+            yoga: mockMinimalSportConfig.sport_categories.yoga,
+            swimming: {
+              display_name: "Swimming",
+              strava_types: ["Swim"],
+              excluded_types: [],
+              primary_metric: "distance_meters",
+              metrics: ["distance_meters", "time_minutes"],
+              has_distance: true,
+              has_elevation: false,
+            },
+            hiking: {
+              display_name: "Hiking",
+              strava_types: ["Hike"],
+              excluded_types: [],
+              primary_metric: "distance_meters",
+              metrics: ["distance_meters", "time_minutes", "elevation_meters"],
+              has_distance: true,
+              has_elevation: true,
+            },
+          },
+        };
+
+        mockUseVisibleSports.mockReturnValue(
+          mockVisibleSportsReturn({
+            visibleSports: ["cycling", "running", "yoga", "swimming", "hiking"],
+          })
+        );
+        mockUseSportConfig.mockReturnValue(mockSportConfigReturn({ sportConfig: fiveSportConfig }));
+        mockUseDailySportData.mockReturnValue({
+          data: {
+            cycling: {
+              "2026-01-02": {
+                distanceMeters: 20000,
+                timeMinutes: 60,
+                activities: 1,
+                activityIds: [1],
+              },
+            },
+            running: {
+              "2026-01-02": {
+                distanceMeters: 5000,
+                timeMinutes: 30,
+                activities: 1,
+                activityIds: [2],
+              },
+            },
+            yoga: { "2026-01-02": { timeMinutes: 30, activities: 1, activityIds: [3] } },
+            swimming: {
+              "2026-01-02": {
+                distanceMeters: 2000,
+                timeMinutes: 45,
+                activities: 1,
+                activityIds: [4],
+              },
+            },
+            hiking: {
+              "2026-01-02": {
+                distanceMeters: 10000,
+                timeMinutes: 120,
+                activities: 1,
+                activityIds: [5],
+              },
+            },
+          },
+          isLoading: false,
+          error: null,
+        });
+
+        renderWithRouter(<MultiSportComparisonChart />);
+
+        // Should render 5 sparklines
+        expect(screen.getAllByTestId("responsive-container")).toHaveLength(5);
+        expect(screen.getByRole("link", { name: "Cycling" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Running" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Yoga" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Swimming" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Hiking" })).toBeInTheDocument();
+      });
+
+      it("renders with 10 sports (approaching MAX_SPORTS_DISPLAY)", () => {
+        const tenSportConfig = {
+          version: "1.0",
+          sport_categories: {
+            cycling: {
+              display_name: "Cycling",
+              strava_types: ["Ride"],
+              excluded_types: [],
+              primary_metric: "distance_meters",
+              metrics: ["distance_meters"],
+              has_distance: true,
+              has_elevation: true,
+            },
+            running: {
+              display_name: "Running",
+              strava_types: ["Run"],
+              excluded_types: [],
+              primary_metric: "distance_meters",
+              metrics: ["distance_meters"],
+              has_distance: true,
+              has_elevation: true,
+            },
+            yoga: {
+              display_name: "Yoga",
+              strava_types: ["Yoga"],
+              excluded_types: [],
+              primary_metric: "time_minutes",
+              metrics: ["time_minutes"],
+              has_distance: false,
+              has_elevation: false,
+            },
+            swimming: {
+              display_name: "Swimming",
+              strava_types: ["Swim"],
+              excluded_types: [],
+              primary_metric: "distance_meters",
+              metrics: ["distance_meters"],
+              has_distance: true,
+              has_elevation: false,
+            },
+            hiking: {
+              display_name: "Hiking",
+              strava_types: ["Hike"],
+              excluded_types: [],
+              primary_metric: "distance_meters",
+              metrics: ["distance_meters"],
+              has_distance: true,
+              has_elevation: true,
+            },
+            walking: {
+              display_name: "Walking",
+              strava_types: ["Walk"],
+              excluded_types: [],
+              primary_metric: "distance_meters",
+              metrics: ["distance_meters"],
+              has_distance: true,
+              has_elevation: false,
+            },
+            workout: {
+              display_name: "Workout",
+              strava_types: ["Workout"],
+              excluded_types: [],
+              primary_metric: "time_minutes",
+              metrics: ["time_minutes"],
+              has_distance: false,
+              has_elevation: false,
+            },
+            climbing: {
+              display_name: "Climbing",
+              strava_types: ["RockClimbing"],
+              excluded_types: [],
+              primary_metric: "time_minutes",
+              metrics: ["time_minutes"],
+              has_distance: false,
+              has_elevation: false,
+            },
+            skating: {
+              display_name: "Skating",
+              strava_types: ["IceSkate"],
+              excluded_types: [],
+              primary_metric: "distance_meters",
+              metrics: ["distance_meters"],
+              has_distance: true,
+              has_elevation: false,
+            },
+            golf: {
+              display_name: "Golf",
+              strava_types: ["Golf"],
+              excluded_types: [],
+              primary_metric: "time_minutes",
+              metrics: ["time_minutes"],
+              has_distance: false,
+              has_elevation: false,
+            },
+          },
+        };
+
+        const tenSports = Object.keys(tenSportConfig.sport_categories);
+        mockUseVisibleSports.mockReturnValue(mockVisibleSportsReturn({ visibleSports: tenSports }));
+        mockUseSportConfig.mockReturnValue(mockSportConfigReturn({ sportConfig: tenSportConfig }));
+
+        // Create mock data for all 10 sports
+        const mockData: Record<
+          string,
+          Record<
+            string,
+            {
+              distanceMeters?: number;
+              timeMinutes?: number;
+              activities: number;
+              activityIds: number[];
+            }
+          >
+        > = {};
+        tenSports.forEach((sport, index) => {
+          mockData[sport] = {
+            "2026-01-02": {
+              distanceMeters: 10000,
+              timeMinutes: 60,
+              activities: 1,
+              activityIds: [index + 1],
+            },
+          };
+        });
+
+        mockUseDailySportData.mockReturnValue({
+          data: mockData,
+          isLoading: false,
+          error: null,
+        });
+
+        renderWithRouter(<MultiSportComparisonChart />);
+
+        // Should render 10 sparklines
+        expect(screen.getAllByTestId("responsive-container")).toHaveLength(10);
+      });
+    });
+
+    describe("stale preferences handling", () => {
+      it("filters out sports from preferences that are not in config", () => {
+        // User has "deleted_sport" in preferences but it's not in config
+        mockUseVisibleSports.mockReturnValue(
+          mockVisibleSportsReturn({ visibleSports: ["cycling", "deleted_sport", "running"] })
+        );
+        mockUseSportConfig.mockReturnValue(
+          mockSportConfigReturn({ sportConfig: mockMinimalSportConfig })
+        );
+        mockUseDailySportData.mockReturnValue({
+          data: {
+            cycling: {
+              "2026-01-02": {
+                distanceMeters: 20000,
+                timeMinutes: 60,
+                activities: 1,
+                activityIds: [1],
+              },
+            },
+            running: {
+              "2026-01-02": {
+                distanceMeters: 5000,
+                timeMinutes: 30,
+                activities: 1,
+                activityIds: [2],
+              },
+            },
+          },
+          isLoading: false,
+          error: null,
+        });
+
+        renderWithRouter(<MultiSportComparisonChart />);
+
+        // Should only render valid sports (cycling, running)
+        expect(screen.getByRole("link", { name: "Cycling" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Running" })).toBeInTheDocument();
+        expect(screen.queryByText("deleted_sport")).not.toBeInTheDocument();
+      });
     });
   });
 
