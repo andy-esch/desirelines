@@ -1,5 +1,5 @@
 // Recharts implementation of PacingMetricsChart
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import {
   LineChart,
   Line,
@@ -392,4 +392,4 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
   );
 };
 
-export default PacingMetricsChart;
+export default memo(PacingMetricsChart);

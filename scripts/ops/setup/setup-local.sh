@@ -2,7 +2,7 @@
 # Complete local development environment setup for Desire Lines
 # This script orchestrates all the steps needed for local development
 
-set -e
+set -euo pipefail
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -38,6 +38,14 @@ check_prerequisites() {
 		missing_deps+=("go")
 	fi
 
+	if ! command_exists just; then
+		missing_deps+=("just (Task runner)")
+	fi
+
+	if ! command_exists infisical; then
+		missing_deps+=("infisical (Secret management)")
+	fi
+
 	if [ ${#missing_deps[@]} -ne 0 ]; then
 		echo -e "${RED}❌ Missing dependencies:${NC}"
 		for dep in "${missing_deps[@]}"; do
@@ -70,24 +78,31 @@ setup_python() {
 setup_go() {
 	echo -e "${BLUE}🚀 Setting up Go dependencies...${NC}"
 
-	cd packages/dispatcher
-	go mod download
-	cd ../..
+	echo "   📥 Syncing dispatcher..."
+	(cd packages/dispatcher && go mod download)
+	echo "   📥 Syncing apigateway..."
+	(cd packages/apigateway && go mod download)
 
 	echo -e "${GREEN}✅ Go dependencies installed${NC}"
 	echo ""
 }
 
-# Function to create .env file if needed
-setup_env_file() {
-	echo -e "${BLUE}⚙️  Setting up environment configuration...${NC}"
+# Function to setup environment config from Infisical
+setup_secrets() {
+	echo -e "${BLUE}⚙️  Setting up environment configuration via Infisical...${NC}"
 
-	if [ ! -f ".env" ]; then
-		echo -e "${YELLOW}📝 Creating .env file from template...${NC}"
-		cp .env.example .env
-		echo -e "${YELLOW}⚠️  Please edit .env file with your actual values before running services${NC}"
+	if ! infisical status >/dev/null 2>&1; then
+		echo -e "${YELLOW}🔑 You are not logged into Infisical.${NC}"
+		echo "Please run: infisical login"
+		infisical login
+	fi
+
+	echo -e "${YELLOW}🔐 Syncing secrets...${NC}"
+	if just setup-secrets; then
+		echo -e "${GREEN}✅ Secrets synced and environment files generated${NC}"
 	else
-		echo -e "${GREEN}✅ .env file already exists${NC}"
+		echo -e "${RED}❌ Failed to sync secrets. Make sure you have access to the 'desirelines' project.${NC}"
+		exit 1
 	fi
 	echo ""
 }
@@ -96,15 +111,13 @@ setup_env_file() {
 show_development_modes() {
 	echo -e "${BLUE}🔧 Available Development Modes:${NC}"
 	echo ""
-	echo -e "${GREEN}1. Pure Local Mode (just start)${NC}"
+	echo -e "${GREEN}1. Backend Mode (just start)${NC}"
 	echo "   - Uses PubSub emulator + local storage simulation"
-	echo "   - Completely isolated, no GCP dependencies"
-	echo "   - Best for: Offline development, testing pipeline logic"
+	echo "   - Best for: Pipeline logic and data processing"
 	echo ""
-	echo -e "${GREEN}2. Frontend Development (just start-frontend)${NC}"
-	echo "   - Add React web app and API gateway"
-	echo "   - Can be combined with either mode above"
-	echo "   - Best for: Full-stack development and UI work"
+	echo -e "${GREEN}2. Full Stack Mode (just start-frontend)${NC}"
+	echo "   - Adds React web app and API gateway"
+	echo "   - Best for: UI work and end-to-end features"
 	echo ""
 }
 
@@ -112,19 +125,12 @@ show_development_modes() {
 show_next_steps() {
 	echo -e "${BLUE}🎯 Next Steps:${NC}"
 	echo ""
-	echo -e "${GREEN}For Pure Local Development:${NC}"
-	echo "   just start                    # Start all services"
-	echo "   just test-flow               # Test the pipeline"
-	echo "   just logs                    # View logs"
-	echo ""
-	echo -e "${GREEN}For Frontend Development:${NC}"
-	echo "   just start-frontend                     # Start frontend stack"
-	echo ""
-	echo ""
 	echo -e "${GREEN}Common Commands:${NC}"
-	echo "   just stop                    # Stop all services"
-	echo "   just clean                   # Clean up everything"
-	echo "   just help                    # Show all commands"
+	echo "   just start                    # Start backend services"
+	echo "   just start-frontend           # Start backend + frontend"
+	echo "   just stop                     # Stop all services"
+	echo "   just logs                     # View logs"
+	echo "   just setup-secrets            # Refresh secrets from Infisical"
 	echo ""
 }
 
@@ -133,7 +139,7 @@ main() {
 	check_prerequisites
 	setup_python
 	setup_go
-	setup_env_file
+	setup_secrets
 	show_development_modes
 	show_next_steps
 
