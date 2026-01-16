@@ -5,6 +5,12 @@ from typing import Any
 
 from google.cloud import bigquery
 
+from stravapipe.cfutils.constants import (
+    ResponseField,
+    ResponseStatus,
+    SkipReason,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -94,9 +100,9 @@ class DeleteActivityService:
                     extra={"correlation_id": correlation_id},
                 )
                 return {
-                    "status": "skipped",
-                    "reason": "activity_not_found",
-                    "activity_id": activity_id,
+                    ResponseField.STATUS: ResponseStatus.SKIPPED,
+                    ResponseField.REASON: SkipReason.ACTIVITY_NOT_FOUND,
+                    ResponseField.ACTIVITY_ID: activity_id,
                 }
 
         except Exception as e:
@@ -142,7 +148,7 @@ class DeleteActivityService:
         )
 
         return {
-            "status": "processed",
-            "action": "deleted",
-            "activity_id": activity_id,
+            ResponseField.STATUS: ResponseStatus.PROCESSED,
+            ResponseField.ACTION: ResponseStatus.DELETED,
+            ResponseField.ACTIVITY_ID: activity_id,
         }
