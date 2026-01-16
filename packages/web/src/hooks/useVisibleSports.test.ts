@@ -84,7 +84,13 @@ describe("useVisibleSports", () => {
       });
 
       // Should return default sports
-      expect(result.current.visibleSports).toEqual(["cycling", "running", "yoga"]);
+      expect(result.current.visibleSports).toEqual([
+        "cycling",
+        "running",
+        "yoga",
+        "hiking",
+        "workout",
+      ]);
     });
 
     it("should return default sports when visibleSports is empty array", async () => {
@@ -113,7 +119,13 @@ describe("useVisibleSports", () => {
       });
 
       // Should return defaults when array is empty
-      expect(result.current.visibleSports).toEqual(["cycling", "running", "yoga"]);
+      expect(result.current.visibleSports).toEqual([
+        "cycling",
+        "running",
+        "yoga",
+        "hiking",
+        "workout",
+      ]);
     });
 
     it("should return stored sports when set", async () => {
@@ -195,7 +207,7 @@ describe("useVisibleSports", () => {
         return vi.fn();
       });
 
-      const knownSports = ["cycling", "running", "yoga"];
+      const knownSports = ["cycling", "running", "yoga", "hiking", "workout"];
       const { result } = renderHook(() => useVisibleSports(knownSports));
 
       await waitFor(() => {
@@ -203,7 +215,13 @@ describe("useVisibleSports", () => {
       });
 
       // Should fall back to defaults that exist in knownSports
-      expect(result.current.visibleSports).toEqual(["cycling", "running", "yoga"]);
+      expect(result.current.visibleSports).toEqual([
+        "cycling",
+        "running",
+        "yoga",
+        "hiking",
+        "workout",
+      ]);
     });
   });
 
@@ -268,7 +286,7 @@ describe("useVisibleSports", () => {
       });
 
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      const knownSports = ["cycling", "running", "yoga"];
+      const knownSports = ["cycling", "running", "yoga", "hiking", "workout"];
       const { result } = renderHook(() => useVisibleSports(knownSports));
 
       await waitFor(() => {

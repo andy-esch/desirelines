@@ -59,6 +59,23 @@ export default defineConfig(({ mode }) => {
       css: true, // Support CSS imports in tests
       // Exclude integration tests from regular test runs
       exclude: ["**/*.integration.test.{ts,tsx}", "node_modules/**"],
+      // Memory optimization: limit parallel workers to reduce memory pressure
+      // Each worker spawns its own JSDOM environment which is memory-intensive
+      pool: "forks",
+      poolOptions: {
+        forks: {
+          maxForks: 3, // Limit to 3 workers (adjust based on available RAM)
+          minForks: 1,
+          isolate: true, // Isolate tests for cleaner memory
+        },
+      },
+      // Reduce memory by not keeping test results in memory
+      reporters: ["default"],
+      // Fail fast on memory issues
+      bail: 1,
+      // Force exit after tests complete to prevent hanging from open handles
+      // (e.g., Firebase auth polling, unresolved promises)
+      teardownTimeout: 5000,
       coverage: {
         provider: "v8",
         reporter: ["text", "json", "html", "lcov"],

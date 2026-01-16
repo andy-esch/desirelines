@@ -5,7 +5,7 @@ import { useAuthToken } from "./useAuthToken";
 import {
   generateDemoActivities,
   generateCoordinatedFillLevels,
-  type DemoSport,
+  getDemoSports,
 } from "../utils/demoDataGenerator";
 
 export interface UseActivitiesResult {
@@ -50,12 +50,15 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
   // Generate demo activities for unauthenticated users
   const demoActivities = useMemo(() => {
     const currentYear = new Date().getFullYear();
+    const sports = getDemoSports();
     const fillLevels = generateCoordinatedFillLevels();
-    const sports: DemoSport[] = ["cycling", "running", "yoga"];
 
     // Generate activities for all sports and combine
     const allActivities = sports.flatMap((sport) =>
-      generateDemoActivities(sport, currentYear, 10, fillLevels[sport])
+      generateDemoActivities(sport, currentYear, {
+        count: 10,
+        overrideFillLevel: fillLevels[sport],
+      })
     );
 
     // Sort by date descending (most recent first)

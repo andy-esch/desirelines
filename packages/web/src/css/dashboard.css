@@ -242,3 +242,24 @@ a.logo-link:hover {
 .alert-demo .text-muted {
   color: var(--slate, #4a5568) !important;
 }
+
+/* ==========================================================================
+   Tables - Transparent Background
+   ========================================================================== */
+
+/* Transparent table - no background, works on gradient pages */
+.table-dark-transparent {
+  --bs-table-bg: transparent;
+}
+.table-dark-transparent tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* ==========================================================================
+   Anchor Link Scroll Offset
+   Account for fixed header when scrolling to anchor links
+   ========================================================================== */
+
+[id] {
+  scroll-margin-top: 70px;
+}

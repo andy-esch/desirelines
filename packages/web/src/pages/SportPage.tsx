@@ -17,6 +17,8 @@ import { useUserConfig } from "../hooks/useUserConfig";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
 import { useSportData } from "../hooks/useSportData";
+import { useSidebarSportData } from "../hooks/useSidebarSportData";
+import { getMetricConfig } from "../config/metricConfig";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
@@ -35,6 +37,9 @@ export default function SportPage({ sport }: SportPageProps) {
 
   // Fetch sport metrics and config
   const { metrics, sportConfig, isLoading, error, retry } = useSportData(currentYear, sport);
+
+  // Fetch sidebar sport data (available sports and counts)
+  const { availableSports, sportCounts } = useSidebarSportData(currentYear);
 
   // Load user preferences for unit settings (BEFORE using them in calculations)
   const { data: preferences } = useUserConfig("preferences");
@@ -69,30 +74,40 @@ export default function SportPage({ sport }: SportPageProps) {
       }));
   }, [metrics, sportInfo, userSettings.distanceUnit]);
 
+  // Get sport-specific configuration from MetricConfig system
+  const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
+
   // Calculate current values
   const estimatedYearEnd = useMemo(() => {
-    if (chartData.length === 0) return 2500;
+    if (chartData.length === 0) return metricConfig.defaultGoalValue;
     return estimateYearEndDistance(chartData, currentYear);
-  }, [chartData, currentYear]);
+  }, [chartData, currentYear, metricConfig.defaultGoalValue]);
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
   // Goals management - memoize to prevent infinite loop
   // Sport-specific fallback values ensure appropriate defaults when no data exists yet
-  const defaultGoalsForYear: GoalsForYear = useMemo(() => {
-    // Use sport-specific fallback values when estimatedYearEnd is not available
-    const fallbackValue = sport === "yoga" ? 100 : sport === "running" ? 1000 : 2500;
 
+  const defaultGoalsForYear: GoalsForYear = useMemo(() => {
+    // Use sport-specific configuration from MetricConfig for goal generation
+    // - roundingFactor: granularity for goal increments (e.g., 100 for cycling, 10 for running)
+    // - defaultGoalValue: minimum meaningful goal for this sport (e.g., 2500 for cycling, 100 for yoga)
+    const { roundingFactor, defaultGoalValue } = metricConfig;
+
+    // Pass sport-specific granularity and minimum value to prevent 0/invalid goals
+    // This ensures goals are always meaningful even when no data exists
     return {
-      goals: generateDefaultGoals(estimatedYearEnd || fallbackValue).map((goal) => ({
-        id: goal.id,
-        value: goal.value,
-        label: goal.label || "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })),
+      goals: generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue).map(
+        (goal) => ({
+          id: goal.id,
+          value: goal.value,
+          label: goal.label || "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      ),
     };
-  }, [estimatedYearEnd, sport]);
+  }, [estimatedYearEnd, metricConfig]);
 
   const {
     data: goalsData,
@@ -144,12 +159,14 @@ export default function SportPage({ sport }: SportPageProps) {
           goals={goals}
           onGoalsChange={handleGoalsChange}
           estimatedYearEnd={estimatedYearEnd}
-          currentDistance={currentValue}
+          currentValue={currentValue}
           unit={metricUnit}
           isLoading={isLoading || !!error}
           isSaving={isGoalsSaving}
           saveError={goalsSaveError}
           onClearSaveError={clearGoalsSaveError}
+          availableSports={availableSports}
+          sportCounts={sportCounts}
         />
 
         <main

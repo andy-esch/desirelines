@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Goals,
   Goal,
@@ -7,6 +7,7 @@ import {
   generateDefaultGoals,
 } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
+import { getMetricConfig } from "../config/metricConfig";
 import type { MetricUnit } from "../utils/units";
 
 interface GoalControlsProps {
@@ -54,10 +55,10 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     await onGoalsChange(updatedGoals);
   };
 
-  // Determine increment size based on sport type
-  // Cycling: 100, Running: 10, Yoga: 10
-  const incrementSize = sport === "cycling" ? 100 : 10;
-  const roundingFactor = sport === "cycling" ? 100 : 10;
+  // Get sport-specific configuration from MetricConfig system
+  const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
+  const incrementSize = metricConfig.goalIncrement;
+  const roundingFactor = metricConfig.roundingFactor;
 
   const handleGoalValueChange = (id: string, value: number) => {
     // Round based on sport type (100 for cycling, 10 for running/yoga)

@@ -375,7 +375,9 @@ describe("getDemoSports", () => {
     expect(sports).toContain("cycling");
     expect(sports).toContain("running");
     expect(sports).toContain("yoga");
-    expect(sports).toHaveLength(3);
+    expect(sports).toContain("hiking");
+    expect(sports).toContain("workout");
+    expect(sports).toHaveLength(5);
   });
 });
 

@@ -118,16 +118,45 @@ export function estimateYearEndDistance(
 
 /**
  * Helper: Generate default goals based on estimated year-end distance
- * Uses 100-mile granularity and rounds up for motivation
+ * Uses granularity for rounding and rounds up for motivation
  * Returns 3 default goals: Conservative, Target, Stretch
+ *
+ * All goals are guaranteed to be:
+ * - Greater than 0
+ * - Unique (no duplicates)
+ *
+ * @param estimatedDistance - Estimated year-end distance/value
+ * @param granularity - Rounding increment (default 100)
+ * @param minValue - Minimum base value for goal generation (default: granularity)
+ *                   Use this to ensure meaningful goals when no data exists
  */
-export function generateDefaultGoals(estimatedDistance: number, granularity: number = 100): Goals {
-  const rounded = Math.ceil(estimatedDistance / granularity) * granularity;
+export function generateDefaultGoals(
+  estimatedDistance: number,
+  granularity: number = 100,
+  minValue?: number
+): Goals {
+  // Ensure we have a meaningful base value for goal generation
+  // minValue prevents meaningless goals (like 0, 0, 100) when there's no data
+  const effectiveMin = minValue ?? granularity;
+  const effectiveDistance = Math.max(estimatedDistance, effectiveMin);
+
+  const rounded = Math.ceil(effectiveDistance / granularity) * granularity;
+
+  // Conservative goal: one step below target
+  // Edge case: if rounded equals granularity, use half-granularity to keep goals unique
+  let conservativeValue: number;
+  if (rounded > granularity) {
+    conservativeValue = rounded - granularity;
+  } else {
+    // rounded == granularity (edge case with small estimates)
+    // Use half of granularity to ensure uniqueness and > 0
+    conservativeValue = Math.max(1, Math.round(granularity / 2));
+  }
 
   return [
     {
       id: "1",
-      value: Math.max(0, rounded - granularity),
+      value: conservativeValue,
       label: "Conservative",
     },
     {

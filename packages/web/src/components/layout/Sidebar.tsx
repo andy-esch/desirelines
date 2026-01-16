@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import GoalControls from "../GoalControls";
 import AuthButton from "../AuthButton";
@@ -6,11 +5,7 @@ import ProgressSummary from "./ProgressSummary";
 import SidebarSection from "./SidebarSection";
 import FilterControls from "./FilterControls";
 import type { Goals } from "../../utils/goalCalculations";
-import { fetchYearMetadata, fetchSportConfig } from "../../api/activities";
-import { isCancellationError } from "../../api/errors";
 import type { MetricUnit } from "../../utils/units";
-import { useAuth } from "../../hooks/useAuth";
-import { useAuthToken } from "../../hooks/useAuthToken";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 
 interface SidebarProps {
@@ -19,7 +14,8 @@ interface SidebarProps {
   goals: Goals;
   onGoalsChange: (goals: Goals) => Promise<void>;
   estimatedYearEnd: number;
-  currentDistance: number;
+  /** Current cumulative value (distance in miles/km, or session count) */
+  currentValue: number;
   sport?: string;
   unit?: MetricUnit;
   isLoading?: boolean;
@@ -27,6 +23,13 @@ interface SidebarProps {
   isSaving?: boolean;
   saveError?: Error | null;
   onClearSaveError?: () => void;
+  // Sport data (passed from parent via hooks)
+  availableSports: string[];
+  sportCounts: Record<string, number>;
+  // Navigation prefix: "/" for authenticated, "/demo/" for demo mode
+  navigationPrefix?: string;
+  // Whether to show auth button on mobile (false for demo mode)
+  showAuthButton?: boolean;
 }
 
 interface SidebarSections {
@@ -40,18 +43,19 @@ export default function Sidebar({
   goals,
   onGoalsChange,
   estimatedYearEnd,
-  currentDistance,
+  currentValue,
   sport = "cycling",
   unit = "miles",
   isLoading = false,
   isSaving = false,
   saveError = null,
   onClearSaveError,
+  availableSports,
+  sportCounts,
+  navigationPrefix = "/",
+  showAuthButton = true,
 }: SidebarProps) {
   const navigate = useNavigate();
-  const { loading } = useAuth();
-  const { getToken } = useAuthToken();
-  const [availableSports, setAvailableSports] = useState<string[]>(["cycling"]);
 
   const [expandedSections, setExpandedSections] = useLocalStorage<SidebarSections>(
     "sidebar-sections",
@@ -65,49 +69,8 @@ export default function Sidebar({
     });
   };
 
-  // Fetch available sports from metadata
-  useEffect(() => {
-    if (loading) return;
-
-    const controller = new AbortController();
-
-    async function loadSports() {
-      try {
-        const idToken = await getToken();
-        const [metadata, sportConfig] = await Promise.all([
-          fetchYearMetadata(currentYear, controller.signal, idToken),
-          fetchSportConfig(controller.signal, idToken),
-        ]);
-
-        const rawSportsWithData = new Set(metadata.sports || []);
-        const categoriesWithData: string[] = [];
-
-        for (const [category, config] of Object.entries(sportConfig.sport_categories)) {
-          const hasData = config.strava_types.some((stravaType) =>
-            rawSportsWithData.has(stravaType)
-          );
-          if (hasData) {
-            categoriesWithData.push(category);
-          }
-        }
-
-        if (categoriesWithData.length > 0) {
-          setAvailableSports(categoriesWithData);
-        }
-      } catch (err) {
-        // Only log real errors, not cancellations (which are expected behavior)
-        if (!isCancellationError(err)) {
-          console.warn("Failed to fetch available sports, using defaults:", err);
-        }
-      }
-    }
-
-    loadSports();
-    return () => controller.abort();
-  }, [currentYear, loading, getToken]);
-
   const handleSportChange = (newSport: string) => {
-    navigate(`/${newSport}/${currentYear}`);
+    navigate(`${navigationPrefix}${newSport}/${currentYear}`);
   };
 
   return (
@@ -133,7 +96,7 @@ export default function Sidebar({
 
         <div className="offcanvas-body d-flex flex-column p-0 pt-lg-3 overflow-y-auto">
           <ProgressSummary
-            currentDistance={currentDistance}
+            currentValue={currentValue}
             estimatedYearEnd={estimatedYearEnd}
             unit={unit}
             isLoading={isLoading}
@@ -150,6 +113,7 @@ export default function Sidebar({
             <FilterControls
               sport={sport}
               availableSports={availableSports}
+              sportCounts={sportCounts}
               onSportChange={handleSportChange}
               currentYear={currentYear}
               onYearChange={onYearClick}
@@ -176,10 +140,12 @@ export default function Sidebar({
             />
           </SidebarSection>
 
-          {/* Login/Logout - mobile only */}
-          <div className="d-md-none mt-auto px-3 py-3 border-top">
-            <AuthButton signOutVariant="outline-secondary" />
-          </div>
+          {/* Login/Logout - mobile only, hidden in demo mode */}
+          {showAuthButton && (
+            <div className="d-md-none mt-auto px-3 py-3 border-top">
+              <AuthButton signOutVariant="outline-secondary" />
+            </div>
+          )}
         </div>
       </div>
     </div>

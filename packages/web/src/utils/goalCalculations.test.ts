@@ -127,12 +127,41 @@ describe("generateDefaultGoals", () => {
     expect(goals[2]?.value).toBe(4000);
   });
 
-  it("does not go below 0 for conservative goal", () => {
+  it("ensures all goals are unique and > 0 for small estimates", () => {
     const goals = generateDefaultGoals(50);
-    // Rounds up to 100, conservative = 0
-    expect(goals[0]?.value).toBe(0);
+    // Rounds up to 100. Instead of 0 for conservative (which is invalid),
+    // uses half-granularity (50) to ensure all goals are unique and > 0
+    expect(goals[0]?.value).toBe(50);
     expect(goals[1]?.value).toBe(100);
     expect(goals[2]?.value).toBe(200);
+
+    // Verify all goals pass validation
+    goals.forEach((goal) => {
+      expect(goal.value).toBeGreaterThan(0);
+    });
+    // Verify uniqueness
+    const values = goals.map((g) => g.value);
+    expect(new Set(values).size).toBe(values.length);
+  });
+
+  it("uses minValue to ensure meaningful goals when no data exists", () => {
+    // Simulates cycling with no data: estimatedDistance=0, granularity=100, minValue=2500
+    const cyclingGoals = generateDefaultGoals(0, 100, 2500);
+    expect(cyclingGoals[0]?.value).toBe(2400); // Conservative
+    expect(cyclingGoals[1]?.value).toBe(2500); // Target
+    expect(cyclingGoals[2]?.value).toBe(2600); // Stretch
+
+    // Simulates yoga with no data: estimatedDistance=0, granularity=10, minValue=100
+    const yogaGoals = generateDefaultGoals(0, 10, 100);
+    expect(yogaGoals[0]?.value).toBe(90); // Conservative
+    expect(yogaGoals[1]?.value).toBe(100); // Target
+    expect(yogaGoals[2]?.value).toBe(110); // Stretch
+
+    // Simulates running with no data: estimatedDistance=0, granularity=10, minValue=1000
+    const runningGoals = generateDefaultGoals(0, 10, 1000);
+    expect(runningGoals[0]?.value).toBe(990); // Conservative
+    expect(runningGoals[1]?.value).toBe(1000); // Target
+    expect(runningGoals[2]?.value).toBe(1010); // Stretch
   });
 
   it("returns Goals type with id and label", () => {

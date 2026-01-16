@@ -26,8 +26,6 @@
  */
 
 import axios from "axios";
-import type { RideBlobType } from "../types/activity";
-import { EMPTY_RIDE_DATA } from "../constants";
 import { API_BASE_URL } from "../config";
 import { isCancellationError, is404Error, buildAuthHeaders, throwApiError } from "./errors";
 
@@ -101,31 +99,6 @@ export interface DailyActivity {
 export interface DailySummaryResponse {
   daily: Record<string, DailyActivity>;
 }
-
-export const fetchDistanceData = async (
-  year: number,
-  signal?: AbortSignal,
-  idToken?: string
-): Promise<RideBlobType> => {
-  const url = `${getApiBaseUrl()}/activities/${year}/metrics?sport=cycling`;
-
-  try {
-    const { data } = await axios.get<RideBlobType>(url, {
-      signal,
-      headers: buildAuthHeaders(idToken),
-    });
-    return data;
-  } catch (err: unknown) {
-    if (isCancellationError(err)) {
-      return EMPTY_RIDE_DATA;
-    }
-    // LEGACY: 404 handling for old API endpoints that returned 404 for missing data
-    if (is404Error(err)) {
-      return EMPTY_RIDE_DATA;
-    }
-    throwApiError(err, "fetchDistanceData");
-  }
-};
 
 // MULTI-SPORT API FUNCTIONS
 

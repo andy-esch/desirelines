@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { SettingsSection } from "../components/settings/SettingsSection";
@@ -19,6 +20,7 @@ import type { Preferences } from "../types/generated/user_config";
 export default function SettingsPage() {
   const { user, loading: authLoading, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
+  const location = useLocation();
 
   const {
     data: preferences,
@@ -27,6 +29,20 @@ export default function SettingsPage() {
     isSaving,
     saveError,
   } = useUserConfig("preferences", undefined, undefined, DEFAULT_PREFERENCES);
+
+  // Scroll to anchor (e.g., #sport-visibility) after page loads
+  useEffect(() => {
+    if (authLoading || prefsLoading) return;
+    const hash = location.hash.replace("#", "");
+    if (hash) {
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        const element = document.getElementById(hash);
+        element?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [location.hash, authLoading, prefsLoading]);
 
   // Single handler for all preference updates
   const handlePreferenceChange = useCallback(
@@ -137,6 +153,7 @@ export default function SettingsPage() {
         <SettingsSection
           title="Visible Sports"
           description="Choose which sports appear in your dashboard and navigation"
+          id="sport-visibility"
         >
           <SportVisibilitySettings />
         </SettingsSection>
