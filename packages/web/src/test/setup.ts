@@ -6,10 +6,11 @@
  */
 
 import "@testing-library/jest-dom";
+import { cleanup } from "@testing-library/react";
 
 // Mock Firebase to avoid initialization errors in tests
 // Tests should mock Firebase services as needed
-import { vi, beforeEach } from "vitest";
+import { vi, beforeEach, afterEach } from "vitest";
 
 // Setup localStorage mock for tests
 class LocalStorageMock {
@@ -48,6 +49,14 @@ beforeEach(() => {
   global.localStorage.clear();
 });
 
+// Cleanup after each test to prevent memory leaks
+// This unmounts React components and cleans up JSDOM
+afterEach(() => {
+  cleanup();
+  // Clear any pending timers
+  vi.clearAllTimers();
+});
+
 // Mock the config module to return test values
 // Note: apiGatewayUrl is undefined by default to match test expectations
 // Individual tests can override this mock if they need a specific URL
@@ -76,3 +85,11 @@ vi.mock("../lib/config", () => ({
   loadConfig: vi.fn(() => mockConfig),
   getConfig: vi.fn(() => mockConfig),
 }));
+
+// Note: The polling loop in src/lib/firebase.ts (waitForAuthReady) can keep
+// Node.js alive. However, test files that use Firebase mock firebase/auth's
+// onAuthStateChanged to immediately call the callback, which resolves the
+// authReadyResolved flag and stops the polling.
+//
+// The teardownTimeout in vite.config.ts provides a safety net if any test
+// doesn't properly mock Firebase.

@@ -89,17 +89,23 @@ export default function SportPage({ sport }: SportPageProps) {
   // Sport-specific fallback values ensure appropriate defaults when no data exists yet
 
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
-    // Use sport-specific fallback values from MetricConfig when estimatedYearEnd is not available
-    const fallbackValue = metricConfig.defaultGoalValue;
+    // Use sport-specific configuration from MetricConfig for goal generation
+    // - roundingFactor: granularity for goal increments (e.g., 100 for cycling, 10 for running)
+    // - defaultGoalValue: minimum meaningful goal for this sport (e.g., 2500 for cycling, 100 for yoga)
+    const { roundingFactor, defaultGoalValue } = metricConfig;
 
+    // Pass sport-specific granularity and minimum value to prevent 0/invalid goals
+    // This ensures goals are always meaningful even when no data exists
     return {
-      goals: generateDefaultGoals(estimatedYearEnd || fallbackValue).map((goal) => ({
-        id: goal.id,
-        value: goal.value,
-        label: goal.label || "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })),
+      goals: generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue).map(
+        (goal) => ({
+          id: goal.id,
+          value: goal.value,
+          label: goal.label || "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      ),
     };
   }, [estimatedYearEnd, metricConfig]);
 
