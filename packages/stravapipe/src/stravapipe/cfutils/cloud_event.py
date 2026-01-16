@@ -6,6 +6,8 @@ import json
 
 from cloudevents.http import CloudEvent
 
+from stravapipe.cfutils.constants import CloudEventField
+
 
 class MessageDecodeError(Exception):
     """Raised when message decoding fails"""
@@ -55,8 +57,12 @@ def validate_cloud_event(event: CloudEvent) -> None:
     if not isinstance(event.data, dict):
         raise CloudEventValidationError("CloudEvent data must be a dictionary")
 
-    if "message" not in event.data:
-        raise CloudEventValidationError("CloudEvent missing 'message' field")
+    if CloudEventField.MESSAGE not in event.data:
+        raise CloudEventValidationError(
+            f"CloudEvent missing '{CloudEventField.MESSAGE}' field"
+        )
 
-    if "data" not in event.data["message"]:
-        raise CloudEventValidationError("CloudEvent message missing 'data' field")
+    if CloudEventField.DATA not in event.data[CloudEventField.MESSAGE]:
+        raise CloudEventValidationError(
+            f"CloudEvent message missing '{CloudEventField.DATA}' field"
+        )

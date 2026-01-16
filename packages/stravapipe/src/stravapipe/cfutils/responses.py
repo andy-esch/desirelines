@@ -1,5 +1,7 @@
 """Standardized response helpers for Cloud Functions"""
 
+from stravapipe.cfutils.constants import ResponseField, ResponseStatus
+
 
 def success_response(
     action: str,
@@ -17,10 +19,10 @@ def success_response(
         Standardized success response dict
     """
     return {
-        "status": "processed",
-        "action": action,
-        "activity_id": activity_id,
-        "correlation_id": correlation_id,
+        ResponseField.STATUS: ResponseStatus.PROCESSED,
+        ResponseField.ACTION: action,
+        ResponseField.ACTIVITY_ID: activity_id,
+        ResponseField.CORRELATION_ID: correlation_id,
     }
 
 
@@ -42,11 +44,11 @@ def skipped_response(
         Standardized skipped response dict
     """
     return {
-        "status": "skipped",
-        "reason": reason,
-        "activity_id": activity_id,
-        "correlation_id": correlation_id,
-        "details": details,
+        ResponseField.STATUS: ResponseStatus.SKIPPED,
+        ResponseField.REASON: reason,
+        ResponseField.ACTIVITY_ID: activity_id,
+        ResponseField.CORRELATION_ID: correlation_id,
+        ResponseField.DETAILS: details,
     }
 
 
@@ -66,8 +68,8 @@ def error_response(
         Standardized error response dict
     """
     return {
-        "status": "failed",
-        "error": error_type,
-        "details": details,
-        "correlation_id": correlation_id,
+        ResponseField.STATUS: ResponseStatus.FAILED,
+        ResponseField.ERROR: error_type,
+        ResponseField.DETAILS: details,
+        ResponseField.CORRELATION_ID: correlation_id,
     }

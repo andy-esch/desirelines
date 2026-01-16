@@ -12,6 +12,13 @@ from fastapi import FastAPI, HTTPException, Request
 
 from stravapipe.adapters.proto import dict_to_webhook_event
 from stravapipe.application.postgres_sync import make_postgres_write_service
+from stravapipe.cfutils.constants import (
+    DEFAULT_UNKNOWN,
+    ResponseField,
+    ResponseStatus,
+    SkipReason,
+    WebhookField,
+)
 from stravapipe.cfutils.logging import setup_cloud_function_logging
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_postgres_writer_config
@@ -43,7 +50,7 @@ app = FastAPI(
 @app.get("/health")
 async def health():
     """Health check endpoint for Cloud Run."""
-    return {"status": "healthy"}
+    return {ResponseField.STATUS: ResponseStatus.HEALTHY}
 
 
 @app.post("/")
@@ -104,7 +111,7 @@ async def handle_pubsub(request: Request):
             )
 
         # Get Strava string names for logging and response
-        aspect_name = event_data.get("aspect_type", "unknown")
+        aspect_name = event_data.get(WebhookField.ASPECT_TYPE, DEFAULT_UNKNOWN)
 
         logger.info(
             "Processing webhook",
@@ -130,9 +137,9 @@ async def handle_pubsub(request: Request):
                 extra={"correlation_id": correlation_id},
             )
             return {
-                "status": "skipped",
-                "reason": "unknown_aspect_type",
-                "correlation_id": correlation_id,
+                ResponseField.STATUS: ResponseStatus.SKIPPED,
+                ResponseField.REASON: SkipReason.UNKNOWN_ASPECT_TYPE,
+                ResponseField.CORRELATION_ID: correlation_id,
             }
 
     except HTTPException:
@@ -161,9 +168,9 @@ async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
                 extra={"correlation_id": correlation_id},
             )
             return {
-                "status": "created",
-                "activity_id": event.object_id,
-                "correlation_id": correlation_id,
+                ResponseField.STATUS: ResponseStatus.CREATED,
+                ResponseField.ACTIVITY_ID: event.object_id,
+                ResponseField.CORRELATION_ID: correlation_id,
             }
         else:
             logger.warning(
@@ -172,10 +179,10 @@ async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
                 extra={"correlation_id": correlation_id},
             )
             return {
-                "status": "skipped",
-                "reason": "already_exists",
-                "activity_id": event.object_id,
-                "correlation_id": correlation_id,
+                ResponseField.STATUS: ResponseStatus.SKIPPED,
+                ResponseField.REASON: SkipReason.ALREADY_EXISTS,
+                ResponseField.ACTIVITY_ID: event.object_id,
+                ResponseField.CORRELATION_ID: correlation_id,
             }
 
     except ActivityNotFoundError:
@@ -185,10 +192,10 @@ async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
             extra={"correlation_id": correlation_id},
         )
         return {
-            "status": "skipped",
-            "reason": "activity_not_found",
-            "activity_id": event.object_id,
-            "correlation_id": correlation_id,
+            ResponseField.STATUS: ResponseStatus.SKIPPED,
+            ResponseField.REASON: SkipReason.ACTIVITY_NOT_FOUND,
+            ResponseField.ACTIVITY_ID: event.object_id,
+            ResponseField.CORRELATION_ID: correlation_id,
         }
 
 
@@ -207,10 +214,10 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
             },
         )
         return {
-            "status": "skipped",
-            "reason": "no_relevant_updates",
-            "activity_id": event.object_id,
-            "correlation_id": correlation_id,
+            ResponseField.STATUS: ResponseStatus.SKIPPED,
+            ResponseField.REASON: SkipReason.NO_RELEVANT_UPDATES,
+            ResponseField.ACTIVITY_ID: event.object_id,
+            ResponseField.CORRELATION_ID: correlation_id,
         }
 
     try:
@@ -226,15 +233,15 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
             inserted = service.create_activity(event.object_id)
             if inserted:
                 return {
-                    "status": "created",
-                    "activity_id": event.object_id,
-                    "correlation_id": correlation_id,
+                    ResponseField.STATUS: ResponseStatus.CREATED,
+                    ResponseField.ACTIVITY_ID: event.object_id,
+                    ResponseField.CORRELATION_ID: correlation_id,
                 }
             return {
-                "status": "skipped",
-                "reason": "already_exists",
-                "activity_id": event.object_id,
-                "correlation_id": correlation_id,
+                ResponseField.STATUS: ResponseStatus.SKIPPED,
+                ResponseField.REASON: SkipReason.ALREADY_EXISTS,
+                ResponseField.ACTIVITY_ID: event.object_id,
+                ResponseField.CORRELATION_ID: correlation_id,
             }
 
         # Activity exists - update metadata only
@@ -247,15 +254,15 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
                 extra={"correlation_id": correlation_id, "updates": relevant_updates},
             )
             return {
-                "status": "updated",
-                "activity_id": event.object_id,
-                "correlation_id": correlation_id,
+                ResponseField.STATUS: ResponseStatus.UPDATED,
+                ResponseField.ACTIVITY_ID: event.object_id,
+                ResponseField.CORRELATION_ID: correlation_id,
             }
         return {
-            "status": "skipped",
-            "reason": "not_found",
-            "activity_id": event.object_id,
-            "correlation_id": correlation_id,
+            ResponseField.STATUS: ResponseStatus.SKIPPED,
+            ResponseField.REASON: SkipReason.NOT_FOUND,
+            ResponseField.ACTIVITY_ID: event.object_id,
+            ResponseField.CORRELATION_ID: correlation_id,
         }
 
     except ActivityNotFoundError:
@@ -265,10 +272,10 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
             extra={"correlation_id": correlation_id},
         )
         return {
-            "status": "skipped",
-            "reason": "activity_not_found",
-            "activity_id": event.object_id,
-            "correlation_id": correlation_id,
+            ResponseField.STATUS: ResponseStatus.SKIPPED,
+            ResponseField.REASON: SkipReason.ACTIVITY_NOT_FOUND,
+            ResponseField.ACTIVITY_ID: event.object_id,
+            ResponseField.CORRELATION_ID: correlation_id,
         }
 
 
@@ -284,9 +291,9 @@ async def _handle_delete(event: pb.WebhookEvent, correlation_id: str) -> dict:
             extra={"correlation_id": correlation_id},
         )
         return {
-            "status": "deleted",
-            "activity_id": event.object_id,
-            "correlation_id": correlation_id,
+            ResponseField.STATUS: ResponseStatus.DELETED,
+            ResponseField.ACTIVITY_ID: event.object_id,
+            ResponseField.CORRELATION_ID: correlation_id,
         }
     else:
         logger.info(
@@ -295,8 +302,8 @@ async def _handle_delete(event: pb.WebhookEvent, correlation_id: str) -> dict:
             extra={"correlation_id": correlation_id},
         )
         return {
-            "status": "skipped",
-            "reason": "not_found",
-            "activity_id": event.object_id,
-            "correlation_id": correlation_id,
+            ResponseField.STATUS: ResponseStatus.SKIPPED,
+            ResponseField.REASON: SkipReason.NOT_FOUND,
+            ResponseField.ACTIVITY_ID: event.object_id,
+            ResponseField.CORRELATION_ID: correlation_id,
         }
