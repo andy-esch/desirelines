@@ -1,18 +1,10 @@
 """GCP adapters."""
 
 from stravapipe.adapters.gcp._bigquery import ActivitiesRepo
-from stravapipe.adapters.gcp._clients import (
-    BigQueryClientWrapper,
-    CloudStorageClientWrapper,
-)
-from stravapipe.adapters.gcp._storage import (
-    DistancesRepo,
-    MetadataRepo,
-    SummariesRepo,
-)
-from stravapipe.config import AggregatorConfig, BQInserterConfig
-from stravapipe.ports.out.read import ReadActivitiesMetadata, ReadSummaries
-from stravapipe.ports.out.write import WriteActivities, WriteMetadata, WriteSummary
+from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
+from stravapipe.config import BQInserterConfig
+from stravapipe.ports.out.read import ReadActivitiesMetadata
+from stravapipe.ports.out.write import WriteActivities
 
 
 def make_bigquery_client_wrapper(config: BQInserterConfig) -> BigQueryClientWrapper:
@@ -38,55 +30,10 @@ def make_read_activities(config: BQInserterConfig) -> ReadActivitiesMetadata:
     )
 
 
-def _make_summaries_repo(config: AggregatorConfig) -> SummariesRepo:
-    """Create a SummariesRepo (used for both read and write)."""
-    client = CloudStorageClientWrapper(
-        project_id=config.gcp_project_id,
-        bucket_name=config.gcp_bucket_name,
-    )
-    return SummariesRepo(client=client)
-
-
-def make_read_summaries(config: AggregatorConfig) -> ReadSummaries:
-    """Create a ReadSummaries adapter for reading summary JSON from Cloud Storage."""
-    return _make_summaries_repo(config)
-
-
-def make_write_summary(config: AggregatorConfig) -> WriteSummary:
-    """Create a WriteSummary adapter for writing summary JSON to Cloud Storage."""
-    return _make_summaries_repo(config)
-
-
-def make_write_distances(config: AggregatorConfig) -> DistancesRepo:
-    """Create a DistancesRepo for writing distance timeseries."""
-    client = CloudStorageClientWrapper(
-        project_id=config.gcp_project_id,
-        bucket_name=config.gcp_bucket_name,
-    )
-    return DistancesRepo(client=client)
-
-
-def make_write_metadata(config: AggregatorConfig) -> WriteMetadata:
-    """Create a MetadataRepo for writing year metadata."""
-    client = CloudStorageClientWrapper(
-        project_id=config.gcp_project_id,
-        bucket_name=config.gcp_bucket_name,
-    )
-    return MetadataRepo(client=client)
-
-
 __all__ = [
     "ActivitiesRepo",
     "BigQueryClientWrapper",
-    "CloudStorageClientWrapper",
-    "DistancesRepo",
-    "MetadataRepo",
-    "SummariesRepo",
     "make_bigquery_client_wrapper",
     "make_read_activities",
-    "make_read_summaries",
     "make_write_activities",
-    "make_write_distances",
-    "make_write_metadata",
-    "make_write_summary",
 ]

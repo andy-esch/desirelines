@@ -6,7 +6,6 @@
 protobuf_sources(
     name="sports_metrics",
     sources=["desirelines/sports/v1/sports_metrics.proto"],
-    python_resolve="stravapipe",
     go_mod_address="packages/apigateway:mod",
 )
 

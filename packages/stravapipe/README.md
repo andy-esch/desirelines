@@ -22,8 +22,7 @@ packages/stravapipe/
 │   │   └── pubsub.py           # CloudEvent parsing
 │   ├── application/            # Business logic
 │   │   ├── bq_inserter/        # BigQuery sync services
-│   │   ├── postgres_sync/      # PostgreSQL sync services
-│   │   └── aggregator/         # Summary generation
+│   │   └── postgres_sync/      # PostgreSQL sync services
 │   ├── adapters/               # External service clients
 │   │   ├── strava/             # Strava API
 │   │   ├── gcp/                # BigQuery, Cloud Storage

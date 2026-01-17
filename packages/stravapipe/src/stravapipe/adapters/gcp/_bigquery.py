@@ -58,14 +58,16 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
     )
 
     # Fields to exclude when inserting SummaryActivity (not in BQ schema)
-    _SUMMARY_FIELDS_TO_EXCLUDE: frozenset[str] = frozenset({
-        "resource_state",  # Conflicts with athlete.resource_state
-        "location_city",
-        "location_state",
-        "location_country",
-        "from_accepted_tag",
-        "utc_offset",
-    })
+    _SUMMARY_FIELDS_TO_EXCLUDE: frozenset[str] = frozenset(
+        {
+            "resource_state",  # Conflicts with athlete.resource_state
+            "location_city",
+            "location_state",
+            "location_country",
+            "from_accepted_tag",
+            "utc_offset",
+        }
+    )
 
     def __init__(
         self,
@@ -226,8 +228,8 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         """Query BigQuery for minimal activity metadata by ID.
 
         Checks both 'activities' and 'deleted_activities' tables using UNION
-        to handle race condition where BQ inserter may have already moved
-        the activity before aggregator queries for it.
+        to handle race condition where activity may have been moved to
+        deleted_activities before this query runs.
 
         Args:
             activity_id: Strava activity ID to look up
