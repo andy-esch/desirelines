@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useFullUserConfig } from "../../hooks/useUserConfig";
 import { DEMO_SPORT_LABELS, type DemoSport } from "../../constants/demoConfig";
 import NeonSpinner from "../NeonSpinner";
+import type { SportGoalsForYear } from "../../services/userConfigService";
 
 /** Flattened goal row for display */
 interface GoalRow {
@@ -29,10 +30,11 @@ export function GoalManagementTable() {
     // Iterate years
     Object.entries(config.goals).forEach(([yearStr, sportGoalsForYear]) => {
       const year = parseInt(yearStr, 10);
-      if (isNaN(year) || !sportGoalsForYear?.sports) return;
+      const data = sportGoalsForYear as SportGoalsForYear;
+      if (isNaN(year) || !data?.sports) return;
 
       // Iterate sports
-      Object.entries(sportGoalsForYear.sports).forEach(([sport, goalsForYear]) => {
+      Object.entries(data.sports).forEach(([sport, goalsForYear]) => {
         if (!goalsForYear?.goals) return;
 
         const sportKey = sport as DemoSport;

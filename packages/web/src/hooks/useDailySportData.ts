@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
-import { useAuthToken } from "./useAuthToken";
 import { fetchDailySummary, type DailyActivity } from "../api/activities";
 import { generateDemoDailyData, getSessionFillLevels } from "../utils/demoDataGenerator";
 
@@ -74,49 +74,13 @@ const DEFAULT_SPORTS = ["cycling", "running", "yoga"];
 
 export function useDailySportData(options: UseDailySportDataOptions): DailySportDataResult {
   const { user, loading: authLoading } = useAuth();
-  const { getToken } = useAuthToken();
 
   const { year, from, to } = options;
-
-  /**
-   * Memoize sports array to maintain referential stability.
-   *
-   * WHY: Callers often pass inline arrays like `sports={["cycling", "running"]}`.
-   * These create new array references on every render, causing unnecessary
-   * re-fetches and re-renders.
-   *
-   * HOW: Using `join(",")` as the dependency creates a stable string key.
-   * The sports array only updates when the actual sport names change,
-   * not when the array reference changes.
-   *
-   * IMPORTANT: Do not "fix" this by removing the join() - it will break
-   * the hook for callers using inline arrays.
-   */
-  const sports = useMemo(
-    () => options.sports ?? DEFAULT_SPORTS,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: use string key for value-based comparison
-    [options.sports?.join(",")]
-  );
-
-  // Track which sports we're currently managing to avoid stale data
-  const sportsKey = sports.slice().sort().join(",");
-
-  const [data, setData] = useState<MultiSportData>(() => {
-    // Initialize with empty data for all requested sports
-    const initial: MultiSportData = {};
-    for (const sport of sports) {
-      initial[sport] = {};
-    }
-    return initial;
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  // Track previous sports to detect changes
-  const prevSportsKeyRef = useRef(sportsKey);
+  // Note: Callers must ensure `options.sports` is referentially stable (memoized) to prevent
+  // unnecessary re-renders or query churn. We avoid internal memoization hacks here.
+  const sports = options.sports ?? DEFAULT_SPORTS;
 
   // Generate demo data using useMemo for stability
-  // Uses session-stored fill levels to ensure consistency across components
   const demoData = useMemo(() => {
     // Get coordinated fill levels for all requested sports
     const fillLevels = getSessionFillLevels(sports);
@@ -133,73 +97,46 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
     return result;
   }, [sports, from, to]);
 
-  useEffect(() => {
-    // Reset data if sports changed
-    if (prevSportsKeyRef.current !== sportsKey) {
-      const initial: MultiSportData = {};
-      for (const sport of sports) {
-        initial[sport] = {};
+  const queries = useQueries({
+    queries: sports.map((sport) => ({
+      queryKey: ["dailySummary", year, sport, from, to],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        fetchDailySummary({
+          year,
+          sport,
+          from,
+          to,
+          signal,
+        }),
+      enabled: !authLoading && !!user,
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  const data = useMemo(() => {
+    if (!user) return demoData;
+
+    const result: MultiSportData = {};
+    // Initialize all sports with empty objects to prevent undefined access
+    for (const sport of sports) {
+      result[sport] = {};
+    }
+
+    queries.forEach((query, index) => {
+      const sport = sports[index];
+      if (query.data) {
+        result[sport] = query.data;
       }
-      setData(initial);
-      prevSportsKeyRef.current = sportsKey;
-    }
+    });
+    return result;
+  }, [user, demoData, queries, sports]);
 
-    // Wait for auth to settle
-    if (authLoading) {
-      return;
-    }
+  const isQueriesLoading = queries.some((q) => q.isLoading);
+  const queryError = queries.find((q) => q.error)?.error;
 
-    const controller = new AbortController();
-
-    async function loadData() {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        if (user) {
-          // Authenticated: fetch from API for all requested sports
-          const idToken = await getToken();
-
-          const fetchPromises = sports.map((sport) =>
-            fetchDailySummary({
-              year,
-              sport,
-              from,
-              to,
-              signal: controller.signal,
-              idToken,
-            }).then((sportData) => ({ sport, data: sportData }))
-          );
-
-          const results = await Promise.all(fetchPromises);
-
-          if (!controller.signal.aborted) {
-            const newData: MultiSportData = {};
-            for (const { sport, data: sportData } of results) {
-              newData[sport] = sportData;
-            }
-            setData(newData);
-          }
-        } else {
-          // Unauthenticated: use generated demo data
-          setData(demoData);
-        }
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          console.error("[useDailySportData] Error fetching data:", err);
-          setError(err instanceof Error ? err : new Error("Failed to load data"));
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadData();
-
-    return () => controller.abort();
-  }, [year, from, to, sportsKey, user, authLoading, getToken, demoData, sports]);
-
-  return { data, isLoading, error };
+  return {
+    data,
+    isLoading: authLoading || (!!user && isQueriesLoading),
+    error: (queryError as Error) || null,
+  };
 }

@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { fetchYearMetadata, fetchSportConfig } from "../api/activities";
 import { isCancellationError } from "../api/errors";
 import { useAuth } from "./useAuth";
-import { useAuthToken } from "./useAuthToken";
 import { useVisibleSports } from "./useVisibleSports";
 import { usePublicSportConfig } from "./usePublicSportConfig";
 import { getDemoActivityCounts } from "../utils/demoDataGenerator";
@@ -24,7 +23,6 @@ export interface SidebarSportData {
  */
 export function useSidebarSportData(currentYear: number): SidebarSportData {
   const { loading: authLoading } = useAuth();
-  const { getToken } = useAuthToken();
   const { visibleSports, isLoading: visibleLoading } = useVisibleSports();
   const [sportCounts, setSportCounts] = useState<Record<string, number>>({});
   const [countsLoading, setCountsLoading] = useState(true);
@@ -40,10 +38,9 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
 
     async function loadCounts() {
       try {
-        const idToken = await getToken();
         const [metadata, sportConfig] = await Promise.all([
-          fetchYearMetadata(currentYear, controller.signal, idToken),
-          fetchSportConfig(controller.signal, idToken),
+          fetchYearMetadata(currentYear, controller.signal),
+          fetchSportConfig(controller.signal),
         ]);
 
         // Aggregate activity counts by sport category
@@ -73,7 +70,7 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
 
     loadCounts();
     return () => controller.abort();
-  }, [currentYear, authLoading, getToken]);
+  }, [currentYear, authLoading]);
 
   // Sort visible sports by activity count (descending)
   const availableSports = useMemo(() => {

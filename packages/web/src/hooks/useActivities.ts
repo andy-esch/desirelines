@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useMemo } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchActivities, type ActivitySummary, type ActivityListFilter } from "../api/activities";
 import { useAuth } from "./useAuth";
-import { useAuthToken } from "./useAuthToken";
 import {
   generateDemoActivities,
   generateCoordinatedFillLevels,
@@ -38,14 +38,6 @@ export interface UseActivitiesResult {
  */
 export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseActivitiesResult {
   const { user, loading: authLoading } = useAuth();
-  const { getToken } = useAuthToken();
-
-  const [activities, setActivities] = useState<ActivitySummary[]>([]);
-  const [cursor, setCursor] = useState<string | undefined>(undefined);
-  const [hasMore, setHasMore] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
 
   // Generate demo activities for unauthenticated users
   const demoActivities = useMemo(() => {
@@ -67,90 +59,31 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
     );
   }, []);
 
-  // Reset when filter changes
-  useEffect(() => {
-    setActivities([]);
-    setCursor(undefined);
-    setHasMore(false);
-  }, [filter.from, filter.to, filter.sport, filter.limit]);
+  const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, error, refetch } =
+    useInfiniteQuery({
+      queryKey: ["activities", filter],
+      queryFn: async ({ pageParam, signal }) => {
+        return fetchActivities({ ...filter, cursor: pageParam }, signal);
+      },
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      initialPageParam: undefined as string | undefined,
+      enabled: !authLoading && !!user, // Only fetch if user exists
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    });
 
-  // Fetch activities
-  useEffect(() => {
-    if (authLoading) {
-      return;
-    }
-
-    // For unauthenticated users, use demo data
-    if (!user) {
-      setActivities(demoActivities);
-      setHasMore(false);
-      setIsLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const idToken = await getToken();
-
-        const response = await fetchActivities({ ...filter, cursor }, controller.signal, idToken);
-
-        setActivities((prev) => (cursor ? [...prev, ...response.activities] : response.activities));
-        setHasMore(response.hasMore);
-        if (response.nextCursor) {
-          setCursor(response.nextCursor);
-        }
-      } catch (err) {
-        if (err instanceof Error && err.message !== "Request cancelled") {
-          setError(err);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadData();
-
-    return () => {
-      controller.abort();
-    };
-    // Note: cursor is intentionally excluded to prevent infinite loops
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    filter.from,
-    filter.to,
-    filter.sport,
-    filter.limit,
-    authLoading,
-    retryCount,
-    getToken,
-    user,
-    demoActivities,
-  ]);
-
-  const loadMore = useCallback(() => {
-    if (!isLoading && hasMore && cursor) {
-      setRetryCount((prev) => prev + 1);
-    }
-  }, [isLoading, hasMore, cursor]);
-
-  const retry = useCallback(() => {
-    setError(null);
-    setActivities([]);
-    setCursor(undefined);
-    setRetryCount((prev) => prev + 1);
-  }, []);
+  // Combine data from all pages
+  const activities = useMemo(() => {
+    if (authLoading) return [];
+    if (!user) return demoActivities;
+    return data?.pages.flatMap((page) => page.activities) ?? [];
+  }, [user, data, demoActivities, authLoading]);
 
   return {
     activities,
-    isLoading,
-    error,
-    hasMore,
-    loadMore,
-    retry,
+    isLoading: authLoading || (!!user && isFetching && !isFetchingNextPage && !data),
+    error: error as Error | null,
+    hasMore: !user ? false : !!hasNextPage,
+    loadMore: fetchNextPage,
+    retry: refetch,
   };
 }

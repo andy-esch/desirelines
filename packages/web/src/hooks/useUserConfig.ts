@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useEffect, useMemo, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   UserConfigService,
   type UserConfig,
@@ -7,6 +8,10 @@ import {
   type Preferences,
 } from "../services/userConfigService";
 import { useAuth } from "./useAuth";
+import { logApiError } from "../api/errors";
+
+// Union type for all supported configuration sections
+type ConfigData = GoalsForYear | AnnotationsForYear | Preferences;
 
 // Default goals for unauthenticated users (localStorage fallback)
 const DEFAULT_GOALS: GoalsForYear = {
@@ -34,6 +39,50 @@ const DEFAULT_GOALS: GoalsForYear = {
     },
   ],
 };
+
+/**
+ * Helper to get localStorage key
+ */
+function getStorageKey(userId: string, configType: string, year?: number, sport?: string) {
+  if (configType === "goals" && year !== undefined && sport !== undefined) {
+    return `userConfig_${userId}_${configType}_${year}_${sport}`;
+  } else if (year !== undefined) {
+    return `userConfig_${userId}_${configType}_${year}`;
+  } else {
+    return `userConfig_${userId}_${configType}`;
+  }
+}
+
+/**
+ * Read from local storage with fallback
+ */
+function readFromLocalStorage(
+  key: string,
+  configType: string,
+  defaultValue?: ConfigData
+): ConfigData | null {
+  const stored = localStorage.getItem(key);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (err) {
+      logApiError(err, "Failed to parse stored config, using defaults");
+    }
+  }
+
+  // Fall back to defaults
+  if (configType === "goals") {
+    return (defaultValue as GoalsForYear) || DEFAULT_GOALS;
+  } else if (configType === "annotations") {
+    return (defaultValue as AnnotationsForYear) || ({ annotations: [] } as AnnotationsForYear);
+  } else if (configType === "preferences") {
+    return (
+      (defaultValue as Preferences) ||
+      ({ theme: "light", defaultYear: new Date().getFullYear() } as Preferences)
+    );
+  }
+  return null;
+}
 
 /**
  * Hook for accessing user config with real-time Firestore sync.
@@ -98,283 +147,199 @@ export function useUserConfig(
   clearSaveError: () => void;
 };
 
-// Implementation - parameters must be compatible with ALL overloads
-// This means all parameters except configType must be optional
-// Note: Using 'any' in implementation signature is a valid TypeScript pattern for overloaded functions
-// The actual types are enforced through the overload signatures above
+// Implementation
 export function useUserConfig(
-  configType: string,
+  configType: "goals" | "annotations" | "preferences",
   year?: number,
   sport?: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  defaultValue?: any,
+  defaultValue?: ConfigData,
   userId?: string,
   version?: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): any {
-  // Get authenticated user
-  const { user } = useAuth();
+): {
+  data: any;
+  loading: boolean;
+  error: Error | null;
+  updateData: (data: any) => Promise<void>;
+  isSaving: boolean;
+  saveError: Error | null;
+  clearSaveError: () => void;
+} {
+  const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
 
-  // Resolve userId: explicit > auth user > "default"
-  // This matches the logic in UserConfigService constructor
   const effectiveUserId = userId ?? user?.uid ?? "default";
   const effectiveVersion = version ?? "v1";
-
-  // Internal state uses union type, return type uses conditional types
-  // This is necessary because TypeScript can't narrow generic types at runtime
-  const [data, setData] = useState<GoalsForYear | AnnotationsForYear | Preferences | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  // Mutation state - tracks save operations
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<Error | null>(null);
-
-  // Clear save error (for dismiss button in UI)
-  const clearSaveError = useCallback(() => {
-    setSaveError(null);
-  }, []);
-
-  // For unauthenticated users, use localStorage fallback
-  // This prevents the loading spinner from showing indefinitely
   const isLocalStorageMode = !user;
 
-  // Local storage mode: Use localStorage for unauthenticated users
-  // Authenticated users use Firestore
-  useEffect(() => {
-    if (isLocalStorageMode) {
-      // Build localStorage key - include sport for goals
-      let storageKey: string;
-      if (configType === "goals" && year !== undefined && sport !== undefined) {
-        storageKey = `userConfig_${effectiveUserId}_${configType}_${year}_${sport}`;
-      } else if (year !== undefined) {
-        storageKey = `userConfig_${effectiveUserId}_${configType}_${year}`;
-      } else {
-        storageKey = `userConfig_${effectiveUserId}_${configType}`;
-      }
-
-      // Try to load from localStorage first
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        try {
-          setData(JSON.parse(stored));
-          setLoading(false);
-          setError(null);
-          return;
-        } catch (err) {
-          console.warn("Failed to parse stored config, using defaults:", err);
-        }
-      }
-
-      // Fall back to defaults
-      if (configType === "goals") {
-        setData(defaultValue || DEFAULT_GOALS);
-      } else if (configType === "annotations") {
-        setData(defaultValue || ({ annotations: [] } as AnnotationsForYear));
-      } else if (configType === "preferences") {
-        setData(
-          defaultValue || ({ theme: "light", defaultYear: new Date().getFullYear() } as Preferences)
-        );
-      }
-      setLoading(false);
-      setError(null);
-      return;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configType, isLocalStorageMode, year, sport, effectiveUserId]);
-
   // Memoize configService to avoid recreating on every render
-  // Only create when we have a valid user (not in localStorage mode)
-  // Pass undefined for userId to let UserConfigService use auth.currentUser
   const configService = useMemo(() => {
-    if (isLocalStorageMode) {
-      // Return a dummy service that won't be used (localStorage mode skips Firestore)
-      return null;
-    }
-    // Don't pass effectiveUserId - let UserConfigService resolve from auth.currentUser
-    // This avoids race conditions between React state and Firebase auth state
+    if (isLocalStorageMode) return null;
     return new UserConfigService(userId, effectiveVersion);
   }, [userId, effectiveVersion, isLocalStorageMode]);
 
-  // Load config and subscribe to real-time updates
-  useEffect(() => {
-    // Skip Firestore if using localStorage mode or configService not ready
-    if (isLocalStorageMode || !configService) {
-      return;
-    }
-
-    let unsubscribe: (() => void) | undefined;
-
-    async function initializeConfig() {
-      // Double-check configService is still valid (could have changed during async ops)
-      if (!configService) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        // CRITICAL: Wait for Firebase Auth initial state to be determined
-        // This prevents "Missing or insufficient permissions" errors when
-        // the subscription is set up before auth state is loaded from storage
-        const { waitForAuthReady } = await import("../lib/firebase");
-        await waitForAuthReady();
-
-        // ADDITIONAL: If user just signed in, wait for auth token to be ready
-        // This prevents race condition when user signs in
-        if (user) {
-          const { auth } = await import("../lib/firebase");
-          const firebaseUser = auth.currentUser;
-          if (firebaseUser) {
-            try {
-              await firebaseUser.getIdToken();
-            } catch (err) {
-              console.error("Failed to get auth token:", err);
-              throw err;
-            }
-          }
-        }
-
-        // Subscribe to real-time updates for this specific section
-        if (configType === "goals" && year !== undefined && sport !== undefined) {
-          unsubscribe = configService!.subscribeToConfigSection(
-            "goals",
-            (section) => {
-              if (section !== null) {
-                // When year and sport are provided, section is GoalsForYear
-                setData(section as GoalsForYear);
-              } else if (defaultValue !== undefined) {
-                setData(defaultValue);
-              } else {
-                setData(null);
-              }
-              setLoading(false);
-            },
-            year,
-            sport
-          );
-        } else if (configType === "annotations" && year !== undefined) {
-          unsubscribe = configService!.subscribeToConfigSection(
-            "annotations",
-            (section) => {
-              if (section !== null) {
-                // When year is provided, section is AnnotationsForYear (not dictionary)
-                setData(section as AnnotationsForYear);
-              } else if (defaultValue !== undefined) {
-                setData(defaultValue);
-              } else {
-                setData(null);
-              }
-              setLoading(false);
-            },
-            year
-          );
-        } else if (configType === "preferences") {
-          unsubscribe = configService!.subscribeToConfigSection("preferences", (section) => {
-            if (section !== null) {
-              setData(section as Preferences);
-            } else if (defaultValue !== undefined) {
-              setData(defaultValue);
-            } else {
-              setData(null);
-            }
-            setLoading(false);
-          });
-        }
-      } catch (err) {
-        console.error("Error initializing config:", err);
-        setError(err as Error);
-        setData(defaultValue || null);
-        setLoading(false);
-      }
-    }
-
-    initializeConfig();
-
-    // Cleanup subscription on unmount
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-    // Intentionally omitting defaultValue to avoid re-subscriptions
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configType, year, sport, configService, isLocalStorageMode]);
-
-  /**
-   * Update the config data
-   * Uses optimistic UI update (updates local state immediately)
-   * then syncs to Firestore in the background.
-   * Tracks isSaving/saveError state for UI feedback.
-   */
-  const updateData = useCallback(
-    async (newData: GoalsForYear | AnnotationsForYear | Preferences) => {
-      // Clear any previous save error when starting a new save
-      setSaveError(null);
-      setIsSaving(true);
-
-      try {
-        // In demo mode, persist to localStorage
-        if (isLocalStorageMode) {
-          // Build localStorage key - include sport for goals
-          let storageKey: string;
-          if (configType === "goals" && year !== undefined && sport !== undefined) {
-            storageKey = `userConfig_${effectiveUserId}_${configType}_${year}_${sport}`;
-          } else if (year !== undefined) {
-            storageKey = `userConfig_${effectiveUserId}_${configType}_${year}`;
-          } else {
-            storageKey = `userConfig_${effectiveUserId}_${configType}`;
-          }
-
-          try {
-            localStorage.setItem(storageKey, JSON.stringify(newData));
-            setData(newData);
-          } catch (err) {
-            console.error("Failed to save to localStorage:", err);
-            setSaveError(err as Error);
-          }
-          return;
-        }
-
-        // Optimistic update for Firestore mode
-        setData(newData);
-
-        // configService should exist when not in localStorage mode
-        if (!configService) {
-          console.error("configService is null but not in localStorage mode");
-          return;
-        }
-
-        if (configType === "goals" && year !== undefined && sport !== undefined) {
-          await configService.updateConfigSection("goals", newData as GoalsForYear, year, sport);
-        } else if (configType === "annotations" && year !== undefined) {
-          await configService.updateConfigSection(
-            "annotations",
-            newData as AnnotationsForYear,
-            year
-          );
-        } else if (configType === "preferences") {
-          await configService.updateConfigSection("preferences", newData as Preferences);
-        }
-        // Clear read error on successful save (in case there was one)
-        setError(null);
-      } catch (err) {
-        console.error("Error updating config:", err);
-        setSaveError(err as Error);
-        // Real-time listener will revert to correct state from Firestore
-      } finally {
-        setIsSaving(false);
-      }
-    },
-    [configType, year, sport, configService, effectiveUserId, isLocalStorageMode]
+  // Query Key includes all dependencies
+  const queryKey = useMemo(
+    () => ["userConfig", configType, year, sport, effectiveUserId, effectiveVersion],
+    [configType, year, sport, effectiveUserId, effectiveVersion]
   );
 
+  // READ QUERY
+  const { data, isLoading, error } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      // LocalStorage Mode
+      if (isLocalStorageMode) {
+        const key = getStorageKey(effectiveUserId, configType, year, sport);
+        return readFromLocalStorage(key, configType, defaultValue);
+      }
+
+      // Firestore Mode
+      if (!configService) throw new Error("Config service not initialized");
+
+      // We need to cast types here because getConfigSection has overloads
+      if (configType === "goals" && year !== undefined && sport !== undefined) {
+        return configService.getConfigSection("goals", year, sport);
+      } else if (configType === "annotations" && year !== undefined) {
+        return configService.getConfigSection("annotations", year);
+      } else if (configType === "preferences") {
+        return configService.getConfigSection("preferences");
+      }
+      return null;
+    },
+    enabled: !authLoading,
+    staleTime: Infinity, // Real-time subscription handles updates
+  });
+
+  // REAL-TIME SUBSCRIPTION
+  useEffect(() => {
+    // Skip if using localStorage mode or configService not ready
+    if (isLocalStorageMode || !configService) return;
+
+    let unsubscribe: () => void;
+
+    // Subscribe based on config type
+    if (configType === "goals" && year !== undefined && sport !== undefined) {
+      unsubscribe = configService.subscribeToConfigSection(
+        "goals",
+        (newData) => {
+          queryClient.setQueryData(queryKey, newData ?? defaultValue ?? null);
+        },
+        year,
+        sport
+      );
+    } else if (configType === "annotations" && year !== undefined) {
+      unsubscribe = configService.subscribeToConfigSection(
+        "annotations",
+        (newData) => {
+          queryClient.setQueryData(queryKey, newData ?? defaultValue ?? null);
+        },
+        year
+      );
+    } else if (configType === "preferences") {
+      unsubscribe = configService.subscribeToConfigSection("preferences", (newData) => {
+        queryClient.setQueryData(queryKey, newData ?? defaultValue ?? null);
+      });
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [
+    configType,
+    year,
+    sport,
+    configService,
+    isLocalStorageMode,
+    queryClient,
+    queryKey,
+    defaultValue,
+  ]);
+
+  // MIGRATION: LocalStorage -> Firestore
+  // When a user signs in, migrate their demo data if no remote data exists
+  useEffect(() => {
+    // Only run if authenticated (not LS mode), finished loading, and no remote data exists
+    if (isLocalStorageMode || isLoading || data || !configService) return;
+
+    const key = getStorageKey("default", configType, year, sport);
+    const localDataRaw = localStorage.getItem(key);
+
+    if (localDataRaw) {
+      try {
+        const localData = JSON.parse(localDataRaw);
+
+        mutation
+          .mutateAsync(localData)
+          .then(() => {
+            localStorage.removeItem(key);
+          })
+          .catch((err) => {
+            logApiError(err, `[useUserConfig] Migration failed for ${key}`);
+          });
+      } catch (err) {
+        logApiError(err, `[useUserConfig] Invalid localStorage data for ${key}, clearing`);
+        localStorage.removeItem(key);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLocalStorageMode, isLoading, data === null, configType, year, sport, configService]);
+  // Note: relying on data being null to trigger. If data changes to non-null, effect runs but early returns.
+
+  // WRITE MUTATION
+  const mutation = useMutation({
+    mutationFn: async (newData: ConfigData) => {
+      if (isLocalStorageMode) {
+        const key = getStorageKey(effectiveUserId, configType, year, sport);
+        localStorage.setItem(key, JSON.stringify(newData));
+        return newData;
+      }
+
+      if (!configService) throw new Error("Config service not initialized");
+
+      if (configType === "goals" && year !== undefined && sport !== undefined) {
+        await configService.updateConfigSection("goals", newData as GoalsForYear, year, sport);
+      } else if (configType === "annotations" && year !== undefined) {
+        await configService.updateConfigSection("annotations", newData as AnnotationsForYear, year);
+      } else if (configType === "preferences") {
+        await configService.updateConfigSection("preferences", newData as Preferences);
+      }
+      return newData;
+    },
+    onMutate: async (newData) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey });
+
+      // Snapshot the previous value
+      const previousData = queryClient.getQueryData(queryKey);
+
+      // Optimistically update to the new value
+      queryClient.setQueryData(queryKey, newData);
+
+      // Return a context object with the snapshotted value
+      return { previousData };
+    },
+    onError: (_err, _newData, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousData) {
+        queryClient.setQueryData(queryKey, context.previousData);
+      }
+    },
+    // No onSettled needed because subscription will update with server data
+  });
+
+  const clearSaveError = useCallback(() => {
+    mutation.reset();
+  }, [mutation]);
+
   return {
-    data,
-    loading,
-    error,
-    updateData,
-    isSaving,
-    saveError,
+    data: data ?? defaultValue ?? null,
+    loading: isLoading || authLoading, // Treat auth loading as loading
+    error: (error as Error | null) || null,
+    updateData: async (newData: ConfigData) => {
+      await mutation.mutateAsync(newData);
+    },
+    isSaving: mutation.isPending,
+    saveError: (mutation.error as Error | null) || null,
     clearSaveError,
   };
 }
@@ -400,64 +365,95 @@ export function useUserConfig(
  * await updateSection('goals', newGoals, 2025);
  * ```
  */
-export function useFullUserConfig(userId?: string, version: string = "v1") {
-  const { user } = useAuth();
-  const [config, setConfig] = useState<UserConfig | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+export function useFullUserConfig(
+  userId?: string,
+  version: string = "v1"
+): {
+  config: UserConfig | null;
+  loading: boolean;
+  error: Error | null;
+  updateSection: (
+    configType: "goals" | "annotations" | "preferences",
+    data: ConfigData,
+    year?: number,
+    sport?: string
+  ) => Promise<void>;
+} {
+  const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
 
   // Determine if we're in localStorage mode based on auth state
   const isLocalStorageMode = !user;
+  const effectiveUserId = userId ?? user?.uid ?? "default";
 
   // Memoize configService to avoid recreating on every render
-  // Only create when we have a valid user (not in localStorage mode)
   const configService = useMemo(() => {
     if (isLocalStorageMode) {
       return null;
     }
-    // Don't pass userId explicitly - let UserConfigService resolve from auth.currentUser
-    // This avoids race conditions between React state and Firebase auth state
     return new UserConfigService(userId, version);
   }, [userId, version, isLocalStorageMode]);
 
+  const queryKey = useMemo(
+    () => ["fullUserConfig", effectiveUserId, version],
+    [effectiveUserId, version]
+  );
+
+  // READ
+  const {
+    data: config,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (isLocalStorageMode || !configService) return null;
+      return configService.getConfig();
+    },
+    enabled: !authLoading,
+    staleTime: Infinity,
+  });
+
+  // REAL-TIME SUBSCRIPTION
   useEffect(() => {
-    // Skip Firestore if using localStorage mode or configService not ready
-    if (isLocalStorageMode || !configService) {
-      setLoading(false);
-      return;
-    }
+    if (isLocalStorageMode || !configService) return;
 
-    let unsubscribe: (() => void) | undefined;
+    const unsubscribe = configService.subscribeToConfig((fullConfig) => {
+      queryClient.setQueryData(queryKey, fullConfig);
+    });
 
-    async function initializeConfig() {
-      // Double-check configService is still valid
-      if (!configService) return;
+    return unsubscribe;
+  }, [configService, isLocalStorageMode, queryClient, queryKey]);
 
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Subscribe to real-time updates for the full config
-        unsubscribe = configService.subscribeToConfig((fullConfig) => {
-          setConfig(fullConfig);
-          setLoading(false);
-        });
-      } catch (err) {
-        console.error("Error initializing full config:", err);
-        setError(err as Error);
-        setConfig(null);
-        setLoading(false);
+  // MUTATION
+  const mutation = useMutation({
+    mutationFn: async ({
+      configType,
+      data,
+      year,
+      sport,
+    }: {
+      configType: "goals" | "annotations" | "preferences";
+      data: GoalsForYear | AnnotationsForYear | Preferences;
+      year?: number;
+      sport?: string;
+    }) => {
+      if (isLocalStorageMode) {
+        logApiError(new Error("Fixture mode: Changes not persisted"), "useFullUserConfig");
+        return;
       }
-    }
 
-    initializeConfig();
+      if (!configService) throw new Error("Config service not initialized");
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
+      if (configType === "goals" && year !== undefined && sport !== undefined) {
+        await configService.updateConfigSection("goals", data as GoalsForYear, year, sport);
+      } else if (configType === "annotations" && year !== undefined) {
+        await configService.updateConfigSection("annotations", data as AnnotationsForYear, year);
+      } else if (configType === "preferences") {
+        await configService.updateConfigSection("preferences", data as Preferences);
       }
-    };
-  }, [configService, isLocalStorageMode]);
+    },
+  });
 
   const updateSection = useCallback(
     async (
@@ -466,39 +462,15 @@ export function useFullUserConfig(userId?: string, version: string = "v1") {
       year?: number,
       sport?: string
     ): Promise<void> => {
-      // In demo mode (unauthenticated), skip persistence
-      if (isLocalStorageMode) {
-        console.warn("Fixture mode: Changes not persisted", data);
-        return;
-      }
-
-      // configService should exist when not in localStorage mode
-      if (!configService) {
-        console.error("configService is null but not in localStorage mode");
-        return;
-      }
-
-      try {
-        if (configType === "goals" && year !== undefined && sport !== undefined) {
-          await configService.updateConfigSection("goals", data as GoalsForYear, year, sport);
-        } else if (configType === "annotations" && year !== undefined) {
-          await configService.updateConfigSection("annotations", data as AnnotationsForYear, year);
-        } else if (configType === "preferences") {
-          await configService.updateConfigSection("preferences", data as Preferences);
-        }
-        setError(null);
-      } catch (err) {
-        console.error("Error updating config section:", err);
-        setError(err as Error);
-      }
+      await mutation.mutateAsync({ configType, data, year, sport });
     },
-    [configService, isLocalStorageMode]
+    [mutation]
   );
 
   return {
-    config,
-    loading,
-    error,
+    config: config ?? null,
+    loading: isLoading || authLoading,
+    error: (error as Error | null) || (mutation.error as Error | null),
     updateSection,
   };
 }

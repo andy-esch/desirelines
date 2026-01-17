@@ -7,7 +7,6 @@ import {
   is404Error,
   createAuthError,
   logApiError,
-  buildAuthHeaders,
   throwApiError,
 } from "./errors";
 
@@ -150,23 +149,6 @@ describe("API Error Utilities", () => {
     it("should return false for non-axios errors", () => {
       expect(is404Error(new Error("Not found"))).toBe(false);
       expect(is404Error(null)).toBe(false);
-    });
-  });
-
-  describe("buildAuthHeaders", () => {
-    it("should return empty object when no token provided", () => {
-      expect(buildAuthHeaders()).toEqual({});
-      expect(buildAuthHeaders(undefined)).toEqual({});
-    });
-
-    it("should return Authorization header with Bearer token", () => {
-      expect(buildAuthHeaders("my-token")).toEqual({
-        Authorization: "Bearer my-token",
-      });
-    });
-
-    it("should handle empty string token as no token", () => {
-      expect(buildAuthHeaders("")).toEqual({});
     });
   });
 
