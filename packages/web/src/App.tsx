@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import "bootstrap/dist/css/bootstrap.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "./css/variables.css";
@@ -5,12 +6,16 @@ import "./css/dashboard.css";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import Header from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
-import Dashboard from "./pages/Dashboard";
-import UnifiedSportPage from "./pages/UnifiedSportPage";
-import DemoSportPage from "./pages/DemoSportPage";
-import ActivitiesPage from "./pages/ActivitiesPage";
-import OriginsPage from "./pages/OriginsPage";
-import SettingsPage from "./pages/SettingsPage";
+import PageLoader from "./components/PageLoader";
+
+// Lazy load pages for code splitting
+// Each page becomes a separate chunk, loaded on-demand
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const UnifiedSportPage = lazy(() => import("./pages/UnifiedSportPage"));
+const DemoSportPage = lazy(() => import("./pages/DemoSportPage"));
+const ActivitiesPage = lazy(() => import("./pages/ActivitiesPage"));
+const OriginsPage = lazy(() => import("./pages/OriginsPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
 /** Sports with demo data generators (unauthenticated experience) */
 const DEMO_SPORTS = ["cycling", "running", "yoga"] as const;
@@ -23,44 +28,46 @@ function App() {
       <div className="App d-flex flex-column" style={{ minHeight: "100vh" }}>
         <Header />
         <main className="flex-grow-1 d-flex flex-column">
-          <Routes>
-            {/* Dashboard - landing page for all users */}
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              {/* Dashboard - landing page for all users */}
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
 
-            {/* Activities list page */}
-            <Route path="/activities" element={<ActivitiesPage />} />
+              {/* Activities list page */}
+              <Route path="/activities" element={<ActivitiesPage />} />
 
-            {/* Origins/About page */}
-            <Route path="/origins" element={<OriginsPage />} />
+              {/* Origins/About page */}
+              <Route path="/origins" element={<OriginsPage />} />
 
-            {/* Settings page (authenticated users only) */}
-            <Route path="/settings" element={<SettingsPage />} />
+              {/* Settings page (authenticated users only) */}
+              <Route path="/settings" element={<SettingsPage />} />
 
-            {/* Sport detail pages - dynamic routing for any sport */}
-            <Route path="/:sport" element={<SportRedirect currentYear={currentYear} />} />
-            <Route path="/:sport/:year" element={<DynamicSportPage />} />
+              {/* Sport detail pages - dynamic routing for any sport */}
+              <Route path="/:sport" element={<SportRedirect currentYear={currentYear} />} />
+              <Route path="/:sport/:year" element={<DynamicSportPage />} />
 
-            {/* Demo routes - dedicated demo experience (only for sports with demo data) */}
-            <Route path="/demo" element={<Dashboard />} />
-            {DEMO_SPORTS.map((sport) => (
-              <Route
-                key={`demo-${sport}`}
-                path={`/demo/${sport}`}
-                element={<Navigate to={`/demo/${sport}/${currentYear}`} replace />}
-              />
-            ))}
-            {DEMO_SPORTS.map((sport) => (
-              <Route
-                key={`demo-${sport}-year`}
-                path={`/demo/${sport}/:year`}
-                element={<DemoSportPage sport={sport} />}
-              />
-            ))}
+              {/* Demo routes - dedicated demo experience (only for sports with demo data) */}
+              <Route path="/demo" element={<Dashboard />} />
+              {DEMO_SPORTS.map((sport) => (
+                <Route
+                  key={`demo-${sport}`}
+                  path={`/demo/${sport}`}
+                  element={<Navigate to={`/demo/${sport}/${currentYear}`} replace />}
+                />
+              ))}
+              {DEMO_SPORTS.map((sport) => (
+                <Route
+                  key={`demo-${sport}-year`}
+                  path={`/demo/${sport}/:year`}
+                  element={<DemoSportPage sport={sport} />}
+                />
+              ))}
 
-            {/* 404 - redirect unknown paths to dashboard */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              {/* 404 - redirect unknown paths to dashboard */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </main>
         <Footer />
       </div>

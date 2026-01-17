@@ -50,6 +50,16 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "build", // Keep same output dir for compatibility
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // Vendor chunks - cached separately from app code
+            "react-vendor": ["react", "react-dom", "react-router-dom"],
+            "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
+            "chart-vendor": ["recharts"],
+          },
+        },
+      },
     },
     envPrefix: ["VITE_", "REACT_APP_"], // Support both Vite and React env var prefixes
     test: {
