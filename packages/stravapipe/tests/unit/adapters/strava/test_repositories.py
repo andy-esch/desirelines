@@ -103,13 +103,45 @@ class TestDetailedStravaActivitiesRepo:
             with pytest.raises(ActivityNotFoundError):
                 _ = detailed_activities_repo.read_activity_by_id(activity_id)
 
-    def test_read_activity_token_expired(self, detailed_activities_repo):
+    def test_read_activity_token_expired_after_refresh_retry(
+        self, detailed_activities_repo
+    ):
+        """Test that 401 after token refresh raises StravaTokenError"""
         activity_id = 12345678987654321
         with Mocker() as m:
             endpoint = f"{detailed_activities_repo._api_config.api_base_url}/activities/{activity_id}"
+            # First call returns 401, refresh succeeds, but retry also returns 401
             m.get(endpoint, status_code=401)
+            m.post(
+                detailed_activities_repo._api_config.token_url,
+                json={"access_token": "new_token"},
+            )
             with pytest.raises(StravaTokenError):
                 _ = detailed_activities_repo.read_activity_by_id(activity_id)
+
+    def test_read_activity_401_refresh_and_retry_succeeds(
+        self, detailed_activities_repo, activity_json
+    ):
+        """Test that 401 triggers token refresh and successful retry"""
+        activity_id = 12345678987654321
+        with Mocker() as m:
+            endpoint = f"{detailed_activities_repo._api_config.api_base_url}/activities/{activity_id}"
+            # First call returns 401, then retry succeeds
+            m.get(
+                endpoint,
+                [
+                    {"status_code": 401},
+                    {"json": activity_json, "status_code": 200},
+                ],
+            )
+            m.post(
+                detailed_activities_repo._api_config.token_url,
+                json={"access_token": "new_token"},
+            )
+            resp = detailed_activities_repo.read_activity_by_id(activity_id)
+            assert resp.id == activity_id
+            # Verify token was refreshed
+            assert detailed_activities_repo._current_access_token == "new_token"
 
     def test_read_activity_api_error(self, detailed_activities_repo):
         activity_id = 12345678987654321
@@ -118,3 +150,61 @@ class TestDetailedStravaActivitiesRepo:
             m.get(endpoint, status_code=500, text="Server Error")
             with pytest.raises(StravaApiError):
                 _ = detailed_activities_repo.read_activity_by_id(activity_id)
+
+
+class TestDetailedStravaActivitiesRepoAutoRefresh:
+    """Tests for automatic token refresh behavior"""
+
+    @pytest.fixture
+    def repo_without_access_token(self, tokenset, api_config):
+        """Create repo with no access_token (requires refresh)"""
+        return DetailedStravaActivitiesRepo(tokenset, api_config)
+
+    def test_auto_refresh_on_first_call(
+        self, repo_without_access_token, activity_json, api_config
+    ):
+        """Test that missing access_token triggers automatic refresh"""
+        activity_id = 12345678987654321
+        with Mocker() as m:
+            # Mock token refresh
+            m.post(api_config.token_url, json={"access_token": "fresh_token"})
+            # Mock activity endpoint
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            m.get(endpoint, json=activity_json)
+
+            resp = repo_without_access_token.read_activity_by_id(activity_id)
+
+            assert resp.id == activity_id
+            assert repo_without_access_token._current_access_token == "fresh_token"
+            # Verify token refresh was called
+            assert m.call_count == 2  # 1 refresh + 1 activity
+
+    def test_token_reused_across_calls(
+        self, repo_without_access_token, activity_json, api_config
+    ):
+        """Test that refreshed token is reused for subsequent calls"""
+        activity_id = 12345678987654321
+        with Mocker() as m:
+            # Mock token refresh (should only be called once)
+            m.post(api_config.token_url, json={"access_token": "fresh_token"})
+            # Mock activity endpoint
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            m.get(endpoint, json=activity_json)
+
+            # First call
+            repo_without_access_token.read_activity_by_id(activity_id)
+            # Second call - should reuse token
+            repo_without_access_token.read_activity_by_id(activity_id)
+
+            # Token refresh called once, activity endpoint called twice
+            assert m.call_count == 3  # 1 refresh + 2 activities
+
+    def test_refresh_failure_raises_error(self, repo_without_access_token, api_config):
+        """Test that token refresh failure raises StravaTokenError"""
+        activity_id = 12345678987654321
+        with Mocker() as m:
+            # Mock token refresh failure
+            m.post(api_config.token_url, status_code=401)
+
+            with pytest.raises(StravaTokenError):
+                repo_without_access_token.read_activity_by_id(activity_id)
