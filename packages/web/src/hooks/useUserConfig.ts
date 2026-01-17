@@ -106,8 +106,7 @@ export function useUserConfig(
   configType: string,
   year?: number,
   sport?: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  defaultValue?: any,
+  defaultValue?: GoalsForYear | AnnotationsForYear | Preferences,
   userId?: string,
   version?: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

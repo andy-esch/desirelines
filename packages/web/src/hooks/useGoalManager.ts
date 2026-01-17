@@ -1,10 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import {
-  Goals,
-  Goal,
-  validateGoalValue,
-  generateDefaultGoals,
-} from "../utils/goalCalculations";
+import { Goals, Goal, validateGoalValue } from "../utils/goalCalculations";
 import { getMetricConfig } from "../config/metricConfig";
 
 interface UseGoalManagerProps {
@@ -22,9 +17,7 @@ export function useGoalManager({
 }: UseGoalManagerProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [editingLabel, setEditingLabel] = useState<{ id: string; value: string } | null>(
-    null
-  );
+  const [editingLabel, setEditingLabel] = useState<{ id: string; value: string } | null>(null);
   const [editValidationError, setEditValidationError] = useState<string | null>(null);
 
   // Debounce timer for label changes
