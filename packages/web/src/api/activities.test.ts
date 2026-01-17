@@ -1,21 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import axios from "axios";
+import client from "./client";
 import { fetchDailySummary } from "./activities";
 
-// Mock axios but preserve AxiosError class and utility functions
-vi.mock("axios", async () => {
-  const actual = await vi.importActual<typeof import("axios")>("axios");
-  return {
-    ...actual,
-    default: {
-      get: vi.fn(),
-      isCancel: vi.fn(),
-      isAxiosError: actual.default.isAxiosError,
-      Cancel: actual.default.Cancel,
-    },
-    AxiosError: actual.AxiosError,
-  };
-});
+// Mock the API client
+vi.mock("./client", () => ({
+  default: {
+    get: vi.fn(),
+  },
+}));
 
 describe("fetchDailySummary", () => {
   beforeEach(() => {
@@ -34,7 +26,7 @@ describe("fetchDailySummary", () => {
       },
     };
 
-    vi.mocked(axios.get).mockResolvedValue({ data: mockResponse });
+    vi.mocked(client.get).mockResolvedValue({ data: mockResponse });
 
     const result = await fetchDailySummary({ year: 2025, sport: "cycling" });
 
@@ -44,7 +36,7 @@ describe("fetchDailySummary", () => {
   });
 
   it("should return empty object if response is empty", async () => {
-    vi.mocked(axios.get).mockResolvedValue({ data: {} });
+    vi.mocked(client.get).mockResolvedValue({ data: {} });
 
     const result = await fetchDailySummary({ year: 2025, sport: "cycling" });
 
@@ -52,7 +44,7 @@ describe("fetchDailySummary", () => {
   });
 
   it("should include from/to params in URL when provided", async () => {
-    vi.mocked(axios.get).mockResolvedValue({ data: { daily: {} } });
+    vi.mocked(client.get).mockResolvedValue({ data: { daily: {} } });
 
     await fetchDailySummary({
       year: 2025,
@@ -61,7 +53,7 @@ describe("fetchDailySummary", () => {
       to: "2025-01-15",
     });
 
-    expect(axios.get).toHaveBeenCalledWith(
+    expect(client.get).toHaveBeenCalledWith(
       expect.stringContaining("from=2025-01-01&to=2025-01-15"),
       expect.any(Object)
     );

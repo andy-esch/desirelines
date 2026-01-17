@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "./useAuth";
-import { useAuthToken } from "./useAuthToken";
 import { fetchDailySummary, type DailyActivity } from "../api/activities";
 import { generateDemoDailyData, getSessionFillLevels } from "../utils/demoDataGenerator";
 
@@ -74,7 +73,6 @@ const DEFAULT_SPORTS = ["cycling", "running", "yoga"];
 
 export function useDailySportData(options: UseDailySportDataOptions): DailySportDataResult {
   const { user, loading: authLoading } = useAuth();
-  const { getToken } = useAuthToken();
 
   const { year, from, to } = options;
 
@@ -158,7 +156,6 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
       try {
         if (user) {
           // Authenticated: fetch from API for all requested sports
-          const idToken = await getToken();
 
           const fetchPromises = sports.map((sport) =>
             fetchDailySummary({
@@ -167,7 +164,6 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
               from,
               to,
               signal: controller.signal,
-              idToken,
             }).then((sportData) => ({ sport, data: sportData }))
           );
 
@@ -199,7 +195,7 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
     loadData();
 
     return () => controller.abort();
-  }, [year, from, to, sportsKey, user, authLoading, getToken, demoData, sports]);
+  }, [year, from, to, sportsKey, user, authLoading, demoData, sports]);
 
   return { data, isLoading, error };
 }

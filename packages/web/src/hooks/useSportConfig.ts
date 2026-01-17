@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { fetchSportConfig, type SportConfig } from "../api/activities";
 import { isCancellationError } from "../api/errors";
 import { useAuth } from "./useAuth";
-import { useAuthToken } from "./useAuthToken";
 
 export interface UseSportConfigResult {
   sportConfig: SportConfig | null;
@@ -30,7 +29,6 @@ export interface UseSportConfigResult {
  */
 export function useSportConfig(): UseSportConfigResult {
   const { loading: authLoading } = useAuth();
-  const { getToken } = useAuthToken();
 
   const [sportConfig, setSportConfig] = useState<SportConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,8 +52,7 @@ export function useSportConfig(): UseSportConfigResult {
         setIsLoading(true);
         setError(null);
 
-        const idToken = await getToken();
-        const config = await fetchSportConfig(controller.signal, idToken);
+        const config = await fetchSportConfig(controller.signal);
         setSportConfig(config);
       } catch (err) {
         if (!isCancellationError(err)) {
@@ -71,7 +68,7 @@ export function useSportConfig(): UseSportConfigResult {
     return () => {
       controller.abort();
     };
-  }, [authLoading, retryCount, getToken]);
+  }, [authLoading, retryCount]);
 
   return {
     sportConfig,

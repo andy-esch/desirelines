@@ -110,17 +110,6 @@ export function logApiError(err: unknown, context: string): void {
 }
 
 /**
- * Build authorization headers with optional Bearer token.
- */
-export function buildAuthHeaders(idToken?: string): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
-  }
-  return headers;
-}
-
-/**
  * Standard error handler for API functions.
  * Logs the error and throws an appropriate exception.
  *

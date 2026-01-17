@@ -35,10 +35,6 @@ vi.mock("firebase/firestore", () => ({
   onSnapshot: vi.fn(),
 }));
 
-vi.mock("../config", () => ({
-  API_BASE_URL: "http://localhost:8080",
-}));
-
 // Mock useAuth with stable user object
 const mockUser = { uid: "test-user", email: "test@example.com", displayName: "Test User" };
 vi.mock("./useAuth", () => ({

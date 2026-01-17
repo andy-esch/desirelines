@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { fetchActivities, type ActivitySummary, type ActivityListFilter } from "../api/activities";
 import { useAuth } from "./useAuth";
-import { useAuthToken } from "./useAuthToken";
 import {
   generateDemoActivities,
   generateCoordinatedFillLevels,
@@ -38,7 +37,6 @@ export interface UseActivitiesResult {
  */
 export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseActivitiesResult {
   const { user, loading: authLoading } = useAuth();
-  const { getToken } = useAuthToken();
 
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -95,9 +93,7 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
         setIsLoading(true);
         setError(null);
 
-        const idToken = await getToken();
-
-        const response = await fetchActivities({ ...filter, cursor }, controller.signal, idToken);
+        const response = await fetchActivities({ ...filter, cursor }, controller.signal);
 
         setActivities((prev) => (cursor ? [...prev, ...response.activities] : response.activities));
         setHasMore(response.hasMore);
@@ -127,7 +123,6 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
     filter.limit,
     authLoading,
     retryCount,
-    getToken,
     user,
     demoActivities,
   ]);

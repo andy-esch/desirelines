@@ -7,7 +7,6 @@ import {
 } from "../api/activities";
 import { isCancellationError } from "../api/errors";
 import { useAuth } from "./useAuth";
-import { useAuthToken } from "./useAuthToken";
 
 export interface SportDataResult {
   metrics: SportMetrics | null;
@@ -37,7 +36,6 @@ export interface SportDataResult {
  */
 export function useSportData(year: number, sport: string): SportDataResult {
   const { loading: authLoading } = useAuth();
-  const { getToken } = useAuthToken();
 
   const [metrics, setMetrics] = useState<SportMetrics | null>(null);
   const [sportConfig, setSportConfig] = useState<SportConfig | null>(null);
@@ -64,11 +62,9 @@ export function useSportData(year: number, sport: string): SportDataResult {
         setIsLoading(true);
         setError(null);
 
-        const idToken = await getToken();
-
         const [metricsData, configData] = await Promise.all([
-          fetchSportMetrics(year, sport, controller.signal, idToken),
-          fetchSportConfig(controller.signal, idToken),
+          fetchSportMetrics(year, sport, controller.signal),
+          fetchSportConfig(controller.signal),
         ]);
 
         setMetrics(metricsData);
@@ -89,7 +85,7 @@ export function useSportData(year: number, sport: string): SportDataResult {
     return () => {
       controller.abort();
     };
-  }, [year, sport, authLoading, retryCount, getToken]);
+  }, [year, sport, authLoading, retryCount]);
 
   return {
     metrics,

@@ -25,9 +25,8 @@
  * - Cancelled requests: Silently ignore (return empty data)
  */
 
-import axios from "axios";
-import { API_BASE_URL } from "../config";
-import { isCancellationError, is404Error, buildAuthHeaders, throwApiError } from "./errors";
+import client from "./client";
+import { isCancellationError, is404Error, throwApiError } from "./errors";
 
 // Import generated types from Protobuf definitions
 import type {
@@ -44,10 +43,6 @@ import type {
   DailyActivity,
   DailySummary as DailySummaryResponse,
 } from "../types/generated/sports_metrics";
-
-const getApiBaseUrl = (): string => {
-  return API_BASE_URL || "http://localhost:8084";
-};
 
 // Re-export generated types for consumers
 export type { Activity, ActivitySummary, ActivityListResponse, ActivityListFilter };
@@ -83,30 +78,27 @@ export interface FetchSportMetricsOptions {
   from?: string; // YYYY-MM-DD - if provided with 'to', uses date range query
   to?: string; // YYYY-MM-DD - if provided with 'from', uses date range query
   signal?: AbortSignal;
-  idToken?: string;
 }
 
 export const fetchSportMetrics = async (
   yearOrOptions: number | FetchSportMetricsOptions,
   sport?: string,
-  signal?: AbortSignal,
-  idToken?: string
+  signal?: AbortSignal
 ): Promise<SportMetrics> => {
-  // Support both old signature (year, sport, signal, idToken) and new options object
+  // Support both old signature (year, sport, signal) and new options object
   const options: FetchSportMetricsOptions =
     typeof yearOrOptions === "number"
-      ? { year: yearOrOptions, sport: sport!, signal, idToken }
+      ? { year: yearOrOptions, sport: sport!, signal }
       : yearOrOptions;
 
-  let url = `${getApiBaseUrl()}/activities/${options.year}/metrics?sport=${options.sport}`;
+  let url = `/activities/${options.year}/metrics?sport=${options.sport}`;
   if (options.from && options.to) {
     url += `&from=${options.from}&to=${options.to}`;
   }
 
   try {
-    const { data } = await axios.get<SportMetricsProto>(url, {
+    const { data } = await client.get<SportMetricsProto>(url, {
       signal: options.signal,
-      headers: buildAuthHeaders(options.idToken),
     });
     return data.timeseries ?? [];
   } catch (err: unknown) {
@@ -128,15 +120,13 @@ const EMPTY_YEAR_METADATA: YearMetadata = {
 
 export const fetchYearMetadata = async (
   year: number,
-  signal?: AbortSignal,
-  idToken?: string
+  signal?: AbortSignal
 ): Promise<YearMetadata> => {
-  const url = `${getApiBaseUrl()}/activities/${year}/metadata`;
+  const url = `/activities/${year}/metadata`;
 
   try {
-    const { data } = await axios.get<YearMetadata>(url, {
+    const { data } = await client.get<YearMetadata>(url, {
       signal,
-      headers: buildAuthHeaders(idToken),
     });
     // Ensure arrays are never null for safe iteration
     return {
@@ -159,16 +149,12 @@ const EMPTY_SPORT_CONFIG: SportConfig = {
   sport_categories: {},
 };
 
-export const fetchSportConfig = async (
-  signal?: AbortSignal,
-  idToken?: string
-): Promise<SportConfig> => {
-  const url = `${getApiBaseUrl()}/sports/config`;
+export const fetchSportConfig = async (signal?: AbortSignal): Promise<SportConfig> => {
+  const url = `/sports/config`;
 
   try {
-    const { data } = await axios.get<SportConfig>(url, {
+    const { data } = await client.get<SportConfig>(url, {
       signal,
-      headers: buildAuthHeaders(idToken),
     });
     return data;
   } catch (err: unknown) {
@@ -184,7 +170,6 @@ export interface FetchDailySummaryOptions {
   year: number;
   sport: string;
   signal?: AbortSignal;
-  idToken?: string;
   /** Start date (YYYY-MM-DD) for date-range queries */
   from?: string;
   /** End date (YYYY-MM-DD) for date-range queries */
@@ -194,15 +179,14 @@ export interface FetchDailySummaryOptions {
 export const fetchDailySummary = async (
   options: FetchDailySummaryOptions
 ): Promise<Record<string, DailyActivity>> => {
-  let url = `${getApiBaseUrl()}/activities/${options.year}/source?sport=${options.sport}`;
+  let url = `/activities/${options.year}/source?sport=${options.sport}`;
   if (options.from && options.to) {
     url += `&from=${options.from}&to=${options.to}`;
   }
 
   try {
-    const { data } = await axios.get<DailySummaryResponse>(url, {
+    const { data } = await client.get<DailySummaryResponse>(url, {
       signal: options.signal,
-      headers: buildAuthHeaders(options.idToken),
     });
     return data.daily ?? {};
   } catch (err: unknown) {
@@ -218,15 +202,13 @@ export const fetchDailySummary = async (
  */
 export const fetchActivity = async (
   id: number,
-  signal?: AbortSignal,
-  idToken?: string
+  signal?: AbortSignal
 ): Promise<Activity | null> => {
-  const url = `${getApiBaseUrl()}/activities/${id}`;
+  const url = `/activities/${id}`;
 
   try {
-    const { data } = await axios.get<Activity>(url, {
+    const { data } = await client.get<Activity>(url, {
       signal,
-      headers: buildAuthHeaders(idToken),
     });
     return data;
   } catch (err: unknown) {
@@ -246,8 +228,7 @@ export const fetchActivity = async (
  */
 export const fetchActivities = async (
   filter: ActivityListFilter,
-  signal?: AbortSignal,
-  idToken?: string
+  signal?: AbortSignal
 ): Promise<ActivityListResponse> => {
   const params = new URLSearchParams();
   if (filter.from) params.set("from", filter.from);
@@ -256,12 +237,11 @@ export const fetchActivities = async (
   if (filter.limit) params.set("limit", filter.limit.toString());
   if (filter.cursor) params.set("cursor", filter.cursor);
 
-  const url = `${getApiBaseUrl()}/activities?${params.toString()}`;
+  const url = `/activities?${params.toString()}`;
 
   try {
-    const { data } = await axios.get<ActivityListResponse>(url, {
+    const { data } = await client.get<ActivityListResponse>(url, {
       signal,
-      headers: buildAuthHeaders(idToken),
     });
     return {
       activities: data.activities ?? [],

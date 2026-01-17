@@ -2,12 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useActivities } from "./useActivities";
 import * as useAuthModule from "./useAuth";
-import * as useAuthTokenModule from "./useAuthToken";
 import * as activitiesApi from "../api/activities";
 
 // Mock dependencies
 vi.mock("./useAuth");
-vi.mock("./useAuthToken");
 vi.mock("../api/activities");
 
 describe("useActivities", () => {
@@ -47,10 +45,6 @@ describe("useActivities", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue(undefined),
-    });
-
     const { result } = renderHook(() => useActivities({ limit: 20 }));
 
     expect(result.current.isLoading).toBe(true);
@@ -65,10 +59,6 @@ describe("useActivities", () => {
       signIn: vi.fn(),
       signOut: vi.fn(),
       error: null,
-    });
-
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
     });
 
     vi.spyOn(activitiesApi, "fetchActivities").mockResolvedValue({
@@ -89,8 +79,7 @@ describe("useActivities", () => {
     expect(result.current.hasMore).toBe(true);
     expect(activitiesApi.fetchActivities).toHaveBeenCalledWith(
       { from: "2025-12-01", to: "2025-12-31", limit: 20, cursor: undefined },
-      expect.any(AbortSignal),
-      "mock-token"
+      expect.any(AbortSignal)
     );
   });
 
@@ -101,10 +90,6 @@ describe("useActivities", () => {
       signIn: vi.fn(),
       signOut: vi.fn(),
       error: null,
-    });
-
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
     });
 
     vi.spyOn(activitiesApi, "fetchActivities").mockResolvedValue({
@@ -133,10 +118,6 @@ describe("useActivities", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
-    });
-
     vi.spyOn(activitiesApi, "fetchActivities").mockRejectedValue(error);
 
     const { result } = renderHook(() => useActivities({ limit: 20 }));
@@ -160,10 +141,6 @@ describe("useActivities", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
-    });
-
     vi.spyOn(activitiesApi, "fetchActivities").mockRejectedValue(cancelError);
 
     const { result } = renderHook(() => useActivities({ limit: 20 }));
@@ -184,10 +161,6 @@ describe("useActivities", () => {
       signIn: vi.fn(),
       signOut: vi.fn(),
       error: null,
-    });
-
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
     });
 
     const fetchSpy = vi
@@ -225,10 +198,6 @@ describe("useActivities", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
-    });
-
     const cyclingActivities = [mockActivities[0]];
     const runningActivities = [mockActivities[1]];
 
@@ -262,10 +231,6 @@ describe("useActivities", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
-    });
-
     vi.spyOn(activitiesApi, "fetchActivities").mockResolvedValue({
       activities: [mockActivities[0]],
       hasMore: false,
@@ -279,8 +244,7 @@ describe("useActivities", () => {
 
     expect(activitiesApi.fetchActivities).toHaveBeenCalledWith(
       expect.objectContaining({ sport: "cycling" }),
-      expect.any(AbortSignal),
-      "mock-token"
+      expect.any(AbortSignal)
     );
   });
 
@@ -291,10 +255,6 @@ describe("useActivities", () => {
       signIn: vi.fn(),
       signOut: vi.fn(),
       error: null,
-    });
-
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
     });
 
     vi.spyOn(activitiesApi, "fetchActivities").mockResolvedValue({
@@ -312,8 +272,7 @@ describe("useActivities", () => {
 
     expect(activitiesApi.fetchActivities).toHaveBeenCalledWith(
       expect.objectContaining({ from: "2025-12-01", to: "2025-12-31" }),
-      expect.any(AbortSignal),
-      "mock-token"
+      expect.any(AbortSignal)
     );
   });
 });

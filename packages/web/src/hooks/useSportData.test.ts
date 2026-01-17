@@ -2,12 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useSportData } from "./useSportData";
 import * as useAuthModule from "./useAuth";
-import * as useAuthTokenModule from "./useAuthToken";
 import * as activitiesApi from "../api/activities";
 
 // Mock dependencies
 vi.mock("./useAuth");
-vi.mock("./useAuthToken");
 vi.mock("../api/activities");
 
 describe("useSportData", () => {
@@ -39,10 +37,6 @@ describe("useSportData", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue(undefined),
-    });
-
     const { result } = renderHook(() => useSportData(2025, "cycling"));
 
     expect(result.current.isLoading).toBe(true);
@@ -61,10 +55,6 @@ describe("useSportData", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue(undefined),
-    });
-
     vi.spyOn(activitiesApi, "fetchSportMetrics").mockResolvedValue(mockMetrics);
     vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
 
@@ -79,8 +69,7 @@ describe("useSportData", () => {
     expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith(
       2025,
       "cycling",
-      expect.any(AbortSignal),
-      undefined
+      expect.any(AbortSignal)
     );
   });
 
@@ -95,10 +84,6 @@ describe("useSportData", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
-    });
-
     vi.spyOn(activitiesApi, "fetchSportMetrics").mockResolvedValue(mockMetrics);
     vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
 
@@ -113,8 +98,7 @@ describe("useSportData", () => {
     expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith(
       2025,
       "cycling",
-      expect.any(AbortSignal),
-      "mock-token"
+      expect.any(AbortSignal)
     );
   });
 
@@ -127,10 +111,6 @@ describe("useSportData", () => {
       signIn: vi.fn(),
       signOut: vi.fn(),
       error: null,
-    });
-
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
     });
 
     vi.spyOn(activitiesApi, "fetchSportMetrics").mockRejectedValue(error);
@@ -155,10 +135,6 @@ describe("useSportData", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
-    });
-
     vi.spyOn(activitiesApi, "fetchSportMetrics").mockRejectedValue(cancelError);
 
     const { result } = renderHook(() => useSportData(2025, "cycling"));
@@ -180,10 +156,6 @@ describe("useSportData", () => {
       signIn: vi.fn(),
       signOut: vi.fn(),
       error: null,
-    });
-
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue("mock-token"),
     });
 
     const fetchSpy = vi
@@ -226,10 +198,6 @@ describe("useSportData", () => {
       error: null,
     });
 
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue(undefined),
-    });
-
     vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
     const fetchMetricsSpy = vi
       .spyOn(activitiesApi, "fetchSportMetrics")
@@ -266,10 +234,6 @@ describe("useSportData", () => {
       signIn: vi.fn(),
       signOut: vi.fn(),
       error: null,
-    });
-
-    vi.spyOn(useAuthTokenModule, "useAuthToken").mockReturnValue({
-      getToken: vi.fn().mockResolvedValue(undefined),
     });
 
     vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
