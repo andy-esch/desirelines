@@ -175,9 +175,10 @@ export function useGoalManager({
 
   // Cleanup debounce timers on unmount
   useEffect(() => {
+    const timers = labelDebounceTimers.current;
     return () => {
-      labelDebounceTimers.current.forEach((timer) => clearTimeout(timer));
-      labelDebounceTimers.current.clear();
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
     };
   }, []);
 

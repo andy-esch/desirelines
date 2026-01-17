@@ -8,6 +8,7 @@ import {
   type Preferences,
 } from "../services/userConfigService";
 import { useAuth } from "./useAuth";
+import { logApiError } from "../api/errors";
 
 // Union type for all supported configuration sections
 type ConfigData = GoalsForYear | AnnotationsForYear | Preferences;
@@ -65,7 +66,7 @@ function readFromLocalStorage(
     try {
       return JSON.parse(stored);
     } catch (err) {
-      console.warn("Failed to parse stored config, using defaults:", err);
+      logApiError(err, "Failed to parse stored config, using defaults");
     }
   }
 
@@ -266,19 +267,17 @@ export function useUserConfig(
     if (localDataRaw) {
       try {
         const localData = JSON.parse(localDataRaw);
-        console.log(`[useUserConfig] Migrating ${configType} from localStorage to Firestore...`);
 
         mutation
           .mutateAsync(localData)
           .then(() => {
-            console.log(`[useUserConfig] Migration successful, clearing localStorage for ${key}`);
             localStorage.removeItem(key);
           })
           .catch((err) => {
-            console.error(`[useUserConfig] Migration failed for ${key}:`, err);
+            logApiError(err, `[useUserConfig] Migration failed for ${key}`);
           });
       } catch (err) {
-        console.warn(`[useUserConfig] Invalid localStorage data for ${key}, clearing:`, err);
+        logApiError(err, `[useUserConfig] Invalid localStorage data for ${key}, clearing`);
         localStorage.removeItem(key);
       }
     }
@@ -440,7 +439,7 @@ export function useFullUserConfig(
       sport?: string;
     }) => {
       if (isLocalStorageMode) {
-        console.warn("Fixture mode: Changes not persisted", data);
+        logApiError(new Error("Fixture mode: Changes not persisted"), "useFullUserConfig");
         return;
       }
 

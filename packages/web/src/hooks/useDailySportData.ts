@@ -76,6 +76,8 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
   const { user, loading: authLoading } = useAuth();
 
   const { year, from, to } = options;
+  // Note: Callers must ensure `options.sports` is referentially stable (memoized) to prevent
+  // unnecessary re-renders or query churn. We avoid internal memoization hacks here.
   const sports = options.sports ?? DEFAULT_SPORTS;
 
   // Generate demo data using useMemo for stability
