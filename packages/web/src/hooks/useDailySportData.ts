@@ -76,15 +76,7 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
   const { user, loading: authLoading } = useAuth();
 
   const { year, from, to } = options;
-
-  /**
-   * Memoize sports array to maintain referential stability.
-   */
-  const sports = useMemo(
-    () => options.sports ?? DEFAULT_SPORTS,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: use string key for value-based comparison
-    [options.sports?.join(",")]
-  );
+  const sports = options.sports ?? DEFAULT_SPORTS;
 
   // Generate demo data using useMemo for stability
   const demoData = useMemo(() => {

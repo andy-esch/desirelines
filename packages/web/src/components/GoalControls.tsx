@@ -73,12 +73,14 @@ const GoalControls: React.FC<GoalControlsProps> = ({
       {effectiveSaveError && (
         <div className="alert alert-danger py-1 px-2 small" role="alert">
           {effectiveSaveError.message || "Failed to save. Please try again."}
-          <button
-            type="button"
-            className="btn-close btn-sm float-end"
-            aria-label="Dismiss"
-            onClick={effectiveClearSaveError}
-          />
+          {(onClearSaveError || managerSaveError) && (
+            <button
+              type="button"
+              className="btn-close btn-sm float-end"
+              aria-label="Dismiss"
+              onClick={effectiveClearSaveError}
+            />
+          )}
         </div>
       )}
       {!validation.valid && (

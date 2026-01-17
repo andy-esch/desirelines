@@ -55,6 +55,9 @@ describe("useVisibleSports", () => {
         loading: false,
         error: null,
         updateData: vi.fn(),
+        isSaving: false,
+        saveError: null,
+        clearSaveError: vi.fn(),
       });
 
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
@@ -73,6 +76,9 @@ describe("useVisibleSports", () => {
         loading: true,
         error: null,
         updateData: vi.fn(),
+        isSaving: false,
+        saveError: null,
+        clearSaveError: vi.fn(),
       });
 
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
@@ -87,12 +93,14 @@ describe("useVisibleSports", () => {
       } as any);
 
       vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-        data: { visibleSports: [] },
+        data: { visibleSports: [] } as any,
         loading: false,
         error: null,
         updateData: vi.fn(),
+        isSaving: false,
+        saveError: null,
+        clearSaveError: vi.fn(),
       });
-
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
 
       expect(result.current.visibleSports).toEqual(defaultSports);
@@ -106,12 +114,14 @@ describe("useVisibleSports", () => {
 
       const storedSports = ["cycling"];
       vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-        data: { visibleSports: storedSports },
+        data: { visibleSports: storedSports } as any,
         loading: false,
         error: null,
         updateData: vi.fn(),
+        isSaving: false,
+        saveError: null,
+        clearSaveError: vi.fn(),
       });
-
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
 
       expect(result.current.visibleSports).toEqual(storedSports);
@@ -127,10 +137,13 @@ describe("useVisibleSports", () => {
 
       const storedSports = ["cycling", "unknown-sport"];
       vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-        data: { visibleSports: storedSports },
+        data: { visibleSports: storedSports } as any,
         loading: false,
         error: null,
         updateData: vi.fn(),
+        isSaving: false,
+        saveError: null,
+        clearSaveError: vi.fn(),
       });
 
       const { result } = renderHook(() => useVisibleSports(["cycling", "running"]), {
@@ -148,10 +161,13 @@ describe("useVisibleSports", () => {
 
       const storedSports = ["unknown-sport"];
       vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-        data: { visibleSports: storedSports },
+        data: { visibleSports: storedSports } as any,
         loading: false,
         error: null,
         updateData: vi.fn(),
+        isSaving: false,
+        saveError: null,
+        clearSaveError: vi.fn(),
       });
 
       const { result } = renderHook(() => useVisibleSports(["cycling", "running"]), {
@@ -175,10 +191,13 @@ describe("useVisibleSports", () => {
 
       const updateDataMock = vi.fn();
       vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-        data: { visibleSports: ["cycling"] },
+        data: { visibleSports: ["cycling"] } as any,
         loading: false,
         error: null,
         updateData: updateDataMock,
+        isSaving: false,
+        saveError: null,
+        clearSaveError: vi.fn(),
       });
 
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
@@ -198,10 +217,13 @@ describe("useVisibleSports", () => {
 
       const updateDataMock = vi.fn();
       vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-        data: { visibleSports: ["cycling"] },
+        data: { visibleSports: ["cycling"] } as any,
         loading: false,
         error: null,
         updateData: updateDataMock,
+        isSaving: false,
+        saveError: null,
+        clearSaveError: vi.fn(),
       });
 
       const { result } = renderHook(() => useVisibleSports(["cycling"]), {
@@ -222,10 +244,13 @@ describe("useVisibleSports", () => {
       } as any);
 
       vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-        data: { visibleSports: ["cycling"] },
+        data: { visibleSports: ["cycling"] } as any,
         loading: false,
         error: null,
         updateData: vi.fn(),
+        isSaving: false,
+        saveError: null,
+        clearSaveError: vi.fn(),
       });
 
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });

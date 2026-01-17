@@ -24,7 +24,8 @@ client.interceptors.request.use(async (config) => {
   const user = auth.currentUser;
   if (user) {
     try {
-      // Force refresh only if expired? No, standard behavior is auto-refresh if needed.
+      // getIdToken() auto-refreshes the token if it is expired or close to expiry (5 min buffer).
+      // We avoid forceRefresh: true here to prevent unnecessary network calls to Firebase Auth on every request.
       const token = await user.getIdToken();
       config.headers.Authorization = `Bearer ${token}`;
     } catch (error) {

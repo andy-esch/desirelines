@@ -5,7 +5,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useUserConfig, useFullUserConfig } from "./useUserConfig";
 import { UserConfigService } from "../services/userConfigService";
-import type { GoalsForYear, AnnotationsForYear, Preferences } from "../services/userConfigService";
+import type { GoalsForYear } from "../services/userConfigService";
 
 // Mock UserConfigService
 vi.mock("../services/userConfigService", () => {
@@ -78,7 +78,15 @@ describe("useUserConfig", () => {
   describe("overloaded signatures", () => {
     it("should work with 'goals' configType and year parameter", async () => {
       const mockGoals: GoalsForYear = {
-        goals: [{ id: "1", value: 1000, label: "Goal", createdAt: "", updatedAt: "" }],
+        goals: [
+          {
+            id: "1",
+            value: 1000,
+            label: "Goal",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
       };
 
       mockServiceInstance.getConfigSection.mockResolvedValue(mockGoals);
@@ -106,7 +114,9 @@ describe("useUserConfig", () => {
     });
 
     it("should read from localStorage when user is null", async () => {
-      const storedGoals = { goals: [{ id: "ls", value: 500, label: "LS" }] };
+      const storedGoals = {
+        goals: [{ id: "ls", value: 500, label: "LS", createdAt: "", updatedAt: "" }],
+      };
       localStorageMock.getItem.mockReturnValue(JSON.stringify(storedGoals));
 
       const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
@@ -126,15 +136,24 @@ describe("useUserConfig", () => {
       });
       await waitFor(() => expect(result.current.loading).toBe(false));
 
-      const newGoals = { goals: [{ id: "new", value: 1000 }] };
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "new",
+            value: 1000,
+            label: "New",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
       await act(async () => {
         await result.current.updateData(newGoals);
       });
 
       expect(result.current.saveError).toBeNull();
       expect(localStorageMock.setItem).toHaveBeenCalled();
-      // Note: Skipping data assertion due to test environment race condition (queryFn overwriting onMutate)
-      // expect(result.current.data).toEqual(newGoals);
+      // Note: Skipping data assertion due to test environment race condition
       expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
     });
 
@@ -146,8 +165,8 @@ describe("useUserConfig", () => {
 
       await waitFor(() => expect(result.current.loading).toBe(false));
       // Should satisfy GoalsForYear structure (array)
-      expect(result.current.data.goals).toBeDefined();
-      expect(Array.isArray(result.current.data.goals)).toBe(true);
+      expect(result.current.data!.goals).toBeDefined();
+      expect(Array.isArray(result.current.data!.goals)).toBe(true);
     });
   });
 
@@ -197,8 +216,28 @@ describe("useUserConfig", () => {
 
   describe("optimistic updates", () => {
     it("should update local state immediately when updateData is called", async () => {
-      const initialGoals = { annualGoal: 500 };
-      const newGoals = { annualGoal: 1000 };
+      const initialGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "initial",
+            value: 500,
+            label: "Initial",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "new",
+            value: 1000,
+            label: "New",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
 
       mockServiceInstance.getConfigSection.mockResolvedValue(initialGoals);
       // Subscription returns initial data
@@ -239,8 +278,28 @@ describe("useUserConfig", () => {
 
   describe("error handling", () => {
     it("should revert optimistic update on error", async () => {
-      const initialGoals = { annualGoal: 500 };
-      const newGoals = { annualGoal: 1000 };
+      const initialGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "initial",
+            value: 500,
+            label: "Initial",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
+      const newGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "new",
+            value: 1000,
+            label: "New",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
       const error = new Error("Failed to save");
 
       mockServiceInstance.getConfigSection.mockResolvedValue(initialGoals);
@@ -271,5 +330,114 @@ describe("useUserConfig", () => {
       // Verify saveError is set
       // expect(result.current.saveError).toEqual(error);
     });
+  });
+
+  describe("Migration", () => {
+    it("should migrate localStorage data to Firestore on sign-in if Firestore is empty", async () => {
+      const lsData: GoalsForYear = {
+        goals: [
+          {
+            id: "migrated",
+            value: 1000,
+            label: "Migrated",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
+
+      mockServiceInstance.getConfigSection.mockResolvedValue(null);
+      // Subscription returns null (empty)
+      mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
+        cb(null);
+        return vi.fn();
+      });
+      mockServiceInstance.updateConfigSection.mockResolvedValue(undefined);
+
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(lsData));
+
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      // Wait for migration effect
+      await waitFor(() => {
+        expect(mockServiceInstance.updateConfigSection).toHaveBeenCalledWith(
+          "goals",
+          lsData,
+          2025,
+          "cycling"
+        );
+        expect(localStorageMock.removeItem).toHaveBeenCalled();
+      });
+    });
+  });
+});
+
+describe("useFullUserConfig", () => {
+  let mockServiceInstance: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockServiceInstance = UserConfigService.prototype;
+    mockAuthState = { user: mockUser, loading: false };
+  });
+
+  it("should load full config", async () => {
+    const mockConfig = { goals: {}, annotations: {}, preferences: {} };
+    mockServiceInstance.getConfig.mockResolvedValue(mockConfig);
+    mockServiceInstance.subscribeToConfig.mockImplementation((cb: any) => {
+      cb(mockConfig);
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useFullUserConfig(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.config).toEqual(mockConfig);
+  });
+
+  it("should call updateSection correctly", async () => {
+    const mockConfig = { goals: {}, annotations: {}, preferences: {} };
+    mockServiceInstance.getConfig.mockResolvedValue(mockConfig);
+    mockServiceInstance.subscribeToConfig.mockReturnValue(vi.fn());
+
+    const { result } = renderHook(() => useFullUserConfig(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const newGoals: GoalsForYear = {
+      goals: [
+        {
+          id: "1",
+          value: 1000,
+          label: "Test",
+          createdAt: "2025-01-01T00:00:00Z",
+          updatedAt: "2025-01-01T00:00:00Z",
+        },
+      ],
+    };
+    await act(async () => {
+      await result.current.updateSection("goals", newGoals, 2025, "cycling");
+    });
+
+    expect(mockServiceInstance.updateConfigSection).toHaveBeenCalledWith(
+      "goals",
+      newGoals,
+      2025,
+      "cycling"
+    );
+  });
+
+  it("should return null in localStorage mode", async () => {
+    mockAuthState = { user: null, loading: false };
+    const { result } = renderHook(() => useFullUserConfig(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.config).toBeNull();
   });
 });
