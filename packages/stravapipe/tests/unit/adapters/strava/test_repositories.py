@@ -199,6 +199,59 @@ class TestDetailedStravaActivitiesRepoAutoRefresh:
             # Token refresh called once, activity endpoint called twice
             assert m.call_count == 3  # 1 refresh + 2 activities
 
+    def test_multiple_refreshes_over_time(self, tokenset, activity_json, api_config):
+        """Test that the repo can handle multiple 401s over time (not just once)"""
+        # Initialize WITH a token so we don't trigger the "first call auto-refresh"
+        tokens = tokenset._replace(access_token="initial_token")
+        repo = DetailedStravaActivitiesRepo(tokens, api_config)
+        activity_id = 12345678987654321
+
+        with Mocker() as m:
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            token_url = api_config.token_url
+
+            # Sequence of events:
+            # 1. First call: 401 (initial_token) -> Refresh (token_1) -> Success
+            # 2. Second call: Success (using token_1)
+            # 3. Third call: 401 (token_1) -> Refresh (token_2) -> Success
+
+            m.register_uri(
+                "POST",
+                token_url,
+                [
+                    {"json": {"access_token": "token_1"}, "status_code": 200},
+                    {"json": {"access_token": "token_2"}, "status_code": 200},
+                ],
+            )
+
+            m.register_uri(
+                "GET",
+                endpoint,
+                [
+                    # Call 1: 401 then success
+                    {"status_code": 401},
+                    {"json": activity_json, "status_code": 200},
+                    # Call 2: Success immediately
+                    {"json": activity_json, "status_code": 200},
+                    # Call 3: 401 then success
+                    {"status_code": 401},
+                    {"json": activity_json, "status_code": 200},
+                ],
+            )
+
+            # Call 1: Should refresh to token_1
+            repo.read_activity_by_id(activity_id)
+            assert repo._current_access_token == "token_1"
+
+            # Call 2: Should keep token_1
+            repo.read_activity_by_id(activity_id)
+            assert repo._current_access_token == "token_1"
+
+            # Call 3: Should refresh to token_2
+            # This is where the original code would fail (token_refreshed flag was stuck)
+            repo.read_activity_by_id(activity_id)
+            assert repo._current_access_token == "token_2"
+
     def test_refresh_failure_raises_error(self, repo_without_access_token, api_config):
         """Test that token refresh failure raises StravaTokenError"""
         activity_id = 12345678987654321

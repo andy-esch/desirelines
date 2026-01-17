@@ -116,7 +116,6 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
         self._token_repo = StravaTokenRepo(tokens, self._api_config)
         # Lazy-initialized on first API call if None
         self._current_access_token: str | None = tokens.access_token
-        self._token_refreshed = False  # Prevents infinite retry loops
 
     def _ensure_fresh_token(self) -> str:
         """Ensure we have a valid access token, refreshing if needed.
@@ -128,7 +127,6 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
             logger.info("No access token provided, refreshing...")
             refreshed = self._token_repo.refresh()
             self._current_access_token = refreshed.access_token
-            self._token_refreshed = True
         return self._current_access_token
 
     def _refresh_token(self) -> str:
@@ -140,7 +138,6 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
         logger.info("Refreshing Strava access token...")
         refreshed = self._token_repo.refresh()
         self._current_access_token = refreshed.access_token
-        self._token_refreshed = True
         return self._current_access_token
 
     def _get_headers(self) -> dict[str, str]:
@@ -168,7 +165,7 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
         resp = _fetch()
         if not resp.ok:
             # Handle 401: refresh token and retry once
-            if resp.status_code == 401 and not _is_retry and not self._token_refreshed:
+            if resp.status_code == 401 and not _is_retry:
                 logger.warning(
                     "Got 401 for activity %s, refreshing token and retrying...",
                     activity_id,
@@ -263,7 +260,7 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
         )
         if not resp.ok:
             # Handle 401: refresh token and retry once
-            if resp.status_code == 401 and not _is_retry and not self._token_refreshed:
+            if resp.status_code == 401 and not _is_retry:
                 logger.warning(
                     "Got 401 listing activities, refreshing token and retrying...",
                     extra={
