@@ -255,13 +255,10 @@ class SummaryStravaActivity(BaseModel):
 
 
 class MinimalStravaActivity(BaseModel):
-    """Minimal Strava activity model for aggregation use cases.
+    """Minimal Strava activity model for lightweight operations.
 
-    Contains only the fields needed for summary calculations and aggregations.
-    Faster validation and lower memory footprint than DetailedStravaActivity.
-
-    DEPRECATED: Use StandardActivity for new code. This will be removed
-    when the aggregator is deprecated (see postgresql-07-deprecate-aggregator).
+    Contains only core fields needed for delete operations and metadata lookups.
+    Used by BigQuery adapter's read_activity_metadata() for efficient queries.
     """
 
     id: int

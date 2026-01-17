@@ -11,7 +11,6 @@ from stravapipe.domain import (
     StravaTokenSet,
     SummaryStravaActivity,
 )
-from stravapipe.types.generated.sports_metrics_pb2 import DailySummary
 
 
 class ReadStravaToken(ABC):
@@ -48,18 +47,6 @@ class ReadStandardActivities(ABC):
         """Read a standard Strava Activity by ID (only PostgreSQL-relevant fields)"""
 
 
-class ReadMinimalActivities(ABC):
-    """Read minimal Strava activities (for aggregator)"""
-
-    @abstractmethod
-    def read_activity_by_id(self, activity_id: int) -> MinimalStravaActivity:
-        """Read a minimal Strava Activity by ID"""
-
-    @abstractmethod
-    def read_activities_by_year(self, year: int) -> list[MinimalStravaActivity]:
-        """Read all minimal activities in a year"""
-
-
 class ReadActivitiesMetadata(ABC):
     """Read minimal activity metadata from BigQuery for delete operations"""
 
@@ -70,22 +57,4 @@ class ReadActivitiesMetadata(ABC):
         Used by delete operations to get activity metadata without calling
         Strava API. Checks both activities and deleted_activities tables
         to handle race conditions.
-        """
-
-
-class ReadSummaries(ABC):
-    """Read activity summaries"""
-
-    @abstractmethod
-    def read_activity_summary_by_year_and_sport(
-        self, year: int, sport: str
-    ) -> DailySummary:
-        """Read activity summary for a specific year and sport.
-
-        Args:
-            year: Year (e.g., 2024)
-            sport: Sport name (e.g., "cycling")
-
-        Returns:
-            DailySummary protobuf message
         """

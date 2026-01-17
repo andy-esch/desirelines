@@ -1,11 +1,7 @@
-import gzip
-import json
 import logging
-from typing import Any
 
 from google.cloud.bigquery import Client as BigQueryClient
 from google.cloud.bigquery import QueryJobConfig
-from google.cloud.storage import Client as StorageClient  # type: ignore[import-untyped]
 
 from stravapipe.exceptions import BigQueryError
 
@@ -74,46 +70,3 @@ class BigQueryClientWrapper:
         except Exception as e:
             logger.error("MERGE operation failed: %s", str(e))
             raise BigQueryError(f"Failed to execute MERGE query: {e!s}") from e
-
-
-class CloudStorageClientWrapper:
-    """Cloud Storage client wrapper"""
-
-    def __init__(self, *, project_id: str, bucket_name: str):
-        self._client = StorageClient(project=project_id)
-        self._bucket = self._client.bucket(bucket_name)
-
-    def read_json_from_bucket(self, blob_name: str) -> dict[str, Any]:
-        """Read a JSON blob from a bucket"""
-        blob = self._bucket.blob(blob_name)
-        return json.loads(blob.download_as_bytes())
-
-    def write_json_to_bucket(
-        self,
-        data: dict | list,
-        blob_name: str,
-    ) -> None:
-        """Write a JSON blob to a bucket with gzip compression"""
-        blob = self._bucket.blob(blob_name)
-
-        # Minify JSON (no spaces) for smaller payload
-        json_string = json.dumps(data, separators=(",", ":"))
-
-        # Gzip compress the JSON string
-        compressed_data = gzip.compress(json_string.encode("utf-8"))
-
-        # Set content encoding BEFORE upload (property, not parameter)
-        blob.content_encoding = "gzip"
-
-        # Upload compressed data (browser decompresses automatically)
-        blob.upload_from_string(data=compressed_data, content_type="application/json")
-
-    def download_blob_to_file(self, blob_name: str, file_path: str) -> None:
-        """Download a blob to a local file"""
-        blob = self._bucket.blob(blob_name)
-        blob.download_to_filename(file_path)
-
-    def upload_file_to_blob(self, file_path: str, blob_name: str) -> None:
-        """Upload a local file to a blob"""
-        blob = self._bucket.blob(blob_name)
-        blob.upload_from_filename(file_path)

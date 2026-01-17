@@ -75,6 +75,8 @@ User → Components → API Layer → API Gateway (Go) → Cloud Storage (JSON)
             Firestore (User Config)
 ```
 
+**Bundle Optimization**: Pages are lazy-loaded via `React.lazy()` with vendor chunks (React, Firebase, Recharts) split for better caching. Initial bundle ~400KB, with heavy dependencies loaded on-demand.
+
 **Modes**:
 - **Demo mode**: Client-side generated data, no API calls (anonymous users)
 - **Authenticated mode**: Real data via API Gateway (signed-in users)

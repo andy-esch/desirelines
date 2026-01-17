@@ -2,7 +2,6 @@
 
 from stravapipe.adapters.strava._repositories import (
     DetailedStravaActivitiesRepo,
-    MinimalStravaActivitiesRepo,
     StravaApiConfig,
     StravaTokenRepo,
 )
@@ -32,18 +31,11 @@ def make_read_standard_activities(
     return DetailedStravaActivitiesRepo(tokens=tokens, api_config=StravaApiConfig())
 
 
-def make_read_minimal_activities(tokens: StravaTokenSet) -> MinimalStravaActivitiesRepo:
-    """Create a minimal Strava activities repository (for aggregator)."""
-    return MinimalStravaActivitiesRepo(tokens=tokens, api_config=StravaApiConfig())
-
-
 __all__ = [
     "DetailedStravaActivitiesRepo",
-    "MinimalStravaActivitiesRepo",
     "StravaApiConfig",
     "StravaTokenRepo",
     "make_read_detailed_activities",
-    "make_read_minimal_activities",
     "make_read_standard_activities",
     "make_read_strava_token",
 ]

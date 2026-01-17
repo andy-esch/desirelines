@@ -16,6 +16,59 @@ from stravapipe.ports.out.write import WriteActivities
 class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
     """Read and write Strava Activities to/from BigQuery"""
 
+    # Column definitions for MERGE queries (single source of truth)
+    # These are all columns that can be updated/inserted, excluding 'id' (the key)
+    _MERGE_COLUMNS: tuple[str, ...] = (
+        "external_id",
+        "upload_id",
+        "athlete",
+        "name",
+        "distance",
+        "moving_time",
+        "elapsed_time",
+        "total_elevation_gain",
+        "elev_high",
+        "elev_low",
+        "type",
+        "sport_type",
+        "start_date",
+        "start_date_local",
+        "timezone",
+        "achievement_count",
+        "athlete_count",
+        "average_speed",
+        "calories",
+        "comment_count",
+        "commute",
+        "embed_token",
+        "flagged",
+        "has_heartrate",
+        "has_kudoed",
+        "hide_from_home",
+        "kudos_count",
+        "manual",
+        "map",
+        "max_speed",
+        "photo_count",
+        "photos",
+        "pr_count",
+        "private",
+        "total_photo_count",
+        "trainer",
+    )
+
+    # Fields to exclude when inserting SummaryActivity (not in BQ schema)
+    _SUMMARY_FIELDS_TO_EXCLUDE: frozenset[str] = frozenset(
+        {
+            "resource_state",  # Conflicts with athlete.resource_state
+            "location_city",
+            "location_state",
+            "location_country",
+            "from_accepted_tag",
+            "utc_offset",
+        }
+    )
+
     def __init__(
         self,
         client: BigQueryClientWrapper,
@@ -98,16 +151,7 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
 
             # If this is a SummaryActivity, remove fields not in BQ schema
             if isinstance(activity, SummaryStravaActivity):
-                # Fields that exist in SummaryActivity but not in BigQuery schema
-                fields_to_remove = {
-                    "resource_state",  # Conflicts with athlete.resource_state
-                    "location_city",
-                    "location_state",
-                    "location_country",
-                    "from_accepted_tag",
-                    "utc_offset",
-                }
-                for field in fields_to_remove:
+                for field in self._SUMMARY_FIELDS_TO_EXCLUDE:
                     data.pop(field, None)
 
             activities_dict.append(data)
@@ -129,84 +173,38 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         return self._client.execute_merge_query(merge_query)
 
     def _build_merge_query(self, activity_id: int) -> str:
-        """Build MERGE query for upsert operation"""
-        return f"""
-        MERGE `{self._client.project_id}.{self._dataset_name}.{self._table_name}` AS target
-        USING (
-            SELECT * EXCEPT(row_num) FROM (
-                SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY start_date DESC) as row_num
-                FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
-                WHERE id = {activity_id}
-            ) WHERE row_num = 1
-        ) AS source
-        ON target.id = source.id
-        WHEN MATCHED THEN
-            UPDATE SET
-                external_id = source.external_id,
-                upload_id = source.upload_id,
-                athlete = source.athlete,
-                name = source.name,
-                distance = source.distance,
-                moving_time = source.moving_time,
-                elapsed_time = source.elapsed_time,
-                total_elevation_gain = source.total_elevation_gain,
-                elev_high = source.elev_high,
-                elev_low = source.elev_low,
-                type = source.type,
-                sport_type = source.sport_type,
-                start_date = source.start_date,
-                start_date_local = source.start_date_local,
-                timezone = source.timezone,
-                achievement_count = source.achievement_count,
-                athlete_count = source.athlete_count,
-                average_speed = source.average_speed,
-                calories = source.calories,
-                comment_count = source.comment_count,
-                commute = source.commute,
-                embed_token = source.embed_token,
-                flagged = source.flagged,
-                has_heartrate = source.has_heartrate,
-                has_kudoed = source.has_kudoed,
-                hide_from_home = source.hide_from_home,
-                kudos_count = source.kudos_count,
-                manual = source.manual,
-                map = source.map,
-                max_speed = source.max_speed,
-                photo_count = source.photo_count,
-                photos = source.photos,
-                pr_count = source.pr_count,
-                private = source.private,
-                total_photo_count = source.total_photo_count,
-                trainer = source.trainer
-        WHEN NOT MATCHED THEN
-            INSERT (
-                id, external_id, upload_id, athlete, name, distance, moving_time,
-                elapsed_time, total_elevation_gain, elev_high, elev_low, type,
-                sport_type, start_date, start_date_local, timezone,
-                achievement_count, athlete_count, average_speed, calories,
-                comment_count, commute, embed_token, flagged, has_heartrate,
-                has_kudoed, hide_from_home, kudos_count, manual, map,
-                max_speed, photo_count, photos, pr_count, private,
-                total_photo_count, trainer
-            )
-            VALUES (
-                source.id, source.external_id, source.upload_id, source.athlete,
-                source.name, source.distance, source.moving_time, source.elapsed_time,
-                source.total_elevation_gain, source.elev_high, source.elev_low,
-                source.type, source.sport_type, source.start_date, source.start_date_local,
-                source.timezone, source.achievement_count, source.athlete_count,
-                source.average_speed, source.calories, source.comment_count,
-                source.commute, source.embed_token, source.flagged,
-                source.has_heartrate, source.has_kudoed, source.hide_from_home,
-                source.kudos_count, source.manual, source.map, source.max_speed,
-                source.photo_count, source.photos, source.pr_count, source.private,
-                source.total_photo_count, source.trainer
-            )
-        """
+        """Build MERGE query for single activity upsert operation."""
+        where_clause = f"id = {activity_id}"
+        return self._build_merge_query_base(where_clause)
 
     def _build_batch_merge_query(self, activity_ids: list[int]) -> str:
-        """Build MERGE query for batch upsert operation"""
+        """Build MERGE query for batch upsert operation."""
         ids_str = ",".join(str(id) for id in activity_ids)
+        where_clause = f"id IN ({ids_str})"
+        return self._build_merge_query_base(where_clause)
+
+    def _build_merge_query_base(self, where_clause: str) -> str:
+        """Build MERGE query with parameterized WHERE clause.
+
+        Args:
+            where_clause: SQL WHERE condition for staging table filter
+                          (e.g., "id = 123" or "id IN (1,2,3)")
+
+        Returns:
+            Complete MERGE SQL query string
+        """
+        # Build UPDATE SET clause: "col = source.col, ..."
+        update_set = ",\n                ".join(
+            f"{col} = source.{col}" for col in self._MERGE_COLUMNS
+        )
+
+        # Build INSERT columns: "id, col1, col2, ..."
+        insert_cols = "id, " + ", ".join(self._MERGE_COLUMNS)
+
+        # Build VALUES: "source.id, source.col1, source.col2, ..."
+        insert_vals = "source.id, " + ", ".join(
+            f"source.{col}" for col in self._MERGE_COLUMNS
+        )
 
         return f"""
         MERGE `{self._client.project_id}.{self._dataset_name}.{self._table_name}` AS target
@@ -214,80 +212,24 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             SELECT * EXCEPT(row_num) FROM (
                 SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY start_date DESC) as row_num
                 FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
-                WHERE id IN ({ids_str})
+                WHERE {where_clause}
             ) WHERE row_num = 1
         ) AS source
         ON target.id = source.id
         WHEN MATCHED THEN
             UPDATE SET
-                external_id = source.external_id,
-                upload_id = source.upload_id,
-                athlete = source.athlete,
-                name = source.name,
-                distance = source.distance,
-                moving_time = source.moving_time,
-                elapsed_time = source.elapsed_time,
-                total_elevation_gain = source.total_elevation_gain,
-                elev_high = source.elev_high,
-                elev_low = source.elev_low,
-                type = source.type,
-                sport_type = source.sport_type,
-                start_date = source.start_date,
-                start_date_local = source.start_date_local,
-                timezone = source.timezone,
-                achievement_count = source.achievement_count,
-                athlete_count = source.athlete_count,
-                average_speed = source.average_speed,
-                calories = source.calories,
-                comment_count = source.comment_count,
-                commute = source.commute,
-                embed_token = source.embed_token,
-                flagged = source.flagged,
-                has_heartrate = source.has_heartrate,
-                has_kudoed = source.has_kudoed,
-                hide_from_home = source.hide_from_home,
-                kudos_count = source.kudos_count,
-                manual = source.manual,
-                map = source.map,
-                max_speed = source.max_speed,
-                photo_count = source.photo_count,
-                photos = source.photos,
-                pr_count = source.pr_count,
-                private = source.private,
-                total_photo_count = source.total_photo_count,
-                trainer = source.trainer
+                {update_set}
         WHEN NOT MATCHED THEN
-            INSERT (
-                id, external_id, upload_id, athlete, name, distance, moving_time,
-                elapsed_time, total_elevation_gain, elev_high, elev_low, type,
-                sport_type, start_date, start_date_local, timezone,
-                achievement_count, athlete_count, average_speed, calories,
-                comment_count, commute, embed_token, flagged, has_heartrate,
-                has_kudoed, hide_from_home, kudos_count, manual, map,
-                max_speed, photo_count, photos, pr_count, private,
-                total_photo_count, trainer
-            )
-            VALUES (
-                source.id, source.external_id, source.upload_id, source.athlete,
-                source.name, source.distance, source.moving_time, source.elapsed_time,
-                source.total_elevation_gain, source.elev_high, source.elev_low,
-                source.type, source.sport_type, source.start_date, source.start_date_local,
-                source.timezone, source.achievement_count, source.athlete_count,
-                source.average_speed, source.calories, source.comment_count,
-                source.commute, source.embed_token, source.flagged,
-                source.has_heartrate, source.has_kudoed, source.hide_from_home,
-                source.kudos_count, source.manual, source.map, source.max_speed,
-                source.photo_count, source.photos, source.pr_count, source.private,
-                source.total_photo_count, source.trainer
-            )
+            INSERT ({insert_cols})
+            VALUES ({insert_vals})
         """
 
     def read_activity_metadata(self, activity_id: int) -> MinimalStravaActivity:
         """Query BigQuery for minimal activity metadata by ID.
 
         Checks both 'activities' and 'deleted_activities' tables using UNION
-        to handle race condition where BQ inserter may have already moved
-        the activity before aggregator queries for it.
+        to handle race condition where activity may have been moved to
+        deleted_activities before this query runs.
 
         Args:
             activity_id: Strava activity ID to look up

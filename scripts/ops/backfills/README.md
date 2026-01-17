@@ -4,9 +4,9 @@ Scripts for backfilling and migrating production data.
 
 ## Script Index
 
-| Script                                                           | Purpose                                                       | Status                        |
-| ---------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------- |
-| [`backfill_from_strava.py`](#backfill-from-strava)               | Backfill activities from Strava API → BigQuery + aggregations | ⚠️ Uses deprecated aggregator |
+| Script                                                           | Purpose                                                       | Status    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------- | --------- |
+| [`backfill_from_strava.py`](#backfill-from-strava)               | Backfill activities from Strava API → BigQuery                | ✅ Active |
 | [`backfill_bq_to_postgres.py`](#backfill-bigquery-to-postgresql) | Migrate activities from BigQuery → PostgreSQL                 | ✅ Active                     |
 | [`webhook-replay/`](#webhook-replay-load-testing)                | Simulate production webhook load for testing                  | ✅ Active                     |
 
@@ -20,9 +20,7 @@ Scripts for backfilling and migrating production data.
 
 **Script**: `backfill_from_strava.py`
 
-Fetches activities from Strava API and inserts into BigQuery, then generates Cloud Storage aggregations.
-
-> ⚠️ **Deprecation Note**: This script currently writes aggregations via the aggregator pipeline, which has been deprecated in favor of PostgreSQL. A future refactor will update this to backfill the `postgres-writer` service instead.
+Fetches activities from Strava API and inserts into BigQuery.
 
 ### Usage
 
