@@ -33,51 +33,43 @@ export function useCumulativeChartData({
   goals,
   distanceData,
   showFullYear,
-  sport,
+  sport = "cycling",
 }: UseCumulativeChartDataProps) {
-  // Derive values from distanceData
-  const latestDate = useMemo(() => {
-    if (distanceData.length === 0) return new Date();
-    const lastEntry = distanceData[distanceData.length - 1];
-    return new Date(lastEntry?.x || new Date());
-  }, [distanceData]);
+  // 1. Grouped date range calculations
+  const { startDate, latestDate, displayEndDate } = useMemo(() => {
+    const start = new Date(Date.UTC(year, 0, 1));
+    const end = new Date(Date.UTC(year, 11, 31));
+    const latest =
+      distanceData.length === 0 ? new Date() : new Date(distanceData[distanceData.length - 1].x);
 
-  const totalDistanceTraveled = useMemo(() => {
-    if (distanceData.length === 0) return 0;
-    const lastEntry = distanceData[distanceData.length - 1];
-    return lastEntry?.y || 0;
-  }, [distanceData]);
+    return {
+      startDate: start,
+      latestDate: latest,
+      displayEndDate: showFullYear ? end : latest,
+    };
+  }, [year, distanceData, showFullYear]);
 
-  const estimatedYearEnd = useMemo(() => {
-    if (distanceData.length === 0) return 0;
-    return estimateYearEndDistance(distanceData, year);
+  // 2. Grouped metric calculations
+  const { totalDistanceTraveled, estimatedYearEnd } = useMemo(() => {
+    return {
+      totalDistanceTraveled:
+        distanceData.length === 0 ? 0 : distanceData[distanceData.length - 1].y,
+      estimatedYearEnd: distanceData.length === 0 ? 0 : estimateYearEndDistance(distanceData, year),
+    };
   }, [distanceData, year]);
 
-  // Calculate year boundaries using UTC to ensure consistent display
-  // across timezones (Jan 1 - Dec 31 should show as Jan 1 - Dec 31 everywhere)
-  const startDate = useMemo(() => new Date(Date.UTC(year, 0, 1)), [year]);
-  const endDate = useMemo(() => new Date(Date.UTC(year, 11, 31)), [year]);
-
-  // Use either full year or current date based on toggle
-  const displayEndDate = showFullYear ? endDate : latestDate;
-
-  // Calculate goal lines (must be before early returns per React hooks rules)
-  const goalLines = useMemo(
-    () =>
-      goals.map((goal) => ({
+  // 3. Grouped chart line projections
+  const { goalLines, currentAverageLine } = useMemo(() => {
+    return {
+      goalLines: goals.map((goal) => ({
         goal,
         line: calculateDesireLine(goal.value, year, displayEndDate),
       })),
-    [goals, year, displayEndDate]
-  );
+      currentAverageLine: calculateCurrentAverageLine(distanceData, year, displayEndDate),
+    };
+  }, [goals, year, displayEndDate, distanceData]);
 
-  // Project average line
-  const currentAverageLine = useMemo(
-    () => calculateCurrentAverageLine(distanceData, year, displayEndDate),
-    [distanceData, year, displayEndDate]
-  );
-
-  // Detect goal achievements (when actual crosses goal line)
+  // 4. Detect goal achievements (when actual crosses goal line)
   const goalAchievements = useMemo(() => {
     const achievements: Array<{
       date: Date;
@@ -113,8 +105,7 @@ export function useCumulativeChartData({
     return achievements;
   }, [distanceData, goalLines]);
 
-  // Merge all data into a single array for Recharts
-  // Recharts expects data like: [{ date: ..., actual: ..., goal1: ..., goal2: ..., average: ... }]
+  // 5. Merge all data into a single array for Recharts
   const mergedData = useMemo(() => {
     const dataMap = new Map<number, Record<string, number | Date>>();
 
@@ -154,36 +145,36 @@ export function useCumulativeChartData({
     );
   }, [distanceData, goalLines, currentAverageLine]);
 
-  // Get current values (at the latest date with actual data, not display end date)
-  const latestActualData = mergedData.find(
-    (d) => d.actual !== undefined && typeof d.actual === "number" && d.actual > 0
-  );
-  const latestDataIndex =
-    distanceData.length > 0
-      ? mergedData.findIndex(
-          (d) => d.date && new Date(d.date as Date).getTime() === latestDate.getTime()
-        )
-      : mergedData.length - 1;
-  const currentActualData = latestDataIndex >= 0 ? mergedData[latestDataIndex] : latestActualData;
+  // 6. Calculate current summary values
+  const currentValues = useMemo(() => {
+    const latestActualData = mergedData.find(
+      (d) => d.actual !== undefined && typeof d.actual === "number" && d.actual > 0
+    );
+    const latestDataIndex =
+      distanceData.length > 0
+        ? mergedData.findIndex(
+            (d) => d.date && new Date(d.date as Date).getTime() === latestDate.getTime()
+          )
+        : mergedData.length - 1;
+    const currentActualData = latestDataIndex >= 0 ? mergedData[latestDataIndex] : latestActualData;
 
-  const currentValues = {
-    actual: totalDistanceTraveled, // Use actual distance traveled, not merged data
-    goals: goalLines.map((gl, index) => {
-      // Get goal value at the latest actual data point
-      const goalValue = currentActualData?.[`goal${index}`] as number;
-      return {
-        label: gl.goal.label,
-        value: goalValue || gl.goal.value,
-        color: GOAL_COLORS[index % GOAL_COLORS.length],
-      };
-    }),
-    average: (currentActualData?.average as number) || 0,
-  };
+    return {
+      actual: totalDistanceTraveled,
+      goals: goalLines.map((gl, index) => {
+        const goalValue = currentActualData?.[`goal${index}`] as number;
+        return {
+          label: gl.goal.label,
+          value: goalValue || gl.goal.value,
+          color: GOAL_COLORS[index % GOAL_COLORS.length],
+        };
+      }),
+      average: (currentActualData?.average as number) || 0,
+    };
+  }, [mergedData, distanceData, latestDate, totalDistanceTraveled, goalLines]);
 
-  // Get sport-specific metric configuration
-  const metricConfig = useMemo(() => getMetricConfig(sport || "cycling"), [sport]);
+  // 7. Metric-specific UI configuration
+  const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
 
-  // Calculate Y-axis ticks based on data range using MetricConfig thresholds
   const yAxisTicks = useMemo(() => {
     const maxValue = Math.max(
       ...mergedData.flatMap(

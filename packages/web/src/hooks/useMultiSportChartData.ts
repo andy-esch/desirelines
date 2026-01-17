@@ -14,6 +14,7 @@ import { toLocalDateString } from "../utils/dateUtils";
 
 const SPARKLINE_ROW_HEIGHT = 36;
 const SPARKLINE_XAXIS_HEIGHT = 24;
+const SPARKLINE_PADDING = 16;
 const MIN_SPORTS_FOR_HEIGHT = 3;
 const MAX_SPORTS_DISPLAY = 8;
 
@@ -95,7 +96,7 @@ export function useMultiSportChartData() {
     MAX_SPORTS_DISPLAY
   );
   const sparklineContainerHeight =
-    displayCount * SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT + 16; // 16 for padding
+    displayCount * SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT + SPARKLINE_PADDING;
 
   // Calculate page size for activities
   const activityPageSize = getActivityPageSize(validSports.length);
