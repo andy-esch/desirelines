@@ -124,7 +124,7 @@ services:
   # Bootstrap PubSub topics and subscriptions
   pubsub-bootstrap:
     profiles: ["backend"] # Backend pipeline only
-    image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+    image: google/cloud-sdk:slim # Multi-arch (ARM64 + AMD64)
     environment:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - PROJECT_ID=local-dev
@@ -139,7 +139,7 @@ services:
   # Local PubSub emulator for testing
   pubsub-emulator:
     profiles: ["backend"]
-    image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
+    image: google/cloud-sdk:emulators # Multi-arch (ARM64 + AMD64)
     ports:
       - "8085:8085"
     command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
@@ -202,7 +202,8 @@ services:
   # Available in both backend and frontend profiles
   postgres:
     profiles: ["backend", "frontend"]
-    image: postgis/postgis:17-3.6-alpine # PostgreSQL 17 with PostGIS 3.6 extension
+    image: postgis/postgis:17-3.6-alpine
+    platform: linux/amd64
     ports:
       - "15430:5432"
     environment:
