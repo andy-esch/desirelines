@@ -12,7 +12,7 @@ from stravapipe.domain import StravaTokenSet
 
 
 @pytest.fixture
-def sample_tokens():
+def sample_initial_tokens():
     return StravaTokenSet(
         client_id=123,
         client_secret="test_secret",
@@ -22,15 +22,15 @@ def sample_tokens():
 
 
 class TestStravaAdapterFactories:
-    def test_make_read_strava_token_returns_correct_type(self, sample_tokens):
-        result = make_read_strava_token(sample_tokens)
+    def test_make_read_strava_token_returns_correct_type(self, sample_initial_tokens):
+        result = make_read_strava_token(sample_initial_tokens)
         assert isinstance(result, StravaTokenRepo)
 
-    def test_make_read_activities_returns_correct_type(self, sample_tokens):
-        result = make_read_detailed_activities(sample_tokens)
+    def test_make_read_activities_returns_correct_type(self, sample_initial_tokens):
+        result = make_read_detailed_activities(sample_initial_tokens)
         assert isinstance(result, DetailedStravaActivitiesRepo)
 
-    def test_make_read_activities_different_tokens_different_instances(self):
+    def test_make_read_activities_different_initial_tokens_different_instances(self):
         # Test that different tokens return different instances
         tokens1 = StravaTokenSet(
             client_id=123,
@@ -49,17 +49,18 @@ class TestStravaAdapterFactories:
         result2 = make_read_detailed_activities(tokens2)
         assert result1 is not result2
 
-    def test_make_read_strava_token_uses_app_config(self, sample_tokens):
+    def test_make_read_strava_token_uses_app_config(self, sample_initial_tokens):
         # Test that factory creates repo with expected attributes
-        repo = make_read_strava_token(sample_tokens)
+        repo = make_read_strava_token(sample_initial_tokens)
         # Verify it has the expected tokens from app_config
+        # Note: StravaTokenRepo uses _tokens, not _initial_tokens
         assert hasattr(repo, "_tokens")
         assert hasattr(repo, "_api_config")
-        assert repo._tokens == sample_tokens
+        assert repo._tokens == sample_initial_tokens
 
-    def test_make_read_activities_uses_app_config(self, sample_tokens):
+    def test_make_read_activities_uses_app_config(self, sample_initial_tokens):
         # Test that factory passes api config
-        repo = make_read_detailed_activities(sample_tokens)
-        assert hasattr(repo, "_tokens")
+        repo = make_read_detailed_activities(sample_initial_tokens)
+        assert hasattr(repo, "_initial_tokens")
         assert hasattr(repo, "_api_config")
-        assert repo._tokens == sample_tokens
+        assert repo._initial_tokens == sample_initial_tokens
