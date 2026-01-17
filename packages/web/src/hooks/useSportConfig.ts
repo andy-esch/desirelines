@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchSportConfig, type SportConfig } from "../api/activities";
-import { isCancellationError } from "../api/errors";
 import { useAuth } from "./useAuth";
 
 export interface UseSportConfigResult {
@@ -30,50 +29,17 @@ export interface UseSportConfigResult {
 export function useSportConfig(): UseSportConfigResult {
   const { loading: authLoading } = useAuth();
 
-  const [sportConfig, setSportConfig] = useState<SportConfig | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-
-  const retry = useCallback(() => {
-    setError(null);
-    setRetryCount((prev) => prev + 1);
-  }, []);
-
-  useEffect(() => {
-    if (authLoading) {
-      return;
-    }
-
-    const controller = new AbortController();
-
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const config = await fetchSportConfig(controller.signal);
-        setSportConfig(config);
-      } catch (err) {
-        if (!isCancellationError(err)) {
-          setError(err instanceof Error ? err : new Error(String(err)));
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadData();
-
-    return () => {
-      controller.abort();
-    };
-  }, [authLoading, retryCount]);
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["sportConfig"],
+    queryFn: ({ signal }) => fetchSportConfig(signal),
+    enabled: !authLoading,
+    staleTime: Infinity, // Config rarely changes during a session
+  });
 
   return {
-    sportConfig,
-    isLoading,
-    error,
-    retry,
+    sportConfig: data ?? null,
+    isLoading: isLoading || authLoading, // Consider auth loading as part of total loading
+    error: error as Error | null,
+    retry: refetch,
   };
 }

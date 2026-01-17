@@ -200,10 +200,7 @@ export const fetchDailySummary = async (
 /**
  * Fetch a single activity by ID
  */
-export const fetchActivity = async (
-  id: number,
-  signal?: AbortSignal
-): Promise<Activity | null> => {
+export const fetchActivity = async (id: number, signal?: AbortSignal): Promise<Activity | null> => {
   const url = `/activities/${id}`;
 
   try {

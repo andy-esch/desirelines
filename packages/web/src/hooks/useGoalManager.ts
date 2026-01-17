@@ -9,6 +9,17 @@ interface UseGoalManagerProps {
   sport: string;
 }
 
+/**
+ * Hook for managing goal editing state and validation.
+ *
+ * Handles:
+ * - Local state for editing values/labels
+ * - Validation logic
+ * - Debounced saving for labels
+ * - Optimistic updates for values
+ *
+ * Separates UI logic from the presentation in GoalControls.
+ */
 export function useGoalManager({
   goals,
   onGoalsChange,

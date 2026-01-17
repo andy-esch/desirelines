@@ -9,11 +9,7 @@ import {
   getSportDisplayName,
   filterValidSports,
 } from "../utils/sportConfig";
-import {
-  toDailyArray,
-  normalizeToRange,
-  getTimeRangeCutoff,
-} from "../utils/chartUtils";
+import { toDailyArray, normalizeToRange, getTimeRangeCutoff } from "../utils/chartUtils";
 import { toLocalDateString } from "../utils/dateUtils";
 
 const SPARKLINE_ROW_HEIGHT = 36;
@@ -37,6 +33,15 @@ function getActivityPageSize(sportCount: number): number {
   return 7;
 }
 
+/**
+ * Hook for managing multi-sport comparison chart data.
+ *
+ * Handles:
+ * - Time range state
+ * - Fetching data for multiple visible sports
+ * - Normalizing data for sparklines (0-1 scale)
+ * - Coordinating layout calculations (height, page size)
+ */
 export function useMultiSportChartData() {
   const currentYear = new Date().getFullYear();
   const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");

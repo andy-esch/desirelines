@@ -17,6 +17,17 @@ interface UseCumulativeChartDataProps {
   sport?: string;
 }
 
+/**
+ * Hook for calculating cumulative chart data.
+ *
+ * Transforms raw distance entries into chart-ready data:
+ * - Calculates cumulative totals
+ * - Projects goal lines and average lines
+ * - Identifies goal achievements
+ * - Formats data for Recharts
+ *
+ * Optimizes performance by memoizing heavy calculations.
+ */
 export function useCumulativeChartData({
   year,
   goals,
