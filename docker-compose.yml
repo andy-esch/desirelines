@@ -165,6 +165,22 @@ services:
       retries: 10
       start_period: 30s
 
+  # Bootstrap Firebase Auth with default dev user
+  firebase-bootstrap:
+    profiles: ["frontend"]
+    image: curlimages/curl:latest
+    depends_on:
+      firebase-emulators:
+        condition: service_healthy
+    # Create a default dev user via Auth emulator REST API
+    command: >
+      sh -c '
+        curl -s -X POST "http://firebase-emulators:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-api-key" \
+          -H "Content-Type: application/json" \
+          -d "{\"email\":\"peach.olive.405@example.com\",\"password\":\"devpassword123\",\"returnSecureToken\":true}" \
+        && echo "✓ Created dev user: dev@localhost.test / devpassword123"
+      '
+
   # PubSub Emulator Web UI for debugging
   pubsub-ui:
     profiles: ["debug", "monitoring"] # Debug profile (use with backend)
