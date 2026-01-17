@@ -4,9 +4,9 @@
  * Standardized error handling patterns for the API layer.
  *
  * Philosophy:
- * - Request cancellation is NOT an error - it's expected cleanup behavior
- * - API functions should return empty data on cancellation, not throw
- * - This allows consumers to treat cancelled requests silently
+ * - Request cancellation IS handled as an error (AbortError/Cancel)
+ * - API functions should re-throw cancellation errors so TanStack Query can manage state
+ * - Consumers can use isCancellationError() if they need to check manually
  *
  * @see https://tanstack.com/query/latest/docs/react/guides/query-cancellation
  */
@@ -17,8 +17,7 @@ import axios from "axios";
  * Check if an error is a request cancellation.
  *
  * Use this in catch blocks when you need to distinguish cancellation
- * from real errors. Prefer having API functions return empty data on
- * cancellation so consumers don't need this check.
+ * from real errors.
  *
  * @example
  * ```ts

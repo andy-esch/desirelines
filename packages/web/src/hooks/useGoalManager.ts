@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Goals, Goal, validateGoalValue } from "../utils/goalCalculations";
 import { getMetricConfig } from "../config/metricConfig";
+import { logApiError } from "../api/errors";
 
 interface UseGoalManagerProps {
   goals: Goals;
@@ -57,7 +58,7 @@ export function useGoalManager({
       setSaveError(null);
       await onGoalsChange(updatedGoals);
     } catch (err) {
-      console.error("[useGoalManager] Failed to save goals:", err);
+      logApiError(err, "[useGoalManager] Failed to save goals");
       setSaveError(err instanceof Error ? err : new Error(String(err)));
     }
   };
