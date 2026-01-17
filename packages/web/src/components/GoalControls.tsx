@@ -43,6 +43,8 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     handleAddGoal,
     handleRemoveGoal,
     saveGoals,
+    saveError: managerSaveError,
+    clearSaveError: managerClearSaveError,
     incrementSize,
   } = useGoalManager({
     goals,
@@ -52,6 +54,11 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   });
 
   const validation = validateGoals(goals);
+  const effectiveSaveError = saveError || managerSaveError;
+  const effectiveClearSaveError = () => {
+    if (onClearSaveError) onClearSaveError();
+    managerClearSaveError();
+  };
 
   return (
     <div className="mb-3">
@@ -63,17 +70,15 @@ const GoalControls: React.FC<GoalControlsProps> = ({
           </span>
         )}
       </h6>
-      {saveError && (
+      {effectiveSaveError && (
         <div className="alert alert-danger py-1 px-2 small" role="alert">
-          {saveError.message || "Failed to save. Please try again."}
-          {onClearSaveError && (
-            <button
-              type="button"
-              className="btn-close btn-sm float-end"
-              aria-label="Dismiss"
-              onClick={onClearSaveError}
-            />
-          )}
+          {effectiveSaveError.message || "Failed to save. Please try again."}
+          <button
+            type="button"
+            className="btn-close btn-sm float-end"
+            aria-label="Dismiss"
+            onClick={effectiveClearSaveError}
+          />
         </div>
       )}
       {!validation.valid && (

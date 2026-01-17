@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Goals, Goal, validateGoalValue } from "../utils/goalCalculations";
 import { getMetricConfig } from "../config/metricConfig";
 
@@ -30,21 +30,36 @@ export function useGoalManager({
   const [editValue, setEditValue] = useState("");
   const [editingLabel, setEditingLabel] = useState<{ id: string; value: string } | null>(null);
   const [editValidationError, setEditValidationError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<Error | null>(null);
 
-  // Debounce timer for label changes
-  const labelDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+  // Debounce timers for label changes (per goal ID)
+  const labelDebounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  // Ref to access latest goals in debounce callbacks without stale closures
+  const goalsRef = useRef(goals);
+  useEffect(() => {
+    goalsRef.current = goals;
+  }, [goals]);
 
   /**
-   * Wrapper for onGoalsChange that cancels pending debounced saves
-   * to prevent race conditions.
+   * Clear any active save error
+   */
+  const clearSaveError = useCallback(() => {
+    setSaveError(null);
+  }, []);
+
+  /**
+   * Wrapper for onGoalsChange that handles errors.
+   * Note: We do NOT clear pending label debounces here to allow parallel edits.
    */
   const saveGoals = async (updatedGoals: Goals) => {
-    // Cancel any pending debounced label save to prevent race condition
-    if (labelDebounceTimer.current) {
-      clearTimeout(labelDebounceTimer.current);
-      labelDebounceTimer.current = null;
+    try {
+      setSaveError(null);
+      await onGoalsChange(updatedGoals);
+    } catch (err) {
+      console.error("[useGoalManager] Failed to save goals:", err);
+      setSaveError(err instanceof Error ? err : new Error(String(err)));
     }
-    await onGoalsChange(updatedGoals);
   };
 
   // Get sport-specific configuration
@@ -95,29 +110,36 @@ export function useGoalManager({
   };
 
   const handleGoalLabelChange = (id: string, label: string) => {
-    const updated = goals.map((g) => (g.id === id ? { ...g, label } : g));
+    // Use goalsRef to ensure we work with latest state in async callbacks
+    const currentGoals = goalsRef.current;
+    const updated = currentGoals.map((g) => (g.id === id ? { ...g, label } : g));
     saveGoals(updated);
   };
 
   const handleLabelEdit = (id: string, value: string) => {
     setEditingLabel({ id, value });
 
-    // Clear existing timer
-    if (labelDebounceTimer.current) {
-      clearTimeout(labelDebounceTimer.current);
+    // Clear existing timer for this goal
+    const existingTimer = labelDebounceTimers.current.get(id);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
     }
 
     // Debounce label save - only save after user stops typing for 500ms
-    labelDebounceTimer.current = setTimeout(() => {
+    const timer = setTimeout(() => {
       handleGoalLabelChange(id, value);
+      labelDebounceTimers.current.delete(id);
     }, 500);
+
+    labelDebounceTimers.current.set(id, timer);
   };
 
   const handleLabelSave = (id: string) => {
-    // Clear debounce timer
-    if (labelDebounceTimer.current) {
-      clearTimeout(labelDebounceTimer.current);
-      labelDebounceTimer.current = null;
+    // Clear debounce timer for this goal
+    const existingTimer = labelDebounceTimers.current.get(id);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      labelDebounceTimers.current.delete(id);
     }
 
     // Immediately save current value on blur
@@ -150,12 +172,11 @@ export function useGoalManager({
     saveGoals(goals.filter((g) => g.id !== id));
   };
 
-  // Cleanup debounce timer on unmount
+  // Cleanup debounce timers on unmount
   useEffect(() => {
     return () => {
-      if (labelDebounceTimer.current) {
-        clearTimeout(labelDebounceTimer.current);
-      }
+      labelDebounceTimers.current.forEach((timer) => clearTimeout(timer));
+      labelDebounceTimers.current.clear();
     };
   }, []);
 
@@ -176,6 +197,8 @@ export function useGoalManager({
     handleAddGoal,
     handleRemoveGoal,
     saveGoals,
+    saveError,
+    clearSaveError,
     incrementSize, // Exposed for UI
   };
 }

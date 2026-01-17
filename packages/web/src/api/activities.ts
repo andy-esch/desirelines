@@ -26,7 +26,7 @@
  */
 
 import client from "./client";
-import { isCancellationError, is404Error, throwApiError } from "./errors";
+import { is404Error, throwApiError } from "./errors";
 
 // Import generated types from Protobuf definitions
 import type {
@@ -102,20 +102,8 @@ export const fetchSportMetrics = async (
     });
     return data.timeseries ?? [];
   } catch (err: unknown) {
-    if (isCancellationError(err)) {
-      return [];
-    }
     throwApiError(err, "fetchSportMetrics");
   }
-};
-
-/** Empty metadata response for cancelled requests or error recovery */
-const EMPTY_YEAR_METADATA: YearMetadata = {
-  year: 0,
-  sports: [],
-  totals: {},
-  lastUpdated: undefined,
-  aggregationVersion: "",
 };
 
 export const fetchYearMetadata = async (
@@ -135,18 +123,8 @@ export const fetchYearMetadata = async (
       totals: data.totals ?? {},
     };
   } catch (err: unknown) {
-    if (isCancellationError(err)) {
-      // Need to cast because we're returning a partial match (lastUpdated optional in generated)
-      return { ...EMPTY_YEAR_METADATA, year };
-    }
     throwApiError(err, "fetchYearMetadata");
   }
-};
-
-/** Empty sport config for cancelled requests or error recovery */
-const EMPTY_SPORT_CONFIG: SportConfig = {
-  version: "",
-  sport_categories: {},
 };
 
 export const fetchSportConfig = async (signal?: AbortSignal): Promise<SportConfig> => {
@@ -158,9 +136,6 @@ export const fetchSportConfig = async (signal?: AbortSignal): Promise<SportConfi
     });
     return data;
   } catch (err: unknown) {
-    if (isCancellationError(err)) {
-      return EMPTY_SPORT_CONFIG;
-    }
     throwApiError(err, "fetchSportConfig");
   }
 };
@@ -190,9 +165,6 @@ export const fetchDailySummary = async (
     });
     return data.daily ?? {};
   } catch (err: unknown) {
-    if (isCancellationError(err)) {
-      return {};
-    }
     throwApiError(err, "fetchDailySummary");
   }
 };
@@ -209,9 +181,6 @@ export const fetchActivity = async (id: number, signal?: AbortSignal): Promise<A
     });
     return data;
   } catch (err: unknown) {
-    if (isCancellationError(err)) {
-      return null;
-    }
     // 404 means activity not found - return null, not an error
     if (is404Error(err)) {
       return null;
@@ -246,9 +215,6 @@ export const fetchActivities = async (
       hasMore: data.hasMore ?? false,
     };
   } catch (err: unknown) {
-    if (isCancellationError(err)) {
-      return { activities: [], hasMore: false };
-    }
     throwApiError(err, "fetchActivities");
   }
 };

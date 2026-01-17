@@ -68,8 +68,9 @@ function readFromLocalStorage(key: string, configType: string, defaultValue?: an
   } else if (configType === "annotations") {
     return defaultValue || ({ annotations: [] } as AnnotationsForYear);
   } else if (configType === "preferences") {
-    return defaultValue ||
-      ({ theme: "light", defaultYear: new Date().getFullYear() } as Preferences);
+    return (
+      defaultValue || ({ theme: "light", defaultYear: new Date().getFullYear() } as Preferences)
+    );
   }
   return null;
 }
