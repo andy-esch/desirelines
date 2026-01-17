@@ -29,7 +29,21 @@ See [ci.md](./ci.md) for workflow details.
 
 ## Backend Services
 
-### Dev Deploy (Manual)
+### Safe Deploy (Recommended)
+
+Use `just tf-deploy` for validated deployments with safety checks:
+
+```bash
+just tf-deploy dev          # Deploy to dev (uses current HEAD)
+just tf-deploy prod         # Deploy to prod (requires confirmation)
+just tf-deploy dev sha=abc  # Deploy specific commit
+```
+
+The command displays the commit SHA being deployed and validates GCP project, service account impersonation before showing the plan. Confirm the SHA matches your rebuilt docker images.
+
+### Manual Deploy
+
+For more control, use individual commands:
 
 ```bash
 # Build and push images
