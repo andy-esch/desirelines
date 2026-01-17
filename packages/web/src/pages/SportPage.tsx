@@ -5,6 +5,8 @@ import { pageBackgrounds } from "../styles/pageBackgrounds";
 import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
 import PacingMetricsChart from "../components/charts/PacingMetricsChart";
 import Sidebar from "../components/layout/Sidebar";
+import FilterControls from "../components/layout/FilterControls";
+import GoalControls from "../components/GoalControls";
 import KPICards from "../components/dashboard/KPICards";
 import GoalSummaryTable from "../components/GoalSummaryTable";
 import EmptyState from "../components/EmptyState";
@@ -151,22 +153,32 @@ export default function SportPage({ sport }: SportPageProps) {
     <div className="container-fluid">
       <div className="row">
         <Sidebar
-          currentYear={currentYear}
-          sport={sport}
-          onYearClick={(newYear) => {
-            navigate(`/${sport}/${newYear}`);
-          }}
-          goals={goals}
-          onGoalsChange={handleGoalsChange}
           estimatedYearEnd={estimatedYearEnd}
           currentValue={currentValue}
           unit={metricUnit}
           isLoading={isLoading || !!error}
-          isSaving={isGoalsSaving}
-          saveError={goalsSaveError}
-          onClearSaveError={clearGoalsSaveError}
-          availableSports={availableSports}
-          sportCounts={sportCounts}
+          filtersSlot={
+            <FilterControls
+              sport={sport}
+              availableSports={availableSports}
+              sportCounts={sportCounts}
+              onSportChange={(newSport) => navigate(`/${newSport}/${currentYear}`)}
+              currentYear={currentYear}
+              onYearChange={(newYear) => navigate(`/${sport}/${newYear}`)}
+            />
+          }
+          goalsSlot={
+            <GoalControls
+              goals={goals}
+              onGoalsChange={handleGoalsChange}
+              estimatedYearEnd={estimatedYearEnd}
+              unit={metricUnit}
+              sport={sport}
+              isSaving={isGoalsSaving}
+              saveError={goalsSaveError}
+              onClearSaveError={clearGoalsSaveError}
+            />
+          }
         />
 
         <main

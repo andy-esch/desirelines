@@ -5,6 +5,8 @@ import { pageBackgrounds } from "../styles/pageBackgrounds";
 import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
 import PacingMetricsChart from "../components/charts/PacingMetricsChart";
 import Sidebar from "../components/layout/Sidebar";
+import FilterControls from "../components/layout/FilterControls";
+import GoalControls from "../components/GoalControls";
 import { useDemoSidebarSportData } from "../hooks/useSidebarSportData";
 import KPICards from "../components/dashboard/KPICards";
 import GoalSummaryTable from "../components/GoalSummaryTable";
@@ -144,23 +146,33 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
       <div className="container-fluid">
         <div className="row">
           <Sidebar
-            currentYear={currentYear}
-            sport={sport}
-            onYearClick={(newYear) => {
-              navigate(`/demo/${sport}/${newYear}`);
-            }}
-            goals={goals}
-            onGoalsChange={handleGoalsChange}
             estimatedYearEnd={estimatedYearEnd}
             currentValue={currentValue}
             unit={metricUnit}
             isLoading={isLoading}
-            isSaving={false}
-            saveError={null}
-            availableSports={availableSports}
-            sportCounts={sportCounts}
-            navigationPrefix="/demo/"
             showAuthButton={false}
+            filtersSlot={
+              <FilterControls
+                sport={sport}
+                availableSports={availableSports}
+                sportCounts={sportCounts}
+                onSportChange={(newSport) => navigate(`/demo/${newSport}/${currentYear}`)}
+                currentYear={currentYear}
+                onYearChange={(newYear) => navigate(`/demo/${sport}/${newYear}`)}
+              />
+            }
+            goalsSlot={
+              <GoalControls
+                goals={goals}
+                onGoalsChange={handleGoalsChange}
+                estimatedYearEnd={estimatedYearEnd}
+                unit={metricUnit}
+                sport={sport}
+                isSaving={false}
+                saveError={null}
+                onClearSaveError={undefined}
+              />
+            }
           />
 
           <main

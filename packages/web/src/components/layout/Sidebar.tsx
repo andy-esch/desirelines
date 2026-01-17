@@ -1,33 +1,19 @@
-import { useNavigate } from "react-router-dom";
-import GoalControls from "../GoalControls";
+import type { ReactNode } from "react";
 import AuthButton from "../AuthButton";
 import ProgressSummary from "./ProgressSummary";
 import SidebarSection from "./SidebarSection";
-import FilterControls from "./FilterControls";
-import type { Goals } from "../../utils/goalCalculations";
 import type { MetricUnit } from "../../utils/units";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 
 interface SidebarProps {
-  currentYear: number;
-  onYearClick: (year: number) => void;
-  goals: Goals;
-  onGoalsChange: (goals: Goals) => Promise<void>;
   estimatedYearEnd: number;
   /** Current cumulative value (distance in miles/km, or session count) */
   currentValue: number;
-  sport?: string;
   unit?: MetricUnit;
   isLoading?: boolean;
-  // Goal mutation state from useUserConfig
-  isSaving?: boolean;
-  saveError?: Error | null;
-  onClearSaveError?: () => void;
-  // Sport data (passed from parent via hooks)
-  availableSports: string[];
-  sportCounts: Record<string, number>;
-  // Navigation prefix: "/" for authenticated, "/demo/" for demo mode
-  navigationPrefix?: string;
+  // Slots for composed content
+  filtersSlot: ReactNode;
+  goalsSlot: ReactNode;
   // Whether to show auth button on mobile (false for demo mode)
   showAuthButton?: boolean;
 }
@@ -38,25 +24,14 @@ interface SidebarSections {
 }
 
 export default function Sidebar({
-  currentYear,
-  onYearClick,
-  goals,
-  onGoalsChange,
   estimatedYearEnd,
   currentValue,
-  sport = "cycling",
   unit = "miles",
   isLoading = false,
-  isSaving = false,
-  saveError = null,
-  onClearSaveError,
-  availableSports,
-  sportCounts,
-  navigationPrefix = "/",
+  filtersSlot,
+  goalsSlot,
   showAuthButton = true,
 }: SidebarProps) {
-  const navigate = useNavigate();
-
   const [expandedSections, setExpandedSections] = useLocalStorage<SidebarSections>(
     "sidebar-sections",
     { filters: true, goals: true }
@@ -67,10 +42,6 @@ export default function Sidebar({
       ...expandedSections,
       [section]: !expandedSections[section],
     });
-  };
-
-  const handleSportChange = (newSport: string) => {
-    navigate(`${navigationPrefix}${newSport}/${currentYear}`);
   };
 
   return (
@@ -110,14 +81,7 @@ export default function Sidebar({
             isExpanded={expandedSections.filters}
             onToggle={() => toggleSection("filters")}
           >
-            <FilterControls
-              sport={sport}
-              availableSports={availableSports}
-              sportCounts={sportCounts}
-              onSportChange={handleSportChange}
-              currentYear={currentYear}
-              onYearChange={onYearClick}
-            />
+            {filtersSlot}
           </SidebarSection>
 
           <hr className="my-2" />
@@ -128,16 +92,7 @@ export default function Sidebar({
             isExpanded={expandedSections.goals}
             onToggle={() => toggleSection("goals")}
           >
-            <GoalControls
-              goals={goals}
-              onGoalsChange={onGoalsChange}
-              estimatedYearEnd={estimatedYearEnd}
-              unit={unit}
-              sport={sport}
-              isSaving={isSaving}
-              saveError={saveError}
-              onClearSaveError={onClearSaveError}
-            />
+            {goalsSlot}
           </SidebarSection>
 
           {/* Login/Logout - mobile only, hidden in demo mode */}
