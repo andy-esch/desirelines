@@ -7,17 +7,25 @@ For setting up a database from scratch read [Database Setup Playbook](../../docs
 ## Local Development
 
 ```bash
-# Start PostgreSQL
-docker compose --profile backend up -d postgres
+# Start frontend stack (includes postgres + flyway + api-gateway)
+just start-frontend
 
-# Run migrations
-just db-migrate-local
+# Or start backend stack (includes postgres + flyway + full pipeline)
+just start-backend
 
 # Connect to database
 just db-connect-local
+
+# View flyway logs
+docker compose logs flyway
 ```
 
-**Troubleshooting**: If migrations fail with "role does not exist", the Flyway `beforeMigrate` callback should self-heal by creating missing role groups. If it still fails, reset with `docker compose down -v` and try again.
+**Volume behavior**: The database uses an anonymous volume that resets on every `docker compose down`. This ensures a clean slate and prevents stale migration issues. Each startup runs init scripts and migrations fresh.
+
+**Troubleshooting**:
+- If migrations fail with "role does not exist", the Flyway `beforeMigrate` callback should self-heal by creating missing role groups.
+- If Flyway fails to connect, it will retry for up to 30 seconds (`FLYWAY_CONNECT_RETRIES=30`).
+- For a full reset: `just restart-frontend` or `just restart-backend`
 
 ## Production Deployment
 
