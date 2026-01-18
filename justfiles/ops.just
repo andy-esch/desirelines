@@ -8,16 +8,28 @@ start-frontend:
     @echo "🎨 Starting frontend stack..."
     docker compose --profile frontend up --build --detach
 
-# Stop all services
+# Stop all services (database resets automatically with anonymous volumes)
 stop:
     @echo "🛑 Stopping all services..."
     docker compose --profile backend --profile debug --profile frontend down
+
+# Restart frontend stack (stop + start, clean database state)
+restart-frontend:
+    @echo "🔄 Restarting frontend stack..."
+    docker compose --profile frontend down
+    docker compose --profile frontend up --build --detach
+
+# Restart backend stack (stop + start, clean database state)
+restart-backend:
+    @echo "🔄 Restarting backend stack..."
+    docker compose --profile backend down
+    docker compose --profile backend up --build --detach
 
 # View logs (service: dispatcher, bq-inserter, etc. Default: all)
 logs service='':
     docker compose --profile backend logs -f {{ service }}
 
-# Clean Docker resources
+# Clean Docker resources (removes images, volumes, orphans)
 clean:
     @echo "🧹 Cleaning Docker resources..."
     docker compose down --rmi all --volumes --remove-orphans

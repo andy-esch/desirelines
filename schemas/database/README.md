@@ -7,17 +7,25 @@ For setting up a database from scratch read [Database Setup Playbook](../../docs
 ## Local Development
 
 ```bash
-# Start PostgreSQL
-docker compose --profile backend up -d postgres
+# Start frontend stack (includes postgres + flyway + api-gateway)
+just start-frontend
 
-# Run migrations
-just db-migrate-local
+# Or start backend stack (includes postgres + flyway + full pipeline)
+just start-backend
 
 # Connect to database
 just db-connect-local
+
+# View flyway logs
+docker compose logs flyway
 ```
 
-**Troubleshooting**: If migrations fail with "role does not exist", the Flyway `beforeMigrate` callback should self-heal by creating missing role groups. If it still fails, reset with `docker compose down -v` and try again.
+**Volume behavior**: The database uses an anonymous volume that resets on every `docker compose down`. This ensures a clean slate and prevents stale migration issues. Each startup runs init scripts and migrations fresh.
+
+**Troubleshooting**:
+- If migrations fail with "role does not exist", the Flyway `beforeMigrate` callback should self-heal by creating missing role groups.
+- If Flyway fails to connect, it will retry for up to 30 seconds (`FLYWAY_CONNECT_RETRIES=30`).
+- For a full reset: `just restart-frontend` or `just restart-backend`
 
 ## Production Deployment
 
@@ -66,14 +74,15 @@ RESET ROLE;
 
 ```
 schemas/database/
-├── migrations/          # Versioned migrations (V0001__, V0002__, ...)
-├── callbacks/           # Flyway callbacks (run before/after migrations)
-│   └── beforeMigrate.sql  # Safety net: creates role groups/schemas if missing
-├── local/               # Local dev only (mounted via docker-compose)
-│   ├── init-roles.sql   # Docker entrypoint: creates roles, schemas, grants
-│   └── R__seed_data.sql # Repeatable: sample data for local dev
-├── flyway.conf          # Flyway configuration
-└── Dockerfile           # Flyway container for local dev
+├── migrations/              # Versioned migrations (V0001__, V0002__, ...)
+├── callbacks/               # Flyway callbacks (run before/after migrations)
+│   └── beforeMigrate.sql    # Safety net: creates role groups/schemas if missing
+├── local/                   # Local dev only (mounted via docker-compose)
+│   ├── init-roles.sql       # Docker entrypoint: creates roles, schemas, grants
+│   ├── R__01_seed_data.sql  # Repeatable: 1000 sanitized activities
+│   └── R__02_shift_timestamps.sql  # Repeatable: shifts seed data to appear recent
+├── flyway.conf              # Flyway configuration
+└── Dockerfile               # Flyway container for local dev
 ```
 
 ## Configuration

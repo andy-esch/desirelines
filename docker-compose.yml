@@ -200,6 +200,7 @@ services:
 
   # PostgreSQL database (local development)
   # Available in both backend and frontend profiles
+  # NOTE: Uses anonymous volume - data resets on `docker compose down`
   postgres:
     profiles: ["backend", "frontend"]
     image: postgis/postgis:17-3.6-alpine
@@ -211,14 +212,19 @@ services:
       - POSTGRES_USER=desirelines
       - POSTGRES_PASSWORD=local_dev_password
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Anonymous volume - automatically removed on `docker compose down`
+      # This ensures a clean slate every startup (no stale migrations)
+      - /var/lib/postgresql/data
       # Init script creates login roles (writer, apigateway, flyway, admin)
       - ./schemas/database/local/init-roles.sql:/docker-entrypoint-initdb.d/01-init-roles.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U desirelines -d desirelines_local"]
-      interval: 10s
+      # Combined check: accepting connections AND can execute queries
+      # This ensures init scripts have completed before reporting healthy
+      test: ["CMD-SHELL", "pg_isready -U desirelines -d desirelines_local && psql -U desirelines -d desirelines_local -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   # Database migrations (runs on startup)
   # Available in both backend and frontend profiles
@@ -233,8 +239,10 @@ services:
       - DB_NAME=desirelines_local
       - DB_USER=desirelines
       - DB_PASSWORD=local_dev_password
-      # Include local-only migrations (role grants, etc.) - not used in prod
-      - FLYWAY_LOCATIONS=filesystem:/flyway/sql,filesystem:/flyway/local
+      # Include callbacks and local-only migrations (role grants, seed data) - not used in prod
+      - FLYWAY_LOCATIONS=filesystem:/flyway/sql,filesystem:/flyway/callbacks,filesystem:/flyway/local
+      # Belt-and-suspenders: retry connections even if healthcheck passes early
+      - FLYWAY_CONNECT_RETRIES=30
     volumes:
       # Mount local-only migrations (not copied in Dockerfile)
       - ./schemas/database/local:/flyway/local:ro
@@ -286,6 +294,7 @@ services:
       timeout: 10s
       retries: 3
 
-# Named volumes for data persistence
-volumes:
-  postgres_data:
+# No named volumes - postgres uses anonymous volume for clean-slate local dev
+# To preserve data across restarts, switch back to named volume:
+#   volumes:
+#     postgres_data:
