@@ -1,7 +1,8 @@
 FROM flyway/flyway:latest
 
-# Copy migrations and configuration
+# Copy migrations, callbacks, and configuration
 COPY migrations /flyway/sql
+COPY callbacks /flyway/callbacks
 COPY flyway.conf /flyway/conf/
 
 # Note: No USER directive needed
