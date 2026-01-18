@@ -1,13 +1,17 @@
--- Bootstrap database for local development
--- This script runs at PostgreSQL init time (docker-entrypoint-initdb.d)
--- before Flyway migrations.
+-- AUTHORITATIVE SOURCE for local development database setup.
+-- Runs at PostgreSQL init time (docker-entrypoint-initdb.d) before Flyway.
 --
--- For local dev, we create everything that Neon's neondb_owner would create
--- (see docs/guides/database-setup.md for the production setup guide):
+-- Creates everything that Neon's neondb_owner would create in production:
 --   1. Role groups (permission containers)
 --   2. Schemas with ownership transfer
---   3. Login roles with grants and search paths
+--   3. Login roles with local dev passwords, grants, and search paths
 --
+-- Note: Role groups and schemas are also created by callbacks/beforeMigrate.sql
+-- as a safety net for stale volumes. That redundancy is intentional - this file
+-- is the source of truth, the callback is just a fallback.
+--
+-- See: callbacks/beforeMigrate.sql for the Flyway safety net
+-- See: docs/guides/database-setup.md for production setup
 -- NOTE: PostGIS is installed by the postgis/postgis Docker image (in public schema)
 
 -- =============================================================================

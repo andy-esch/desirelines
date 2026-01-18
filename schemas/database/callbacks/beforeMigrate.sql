@@ -1,12 +1,17 @@
--- Safety net: ensure critical prerequisites exist before migrations
--- This runs before every `flyway migrate` invocation.
+-- SAFETY NET: Ensure critical prerequisites exist before migrations.
+-- Runs before every `flyway migrate` invocation (local and production).
 --
--- Handles the common case where a developer forgets `docker compose down -v`
--- and role groups are missing from a stale volume. Login roles are NOT created
--- here intentionally - if those are missing, the user should see an auth error
--- and know to reset with `docker compose down -v`.
+-- This is NOT the authoritative source for local dev setup - that's
+-- local/init-roles.sql which runs at Docker entrypoint time.
 --
--- See: docs/guides/database-setup.md for production setup guide
+-- This callback handles the common case where a developer forgets
+-- `docker compose down -v` and role groups are missing from a stale volume.
+--
+-- Intentionally minimal - only creates role groups and schemas (no passwords,
+-- no login roles) so it's safe to run in any environment.
+--
+-- See: local/init-roles.sql for full local dev setup
+-- See: docs/guides/database-setup.md for production setup
 
 -- =============================================================================
 -- ROLE GROUPS (needed by V0001)

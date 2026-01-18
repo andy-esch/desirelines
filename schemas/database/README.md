@@ -17,6 +17,8 @@ just db-migrate-local
 just db-connect-local
 ```
 
+**Troubleshooting**: If migrations fail with "role does not exist", the Flyway `beforeMigrate` callback should self-heal by creating missing role groups. If it still fails, reset with `docker compose down -v` and try again.
+
 ## Production Deployment
 
 **Strategy**: Manual via Make targets. Credentials in Secret Manager stored as connection strings, fetched and parsed automatically by scripts.
@@ -60,15 +62,28 @@ RESET ROLE;
 
 **Rollback**: Forward-fix migrations only (Flyway Community doesn't support undo)
 
+## Directory Structure
+
+```
+schemas/database/
+├── migrations/          # Versioned migrations (V0001__, V0002__, ...)
+├── callbacks/           # Flyway callbacks (run before/after migrations)
+│   └── beforeMigrate.sql  # Safety net: creates role groups/schemas if missing
+├── local/               # Local dev only (mounted via docker-compose)
+│   ├── init-roles.sql   # Docker entrypoint: creates roles, schemas, grants
+│   └── R__seed_data.sql # Repeatable: sample data for local dev
+├── flyway.conf          # Flyway configuration
+└── Dockerfile           # Flyway container for local dev
+```
+
 ## Configuration
 
 **Flyway config**: `flyway.conf`
 
 - URL: Built from `DB_HOST`, `DB_PORT`, `DB_NAME` env vars (local) or `FLYWAY_URL` (prod)
 - Migrations: `filesystem:/flyway/sql` (maps to `migrations/` directory)
+- Callbacks: `filesystem:/flyway/callbacks` (safety net for local dev)
 - Default schema: `desirelines`
-
-**Current migrations**: in `schemas/database/migrations/`
 
 **Schemas**:
 
