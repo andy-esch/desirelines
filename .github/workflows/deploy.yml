@@ -280,7 +280,7 @@ jobs:
         if: always()
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🚀 Deployment Summary"
+          echo "🚀 Backend Deployment Summary"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Environment:       ${{ needs.build-images.outputs.environment }}"
           echo "Git SHA:           ${{ needs.build-images.outputs.git_sha }}"
@@ -293,4 +293,89 @@ jobs:
           echo "  - apigateway:${{ needs.build-images.outputs.git_sha }}"
           echo "  - bq-inserter:${{ needs.build-images.outputs.git_sha }}"
           echo "  - postgres-writer:${{ needs.build-images.outputs.git_sha }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  # ===========================================================================
+  # Job 3: Deploy Web Frontend to Firebase Hosting
+  # ===========================================================================
+  # Builds and deploys the React web application to Firebase Hosting
+  # Runs after backend deployment to ensure API Gateway URL is current
+  deploy-web:
+    name: Deploy Web to ${{ needs.build-images.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [build-images, deploy]
+
+    # Required for Workload Identity Federation
+    permissions:
+      contents: read
+      id-token: write
+
+    # Use GitHub Environment for protection rules
+    environment: ${{ needs.build-images.outputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: packages/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: packages/web
+        run: npm ci
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Get API Gateway URL
+        id: api-url
+        run: |
+          URL=$(gcloud run services describe desirelines-api-gateway \
+            --project=desirelines-${{ needs.build-images.outputs.environment }} \
+            --region=us-central1 \
+            --format='value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Build for environment
+        working-directory: packages/web
+        env:
+          VITE_FIREBASE_API_KEY: ${{ needs.build-images.outputs.environment == 'prod' && secrets.FIREBASE_API_KEY_PROD || secrets.FIREBASE_API_KEY_DEV }}
+          VITE_FIREBASE_AUTH_DOMAIN: desirelines-${{ needs.build-images.outputs.environment }}.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: desirelines-${{ needs.build-images.outputs.environment }}
+          VITE_API_GATEWAY_URL: ${{ steps.api-url.outputs.url }}
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
+        run: |
+          npm install -g firebase-tools
+          firebase deploy --only hosting \
+            --project desirelines-${{ needs.build-images.outputs.environment }}
+
+      - name: Web Deployment Summary
+        if: always()
+        run: |
+          ENV="${{ needs.build-images.outputs.environment }}"
+          if [ "$ENV" = "prod" ]; then
+            SITE_URL="https://desirelines.andyes.ch"
+          else
+            SITE_URL="https://desirelines-${ENV}.web.app"
+          fi
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🌐 Web Deployment Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Environment:       ${{ needs.build-images.outputs.environment }}"
+          echo "Firebase Project:  desirelines-${{ needs.build-images.outputs.environment }}"
+          echo "Site URL:          $SITE_URL"
+          echo "API Gateway:       ${{ steps.api-url.outputs.url }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
