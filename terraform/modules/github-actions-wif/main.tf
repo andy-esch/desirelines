@@ -159,3 +159,10 @@ resource "google_project_iam_member" "security_reviewer" {
   role    = "roles/iam.securityReviewer"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
+
+# Firebase Hosting Admin - Deploy web frontend to Firebase Hosting
+resource "google_project_iam_member" "firebase_hosting_admin" {
+  project = var.project_id
+  role    = "roles/firebasehosting.admin"
+  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
+}
