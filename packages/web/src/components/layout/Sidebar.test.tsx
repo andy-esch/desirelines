@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect } from "vitest";
 import Sidebar from "./Sidebar";
+import { TestServiceProvider } from "../../contexts/ServiceContext";
 
 describe("Sidebar", () => {
   const defaultProps = {
@@ -14,9 +15,11 @@ describe("Sidebar", () => {
 
   const renderSidebar = (props = defaultProps) => {
     return render(
-      <BrowserRouter>
-        <Sidebar {...props} />
-      </BrowserRouter>
+      <TestServiceProvider>
+        <BrowserRouter>
+          <Sidebar {...props} />
+        </BrowserRouter>
+      </TestServiceProvider>
     );
   };
 
