@@ -1,12 +1,12 @@
 # Start backend services
 start-backend:
     @echo "🚀 Starting backend (Local Mode)..."
-    docker compose --profile backend up --build --detach
+    docker compose --env-file .env.local --profile backend up --build --detach
 
 # Start frontend stack
 start-frontend:
     @echo "🎨 Starting frontend stack..."
-    docker compose --profile frontend up --build --detach
+    docker compose --env-file .env.local --profile frontend up --build --detach
 
 # Stop all services (database resets automatically with anonymous volumes)
 stop:

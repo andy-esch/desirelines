@@ -1,4 +1,5 @@
 set dotenv-load
+set dotenv-filename := ".env.local"
 
 # Import domain modules
 import 'justfiles/backend.just'

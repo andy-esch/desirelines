@@ -80,7 +80,7 @@ services:
       - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
       - GCP_PROJECT_ID=local-dev
       # PostgreSQL connection string for local development (application_name required for observability)
-      - POSTGRES_CONNECTION_STRING=postgresql://desirelines:local_dev_password@postgres:5432/desirelines_local?application_name=postgres-writer
+      - POSTGRES_CONNECTION_STRING=postgresql://${POSTGRES_USER_LOCAL}:${POSTGRES_PASSWORD_LOCAL}@postgres:5432/${POSTGRES_DB_LOCAL}?application_name=postgres-writer
       - LOG_LEVEL=INFO
       - ENABLE_CLOUD_LOGGING=true
     env_file:
@@ -208,9 +208,9 @@ services:
     ports:
       - "15430:5432"
     environment:
-      - POSTGRES_DB=desirelines_local
-      - POSTGRES_USER=desirelines
-      - POSTGRES_PASSWORD=local_dev_password
+      - POSTGRES_DB=${POSTGRES_DB_LOCAL}
+      - POSTGRES_USER=${POSTGRES_USER_LOCAL}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_LOCAL}
     volumes:
       # Anonymous volume - automatically removed on `docker compose down`
       # This ensures a clean slate every startup (no stale migrations)
@@ -236,9 +236,9 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=desirelines_local
-      - DB_USER=desirelines
-      - DB_PASSWORD=local_dev_password
+      - DB_NAME=${POSTGRES_DB_LOCAL}
+      - DB_USER=${POSTGRES_USER_LOCAL}
+      - DB_PASSWORD=${POSTGRES_PASSWORD_LOCAL}
       # Include callbacks and local-only migrations (role grants, seed data) - not used in prod
       - FLYWAY_LOCATIONS=filesystem:/flyway/sql,filesystem:/flyway/callbacks,filesystem:/flyway/local
       # Belt-and-suspenders: retry connections even if healthcheck passes early
@@ -265,7 +265,7 @@ services:
       # Firebase Auth Emulator - validates tokens locally without real Firebase
       - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulators:9099
       - GCP_PROJECT_ID=desirelines-local
-      - POSTGRES_CONNECTION_STRING=postgresql://desirelines:local_dev_password@postgres:5432/desirelines_local?application_name=apigateway
+      - POSTGRES_CONNECTION_STRING=postgresql://${POSTGRES_USER_LOCAL}:${POSTGRES_PASSWORD_LOCAL}@postgres:5432/${POSTGRES_DB_LOCAL}?application_name=apigateway
     env_file:
       - .env.local
     depends_on:
