@@ -20,13 +20,14 @@ web-dev:
 
 # Deploy web frontend to Firebase Hosting
 deploy-web env:
-    @if [ "{{env}}" == "prod" ]; then \
-        echo "🚨 WARNING: Deploying to PRODUCTION! 🚨"; \
-        read -p "Are you sure? (yes/no): " confirm; \
-        if [ "$$confirm" != "yes" ]; then \
-            echo "❌ Deployment cancelled"; \
-            exit 1; \
-        fi; \
+    #!/usr/bin/env bash
+    if [ "{{env}}" == "prod" ]; then
+        echo "🚨 WARNING: Deploying to PRODUCTION! 🚨"
+        read -p "Are you sure? (yes/no): " confirm < /dev/tty
+        if [ "$confirm" != "yes" ]; then
+            echo "❌ Deployment cancelled"
+            exit 1
+        fi
     fi
     ./scripts/ops/deploy/deploy-web.sh {{env}}
 

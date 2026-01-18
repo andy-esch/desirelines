@@ -1,13 +1,8 @@
-import {
-  doc,
-  getDoc,
-  setDoc,
-  deleteDoc,
-  onSnapshot,
-  Unsubscribe,
-  FirestoreError,
-} from "firebase/firestore";
-import { db, auth } from "../lib/firebase";
+import type { AuthService } from "./auth/AuthService";
+import type { DatabaseService } from "./database/DatabaseService";
+import { getFirebaseAuthService } from "./auth/FirebaseAuthService";
+import { getFirestoreService } from "./database/FirestoreService";
+import { isDatabaseError } from "./database/DatabaseService";
 import type {
   UserConfig,
   SportGoalsForYear,
@@ -20,14 +15,11 @@ import type {
 } from "../types/generated/user_config";
 
 /**
- * Convert Firestore errors to user-friendly error messages
+ * Convert database errors to user-friendly error messages
  */
 function createUserFriendlyError(error: unknown, operation: string): Error {
-  // Check if it's a Firestore error
-  if (error && typeof error === "object" && "code" in error) {
-    const firestoreError = error as FirestoreError;
-
-    switch (firestoreError.code) {
+  if (isDatabaseError(error)) {
+    switch (error.code) {
       case "permission-denied":
         return new Error(
           "You do not have permission to access this data. Please sign in with an authorized account."
@@ -45,14 +37,10 @@ function createUserFriendlyError(error: unknown, operation: string): Error {
       case "resource-exhausted":
         return new Error("Too many requests. Please wait a moment and try again.");
       default:
-        // For unknown Firestore errors, include the code for debugging
-        return new Error(
-          `Failed to ${operation}: ${firestoreError.message} (${firestoreError.code})`
-        );
+        return new Error(`Failed to ${operation}: ${error.message} (${error.code})`);
     }
   }
 
-  // For non-Firestore errors, return generic message
   return error instanceof Error ? error : new Error(`Failed to ${operation}: Unknown error`);
 }
 
@@ -63,31 +51,47 @@ function createUserFriendlyError(error: unknown, operation: string): Error {
 const CURRENT_SCHEMA_VERSION = "2.1";
 
 /**
- * Service for managing user configuration in Firestore
+ * Options for UserConfigService constructor
+ */
+export interface UserConfigServiceOptions {
+  authService?: AuthService;
+  databaseService?: DatabaseService;
+}
+
+/**
+ * Service for managing user configuration
  * Supports versioned configs with real-time sync
+ *
+ * Uses dependency injection for auth and database services.
+ * Defaults to Firebase implementations if not provided.
  */
 export class UserConfigService {
   private userId: string;
   private version: string;
+  private authService: AuthService;
+  private databaseService: DatabaseService;
 
   /**
-   * @param userId - Optional userId to use for Firestore operations.
+   * @param userId - Optional userId to use for operations.
    *   - If not provided: uses authenticated user's UID, or "default" if not authenticated
    *   - If provided: uses the specified userId
    *   WARNING: Providing an explicit userId when authenticated will throw an error
-   *   unless it matches the authenticated user's UID. This prevents accidental
-   *   cross-user data access.
+   *   unless it matches the authenticated user's UID.
    * @param version - Config version (defaults to "v1")
+   * @param options - Optional service dependencies (defaults to Firebase implementations)
    */
-  constructor(userId?: string, version: string = "v1") {
-    const currentUser = auth.currentUser;
+  constructor(userId?: string, version: string = "v1", options?: UserConfigServiceOptions) {
+    // Use provided services or default to Firebase implementations
+    this.authService = options?.authService ?? getFirebaseAuthService();
+    this.databaseService = options?.databaseService ?? getFirestoreService();
+
+    const currentUser = this.authService.getCurrentUser();
 
     // Resolve userId: explicit > auth user > "default"
     this.userId = userId ?? currentUser?.uid ?? "default";
     this.version = version;
 
     // CRITICAL: Validate userId matches authenticated user when explicitly provided
-    // This prevents bugs where an explicit userId doesn't match the auth state
     if (currentUser && userId !== undefined) {
       if (currentUser.uid !== userId) {
         throw new Error(
@@ -101,10 +105,10 @@ export class UserConfigService {
   }
 
   /**
-   * Get Firestore document reference for this user's config
+   * Get document path for this user's config
    */
-  private getDocRef() {
-    return doc(db, "users", this.userId, "config", this.version);
+  private getDocPath(): string {
+    return `users/${this.userId}/config/${this.version}`;
   }
 
   /**
@@ -129,15 +133,12 @@ export class UserConfigService {
    */
   async getConfig(): Promise<UserConfig | null> {
     try {
-      const docRef = this.getDocRef();
-      const docSnap = await getDoc(docRef);
+      const config = await this.databaseService.getDocument<UserConfig>(this.getDocPath());
 
-      if (docSnap.exists()) {
-        const config = docSnap.data() as UserConfig;
+      if (config) {
         this.validateSchemaVersion(config);
-        return config;
       }
-      return null;
+      return config;
     } catch (error) {
       console.error("Error fetching user config:", error);
       throw createUserFriendlyError(error, "load your settings");
@@ -250,7 +251,6 @@ export class UserConfigService {
     sport?: string
   ): Promise<void> {
     try {
-      const docRef = this.getDocRef();
       const existingConfig = await this.getConfig();
 
       const config: UserConfig = existingConfig || {
@@ -294,7 +294,7 @@ export class UserConfigService {
       config.lastUpdated = new Date().toISOString();
 
       // Use merge to avoid overwriting other fields
-      await setDoc(docRef, config, { merge: true });
+      await this.databaseService.setDocument(this.getDocPath(), config, { merge: true });
     } catch (error) {
       console.error("Error updating user config:", error);
       throw createUserFriendlyError(error, "save your changes");
@@ -306,8 +306,7 @@ export class UserConfigService {
    */
   async deleteConfig(): Promise<void> {
     try {
-      const docRef = this.getDocRef();
-      await deleteDoc(docRef);
+      await this.databaseService.deleteDocument(this.getDocPath());
     } catch (error) {
       console.error("Error deleting user config:", error);
       throw createUserFriendlyError(error, "delete your settings");
@@ -318,19 +317,14 @@ export class UserConfigService {
    * Subscribe to real-time config updates
    * Returns an unsubscribe function to stop listening
    */
-  subscribeToConfig(callback: (config: UserConfig | null) => void): Unsubscribe {
-    const docRef = this.getDocRef();
-
-    return onSnapshot(
-      docRef,
-      (doc) => {
-        if (doc.exists()) {
-          const config = doc.data() as UserConfig;
+  subscribeToConfig(callback: (config: UserConfig | null) => void): () => void {
+    return this.databaseService.subscribeToDocument<UserConfig>(
+      this.getDocPath(),
+      (config) => {
+        if (config) {
           this.validateSchemaVersion(config);
-          callback(config);
-        } else {
-          callback(null);
         }
+        callback(config);
       },
       (error) => {
         console.error("Error in config subscription:", error);
@@ -368,7 +362,7 @@ export class UserConfigService {
     ) => void,
     year?: number,
     sport?: string
-  ): Unsubscribe {
+  ): () => void {
     return this.subscribeToConfig((config) => {
       if (!config) {
         callback(null);

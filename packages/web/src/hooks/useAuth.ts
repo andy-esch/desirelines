@@ -1,26 +1,18 @@
 /**
- * Authentication hook using Firebase Auth
+ * Authentication hook using AuthService
  *
- * Provides authentication state and handles sign in/out
+ * Provides authentication state and handles sign in/out.
+ * Uses the AuthService from ServiceContext for Firebase abstraction.
+ *
  * - No user (null) → Unauthenticated mode (localStorage for config)
  * - With user → Authenticated mode (Firestore for config, API with auth token)
  */
 
 import { useState, useEffect } from "react";
-import {
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  GoogleAuthProvider,
-  type User as FirebaseUser,
-} from "firebase/auth";
-import { getFirebaseAuth } from "../lib/firebase";
+import { useAuthService } from "../contexts/ServiceContext";
+import type { User } from "../services/auth/AuthService";
 
-export interface User {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-}
+export type { User };
 
 export interface AuthState {
   user: User | null;
@@ -48,40 +40,26 @@ export interface AuthState {
  * ```
  */
 export function useAuth(): AuthState {
+  const authService = useAuthService();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    const auth = getFirebaseAuth();
-
     // Subscribe to auth state changes
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        // User is signed in
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-        });
-      } else {
-        // User is signed out
-        setUser(null);
-      }
+    const unsubscribe = authService.onAuthStateChanged((user) => {
+      setUser(user);
       setLoading(false);
     });
 
     // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, []);
+  }, [authService]);
 
   const signIn = async () => {
-    const auth = getFirebaseAuth();
-    const provider = new GoogleAuthProvider();
-
     try {
-      setError(null); // Clear previous errors
-      await signInWithPopup(auth, provider);
+      setError(null);
+      await authService.signIn();
       // User state will be updated by onAuthStateChanged
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Sign in failed");
@@ -92,11 +70,9 @@ export function useAuth(): AuthState {
   };
 
   const signOut = async () => {
-    const auth = getFirebaseAuth();
-
     try {
-      setError(null); // Clear previous errors
-      await firebaseSignOut(auth);
+      setError(null);
+      await authService.signOut();
       // User state will be updated by onAuthStateChanged
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Sign out failed");
