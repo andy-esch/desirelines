@@ -55,7 +55,7 @@ SELECT extensions.PostGIS_Version();
 
 ## 4. Create Login Roles
 
-Still as `neondb_owner`, create service accounts. This script is also in [`/schemas/database/create-login-roles.sql`](../../schemas/database/create-login-roles.sql) and a variation [`/schemas/database/local/init-roles.sql`](../../schemas/database/local/init-roles.sql)
+Still as `neondb_owner`, create service accounts. This script is in [`scripts/create-login-roles.sql`](../../schemas/database/scripts/create-login-roles.sql) (production reference) and [`local/init-roles.sql`](../../schemas/database/local/init-roles.sql) (local dev with hardcoded passwords).
 
 ```sql
 -- Flyway (runs migrations)

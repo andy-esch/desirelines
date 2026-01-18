@@ -1,7 +1,11 @@
--- Create login roles for Desirelines services
--- Run manually in Neon console (dev and prod separately)
--- These are LOGIN roles (can authenticate), unlike role GROUPS (NOLOGIN)
+-- PRODUCTION REFERENCE: Login roles for Desirelines services.
+-- Copy and run manually in Neon console (dev and prod separately).
+-- Replace GENERATE_SECURE_32CHAR_PASSWORD with actual secure passwords.
 --
+-- These are LOGIN roles (can authenticate), unlike role GROUPS (NOLOGIN).
+-- Role groups must be created first - see docs/guides/database-setup.md Section 2.
+--
+-- See: local/init-roles.sql for the local dev equivalent (with hardcoded passwords)
 -- Secret naming convention: postgres-conn-{role}
 
 -- =============================================================================
