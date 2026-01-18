@@ -66,14 +66,15 @@ RESET ROLE;
 
 ```
 schemas/database/
-├── migrations/          # Versioned migrations (V0001__, V0002__, ...)
-├── callbacks/           # Flyway callbacks (run before/after migrations)
-│   └── beforeMigrate.sql  # Safety net: creates role groups/schemas if missing
-├── local/               # Local dev only (mounted via docker-compose)
-│   ├── init-roles.sql   # Docker entrypoint: creates roles, schemas, grants
-│   └── R__seed_data.sql # Repeatable: sample data for local dev
-├── flyway.conf          # Flyway configuration
-└── Dockerfile           # Flyway container for local dev
+├── migrations/              # Versioned migrations (V0001__, V0002__, ...)
+├── callbacks/               # Flyway callbacks (run before/after migrations)
+│   └── beforeMigrate.sql    # Safety net: creates role groups/schemas if missing
+├── local/                   # Local dev only (mounted via docker-compose)
+│   ├── init-roles.sql       # Docker entrypoint: creates roles, schemas, grants
+│   ├── R__01_seed_data.sql  # Repeatable: 1000 sanitized activities
+│   └── R__02_shift_timestamps.sql  # Repeatable: shifts seed data to appear recent
+├── flyway.conf              # Flyway configuration
+└── Dockerfile               # Flyway container for local dev
 ```
 
 ## Configuration
