@@ -7,6 +7,7 @@ import 'justfiles/db.just'
 import 'justfiles/tf.just'
 import 'justfiles/ops.just'
 import 'justfiles/gcp.just'
+import 'justfiles/scripts.just'
 
 # List all available commands
 default:
@@ -24,10 +25,10 @@ help:
 test: py-test go-test web-test
 
 # Run all linters (Ruff, golangci-lint, ESLint, buf)
-lint: py-lint go-lint web-lint proto-lint
+lint: py-lint go-lint web-lint proto-lint sh-lint
 
 # Format all code (Ruff, go fmt, Prettier, buf, terraform fmt)
-format: py-format go-format web-format proto-fmt tf-fmt
+format: py-format go-format web-format proto-fmt tf-fmt sh-format
 
 # Run all type checkers (Python, web)
 typecheck: py-typecheck web-typecheck
