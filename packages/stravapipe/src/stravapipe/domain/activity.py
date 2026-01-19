@@ -259,20 +259,19 @@ class MinimalStravaActivity(BaseModel):
 
     Contains only core fields needed for delete operations and metadata lookups.
     Used by BigQuery adapter's read_activity_metadata() for efficient queries.
+
+    All measurements use Strava's native units:
+    - distance: meters
+    - moving_time: seconds
+    - total_elevation_gain: meters
     """
 
     id: int
     type: str
     start_date_local: datetime
-    distance: float
+    distance: float  # meters (Strava's native unit)
     moving_time: int  # seconds
     total_elevation_gain: float  # meters
-
-    @computed_field  # type: ignore
-    @property
-    def distance_miles(self) -> float:
-        """Convert meters to miles"""
-        return self.distance / 1000.0 * 0.62137
 
     @computed_field  # type: ignore
     @property

@@ -1,6 +1,16 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { convertDistance, getUserSettings } from "../utils/units";
+import {
+  convertDistance,
+  getUserSettings,
+  goalMetersToDisplay,
+  goalDisplayToMeters,
+} from "../utils/units";
+import {
+  migrateGoalUnitsIfNeeded,
+  markGoalUnitMigrated,
+  isGoalUnitMigrated,
+} from "../utils/migration";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
 import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
 import PacingMetricsChart from "../components/charts/PacingMetricsChart";
@@ -98,18 +108,22 @@ export default function SportPage({ sport }: SportPageProps) {
 
     // Pass sport-specific granularity and minimum value to prevent 0/invalid goals
     // This ensures goals are always meaningful even when no data exists
+    const generatedGoals = generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue);
+
     return {
-      goals: generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue).map(
-        (goal) => ({
-          id: goal.id,
-          value: goal.value,
-          label: goal.label || "",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      ),
+      goals: generatedGoals.map((goal) => ({
+        id: goal.id,
+        // For distance sports, convert from display units to meters for storage
+        // Non-distance sports (yoga) store values as-is
+        value: sportInfo?.has_distance
+          ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
+          : goal.value,
+        label: goal.label || "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })),
     };
-  }, [estimatedYearEnd, metricConfig]);
+  }, [estimatedYearEnd, metricConfig, sportInfo?.has_distance, userSettings.distanceUnit]);
 
   const {
     data: goalsData,
@@ -119,13 +133,67 @@ export default function SportPage({ sport }: SportPageProps) {
     clearSaveError: clearGoalsSaveError,
   } = useUserConfig("goals", currentYear, sport, defaultGoalsForYear);
 
-  const goals = goalsData?.goals || [];
+  // Track if we've triggered migration for this session to avoid loops
+  const migrationTriggered = useRef(false);
 
+  // One-time migration: convert goals from miles to meters (legacy format)
+  // This runs once per year/sport when goals are first loaded
+  useEffect(() => {
+    if (!goalsData || migrationTriggered.current) return;
+    if (!sportInfo?.has_distance) return; // Only distance sports need migration
+
+    // Check if migration is needed
+    if (!isGoalUnitMigrated(currentYear, sport) && goalsData.goals.length > 0) {
+      migrationTriggered.current = true;
+      const { goals: migratedGoals, needsSave } = migrateGoalUnitsIfNeeded(
+        goalsData,
+        currentYear,
+        sport
+      );
+
+      if (needsSave) {
+        // Save migrated goals (now in meters)
+        updateGoals(migratedGoals).then(() => {
+          markGoalUnitMigrated(currentYear, sport);
+        });
+      } else {
+        // Already migrated or no conversion needed
+        markGoalUnitMigrated(currentYear, sport);
+      }
+    }
+  }, [goalsData, currentYear, sport, sportInfo?.has_distance, updateGoals]);
+
+  // Convert goals from meters (storage) to display units (miles/km) for UI
+  // Non-distance sports (yoga) don't need conversion
+  const goals: Goals = useMemo(() => {
+    if (!goalsData?.goals) return [];
+
+    // Only convert for distance-based sports
+    if (!sportInfo?.has_distance) {
+      return goalsData.goals.map((g) => ({
+        id: g.id,
+        value: g.value,
+        label: g.label,
+      }));
+    }
+
+    // Convert from meters to user's display unit
+    return goalsData.goals.map((g) => ({
+      id: g.id,
+      value: Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit)),
+      label: g.label,
+    }));
+  }, [goalsData, sportInfo?.has_distance, userSettings.distanceUnit]);
+
+  // Handle goals change: convert from display units back to meters for storage
   const handleGoalsChange = async (newGoals: Goals) => {
     const updatedGoalsForYear: GoalsForYear = {
       goals: newGoals.map((goal) => ({
         id: goal.id,
-        value: goal.value,
+        // Convert from display units to meters for storage (distance sports only)
+        value: sportInfo?.has_distance
+          ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
+          : goal.value,
         label: goal.label || "",
         updatedAt: new Date().toISOString(),
         createdAt:
