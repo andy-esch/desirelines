@@ -27,9 +27,14 @@ message GoalsForYear {
   repeated Goal goals = 1;
 }
 
+// A single goal with a target value
+// UNIT CONVENTIONS:
+// - For distance-based sports (cycling, running, etc.): value is in METERS
+// - For session-based sports (yoga, workout, etc.): value is the number of sessions
+// The frontend converts to display units (miles/km) based on user preferences.
 message Goal {
   string id = 1;
-  int32 value = 2; // Distance in miles
+  int32 value = 2; // See UNIT CONVENTIONS above
   string label = 3;
   string created_at = 4; // RFC3339 timestamp
   string updated_at = 5; // RFC3339 timestamp

@@ -10,7 +10,12 @@ export type MetricUnit = DistanceUnit | ElevationUnit | ActivityUnit | DurationU
 export const METERS_TO_MILES = 0.000621371;
 export const METERS_TO_KM = 0.001;
 export const METERS_TO_FEET = 3.28084;
+export const MILES_TO_METERS = 1609.344;
+export const KM_TO_METERS = 1000;
 
+/**
+ * Convert meters to display unit (miles, kilometers, or meters)
+ */
 export function convertDistance(meters: number, unit: DistanceUnit): number {
   switch (unit) {
     case "miles":
@@ -19,6 +24,21 @@ export function convertDistance(meters: number, unit: DistanceUnit): number {
       return meters * METERS_TO_KM;
     case "meters":
       return meters;
+  }
+}
+
+/**
+ * Convert display unit back to meters (for storage)
+ * This is the reverse of convertDistance()
+ */
+export function convertToMeters(value: number, unit: DistanceUnit): number {
+  switch (unit) {
+    case "miles":
+      return value * MILES_TO_METERS;
+    case "kilometers":
+      return value * KM_TO_METERS;
+    case "meters":
+      return value;
   }
 }
 
@@ -84,6 +104,36 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   elevationUnit: "feet", // US default
   defaultSport: "cycling", // User's main sport
 };
+
+/**
+ * Goal unit conversion helpers
+ *
+ * Goals are stored in METERS (canonical unit) and converted to display units
+ * (miles/km) based on user preference. This ensures goals remain correct when
+ * the user switches their unit preference.
+ */
+
+/**
+ * Convert a goal value from meters (storage) to display units
+ */
+export function goalMetersToDisplay(meters: number, unit: DistanceUnit): number {
+  return convertDistance(meters, unit);
+}
+
+/**
+ * Convert a goal value from display units to meters (for storage)
+ */
+export function goalDisplayToMeters(value: number, unit: DistanceUnit): number {
+  return convertToMeters(value, unit);
+}
+
+/**
+ * Round a goal value to appropriate precision for display
+ * (Avoids floating point display issues like 2499.99999)
+ */
+export function roundGoalForDisplay(value: number, roundingFactor: number): number {
+  return Math.round(value / roundingFactor) * roundingFactor;
+}
 
 /**
  * Get user settings from preferences with fallback to defaults

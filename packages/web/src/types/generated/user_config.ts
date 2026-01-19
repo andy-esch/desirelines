@@ -60,9 +60,16 @@ export interface GoalsForYear {
   goals: Goal[];
 }
 
+/**
+ * A single goal with a target value
+ * UNIT CONVENTIONS:
+ * - For distance-based sports (cycling, running, etc.): value is in METERS
+ * - For session-based sports (yoga, workout, etc.): value is the number of sessions
+ * The frontend converts to display units (miles/km) based on user preferences.
+ */
 export interface Goal {
   id: string;
-  /** Distance in miles */
+  /** See UNIT CONVENTIONS above */
   value: number;
   label: string;
   /** RFC3339 timestamp */
