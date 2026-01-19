@@ -1,5 +1,11 @@
 import { useMemo } from "react";
 import type { DistanceEntry } from "../types/activity";
+import type {
+  CumulativeChartDataPoint,
+  CurrentChartValues,
+  GoalLineData,
+  GoalAchievement,
+} from "../types/chartData";
 import type { Goals } from "../utils/goalCalculations";
 import {
   calculateDesireLine,
@@ -60,25 +66,19 @@ export function useCumulativeChartData({
 
   // 3. Grouped chart line projections
   const { goalLines, currentAverageLine } = useMemo(() => {
+    const lines: GoalLineData[] = goals.map((goal) => ({
+      goal,
+      line: calculateDesireLine(goal.value, year, displayEndDate),
+    }));
     return {
-      goalLines: goals.map((goal) => ({
-        goal,
-        line: calculateDesireLine(goal.value, year, displayEndDate),
-      })),
+      goalLines: lines,
       currentAverageLine: calculateCurrentAverageLine(distanceData, year, displayEndDate),
     };
   }, [goals, year, displayEndDate, distanceData]);
 
   // 4. Detect goal achievements (when actual crosses goal line)
-  const goalAchievements = useMemo(() => {
-    const achievements: Array<{
-      date: Date;
-      goalLabel: string;
-      goalValue: number;
-      actualValue: number;
-      goalColor: string;
-      goalIndex: number;
-    }> = [];
+  const goalAchievements: GoalAchievement[] = useMemo(() => {
+    const achievements: GoalAchievement[] = [];
 
     goalLines.forEach((gl, index) => {
       // Find first point where actual distance exceeds goal
@@ -106,13 +106,14 @@ export function useCumulativeChartData({
   }, [distanceData, goalLines]);
 
   // 5. Merge all data into a single array for Recharts
-  const mergedData = useMemo(() => {
-    const dataMap = new Map<number, Record<string, number | Date>>();
+  const mergedData: CumulativeChartDataPoint[] = useMemo(() => {
+    const dataMap = new Map<number, CumulativeChartDataPoint>();
 
     // Add actual distance data
     distanceData.forEach((point) => {
-      dataMap.set(new Date(point.x).getTime(), {
-        date: new Date(point.x),
+      const date = new Date(point.x);
+      dataMap.set(date.getTime(), {
+        date,
         actual: point.y,
       });
     });
@@ -120,8 +121,9 @@ export function useCumulativeChartData({
     // Add goal lines
     goalLines.forEach((gl, index) => {
       gl.line.forEach((point) => {
-        const timestamp = new Date(point.x).getTime();
-        const existing = dataMap.get(timestamp) || { date: new Date(point.x) };
+        const date = new Date(point.x);
+        const timestamp = date.getTime();
+        const existing = dataMap.get(timestamp) || { date };
         dataMap.set(timestamp, {
           ...existing,
           [`goal${index}`]: point.y,
@@ -131,8 +133,9 @@ export function useCumulativeChartData({
 
     // Add average line
     currentAverageLine.forEach((point) => {
-      const timestamp = new Date(point.x).getTime();
-      const existing = dataMap.get(timestamp) || { date: new Date(point.x) };
+      const date = new Date(point.x);
+      const timestamp = date.getTime();
+      const existing = dataMap.get(timestamp) || { date };
       dataMap.set(timestamp, {
         ...existing,
         average: point.y,
@@ -140,35 +143,31 @@ export function useCumulativeChartData({
     });
 
     // Convert map to sorted array
-    return Array.from(dataMap.values()).sort(
-      (a, b) => (a.date as Date).getTime() - (b.date as Date).getTime()
-    );
+    return Array.from(dataMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [distanceData, goalLines, currentAverageLine]);
 
   // 6. Calculate current summary values
-  const currentValues = useMemo(() => {
+  const currentValues: CurrentChartValues = useMemo(() => {
     const latestActualData = mergedData.find(
       (d) => d.actual !== undefined && typeof d.actual === "number" && d.actual > 0
     );
     const latestDataIndex =
       distanceData.length > 0
-        ? mergedData.findIndex(
-            (d) => d.date && new Date(d.date as Date).getTime() === latestDate.getTime()
-          )
+        ? mergedData.findIndex((d) => d.date.getTime() === latestDate.getTime())
         : mergedData.length - 1;
     const currentActualData = latestDataIndex >= 0 ? mergedData[latestDataIndex] : latestActualData;
 
     return {
       actual: totalDistanceTraveled,
       goals: goalLines.map((gl, index) => {
-        const goalValue = currentActualData?.[`goal${index}`] as number;
+        const goalValue = currentActualData?.[`goal${index}`];
         return {
           label: gl.goal.label,
-          value: goalValue || gl.goal.value,
+          value: typeof goalValue === "number" ? goalValue : gl.goal.value,
           color: GOAL_COLORS[index % GOAL_COLORS.length],
         };
       }),
-      average: (currentActualData?.average as number) || 0,
+      average: currentActualData?.average || 0,
     };
   }, [mergedData, distanceData, latestDate, totalDistanceTraveled, goalLines]);
 
@@ -177,15 +176,14 @@ export function useCumulativeChartData({
 
   const yAxisTicks = useMemo(() => {
     const maxValue = Math.max(
-      ...mergedData.flatMap(
-        (d) =>
-          [
-            d.actual,
-            ...Object.keys(d)
-              .filter((k) => k.startsWith("goal"))
-              .map((k) => d[k] as number),
-            d.average,
-          ].filter((v) => v !== undefined) as number[]
+      ...mergedData.flatMap((d) =>
+        [
+          d.actual,
+          ...Object.keys(d)
+            .filter((k) => k.startsWith("goal"))
+            .map((k) => d[k as keyof CumulativeChartDataPoint] as number),
+          d.average,
+        ].filter((v): v is number => v !== undefined)
       )
     );
 
