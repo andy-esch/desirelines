@@ -83,6 +83,18 @@ export function getElevationLabel(unit: ElevationUnit): string {
   }
 }
 
+/**
+ * Get display label for any metric unit (distance, activity, or duration).
+ * Handles both distance units (miles, km, m) and activity units (sessions).
+ */
+export function getMetricUnitLabel(unit: MetricUnit): string {
+  if (unit === "miles" || unit === "kilometers" || unit === "meters") {
+    return getDistanceLabel(unit);
+  }
+  // Return as-is for activity units (e.g., "sessions", "minutes", "hours")
+  return unit;
+}
+
 // Default user settings (can be loaded from Firestore later)
 export interface UserSettings {
   distanceUnit: DistanceUnit;

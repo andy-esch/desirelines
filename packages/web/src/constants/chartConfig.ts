@@ -35,12 +35,10 @@ export const CHART_CONFIG = {
     stroke: "#666",
   },
 
-  /** Y-axis marker styling */
+  /** Y-axis marker styling (only fontSize used; radius/fontWeight use component defaults) */
   marker: {
-    radius: 4,
     fontSize: {
       actual: 12,
-      goal: 11,
     },
   },
 
@@ -71,10 +69,8 @@ export const CHART_CONFIG = {
     duration: 50,
   },
 
-  /** Goal achievement marker styling */
+  /** Goal achievement marker styling (visibility controlled by showAchievements prop) */
   achievementMarker: {
-    /** Show achievement markers on chart */
-    enabled: true,
     /** Use SVG path star (true) or unicode character (false) */
     useSvgStar: true,
     /** Size of the star marker */

@@ -318,7 +318,6 @@ export default function SportPage({ sport }: SportPageProps) {
               <CumulativeMetricsChart
                 year={currentYear}
                 goals={goals}
-                onGoalsChange={handleGoalsChange}
                 distanceData={chartData}
                 isLoading={isLoading}
                 error={error}

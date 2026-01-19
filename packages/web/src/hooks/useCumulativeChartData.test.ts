@@ -38,9 +38,7 @@ describe("useCumulativeChartData", () => {
 
     expect(result.current.mergedData.length).toBeGreaterThan(0);
     // Check if actual data is present
-    const actualPoints = result.current.mergedData.filter(
-      (d) => (d as Record<string, unknown>).actual !== undefined
-    );
+    const actualPoints = result.current.mergedData.filter((d) => d.actual !== undefined);
     expect(actualPoints.length).toBe(2);
   });
 
