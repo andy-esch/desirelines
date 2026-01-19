@@ -3,6 +3,11 @@
  *
  * Centralized configuration for Recharts components.
  * Defines layout, sizing, styling, and behavior settings.
+ *
+ * Architecture:
+ * - CHART_CONFIG: Shared settings used by all chart types
+ * - DANGER_ZONE_CONFIG: Pacing chart specific (zone of unachievability)
+ * - calculateYAxisDomain: Shared utility for cumulative chart Y-axis scaling
  */
 
 export const CHART_CONFIG = {
@@ -83,3 +88,53 @@ export const CHART_CONFIG = {
     unicodeFontSize: 18,
   },
 } as const;
+
+/**
+ * Danger Zone Configuration (Pacing Chart)
+ *
+ * Visual styling for the "zone of unachievability" that appears
+ * when required daily pace exceeds realistic limits.
+ */
+export const DANGER_ZONE_CONFIG = {
+  /** Shaded area fill */
+  area: {
+    fill: "rgba(255, 152, 0, 0.08)",
+    fillOpacity: 0.5,
+    stroke: "rgba(255, 152, 0, 0.3)",
+    strokeDasharray: "3 3",
+  },
+  /** Threshold line */
+  line: {
+    stroke: "#ff9800",
+    strokeWidth: 2,
+    strokeDasharray: "5 5",
+  },
+  /** Label styling */
+  label: {
+    fill: "#e65100",
+    fontSize: 12,
+    fontWeight: 600,
+    fontStyle: "italic" as const,
+    position: "insideTopLeft" as const,
+    offset: 5,
+  },
+} as const;
+
+/**
+ * Calculate Y-axis domain maximum for cumulative charts.
+ *
+ * Uses tiered rounding to create clean axis values:
+ * - < 500: round to nearest 100
+ * - < 2000: round to nearest 250
+ * - < 5000: round to nearest 500
+ * - >= 5000: round to nearest 1000
+ *
+ * @param dataMax - Maximum value in the data
+ * @returns Rounded maximum for Y-axis domain
+ */
+export function calculateCumulativeYAxisMax(dataMax: number): number {
+  if (dataMax < 500) return Math.ceil(dataMax / 100) * 100;
+  if (dataMax < 2000) return Math.ceil(dataMax / 250) * 250;
+  if (dataMax < 5000) return Math.ceil(dataMax / 500) * 500;
+  return Math.ceil(dataMax / 1000) * 1000;
+}

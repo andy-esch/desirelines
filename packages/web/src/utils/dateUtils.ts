@@ -180,3 +180,26 @@ export function formatDisplayDate(
 ): string {
   return date.toLocaleDateString("en-US", options);
 }
+
+/**
+ * Format a timestamp for chart X-axis tick labels.
+ *
+ * Uses UTC timezone because chart data timestamps are stored in UTC.
+ * This ensures consistent display regardless of user's local timezone.
+ *
+ * @param timestamp - Unix timestamp in milliseconds
+ * @returns Formatted date string (e.g., "Jan 15")
+ *
+ * @example
+ * ```ts
+ * formatChartAxisDate(1705276800000); // "Jan 15"
+ * ```
+ */
+export function formatChartAxisDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}

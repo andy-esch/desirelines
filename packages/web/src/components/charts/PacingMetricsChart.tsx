@@ -1,39 +1,74 @@
-// Recharts implementation of PacingMetricsChart
+/**
+ * PacingMetricsChart - Container component for daily pacing charts.
+ *
+ * This is a "smart" container that:
+ * - Fetches and transforms data via usePacingChartData hook
+ * - Handles loading/error/empty states via ChartContainer
+ * - Delegates rendering to PacingChartPresenter
+ *
+ * Architecture: Container/Presenter pattern
+ * - Container (this file): Data, state, callbacks
+ * - Presenter (PacingChartPresenter): Pure rendering
+ */
 import { memo } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  ReferenceArea,
-} from "recharts";
 import type { DistanceEntry } from "../../types/activity";
-import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
-import { CHART_CONFIG } from "../../constants/chartConfig";
 import { type Goals } from "../../utils/goalCalculations";
-import ChartTooltip from "./ChartTooltip";
-import ChartContainer from "./ChartContainer";
-import YAxisMarker from "./YAxisMarker";
 import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
 import { usePacingChartData } from "../../hooks/usePacingChartData";
+import ChartContainer from "./ChartContainer";
+import PacingChartPresenter from "./PacingChartPresenter";
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface PacingMetricsChartProps {
+  /** Year to display data for */
   year: number;
+  /** User's distance goals */
   goals: Goals;
+  /** Cumulative distance data points */
   distanceData: DistanceEntry[];
+  /** Whether data is currently loading */
   isLoading: boolean;
+  /** Error from data fetch, if any */
   error: Error | null;
+  /** Whether to show full year or just up to latest data */
   showFullYear?: boolean;
+  /** Hide the header section */
   hideHeader?: boolean;
+  /** Unit for display (miles, kilometers, sessions) */
   unit?: MetricUnit;
+  /** Sport type for empty state and danger zone threshold */
   sport?: string;
+  /** Callback for retry on error */
   onRetry?: () => void;
 }
 
+// ============================================================================
+// Main Component
+// ============================================================================
+
+/**
+ * Container component for daily pacing charts.
+ *
+ * Shows the required daily pace to achieve goals, with a "danger zone"
+ * indicating when the required pace becomes unrealistic.
+ *
+ * @example
+ * ```tsx
+ * <PacingMetricsChart
+ *   year={2024}
+ *   goals={userGoals}
+ *   distanceData={activityData}
+ *   isLoading={isLoading}
+ *   error={error}
+ *   showFullYear={true}
+ *   unit="miles"
+ *   sport="cycling"
+ * />
+ * ```
+ */
 const PacingMetricsChart = (props: PacingMetricsChartProps) => {
   const {
     year,
@@ -48,10 +83,14 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     onRetry,
   } = props;
 
+  // Derive display values
+  const isSessionsMode = unit === "sessions";
   const unitLabel = getMetricUnitLabel(unit);
-  const chartTitle =
-    unit === "sessions" ? "Daily Activity (sessions / day)" : `Daily Pace (${unitLabel} / day)`;
+  const chartTitle = isSessionsMode
+    ? "Daily Activity (sessions / day)"
+    : `Daily Pace (${unitLabel} / day)`;
 
+  // Get chart data from hook
   const {
     startDate,
     displayEndDate,
@@ -80,118 +119,22 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
       emptyStateConfig={{ sport, year, unit, message: "No pacing data available" }}
       className={hideHeader ? "" : "mt-4"}
     >
-      <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
-        <LineChart data={mergedData} margin={CHART_CONFIG.margin} accessibilityLayer>
-          <CartesianGrid
-            strokeDasharray={CHART_CONFIG.grid.strokeDasharray}
-            stroke={CHART_CONFIG.grid.stroke}
-            opacity={CHART_CONFIG.grid.opacity}
-          />
-          <XAxis
-            dataKey="date"
-            type="number"
-            domain={[startDate.getTime(), displayEndDate.getTime()]}
-            scale="time"
-            tickFormatter={(timestamp) => {
-              const date = new Date(timestamp);
-              const formatter = new Intl.DateTimeFormat("en-US", {
-                month: "short",
-                day: "numeric",
-                timeZone: "UTC",
-              });
-              return formatter.format(date);
-            }}
-            stroke={CHART_CONFIG.axis.stroke}
-            tick={{ fontSize: 11 }}
-            interval="preserveStartEnd"
-          />
-          <YAxis
-            label={{
-              value: unit === "sessions" ? "# Sessions / Day" : `${unitLabel} / Day`,
-              angle: -90,
-              position: "insideLeft",
-            }}
-            domain={[0, naturalYMax]}
-            allowDataOverflow={true}
-            stroke={CHART_CONFIG.axis.stroke}
-            tickFormatter={(value: number) => value.toFixed(1)}
-          />
-          <Tooltip content={<ChartTooltip unit={`${unitLabel}/day`} decimals={2} />} />
-
-          {/* ZONE OF UNACHIEVABILITY - Only visible when threshold is within natural range */}
-          {shouldShowDangerZone && (
-            <ReferenceArea
-              y1={dangerThreshold}
-              y2={naturalYMax}
-              fill="rgba(255, 152, 0, 0.08)"
-              fillOpacity={0.5}
-              stroke="rgba(255, 152, 0, 0.3)"
-              strokeDasharray="3 3"
-            />
-          )}
-
-          {/* Threshold line at danger zone boundary with label */}
-          {shouldShowDangerZone && (
-            <ReferenceLine
-              y={dangerThreshold}
-              stroke="#ff9800"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              label={{
-                value: `Zone of Unachievability (${dangerThreshold} ${unitLabel}/day)`,
-                position: "insideTopLeft",
-                fill: "#e65100",
-                fontSize: 12,
-                fontWeight: 600,
-                fontStyle: "italic",
-                offset: 5,
-              }}
-            />
-          )}
-
-          {/* Y-axis markers for current values */}
-          <YAxisMarker
-            value={currentValues.actual}
-            label="Actual"
-            color={CHART_COLORS.ACTUAL_DATA_LINE}
-            fontSize={CHART_CONFIG.marker.fontSize.actual}
-            fontWeight="bold"
-          />
-          {currentValues.goals.map((goal, index) => (
-            <YAxisMarker
-              key={index}
-              value={goal.value}
-              label={goal.label || "Goal"}
-              color={goal.color}
-            />
-          ))}
-
-          {/* Actual pacing */}
-          <Line
-            type="monotone"
-            dataKey="actual"
-            stroke={CHART_COLORS.ACTUAL_DATA_LINE}
-            strokeWidth={CHART_CONFIG.strokeWidth.actual}
-            dot={false}
-            name={`${year} Pacing Data`}
-            animationDuration={CHART_CONFIG.animation.duration}
-          />
-
-          {/* Pacing goal lines */}
-          {pacingGoals.map((pg, index) => (
-            <Line
-              key={pg.goal.id}
-              type="monotone"
-              dataKey={`goal${index}`}
-              stroke={GOAL_COLORS[index % GOAL_COLORS.length]}
-              strokeWidth={CHART_CONFIG.strokeWidth.goal}
-              dot={false}
-              name={`${pg.goal.label || "Goal"} Pacing: ${pg.goal.value} ${unitLabel}`}
-              animationDuration={CHART_CONFIG.animation.duration}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
+      <PacingChartPresenter
+        mergedData={mergedData}
+        pacingGoals={pacingGoals}
+        currentValues={currentValues}
+        startDate={startDate}
+        displayEndDate={displayEndDate}
+        naturalYMax={naturalYMax}
+        year={year}
+        unitLabel={unitLabel}
+        isSessionsMode={isSessionsMode}
+        dangerZone={{
+          show: shouldShowDangerZone,
+          threshold: dangerThreshold,
+          yMax: naturalYMax,
+        }}
+      />
     </ChartContainer>
   );
 };
