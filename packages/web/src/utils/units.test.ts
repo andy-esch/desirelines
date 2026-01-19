@@ -5,7 +5,6 @@ import {
   convertElevation,
   goalMetersToDisplay,
   goalDisplayToMeters,
-  roundGoalForDisplay,
   METERS_TO_MILES,
   METERS_TO_KM,
   MILES_TO_METERS,
@@ -145,24 +144,6 @@ describe("units", () => {
       const asKm = goalMetersToDisplay(asMeters, "kilometers");
       // 3500 miles ≈ 5632.7 km
       expect(asKm).toBeCloseTo(5632.7, 0);
-    });
-  });
-
-  describe("roundGoalForDisplay", () => {
-    it("should round to nearest 100 for cycling", () => {
-      expect(roundGoalForDisplay(2549, 100)).toBe(2500);
-      expect(roundGoalForDisplay(2550, 100)).toBe(2600);
-      expect(roundGoalForDisplay(2499.99, 100)).toBe(2500);
-    });
-
-    it("should round to nearest 10 for running", () => {
-      expect(roundGoalForDisplay(1005, 10)).toBe(1010);
-      expect(roundGoalForDisplay(1004, 10)).toBe(1000);
-    });
-
-    it("should handle edge cases", () => {
-      expect(roundGoalForDisplay(0, 100)).toBe(0);
-      expect(roundGoalForDisplay(50, 100)).toBe(100);
     });
   });
 

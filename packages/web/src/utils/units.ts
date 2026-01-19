@@ -83,15 +83,6 @@ export function getElevationLabel(unit: ElevationUnit): string {
   }
 }
 
-export function getMetricLabel(unit: MetricUnit): string {
-  // Check if it's a distance unit first
-  if (unit === "miles" || unit === "kilometers" || unit === "meters") {
-    return getDistanceLabel(unit as DistanceUnit);
-  }
-  // Otherwise it's an activity unit
-  return unit; // "sessions" stays as is
-}
-
 // Default user settings (can be loaded from Firestore later)
 export interface UserSettings {
   distanceUnit: DistanceUnit;
@@ -125,14 +116,6 @@ export function goalMetersToDisplay(meters: number, unit: DistanceUnit): number 
  */
 export function goalDisplayToMeters(value: number, unit: DistanceUnit): number {
   return convertToMeters(value, unit);
-}
-
-/**
- * Round a goal value to appropriate precision for display
- * (Avoids floating point display issues like 2499.99999)
- */
-export function roundGoalForDisplay(value: number, roundingFactor: number): number {
-  return Math.round(value / roundingFactor) * roundingFactor;
 }
 
 /**
