@@ -87,15 +87,16 @@ describe("MultiSportComparisonChart", () => {
   });
 
   describe("loading state", () => {
-    it("shows loading spinner when data is loading", () => {
+    it("shows skeleton loaders when data is loading", () => {
       mockUseDailySportData.mockReturnValue(
         mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
       );
 
       renderWithRouter(<MultiSportComparisonChart />);
 
+      // Skeleton container has role="status" for accessibility
       expect(screen.getByRole("status")).toBeInTheDocument();
-      expect(screen.getByText("Loading...")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Loading activity data");
     });
 
     it("shows Recent Activity header while loading", () => {
@@ -108,7 +109,7 @@ describe("MultiSportComparisonChart", () => {
       expect(screen.getByRole("heading", { name: "Recent Activity" })).toBeInTheDocument();
     });
 
-    it("shows loading spinner when useVisibleSports is loading", () => {
+    it("shows skeleton loaders when useVisibleSports is loading", () => {
       // Data is ready, but visible sports preferences are still loading
       mockUseDailySportData.mockReturnValue(
         mockDailySportDataReturn({ data: emptyDailySportData })
@@ -118,10 +119,10 @@ describe("MultiSportComparisonChart", () => {
       renderWithRouter(<MultiSportComparisonChart />);
 
       expect(screen.getByRole("status")).toBeInTheDocument();
-      expect(screen.getByText("Loading...")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Loading activity data");
     });
 
-    it("shows loading spinner when useSportConfig is loading", () => {
+    it("shows skeleton loaders when useSportConfig is loading", () => {
       // Data is ready, but sport config is still loading
       mockUseDailySportData.mockReturnValue(
         mockDailySportDataReturn({ data: emptyDailySportData })
@@ -133,10 +134,10 @@ describe("MultiSportComparisonChart", () => {
       renderWithRouter(<MultiSportComparisonChart />);
 
       expect(screen.getByRole("status")).toBeInTheDocument();
-      expect(screen.getByText("Loading...")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Loading activity data");
     });
 
-    it("shows loading spinner when all hooks are loading simultaneously", () => {
+    it("shows skeleton loaders when all hooks are loading simultaneously", () => {
       mockUseDailySportData.mockReturnValue(
         mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
       );
