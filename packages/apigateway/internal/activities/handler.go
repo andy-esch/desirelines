@@ -296,6 +296,11 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 
 	// Parse 'sport' (optional) - maps to Strava sport types
 	if sport := query.Get("sport"); sport != "" {
+		if errMsg := validate.Sport(sport); errMsg != "" {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+			apierrors.WriteError(w, r, apiErr, h.logger)
+			return
+		}
 		stravaTypes := h.sportConfig.GetStravaTypes(sport)
 		if stravaTypes == nil {
 			apiErr := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
@@ -318,6 +323,11 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 
 	// Parse 'cursor' for pagination
 	if cursorStr := query.Get("cursor"); cursorStr != "" {
+		if errMsg := validate.Cursor(cursorStr); errMsg != "" {
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+			apierrors.WriteError(w, r, apiErr, h.logger)
+			return
+		}
 		cursor, err := decodeCursor(cursorStr)
 		if err != nil {
 			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid cursor")
@@ -365,6 +375,13 @@ func (h *Handler) validateAndGetSportTypes(w http.ResponseWriter, r *http.Reques
 	sport := r.URL.Query().Get("sport")
 	if sport == "" {
 		err := apierrors.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
+		apierrors.WriteError(w, r, err, h.logger)
+		return nil, false
+	}
+
+	// Validate length to prevent oversized inputs
+	if errMsg := validate.Sport(sport); errMsg != "" {
+		err := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
 		apierrors.WriteError(w, r, err, h.logger)
 		return nil, false
 	}

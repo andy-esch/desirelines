@@ -21,19 +21,55 @@ const (
 
 	// DateFormat is the standard date format for API requests.
 	DateFormat = "2006-01-02"
+
+	// MaxSportLength is the maximum length of a sport query parameter.
+	// Longest known sport name is ~20 chars, 50 provides buffer.
+	MaxSportLength = 50
+
+	// MaxCursorLength is the maximum length of a pagination cursor.
+	// Base64-encoded "RFC3339 timestamp|int64 ID" is typically <60 chars.
+	MaxCursorLength = 100
+
+	// MaxDateLength is the maximum length of a date string (YYYY-MM-DD = 10).
+	MaxDateLength = 10
+
+	// MaxYearLength is the maximum length of a year string (YYYY = 4).
+	MaxYearLength = 4
 )
 
 // Year validates that the year string is a 4-digit number within valid bounds.
 func Year(s string) bool {
-	if len(s) != 4 {
+	if len(s) != 4 || len(s) > MaxYearLength {
 		return false
 	}
 	year, err := strconv.Atoi(s)
 	return err == nil && year >= MinValidYear && year <= MaxValidYear
 }
 
+// Sport validates that the sport string is within acceptable length bounds.
+// Returns an error message if invalid, empty string if valid.
+func Sport(s string) string {
+	if len(s) > MaxSportLength {
+		return fmt.Sprintf("Sport parameter too long (max %d characters)", MaxSportLength)
+	}
+	return ""
+}
+
+// Cursor validates that the cursor string is within acceptable length bounds.
+// Returns an error message if invalid, empty string if valid.
+func Cursor(s string) string {
+	if len(s) > MaxCursorLength {
+		return fmt.Sprintf("Cursor parameter too long (max %d characters)", MaxCursorLength)
+	}
+	return ""
+}
+
 // Date checks if the string is a valid YYYY-MM-DD date.
+// Also validates length to prevent oversized inputs.
 func Date(s string) bool {
+	if len(s) > MaxDateLength {
+		return false
+	}
 	_, err := time.Parse(DateFormat, s)
 	return err == nil
 }

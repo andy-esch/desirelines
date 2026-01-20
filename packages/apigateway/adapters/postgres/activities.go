@@ -1,3 +1,18 @@
+// Package postgres provides PostgreSQL adapters for the repository interfaces.
+// This is the infrastructure layer in hexagonal architecture, implementing
+// the ports defined in the repository package.
+//
+// Components:
+//   - Pool: Connection pool wrapper with serverless-optimized settings
+//   - ActivityRepository: Implements repository.ActivityRepository for activities data
+//
+// The package uses pgx/v5 for PostgreSQL connectivity and provides:
+//   - Cumulative metrics queries (GetSportMetrics, GetSportMetricsByDateRange)
+//   - Daily summary queries (GetDailySummary, GetDailySummaryByDateRange)
+//   - Activity CRUD operations (GetActivityByID, ListActivities)
+//   - Year metadata aggregation (GetYearMetadata)
+//
+// All queries use parameterized statements to prevent SQL injection.
 package postgres
 
 import (
