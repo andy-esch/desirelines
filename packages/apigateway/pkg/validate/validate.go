@@ -75,7 +75,9 @@ func DateRange(fromStr, toStr string) string {
 	}
 
 	// Validate: date range must not exceed 1 year (366 days)
-	if toDate.Sub(fromDate).Hours()/24 > float64(MaxDateRangeDays) {
+	// Use integer division to avoid floating point precision issues
+	days := int(toDate.Sub(fromDate) / (24 * time.Hour))
+	if days > MaxDateRangeDays {
 		return fmt.Sprintf("Date range must not exceed %d days", MaxDateRangeDays)
 	}
 

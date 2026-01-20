@@ -92,8 +92,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 
 // sportQueryParams holds validated parameters for sport-based queries.
 type sportQueryParams struct {
-	year         string
-	yearInt      int
+	year         int // parsed year value (only used when useDateRange is false)
 	sportTypes   []string
 	from         string // empty if not using date range
 	to           string // empty if not using date range
@@ -103,8 +102,16 @@ type sportQueryParams struct {
 // validateSportQuery validates common parameters for metrics and source endpoints.
 // Returns nil and writes error response if validation fails.
 func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sportQueryParams {
-	year, ok := h.validateAndGetYear(w, r)
+	yearStr, ok := h.validateAndGetYear(w, r)
 	if !ok {
+		return nil
+	}
+
+	// Parse year to int (validation already confirmed it's a valid 4-digit year)
+	yearInt, parseErr := strconv.Atoi(yearStr)
+	if parseErr != nil {
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
@@ -128,25 +135,13 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		return nil
 	}
 
-	params := &sportQueryParams{
-		year:         year,
+	return &sportQueryParams{
+		year:         yearInt,
 		sportTypes:   sportTypes,
 		from:         fromStr,
 		to:           toStr,
 		useDateRange: fromStr != "" && toStr != "",
 	}
-
-	if !params.useDateRange {
-		yearInt, parseErr := strconv.Atoi(year)
-		if parseErr != nil {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return nil
-		}
-		params.yearInt = yearInt
-	}
-
-	return params
 }
 
 // logAndRespondDBError logs a database error and writes an error response.
@@ -184,7 +179,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	if params.useDateRange {
 		result, err = h.repo.GetSportMetricsByDateRange(ctx, params.from, params.to, params.sportTypes)
 	} else {
-		result, err = h.repo.GetSportMetrics(ctx, params.yearInt, params.sportTypes)
+		result, err = h.repo.GetSportMetrics(ctx, params.year, params.sportTypes)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
@@ -212,7 +207,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	if params.useDateRange {
 		result, err = h.repo.GetDailySummaryByDateRange(ctx, params.from, params.to, params.sportTypes)
 	} else {
-		result, err = h.repo.GetDailySummary(ctx, params.yearInt, params.sportTypes)
+		result, err = h.repo.GetDailySummary(ctx, params.year, params.sportTypes)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
@@ -398,13 +393,24 @@ func decodeCursor(s string) (*repository.ActivityCursor, error) {
 	}
 
 	// Validate timestamp format (RFC3339) to prevent database errors
-	if _, err = time.Parse(time.RFC3339, parts[0]); err != nil {
+	ts, err := time.Parse(time.RFC3339, parts[0])
+	if err != nil {
 		return nil, fmt.Errorf("invalid cursor timestamp: %w", err)
+	}
+
+	// Reject future timestamps - cursors should only reference past data
+	if ts.After(time.Now()) {
+		return nil, fmt.Errorf("invalid cursor: timestamp is in the future")
 	}
 
 	id, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("parse id: %w", err)
+	}
+
+	// Reject non-positive IDs - activity IDs must be positive
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid cursor: id must be positive")
 	}
 
 	return &repository.ActivityCursor{

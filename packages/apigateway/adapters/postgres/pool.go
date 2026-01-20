@@ -7,9 +7,21 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Pool configuration defaults (can be overridden via environment variables).
+// These are optimized for serverless environments like Cloud Run.
+const (
+	defaultMaxConns          = 5                // Low max for Cloud Run (1 concurrent request by default)
+	defaultMinConns          = 0                // Scale to zero when idle
+	defaultMaxConnLifetime   = 30 * time.Minute // Refresh connections periodically
+	defaultMaxConnIdleTime   = 5 * time.Minute  // Release idle connections quickly
+	defaultHealthCheckPeriod = 1 * time.Minute
 )
 
 // Sentinel errors for connection string validation.
@@ -28,6 +40,52 @@ type Pool struct {
 	*pgxpool.Pool
 }
 
+// PoolStats contains connection pool statistics for monitoring and diagnostics.
+type PoolStats struct {
+	// AcquireCount is the cumulative count of successful acquires from the pool.
+	AcquireCount int64
+	// AcquireDuration is the total duration of all successful acquires.
+	AcquireDuration time.Duration
+	// AcquiredConns is the number of currently acquired connections.
+	AcquiredConns int32
+	// CanceledAcquireCount is the cumulative count of acquires canceled by context.
+	CanceledAcquireCount int64
+	// EmptyAcquireCount is the cumulative count of acquires that waited for a connection
+	// because the pool was empty.
+	EmptyAcquireCount int64
+	// IdleConns is the number of currently idle connections.
+	IdleConns int32
+	// MaxConns is the maximum size of the pool.
+	MaxConns int32
+	// TotalConns is the total number of connections currently in the pool.
+	TotalConns int32
+	// NewConnsCount is the cumulative count of new connections opened.
+	NewConnsCount int64
+	// MaxLifetimeDestroyCount is the cumulative count of connections destroyed due to MaxConnLifetime.
+	MaxLifetimeDestroyCount int64
+	// MaxIdleDestroyCount is the cumulative count of connections destroyed due to MaxConnIdleTime.
+	MaxIdleDestroyCount int64
+}
+
+// Stats returns current connection pool statistics for monitoring.
+// Use this to diagnose connection issues and tune pool settings.
+func (p *Pool) Stats() PoolStats {
+	s := p.Pool.Stat()
+	return PoolStats{
+		AcquireCount:            s.AcquireCount(),
+		AcquireDuration:         s.AcquireDuration(),
+		AcquiredConns:           s.AcquiredConns(),
+		CanceledAcquireCount:    s.CanceledAcquireCount(),
+		EmptyAcquireCount:       s.EmptyAcquireCount(),
+		IdleConns:               s.IdleConns(),
+		MaxConns:                s.MaxConns(),
+		TotalConns:              s.TotalConns(),
+		NewConnsCount:           s.NewConnsCount(),
+		MaxLifetimeDestroyCount: s.MaxLifetimeDestroyCount(),
+		MaxIdleDestroyCount:     s.MaxIdleDestroyCount(),
+	}
+}
+
 // NewPool creates a PostgreSQL connection pool optimized for serverless environments.
 // Connection string must be provided by the caller.
 // Validates that application_name is present for observability.
@@ -42,13 +100,12 @@ func NewPool(ctx context.Context, connString string, logger *slog.Logger) (*Pool
 		return nil, fmt.Errorf("parse connection string: %w", err)
 	}
 
-	// Serverless-friendly pool settings
-	// Cloud Run has low concurrency (1 by default), optimize for quick acquisition/release
-	config.MaxConns = 5                       // Low max for Cloud Run
-	config.MinConns = 0                       // Scale to zero when idle
-	config.MaxConnLifetime = 30 * time.Minute // Refresh connections periodically
-	config.MaxConnIdleTime = 5 * time.Minute  // Release idle connections quickly
-	config.HealthCheckPeriod = 1 * time.Minute
+	// Serverless-friendly pool settings (configurable via environment variables)
+	config.MaxConns = int32(getIntEnv("DB_POOL_MAX_CONNS", defaultMaxConns))
+	config.MinConns = int32(getIntEnv("DB_POOL_MIN_CONNS", defaultMinConns))
+	config.MaxConnLifetime = getDurationEnvMinutes("DB_POOL_MAX_CONN_LIFETIME_MINUTES", defaultMaxConnLifetime)
+	config.MaxConnIdleTime = getDurationEnvMinutes("DB_POOL_MAX_CONN_IDLE_MINUTES", defaultMaxConnIdleTime)
+	config.HealthCheckPeriod = getDurationEnvMinutes("DB_POOL_HEALTH_CHECK_MINUTES", defaultHealthCheckPeriod)
 
 	logger.Info("Creating PostgreSQL connection pool",
 		"max_conns", config.MaxConns,
@@ -94,8 +151,24 @@ func validateConnectionString(connString string) error {
 	return nil
 }
 
-// validateApplicationName is an alias for backward compatibility with tests.
-// Deprecated: Use validateConnectionString instead.
-func validateApplicationName(connString string) error {
-	return validateConnectionString(connString)
+// getIntEnv reads an integer from environment variable.
+// Returns defaultValue if the environment variable is not set or invalid.
+func getIntEnv(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if i, err := strconv.Atoi(value); err == nil && i >= 0 {
+			return i
+		}
+	}
+	return defaultValue
+}
+
+// getDurationEnvMinutes reads a duration (in minutes) from environment variable.
+// Returns defaultValue if the environment variable is not set or invalid.
+func getDurationEnvMinutes(key string, defaultValue time.Duration) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if minutes, err := strconv.Atoi(value); err == nil && minutes > 0 {
+			return time.Duration(minutes) * time.Minute
+		}
+	}
+	return defaultValue
 }

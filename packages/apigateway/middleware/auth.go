@@ -127,7 +127,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		}
 
 		// Email is authorized, proceed
-		m.logger.Info("Auth: Request authorized successfully", "email", email)
+		m.logger.Debug("Auth: Request authorized successfully", "email", email)
 		next.ServeHTTP(w, r)
 	})
 }
