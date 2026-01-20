@@ -70,7 +70,7 @@ type PoolStats struct {
 // Stats returns current connection pool statistics for monitoring.
 // Use this to diagnose connection issues and tune pool settings.
 func (p *Pool) Stats() PoolStats {
-	s := p.Pool.Stat()
+	s := p.Stat()
 	return PoolStats{
 		AcquireCount:            s.AcquireCount(),
 		AcquireDuration:         s.AcquireDuration(),
@@ -101,8 +101,8 @@ func NewPool(ctx context.Context, connString string, logger *slog.Logger) (*Pool
 	}
 
 	// Serverless-friendly pool settings (configurable via environment variables)
-	config.MaxConns = int32(getIntEnv("DB_POOL_MAX_CONNS", defaultMaxConns))
-	config.MinConns = int32(getIntEnv("DB_POOL_MIN_CONNS", defaultMinConns))
+	config.MaxConns = getInt32Env("DB_POOL_MAX_CONNS", defaultMaxConns)
+	config.MinConns = getInt32Env("DB_POOL_MIN_CONNS", defaultMinConns)
 	config.MaxConnLifetime = getDurationEnvMinutes("DB_POOL_MAX_CONN_LIFETIME_MINUTES", defaultMaxConnLifetime)
 	config.MaxConnIdleTime = getDurationEnvMinutes("DB_POOL_MAX_CONN_IDLE_MINUTES", defaultMaxConnIdleTime)
 	config.HealthCheckPeriod = getDurationEnvMinutes("DB_POOL_HEALTH_CHECK_MINUTES", defaultHealthCheckPeriod)
@@ -151,12 +151,12 @@ func validateConnectionString(connString string) error {
 	return nil
 }
 
-// getIntEnv reads an integer from environment variable.
+// getInt32Env reads an int32 from environment variable.
 // Returns defaultValue if the environment variable is not set or invalid.
-func getIntEnv(key string, defaultValue int) int {
+func getInt32Env(key string, defaultValue int32) int32 {
 	if value := os.Getenv(key); value != "" {
-		if i, err := strconv.Atoi(value); err == nil && i >= 0 {
-			return i
+		if i, err := strconv.ParseInt(value, 10, 32); err == nil && i >= 0 {
+			return int32(i)
 		}
 	}
 	return defaultValue

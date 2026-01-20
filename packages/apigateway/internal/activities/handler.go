@@ -267,83 +267,19 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse query parameters
-	query := r.URL.Query()
-
-	filter := repository.ActivityListFilter{
-		Limit: 20, // Default
-	}
-
-	// Parse 'from' date
-	if fromStr := query.Get("from"); fromStr != "" {
-		if !validate.Date(fromStr) {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.From = &fromStr
-	}
-
-	// Parse 'to' date
-	if toStr := query.Get("to"); toStr != "" {
-		if !validate.Date(toStr) {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.To = &toStr
-	}
-
-	// Parse 'sport' (optional) - maps to Strava sport types
-	if sport := query.Get("sport"); sport != "" {
-		if errMsg := validate.Sport(sport); errMsg != "" {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		stravaTypes := h.sportConfig.GetStravaTypes(sport)
-		if stravaTypes == nil {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.SportTypes = stravaTypes
-	}
-
-	// Parse 'limit'
-	if limitStr := query.Get("limit"); limitStr != "" {
-		limit, err := strconv.Atoi(limitStr)
-		if err != nil || limit < 1 || limit > 100 {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-100)")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.Limit = limit
-	}
-
-	// Parse 'cursor' for pagination
-	if cursorStr := query.Get("cursor"); cursorStr != "" {
-		if errMsg := validate.Cursor(cursorStr); errMsg != "" {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		cursor, err := decodeCursor(cursorStr)
-		if err != nil {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid cursor")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.Cursor = cursor
+	filter, apiErr := h.parseListActivitiesFilter(r)
+	if apiErr.Status != 0 {
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
 	defer cancel()
 
-	result, err := h.repo.ListActivities(ctx, filter)
+	result, err := h.repo.ListActivities(ctx, *filter)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err)
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr = apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
 			fmt.Sprintf("Database query failed: %v", err),
@@ -353,6 +289,66 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.respondProtobuf(w, r, result)
+}
+
+// parseListActivitiesFilter parses and validates query parameters for ListActivities.
+// Returns a zero-value APIError (Status=0) on success.
+func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.ActivityListFilter, apierrors.APIError) {
+	query := r.URL.Query()
+	filter := repository.ActivityListFilter{
+		Limit: 20, // Default
+	}
+
+	// Parse 'from' date
+	if fromStr := query.Get("from"); fromStr != "" {
+		if !validate.Date(fromStr) {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
+		}
+		filter.From = &fromStr
+	}
+
+	// Parse 'to' date
+	if toStr := query.Get("to"); toStr != "" {
+		if !validate.Date(toStr) {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
+		}
+		filter.To = &toStr
+	}
+
+	// Parse 'sport' (optional) - maps to Strava sport types
+	if sport := query.Get("sport"); sport != "" {
+		if errMsg := validate.Sport(sport); errMsg != "" {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+		}
+		stravaTypes := h.sportConfig.GetStravaTypes(sport)
+		if stravaTypes == nil {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
+		}
+		filter.SportTypes = stravaTypes
+	}
+
+	// Parse 'limit'
+	if limitStr := query.Get("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit < 1 || limit > 100 {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-100)")
+		}
+		filter.Limit = limit
+	}
+
+	// Parse 'cursor' for pagination
+	if cursorStr := query.Get("cursor"); cursorStr != "" {
+		if errMsg := validate.Cursor(cursorStr); errMsg != "" {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+		}
+		cursor, err := decodeCursor(cursorStr)
+		if err != nil {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid cursor")
+		}
+		filter.Cursor = cursor
+	}
+
+	return &filter, apierrors.APIError{}
 }
 
 // validateAndGetYear extracts and validates the year path parameter.
