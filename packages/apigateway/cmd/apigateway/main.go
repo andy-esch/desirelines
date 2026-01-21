@@ -129,16 +129,7 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	deps.sportConfig = sportConfig
 
 	// 2. Initialize CORS handler
-	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
-	var allowedOrigins []string
-	if allowedOriginsEnv != "" {
-		parts := strings.Split(allowedOriginsEnv, ",")
-		for _, o := range parts {
-			if trimmed := strings.TrimSpace(o); trimmed != "" {
-				allowedOrigins = append(allowedOrigins, trimmed)
-			}
-		}
-	}
+	allowedOrigins := parseCommaSeparatedEnv("ALLOWED_ORIGINS")
 	deps.corsHandler = cors.NewHandler(allowedOrigins, log)
 
 	// 3. Initialize auth middleware (Firebase JWT + email allowlist)
@@ -214,18 +205,24 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 
 // getAllowedEmails reads allowed emails from environment variable.
 func getAllowedEmails() []string {
-	allowedEmailsEnv := os.Getenv("ALLOWED_EMAILS")
-	if allowedEmailsEnv == "" {
+	return parseCommaSeparatedEnv("ALLOWED_EMAILS")
+}
+
+// parseCommaSeparatedEnv reads an environment variable and parses it as a
+// comma-separated list, trimming whitespace and filtering empty values.
+func parseCommaSeparatedEnv(key string) []string {
+	value := os.Getenv(key)
+	if value == "" {
 		return nil
 	}
 
-	var emails []string
-	for _, email := range strings.Split(allowedEmailsEnv, ",") {
-		if trimmed := strings.TrimSpace(email); trimmed != "" {
-			emails = append(emails, trimmed)
+	var result []string
+	for _, item := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			result = append(result, trimmed)
 		}
 	}
-	return emails
+	return result
 }
 
 // getConnectionString reads PostgreSQL connection string from secret mount or environment variable.

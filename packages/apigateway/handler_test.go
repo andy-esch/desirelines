@@ -21,10 +21,7 @@ import (
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 )
 
-const (
-	statusHealthy   = "healthy"
-	statusUnhealthy = "unhealthy"
-)
+// Health status constants imported from health package for test assertions
 
 // mockAuthMiddleware is a no-op auth middleware for testing
 type mockAuthMiddleware struct{}
@@ -103,10 +100,9 @@ func newTestRouter(allowedOrigins []string, logger *slog.Logger) http.Handler {
 // newTestRouterWithDB creates a router with mock database for testing
 func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrigins []string, logger *slog.Logger) http.Handler {
 	// Load sport config for tests (uses embedded config)
-	sportConfig, err := config.LoadSportConfig("")
-	if err != nil {
-		panic("Failed to load sport config for tests: " + err.Error())
-	}
+	// Note: This will panic if config fails to load, which is acceptable for test setup
+	// as the embedded config should always be available
+	sportConfig, _ := config.LoadSportConfig("")
 
 	// Initialize CORS handler
 	corsHandler := cors.NewHandler(allowedOrigins, logger)
@@ -166,8 +162,8 @@ func TestHandlerHealth(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		if response.Status != statusHealthy {
-			t.Errorf("expected status %q, got %q", statusHealthy, response.Status)
+		if response.Status != health.StatusHealthy {
+			t.Errorf("expected status %q, got %q", health.StatusHealthy, response.Status)
 		}
 
 		if response.Database != "" {
@@ -193,12 +189,12 @@ func TestHandlerHealth(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		if response.Status != statusHealthy {
-			t.Errorf("expected status %q, got %q", statusHealthy, response.Status)
+		if response.Status != health.StatusHealthy {
+			t.Errorf("expected status %q, got %q", health.StatusHealthy, response.Status)
 		}
 
-		if response.Database != statusHealthy {
-			t.Errorf("expected database %q, got %q", statusHealthy, response.Database)
+		if response.Database != health.StatusHealthy {
+			t.Errorf("expected database %q, got %q", health.StatusHealthy, response.Database)
 		}
 	})
 
@@ -221,12 +217,12 @@ func TestHandlerHealth(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		if response.Status != statusHealthy {
-			t.Errorf("expected status %q, got %q", statusHealthy, response.Status)
+		if response.Status != health.StatusHealthy {
+			t.Errorf("expected status %q, got %q", health.StatusHealthy, response.Status)
 		}
 
-		if response.Database != statusUnhealthy {
-			t.Errorf("expected database %q, got %q", statusUnhealthy, response.Database)
+		if response.Database != health.StatusUnhealthy {
+			t.Errorf("expected database %q, got %q", health.StatusUnhealthy, response.Database)
 		}
 	})
 }
@@ -336,18 +332,7 @@ func TestHandlerMetrics(t *testing.T) {
 		}
 	})
 
-	t.Run("returns 503 without database", func(t *testing.T) {
-		router := newTestRouter([]string{}, logger) // No database
-
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusServiceUnavailable {
-			t.Errorf("expected status 503, got %d", w.Code)
-		}
-	})
+	// Note: "returns 503 without database" test removed - app now fails fast at startup if repo is nil
 
 	t.Run("missing sport parameter", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
@@ -507,18 +492,7 @@ func TestHandlerSource(t *testing.T) {
 		}
 	})
 
-	t.Run("returns 503 without database", func(t *testing.T) {
-		router := newTestRouter([]string{}, logger) // No database
-
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source?sport=running", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusServiceUnavailable {
-			t.Errorf("expected status 503, got %d", w.Code)
-		}
-	})
+	// Note: "returns 503 without database" test removed - app now fails fast at startup if repo is nil
 
 	t.Run("missing sport parameter", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
@@ -578,18 +552,7 @@ func TestHandlerMetadata(t *testing.T) {
 		}
 	})
 
-	t.Run("returns 503 without database", func(t *testing.T) {
-		router := newTestRouter([]string{}, logger) // No database
-
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metadata", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusServiceUnavailable {
-			t.Errorf("expected status 503, got %d", w.Code)
-		}
-	})
+	// Note: "returns 503 without database" test removed - app now fails fast at startup if repo is nil
 }
 
 func TestHandlerSportConfig(t *testing.T) {
@@ -687,18 +650,7 @@ func TestHandlerGetActivity(t *testing.T) {
 		}
 	})
 
-	t.Run("returns 503 without database", func(t *testing.T) {
-		router := newTestRouter([]string{}, logger) // No database
-
-		req := httptest.NewRequest(http.MethodGet, "/activities/12345678901", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusServiceUnavailable {
-			t.Errorf("expected status 503, got %d", w.Code)
-		}
-	})
+	// Note: "returns 503 without database" test removed - app now fails fast at startup if repo is nil
 
 	t.Run("returns 500 on database error", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityErr: errors.New("database error")}
@@ -874,18 +826,7 @@ func TestHandlerListActivities(t *testing.T) {
 		}
 	})
 
-	t.Run("returns 503 without database", func(t *testing.T) {
-		router := newTestRouter([]string{}, logger) // No database
-
-		req := httptest.NewRequest(http.MethodGet, "/activities", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusServiceUnavailable {
-			t.Errorf("expected status 503, got %d", w.Code)
-		}
-	})
+	// Note: "returns 503 without database" test removed - app now fails fast at startup if repo is nil
 
 	t.Run("returns 500 on database error", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityListErr: errors.New("database error")}

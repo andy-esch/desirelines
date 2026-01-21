@@ -210,51 +210,9 @@ func TestHandler_validateAndGetSportTypes(t *testing.T) {
 	}
 }
 
-func TestHandler_nilRepoReturns503(t *testing.T) {
-	sportConfig, err := config.LoadSportConfig("")
-	if err != nil {
-		t.Fatalf("failed to load sport config: %v", err)
-	}
-
-	// Handler with nil repository
-	handler := NewHandler(nil, sportConfig, slog.Default())
-
-	tests := []struct {
-		name    string
-		method  string
-		path    string
-		handler http.HandlerFunc
-	}{
-		{"HandleMetadata", http.MethodGet, "/activities/2024/metadata", handler.HandleMetadata},
-		{"HandleMetrics", http.MethodGet, "/activities/2024/metrics?sport=cycling", handler.HandleMetrics},
-		{"HandleSource", http.MethodGet, "/activities/2024/source?sport=cycling", handler.HandleSource},
-		{"HandleGetActivity", http.MethodGet, "/activities/123", handler.HandleGetActivity},
-		{"HandleListActivities", http.MethodGet, "/activities", handler.HandleListActivities},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-
-			// Add chi context for routes that need URL params
-			rctx := chi.NewRouteContext()
-			if tt.name == "HandleMetadata" || tt.name == "HandleMetrics" || tt.name == "HandleSource" {
-				rctx.URLParams.Add("year", "2024")
-			}
-			if tt.name == "HandleGetActivity" {
-				rctx.URLParams.Add("id", "123")
-			}
-			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-			w := httptest.NewRecorder()
-			tt.handler(w, req)
-
-			if w.Code != http.StatusServiceUnavailable {
-				t.Errorf("%s with nil repo: got status %d, want %d", tt.name, w.Code, http.StatusServiceUnavailable)
-			}
-		})
-	}
-}
+// Note: nil repo tests removed - application now fails fast at startup if repo is nil.
+// Handlers no longer need runtime nil checks since initDependencies guarantees
+// a valid repo or returns an error.
 
 // Test that the Handler struct implements expected constructor pattern
 func TestNewHandler(t *testing.T) {

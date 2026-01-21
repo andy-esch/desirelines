@@ -32,7 +32,15 @@ func RespondJSON(w http.ResponseWriter, r *http.Request, status int, data any, l
 
 // RespondRawJSON writes raw JSON bytes with CORS headers.
 // Use this for pre-marshaled JSON data to avoid double encoding.
+// Validates that data is non-empty before writing headers to avoid empty responses.
 func RespondRawJSON(w http.ResponseWriter, r *http.Request, status int, data []byte, logger *slog.Logger) {
+	// Validate data before writing headers to prevent empty responses
+	if len(data) == 0 {
+		logger.Error("Error: empty response data in RespondRawJSON")
+		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 

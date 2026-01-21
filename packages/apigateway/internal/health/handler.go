@@ -11,8 +11,13 @@ import (
 )
 
 const (
-	statusHealthy   = "healthy"
-	statusUnhealthy = "unhealthy"
+	// StatusHealthy indicates the service or component is functioning normally.
+	StatusHealthy = "healthy"
+	// StatusUnhealthy indicates the service or component has issues.
+	StatusUnhealthy = "unhealthy"
+
+	// DefaultHealthCheckTimeout is the default timeout for database health checks.
+	DefaultHealthCheckTimeout = 2 * time.Second
 )
 
 // Pinger is a minimal interface for health checking database connectivity.
@@ -31,36 +36,43 @@ type Response struct {
 
 // Handler holds dependencies for the health check handler.
 type Handler struct {
-	pinger Pinger
-	logger *slog.Logger
+	pinger  Pinger
+	logger  *slog.Logger
+	timeout time.Duration
 }
 
-// NewHandler creates a new health check handler.
+// NewHandler creates a new health check handler with default timeout.
 // The pinger parameter can be nil if no database is configured, or any type
 // that implements Ping() (e.g., repository.ActivityRepository).
 func NewHandler(pinger Pinger, logger *slog.Logger) *Handler {
+	return NewHandlerWithTimeout(pinger, logger, DefaultHealthCheckTimeout)
+}
+
+// NewHandlerWithTimeout creates a new health check handler with custom timeout.
+func NewHandlerWithTimeout(pinger Pinger, logger *slog.Logger, timeout time.Duration) *Handler {
 	return &Handler{
-		pinger: pinger,
-		logger: logger,
+		pinger:  pinger,
+		logger:  logger,
+		timeout: timeout,
 	}
 }
 
 // Handle returns API health status.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	response := Response{
-		Status: statusHealthy,
+		Status: StatusHealthy,
 	}
 
 	// Check database connectivity if a pinger is configured
 	if h.pinger != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 		defer cancel()
 
 		if err := h.pinger.Ping(ctx); err != nil {
 			h.logger.Warn("Database health check failed", "error", err)
-			response.Database = statusUnhealthy
+			response.Database = StatusUnhealthy
 		} else {
-			response.Database = statusHealthy
+			response.Database = StatusHealthy
 		}
 	}
 

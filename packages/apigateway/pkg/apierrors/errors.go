@@ -29,6 +29,12 @@ func (e APIError) Error() string {
 	return e.Message
 }
 
+// IsZero returns true if this is an uninitialized (zero-value) APIError.
+// Use this instead of checking Status == 0 directly for clearer intent.
+func (e APIError) IsZero() bool {
+	return e.Status == 0 && e.Message == ""
+}
+
 // ErrorResponse is the JSON structure returned to clients for errors.
 type ErrorResponse struct {
 	Error     string         `json:"error"`

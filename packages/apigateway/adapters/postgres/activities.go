@@ -304,6 +304,11 @@ func (r *ActivityRepository) GetDailySummaryByDateRange(ctx context.Context, fro
 // GetYearMetadata returns metadata about activities for a given year.
 // Includes list of sports, per-sport totals, and last updated timestamp.
 func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
+	// Validate year range early to avoid unnecessary DB query and satisfy G115 (int to int32)
+	if year < 0 || year > 9999 {
+		return nil, fmt.Errorf("year %d out of valid range", year)
+	}
+
 	query := `
 		SELECT
 			sport,
@@ -361,11 +366,6 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*ge
 	if latestUpdate != nil {
 		s := latestUpdate.Format(time.RFC3339)
 		lastUpdatedStr = &s
-	}
-
-	// Range check for year to satisfy G115 (integer overflow)
-	if year < 0 || year > 9999 {
-		return nil, fmt.Errorf("year %d out of valid range", year)
 	}
 
 	return &generated.YearMetadata{

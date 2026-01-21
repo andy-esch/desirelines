@@ -67,11 +67,17 @@ func Cursor(s string) string {
 // Date checks if the string is a valid YYYY-MM-DD date.
 // Also validates length to prevent oversized inputs.
 func Date(s string) bool {
-	if len(s) > MaxDateLength {
-		return false
-	}
-	_, err := time.Parse(DateFormat, s)
+	_, err := parseDate(s)
 	return err == nil
+}
+
+// parseDate parses a date string and returns the time.Time value.
+// Returns an error if the string is too long or not a valid YYYY-MM-DD date.
+func parseDate(s string) (time.Time, error) {
+	if len(s) > MaxDateLength {
+		return time.Time{}, fmt.Errorf("date string too long")
+	}
+	return time.Parse(DateFormat, s)
 }
 
 // DateRange validates from/to date parameters.
@@ -87,20 +93,12 @@ func DateRange(fromStr, toStr string) string {
 		return ""
 	}
 
-	// Validate date formats
-	if !Date(fromStr) {
-		return "Invalid 'from' date format (expected YYYY-MM-DD)"
-	}
-	if !Date(toStr) {
-		return "Invalid 'to' date format (expected YYYY-MM-DD)"
-	}
-
-	// Parse dates (format already validated, so errors are unexpected)
-	fromDate, fromErr := time.Parse(DateFormat, fromStr)
+	// Parse and validate dates (single parse, no redundant validation)
+	fromDate, fromErr := parseDate(fromStr)
 	if fromErr != nil {
 		return "Invalid 'from' date format (expected YYYY-MM-DD)"
 	}
-	toDate, toErr := time.Parse(DateFormat, toStr)
+	toDate, toErr := parseDate(toStr)
 	if toErr != nil {
 		return "Invalid 'to' date format (expected YYYY-MM-DD)"
 	}

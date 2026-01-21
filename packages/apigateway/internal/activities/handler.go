@@ -29,9 +29,9 @@ import (
 )
 
 const (
-	errMsgDatabaseUnavailable = "Database not available"
 	errMsgInternalServerError = "Internal server error"
-	dbTimeout                 = 10 * time.Second
+	// DefaultDBTimeout is the default timeout for database queries.
+	DefaultDBTimeout = 10 * time.Second
 )
 
 // Handler holds dependencies for activity handlers.
@@ -39,13 +39,20 @@ type Handler struct {
 	repo        repository.ActivityRepository
 	sportConfig *config.SportConfig
 	logger      *slog.Logger
+	dbTimeout   time.Duration
 }
 
-// NewHandler creates a new activities handler.
+// NewHandler creates a new activities handler with default timeout.
 func NewHandler(repo repository.ActivityRepository, sportConfig *config.SportConfig, logger *slog.Logger) *Handler {
+	return NewHandlerWithTimeout(repo, sportConfig, logger, DefaultDBTimeout)
+}
+
+// NewHandlerWithTimeout creates a new activities handler with custom timeout.
+func NewHandlerWithTimeout(repo repository.ActivityRepository, sportConfig *config.SportConfig, logger *slog.Logger, dbTimeout time.Duration) *Handler {
 	return &Handler{
 		repo:        repo,
 		sportConfig: sportConfig,
+		dbTimeout:   dbTimeout,
 		logger:      logger,
 	}
 }
@@ -58,12 +65,6 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.repo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
-	}
-
 	yearInt, err := strconv.Atoi(year)
 	if err != nil {
 		// This should never happen since year is validated, but handle it properly
@@ -72,7 +73,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
 	metadata, err := h.repo.GetYearMetadata(ctx, yearInt)
@@ -117,12 +118,6 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 
 	sportTypes, ok := h.validateAndGetSportTypes(w, r)
 	if !ok {
-		return nil
-	}
-
-	if h.repo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
@@ -171,7 +166,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
 	var result *generated.SportMetrics
@@ -199,7 +194,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	if params == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
 	var result *generated.DailySummary
@@ -219,22 +214,16 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 // HandleGetActivity serves a single activity by ID.
 // GET /activities/{id}
 func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
-	if h.repo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
-	}
-
 	// Parse activity ID from path
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
+	if err != nil || id <= 0 {
 		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid activity ID format")
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
 	activity, err := h.repo.GetActivityByID(ctx, id)
@@ -261,19 +250,13 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 // HandleListActivities serves a paginated list of activities.
 // GET /activities?from=2025-01-01&to=2025-12-31&sport=cycling&limit=20&cursor=...
 func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
-	if h.repo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
-	}
-
 	filter, apiErr := h.parseListActivitiesFilter(r)
-	if apiErr.Status != 0 {
+	if !apiErr.IsZero() {
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
 	result, err := h.repo.ListActivities(ctx, *filter)

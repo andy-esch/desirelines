@@ -45,6 +45,9 @@ func NewFirebaseAuth(ctx context.Context, allowedEmails []string, logger *slog.L
 	if projectID == "" {
 		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
 	}
+	if projectID == "" {
+		return nil, fmt.Errorf("GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable must be set")
+	}
 
 	config := &firebase.Config{
 		ProjectID: projectID,
