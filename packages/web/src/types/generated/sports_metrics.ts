@@ -9,6 +9,19 @@ import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
 export const protobufPackage = "desirelines.sports.v1";
 
+/**
+ * Metric types available for sports
+ * Used for type-safe metric selection across Go and TypeScript
+ */
+export enum MetricType {
+  METRIC_TYPE_UNSPECIFIED = 0,
+  METRIC_TYPE_DISTANCE_METERS = 1,
+  METRIC_TYPE_TIME_MINUTES = 2,
+  METRIC_TYPE_ELEVATION_METERS = 3,
+  METRIC_TYPE_ACTIVITIES = 4,
+  UNRECOGNIZED = -1,
+}
+
 /** Single timeseries entry (date + value) */
 export interface MetricTimeseriesEntry {
   /** ISO date: "2024-01-15" */

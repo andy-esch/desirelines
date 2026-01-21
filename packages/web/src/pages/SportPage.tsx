@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   convertDistance,
+  convertElevation,
   getUserSettings,
   goalMetersToDisplay,
   goalDisplayToMeters,
@@ -30,7 +31,9 @@ import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
 import { useSportData } from "../hooks/useSportData";
 import { useSidebarSportData } from "../hooks/useSidebarSportData";
-import { getMetricConfig } from "../config/metricConfig";
+import { getMetricConfig, getMetricFieldName } from "../config/metricConfig";
+import { getSportMetrics, getPrimaryMetric } from "../utils/sportConfig";
+import MetricSelector from "../components/charts/MetricSelector";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
@@ -46,6 +49,7 @@ export default function SportPage({ sport }: SportPageProps) {
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
   const [showFullYear, setShowFullYear] = useState(true);
   const [showAchievements, setShowAchievements] = useState(true);
+  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
 
   // Fetch sport metrics and config
   const { metrics, sportConfig, isLoading, error, retry } = useSportData(currentYear, sport);
@@ -59,41 +63,82 @@ export default function SportPage({ sport }: SportPageProps) {
 
   // Determine sport type and primary metric
   const sportInfo = sportConfig?.sport_categories[sport] ?? null;
+  const primaryMetric = getPrimaryMetric(sport, sportConfig);
+  const availableMetrics = getSportMetrics(sport, sportConfig);
 
-  // Determine the unit label based on sport type
-  const metricUnit = sportInfo?.has_distance ? userSettings.distanceUnit : "sessions";
+  // Initialize selectedMetric to primary when sport or config changes
+  useEffect(() => {
+    if (sportConfig) {
+      setSelectedMetric(primaryMetric);
+    }
+  }, [sport, sportConfig, primaryMetric]);
 
-  // Convert metrics to chart data format - use distance or activity count based on sport
+  // Use selectedMetric or fall back to primary
+  const activeMetric = selectedMetric ?? primaryMetric;
+
+  // Determine the unit label based on selected metric
+  const metricUnit = (() => {
+    switch (activeMetric) {
+      case "distance_meters":
+        return userSettings.distanceUnit;
+      case "elevation_meters":
+        return userSettings.elevationUnit;
+      case "time_minutes":
+        return "minutes" as const;
+      case "activities":
+        return "sessions" as const;
+      default:
+        return sportInfo?.has_distance ? userSettings.distanceUnit : "sessions";
+    }
+  })();
+
+  // Convert metrics to chart data format based on selected metric
   const chartData: DistanceEntry[] = useMemo(() => {
     if (!metrics || !sportInfo) return [];
 
-    // For sports with distance (cycling, running), use distance metric
-    if (sportInfo.has_distance) {
-      return metrics
-        .filter((entry) => entry.distance !== undefined)
-        .map((entry) => ({
-          x: entry.date,
-          y: convertDistance(entry.distance!, userSettings.distanceUnit),
-        }));
-    }
+    // Get the field name for the selected metric
+    const fieldName = getMetricFieldName(activeMetric);
 
-    // For sports without distance (yoga), use activity count
     return metrics
-      .filter((entry) => entry.activities !== undefined)
-      .map((entry) => ({
-        x: entry.date,
-        y: entry.activities!,
-      }));
-  }, [metrics, sportInfo, userSettings.distanceUnit]);
+      .filter((entry) => entry[fieldName] !== undefined)
+      .map((entry) => {
+        const rawValue = entry[fieldName]!;
 
-  // Get sport-specific configuration from MetricConfig system
-  const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
+        // Apply appropriate conversion based on metric type
+        let convertedValue: number;
+        switch (activeMetric) {
+          case "distance_meters":
+            convertedValue = convertDistance(rawValue, userSettings.distanceUnit);
+            break;
+          case "elevation_meters":
+            convertedValue = convertElevation(rawValue, userSettings.elevationUnit);
+            break;
+          case "time_minutes":
+          case "activities":
+          default:
+            convertedValue = rawValue;
+            break;
+        }
 
-  // Calculate current values
+        return {
+          x: entry.date,
+          y: convertedValue,
+        };
+      });
+  }, [metrics, sportInfo, activeMetric, userSettings.distanceUnit, userSettings.elevationUnit]);
+
+  // For goals, always use the sport's primary metric config
+  // (metric-specific chart config will be added when charts accept MetricConfig)
+  const primaryMetricConfig = useMemo(() => getMetricConfig(sport), [sport]);
+
+  // Check if we're viewing the primary metric (for goal visibility)
+  const isViewingPrimaryMetric = activeMetric === primaryMetric;
+
+  // Calculate current values (for primary metric, used in goal calculations)
   const estimatedYearEnd = useMemo(() => {
-    if (chartData.length === 0) return metricConfig.defaultGoalValue;
+    if (chartData.length === 0) return primaryMetricConfig.defaultGoalValue;
     return estimateYearEndDistance(chartData, currentYear);
-  }, [chartData, currentYear, metricConfig.defaultGoalValue]);
+  }, [chartData, currentYear, primaryMetricConfig.defaultGoalValue]);
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
@@ -102,9 +147,10 @@ export default function SportPage({ sport }: SportPageProps) {
 
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
     // Use sport-specific configuration from MetricConfig for goal generation
+    // Always use primaryMetricConfig since goals are tied to the sport's primary metric
     // - roundingFactor: granularity for goal increments (e.g., 100 for cycling, 10 for running)
     // - defaultGoalValue: minimum meaningful goal for this sport (e.g., 2500 for cycling, 100 for yoga)
-    const { roundingFactor, defaultGoalValue } = metricConfig;
+    const { roundingFactor, defaultGoalValue } = primaryMetricConfig;
 
     // Pass sport-specific granularity and minimum value to prevent 0/invalid goals
     // This ensures goals are always meaningful even when no data exists
@@ -123,7 +169,7 @@ export default function SportPage({ sport }: SportPageProps) {
         updatedAt: new Date().toISOString(),
       })),
     };
-  }, [estimatedYearEnd, metricConfig, sportInfo?.has_distance, userSettings.distanceUnit]);
+  }, [estimatedYearEnd, primaryMetricConfig, sportInfo?.has_distance, userSettings.distanceUnit]);
 
   const {
     data: goalsData,
@@ -313,11 +359,22 @@ export default function SportPage({ sport }: SportPageProps) {
             />
           )}
 
+          {/* Metric Selector - only show when multiple metrics available */}
+          {availableMetrics.length > 1 && (
+            <div className="d-flex justify-content-end align-items-center mb-3">
+              <MetricSelector
+                availableMetrics={availableMetrics}
+                selectedMetric={activeMetric}
+                onMetricChange={setSelectedMetric}
+              />
+            </div>
+          )}
+
           <div className="row">
             <div className="col-12 mb-4">
               <CumulativeMetricsChart
                 year={currentYear}
-                goals={goals}
+                goals={isViewingPrimaryMetric ? goals : []}
                 distanceData={chartData}
                 isLoading={isLoading}
                 error={error}
@@ -336,7 +393,7 @@ export default function SportPage({ sport }: SportPageProps) {
             <div className="col-12 mb-4">
               <PacingMetricsChart
                 year={currentYear}
-                goals={goals}
+                goals={isViewingPrimaryMetric ? goals : []}
                 distanceData={chartData}
                 isLoading={isLoading}
                 error={error}
