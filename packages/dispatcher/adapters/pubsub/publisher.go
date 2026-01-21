@@ -3,19 +3,34 @@ package pubsub
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
+	"time"
 
 	"cloud.google.com/go/pubsub/v2"
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 )
 
+const (
+	// DefaultPublishTimeout is the maximum time to wait for a publish operation
+	// if the caller's context has no deadline. Prevents indefinite blocking.
+	DefaultPublishTimeout = 30 * time.Second
+)
+
+// ErrPublisherClosed is returned when Publish is called on a closed publisher.
+var ErrPublisherClosed = errors.New("publisher is closed")
+
 // Publisher is a Pub/Sub adapter that implements the repository.Publisher interface.
 type Publisher struct {
 	client    *pubsub.Client
 	publisher *pubsub.Publisher
 	logger    *slog.Logger
+
+	mu     sync.RWMutex
+	closed bool
 }
 
 // NewPublisher creates a new Pub/Sub publisher adapter.
@@ -37,7 +52,23 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 }
 
 // Publish sends a webhook event to the configured Pub/Sub topic.
+// Returns ErrPublisherClosed if called after Close.
+// If the context has no deadline, a default timeout of 30s is applied.
 func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) error {
+	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return ErrPublisherClosed
+	}
+	p.mu.RUnlock()
+
+	// Ensure context has a deadline to prevent indefinite blocking
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, DefaultPublishTimeout)
+		defer cancel()
+	}
+
 	// Use ToStravaJSON to serialize with string enums ("create", "activity")
 	// instead of protojson which outputs numeric enums (1, 1).
 	// This maintains compatibility with stravapipe's Pydantic WebhookRequest model.
@@ -53,7 +84,7 @@ func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent
 		},
 	})
 
-	// Get blocks until the message is published or an error occurs.
+	// Get blocks until the message is published or context is canceled.
 	id, err := result.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to publish to PubSub: %w", err)
@@ -69,11 +100,35 @@ func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent
 }
 
 // Close releases resources held by the PubSub client.
-func (p *Publisher) Close() error {
-	if p.client != nil {
-		err := p.client.Close()
+// The context can be used to set a deadline for the close operation.
+// After Close returns, subsequent Publish calls will return ErrPublisherClosed.
+func (p *Publisher) Close(ctx context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.closed {
+		return nil // Already closed
+	}
+	p.closed = true
+
+	if p.client == nil {
+		return nil
+	}
+
+	// Create a channel to signal completion
+	done := make(chan error, 1)
+	go func() {
+		done <- p.client.Close()
+	}()
+
+	// Wait for close or context cancellation
+	select {
+	case err := <-done:
 		p.client = nil
 		return err
+	case <-ctx.Done():
+		// Context canceled/timed out, but close is still in progress
+		// We've marked as closed, so new publishes will fail
+		return ctx.Err()
 	}
-	return nil
 }

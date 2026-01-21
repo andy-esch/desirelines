@@ -10,10 +10,21 @@ import (
 	"testing"
 
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
+	"github.com/andy-esch/desirelines/packages/dispatcher/pkg/apierrors"
 	"github.com/andy-esch/desirelines/packages/dispatcher/pkg/logger"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 )
+
+// parseErrorResponse parses a JSON error response body.
+// Returns nil if parsing fails (e.g., for non-JSON responses).
+func parseErrorResponse(body string) *apierrors.ErrorResponse {
+	var resp apierrors.ErrorResponse
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		return nil
+	}
+	return &resp
+}
 
 func TestHandler_HandleVerification(t *testing.T) {
 	tests := []struct {
@@ -23,7 +34,8 @@ func TestHandler_HandleVerification(t *testing.T) {
 		mockVerify     string
 		mockVerifyErr  error
 		expectedStatus int
-		expectedBody   string
+		expectedCode   string // Machine-readable error code (use instead of message matching)
+		expectedBody   string // For success responses only
 	}{
 		{
 			name:   "Valid subscription request",
@@ -47,7 +59,7 @@ func TestHandler_HandleVerification(t *testing.T) {
 			},
 			mockVerify:     "valid-token",
 			expectedStatus: http.StatusUnauthorized,
-			expectedBody:   "Invalid verify token",
+			expectedCode:   "INVALID_VERIFY_TOKEN",
 		},
 		{
 			name:   "Invalid hub mode",
@@ -59,7 +71,7 @@ func TestHandler_HandleVerification(t *testing.T) {
 			},
 			mockVerify:     "valid-token",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   "invalid hub.mode: invalid",
+			expectedCode:   "INVALID_HUB_MODE",
 		},
 		{
 			name:   "Configuration error",
@@ -71,7 +83,7 @@ func TestHandler_HandleVerification(t *testing.T) {
 			},
 			mockVerifyErr:  errors.New("config error"),
 			expectedStatus: http.StatusInternalServerError,
-			expectedBody:   "Configuration error",
+			expectedCode:   "CONFIG_ERROR",
 		},
 	}
 
@@ -101,8 +113,19 @@ func TestHandler_HandleVerification(t *testing.T) {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
 			}
 
-			if !strings.Contains(w.Body.String(), tt.expectedBody) {
-				t.Errorf("expected body to contain %q, got %q", tt.expectedBody, w.Body.String())
+			// Check error code for error responses (more robust than message matching)
+			if tt.expectedCode != "" {
+				errResp := parseErrorResponse(w.Body.String())
+				if errResp == nil {
+					t.Errorf("expected JSON error response with code %q, got non-JSON: %q", tt.expectedCode, w.Body.String())
+				} else if errResp.Code != tt.expectedCode {
+					t.Errorf("expected error code %q, got %q", tt.expectedCode, errResp.Code)
+				}
+			} else if tt.expectedBody != "" {
+				// For success responses, check body contains expected content
+				if !strings.Contains(w.Body.String(), tt.expectedBody) {
+					t.Errorf("expected body to contain %q, got %q", tt.expectedBody, w.Body.String())
+				}
 			}
 		})
 	}
@@ -120,17 +143,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 		Updates:        map[string]string{},
 	}
 
-	tests := []struct {
-		name           string
-		method         string
-		contentType    string
-		payload        any
-		mockSubID      int
-		mockSubErr     error
-		publishErr     error
-		expectedStatus int
-		expectedBody   string
-	}{
+	tests := []handleEventTestCase{
 		{
 			name:           "Valid event",
 			method:         "POST",
@@ -154,7 +167,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			contentType:    "text/plain",
 			payload:        validPayload,
 			expectedStatus: http.StatusUnsupportedMediaType,
-			expectedBody:   "Content-Type must be application/json",
+			expectedCode:   "INVALID_CONTENT_TYPE",
 		},
 		{
 			name:           "Invalid JSON",
@@ -162,7 +175,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			contentType:    "application/json",
 			payload:        "invalid-json",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   "Invalid JSON payload",
+			expectedCode:   "INVALID_JSON",
 		},
 		{
 			name:           "Parse error (missing object_type)",
@@ -170,7 +183,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			contentType:    "application/json",
 			payload:        webhookproto.StravaWebhookJSON{AspectType: "create"}, // Missing object_type fails at parse
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   "Invalid JSON payload",
+			expectedCode:   "INVALID_JSON",
 		},
 		{
 			name:           "Configuration error",
@@ -179,7 +192,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			payload:        validPayload,
 			mockSubErr:     errors.New("config error"),
 			expectedStatus: http.StatusInternalServerError,
-			expectedBody:   "Configuration error",
+			expectedCode:   "CONFIG_ERROR",
 		},
 		{
 			name:           "Invalid subscription ID",
@@ -188,7 +201,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			payload:        validPayload,
 			mockSubID:      999, // Mismatch
 			expectedStatus: http.StatusUnauthorized,
-			expectedBody:   "Invalid subscription_id",
+			expectedCode:   "INVALID_SUBSCRIPTION_ID",
 		},
 		{
 			name:        "Non-activity event (ignored)",
@@ -214,67 +227,95 @@ func TestHandler_HandleEvent(t *testing.T) {
 			mockSubID:      123,
 			publishErr:     errors.New("publish failed"),
 			expectedStatus: http.StatusInternalServerError,
-			expectedBody:   "Failed to publish event",
+			expectedCode:   "PUBLISH_FAILED",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := logger.NewNoOpLogger()
-			mockSecrets := &portstest.MockSecretProvider{
-				SubscriptionID: tt.mockSubID,
-				Err:            tt.mockSubErr,
-			}
-			mockPublisher := &portstest.MockPublisher{
-				PublishErr: tt.publishErr,
-			}
-
-			handler := NewHandler(mockPublisher, mockSecrets, log)
-			router := handler.RegisterRoutes()
-
-			var body []byte
-			if s, ok := tt.payload.(string); ok {
-				body = []byte(s)
-			} else {
-				var marshalErr error
-				body, marshalErr = json.Marshal(tt.payload)
-				if marshalErr != nil {
-					t.Fatalf("Failed to marshal payload: %v", marshalErr)
-				}
-			}
-
-			req := httptest.NewRequest(tt.method, "/webhook", strings.NewReader(string(body)))
-			if tt.contentType != "" {
-				req.Header.Set("Content-Type", tt.contentType)
-			}
-
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-
-			if w.Code != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
-			if !strings.Contains(w.Body.String(), tt.expectedBody) {
-				t.Errorf("expected body to contain %q, got %q", tt.expectedBody, w.Body.String())
-			}
-
-			// Verify publisher was called for valid activity events
-			if tt.expectedStatus == http.StatusCreated && tt.name == "Valid event" {
-				if len(mockPublisher.Published) != 1 {
-					t.Error("expected 1 published event")
-				} else {
-					// Verify the published event content
-					event := mockPublisher.Published[0]
-					if event.ObjectId != 12345 {
-						t.Errorf("expected object_id 12345, got %d", event.ObjectId)
-					}
-					if event.ObjectType != generated.ObjectType_OBJECT_TYPE_ACTIVITY {
-						t.Errorf("expected object_type ACTIVITY, got %v", event.ObjectType)
-					}
-				}
-			}
+			runHandleEventTest(t, tt)
 		})
+	}
+}
+
+type handleEventTestCase struct {
+	name           string
+	method         string
+	contentType    string
+	payload        any
+	mockSubID      int
+	mockSubErr     error
+	publishErr     error
+	expectedStatus int
+	expectedCode   string
+	expectedBody   string
+}
+
+func runHandleEventTest(t *testing.T, tt handleEventTestCase) {
+	log := logger.NewNoOpLogger()
+	mockSecrets := &portstest.MockSecretProvider{
+		SubscriptionID: tt.mockSubID,
+		Err:            tt.mockSubErr,
+	}
+	mockPublisher := &portstest.MockPublisher{
+		PublishErr: tt.publishErr,
+	}
+
+	handler := NewHandler(mockPublisher, mockSecrets, log)
+	router := handler.RegisterRoutes()
+
+	var body []byte
+	if s, ok := tt.payload.(string); ok {
+		body = []byte(s)
+	} else {
+		var marshalErr error
+		body, marshalErr = json.Marshal(tt.payload)
+		if marshalErr != nil {
+			t.Fatalf("Failed to marshal payload: %v", marshalErr)
+		}
+	}
+
+	req := httptest.NewRequest(tt.method, "/webhook", strings.NewReader(string(body)))
+	if tt.contentType != "" {
+		req.Header.Set("Content-Type", tt.contentType)
+	}
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != tt.expectedStatus {
+		t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+	}
+
+	// Check error code for error responses (more robust than message matching)
+	if tt.expectedCode != "" {
+		errResp := parseErrorResponse(w.Body.String())
+		if errResp == nil {
+			t.Errorf("expected JSON error response with code %q, got non-JSON: %q", tt.expectedCode, w.Body.String())
+		} else if errResp.Code != tt.expectedCode {
+			t.Errorf("expected error code %q, got %q", tt.expectedCode, errResp.Code)
+		}
+	} else if tt.expectedBody != "" {
+		// For success responses, check body contains expected content
+		if !strings.Contains(w.Body.String(), tt.expectedBody) {
+			t.Errorf("expected body to contain %q, got %q", tt.expectedBody, w.Body.String())
+		}
+	}
+
+	// Verify publisher was called for valid activity events
+	if tt.expectedStatus == http.StatusCreated && tt.name == "Valid event" {
+		if len(mockPublisher.Published) != 1 {
+			t.Error("expected 1 published event")
+		} else {
+			// Verify the published event content
+			event := mockPublisher.Published[0]
+			if event.ObjectId != 12345 {
+				t.Errorf("expected object_id 12345, got %d", event.ObjectId)
+			}
+			if event.ObjectType != generated.ObjectType_OBJECT_TYPE_ACTIVITY {
+				t.Errorf("expected object_type ACTIVITY, got %v", event.ObjectType)
+			}
+		}
 	}
 }
 

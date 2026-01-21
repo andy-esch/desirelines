@@ -22,7 +22,7 @@ func (m *MockPublisher) Publish(ctx context.Context, webhook *generated.WebhookE
 }
 
 // Close implements the Publisher interface for MockPublisher.
-func (m *MockPublisher) Close() error {
+func (m *MockPublisher) Close(ctx context.Context) error {
 	return nil
 }
 

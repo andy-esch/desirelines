@@ -2,96 +2,21 @@ package config
 
 import (
 	"os"
-	"strings"
 	"testing"
 )
 
-func TestLoadConfig_SecretsFilePrecedence(t *testing.T) {
-	// Create temporary secrets file
-	tempDir, err := os.MkdirTemp("", "loadconfig_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	// Note: We can't change the constant DefaultSecretsPath, so we can't fully test
-	// the file loading logic here without refactoring LoadConfig to accept a path.
-	// However, we can test that it falls back to environment variables when the file is missing
-	// (which it is in this test environment, as it looks for /etc/secrets/strava_auth.json).
-	// To test file precedence properly, we would need to mock the file system or make the path configurable.
-	// For now, we assume file loading works (tested via integration or manual verification)
-	// and verify environment variable fallback which is critical.
-
+func TestLoadConfig_EnvVars(t *testing.T) {
 	// Set environment variables
-	err = os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "env-token")
-	if err != nil {
+	if err := os.Setenv("GCP_PROJECT_ID", "test-project"); err != nil {
 		t.Fatalf("Failed to set env var: %v", err)
 	}
-	err = os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "22222")
-	if err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	err = os.Setenv("GCP_PROJECT_ID", "test-project")
-	if err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	if pubsubEnvErr := os.Setenv("GCP_PUBSUB_TOPIC", "test-topic"); pubsubEnvErr != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	defer cleanupEnv(t,
-		"STRAVA_WEBHOOK_VERIFY_TOKEN",
-		"STRAVA_WEBHOOK_SUBSCRIPTION_ID",
-		"GCP_PROJECT_ID",
-		"GCP_PUBSUB_TOPIC",
-	)
-
-	cfg, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig failed: %v", err)
-	}
-
-	// Secrets should come from env vars (since DefaultSecretsPath doesn't exist in test)
-	if cfg.StravaWebhookVerifyToken != "env-token" {
-		t.Errorf("Expected verify token from env 'env-token', got '%s'", cfg.StravaWebhookVerifyToken)
-	}
-	if cfg.StravaWebhookSubscriptionID != 22222 {
-		t.Errorf("Expected subscription ID from env 22222, got %d", cfg.StravaWebhookSubscriptionID)
-	}
-
-	// GCP settings should come from env vars
-	if cfg.GCPProjectID != "test-project" {
-		t.Errorf("Expected GCP project 'test-project', got '%s'", cfg.GCPProjectID)
-	}
-	if cfg.GCPPubSubTopicID != "test-topic" {
-		t.Errorf("Expected GCP topic 'test-topic', got '%s'", cfg.GCPPubSubTopicID)
-	}
-}
-
-func TestLoadConfig_EnvVarsFallback(t *testing.T) {
-	// Ensure no secrets file exists at default path
-	// Set environment variables as fallback
-	if err := os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "fallback-token"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	if err := os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "33333"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	if err := os.Setenv("GCP_PROJECT_ID", "fallback-project"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	if err := os.Setenv("GCP_PUBSUB_TOPIC", "fallback-topic"); err != nil {
+	if err := os.Setenv("GCP_PUBSUB_TOPIC", "test-topic"); err != nil {
 		t.Fatalf("Failed to set env var: %v", err)
 	}
 	if err := os.Setenv("LOG_LEVEL", "DEBUG"); err != nil {
 		t.Fatalf("Failed to set env var: %v", err)
 	}
 	defer cleanupEnv(t,
-		"STRAVA_WEBHOOK_VERIFY_TOKEN",
-		"STRAVA_WEBHOOK_SUBSCRIPTION_ID",
 		"GCP_PROJECT_ID",
 		"GCP_PUBSUB_TOPIC",
 		"LOG_LEVEL",
@@ -102,18 +27,11 @@ func TestLoadConfig_EnvVarsFallback(t *testing.T) {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
 
-	// All values should come from env vars
-	if cfg.StravaWebhookVerifyToken != "fallback-token" {
-		t.Errorf("Expected verify token 'fallback-token', got '%s'", cfg.StravaWebhookVerifyToken)
+	if cfg.GCPProjectID != "test-project" {
+		t.Errorf("Expected GCP project 'test-project', got '%s'", cfg.GCPProjectID)
 	}
-	if cfg.StravaWebhookSubscriptionID != 33333 {
-		t.Errorf("Expected subscription ID 33333, got %d", cfg.StravaWebhookSubscriptionID)
-	}
-	if cfg.GCPProjectID != "fallback-project" {
-		t.Errorf("Expected GCP project 'fallback-project', got '%s'", cfg.GCPProjectID)
-	}
-	if cfg.GCPPubSubTopicID != "fallback-topic" {
-		t.Errorf("Expected GCP topic 'fallback-topic', got '%s'", cfg.GCPPubSubTopicID)
+	if cfg.GCPPubSubTopicID != "test-topic" {
+		t.Errorf("Expected GCP topic 'test-topic', got '%s'", cfg.GCPPubSubTopicID)
 	}
 	if cfg.LogLevel != "DEBUG" {
 		t.Errorf("Expected log level 'DEBUG', got '%s'", cfg.LogLevel)
@@ -123,8 +41,6 @@ func TestLoadConfig_EnvVarsFallback(t *testing.T) {
 func TestLoadConfig_DefaultValues(t *testing.T) {
 	// Clear any environment variables
 	cleanupEnv(t,
-		"STRAVA_WEBHOOK_VERIFY_TOKEN",
-		"STRAVA_WEBHOOK_SUBSCRIPTION_ID",
 		"GCP_PROJECT_ID",
 		"GCP_PUBSUB_TOPIC",
 		"LOG_LEVEL",
@@ -133,14 +49,6 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	cfg, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
-	}
-
-	// Webhook values should be empty/zero (no defaults)
-	if cfg.StravaWebhookVerifyToken != "" {
-		t.Errorf("Expected empty verify token, got '%s'", cfg.StravaWebhookVerifyToken)
-	}
-	if cfg.StravaWebhookSubscriptionID != 0 {
-		t.Errorf("Expected subscription ID 0, got %d", cfg.StravaWebhookSubscriptionID)
 	}
 
 	// GCP values should be empty (no defaults)
@@ -154,21 +62,6 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	// LogLevel should have default value
 	if cfg.LogLevel != "INFO" {
 		t.Errorf("Expected default log level 'INFO', got '%s'", cfg.LogLevel)
-	}
-}
-
-func TestLoadConfig_InvalidSubscriptionID(t *testing.T) {
-	if err := os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "not-a-number"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	defer cleanupEnv(t, "STRAVA_WEBHOOK_SUBSCRIPTION_ID")
-
-	_, err := LoadConfig()
-	if err == nil {
-		t.Errorf("Expected error for invalid subscription ID, got nil")
-	}
-	if err != nil && !strings.Contains(err.Error(), "invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID") {
-		t.Errorf("Expected 'invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID' error, got: %v", err)
 	}
 }
 

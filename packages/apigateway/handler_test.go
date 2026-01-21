@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -100,9 +101,10 @@ func newTestRouter(allowedOrigins []string, logger *slog.Logger) http.Handler {
 // newTestRouterWithDB creates a router with mock database for testing
 func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrigins []string, logger *slog.Logger) http.Handler {
 	// Load sport config for tests (uses embedded config)
-	// Note: This will panic if config fails to load, which is acceptable for test setup
-	// as the embedded config should always be available
-	sportConfig, _ := config.LoadSportConfig("")
+	sportConfig, err := config.LoadSportConfig("")
+	if err != nil {
+		panic(fmt.Sprintf("failed to load sport config for tests: %v", err))
+	}
 
 	// Initialize CORS handler
 	corsHandler := cors.NewHandler(allowedOrigins, logger)

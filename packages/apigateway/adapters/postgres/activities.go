@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -305,9 +306,10 @@ func (r *ActivityRepository) GetDailySummaryByDateRange(ctx context.Context, fro
 // Includes list of sports, per-sport totals, and last updated timestamp.
 func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
 	// Validate year range early to avoid unnecessary DB query and satisfy G115 (int to int32)
-	if year < 0 || year > 9999 {
-		return nil, fmt.Errorf("year %d out of valid range", year)
+	if year < 0 || year > math.MaxInt32 {
+		return nil, fmt.Errorf("year %d out of valid range (0-%d)", year, math.MaxInt32)
 	}
+	yearInt32 := int32(year)
 
 	query := `
 		SELECT
@@ -369,7 +371,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*ge
 	}
 
 	return &generated.YearMetadata{
-		Year:               int32(year),
+		Year:               yearInt32,
 		Sports:             sports,
 		Totals:             totals,
 		LastUpdated:        lastUpdatedStr,

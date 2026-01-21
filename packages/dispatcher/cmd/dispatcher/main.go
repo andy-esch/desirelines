@@ -37,7 +37,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() {
-		if closeErr := publisher.Close(); closeErr != nil {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if closeErr := publisher.Close(closeCtx); closeErr != nil {
 			log.Error("Failed to close publisher", "error", closeErr)
 		}
 	}()

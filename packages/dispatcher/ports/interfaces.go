@@ -10,7 +10,9 @@ import (
 // Publisher defines the outbound port for publishing webhook events.
 type Publisher interface {
 	Publish(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) error
-	Close() error
+	// Close releases resources held by the publisher.
+	// The context can be used to set a deadline for graceful shutdown.
+	Close(ctx context.Context) error
 }
 
 // SecretProvider defines the outbound port for retrieving webhook secrets.
