@@ -19,7 +19,8 @@
  * @see SportPage - Uses defaultGoalValue
  */
 
-import type { MetricUnit } from "../utils/units";
+import type { MetricUnit, UserSettings } from "../utils/units";
+import { MetricType } from "../types/generated/sports_metrics";
 
 /**
  * Threshold configuration for Y-axis intervals.
@@ -332,4 +333,144 @@ export function isDistanceMetricSport(sport: string): boolean {
 export function isSessionsMetricSport(sport: string): boolean {
   const config = getMetricConfig(sport);
   return config.id === "sessions";
+}
+
+/**
+ * Mapping from proto MetricType enum to base config keys.
+ * This bridges the cross-language contract (proto) with the frontend config system.
+ */
+const METRIC_TYPE_TO_CONFIG_KEY: Record<MetricType, string> = {
+  [MetricType.METRIC_TYPE_UNSPECIFIED]: "distance", // fallback
+  [MetricType.METRIC_TYPE_DISTANCE_METERS]: "distance",
+  [MetricType.METRIC_TYPE_TIME_MINUTES]: "time",
+  [MetricType.METRIC_TYPE_ELEVATION_METERS]: "elevation",
+  [MetricType.METRIC_TYPE_ACTIVITIES]: "sessions",
+  [MetricType.UNRECOGNIZED]: "distance", // fallback
+};
+
+/**
+ * Mapping from API string metric IDs to MetricType enum.
+ * The API uses string IDs like "distance_meters" in sportConfig.metrics arrays.
+ */
+const METRIC_STRING_TO_TYPE: Record<string, MetricType> = {
+  distance_meters: MetricType.METRIC_TYPE_DISTANCE_METERS,
+  time_minutes: MetricType.METRIC_TYPE_TIME_MINUTES,
+  elevation_meters: MetricType.METRIC_TYPE_ELEVATION_METERS,
+  activities: MetricType.METRIC_TYPE_ACTIVITIES,
+};
+
+/**
+ * Get metric configuration by metric ID (string or enum).
+ *
+ * This function bridges the API metric IDs (used in sportConfig.metrics arrays)
+ * with the frontend MetricConfig system. It applies user unit preferences for
+ * distance (miles/km) and elevation (feet/meters).
+ *
+ * @param metricId - Metric identifier, either:
+ *   - String from API: "distance_meters", "time_minutes", "elevation_meters", "activities"
+ *   - MetricType enum value
+ * @param userSettings - Optional user settings for unit preferences
+ * @returns MetricConfig with appropriate units applied
+ *
+ * @example
+ * ```ts
+ * // Using string ID from API
+ * const config = getMetricConfigByMetricId("distance_meters", userSettings);
+ * // Returns distance config with miles/km based on user preference
+ *
+ * // Using enum for type safety
+ * const config = getMetricConfigByMetricId(MetricType.METRIC_TYPE_ELEVATION_METERS, userSettings);
+ * // Returns elevation config with feet/meters based on user preference
+ * ```
+ */
+export function getMetricConfigByMetricId(
+  metricId: string | MetricType,
+  userSettings?: UserSettings
+): MetricConfig {
+  // Convert string to MetricType if needed
+  const metricType =
+    typeof metricId === "string"
+      ? (METRIC_STRING_TO_TYPE[metricId] ?? MetricType.METRIC_TYPE_UNSPECIFIED)
+      : metricId;
+
+  // Get the base config key from the metric type
+  const configKey = METRIC_TYPE_TO_CONFIG_KEY[metricType];
+  const baseConfig = BASE_METRIC_CONFIGS[configKey];
+
+  // Apply unit overrides based on user preferences
+  if (!userSettings) {
+    return baseConfig;
+  }
+
+  // Distance: apply miles/km preference
+  if (configKey === "distance" && userSettings.distanceUnit === "kilometers") {
+    return {
+      ...baseConfig,
+      unit: "kilometers",
+      chartLabel: "km",
+      chartAxisLabel: "km",
+      perDayLabel: "km / day",
+    };
+  }
+
+  // Elevation: apply feet/meters preference
+  if (configKey === "elevation" && userSettings.elevationUnit === "meters") {
+    return {
+      ...baseConfig,
+      unit: "meters",
+      chartLabel: "m",
+      chartAxisLabel: "m",
+      perDayLabel: "m / day",
+    };
+  }
+
+  return baseConfig;
+}
+
+/**
+ * Get the CumulativeMetricsEntry field name for a metric ID.
+ *
+ * The proto CumulativeMetricsEntry has fields: distance, elevation, time, activities.
+ * This maps from API metric IDs to those field names.
+ *
+ * @param metricId - API metric ID string
+ * @returns Field name in CumulativeMetricsEntry
+ */
+export function getMetricFieldName(
+  metricId: string
+): "distance" | "elevation" | "time" | "activities" {
+  switch (metricId) {
+    case "distance_meters":
+      return "distance";
+    case "elevation_meters":
+      return "elevation";
+    case "time_minutes":
+      return "time";
+    case "activities":
+      return "activities";
+    default:
+      return "distance";
+  }
+}
+
+/**
+ * Get human-readable label for a metric ID.
+ * Used in UI elements like dropdown labels.
+ *
+ * @param metricId - API metric ID string
+ * @returns Display label (e.g., "Distance", "Time", "Elevation", "Sessions")
+ */
+export function getMetricDisplayLabel(metricId: string): string {
+  switch (metricId) {
+    case "distance_meters":
+      return "Distance";
+    case "elevation_meters":
+      return "Elevation";
+    case "time_minutes":
+      return "Time";
+    case "activities":
+      return "Sessions";
+    default:
+      return metricId;
+  }
 }

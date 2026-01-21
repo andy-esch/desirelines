@@ -89,3 +89,24 @@ export const CSS_VARS = {
   accentMagenta: "var(--accent-magenta)",
   accentMagentaGlow: "var(--accent-magenta-glow)",
 } as const;
+
+/**
+ * Neon colors - full brightness versions for skeleton loaders and animations.
+ * These match the NeonSpinner and chart palettes.
+ */
+export const NEON = {
+  CYAN: "rgb(0, 255, 255)",
+  MAGENTA: "rgb(255, 0, 255)",
+  PURPLE: "rgb(180, 0, 255)",
+  GREEN: "rgb(0, 255, 128)",
+} as const;
+
+/**
+ * Skeleton loader color themes using subtle neon tints.
+ * Each theme has a base color (resting state) and highlight color (animation pulse).
+ */
+export const SKELETON_THEMES = [
+  { baseColor: "rgba(0, 255, 255, 0.12)", highlightColor: "rgba(0, 255, 255, 0.22)" }, // Cyan
+  { baseColor: "rgba(255, 0, 255, 0.12)", highlightColor: "rgba(255, 0, 255, 0.22)" }, // Magenta
+  { baseColor: "rgba(180, 0, 255, 0.12)", highlightColor: "rgba(180, 0, 255, 0.22)" }, // Purple
+] as const;

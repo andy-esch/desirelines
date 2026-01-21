@@ -1,14 +1,10 @@
 import { useMemo } from "react";
+import { NEON } from "../constants/uiColors";
 
 /**
- * Neon colors for the spinner - matches the app's NEON theme
+ * Neon colors for the spinner - uses centralized NEON palette
  */
-const NEON_COLORS = [
-  "rgb(0, 255, 255)", // Cyan
-  "rgb(255, 0, 255)", // Magenta
-  "rgb(0, 255, 128)", // Neon Green
-  "rgb(180, 0, 255)", // Neon Purple
-] as const;
+const NEON_COLORS = [NEON.CYAN, NEON.MAGENTA, NEON.GREEN, NEON.PURPLE] as const;
 
 interface NeonSpinnerProps {
   /** Size variant: default or small */

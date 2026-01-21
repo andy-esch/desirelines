@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 import { LineChart, Line, ResponsiveContainer, XAxis } from "recharts";
 import { parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
 import TimeRangeSelector from "./TimeRangeSelector";
-import NeonSpinner from "../NeonSpinner";
 import RecentActivitiesList from "./RecentActivitiesList";
+import { SparklineSkeleton, ActivityRowSkeleton } from "../Skeleton";
 import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
 
 interface MultiSportComparisonChartProps {
@@ -137,12 +137,45 @@ export default function MultiSportComparisonChart({
       <div className={className}>
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h2 className="h5 mb-0">Recent Activity</h2>
+          {/* Placeholder for TimeRangeSelector to prevent layout shift */}
+          <div style={{ width: 120, height: 31 }} />
         </div>
+
+        {/* Two-column skeleton layout - matches loaded state structure */}
         <div
-          className="border rounded d-flex align-items-center justify-content-center"
-          style={{ height: sparklineContainerHeight, background: "transparent" }}
+          className="row g-3 justify-content-center"
+          role="status"
+          aria-label="Loading activity data"
         >
-          <NeonSpinner size="sm" />
+          {/* Left: Sparkline skeletons */}
+          <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
+            <div
+              className="border rounded p-2 h-100 d-flex flex-column justify-content-center gap-2"
+              style={{ minHeight: sparklineContainerHeight, background: "transparent" }}
+            >
+              {/* Show 4 skeleton rows to approximate typical sport count */}
+              <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
+              <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
+              <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
+              <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
+            </div>
+          </div>
+
+          {/* Right: Activity list skeletons */}
+          <div className="col-md-6">
+            <div
+              className="border rounded p-2 h-100 overflow-hidden"
+              style={{ minHeight: sparklineContainerHeight, background: "transparent" }}
+            >
+              <div className="d-flex flex-column gap-1">
+                <ActivityRowSkeleton />
+                <ActivityRowSkeleton />
+                <ActivityRowSkeleton />
+                <ActivityRowSkeleton />
+                <ActivityRowSkeleton />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
