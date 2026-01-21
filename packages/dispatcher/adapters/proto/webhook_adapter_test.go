@@ -116,7 +116,7 @@ func TestToStravaJSON(t *testing.T) {
 		OwnerId:        67890,
 		EventTime:      1704067200,
 		SubscriptionId: 999,
-		Updates: &pb.Updates{
+		Updates: &pb.ActivityUpdates{
 			Title: &title,
 		},
 	}
