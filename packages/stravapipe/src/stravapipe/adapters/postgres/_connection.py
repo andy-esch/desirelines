@@ -6,6 +6,7 @@ variables, validates required parameters, and transforms to SQLAlchemy dialect.
 
 import os
 import stat
+from typing import NamedTuple
 from urllib.parse import parse_qs, urlparse
 
 
@@ -18,6 +19,102 @@ _SECRET_PATH = "/etc/secrets/postgres/connection_string"
 
 # Environment variable name
 _ENV_VAR = "POSTGRES_CONNECTION_STRING"
+
+
+class PoolStrategy:
+    """Connection pool strategy constants.
+
+    Determines whether to use client-side connection pooling based on
+    the database provider's capabilities.
+
+    Strategies:
+        EXTERNAL: Database has built-in pooler (Neon, PgBouncer, etc.)
+                  Uses NullPool - no client-side pooling.
+        INTERNAL: No external pooler (self-hosted, Cloud SQL direct)
+                  Uses QueuePool with conservative settings.
+        AUTO:     Auto-detect from connection string.
+                  If hostname contains '-pooler', assumes external pooler.
+    """
+
+    EXTERNAL = "external"
+    INTERNAL = "internal"
+    AUTO = "auto"
+
+
+class PoolConfig(NamedTuple):
+    """SQLAlchemy connection pool configuration.
+
+    Supports two pooling strategies for provider flexibility:
+
+    1. EXTERNAL (Neon, PgBouncer, etc.):
+       - Uses NullPool (no client-side pooling)
+       - Let the external pooler manage connections
+       - Avoids "pool on pool" anti-pattern
+
+    2. INTERNAL (self-hosted, Cloud SQL direct):
+       - Uses QueuePool with conservative settings
+       - pool_size=2, max_overflow=3 (5 max per instance)
+       - Suitable for horizontal scaling (20 instances = 100 connections)
+
+    Environment variables:
+        POSTGRES_POOL_STRATEGY: "external", "internal", or "auto" (default: "auto")
+        POSTGRES_POOL_SIZE: Base pool size for internal strategy (default: 2)
+        POSTGRES_MAX_OVERFLOW: Overflow connections for internal strategy (default: 3)
+        POSTGRES_POOL_RECYCLE: Connection recycle time in seconds (default: 1800)
+        POSTGRES_POOL_PRE_PING: Test connections before use (default: true)
+
+    Migration guide:
+        - Neon with -pooler endpoint: strategy=auto or external (recommended)
+        - Neon direct endpoint: strategy=internal
+        - Cloud SQL with proxy: strategy=external
+        - Cloud SQL direct: strategy=internal
+        - Self-hosted with PgBouncer: strategy=external
+        - Self-hosted direct: strategy=internal
+    """
+
+    strategy: str = PoolStrategy.AUTO
+    pool_size: int = 2
+    max_overflow: int = 3
+    pool_recycle: int = 1800  # 30 minutes
+    pool_pre_ping: bool = True
+
+    @classmethod
+    def from_env(cls) -> "PoolConfig":
+        """Load pool configuration from environment variables.
+
+        Returns:
+            PoolConfig with values from environment or defaults.
+        """
+        return cls(
+            strategy=os.environ.get("POSTGRES_POOL_STRATEGY", PoolStrategy.AUTO).lower(),
+            pool_size=int(os.environ.get("POSTGRES_POOL_SIZE", "2")),
+            max_overflow=int(os.environ.get("POSTGRES_MAX_OVERFLOW", "3")),
+            pool_recycle=int(os.environ.get("POSTGRES_POOL_RECYCLE", "1800")),
+            pool_pre_ping=os.environ.get("POSTGRES_POOL_PRE_PING", "true").lower() == "true",
+        )
+
+    def uses_external_pooler(self, database_url: str) -> bool:
+        """Determine if external pooler is in use.
+
+        Args:
+            database_url: PostgreSQL connection string
+
+        Returns:
+            True if external pooler detected/configured, False otherwise.
+        """
+        if self.strategy == PoolStrategy.EXTERNAL:
+            return True
+        if self.strategy == PoolStrategy.INTERNAL:
+            return False
+
+        # AUTO: detect from connection string
+        # Neon pooled endpoints contain "-pooler" in the hostname
+        try:
+            parsed = urlparse(database_url)
+            hostname = parsed.hostname or ""
+            return "-pooler" in hostname
+        except Exception:
+            return False  # Default to internal pooling if parsing fails
 
 
 def load_connection_string() -> str:

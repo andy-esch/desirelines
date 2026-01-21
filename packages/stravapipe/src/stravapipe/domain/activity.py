@@ -327,16 +327,8 @@ class StandardActivity(BaseModel):
         default=None, description="Maximum heart rate in bpm"
     )
 
-    # Geospatial (for postgresql-08-geospatial-tables)
-    map: PolylineMap | None = Field(
-        default=None, description="Polyline map data (route)"
-    )
-    start_latlng: list[float] = Field(
-        default_factory=list, description="Start coordinates [lat, lng]"
-    )
-    end_latlng: list[float] = Field(
-        default_factory=list, description="End coordinates [lat, lng]"
-    )
+    # Note: Geospatial fields (map, start_latlng, end_latlng) will be added
+    # when implementing postgresql-08-geospatial-tables task
 
     @computed_field  # type: ignore[prop-decorator]
     @property

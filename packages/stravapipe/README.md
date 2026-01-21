@@ -88,3 +88,29 @@ Each service has its own config class in `config/`:
 - `PostgresWriterConfig` - Connection string, Strava credentials
 
 All load from environment variables with Secret Manager integration for production.
+
+### PostgreSQL Connection Pooling
+
+The postgres-writer auto-detects whether to use client-side pooling based on your database provider:
+
+| Provider | Detection | Pooling |
+|----------|-----------|---------|
+| Neon (pooled) | `-pooler` in hostname | None (NullPool) |
+| Neon (direct) | No `-pooler` | Client-side (QueuePool) |
+| Self-hosted + PgBouncer | Manual config | None (NullPool) |
+| Self-hosted direct | Manual config | Client-side (QueuePool) |
+
+**Environment variables** (all optional):
+
+```bash
+# Strategy: "auto" (default), "external", or "internal"
+POSTGRES_POOL_STRATEGY=auto
+
+# Only used when strategy=internal:
+POSTGRES_POOL_SIZE=2        # Base connections per instance
+POSTGRES_MAX_OVERFLOW=3     # Burst capacity (5 total max)
+```
+
+**When to override:**
+- Switching from Neon to Cloud SQL? Set `POSTGRES_POOL_STRATEGY=internal`
+- Using PgBouncer in front of self-hosted? Set `POSTGRES_POOL_STRATEGY=external`

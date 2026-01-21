@@ -1,13 +1,14 @@
 """Strava read repositories"""
 
-from collections.abc import Sequence
-from datetime import UTC, datetime
 import logging
 import threading
-from typing import Any, NamedTuple
+from collections.abc import Sequence
+from datetime import UTC, datetime
+from typing import Any
 
 import requests
 
+from stravapipe.config.common import StravaApiConfig
 from stravapipe.domain import (
     DetailedStravaActivity,
     StandardActivity,
@@ -27,18 +28,6 @@ from stravapipe.ports.out.read import (
 from stravapipe.retry import retry_on_failure
 
 logger = logging.getLogger(__name__)
-
-
-class StravaApiConfig(NamedTuple):
-    """Strava API configuration"""
-
-    token_url: str = "https://www.strava.com/oauth/token"
-    api_base_url: str = "https://www.strava.com/api/v3"
-    request_timeout: int = 10
-    token_retry_attempts: int = 2
-    token_retry_backoff: float = 0.5
-    activity_retry_attempts: int = 3
-    activity_retry_backoff: float = 1.0
 
 
 class StravaTokenRepo(ReadStravaToken):

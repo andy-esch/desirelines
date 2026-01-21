@@ -92,7 +92,7 @@ class PostgresWriteService:
         with self._uow:
             return self._uow.activities.exists(activity_id)
 
-    def update_activity_metadata(self, activity_id: int, updates: dict) -> bool:
+    def update_activity_metadata(self, activity_id: int, updates: dict) -> bool | None:
         """Update only metadata fields from UPDATE webhook.
 
         Does NOT fetch from Strava API - uses updates hash directly.
@@ -103,24 +103,31 @@ class PostgresWriteService:
             updates: Dict from webhook with 'title' and/or 'type' keys
 
         Returns:
-            True if updated, False if activity not found
+            True if updated successfully
+            False if activity not found
+            None if no valid updates provided
         """
         with self._uow:
-            updated = self._uow.activities.update_metadata(activity_id, updates)
+            result = self._uow.activities.update_metadata(activity_id, updates)
             self._uow.commit()
 
-        if updated:
+        if result is True:
             logger.info(
                 "Activity metadata updated",
                 extra={"activity_id": activity_id, "updates": updates},
             )
-        else:
+        elif result is False:
             logger.warning(
                 "Activity not found for metadata update",
                 extra={"activity_id": activity_id},
             )
+        else:  # None - no valid updates
+            logger.debug(
+                "No valid updates to apply",
+                extra={"activity_id": activity_id, "updates": updates},
+            )
 
-        return updated
+        return result
 
     def delete_activity(self, activity_id: int) -> bool:
         """Delete an activity from PostgreSQL.

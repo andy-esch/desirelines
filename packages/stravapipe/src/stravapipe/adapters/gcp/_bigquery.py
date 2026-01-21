@@ -180,12 +180,31 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
     def _merge_from_staging(self, activity_id: int) -> dict:
         """Execute MERGE operation from staging to main table for specific activity"""
         merge_query, query_params = self._build_merge_query(activity_id)
-        return self._client.execute_merge_query(merge_query, query_params)
+        result = self._client.execute_merge_query(merge_query, query_params)
+        # Clean up staging table after successful merge
+        self._cleanup_staging([activity_id])
+        return result
 
     def _merge_batch_from_staging(self, activity_ids: list[int]) -> dict:
         """Execute MERGE operation for multiple activities at once"""
         merge_query, query_params = self._build_batch_merge_query(activity_ids)
-        return self._client.execute_merge_query(merge_query, query_params)
+        result = self._client.execute_merge_query(merge_query, query_params)
+        # Clean up staging table after successful merge
+        self._cleanup_staging(activity_ids)
+        return result
+
+    def _cleanup_staging(self, activity_ids: list[int]) -> None:
+        """Delete merged rows from staging table.
+
+        Called after successful MERGE to prevent staging table from growing indefinitely.
+        Uses parameterized query to prevent SQL injection.
+        """
+        delete_query = f"""
+        DELETE FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
+        WHERE id IN UNNEST(@activity_ids)
+        """
+        query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
+        self._client.execute_dml_query(delete_query, query_params)
 
     def _build_merge_query(
         self, activity_id: int
@@ -238,10 +257,13 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             f"source.{col}" for col in self._MERGE_COLUMNS
         )
 
+        # Build explicit SELECT columns for source query (avoids SELECT * EXCEPT fragility)
+        select_cols = "id, " + ", ".join(self._MERGE_COLUMNS)
+
         return f"""
         MERGE `{self._client.project_id}.{self._dataset_name}.{self._table_name}` AS target
         USING (
-            SELECT * EXCEPT(row_num) FROM (
+            SELECT {select_cols} FROM (
                 SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY start_date DESC) as row_num
                 FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
                 WHERE {where_clause}

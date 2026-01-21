@@ -42,6 +42,15 @@ class CloudEventContext:
     time: str | None = None
 
 
+# Valid content types for CloudEvents
+# - application/json: Binary format (metadata in ce-* headers, data in body)
+# - application/cloudevents+json: Structured format (everything in JSON body)
+_VALID_CONTENT_TYPES = frozenset({
+    "application/json",
+    "application/cloudevents+json",
+})
+
+
 async def parse_pubsub_cloudevent(
     request: Request,
 ) -> tuple[CloudEventContext, dict[str, Any]]:
@@ -56,6 +65,18 @@ async def parse_pubsub_cloudevent(
     Raises:
         HTTPException: If parsing fails (400) or validation fails (422)
     """
+    # Validate content type
+    content_type = request.headers.get("content-type", "")
+    # Extract base content type (ignore charset and other parameters)
+    base_content_type = content_type.split(";")[0].strip().lower()
+
+    if base_content_type not in _VALID_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported content type: {content_type}. "
+            f"Expected one of: {', '.join(sorted(_VALID_CONTENT_TYPES))}",
+        )
+
     # Extract CloudEvent headers
     ce_type = request.headers.get("ce-type")
     ce_id = request.headers.get("ce-id")
