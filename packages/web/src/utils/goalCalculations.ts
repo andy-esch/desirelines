@@ -4,6 +4,37 @@ export type DistanceTimeseries = DistanceEntry[];
 export type PacingTimeseries = PacingEntry[];
 
 /**
+ * Calculate the number of days in a year using UTC to avoid DST issues
+ * @param year - The year to calculate for
+ * @returns 365 for regular years, 366 for leap years
+ */
+function getDaysInYear(year: number): number {
+  // Use UTC dates to avoid DST issues
+  const startOfYearUTC = Date.UTC(year, 0, 1);
+  const endOfYearUTC = Date.UTC(year, 11, 31);
+  // Math.floor for consistency, +1 for inclusive counting (Jan 1 to Dec 31)
+  return Math.floor((endOfYearUTC - startOfYearUTC) / (1000 * 60 * 60 * 24)) + 1;
+}
+
+/**
+ * Convert a Date to YYYY-MM-DD string using UTC to avoid timezone shifts
+ * This ensures consistent date strings regardless of user's timezone
+ */
+function toDateString(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+/**
+ * Create a UTC date for a specific day of the year and return as YYYY-MM-DD string
+ * Uses UTC throughout to avoid timezone-related off-by-one errors
+ */
+function dayOfYearToDateString(year: number, dayOfYear: number): string {
+  // Create date in UTC to avoid local timezone issues
+  const utcDate = new Date(Date.UTC(year, 0, dayOfYear));
+  return utcDate.toISOString().split("T")[0];
+}
+
+/**
  * Individual goal with unique value
  */
 export interface Goal {
@@ -33,17 +64,13 @@ export function calculateDesireLine(
   year: number,
   maxDate: Date
 ): DistanceTimeseries {
-  const startDate = new Date(year, 0, 1);
-  const endDate = new Date(year, 11, 31);
-  const daysInYear =
-    Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
+  const daysInYear = getDaysInYear(year);
   const line: DistanceTimeseries = [];
 
+  const maxDateStr = toDateString(maxDate);
+
   for (let dayOfYear = 1; dayOfYear <= daysInYear; dayOfYear++) {
-    const currentDate = new Date(year, 0, dayOfYear);
-    const dateStr = currentDate.toISOString().split("T")[0] || "";
-    const maxDateStr = maxDate.toISOString().split("T")[0] || "";
+    const dateStr = dayOfYearToDateString(year, dayOfYear);
 
     // Include up to and including maxDate
     if (dateStr > maxDateStr) break;
@@ -83,10 +110,7 @@ export function calculateCurrentAverageLine(
   const dailyAverage = currentDistance / daysElapsed;
 
   // Projected year-end distance at current pace
-  const startDate = new Date(year, 0, 1);
-  const endDate = new Date(year, 11, 31);
-  const daysInYear =
-    Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const daysInYear = getDaysInYear(year);
   const projectedEndDistance = dailyAverage * daysInYear;
 
   // Use same line calculation as desire lines
@@ -107,11 +131,7 @@ export function estimateYearEndDistance(
 
   const currentDistance = lastEntry.y;
   const daysElapsed = distanceTraveled.length;
-
-  const startDate = new Date(year, 0, 1);
-  const endDate = new Date(year, 11, 31);
-  const daysInYear =
-    Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const daysInYear = getDaysInYear(year);
 
   return (currentDistance / daysElapsed) * daysInYear;
 }
@@ -235,13 +255,13 @@ export function calculateActualPacing(
   maxDate: Date
 ): PacingTimeseries {
   const pacing: PacingTimeseries = [];
+  const maxDateStr = toDateString(maxDate);
 
   for (let i = 0; i < distanceTraveled.length; i++) {
     const entry = distanceTraveled[i];
     if (!entry) continue;
 
     const dateStr = entry.x;
-    const maxDateStr = maxDate.toISOString().split("T")[0] || "";
 
     if (dateStr > maxDateStr) break;
 
@@ -273,19 +293,15 @@ export function calculateDynamicPacingGoal(
   year: number,
   maxDate: Date
 ): PacingTimeseries {
-  const startDate = new Date(year, 0, 1);
-  const endDate = new Date(year, 11, 31);
-  const daysInYear =
-    Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
+  const daysInYear = getDaysInYear(year);
   const pacing: PacingTimeseries = [];
+  const maxDateStr = toDateString(maxDate);
 
   for (let i = 0; i < distanceTraveled.length; i++) {
     const entry = distanceTraveled[i];
     if (!entry) continue;
 
     const dateStr = entry.x;
-    const maxDateStr = maxDate.toISOString().split("T")[0] || "";
 
     if (dateStr > maxDateStr) break;
 

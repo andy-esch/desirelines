@@ -66,15 +66,15 @@ export interface UserConfigServiceOptions {
  * Defaults to Firebase implementations if not provided.
  */
 export class UserConfigService {
-  private userId: string;
+  private explicitUserId: string | undefined;
   private version: string;
   private authService: AuthService;
   private databaseService: DatabaseService;
 
   /**
    * @param userId - Optional userId to use for operations.
-   *   - If not provided: uses authenticated user's UID, or "default" if not authenticated
-   *   - If provided: uses the specified userId
+   *   - If not provided: uses authenticated user's UID (re-evaluated on each operation), or "default" if not authenticated
+   *   - If provided: uses the specified userId (fixed for the lifetime of this instance)
    *   WARNING: Providing an explicit userId when authenticated will throw an error
    *   unless it matches the authenticated user's UID.
    * @param version - Config version (defaults to "v1")
@@ -85,30 +85,60 @@ export class UserConfigService {
     this.authService = options?.authService ?? getFirebaseAuthService();
     this.databaseService = options?.databaseService ?? getFirestoreService();
 
-    const currentUser = this.authService.getCurrentUser();
-
-    // Resolve userId: explicit > auth user > "default"
-    this.userId = userId ?? currentUser?.uid ?? "default";
+    this.explicitUserId = userId;
     this.version = version;
 
-    // CRITICAL: Validate userId matches authenticated user when explicitly provided
-    if (currentUser && userId !== undefined) {
-      if (currentUser.uid !== userId) {
-        throw new Error(
-          `UserConfigService: userId mismatch! ` +
-            `Attempted to access config for userId="${userId}" ` +
-            `but authenticated user is "${currentUser.uid}". ` +
-            `This likely indicates a bug in how userId is being passed to UserConfigService.`
-        );
-      }
+    // Validate at construction if explicit userId provided and user is authenticated
+    if (userId !== undefined) {
+      this.validateExplicitUserId(userId);
     }
+  }
+
+  /**
+   * Validate that an explicit userId matches the authenticated user (if any)
+   */
+  private validateExplicitUserId(userId: string): void {
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser && currentUser.uid !== userId) {
+      throw new Error(
+        `UserConfigService: userId mismatch! ` +
+          `Attempted to access config for userId="${userId}" ` +
+          `but authenticated user is "${currentUser.uid}". ` +
+          `This likely indicates a bug in how userId is being passed to UserConfigService.`
+      );
+    }
+  }
+
+  /**
+   * Get the effective userId for operations.
+   * If an explicit userId was provided at construction, uses that.
+   * Otherwise, re-evaluates the current auth state on each call.
+   */
+  private getEffectiveUserId(): string {
+    if (this.explicitUserId !== undefined) {
+      // Re-validate on each call to catch auth state changes
+      this.validateExplicitUserId(this.explicitUserId);
+      return this.explicitUserId;
+    }
+
+    // Dynamic: use current auth user or "default"
+    const currentUser = this.authService.getCurrentUser();
+    return currentUser?.uid ?? "default";
+  }
+
+  /**
+   * Get the current userId being used for operations.
+   * Useful for debugging and logging.
+   */
+  get userId(): string {
+    return this.getEffectiveUserId();
   }
 
   /**
    * Get document path for this user's config
    */
   private getDocPath(): string {
-    return `users/${this.userId}/config/${this.version}`;
+    return `users/${this.getEffectiveUserId()}/config/${this.version}`;
   }
 
   /**
@@ -403,7 +433,9 @@ export class UserConfigService {
   }
 }
 
-// Default instance for convenience (uses authenticated user's UID, or "default" if not authenticated)
+// Default instance for convenience.
+// Auth state is re-evaluated on each operation, so this singleton is safe to create at module load.
+// Uses authenticated user's UID if signed in, or "default" if not authenticated.
 export const defaultConfigService = new UserConfigService();
 
 // Re-export protobuf types for convenience

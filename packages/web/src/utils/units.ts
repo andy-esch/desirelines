@@ -6,6 +6,24 @@ export type ActivityUnit = "sessions";
 export type DurationUnit = "minutes" | "hours";
 export type MetricUnit = DistanceUnit | ElevationUnit | ActivityUnit | DurationUnit;
 
+// Valid values for runtime validation
+const VALID_DISTANCE_UNITS: readonly DistanceUnit[] = ["miles", "kilometers", "meters"];
+const VALID_ELEVATION_UNITS: readonly ElevationUnit[] = ["meters", "feet"];
+
+/**
+ * Type guard to validate if a string is a valid DistanceUnit
+ */
+export function isValidDistanceUnit(value: unknown): value is DistanceUnit {
+  return typeof value === "string" && VALID_DISTANCE_UNITS.includes(value as DistanceUnit);
+}
+
+/**
+ * Type guard to validate if a string is a valid ElevationUnit
+ */
+export function isValidElevationUnit(value: unknown): value is ElevationUnit {
+  return typeof value === "string" && VALID_ELEVATION_UNITS.includes(value as ElevationUnit);
+}
+
 // Conversion constants
 export const METERS_TO_MILES = 0.000621371;
 export const METERS_TO_KM = 0.001;
@@ -132,7 +150,8 @@ export function goalDisplayToMeters(value: number, unit: DistanceUnit): number {
 
 /**
  * Get user settings from preferences with fallback to defaults
- * This allows preferences to override hard-coded defaults
+ * This allows preferences to override hard-coded defaults.
+ * Invalid enum values are safely ignored and fall back to defaults.
  */
 export function getUserSettings(preferences?: Preferences | null): UserSettings {
   if (!preferences) {
@@ -140,9 +159,12 @@ export function getUserSettings(preferences?: Preferences | null): UserSettings 
   }
 
   return {
-    distanceUnit: (preferences.distanceUnit as DistanceUnit) || DEFAULT_USER_SETTINGS.distanceUnit,
-    elevationUnit:
-      (preferences.elevationUnit as ElevationUnit) || DEFAULT_USER_SETTINGS.elevationUnit,
+    distanceUnit: isValidDistanceUnit(preferences.distanceUnit)
+      ? preferences.distanceUnit
+      : DEFAULT_USER_SETTINGS.distanceUnit,
+    elevationUnit: isValidElevationUnit(preferences.elevationUnit)
+      ? preferences.elevationUnit
+      : DEFAULT_USER_SETTINGS.elevationUnit,
     defaultSport: preferences.defaultSport || DEFAULT_USER_SETTINGS.defaultSport,
   };
 }

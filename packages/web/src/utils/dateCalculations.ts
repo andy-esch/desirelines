@@ -42,10 +42,11 @@ export function calculateYearStats(year: number): YearStats {
   const endOfYearUTC = Date.UTC(year, 11, 31);
 
   // Days elapsed = days from Jan 1 to today (inclusive of both endpoints)
-  const daysElapsed = Math.round((todayUTC - startOfYearUTC) / (1000 * 60 * 60 * 24)) + 1;
+  // Use Math.floor for consistency - UTC dates should be exact multiples but floor is safer
+  const daysElapsed = Math.floor((todayUTC - startOfYearUTC) / (1000 * 60 * 60 * 24)) + 1;
 
   // Days remaining = days from today to Dec 31 (inclusive of both endpoints)
-  const daysRemaining = Math.round((endOfYearUTC - todayUTC) / (1000 * 60 * 60 * 24)) + 1;
+  const daysRemaining = Math.floor((endOfYearUTC - todayUTC) / (1000 * 60 * 60 * 24)) + 1;
 
   return {
     startOfYear,

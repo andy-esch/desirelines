@@ -14,6 +14,21 @@ import type { User } from "../services/auth/AuthService";
 
 export type { User };
 
+/**
+ * Shallow compare two User objects to avoid unnecessary re-renders
+ * Returns true if users are equal (same values or both null)
+ */
+function usersEqual(a: User | null, b: User | null): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  return (
+    a.uid === b.uid &&
+    a.email === b.email &&
+    a.displayName === b.displayName &&
+    a.photoURL === b.photoURL
+  );
+}
+
 export interface AuthState {
   user: User | null;
   loading: boolean;
@@ -47,8 +62,9 @@ export function useAuth(): AuthState {
 
   useEffect(() => {
     // Subscribe to auth state changes
-    const unsubscribe = authService.onAuthStateChanged((user) => {
-      setUser(user);
+    const unsubscribe = authService.onAuthStateChanged((newUser) => {
+      // Only update state if user data actually changed (prevents unnecessary re-renders)
+      setUser((prevUser) => (usersEqual(prevUser, newUser) ? prevUser : newUser));
       setLoading(false);
     });
 

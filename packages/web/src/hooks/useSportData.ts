@@ -70,6 +70,9 @@ export function useSportData(year: number, sport: string): SportDataResult {
         setMetrics(metricsData);
         setSportConfig(configData);
       } catch (err) {
+        // Abort any pending requests when one fails
+        controller.abort();
+
         // API functions return empty data on cancellation, so this catch
         // should only trigger for real errors. Still check for edge cases.
         if (!isCancellationError(err)) {
