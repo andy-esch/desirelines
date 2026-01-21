@@ -3,7 +3,7 @@
 from google.cloud import bigquery
 from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
 
-from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
+from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
 from stravapipe.domain import (
     DetailedStravaActivity,
     MinimalStravaActivity,
@@ -87,11 +87,11 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         # Derive from main table name
         self._staging_table_name = f"{table_name}_staging"
 
-    def write_activity(self, activity: DetailedStravaActivity) -> dict:
-        """Two-step upsert: stage then merge
+    def write_activity(self, activity: DetailedStravaActivity) -> MergeResult:
+        """Two-step upsert: stage then merge.
 
         Returns:
-            dict: Statistics from the MERGE operation
+            MergeResult with rows_affected, execution_time_ms, job_id, query_preview
         """
         # Step 1: Insert to staging table (fast streaming insert)
         self._write_to_staging(activity)
@@ -101,14 +101,14 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
 
     def write_activities_batch(
         self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
-    ) -> dict:
-        """Batch upsert: stage all activities, then merge all at once
+    ) -> MergeResult:
+        """Batch upsert: stage all activities, then merge all at once.
 
         Args:
             activities: List of activities to insert (DetailedActivity or SummaryActivity)
 
         Returns:
-            dict: Statistics from the MERGE operation
+            MergeResult with rows_affected, execution_time_ms, job_id, query_preview
 
         Raises:
             ValueError: If batch size exceeds BigQuery's 10,000 row limit
@@ -121,7 +121,12 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             - Missing fields in SummaryActivity will be NULL in BigQuery
         """
         if not activities:
-            return {"rows_affected": 0, "execution_time_ms": 0}
+            return MergeResult(
+                rows_affected=0,
+                execution_time_ms=0,
+                job_id="",
+                query_preview="(empty batch)",
+            )
 
         if len(activities) > self._MAX_BATCH_SIZE:
             raise ValueError(

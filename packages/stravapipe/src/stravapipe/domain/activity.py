@@ -1,7 +1,14 @@
-"""Strava activity domain models."""
+"""Strava activity domain models.
 
-from datetime import datetime
+Note on type: ignore[prop-decorator]:
+    Pydantic's @computed_field with @property triggers mypy's prop-decorator error
+    because mypy doesn't understand decorator chaining that transforms properties.
+    This is a mypy limitation, not a code issue. The computed fields work correctly
+    at runtime. See: https://github.com/pydantic/pydantic/issues/6612
+"""
+
 import json
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
@@ -114,14 +121,24 @@ class SummaryGear(BaseModel):
 
 
 class PhotosSummaryPrimary(BaseModel):
+    """Photo summary from Strava API.
+
+    Note: The `urls` field comes from Strava as a dict but is stored as a JSON string
+    for simpler BigQuery storage. The validator handles this transformation.
+    """
+
     id: str | None = None
     media_type: int | None = None
     source: int
     unique_id: str
-    urls: str
+    urls: str  # Stored as JSON string; Strava sends dict, validator converts
 
     @field_validator("urls", mode="before")
-    def transform_to_json_str(cls, value) -> str:  # noqa: N805 (pydantic validator uses cls, not self)
+    @classmethod
+    def transform_to_json_str(cls, value: dict | str) -> str:
+        """Convert urls dict from Strava API to JSON string for storage."""
+        if isinstance(value, str):
+            return value  # Already converted
         return json.dumps(value)
 
 
@@ -273,10 +290,10 @@ class MinimalStravaActivity(BaseModel):
     moving_time: int  # seconds
     total_elevation_gain: float  # meters
 
-    @computed_field  # type: ignore
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def date_str(self) -> str:
-        """Get date string in YYYY-MM-DD format"""
+        """Get date string in YYYY-MM-DD format."""
         return self.start_date_local.date().strftime("%Y-%m-%d")
 
 

@@ -5,6 +5,7 @@ variables, validates required parameters, and transforms to SQLAlchemy dialect.
 """
 
 import os
+import re
 import stat
 from typing import NamedTuple
 from urllib.parse import parse_qs, urlparse
@@ -209,7 +210,10 @@ def _validate_connection_string(conn_str: str) -> None:
     try:
         parsed = urlparse(conn_str)
     except Exception as e:
-        raise ConnectionStringError(f"Invalid connection string URL: {e}") from e
+        # Don't include original exception - it may contain credentials
+        raise ConnectionStringError(
+            "Invalid connection string URL format (details redacted for security)"
+        ) from e
 
     # Validate scheme
     if parsed.scheme not in ("postgresql", "postgresql+psycopg"):
@@ -217,12 +221,45 @@ def _validate_connection_string(conn_str: str) -> None:
             f"Invalid scheme '{parsed.scheme}'. Expected 'postgresql' or 'postgresql+psycopg'"
         )
 
-    # Validate application_name is present
+    # Validate application_name is present and valid
     params = parse_qs(parsed.query)
     if "application_name" not in params:
         raise ConnectionStringError(
             "Connection string must include 'application_name' parameter for observability. "
             "Example: postgresql://user:pass@host/db?sslmode=require&application_name=my-service"
+        )
+
+    app_name = params["application_name"][0] if params["application_name"] else ""
+    _validate_application_name(app_name)
+
+
+# Valid characters for application_name: alphanumeric, hyphen, underscore
+_APP_NAME_PATTERN = r"^[a-zA-Z0-9_-]+$"
+_APP_NAME_MAX_LENGTH = 64  # PostgreSQL truncates at 64 chars
+
+
+def _validate_application_name(app_name: str) -> None:
+    """Validate application_name value for observability safety.
+
+    Args:
+        app_name: The application_name parameter value.
+
+    Raises:
+        ConnectionStringError: If application_name is invalid.
+    """
+    if not app_name:
+        raise ConnectionStringError("application_name cannot be empty")
+
+    if len(app_name) > _APP_NAME_MAX_LENGTH:
+        raise ConnectionStringError(
+            f"application_name exceeds {_APP_NAME_MAX_LENGTH} characters "
+            f"(PostgreSQL will truncate)"
+        )
+
+    if not re.match(_APP_NAME_PATTERN, app_name):
+        raise ConnectionStringError(
+            "application_name must contain only alphanumeric characters, "
+            "hyphens, and underscores (a-z, A-Z, 0-9, -, _)"
         )
 
 

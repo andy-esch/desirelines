@@ -1,10 +1,23 @@
-"""Strava adapters."""
+"""Strava adapters.
+
+Provides a layered architecture for Strava API access:
+
+    StravaTokenRepo      - Refreshes tokens via Strava OAuth API
+    StravaTokenManager   - Manages token state + thread-safety
+    StravaApiClient      - HTTP calls, 401 retry, error translation
+    StravaActivitiesRepo - Domain model conversion
+
+Use the factory functions (make_read_*) to create properly wired instances.
+"""
 
 from stravapipe.adapters.strava._repositories import (
-    DetailedStravaActivitiesRepo,
-    StravaApiConfig,
+    StravaActivitiesRepo,
+    StravaApiClient,
+    StravaTokenManager,
     StravaTokenRepo,
+    create_strava_activities_repo,
 )
+from stravapipe.config.common import StravaApiConfig
 from stravapipe.domain import StravaTokenSet
 
 
@@ -15,26 +28,36 @@ def make_read_strava_token(tokens: StravaTokenSet) -> StravaTokenRepo:
 
 def make_read_detailed_activities(
     tokens: StravaTokenSet,
-) -> DetailedStravaActivitiesRepo:
-    """Create a detailed Strava activities repository (for BQ inserter)."""
-    return DetailedStravaActivitiesRepo(tokens=tokens, api_config=StravaApiConfig())
+) -> StravaActivitiesRepo:
+    """Create a Strava activities repository (for BQ inserter).
+
+    Returns StravaActivitiesRepo which implements ReadDetailedActivities.
+    Use read_activity_by_id() for detailed activities.
+    """
+    return create_strava_activities_repo(tokens=tokens, api_config=StravaApiConfig())
 
 
 def make_read_standard_activities(
     tokens: StravaTokenSet,
-) -> DetailedStravaActivitiesRepo:
-    """Create a standard Strava activities repository (for PostgreSQL writer).
+) -> StravaActivitiesRepo:
+    """Create a Strava activities repository (for PostgreSQL writer).
 
-    Returns DetailedStravaActivitiesRepo which implements ReadStandardActivities.
-    Use read_standard_activity_by_id() method.
+    Returns StravaActivitiesRepo which implements ReadStandardActivities.
+    Use read_standard_activity_by_id() for standard activities.
     """
-    return DetailedStravaActivitiesRepo(tokens=tokens, api_config=StravaApiConfig())
+    return create_strava_activities_repo(tokens=tokens, api_config=StravaApiConfig())
 
 
 __all__ = [
-    "DetailedStravaActivitiesRepo",
-    "StravaApiConfig",
+    # Classes
+    "StravaActivitiesRepo",
+    "StravaApiClient",
+    "StravaTokenManager",
     "StravaTokenRepo",
+    # Config (re-exported from config.common)
+    "StravaApiConfig",
+    # Factory functions
+    "create_strava_activities_repo",
     "make_read_detailed_activities",
     "make_read_standard_activities",
     "make_read_strava_token",

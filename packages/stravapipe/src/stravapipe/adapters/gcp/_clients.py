@@ -1,11 +1,20 @@
 import logging
+from typing import TypedDict
 
-from google.cloud.bigquery import Client as BigQueryClient
-from google.cloud.bigquery import QueryJobConfig, ScalarQueryParameter, ArrayQueryParameter
+from google.cloud.bigquery import ArrayQueryParameter, Client as BigQueryClient, QueryJobConfig, ScalarQueryParameter
 
 from stravapipe.exceptions import BigQueryError
 
 logger = logging.getLogger(__name__)
+
+
+class MergeResult(TypedDict):
+    """Result from a BigQuery MERGE operation."""
+
+    rows_affected: int
+    execution_time_ms: int | None
+    job_id: str
+    query_preview: str
 
 
 class BigQueryClientWrapper:
@@ -32,7 +41,7 @@ class BigQueryClientWrapper:
         self,
         query: str,
         query_parameters: list[ScalarQueryParameter | ArrayQueryParameter] | None = None,
-    ) -> dict:
+    ) -> MergeResult:
         """Execute MERGE query for upsert operations
 
         Args:
