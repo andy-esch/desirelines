@@ -1,7 +1,12 @@
 import logging
 from typing import TypedDict
 
-from google.cloud.bigquery import ArrayQueryParameter, Client as BigQueryClient, QueryJobConfig, ScalarQueryParameter
+from google.cloud.bigquery import (
+    ArrayQueryParameter,
+    Client as BigQueryClient,
+    QueryJobConfig,
+    ScalarQueryParameter,
+)
 
 from stravapipe.exceptions import BigQueryError
 
@@ -40,7 +45,8 @@ class BigQueryClientWrapper:
     def execute_merge_query(
         self,
         query: str,
-        query_parameters: list[ScalarQueryParameter | ArrayQueryParameter] | None = None,
+        query_parameters: list[ScalarQueryParameter | ArrayQueryParameter]
+        | None = None,
     ) -> MergeResult:
         """Execute MERGE query for upsert operations
 
@@ -93,7 +99,8 @@ class BigQueryClientWrapper:
     def execute_dml_query(
         self,
         query: str,
-        query_parameters: list[ScalarQueryParameter | ArrayQueryParameter] | None = None,
+        query_parameters: list[ScalarQueryParameter | ArrayQueryParameter]
+        | None = None,
     ) -> int:
         """Execute DML query (DELETE, INSERT, UPDATE).
 

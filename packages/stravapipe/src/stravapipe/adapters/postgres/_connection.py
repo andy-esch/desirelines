@@ -87,11 +87,14 @@ class PoolConfig(NamedTuple):
             PoolConfig with values from environment or defaults.
         """
         return cls(
-            strategy=os.environ.get("POSTGRES_POOL_STRATEGY", PoolStrategy.AUTO).lower(),
+            strategy=os.environ.get(
+                "POSTGRES_POOL_STRATEGY", PoolStrategy.AUTO
+            ).lower(),
             pool_size=int(os.environ.get("POSTGRES_POOL_SIZE", "2")),
             max_overflow=int(os.environ.get("POSTGRES_MAX_OVERFLOW", "3")),
             pool_recycle=int(os.environ.get("POSTGRES_POOL_RECYCLE", "1800")),
-            pool_pre_ping=os.environ.get("POSTGRES_POOL_PRE_PING", "true").lower() == "true",
+            pool_pre_ping=os.environ.get("POSTGRES_POOL_PRE_PING", "true").lower()
+            == "true",
         )
 
     def uses_external_pooler(self, database_url: str) -> bool:

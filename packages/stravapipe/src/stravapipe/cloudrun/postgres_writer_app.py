@@ -191,7 +191,9 @@ async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
             extra={"correlation_id": correlation_id},
         )
         return _response(
-            ResponseStatus.SKIPPED, activity_id, correlation_id,
+            ResponseStatus.SKIPPED,
+            activity_id,
+            correlation_id,
             reason=SkipReason.ACTIVITY_NOT_FOUND,
         )
 
@@ -209,7 +211,9 @@ async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
         extra={"correlation_id": correlation_id},
     )
     return _response(
-        ResponseStatus.SKIPPED, activity_id, correlation_id,
+        ResponseStatus.SKIPPED,
+        activity_id,
+        correlation_id,
         reason=SkipReason.ALREADY_EXISTS,
     )
 
@@ -236,7 +240,9 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
             },
         )
         return _response(
-            ResponseStatus.SKIPPED, activity_id, correlation_id,
+            ResponseStatus.SKIPPED,
+            activity_id,
+            correlation_id,
             reason=SkipReason.NO_RELEVANT_UPDATES,
         )
 
@@ -262,7 +268,9 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
             extra={"correlation_id": correlation_id},
         )
         return _response(
-            ResponseStatus.SKIPPED, activity_id, correlation_id,
+            ResponseStatus.SKIPPED,
+            activity_id,
+            correlation_id,
             reason=SkipReason.ACTIVITY_NOT_FOUND,
         )
 
@@ -275,7 +283,9 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
         return _response(ResponseStatus.UPDATED, activity_id, correlation_id)
 
     return _response(
-        ResponseStatus.SKIPPED, activity_id, correlation_id,
+        ResponseStatus.SKIPPED,
+        activity_id,
+        correlation_id,
         reason=SkipReason.NOT_FOUND,
     )
 
@@ -300,6 +310,8 @@ async def _handle_delete(event: pb.WebhookEvent, correlation_id: str) -> dict:
         extra={"correlation_id": correlation_id},
     )
     return _response(
-        ResponseStatus.SKIPPED, activity_id, correlation_id,
+        ResponseStatus.SKIPPED,
+        activity_id,
+        correlation_id,
         reason=SkipReason.NOT_FOUND,
     )

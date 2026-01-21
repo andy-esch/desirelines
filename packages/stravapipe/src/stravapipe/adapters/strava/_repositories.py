@@ -509,5 +509,3 @@ def create_strava_activities_repo(
     api_client = StravaApiClient(token_manager, config)
 
     return StravaActivitiesRepo(api_client)
-
-

@@ -45,10 +45,12 @@ class CloudEventContext:
 # Valid content types for CloudEvents
 # - application/json: Binary format (metadata in ce-* headers, data in body)
 # - application/cloudevents+json: Structured format (everything in JSON body)
-_VALID_CONTENT_TYPES = frozenset({
-    "application/json",
-    "application/cloudevents+json",
-})
+_VALID_CONTENT_TYPES = frozenset(
+    {
+        "application/json",
+        "application/cloudevents+json",
+    }
+)
 
 
 async def parse_pubsub_cloudevent(
