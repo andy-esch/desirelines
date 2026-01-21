@@ -16,6 +16,15 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 )
 
+// Test constants for webhook event data.
+// Using descriptive names makes test intent clearer.
+const (
+	testEventTime      = 1234567890 // Unix timestamp for test events
+	testObjectID       = 12345      // Strava activity ID
+	testOwnerID        = 67890      // Strava athlete ID
+	testSubscriptionID = 123        // Webhook subscription ID
+)
+
 // parseErrorResponse parses a JSON error response body.
 // Returns nil if parsing fails (e.g., for non-JSON responses).
 func parseErrorResponse(body string) *apierrors.ErrorResponse {
@@ -96,7 +105,7 @@ func TestHandler_HandleVerification(t *testing.T) {
 			}
 			mockPublisher := &portstest.MockPublisher{}
 
-			handler := NewHandler(mockPublisher, mockSecrets, log)
+			handler := NewHandler(mockPublisher, mockSecrets, log, nil)
 			router := handler.RegisterRoutes()
 
 			req := httptest.NewRequest(tt.method, "/webhook", nil)
@@ -135,11 +144,11 @@ func TestHandler_HandleEvent(t *testing.T) {
 	// Use StravaWebhookJSON to simulate incoming JSON payload from Strava (string enums)
 	validPayload := webhookproto.StravaWebhookJSON{
 		AspectType:     "create",
-		EventTime:      1234567890,
-		ObjectID:       12345,
+		EventTime:      testEventTime,
+		ObjectID:       testObjectID,
 		ObjectType:     "activity",
-		OwnerID:        67890,
-		SubscriptionID: 123,
+		OwnerID:        testOwnerID,
+		SubscriptionID: testSubscriptionID,
 		Updates:        map[string]string{},
 	}
 
@@ -149,7 +158,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			method:         "POST",
 			contentType:    "application/json",
 			payload:        validPayload,
-			mockSubID:      123,
+			mockSubID:      testSubscriptionID,
 			expectedStatus: http.StatusCreated,
 			expectedBody:   "success",
 		},
@@ -209,13 +218,13 @@ func TestHandler_HandleEvent(t *testing.T) {
 			contentType: "application/json",
 			payload: webhookproto.StravaWebhookJSON{
 				AspectType:     "create",
-				EventTime:      1234567890,
-				ObjectID:       12345,
+				EventTime:      testEventTime,
+				ObjectID:       testObjectID,
 				ObjectType:     "athlete", // Not activity
-				OwnerID:        67890,
-				SubscriptionID: 123,
+				OwnerID:        testOwnerID,
+				SubscriptionID: testSubscriptionID,
 			},
-			mockSubID:      123,
+			mockSubID:      testSubscriptionID,
 			expectedStatus: http.StatusCreated,
 			expectedBody:   "success",
 		},
@@ -224,7 +233,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			method:         "POST",
 			contentType:    "application/json",
 			payload:        validPayload,
-			mockSubID:      123,
+			mockSubID:      testSubscriptionID,
 			publishErr:     errors.New("publish failed"),
 			expectedStatus: http.StatusInternalServerError,
 			expectedCode:   "PUBLISH_FAILED",
@@ -261,7 +270,7 @@ func runHandleEventTest(t *testing.T, tt handleEventTestCase) {
 		PublishErr: tt.publishErr,
 	}
 
-	handler := NewHandler(mockPublisher, mockSecrets, log)
+	handler := NewHandler(mockPublisher, mockSecrets, log, nil)
 	router := handler.RegisterRoutes()
 
 	var body []byte
@@ -309,8 +318,8 @@ func runHandleEventTest(t *testing.T, tt handleEventTestCase) {
 		} else {
 			// Verify the published event content
 			event := mockPublisher.Published[0]
-			if event.ObjectId != 12345 {
-				t.Errorf("expected object_id 12345, got %d", event.ObjectId)
+			if event.ObjectId != testObjectID {
+				t.Errorf("expected object_id %d, got %d", testObjectID, event.ObjectId)
 			}
 			if event.ObjectType != generated.ObjectType_OBJECT_TYPE_ACTIVITY {
 				t.Errorf("expected object_type ACTIVITY, got %v", event.ObjectType)
@@ -322,7 +331,7 @@ func runHandleEventTest(t *testing.T, tt handleEventTestCase) {
 // Test health endpoints
 func TestHandler_Health(t *testing.T) {
 	log := logger.NewNoOpLogger()
-	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockSecretProvider{}, log)
+	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockSecretProvider{}, log, nil)
 	router := handler.RegisterRoutes()
 
 	tests := []struct {
@@ -361,7 +370,7 @@ func TestHandler_Health(t *testing.T) {
 // Test Close
 func TestHandler_Close(t *testing.T) {
 	mockPublisher := &portstest.MockPublisher{}
-	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{}, logger.NewNoOpLogger())
+	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{}, logger.NewNoOpLogger(), nil)
 
 	err := handler.Close(context.Background())
 	if err != nil {

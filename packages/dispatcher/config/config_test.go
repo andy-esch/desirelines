@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestLoadConfig_EnvVars(t *testing.T) {
@@ -44,6 +45,10 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 		"GCP_PROJECT_ID",
 		"GCP_PUBSUB_TOPIC",
 		"LOG_LEVEL",
+		"HTTP_READ_TIMEOUT",
+		"HTTP_WRITE_TIMEOUT",
+		"HTTP_READ_HEADER_TIMEOUT",
+		"MAX_REQUEST_BODY_SIZE",
 	)
 
 	cfg, err := LoadConfig()
@@ -62,6 +67,97 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	// LogLevel should have default value
 	if cfg.LogLevel != "INFO" {
 		t.Errorf("Expected default log level 'INFO', got '%s'", cfg.LogLevel)
+	}
+
+	// Timeouts should have default values
+	if cfg.ReadTimeout != DefaultReadTimeout {
+		t.Errorf("Expected default read timeout %v, got %v", DefaultReadTimeout, cfg.ReadTimeout)
+	}
+	if cfg.WriteTimeout != DefaultWriteTimeout {
+		t.Errorf("Expected default write timeout %v, got %v", DefaultWriteTimeout, cfg.WriteTimeout)
+	}
+	if cfg.ReadHeaderTimeout != DefaultReadHeaderTimeout {
+		t.Errorf("Expected default read header timeout %v, got %v", DefaultReadHeaderTimeout, cfg.ReadHeaderTimeout)
+	}
+
+	// Max body size should have default value
+	if cfg.MaxRequestBodySize != DefaultMaxRequestBodySize {
+		t.Errorf("Expected default max body size %d, got %d", DefaultMaxRequestBodySize, cfg.MaxRequestBodySize)
+	}
+}
+
+func TestLoadConfig_CustomTimeouts(t *testing.T) {
+	if err := os.Setenv("HTTP_READ_TIMEOUT", "45s"); err != nil {
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	if err := os.Setenv("HTTP_WRITE_TIMEOUT", "1m"); err != nil {
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	if err := os.Setenv("HTTP_READ_HEADER_TIMEOUT", "15s"); err != nil {
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	if err := os.Setenv("MAX_REQUEST_BODY_SIZE", "2097152"); err != nil { // 2MB
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	defer cleanupEnv(t,
+		"HTTP_READ_TIMEOUT",
+		"HTTP_WRITE_TIMEOUT",
+		"HTTP_READ_HEADER_TIMEOUT",
+		"MAX_REQUEST_BODY_SIZE",
+	)
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if cfg.ReadTimeout != 45*time.Second {
+		t.Errorf("Expected read timeout 45s, got %v", cfg.ReadTimeout)
+	}
+	if cfg.WriteTimeout != time.Minute {
+		t.Errorf("Expected write timeout 1m, got %v", cfg.WriteTimeout)
+	}
+	if cfg.ReadHeaderTimeout != 15*time.Second {
+		t.Errorf("Expected read header timeout 15s, got %v", cfg.ReadHeaderTimeout)
+	}
+	if cfg.MaxRequestBodySize != 2097152 {
+		t.Errorf("Expected max body size 2097152, got %d", cfg.MaxRequestBodySize)
+	}
+}
+
+func TestLoadConfig_InvalidTimeout(t *testing.T) {
+	if err := os.Setenv("HTTP_READ_TIMEOUT", "invalid"); err != nil {
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	defer cleanupEnv(t, "HTTP_READ_TIMEOUT")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Error("Expected error for invalid timeout, got nil")
+	}
+}
+
+func TestLoadConfig_NegativeTimeout(t *testing.T) {
+	if err := os.Setenv("HTTP_READ_TIMEOUT", "-5s"); err != nil {
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	defer cleanupEnv(t, "HTTP_READ_TIMEOUT")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Error("Expected error for negative timeout, got nil")
+	}
+}
+
+func TestLoadConfig_InvalidBodySize(t *testing.T) {
+	if err := os.Setenv("MAX_REQUEST_BODY_SIZE", "not-a-number"); err != nil {
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	defer cleanupEnv(t, "MAX_REQUEST_BODY_SIZE")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Error("Expected error for invalid body size, got nil")
 	}
 }
 

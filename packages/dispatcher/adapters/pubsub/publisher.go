@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"sync"
 	"time"
 
@@ -20,8 +21,23 @@ const (
 	DefaultPublishTimeout = 30 * time.Second
 )
 
-// ErrPublisherClosed is returned when Publish is called on a closed publisher.
-var ErrPublisherClosed = errors.New("publisher is closed")
+var (
+	// ErrPublisherClosed is returned when Publish is called on a closed publisher.
+	ErrPublisherClosed = errors.New("publisher is closed")
+
+	// ErrPublisherNotInitialized is returned when publisher is nil.
+	ErrPublisherNotInitialized = errors.New("publisher not initialized")
+
+	// projectIDRegex validates GCP project ID format.
+	// Project IDs must be 6-30 characters: lowercase letters, digits, hyphens.
+	// Must start with a letter and cannot end with a hyphen.
+	projectIDRegex = regexp.MustCompile(`^[a-z][a-z0-9-]{4,28}[a-z0-9]$`)
+
+	// topicIDRegex validates Pub/Sub topic ID format.
+	// Topic IDs must be 3-255 characters: letters, digits, hyphens, underscores, periods, tildes, plus, percent.
+	// Must start with a letter.
+	topicIDRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-_.~+%]{2,254}$`)
+)
 
 // Publisher is a Pub/Sub adapter that implements the repository.Publisher interface.
 type Publisher struct {
@@ -34,7 +50,24 @@ type Publisher struct {
 }
 
 // NewPublisher creates a new Pub/Sub publisher adapter.
+// Returns an error if projectID or topicID have invalid format.
 func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.Logger) (*Publisher, error) {
+	// Validate project ID format
+	if projectID == "" {
+		return nil, errors.New("projectID is required")
+	}
+	if !projectIDRegex.MatchString(projectID) {
+		return nil, fmt.Errorf("invalid projectID format: %q (must be 6-30 lowercase alphanumeric characters with hyphens)", projectID)
+	}
+
+	// Validate topic ID format
+	if topicID == "" {
+		return nil, errors.New("topicID is required")
+	}
+	if !topicIDRegex.MatchString(topicID) {
+		return nil, fmt.Errorf("invalid topicID format: %q (must be 3-255 alphanumeric characters starting with a letter)", topicID)
+	}
+
 	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PubSub client: %w", err)
@@ -53,12 +86,17 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 
 // Publish sends a webhook event to the configured Pub/Sub topic.
 // Returns ErrPublisherClosed if called after Close.
+// Returns ErrPublisherNotInitialized if the publisher was not properly initialized.
 // If the context has no deadline, a default timeout of 30s is applied.
 func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) error {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
 		return ErrPublisherClosed
+	}
+	if p.publisher == nil {
+		p.mu.RUnlock()
+		return ErrPublisherNotInitialized
 	}
 	p.mu.RUnlock()
 

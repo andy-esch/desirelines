@@ -35,17 +35,28 @@ const (
 
 // Handler orchestrates the webhook processing.
 type Handler struct {
-	secretProvider ports.SecretProvider
-	publisher      ports.Publisher
-	logger         *slog.Logger
+	secretProvider     ports.SecretProvider
+	publisher          ports.Publisher
+	logger             *slog.Logger
+	maxRequestBodySize int64
+}
+
+// HandlerConfig holds configuration for the HTTP handler.
+type HandlerConfig struct {
+	MaxRequestBodySize int64
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
-func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, logger *slog.Logger) *Handler {
+func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, logger *slog.Logger, cfg *HandlerConfig) *Handler {
+	maxBodySize := int64(1 << 20) // Default 1MB
+	if cfg != nil && cfg.MaxRequestBodySize > 0 {
+		maxBodySize = cfg.MaxRequestBodySize
+	}
 	return &Handler{
-		secretProvider: secretProvider,
-		publisher:      publisher,
-		logger:         logger,
+		secretProvider:     secretProvider,
+		publisher:          publisher,
+		logger:             logger,
+		maxRequestBodySize: maxBodySize,
 	}
 }
 
@@ -60,9 +71,12 @@ func (h *Handler) RegisterRoutes() http.Handler {
 
 	// Health check endpoint for Cloud Run / docker health checks
 	r.Head("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Length", "0")
 		w.WriteHeader(http.StatusOK)
 	})
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -115,8 +129,6 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-const maxRequestBodySize = 1 << 20 // 1MB
-
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// Validate Content-Type header
 	contentType := r.Header.Get("Content-Type")
@@ -127,8 +139,8 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check that request is under maxRequestBodySize
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+	// Limit request body size to prevent memory exhaustion
+	r.Body = http.MaxBytesReader(w, r.Body, h.maxRequestBodySize)
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -216,11 +228,15 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	h.writeSuccess(w)
 }
 
+// successResponse is the JSON response for successful webhook processing.
+type successResponse struct {
+	Success bool `json:"success"`
+}
+
 func (h *Handler) writeSuccess(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"success": "true",
-	}); err != nil {
+	if err := json.NewEncoder(w).Encode(successResponse{Success: true}); err != nil {
 		h.logger.Error("Failed to encode success response", "error", err)
 	}
 }

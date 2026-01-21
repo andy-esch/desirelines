@@ -47,21 +47,23 @@ func main() {
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 
 	// Create handler with injected dependencies
-	handler := httpadapter.NewHandler(publisher, secretProvider, log)
+	handler := httpadapter.NewHandler(publisher, secretProvider, log, &httpadapter.HandlerConfig{
+		MaxRequestBodySize: cfg.MaxRequestBodySize,
+	})
 
 	router := handler.RegisterRoutes()
 
 	port := config.GetEnvOrDefault("PORT", "8080")
 	log.Info("Server listening", "port", port)
 
-	// Create server with timeouts for security
-	// #nosec G114 - Timeouts are configured below
+	// Create server with configurable timeouts for security
+	// #nosec G114 - Timeouts are configured via environment variables
 	server := &http.Server{
 		Addr:              ":" + port,
 		Handler:           router,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 	}
 
 	// Setup graceful shutdown
