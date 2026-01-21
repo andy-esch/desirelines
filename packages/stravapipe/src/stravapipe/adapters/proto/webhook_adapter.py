@@ -20,21 +20,41 @@ def dict_to_webhook_event(data: dict[str, Any]) -> pb.WebhookEvent:
     aspect_type = _parse_aspect_type(data.get("aspect_type", ""))
     object_type = _parse_object_type(data.get("object_type", ""))
 
-    # Convert updates dict - ensure all values are strings
-    updates = {}
-    raw_updates = data.get("updates", {})
-    if raw_updates:
-        updates = {str(k): str(v) for k, v in raw_updates.items()}
-
-    return pb.WebhookEvent(
+    event = pb.WebhookEvent(
         aspect_type=aspect_type,
         object_type=object_type,
         object_id=data.get("object_id", 0),
         owner_id=data.get("owner_id", 0),
         event_time=data.get("event_time", 0),
         subscription_id=data.get("subscription_id", 0),
-        updates=updates,
     )
+
+    # Convert updates dict to typed ActivityUpdates for activity update events
+    raw_updates = data.get("updates", {})
+    if (
+        object_type == pb.OBJECT_TYPE_ACTIVITY
+        and aspect_type == pb.ASPECT_TYPE_UPDATE
+        and raw_updates
+    ):
+        event.updates.CopyFrom(_parse_updates(raw_updates))
+
+    return event
+
+
+def _parse_updates(raw_updates: dict[str, Any]) -> pb.ActivityUpdates:
+    """Convert Strava updates dict to typed ActivityUpdates message."""
+    updates = pb.ActivityUpdates()
+
+    if "title" in raw_updates:
+        updates.title = str(raw_updates["title"])
+
+    if "type" in raw_updates:
+        updates.type = str(raw_updates["type"])
+
+    if "private" in raw_updates:
+        updates.private = str(raw_updates["private"]).lower() == "true"
+
+    return updates
 
 
 def proto_to_dict(event: pb.WebhookEvent) -> dict[str, Any]:
@@ -53,8 +73,27 @@ def proto_to_dict(event: pb.WebhookEvent) -> dict[str, Any]:
         "owner_id": event.owner_id,
         "event_time": event.event_time,
         "subscription_id": event.subscription_id,
-        "updates": dict(event.updates) if event.updates else {},
+        "updates": _updates_to_dict(event.updates),
     }
+
+
+def _updates_to_dict(updates: pb.ActivityUpdates | None) -> dict[str, str]:
+    """Convert typed ActivityUpdates back to dict for JSON serialization."""
+    if updates is None or not updates.ByteSize():
+        return {}
+
+    result: dict[str, str] = {}
+
+    if updates.HasField("title"):
+        result["title"] = updates.title
+
+    if updates.HasField("type"):
+        result["type"] = updates.type
+
+    if updates.HasField("private"):
+        result["private"] = "true" if updates.private else "false"
+
+    return result
 
 
 def validate_webhook_event(event: pb.WebhookEvent) -> list[str]:

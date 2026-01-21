@@ -46,7 +46,38 @@ class TestDictToWebhookEvent:
         event = dict_to_webhook_event(data)
 
         assert event.aspect_type == pb.ASPECT_TYPE_UPDATE
-        assert dict(event.updates) == {"title": "Morning Run", "private": "false"}
+        assert event.updates.title == "Morning Run"
+        assert event.updates.private is False
+
+    def test_update_with_type_change(self):
+        """Test parsing an update webhook with type change."""
+        data = {
+            "aspect_type": "update",
+            "object_type": "activity",
+            "object_id": 12345,
+            "owner_id": 67890,
+            "event_time": 1704067200,
+            "subscription_id": 999,
+            "updates": {"type": "Ride"},
+        }
+        event = dict_to_webhook_event(data)
+
+        assert event.updates.type == "Ride"
+        assert not event.updates.HasField("title")
+
+    def test_create_event_no_updates(self):
+        """Test that CREATE events don't have updates populated."""
+        data = {
+            "aspect_type": "create",
+            "object_type": "activity",
+            "object_id": 12345,
+            "owner_id": 67890,
+            "event_time": 1704067200,
+            "subscription_id": 999,
+        }
+        event = dict_to_webhook_event(data)
+
+        assert not event.updates.ByteSize()  # Empty message
 
     def test_valid_delete_athlete(self):
         """Test parsing a delete athlete webhook."""
@@ -93,8 +124,24 @@ class TestDictToWebhookEvent:
 class TestProtoToDict:
     """Tests for proto_to_dict function."""
 
-    def test_roundtrip(self):
-        """Test that dict -> proto -> dict preserves data."""
+    def test_roundtrip_with_updates(self):
+        """Test that dict -> proto -> dict preserves data for activity updates."""
+        original = {
+            "aspect_type": "update",
+            "object_type": "activity",
+            "object_id": 12345,
+            "owner_id": 67890,
+            "event_time": 1704067200,
+            "subscription_id": 999,
+            "updates": {"title": "Test", "type": "Run"},
+        }
+        event = dict_to_webhook_event(original)
+        result = proto_to_dict(event)
+
+        assert result == original
+
+    def test_roundtrip_create_event(self):
+        """Test roundtrip for create events (no updates)."""
         original = {
             "aspect_type": "create",
             "object_type": "activity",
@@ -102,7 +149,7 @@ class TestProtoToDict:
             "owner_id": 67890,
             "event_time": 1704067200,
             "subscription_id": 999,
-            "updates": {"title": "Test"},
+            "updates": {},
         }
         event = dict_to_webhook_event(original)
         result = proto_to_dict(event)

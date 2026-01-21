@@ -1,4 +1,3 @@
-from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
@@ -13,15 +12,18 @@ OBJECT_TYPE_ACTIVITY: ObjectType
 OBJECT_TYPE_ATHLETE: ObjectType
 OBJECT_TYPE_UNSPECIFIED: ObjectType
 
+class ActivityUpdates(_message.Message):
+    __slots__ = ["private", "title", "type"]
+    PRIVATE_FIELD_NUMBER: ClassVar[int]
+    TITLE_FIELD_NUMBER: ClassVar[int]
+    TYPE_FIELD_NUMBER: ClassVar[int]
+    private: bool
+    title: str
+    type: str
+    def __init__(self, title: Optional[str] = ..., type: Optional[str] = ..., private: bool = ...) -> None: ...
+
 class WebhookEvent(_message.Message):
     __slots__ = ["aspect_type", "event_time", "object_id", "object_type", "owner_id", "subscription_id", "updates"]
-    class UpdatesEntry(_message.Message):
-        __slots__ = ["key", "value"]
-        KEY_FIELD_NUMBER: ClassVar[int]
-        VALUE_FIELD_NUMBER: ClassVar[int]
-        key: str
-        value: str
-        def __init__(self, key: Optional[str] = ..., value: Optional[str] = ...) -> None: ...
     ASPECT_TYPE_FIELD_NUMBER: ClassVar[int]
     EVENT_TIME_FIELD_NUMBER: ClassVar[int]
     OBJECT_ID_FIELD_NUMBER: ClassVar[int]
@@ -35,8 +37,8 @@ class WebhookEvent(_message.Message):
     object_type: ObjectType
     owner_id: int
     subscription_id: int
-    updates: _containers.ScalarMap[str, str]
-    def __init__(self, aspect_type: Optional[Union[AspectType, str]] = ..., object_type: Optional[Union[ObjectType, str]] = ..., object_id: Optional[int] = ..., owner_id: Optional[int] = ..., event_time: Optional[int] = ..., subscription_id: Optional[int] = ..., updates: Optional[Mapping[str, str]] = ...) -> None: ...
+    updates: ActivityUpdates
+    def __init__(self, aspect_type: Optional[Union[AspectType, str]] = ..., object_type: Optional[Union[ObjectType, str]] = ..., object_id: Optional[int] = ..., owner_id: Optional[int] = ..., event_time: Optional[int] = ..., subscription_id: Optional[int] = ..., updates: Optional[Union[ActivityUpdates, Mapping]] = ...) -> None: ...
 
 class WebhookVerificationRequest(_message.Message):
     __slots__ = ["hub_challenge", "hub_mode", "hub_verify_token"]

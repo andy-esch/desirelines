@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from datetime import UTC, datetime
 import logging
+import threading
 from typing import Any, NamedTuple
 
 import requests
@@ -116,37 +117,47 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
         self._token_repo = StravaTokenRepo(tokens, self._api_config)
         # Lazy-initialized on first API call if None
         self._current_access_token: str | None = tokens.access_token
+        # Lock to prevent concurrent token refresh operations
+        self._token_lock = threading.Lock()
 
     def _ensure_fresh_token(self) -> str:
         """Ensure we have a valid access token, refreshing if needed.
 
+        Thread-safe: uses lock to prevent concurrent refresh operations.
+
         Returns:
             Valid access token string
         """
-        if self._current_access_token is None:
-            logger.info("No access token provided, refreshing...")
-            refreshed = self._token_repo.refresh()
-            self._current_access_token = refreshed.access_token
-        return self._current_access_token
+        with self._token_lock:
+            if self._current_access_token is None:
+                logger.info("No access token provided, refreshing...")
+                refreshed = self._token_repo.refresh()
+                self._current_access_token = refreshed.access_token
+            return self._current_access_token
 
     def _refresh_token(self) -> str:
         """Force refresh the access token.
 
+        Thread-safe: uses lock to prevent concurrent refresh operations.
+
         Returns:
             New access token string
         """
-        logger.info("Refreshing Strava access token...")
-        refreshed = self._token_repo.refresh()
-        self._current_access_token = refreshed.access_token
-        return self._current_access_token
+        with self._token_lock:
+            logger.info("Refreshing Strava access token...")
+            refreshed = self._token_repo.refresh()
+            self._current_access_token = refreshed.access_token
+            return self._current_access_token
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with current access token."""
         token = self._ensure_fresh_token()
         return {"Authorization": f"Bearer {token}"}
 
+    _MAX_TOKEN_REFRESH_RETRIES: int = 1
+
     def _read_raw_activity_by_id(
-        self, activity_id: int, *, _is_retry: bool = False
+        self, activity_id: int, *, _token_refresh_count: int = 0
     ) -> dict[str, Any]:
         @retry_on_failure(
             max_attempts=self._api_config.activity_retry_attempts,
@@ -164,19 +175,29 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
 
         resp = _fetch()
         if not resp.ok:
-            # Handle 401: refresh token and retry once
-            if resp.status_code == 401 and not _is_retry:
+            # Handle 401: refresh token and retry up to max retries
+            if (
+                resp.status_code == 401
+                and _token_refresh_count < self._MAX_TOKEN_REFRESH_RETRIES
+            ):
                 logger.warning(
-                    "Got 401 for activity %s, refreshing token and retrying...",
+                    "Got 401 for activity %s, refreshing token and retrying "
+                    "(attempt %d/%d)...",
                     activity_id,
+                    _token_refresh_count + 1,
+                    self._MAX_TOKEN_REFRESH_RETRIES,
                     extra={
                         "operation": "fetch_activity",
                         "activity_id": activity_id,
                         "action": "token_refresh_retry",
+                        "token_refresh_attempt": _token_refresh_count + 1,
+                        "max_token_refresh_retries": self._MAX_TOKEN_REFRESH_RETRIES,
                     },
                 )
                 self._refresh_token()
-                return self._read_raw_activity_by_id(activity_id, _is_retry=True)
+                return self._read_raw_activity_by_id(
+                    activity_id, _token_refresh_count=_token_refresh_count + 1
+                )
 
             logger.error(
                 "Failed to fetch activity %s: %s",
@@ -193,7 +214,7 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
                 raise ActivityNotFoundError(activity_id)
             elif resp.status_code == 401:
                 raise StravaTokenError(
-                    "Access token expired (refresh failed)",
+                    f"Access token expired after {_token_refresh_count} refresh attempts",
                     resp.status_code,
                     activity_id,
                 )
@@ -238,7 +259,7 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
         after: int,
         page: int,
         per_page: int = 100,
-        _is_retry: bool = False,
+        _token_refresh_count: int = 0,
     ) -> list[SummaryStravaActivity]:
         """Fetch activities from list endpoint (returns SummaryActivity objects)
 
@@ -259,14 +280,22 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
             timeout=self._api_config.request_timeout,
         )
         if not resp.ok:
-            # Handle 401: refresh token and retry once
-            if resp.status_code == 401 and not _is_retry:
+            # Handle 401: refresh token and retry up to max retries
+            if (
+                resp.status_code == 401
+                and _token_refresh_count < self._MAX_TOKEN_REFRESH_RETRIES
+            ):
                 logger.warning(
-                    "Got 401 listing activities, refreshing token and retrying...",
+                    "Got 401 listing activities, refreshing token and retrying "
+                    "(attempt %d/%d)...",
+                    _token_refresh_count + 1,
+                    self._MAX_TOKEN_REFRESH_RETRIES,
                     extra={
                         "operation": "list_activities",
                         "page": page,
                         "action": "token_refresh_retry",
+                        "token_refresh_attempt": _token_refresh_count + 1,
+                        "max_token_refresh_retries": self._MAX_TOKEN_REFRESH_RETRIES,
                     },
                 )
                 self._refresh_token()
@@ -275,7 +304,7 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
                     after=after,
                     page=page,
                     per_page=per_page,
-                    _is_retry=True,
+                    _token_refresh_count=_token_refresh_count + 1,
                 )
             resp.raise_for_status()
         activities = [SummaryStravaActivity(**activity) for activity in resp.json()]
@@ -300,8 +329,8 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
         - Social: kudos_count, comment_count, photo_count
         - Map: summary_polyline (not full polyline)
         """
-        date_start = int(datetime(year, 1, 1, tzinfo=UTC).strftime("%s"))
-        date_end = int(datetime(year + 1, 1, 1, tzinfo=UTC).strftime("%s"))
+        date_start = int(datetime(year, 1, 1, tzinfo=UTC).timestamp())
+        date_end = int(datetime(year + 1, 1, 1, tzinfo=UTC).timestamp())
 
         page = 1
         activities = []

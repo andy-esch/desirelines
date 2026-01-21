@@ -33,6 +33,20 @@ enum ObjectType {
   OBJECT_TYPE_ATHLETE = 2;
 }
 
+// ActivityUpdates contains the fields that can be updated on an activity.
+// See: https://developers.strava.com/docs/webhooks/
+message ActivityUpdates {
+  // New activity title/name (if changed).
+  optional string title = 1;
+
+  // New activity type, e.g., "Ride", "Run" (if changed).
+  optional string type = 2;
+
+  // New visibility setting (if changed).
+  // Note: Not currently used by this application.
+  optional bool private = 3;
+}
+
 // WebhookEvent represents a Strava webhook notification.
 // This is the canonical definition used by both dispatcher (Go) and stravapipe (Python).
 // See: https://developers.strava.com/docs/webhooks/
@@ -56,10 +70,9 @@ message WebhookEvent {
   // Strava webhook subscription ID.
   int32 subscription_id = 6;
 
-  // Optional updates map for update events.
-  // For activity update events, keys can contain 'title', 'type', and 'private'.
-  // For app deauthorization events, contains 'authorized': 'false'.
-  map<string, string> updates = 7;
+  // Activity-specific updates for ASPECT_TYPE_UPDATE events on activities.
+  // Only populated when object_type is OBJECT_TYPE_ACTIVITY and aspect_type is ASPECT_TYPE_UPDATE.
+  optional ActivityUpdates updates = 7;
 }
 
 // WebhookVerificationRequest represents the initial webhook verification challenge.

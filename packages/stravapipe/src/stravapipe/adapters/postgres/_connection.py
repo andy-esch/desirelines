@@ -5,6 +5,7 @@ variables, validates required parameters, and transforms to SQLAlchemy dialect.
 """
 
 import os
+import stat
 from urllib.parse import parse_qs, urlparse
 
 
@@ -37,6 +38,32 @@ def load_connection_string() -> str:
     return _transform_dialect(conn_str)
 
 
+def _validate_secret_file_permissions(path: str) -> None:
+    """Validate secret file has secure permissions.
+
+    Secret files should only be readable by the owner (0600 or 0400)
+    to prevent unauthorized access to credentials.
+
+    Args:
+        path: Path to the secret file.
+
+    Raises:
+        ConnectionStringError: If file permissions are too permissive.
+    """
+    file_stat = os.stat(path)
+    mode = file_stat.st_mode
+
+    # Check if group or others have any permissions
+    # Allowed: 0400 (r--------) or 0600 (rw-------)
+    if mode & (stat.S_IRWXG | stat.S_IRWXO):
+        actual_perms = stat.filemode(mode)
+        raise ConnectionStringError(
+            f"Secret file {path} has insecure permissions ({actual_perms}). "
+            f"Expected 0400 or 0600 (owner read/write only). "
+            f"Fix with: chmod 600 {path}"
+        )
+
+
 def _read_raw_connection_string() -> str:
     """Read connection string from secret mount or environment variable.
 
@@ -52,6 +79,7 @@ def _read_raw_connection_string() -> str:
     """
     # Try secret mount first (Cloud Run)
     if os.path.exists(_SECRET_PATH):
+        _validate_secret_file_permissions(_SECRET_PATH)
         with open(_SECRET_PATH, encoding="utf-8") as f:
             conn_str = f.read().strip()
             if conn_str:

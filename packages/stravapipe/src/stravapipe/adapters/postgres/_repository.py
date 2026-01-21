@@ -5,12 +5,20 @@ Repository receives Session from Unit of Work - doesn't manage its own connectio
 """
 
 from datetime import UTC, datetime
+from typing import Final
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from stravapipe.domain import StandardActivity
 from stravapipe.ports.out.postgres import ActivityRepository
+
+# Whitelist of allowed update keys and their corresponding SQL clauses
+# This prevents SQL injection by only allowing known, safe column updates
+_ALLOWED_UPDATE_CLAUSES: Final[dict[str, list[str]]] = {
+    "title": ["name = :name"],
+    "type": ["type = :type", "sport = :sport"],
+}
 
 
 class SqlAlchemyActivityRepository(ActivityRepository):
@@ -101,23 +109,37 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         result = self._session.execute(query, {"activity_id": activity_id})
         return result.fetchone() is not None
 
-    def update_metadata(self, activity_id: int, updates: dict) -> bool:
+    def update_metadata(self, activity_id: int, updates: dict) -> bool | None:
         """Update only metadata fields (name, type, sport).
 
         Builds dynamic UPDATE query based on which fields changed.
+        Only allows whitelisted update keys to prevent SQL injection.
 
         Args:
             activity_id: Strava activity ID
             updates: Dict with optional keys: 'title', 'type'
 
         Returns:
-            True if updated, False if activity not found
+            True if updated successfully
+            False if activity not found
+            None if no valid updates provided (empty dict or no recognized keys)
+
+        Raises:
+            ValueError: If updates contains unrecognized keys
         """
-        set_clauses = []
+        # Validate all update keys are in the whitelist
+        unknown_keys = set(updates.keys()) - set(_ALLOWED_UPDATE_CLAUSES.keys())
+        if unknown_keys:
+            raise ValueError(
+                f"Unknown update keys: {unknown_keys}. "
+                f"Allowed keys: {set(_ALLOWED_UPDATE_CLAUSES.keys())}"
+            )
+
+        set_clauses: list[str] = []
         params: dict = {"activity_id": activity_id}
 
         if "title" in updates:
-            set_clauses.append("name = :name")
+            set_clauses.extend(_ALLOWED_UPDATE_CLAUSES["title"])
             params["name"] = updates["title"]
 
         if "type" in updates:
@@ -125,13 +147,12 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             # (specific type like "MountainBikeRide"). While lossy, updating both
             # columns is better than leaving stale data - "Ride" is more correct
             # than "Run" if the user changed their activity type.
-            set_clauses.append("type = :type")
-            set_clauses.append("sport = :sport")
+            set_clauses.extend(_ALLOWED_UPDATE_CLAUSES["type"])
             params["type"] = updates["type"]
             params["sport"] = updates["type"]
 
         if not set_clauses:
-            return False  # Nothing to update
+            return None  # No valid updates provided
 
         set_clauses.append("updated_at = :updated_at")
         params["updated_at"] = datetime.now(UTC)

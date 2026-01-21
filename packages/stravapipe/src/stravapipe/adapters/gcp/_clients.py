@@ -1,7 +1,7 @@
 import logging
 
 from google.cloud.bigquery import Client as BigQueryClient
-from google.cloud.bigquery import QueryJobConfig
+from google.cloud.bigquery import QueryJobConfig, ScalarQueryParameter, ArrayQueryParameter
 
 from stravapipe.exceptions import BigQueryError
 
@@ -28,13 +28,23 @@ class BigQueryClientWrapper:
             )
         logger.info("Successfully inserted %s rows into %s.", len(rows), table_id)
 
-    def execute_merge_query(self, query: str) -> dict:
+    def execute_merge_query(
+        self,
+        query: str,
+        query_parameters: list[ScalarQueryParameter | ArrayQueryParameter] | None = None,
+    ) -> dict:
         """Execute MERGE query for upsert operations
+
+        Args:
+            query: SQL query string with optional @param placeholders
+            query_parameters: List of BigQuery query parameters for parameterized queries
 
         Returns:
             dict: Job statistics including rows affected, execution time, etc.
         """
-        job_config = QueryJobConfig()
+        job_config = QueryJobConfig(
+            query_parameters=query_parameters if query_parameters else []
+        )
         job = self._client.query(query, job_config=job_config)
 
         try:

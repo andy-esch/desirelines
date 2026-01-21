@@ -201,8 +201,14 @@ async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
 
 async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
     """Handle UPDATE events - update metadata or backfill if missing."""
-    updates = dict(event.updates) if event.updates else {}
-    relevant_updates = {k: v for k, v in updates.items() if k in ("title", "type")}
+    # Extract relevant updates from typed ActivityUpdates message
+    updates = event.updates
+    relevant_updates: dict[str, str] = {}
+
+    if updates.HasField("title"):
+        relevant_updates["title"] = updates.title
+    if updates.HasField("type"):
+        relevant_updates["type"] = updates.type
 
     if not relevant_updates:
         logger.info(
@@ -210,7 +216,7 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
             extra={
                 "correlation_id": correlation_id,
                 "activity_id": event.object_id,
-                "updates": updates,
+                "has_private_update": updates.HasField("private"),
             },
         )
         return {

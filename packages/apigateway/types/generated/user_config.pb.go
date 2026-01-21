@@ -265,13 +265,18 @@ func (x *GoalsForYear) GetGoals() []*Goal {
 	return nil
 }
 
+// A single goal with a target value
+// UNIT CONVENTIONS:
+// - For distance-based sports (cycling, running, etc.): value is in METERS
+// - For session-based sports (yoga, workout, etc.): value is the number of sessions
+// The frontend converts to display units (miles/km) based on user preferences.
 type Goal struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	Id        string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Value     int32  `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"` // Distance in miles
+	Value     int32  `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"` // See UNIT CONVENTIONS above
 	Label     string `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
 	CreatedAt string `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // RFC3339 timestamp
 	UpdatedAt string `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // RFC3339 timestamp
