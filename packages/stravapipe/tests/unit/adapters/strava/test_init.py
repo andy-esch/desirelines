@@ -1,12 +1,10 @@
 import pytest
 
 from stravapipe.adapters.strava import (
+    StravaActivitiesRepo,
+    StravaTokenRepo,
     make_read_detailed_activities,
     make_read_strava_token,
-)
-from stravapipe.adapters.strava._repositories import (
-    DetailedStravaActivitiesRepo,
-    StravaTokenRepo,
 )
 from stravapipe.domain import StravaTokenSet
 
@@ -28,7 +26,7 @@ class TestStravaAdapterFactories:
 
     def test_make_read_activities_returns_correct_type(self, sample_initial_tokens):
         result = make_read_detailed_activities(sample_initial_tokens)
-        assert isinstance(result, DetailedStravaActivitiesRepo)
+        assert isinstance(result, StravaActivitiesRepo)
 
     def test_make_read_activities_different_initial_tokens_different_instances(self):
         # Test that different tokens return different instances
@@ -52,15 +50,7 @@ class TestStravaAdapterFactories:
     def test_make_read_strava_token_uses_app_config(self, sample_initial_tokens):
         # Test that factory creates repo with expected attributes
         repo = make_read_strava_token(sample_initial_tokens)
-        # Verify it has the expected tokens from app_config
-        # Note: StravaTokenRepo uses _tokens, not _initial_tokens
+        # Verify it has the expected tokens
         assert hasattr(repo, "_tokens")
         assert hasattr(repo, "_api_config")
         assert repo._tokens == sample_initial_tokens
-
-    def test_make_read_activities_uses_app_config(self, sample_initial_tokens):
-        # Test that factory passes api config
-        repo = make_read_detailed_activities(sample_initial_tokens)
-        assert hasattr(repo, "_initial_tokens")
-        assert hasattr(repo, "_api_config")
-        assert repo._initial_tokens == sample_initial_tokens

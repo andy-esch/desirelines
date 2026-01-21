@@ -11,7 +11,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 
 from stravapipe.adapters.proto import dict_to_webhook_event
-from stravapipe.application.postgres_sync import make_postgres_write_service
+from stravapipe.application.postgres_sync import (
+    make_postgres_write_service,
+    make_session_factory,
+)
 from stravapipe.cfutils.constants import (
     DEFAULT_UNKNOWN,
     ResponseField,
@@ -52,12 +55,17 @@ def _response(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Validate configuration on startup."""
+    """Initialize shared resources on startup."""
     try:
-        load_postgres_writer_config()
+        config = load_postgres_writer_config()
         logger.info("PostgreSQL Writer configuration validated successfully")
+
+        # Create session factory once at startup (connection pool)
+        # This is passed to make_postgres_write_service() for each request
+        app.state.session_factory = make_session_factory(config)
+        logger.info("PostgreSQL session factory initialized")
     except Exception as e:
-        logger.error("Configuration validation failed: %s", e)
+        logger.error("Startup initialization failed: %s", e)
         raise
     yield
 
@@ -145,13 +153,16 @@ async def handle_pubsub(request: Request):
             },
         )
 
+        # Get shared session factory from app state
+        session_factory = request.app.state.session_factory
+
         # Route by aspect type
         if event.aspect_type == pb.ASPECT_TYPE_CREATE:
-            return await _handle_create(event, correlation_id)
+            return await _handle_create(event, correlation_id, session_factory)
         elif event.aspect_type == pb.ASPECT_TYPE_UPDATE:
-            return await _handle_update(event, correlation_id)
+            return await _handle_update(event, correlation_id, session_factory)
         elif event.aspect_type == pb.ASPECT_TYPE_DELETE:
-            return await _handle_delete(event, correlation_id)
+            return await _handle_delete(event, correlation_id, session_factory)
         else:
             logger.info(
                 "Skipping unknown aspect type: %s",
@@ -177,12 +188,14 @@ async def handle_pubsub(request: Request):
         raise HTTPException(status_code=500, detail=str(err)) from err
 
 
-async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
+async def _handle_create(
+    event: pb.WebhookEvent, correlation_id: str, session_factory
+) -> dict:
     """Handle CREATE events - insert new activity to PostgreSQL."""
     activity_id = event.object_id
 
     try:
-        service = make_postgres_write_service()
+        service = make_postgres_write_service(session_factory=session_factory)
         inserted = service.create_activity(activity_id)
     except ActivityNotFoundError:
         logger.warning(
@@ -218,7 +231,9 @@ async def _handle_create(event: pb.WebhookEvent, correlation_id: str) -> dict:
     )
 
 
-async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
+async def _handle_update(
+    event: pb.WebhookEvent, correlation_id: str, session_factory
+) -> dict:
     """Handle UPDATE events - update metadata or backfill if missing."""
     activity_id = event.object_id
     updates = event.updates
@@ -246,7 +261,7 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
             reason=SkipReason.NO_RELEVANT_UPDATES,
         )
 
-    service = make_postgres_write_service()
+    service = make_postgres_write_service(session_factory=session_factory)
 
     # If activity doesn't exist, delegate to CREATE handler (backfill)
     if not service.activity_exists(activity_id):
@@ -255,7 +270,7 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
             activity_id,
             extra={"correlation_id": correlation_id},
         )
-        return await _handle_create(event, correlation_id)
+        return await _handle_create(event, correlation_id, session_factory)
 
     # Activity exists - update metadata only
     try:
@@ -290,10 +305,12 @@ async def _handle_update(event: pb.WebhookEvent, correlation_id: str) -> dict:
     )
 
 
-async def _handle_delete(event: pb.WebhookEvent, correlation_id: str) -> dict:
+async def _handle_delete(
+    event: pb.WebhookEvent, correlation_id: str, session_factory
+) -> dict:
     """Handle DELETE events - remove activity from PostgreSQL."""
     activity_id = event.object_id
-    service = make_postgres_write_service()
+    service = make_postgres_write_service(session_factory=session_factory)
     deleted = service.delete_activity(activity_id)
 
     if deleted:
