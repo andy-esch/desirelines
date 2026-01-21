@@ -13,9 +13,11 @@ const (
 	// #nosec G101 - This is a file path, not a credential
 	DefaultSecretsPath = "/etc/secrets/strava_auth.json"
 
-	// Default timeout values
-	DefaultReadTimeout       = 30 * time.Second
-	DefaultWriteTimeout      = 30 * time.Second
+	// DefaultReadTimeout is the default read timeout for HTTP requests.
+	DefaultReadTimeout = 30 * time.Second
+	// DefaultWriteTimeout is the default write timeout for HTTP requests.
+	DefaultWriteTimeout = 30 * time.Second
+	// DefaultReadHeaderTimeout is the default read header timeout for HTTP requests.
 	DefaultReadHeaderTimeout = 10 * time.Second
 
 	// DefaultMaxRequestBodySize is the default maximum request body size (1MB)
@@ -26,12 +28,12 @@ const (
 // Secrets (verify token, subscription ID) are handled by SecretCache,
 // which provides TTL-based caching and hot-reload support.
 type Config struct {
-	GCPProjectID      string
-	GCPPubSubTopicID  string
-	LogLevel          string
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-	ReadHeaderTimeout time.Duration
+	GCPProjectID       string
+	GCPPubSubTopicID   string
+	LogLevel           string
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	ReadHeaderTimeout  time.Duration
 	MaxRequestBodySize int64
 }
 
