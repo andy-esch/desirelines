@@ -4,7 +4,7 @@ terraform {
   required_version = ">= 1.12"
 
   # Development uses remote state storage
-  # Configure backend with: terraform init -backend-config="bucket=your-terraform-state-bucket"
+  # Configure backend with: terraform init -backend-config=backend.tfvars
   backend "gcs" {
     prefix = "environments/dev"
   }

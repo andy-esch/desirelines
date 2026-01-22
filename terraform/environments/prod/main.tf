@@ -4,8 +4,8 @@ terraform {
   required_version = ">= 1.12"
 
   # Production uses remote state storage
+  # Configure backend with: terraform init -backend-config=backend.tfvars
   backend "gcs" {
-    bucket = "desirelines-prod-terraform-state"
     prefix = "environments/prod"
   }
 
