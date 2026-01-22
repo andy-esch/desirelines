@@ -276,7 +276,7 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
       }
     }
 
-    timeout = "540s"
+    timeout = "60s"
   }
 
   traffic {
