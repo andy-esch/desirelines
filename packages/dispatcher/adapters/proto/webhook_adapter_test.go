@@ -230,7 +230,8 @@ func TestParseActivityUpdates(t *testing.T) {
 				t.Fatalf("ParseStravaWebhook() error = %v", err)
 			}
 
-			if tt.wantTitle == nil && tt.wantType == nil && tt.wantPrivate == nil {
+			wantNilUpdates := tt.wantTitle == nil && tt.wantType == nil && tt.wantPrivate == nil
+			if wantNilUpdates {
 				if event.Updates != nil {
 					t.Errorf("Expected ActivityUpdates to be nil, got %+v", event.Updates)
 				}
@@ -241,22 +242,30 @@ func TestParseActivityUpdates(t *testing.T) {
 				t.Fatal("ActivityUpdates is nil, expected non-nil")
 			}
 
-			if tt.wantTitle != nil {
-				if event.Updates.Title == nil || *event.Updates.Title != *tt.wantTitle {
-					t.Errorf("Title = %v, want %v", event.Updates.Title, *tt.wantTitle)
-				}
-			}
-			if tt.wantType != nil {
-				if event.Updates.Type == nil || *event.Updates.Type != *tt.wantType {
-					t.Errorf("Type = %v, want %v", event.Updates.Type, *tt.wantType)
-				}
-			}
-			if tt.wantPrivate != nil {
-				if event.Updates.Private == nil || *event.Updates.Private != *tt.wantPrivate {
-					t.Errorf("Private = %v, want %v", event.Updates.Private, *tt.wantPrivate)
-				}
-			}
+			assertOptionalStringField(t, "Title", event.Updates.Title, tt.wantTitle)
+			assertOptionalStringField(t, "Type", event.Updates.Type, tt.wantType)
+			assertOptionalBoolField(t, "Private", event.Updates.Private, tt.wantPrivate)
 		})
+	}
+}
+
+func assertOptionalStringField(t *testing.T, name string, got, want *string) {
+	t.Helper()
+	if want == nil {
+		return
+	}
+	if got == nil || *got != *want {
+		t.Errorf("%s = %v, want %v", name, got, *want)
+	}
+}
+
+func assertOptionalBoolField(t *testing.T, name string, got, want *bool) {
+	t.Helper()
+	if want == nil {
+		return
+	}
+	if got == nil || *got != *want {
+		t.Errorf("%s = %v, want %v", name, got, *want)
 	}
 }
 

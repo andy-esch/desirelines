@@ -60,13 +60,17 @@ class TestActivitiesRepo:
         self, write_activities_repo, activity2
     ):
         write_activities_repo.write_activity(activity2)
-        # Should have executed a MERGE query
-        assert len(write_activities_repo._client.executed_queries) == 1
-        query = write_activities_repo._client.executed_queries[0]
-        assert "MERGE" in query.upper()
-        assert "activities_staging" in query
-        assert "ROW_NUMBER()" in query
-        assert str(activity2.id) in query  # Should include the activity ID
+        # Should have executed a MERGE query followed by a DELETE cleanup query
+        assert len(write_activities_repo._client.executed_queries) == 2
+        merge_query = write_activities_repo._client.executed_queries[0]
+        assert "MERGE" in merge_query.upper()
+        assert "activities_staging" in merge_query
+        assert "ROW_NUMBER()" in merge_query
+        assert "@activity_id" in merge_query  # Should use parameterized query
+
+        delete_query = write_activities_repo._client.executed_queries[1]
+        assert "DELETE" in delete_query.upper()
+        assert "activities_staging" in delete_query
 
     def test_activity_model_matches_bigquery_schema(self, activity2, bigquery_schema):
         """Test that serialized DetailedStravaActivity exactly matches BigQuery schema.

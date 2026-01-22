@@ -116,7 +116,9 @@ class TestStravaTokenManager:
         token = token_manager_with_token.get_token()
         assert token == "baz"
 
-    def test_get_token_refreshes_when_none(self, token_manager_without_token, api_config):
+    def test_get_token_refreshes_when_none(
+        self, token_manager_without_token, api_config
+    ):
         """If no access token, get_token refreshes automatically."""
         with Mocker() as m:
             m.post(api_config.token_url, json={"access_token": "fresh_token"})

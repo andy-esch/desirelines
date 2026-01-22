@@ -21,6 +21,7 @@ class TestReadRawConnectionString:
         """Should read from secret file when it exists."""
         secret_file = tmp_path / "connection_string"
         secret_file.write_text("postgresql://user:pass@host/db")
+        secret_file.chmod(0o600)
 
         with patch(
             "stravapipe.adapters.postgres._connection._SECRET_PATH",
@@ -34,6 +35,7 @@ class TestReadRawConnectionString:
         """Should strip leading/trailing whitespace from secret file."""
         secret_file = tmp_path / "connection_string"
         secret_file.write_text("  postgresql://user:pass@host/db\n\n")
+        secret_file.chmod(0o600)
 
         with patch(
             "stravapipe.adapters.postgres._connection._SECRET_PATH",
@@ -77,6 +79,7 @@ class TestReadRawConnectionString:
         """Should prefer secret file when both are available."""
         secret_file = tmp_path / "connection_string"
         secret_file.write_text("postgresql://secret@host/db")
+        secret_file.chmod(0o600)
 
         with (
             patch(
