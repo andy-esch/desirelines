@@ -275,13 +275,6 @@ resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
   member  = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
-# Grant Firebase Admin permissions to API Gateway for token verification
-resource "google_project_iam_member" "api_gateway_firebase_admin" {
-  project = var.gcp_project_id
-  role    = "roles/firebase.admin"
-  member  = "serviceAccount:${google_service_account.api_gateway.email}"
-}
-
 # Service Account Impersonation permissions (allows your user to impersonate the service accounts)
 resource "google_service_account_iam_member" "dispatcher_impersonation" {
   count              = var.developer_email != null ? 1 : 0
