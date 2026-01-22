@@ -392,13 +392,15 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
 }
 
 # ==============================================================================
-# IAM Bindings for Eventarc → Cloud Run Invocation
+# IAM Bindings for Pub/Sub Push → Cloud Run Invocation
 # ==============================================================================
-# Eventarc triggers use service accounts that need permission to invoke
-# the Cloud Run services. These are internal-only services, so we grant
-# run.invoker to the specific service accounts (not allUsers).
+# Push subscriptions use OIDC tokens signed by service accounts to authenticate.
+# These service accounts need permission to invoke their respective Cloud Run services.
+# These are internal-only services, so we grant run.invoker to the specific
+# service accounts (not allUsers).
 
-# Allow BQ Inserter's service account to be invoked by Eventarc
+# Allow BQ Inserter's service account to invoke the Cloud Run service
+# (used by Pub/Sub push subscription OIDC authentication)
 resource "google_cloud_run_v2_service_iam_member" "bq_inserter_eventarc_invoker" {
   project  = var.gcp_project_id
   location = var.gcp_region
@@ -407,7 +409,8 @@ resource "google_cloud_run_v2_service_iam_member" "bq_inserter_eventarc_invoker"
   member   = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
-# Allow PostgreSQL Writer's service account to be invoked by Eventarc
+# Allow PostgreSQL Writer's service account to invoke the Cloud Run service
+# (used by Pub/Sub push subscription OIDC authentication)
 resource "google_cloud_run_v2_service_iam_member" "postgres_writer_eventarc_invoker" {
   project  = var.gcp_project_id
   location = var.gcp_region

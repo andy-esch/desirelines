@@ -74,52 +74,8 @@ module "github_actions" {
   provider_id = "github-oidc-provider"
 }
 
-# ==============================================================================
-# Dead Letter Queue Subscriptions
-# ==============================================================================
-# These subscriptions allow monitoring and debugging of failed messages.
-# Eventarc triggers (created by the module) deliver to Cloud Run services.
-# Failed messages are sent to the dead letter topic.
-
-# Dead letter subscription for BQ inserter service
-resource "google_pubsub_subscription" "bq_inserter_dlq" {
-  name  = "desirelines-bq-inserter-dlq"
-  topic = module.desirelines.pubsub_dead_letter_topic_name
-
-  # Long retention for debugging failed messages
-  message_retention_duration = "1209600s" # 14 days
-  ack_deadline_seconds       = 600
-
-  labels = {
-    purpose     = "dead-letter-queue"
-    service     = "bq-inserter"
-    environment = "prod"
-  }
-}
-
-# Dead letter subscription for postgres-writer service
-resource "google_pubsub_subscription" "postgres_writer_dlq" {
-  name  = "desirelines-postgres-writer-dlq"
-  topic = module.desirelines.pubsub_dead_letter_topic_name
-
-  # Long retention for debugging failed messages
-  message_retention_duration = "1209600s" # 14 days
-  ack_deadline_seconds       = 600
-
-  labels = {
-    purpose     = "dead-letter-queue"
-    service     = "postgres-writer"
-    environment = "prod"
-  }
-}
-
-# ==============================================================================
-# IAM Permissions for Dead Letter Queue
-# ==============================================================================
-
-# Allow Pub/Sub service account to publish to dead letter topic
-resource "google_pubsub_topic_iam_member" "pubsub_sa_publish_deadletter" {
-  topic  = "projects/${var.gcp_project_id}/topics/${module.desirelines.pubsub_dead_letter_topic_name}"
-  role   = "roles/pubsub.publisher"
-  member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
-}
+# DLQ subscriptions and IAM permissions are now managed by the desirelines module
+# in pubsub_subscriptions.tf. This provides:
+# - Consistent naming across environments
+# - DLQ configured from creation (not post-hoc)
+# - Full Terraform lifecycle management
