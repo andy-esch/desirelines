@@ -72,11 +72,6 @@ resource "google_bigquery_dataset" "activities_dataset" {
   # Enable deletion protection for production
   delete_contents_on_destroy = var.environment != "prod"
 
-  access {
-    role          = "OWNER"
-    user_by_email = var.service_account_email
-  }
-
   # Optional developer access for BigQuery console
   dynamic "access" {
     for_each = var.developer_email != null ? [var.developer_email] : []

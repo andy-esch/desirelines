@@ -40,9 +40,6 @@ module "desirelines" {
   # Development settings
   bigquery_location = "US"
 
-  # Use default compute service account initially (will be replaced with dedicated SAs)
-  service_account_email = "${var.gcp_project_number}-compute@developer.gserviceaccount.com"
-
   # Enable APIs
   enable_apis = true
 

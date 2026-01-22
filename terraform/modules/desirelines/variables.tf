@@ -49,11 +49,6 @@ variable "firestore_location" {
   default     = "us-central1"
 }
 
-variable "service_account_email" {
-  description = "Service account email for resource access"
-  type        = string
-}
-
 variable "developer_email" {
   description = "Email of the developer account for BigQuery console access (optional)"
   type        = string
