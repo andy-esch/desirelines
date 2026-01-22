@@ -41,6 +41,7 @@ resource "google_project_service" "required_apis" {
     "bigquery.googleapis.com",
     "storage.googleapis.com",
     "pubsub.googleapis.com",
+    "secretmanager.googleapis.com",
     "cloudfunctions.googleapis.com",
     "run.googleapis.com",
     "artifactregistry.googleapis.com",
@@ -81,6 +82,7 @@ resource "google_bigquery_dataset" "activities_dataset" {
     }
   }
 
+  depends_on = [google_project_service.required_apis]
 }
 
 # BigQuery Table for Activities
@@ -186,6 +188,8 @@ resource "google_pubsub_topic" "activity_events" {
 
   # Message retention for 7 days
   message_retention_duration = "604800s"
+
+  depends_on = [google_project_service.required_apis]
 }
 
 # Eventarc-created subscriptions are managed at the root module level
@@ -322,6 +326,8 @@ resource "google_secret_manager_secret" "strava_auth" {
     environment = var.environment
     purpose     = "strava-api-auth"
   }
+
+  depends_on = [google_project_service.required_apis]
 }
 
 # Secret Manager IAM permissions for service accounts
