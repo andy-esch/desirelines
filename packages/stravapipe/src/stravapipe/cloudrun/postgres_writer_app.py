@@ -5,8 +5,8 @@ and syncing Strava activities to PostgreSQL. It acts as a thin controller,
 delegating business logic to the existing application services.
 """
 
-import uuid
 from contextlib import asynccontextmanager
+import uuid
 
 from fastapi import FastAPI, HTTPException, Request
 

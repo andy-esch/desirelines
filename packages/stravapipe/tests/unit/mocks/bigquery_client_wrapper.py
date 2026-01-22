@@ -17,12 +17,14 @@ class MockBigQueryClientWrapper(BigQueryClientWrapper):
         self.table_name = table_name
         self.dataset_name = dataset_name
 
-    def execute_merge_query(self, query: str, query_params: list = None) -> dict:
+    def execute_merge_query(self, query: str, query_params: list | None = None) -> dict:
         """Mock implementation of execute_merge_query for testing"""
         self.executed_queries.append(query)
         return self.query_stats
 
-    def execute_dml_query(self, query: str, query_parameters: list = None) -> int:
+    def execute_dml_query(
+        self, query: str, query_parameters: list | None = None
+    ) -> int:
         """Mock implementation of execute_dml_query for testing"""
         self.executed_queries.append(query)
         return 1

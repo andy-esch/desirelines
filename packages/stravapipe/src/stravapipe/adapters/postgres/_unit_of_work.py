@@ -3,8 +3,8 @@
 Manages database sessions and coordinates repository transactions.
 """
 
-import logging
 from collections.abc import Callable
+import logging
 from typing import Self
 
 from sqlalchemy import create_engine

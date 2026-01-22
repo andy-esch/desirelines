@@ -3,10 +3,10 @@ from typing import TypedDict
 
 from google.cloud.bigquery import (
     ArrayQueryParameter,
-    Client as BigQueryClient,
     QueryJobConfig,
     ScalarQueryParameter,
 )
+from google.cloud.bigquery import Client as BigQueryClient
 
 from stravapipe.exceptions import BigQueryError
 

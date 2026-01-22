@@ -11,10 +11,10 @@ This module provides a layered architecture for Strava API access:
     StravaActivitiesRepo - Domain model conversion
 """
 
-import logging
-import threading
 from collections.abc import Sequence
 from datetime import UTC, datetime
+import logging
+import threading
 from typing import Any
 
 import requests

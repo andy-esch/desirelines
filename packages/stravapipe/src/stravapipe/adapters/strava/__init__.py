@@ -49,14 +49,11 @@ def make_read_standard_activities(
 
 
 __all__ = [
-    # Classes
     "StravaActivitiesRepo",
     "StravaApiClient",
+    "StravaApiConfig",
     "StravaTokenManager",
     "StravaTokenRepo",
-    # Config (re-exported from config.common)
-    "StravaApiConfig",
-    # Factory functions
     "create_strava_activities_repo",
     "make_read_detailed_activities",
     "make_read_standard_activities",

@@ -7,8 +7,8 @@ Note on type: ignore[prop-decorator]:
     at runtime. See: https://github.com/pydantic/pydantic/issues/6612
 """
 
-import json
 from datetime import datetime
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
