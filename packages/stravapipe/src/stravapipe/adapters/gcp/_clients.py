@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import logging
 from typing import TypedDict
 
@@ -45,7 +46,7 @@ class BigQueryClientWrapper:
     def execute_merge_query(
         self,
         query: str,
-        query_parameters: list[ScalarQueryParameter | ArrayQueryParameter]
+        query_parameters: Sequence[ScalarQueryParameter | ArrayQueryParameter]
         | None = None,
     ) -> MergeResult:
         """Execute MERGE query for upsert operations
@@ -73,10 +74,10 @@ class BigQueryClientWrapper:
                 )
 
             # Extract statistics
-            stats = {
+            stats: MergeResult = {
                 "rows_affected": getattr(job, "num_dml_affected_rows", 0),
                 "execution_time_ms": execution_time_ms,
-                "job_id": job.job_id,
+                "job_id": str(job.job_id),
                 "query_preview": query[:200],
             }
 
@@ -99,7 +100,7 @@ class BigQueryClientWrapper:
     def execute_dml_query(
         self,
         query: str,
-        query_parameters: list[ScalarQueryParameter | ArrayQueryParameter]
+        query_parameters: Sequence[ScalarQueryParameter | ArrayQueryParameter]
         | None = None,
     ) -> int:
         """Execute DML query (DELETE, INSERT, UPDATE).
@@ -127,7 +128,7 @@ class BigQueryClientWrapper:
                     "job_id": job.job_id,
                 },
             )
-            return rows_affected
+            return int(rows_affected)
         except Exception as e:
             logger.error("DML query failed: %s", str(e))
             raise BigQueryError(f"Failed to execute DML query: {e!s}") from e

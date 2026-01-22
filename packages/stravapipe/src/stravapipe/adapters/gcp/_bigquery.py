@@ -182,7 +182,7 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             table_name=self._staging_table_name,
         )
 
-    def _merge_from_staging(self, activity_id: int) -> dict:
+    def _merge_from_staging(self, activity_id: int) -> MergeResult:
         """Execute MERGE operation from staging to main table for specific activity"""
         merge_query, query_params = self._build_merge_query(activity_id)
         result = self._client.execute_merge_query(merge_query, query_params)
@@ -190,7 +190,7 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         self._cleanup_staging([activity_id])
         return result
 
-    def _merge_batch_from_staging(self, activity_ids: list[int]) -> dict:
+    def _merge_batch_from_staging(self, activity_ids: list[int]) -> MergeResult:
         """Execute MERGE operation for multiple activities at once"""
         merge_query, query_params = self._build_batch_merge_query(activity_ids)
         result = self._client.execute_merge_query(merge_query, query_params)
