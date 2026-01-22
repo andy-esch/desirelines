@@ -45,6 +45,54 @@ func TestAPIError_Error(t *testing.T) {
 	}
 }
 
+func TestAPIError_IsZero(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      APIError
+		wantZero bool
+	}{
+		{
+			name:     "zero value",
+			err:      APIError{},
+			wantZero: true,
+		},
+		{
+			name:     "status only",
+			err:      APIError{Status: 400},
+			wantZero: false,
+		},
+		{
+			name:     "message only",
+			err:      APIError{Message: "error"},
+			wantZero: false,
+		},
+		{
+			name:     "status and message",
+			err:      APIError{Status: 400, Message: "Bad request"},
+			wantZero: false,
+		},
+		{
+			name:     "full error",
+			err:      APIError{Status: 500, Message: "Error", Code: "ERR", LogMessage: "log"},
+			wantZero: false,
+		},
+		{
+			name:     "predefined error",
+			err:      ErrBadRequest,
+			wantZero: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.err.IsZero()
+			if got != tt.wantZero {
+				t.Errorf("IsZero() = %v, want %v", got, tt.wantZero)
+			}
+		})
+	}
+}
+
 func TestNewAPIError(t *testing.T) {
 	err := NewAPIError(http.StatusBadRequest, "Invalid input")
 

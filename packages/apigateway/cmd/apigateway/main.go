@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -28,6 +29,14 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+)
+
+// Server timeout defaults (can be overridden via environment variables).
+const (
+	defaultReadTimeout       = 30 * time.Second
+	defaultWriteTimeout      = 30 * time.Second
+	defaultReadHeaderTimeout = 10 * time.Second
+	defaultShutdownTimeout   = 30 * time.Second
 )
 
 func main() {
@@ -47,14 +56,14 @@ func main() {
 	// Build router with all routes
 	router := buildRouter(deps)
 
-	// Start server
+	// Start server with configurable timeouts
 	port := getEnvOrDefault("PORT", "8080")
 	srv := &http.Server{
 		Addr:              ":" + port,
 		Handler:           router,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       getDurationEnv("SERVER_READ_TIMEOUT", defaultReadTimeout),
+		WriteTimeout:      getDurationEnv("SERVER_WRITE_TIMEOUT", defaultWriteTimeout),
+		ReadHeaderTimeout: getDurationEnv("SERVER_READ_HEADER_TIMEOUT", defaultReadHeaderTimeout),
 	}
 
 	// Start server in goroutine to allow graceful shutdown
@@ -73,8 +82,9 @@ func main() {
 
 	log.Info("Shutting down server...")
 
-	// Give server 30 seconds to finish in-flight requests
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Give server time to finish in-flight requests
+	shutdownTimeout := getDurationEnv("SERVER_SHUTDOWN_TIMEOUT", defaultShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
@@ -119,16 +129,7 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	deps.sportConfig = sportConfig
 
 	// 2. Initialize CORS handler
-	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
-	var allowedOrigins []string
-	if allowedOriginsEnv != "" {
-		parts := strings.Split(allowedOriginsEnv, ",")
-		for _, o := range parts {
-			if trimmed := strings.TrimSpace(o); trimmed != "" {
-				allowedOrigins = append(allowedOrigins, trimmed)
-			}
-		}
-	}
+	allowedOrigins := parseCommaSeparatedEnv("ALLOWED_ORIGINS")
 	deps.corsHandler = cors.NewHandler(allowedOrigins, log)
 
 	// 3. Initialize auth middleware (Firebase JWT + email allowlist)
@@ -139,21 +140,18 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	}
 	deps.authMiddleware = authMiddleware
 
-	// 4. Initialize PostgreSQL repository
+	// 4. Initialize PostgreSQL repository (required dependency)
 	connString, err := getConnectionString()
 	if err != nil {
-		// Only warn if connection string is missing, allowing startup without DB
-		log.Warn("Could not load connection string, continuing without database", "error", err)
-	} else {
-		pool, poolErr := postgres.NewPool(ctx, connString, log)
-		if poolErr != nil {
-			// Graceful degradation: warn but don't fail startup
-			log.Warn("Database initialization failed, continuing without database", "error", poolErr)
-		} else {
-			deps.repo = postgres.NewActivityRepository(pool)
-			log.Info("Database repository initialized")
-		}
+		return nil, fmt.Errorf("failed to get database connection string: %w", err)
 	}
+
+	pool, poolErr := postgres.NewPool(ctx, connString, log)
+	if poolErr != nil {
+		return nil, fmt.Errorf("failed to initialize database pool: %w", poolErr)
+	}
+	deps.repo = postgres.NewActivityRepository(pool)
+	log.Info("Database repository initialized")
 
 	return deps, nil
 }
@@ -194,20 +192,37 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// getDurationEnv reads a duration from environment variable (in seconds).
+// Returns defaultValue if the environment variable is not set or invalid.
+func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	return defaultValue
+}
+
 // getAllowedEmails reads allowed emails from environment variable.
 func getAllowedEmails() []string {
-	allowedEmailsEnv := os.Getenv("ALLOWED_EMAILS")
-	if allowedEmailsEnv == "" {
+	return parseCommaSeparatedEnv("ALLOWED_EMAILS")
+}
+
+// parseCommaSeparatedEnv reads an environment variable and parses it as a
+// comma-separated list, trimming whitespace and filtering empty values.
+func parseCommaSeparatedEnv(key string) []string {
+	value := os.Getenv(key)
+	if value == "" {
 		return nil
 	}
 
-	var emails []string
-	for _, email := range strings.Split(allowedEmailsEnv, ",") {
-		if trimmed := strings.TrimSpace(email); trimmed != "" {
-			emails = append(emails, trimmed)
+	var result []string
+	for _, item := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			result = append(result, trimmed)
 		}
 	}
-	return emails
+	return result
 }
 
 // getConnectionString reads PostgreSQL connection string from secret mount or environment variable.

@@ -28,8 +28,8 @@ func TestNewHandler(t *testing.T) {
 		if len(h.allowedOrigins) != 1 {
 			t.Errorf("expected 1 allowed origin, got %d", len(h.allowedOrigins))
 		}
-		if h.allowedOrigins[0] != "https://example.com" {
-			t.Errorf("expected https://example.com, got %s", h.allowedOrigins[0])
+		if !h.allowedOrigins["https://example.com"] {
+			t.Error("expected https://example.com to be in allowed origins map")
 		}
 	})
 
@@ -186,7 +186,7 @@ func TestHandler_HandlePreflight(t *testing.T) {
 		}
 	})
 
-	t.Run("disallowed origin still gets method headers", func(t *testing.T) {
+	t.Run("disallowed origin gets no CORS headers", func(t *testing.T) {
 		h := NewHandler([]string{"https://example.com"}, logger)
 
 		req := httptest.NewRequest(http.MethodOptions, "/test", nil)
@@ -200,14 +200,15 @@ func TestHandler_HandlePreflight(t *testing.T) {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusNoContent)
 		}
 
-		// Should NOT have Allow-Origin for disallowed origin
+		// Should NOT have any CORS headers for disallowed origin
 		if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
 			t.Errorf("Access-Control-Allow-Origin should be empty for disallowed origin, got %q", got)
 		}
-
-		// But should still have methods header (per CORS spec)
-		if got := w.Header().Get("Access-Control-Allow-Methods"); got == "" {
-			t.Error("Access-Control-Allow-Methods should be set")
+		if got := w.Header().Get("Access-Control-Allow-Methods"); got != "" {
+			t.Errorf("Access-Control-Allow-Methods should be empty for disallowed origin, got %q", got)
+		}
+		if got := w.Header().Get("Access-Control-Allow-Headers"); got != "" {
+			t.Errorf("Access-Control-Allow-Headers should be empty for disallowed origin, got %q", got)
 		}
 	})
 }

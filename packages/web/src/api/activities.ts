@@ -86,10 +86,17 @@ export const fetchSportMetrics = async (
   signal?: AbortSignal
 ): Promise<SportMetrics> => {
   // Support both old signature (year, sport, signal) and new options object
-  const options: FetchSportMetricsOptions =
-    typeof yearOrOptions === "number"
-      ? { year: yearOrOptions, sport: sport!, signal }
-      : yearOrOptions;
+  let options: FetchSportMetricsOptions;
+  if (typeof yearOrOptions === "number") {
+    if (!sport) {
+      throw new Error(
+        "fetchSportMetrics: sport parameter is required when using positional arguments"
+      );
+    }
+    options = { year: yearOrOptions, sport, signal };
+  } else {
+    options = yearOrOptions;
+  }
 
   let url = `/activities/${options.year}/metrics?sport=${options.sport}`;
   if (options.from && options.to) {
@@ -127,17 +134,47 @@ export const fetchYearMetadata = async (
   }
 };
 
+// Cache for sport config - it's global and rarely changes
+let sportConfigCache: SportConfig | null = null;
+let sportConfigPromise: Promise<SportConfig> | null = null;
+
 export const fetchSportConfig = async (signal?: AbortSignal): Promise<SportConfig> => {
+  // Return cached value if available
+  if (sportConfigCache) {
+    return sportConfigCache;
+  }
+
+  // If a fetch is already in progress, wait for it (deduplicates concurrent calls)
+  if (sportConfigPromise) {
+    return sportConfigPromise;
+  }
+
   const url = `/sports/config`;
 
-  try {
-    const { data } = await client.get<SportConfig>(url, {
-      signal,
-    });
-    return data;
-  } catch (err: unknown) {
-    throwApiError(err, "fetchSportConfig");
-  }
+  // Store the promise to deduplicate concurrent requests
+  sportConfigPromise = (async () => {
+    try {
+      const { data } = await client.get<SportConfig>(url, {
+        signal,
+      });
+      sportConfigCache = data;
+      return data;
+    } catch (err: unknown) {
+      // Clear the promise on error so retry is possible
+      sportConfigPromise = null;
+      throwApiError(err, "fetchSportConfig");
+    }
+  })();
+
+  return sportConfigPromise;
+};
+
+/**
+ * Clear the sport config cache. Useful for testing or when config might have changed.
+ */
+export const clearSportConfigCache = (): void => {
+  sportConfigCache = null;
+  sportConfigPromise = null;
 };
 
 /** Options for fetchDailySummary */

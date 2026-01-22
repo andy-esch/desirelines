@@ -122,5 +122,11 @@ export function throwApiError(err: unknown, context: string): never {
     throw createAuthError();
   }
   logApiError(err, context);
-  throw err instanceof Error ? err : new Error(String(err));
+  if (err instanceof Error) {
+    throw err;
+  }
+  // Wrap non-Error values, preserving original as cause for debugging
+  const wrapped = new Error(String(err));
+  (wrapped as Error & { cause?: unknown }).cause = err;
+  throw wrapped;
 }

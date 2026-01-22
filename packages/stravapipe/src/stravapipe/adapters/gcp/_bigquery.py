@@ -1,8 +1,9 @@
 """BigQuery adapter for reading and writing Strava activities."""
 
 from google.cloud import bigquery
+from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
 
-from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
+from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
 from stravapipe.domain import (
     DetailedStravaActivity,
     MinimalStravaActivity,
@@ -15,6 +16,10 @@ from stravapipe.ports.out.write import WriteActivities
 
 class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
     """Read and write Strava Activities to/from BigQuery"""
+
+    # BigQuery streaming insert limit per API call
+    # https://cloud.google.com/bigquery/quotas#streaming_inserts
+    _MAX_BATCH_SIZE: int = 10_000
 
     # Column definitions for MERGE queries (single source of truth)
     # These are all columns that can be updated/inserted, excluding 'id' (the key)
@@ -82,11 +87,11 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         # Derive from main table name
         self._staging_table_name = f"{table_name}_staging"
 
-    def write_activity(self, activity: DetailedStravaActivity) -> dict:
-        """Two-step upsert: stage then merge
+    def write_activity(self, activity: DetailedStravaActivity) -> MergeResult:
+        """Two-step upsert: stage then merge.
 
         Returns:
-            dict: Statistics from the MERGE operation
+            MergeResult with rows_affected, execution_time_ms, job_id, query_preview
         """
         # Step 1: Insert to staging table (fast streaming insert)
         self._write_to_staging(activity)
@@ -96,24 +101,39 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
 
     def write_activities_batch(
         self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
-    ) -> dict:
-        """Batch upsert: stage all activities, then merge all at once
+    ) -> MergeResult:
+        """Batch upsert: stage all activities, then merge all at once.
 
         Args:
             activities: List of activities to insert (DetailedActivity or SummaryActivity)
 
         Returns:
-            dict: Statistics from the MERGE operation
+            MergeResult with rows_affected, execution_time_ms, job_id, query_preview
+
+        Raises:
+            ValueError: If batch size exceeds BigQuery's 10,000 row limit
 
         Note:
             - BigQuery supports up to 10,000 rows per insert_rows_json call
-            - If you have more than 10,000 activities, chunk them before calling
+            - For larger batches, chunk them before calling this method
             - Much faster than individual inserts (1 API call vs N calls)
             - Accepts both DetailedActivity and SummaryActivity models
             - Missing fields in SummaryActivity will be NULL in BigQuery
         """
         if not activities:
-            return {"rows_affected": 0, "execution_time_ms": 0}
+            return MergeResult(
+                rows_affected=0,
+                execution_time_ms=0,
+                job_id="",
+                query_preview="(empty batch)",
+            )
+
+        if len(activities) > self._MAX_BATCH_SIZE:
+            raise ValueError(
+                f"Batch size {len(activities)} exceeds BigQuery streaming insert "
+                f"limit of {self._MAX_BATCH_SIZE} rows. Chunk your data before calling "
+                f"write_activities_batch()."
+            )
 
         # Step 1: Insert all to staging table (single API call)
         self._write_batch_to_staging(activities)
@@ -162,26 +182,62 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             table_name=self._staging_table_name,
         )
 
-    def _merge_from_staging(self, activity_id: int) -> dict:
+    def _merge_from_staging(self, activity_id: int) -> MergeResult:
         """Execute MERGE operation from staging to main table for specific activity"""
-        merge_query = self._build_merge_query(activity_id)
-        return self._client.execute_merge_query(merge_query)
+        merge_query, query_params = self._build_merge_query(activity_id)
+        result = self._client.execute_merge_query(merge_query, query_params)
+        # Clean up staging table after successful merge
+        self._cleanup_staging([activity_id])
+        return result
 
-    def _merge_batch_from_staging(self, activity_ids: list[int]) -> dict:
+    def _merge_batch_from_staging(self, activity_ids: list[int]) -> MergeResult:
         """Execute MERGE operation for multiple activities at once"""
-        merge_query = self._build_batch_merge_query(activity_ids)
-        return self._client.execute_merge_query(merge_query)
+        merge_query, query_params = self._build_batch_merge_query(activity_ids)
+        result = self._client.execute_merge_query(merge_query, query_params)
+        # Clean up staging table after successful merge
+        self._cleanup_staging(activity_ids)
+        return result
 
-    def _build_merge_query(self, activity_id: int) -> str:
-        """Build MERGE query for single activity upsert operation."""
-        where_clause = f"id = {activity_id}"
-        return self._build_merge_query_base(where_clause)
+    def _cleanup_staging(self, activity_ids: list[int]) -> None:
+        """Delete merged rows from staging table.
 
-    def _build_batch_merge_query(self, activity_ids: list[int]) -> str:
-        """Build MERGE query for batch upsert operation."""
-        ids_str = ",".join(str(id) for id in activity_ids)
-        where_clause = f"id IN ({ids_str})"
-        return self._build_merge_query_base(where_clause)
+        Called after successful MERGE to prevent staging table from growing indefinitely.
+        Uses parameterized query to prevent SQL injection.
+        """
+        delete_query = f"""
+        DELETE FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
+        WHERE id IN UNNEST(@activity_ids)
+        """
+        query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
+        self._client.execute_dml_query(delete_query, query_params)
+
+    def _build_merge_query(
+        self, activity_id: int
+    ) -> tuple[str, list[ScalarQueryParameter]]:
+        """Build MERGE query for single activity upsert operation.
+
+        Uses parameterized queries to prevent SQL injection.
+
+        Returns:
+            Tuple of (query_string, query_parameters)
+        """
+        where_clause = "id = @activity_id"
+        query_params = [ScalarQueryParameter("activity_id", "INT64", activity_id)]
+        return self._build_merge_query_base(where_clause), query_params
+
+    def _build_batch_merge_query(
+        self, activity_ids: list[int]
+    ) -> tuple[str, list[ArrayQueryParameter]]:
+        """Build MERGE query for batch upsert operation.
+
+        Uses parameterized queries to prevent SQL injection.
+
+        Returns:
+            Tuple of (query_string, query_parameters)
+        """
+        where_clause = "id IN UNNEST(@activity_ids)"
+        query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
+        return self._build_merge_query_base(where_clause), query_params
 
     def _build_merge_query_base(self, where_clause: str) -> str:
         """Build MERGE query with parameterized WHERE clause.
@@ -206,10 +262,13 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             f"source.{col}" for col in self._MERGE_COLUMNS
         )
 
+        # Build explicit SELECT columns for source query (avoids SELECT * EXCEPT fragility)
+        select_cols = "id, " + ", ".join(self._MERGE_COLUMNS)
+
         return f"""
         MERGE `{self._client.project_id}.{self._dataset_name}.{self._table_name}` AS target
         USING (
-            SELECT * EXCEPT(row_num) FROM (
+            SELECT {select_cols} FROM (
                 SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY start_date DESC) as row_num
                 FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
                 WHERE {where_clause}

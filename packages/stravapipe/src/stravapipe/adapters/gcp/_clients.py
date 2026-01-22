@@ -1,11 +1,26 @@
+from collections.abc import Sequence
 import logging
+from typing import TypedDict
 
+from google.cloud.bigquery import (
+    ArrayQueryParameter,
+    QueryJobConfig,
+    ScalarQueryParameter,
+)
 from google.cloud.bigquery import Client as BigQueryClient
-from google.cloud.bigquery import QueryJobConfig
 
 from stravapipe.exceptions import BigQueryError
 
 logger = logging.getLogger(__name__)
+
+
+class MergeResult(TypedDict):
+    """Result from a BigQuery MERGE operation."""
+
+    rows_affected: int
+    execution_time_ms: int | None
+    job_id: str
+    query_preview: str
 
 
 class BigQueryClientWrapper:
@@ -28,13 +43,24 @@ class BigQueryClientWrapper:
             )
         logger.info("Successfully inserted %s rows into %s.", len(rows), table_id)
 
-    def execute_merge_query(self, query: str) -> dict:
+    def execute_merge_query(
+        self,
+        query: str,
+        query_parameters: Sequence[ScalarQueryParameter | ArrayQueryParameter]
+        | None = None,
+    ) -> MergeResult:
         """Execute MERGE query for upsert operations
+
+        Args:
+            query: SQL query string with optional @param placeholders
+            query_parameters: List of BigQuery query parameters for parameterized queries
 
         Returns:
             dict: Job statistics including rows affected, execution time, etc.
         """
-        job_config = QueryJobConfig()
+        job_config = QueryJobConfig(
+            query_parameters=query_parameters if query_parameters else []
+        )
         job = self._client.query(query, job_config=job_config)
 
         try:
@@ -48,10 +74,10 @@ class BigQueryClientWrapper:
                 )
 
             # Extract statistics
-            stats = {
+            stats: MergeResult = {
                 "rows_affected": getattr(job, "num_dml_affected_rows", 0),
                 "execution_time_ms": execution_time_ms,
-                "job_id": job.job_id,
+                "job_id": str(job.job_id),
                 "query_preview": query[:200],
             }
 
@@ -70,3 +96,39 @@ class BigQueryClientWrapper:
         except Exception as e:
             logger.error("MERGE operation failed: %s", str(e))
             raise BigQueryError(f"Failed to execute MERGE query: {e!s}") from e
+
+    def execute_dml_query(
+        self,
+        query: str,
+        query_parameters: Sequence[ScalarQueryParameter | ArrayQueryParameter]
+        | None = None,
+    ) -> int:
+        """Execute DML query (DELETE, INSERT, UPDATE).
+
+        Args:
+            query: SQL DML query string with optional @param placeholders
+            query_parameters: List of BigQuery query parameters
+
+        Returns:
+            Number of rows affected
+        """
+        job_config = QueryJobConfig(
+            query_parameters=query_parameters if query_parameters else []
+        )
+        job = self._client.query(query, job_config=job_config)
+
+        try:
+            _ = job.result()
+            rows_affected = getattr(job, "num_dml_affected_rows", 0)
+            logger.debug(
+                "DML query completed",
+                extra={
+                    "operation": "bigquery_dml",
+                    "rows_affected": rows_affected,
+                    "job_id": job.job_id,
+                },
+            )
+            return int(rows_affected)
+        except Exception as e:
+            logger.error("DML query failed: %s", str(e))
+            raise BigQueryError(f"Failed to execute DML query: {e!s}") from e

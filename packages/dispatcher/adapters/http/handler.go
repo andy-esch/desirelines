@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"strings"
 
@@ -19,19 +20,43 @@ import (
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
+// Error codes
+const (
+	ErrCodeConfigError           = "CONFIG_ERROR"
+	ErrCodeInvalidHubMode        = "INVALID_HUB_MODE"
+	ErrCodeInvalidVerifyToken    = "INVALID_VERIFY_TOKEN"
+	ErrCodeInvalidContentType    = "INVALID_CONTENT_TYPE"
+	ErrCodeReadFailed            = "READ_FAILED"
+	ErrCodeInvalidJSON           = "INVALID_JSON"
+	ErrCodeValidationFailed      = "VALIDATION_FAILED"
+	ErrCodeInvalidSubscriptionID = "INVALID_SUBSCRIPTION_ID"
+	ErrCodePublishFailed         = "PUBLISH_FAILED"
+)
+
 // Handler orchestrates the webhook processing.
 type Handler struct {
-	secretProvider ports.SecretProvider
-	publisher      ports.Publisher
-	logger         *slog.Logger
+	secretProvider     ports.SecretProvider
+	publisher          ports.Publisher
+	logger             *slog.Logger
+	maxRequestBodySize int64
+}
+
+// HandlerConfig holds configuration for the HTTP handler.
+type HandlerConfig struct {
+	MaxRequestBodySize int64
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
-func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, logger *slog.Logger) *Handler {
+func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, logger *slog.Logger, cfg *HandlerConfig) *Handler {
+	maxBodySize := int64(1 << 20) // Default 1MB
+	if cfg != nil && cfg.MaxRequestBodySize > 0 {
+		maxBodySize = cfg.MaxRequestBodySize
+	}
 	return &Handler{
-		secretProvider: secretProvider,
-		publisher:      publisher,
-		logger:         logger,
+		secretProvider:     secretProvider,
+		publisher:          publisher,
+		logger:             logger,
+		maxRequestBodySize: maxBodySize,
 	}
 }
 
@@ -46,9 +71,12 @@ func (h *Handler) RegisterRoutes() http.Handler {
 
 	// Health check endpoint for Cloud Run / docker health checks
 	r.Head("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Length", "0")
 		w.WriteHeader(http.StatusOK)
 	})
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -70,7 +98,7 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("invalid hub.mode: %s", mode),
 			"Invalid hub.mode provided in verification request",
 		)
-		apiErr.Code = "INVALID_HUB_MODE"
+		apiErr.Code = ErrCodeInvalidHubMode
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
@@ -83,14 +111,14 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 			"Configuration error",
 			fmt.Sprintf("Failed to get verify token: %v", err),
 		)
-		apiErr.Code = "CONFIG_ERROR"
+		apiErr.Code = ErrCodeConfigError
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	if token != verifyToken {
 		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
-		apiErr.Code = "INVALID_VERIFY_TOKEN"
+		apiErr.Code = ErrCodeInvalidVerifyToken
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
@@ -101,20 +129,18 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-const maxRequestBodySize = 1 << 20 // 1MB
-
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// Validate Content-Type header
 	contentType := r.Header.Get("Content-Type")
 	if contentType == "" || !strings.Contains(contentType, "application/json") {
 		apiErr := apierrors.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
-		apiErr.Code = "INVALID_CONTENT_TYPE"
+		apiErr.Code = ErrCodeInvalidContentType
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
-	// Check that request is under maxRequestBodySize
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+	// Limit request body size to prevent memory exhaustion
+	r.Body = http.MaxBytesReader(w, r.Body, h.maxRequestBodySize)
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -123,7 +149,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 			"Failed to read request body",
 			fmt.Sprintf("Read failed: %v", err),
 		)
-		apiErr.Code = "READ_FAILED"
+		apiErr.Code = ErrCodeReadFailed
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
@@ -136,7 +162,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 			"Invalid JSON payload",
 			fmt.Sprintf("Proto parse failed: %v", err),
 		)
-		apiErr.Code = "INVALID_JSON"
+		apiErr.Code = ErrCodeInvalidJSON
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
@@ -148,7 +174,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 			"Webhook validation failed",
 			fmt.Sprintf("Validation error: %v", validateErr),
 		)
-		apiErr.Code = "VALIDATION_FAILED"
+		apiErr.Code = ErrCodeValidationFailed
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
@@ -161,15 +187,24 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 			"Configuration error",
 			fmt.Sprintf("Failed to get subscription ID: %v", err),
 		)
-		apiErr.Code = "CONFIG_ERROR"
+		apiErr.Code = ErrCodeConfigError
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
+	// Compare as int32 to avoid platform-dependent int size issues.
+	// subscriptionID from config is validated to be positive during loading,
+	// so casting to int32 is safe for valid subscription IDs.
+	if subscriptionID > math.MaxInt32 {
+		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id config")
+		apiErr.Code = ErrCodeConfigError
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
+	}
+	expectedSubID := int32(subscriptionID) //nolint:gosec // Checked range above
 
-	// Note: proto SubscriptionId is int32, config uses int. Cast safely.
-	if int(webhook.SubscriptionId) != subscriptionID {
+	if webhook.SubscriptionId != expectedSubID {
 		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
-		apiErr.Code = "INVALID_SUBSCRIPTION_ID"
+		apiErr.Code = ErrCodeInvalidSubscriptionID
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
@@ -185,7 +220,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 			"Failed to publish event",
 			fmt.Sprintf("Publish failed: %v", publishErr),
 		)
-		apiErr.Code = "PUBLISH_FAILED"
+		apiErr.Code = ErrCodePublishFailed
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
@@ -193,18 +228,21 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	h.writeSuccess(w)
 }
 
+// successResponse is the JSON response for successful webhook processing.
+type successResponse struct {
+	Success bool `json:"success"`
+}
+
 func (h *Handler) writeSuccess(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"success": "true",
-	}); err != nil {
+	if err := json.NewEncoder(w).Encode(successResponse{Success: true}); err != nil {
 		h.logger.Error("Failed to encode success response", "error", err)
 	}
 }
 
 // Close releases resources held by the handler (PubSub client, etc.).
+// The context can be used to set a deadline for graceful shutdown.
 func (h *Handler) Close(ctx context.Context) error {
-	// Context is accepted for future use (e.g. graceful shutdown with timeout)
-	_ = ctx
-	return h.publisher.Close()
+	return h.publisher.Close(ctx)
 }

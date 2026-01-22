@@ -164,3 +164,18 @@ psql "postgres://writer:PASSWORD@HOST-pooler/desirelines?sslmode=require" \
 | `db-migrate-dev-info`  | Check migration status   |
 | `db-connect-dev`       | Connect psql (read-only) |
 | `db-connect-dev-admin` | Connect psql (admin)     |
+
+## Connection Pooling
+
+Neon's `-pooler` endpoints have built-in PgBouncer. The `postgres-writer` service auto-detects this and disables client-side pooling to avoid the "pool on pool" anti-pattern.
+
+**How it works:**
+- Hostname contains `-pooler` → uses `NullPool` (Neon handles pooling)
+- No `-pooler` in hostname → uses `QueuePool` (client-side pooling)
+
+**Migrating to another provider?** Set `POSTGRES_POOL_STRATEGY`:
+- `external` - You have PgBouncer or similar (uses NullPool)
+- `internal` - Direct connection without external pooler (uses QueuePool)
+- `auto` - Detect from hostname (default)
+
+See [stravapipe README](../../packages/stravapipe/README.md#postgresql-connection-pooling) for full configuration options.

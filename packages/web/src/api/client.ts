@@ -19,10 +19,51 @@ const client = axios.create({
 // Get auth service singleton
 const authService = getFirebaseAuthService();
 
+// Timeout for waiting on auth initialization (5 seconds)
+const AUTH_READY_TIMEOUT_MS = 5000;
+
+// Cache flag to skip auth wait after first successful initialization
+let authInitialized = false;
+
+/**
+ * Wait for auth to be ready with a timeout to prevent hanging requests.
+ * After first successful initialization, returns immediately.
+ */
+async function waitForAuthWithTimeout(): Promise<boolean> {
+  // Skip waiting if we've already initialized successfully
+  if (authInitialized) {
+    return true;
+  }
+
+  const timeoutPromise = new Promise<false>((resolve) => {
+    setTimeout(() => resolve(false), AUTH_READY_TIMEOUT_MS);
+  });
+
+  const authPromise = authService.waitForAuthReady().then(() => true as const);
+
+  const result = await Promise.race([authPromise, timeoutPromise]);
+
+  // Cache successful initialization
+  if (result) {
+    authInitialized = true;
+  }
+
+  return result;
+}
+
 client.interceptors.request.use(async (config) => {
-  // Ensure auth state is known before proceeding
+  // Ensure auth state is known before proceeding (with timeout)
   // This prevents race conditions where a request fires before we know if the user is logged in
-  await authService.waitForAuthReady();
+  const authReady = await waitForAuthWithTimeout();
+
+  if (!authReady) {
+    console.warn(
+      "Auth initialization timed out after",
+      AUTH_READY_TIMEOUT_MS,
+      "ms. Proceeding without auth token."
+    );
+    return config;
+  }
 
   const user = authService.getCurrentUser();
   if (user) {

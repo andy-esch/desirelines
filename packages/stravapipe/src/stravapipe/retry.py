@@ -123,6 +123,11 @@ def retry_on_failure(
             )
             if last_exception:
                 raise last_exception
+            # This should never happen - loop only exits without exception if
+            # max_attempts == 0, but guards against implicit None return
+            raise RuntimeError(
+                f"Retry loop exited unexpectedly after {max_attempts} attempts"
+            )
 
         return cast(F, wrapper)
 

@@ -1,12 +1,25 @@
-"""Strava read repositories"""
+"""Strava API adapters.
+
+This module provides a layered architecture for Strava API access:
+
+    StravaTokenRepo      - Refreshes tokens via Strava OAuth API
+           ↓
+    StravaTokenManager   - Manages token state + thread-safety
+           ↓
+    StravaApiClient      - HTTP calls, 401 retry, error translation
+           ↓
+    StravaActivitiesRepo - Domain model conversion
+"""
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
 import logging
-from typing import Any, NamedTuple
+import threading
+from typing import Any
 
 import requests
 
+from stravapipe.config.common import StravaApiConfig
 from stravapipe.domain import (
     DetailedStravaActivity,
     StandardActivity,
@@ -28,20 +41,17 @@ from stravapipe.retry import retry_on_failure
 logger = logging.getLogger(__name__)
 
 
-class StravaApiConfig(NamedTuple):
-    """Strava API configuration"""
-
-    token_url: str = "https://www.strava.com/oauth/token"
-    api_base_url: str = "https://www.strava.com/api/v3"
-    request_timeout: int = 10
-    token_retry_attempts: int = 2
-    token_retry_backoff: float = 0.5
-    activity_retry_attempts: int = 3
-    activity_retry_backoff: float = 1.0
+# =============================================================================
+# Token Layer
+# =============================================================================
 
 
 class StravaTokenRepo(ReadStravaToken):
-    """Fetch new access token"""
+    """Refreshes Strava access tokens via OAuth API.
+
+    This class handles the HTTP call to Strava's token endpoint.
+    It does NOT manage token state - that's StravaTokenManager's job.
+    """
 
     def __init__(
         self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None
@@ -96,113 +106,144 @@ class StravaTokenRepo(ReadStravaToken):
         )
 
 
-class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivities):
-    """Repository for fetching Strava Activities.
+class StravaTokenManager:
+    """Manages Strava access token state with thread-safe refresh.
 
-    Implements both ReadDetailedActivities (for BQ inserter) and
-    ReadStandardActivities (for PostgreSQL writer).
+    Responsibilities:
+    - Stores current access token
+    - Thread-safe lazy initialization (refresh on first use if None)
+    - Thread-safe forced refresh (on 401)
 
-    Token Management:
-        - If tokens.access_token is None, automatically refreshes on first API call
-        - On 401 response, refreshes token and retries once
-        - Callers don't need to manually refresh tokens before using this repo
+    This class does NOT make HTTP calls - it delegates to StravaTokenRepo.
     """
 
     def __init__(
-        self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None
+        self,
+        token_repo: StravaTokenRepo,
+        initial_access_token: str | None = None,
     ):
-        self._initial_tokens = tokens
-        self._api_config = api_config or StravaApiConfig()
-        self._token_repo = StravaTokenRepo(tokens, self._api_config)
-        # Lazy-initialized on first API call if None
-        self._current_access_token: str | None = tokens.access_token
+        """Initialize token manager.
 
-    def _ensure_fresh_token(self) -> str:
-        """Ensure we have a valid access token, refreshing if needed.
+        Args:
+            token_repo: Repository for refreshing tokens via API
+            initial_access_token: Pre-existing access token, or None to refresh on first use
+        """
+        self._token_repo = token_repo
+        self._current_access_token = initial_access_token
+        self._lock = threading.Lock()
+
+    def get_token(self) -> str:
+        """Get a valid access token, refreshing if needed.
+
+        Thread-safe: uses lock to prevent concurrent refresh operations.
 
         Returns:
             Valid access token string
         """
-        if self._current_access_token is None:
-            logger.info("No access token provided, refreshing...")
-            refreshed = self._token_repo.refresh()
-            self._current_access_token = refreshed.access_token
-        return self._current_access_token
+        with self._lock:
+            if self._current_access_token is None:
+                logger.info("No access token provided, refreshing...")
+                refreshed = self._token_repo.refresh()
+                self._current_access_token = refreshed.access_token
+            return self._current_access_token
 
-    def _refresh_token(self) -> str:
+    def refresh(self) -> str:
         """Force refresh the access token.
+
+        Thread-safe: uses lock to prevent concurrent refresh operations.
 
         Returns:
             New access token string
         """
-        logger.info("Refreshing Strava access token...")
-        refreshed = self._token_repo.refresh()
-        self._current_access_token = refreshed.access_token
-        return self._current_access_token
+        with self._lock:
+            logger.info("Refreshing Strava access token...")
+            refreshed = self._token_repo.refresh()
+            self._current_access_token = refreshed.access_token
+            return self._current_access_token
+
+
+# =============================================================================
+# API Client Layer
+# =============================================================================
+
+
+class StravaApiClient:
+    """HTTP client for Strava API with automatic token refresh on 401.
+
+    Responsibilities:
+    - Makes authenticated HTTP requests to Strava API
+    - Handles 401 by refreshing token and retrying (once)
+    - Translates HTTP errors to domain exceptions
+    - Applies retry logic for transient failures
+
+    This class does NOT convert responses to domain models - that's the repo's job.
+    """
+
+    _MAX_TOKEN_REFRESH_RETRIES: int = 1
+
+    def __init__(
+        self,
+        token_manager: StravaTokenManager,
+        api_config: StravaApiConfig | None = None,
+    ):
+        """Initialize API client.
+
+        Args:
+            token_manager: Manager for getting/refreshing access tokens
+            api_config: API configuration (URLs, timeouts, retry settings)
+        """
+        self._token_manager = token_manager
+        self._api_config = api_config or StravaApiConfig()
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with current access token."""
-        token = self._ensure_fresh_token()
+        token = self._token_manager.get_token()
         return {"Authorization": f"Bearer {token}"}
 
-    def _read_raw_activity_by_id(
-        self, activity_id: int, *, _is_retry: bool = False
+    def get_activity(self, activity_id: int) -> dict[str, Any]:
+        """Fetch a single activity by ID.
+
+        Args:
+            activity_id: Strava activity ID
+
+        Returns:
+            Raw activity data as dict
+
+        Raises:
+            ActivityNotFoundError: If activity doesn't exist (404)
+            StravaTokenError: If authentication fails after retry (401)
+            StravaApiError: For other API errors
+        """
+        return self._get_activity_with_retry(activity_id, _token_refresh_count=0)
+
+    def _get_activity_with_retry(
+        self, activity_id: int, *, _token_refresh_count: int
     ) -> dict[str, Any]:
+        """Internal: fetch activity with 401 retry logic."""
+
         @retry_on_failure(
             max_attempts=self._api_config.activity_retry_attempts,
             backoff_seconds=self._api_config.activity_retry_backoff,
         )
         def _fetch():
-            activity_endpoint = (
-                f"{self._api_config.api_base_url}/activities/{activity_id}"
-            )
+            endpoint = f"{self._api_config.api_base_url}/activities/{activity_id}"
             return requests.get(
-                url=activity_endpoint,
+                url=endpoint,
                 headers=self._get_headers(),
                 timeout=self._api_config.request_timeout,
             )
 
         resp = _fetch()
-        if not resp.ok:
-            # Handle 401: refresh token and retry once
-            if resp.status_code == 401 and not _is_retry:
-                logger.warning(
-                    "Got 401 for activity %s, refreshing token and retrying...",
-                    activity_id,
-                    extra={
-                        "operation": "fetch_activity",
-                        "activity_id": activity_id,
-                        "action": "token_refresh_retry",
-                    },
-                )
-                self._refresh_token()
-                return self._read_raw_activity_by_id(activity_id, _is_retry=True)
 
-            logger.error(
-                "Failed to fetch activity %s: %s",
-                activity_id,
-                resp.status_code,
-                extra={
-                    "operation": "fetch_activity",
-                    "activity_id": activity_id,
-                    "status_code": resp.status_code,
-                    "error_type": "api_error",
-                },
+        if not resp.ok:
+            return self._handle_error_response(
+                resp,
+                activity_id=activity_id,
+                token_refresh_count=_token_refresh_count,
+                retry_func=lambda count: self._get_activity_with_retry(
+                    activity_id, _token_refresh_count=count
+                ),
             )
-            if resp.status_code == 404:
-                raise ActivityNotFoundError(activity_id)
-            elif resp.status_code == 401:
-                raise StravaTokenError(
-                    "Access token expired (refresh failed)",
-                    resp.status_code,
-                    activity_id,
-                )
-            else:
-                raise StravaApiError(
-                    f"Failed to fetch activity {activity_id}: {resp.text}",
-                    resp.status_code,
-                    activity_id,
-                )
 
         logger.info(
             "Successfully fetched activity from Strava",
@@ -214,41 +255,45 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
         )
         return resp.json()
 
-    def read_activity_by_id(self, activity_id: int) -> DetailedStravaActivity:
-        """Fetch a detailed Activity from Strava (all ~60 fields).
+    def list_activities(
+        self, *, before: int, after: int, page: int, per_page: int = 100
+    ) -> list[dict[str, Any]]:
+        """Fetch a page of activities.
 
-        Used by BQ inserter for full activity storage.
-        https://developers.strava.com/docs/reference/#api-models-DetailedActivity
+        Args:
+            before: Unix timestamp - return activities before this time
+            after: Unix timestamp - return activities after this time
+            page: Page number (1-indexed)
+            per_page: Results per page (max 200)
+
+        Returns:
+            List of raw activity data dicts
+
+        Raises:
+            StravaTokenError: If authentication fails after retry
+            StravaApiError: For other API errors
         """
-        raw = self._read_raw_activity_by_id(activity_id)
-        return DetailedStravaActivity(**raw)
+        return self._list_activities_with_retry(
+            before=before,
+            after=after,
+            page=page,
+            per_page=per_page,
+            _token_refresh_count=0,
+        )
 
-    def read_standard_activity_by_id(self, activity_id: int) -> StandardActivity:
-        """Fetch a standard Activity from Strava (only PostgreSQL-relevant fields).
-
-        Used by PostgreSQL writer. Validates only the fields we store.
-        """
-        raw = self._read_raw_activity_by_id(activity_id)
-        return StandardActivity.model_validate(raw)
-
-    def _read_activities(
+    def _list_activities_with_retry(
         self,
         *,
         before: int,
         after: int,
         page: int,
-        per_page: int = 100,
-        _is_retry: bool = False,
-    ) -> list[SummaryStravaActivity]:
-        """Fetch activities from list endpoint (returns SummaryActivity objects)
-
-        The /athlete/activities endpoint returns SummaryActivity, not DetailedActivity.
-        This is missing some fields like segment_efforts, splits, laps, photos, etc.
-        but has all the core activity data we need for most use cases.
-        """
-        activities_endpoint = f"{self._api_config.api_base_url}/athlete/activities"
+        per_page: int,
+        _token_refresh_count: int,
+    ) -> list[dict[str, Any]]:
+        """Internal: list activities with 401 retry logic."""
+        endpoint = f"{self._api_config.api_base_url}/athlete/activities"
         resp = requests.get(
-            url=activities_endpoint,
+            url=endpoint,
             headers=self._get_headers(),
             params={
                 "before": before,
@@ -258,28 +303,139 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
             },
             timeout=self._api_config.request_timeout,
         )
+
         if not resp.ok:
-            # Handle 401: refresh token and retry once
-            if resp.status_code == 401 and not _is_retry:
+            # Handle 401 with retry
+            if (
+                resp.status_code == 401
+                and _token_refresh_count < self._MAX_TOKEN_REFRESH_RETRIES
+            ):
                 logger.warning(
-                    "Got 401 listing activities, refreshing token and retrying...",
+                    "Got 401 listing activities, refreshing token and retrying "
+                    "(attempt %d/%d)...",
+                    _token_refresh_count + 1,
+                    self._MAX_TOKEN_REFRESH_RETRIES,
                     extra={
                         "operation": "list_activities",
                         "page": page,
                         "action": "token_refresh_retry",
+                        "token_refresh_attempt": _token_refresh_count + 1,
+                        "max_token_refresh_retries": self._MAX_TOKEN_REFRESH_RETRIES,
                     },
                 )
-                self._refresh_token()
-                return self._read_activities(
+                self._token_manager.refresh()
+                return self._list_activities_with_retry(
                     before=before,
                     after=after,
                     page=page,
                     per_page=per_page,
-                    _is_retry=True,
+                    _token_refresh_count=_token_refresh_count + 1,
                 )
             resp.raise_for_status()
-        activities = [SummaryStravaActivity(**activity) for activity in resp.json()]
-        return activities
+
+        return resp.json()
+
+    def _handle_error_response(
+        self,
+        resp: requests.Response,
+        *,
+        activity_id: int,
+        token_refresh_count: int,
+        retry_func,
+    ) -> dict[str, Any]:
+        """Handle error responses with 401 retry and exception translation."""
+        # Handle 401: refresh token and retry
+        if (
+            resp.status_code == 401
+            and token_refresh_count < self._MAX_TOKEN_REFRESH_RETRIES
+        ):
+            logger.warning(
+                "Got 401 for activity %s, refreshing token and retrying "
+                "(attempt %d/%d)...",
+                activity_id,
+                token_refresh_count + 1,
+                self._MAX_TOKEN_REFRESH_RETRIES,
+                extra={
+                    "operation": "fetch_activity",
+                    "activity_id": activity_id,
+                    "action": "token_refresh_retry",
+                    "token_refresh_attempt": token_refresh_count + 1,
+                    "max_token_refresh_retries": self._MAX_TOKEN_REFRESH_RETRIES,
+                },
+            )
+            self._token_manager.refresh()
+            return retry_func(token_refresh_count + 1)
+
+        # Log and raise appropriate exception
+        logger.error(
+            "Failed to fetch activity %s: %s",
+            activity_id,
+            resp.status_code,
+            extra={
+                "operation": "fetch_activity",
+                "activity_id": activity_id,
+                "status_code": resp.status_code,
+                "error_type": "api_error",
+            },
+        )
+
+        if resp.status_code == 404:
+            raise ActivityNotFoundError(activity_id)
+        elif resp.status_code == 401:
+            raise StravaTokenError(
+                f"Access token expired after {token_refresh_count} refresh attempts",
+                resp.status_code,
+                activity_id,
+            )
+        else:
+            raise StravaApiError(
+                f"Failed to fetch activity {activity_id}: {resp.text}",
+                resp.status_code,
+                activity_id,
+            )
+
+
+# =============================================================================
+# Repository Layer
+# =============================================================================
+
+
+class StravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivities):
+    """Repository for fetching Strava activities and converting to domain models.
+
+    Responsibilities:
+    - Fetches activities via StravaApiClient
+    - Converts raw API responses to domain models
+    - Handles pagination for bulk fetches
+
+    This class does NOT handle HTTP, authentication, or error translation -
+    that's delegated to StravaApiClient.
+    """
+
+    def __init__(self, api_client: StravaApiClient):
+        """Initialize repository.
+
+        Args:
+            api_client: Client for making Strava API calls
+        """
+        self._client = api_client
+
+    def read_activity_by_id(self, activity_id: int) -> DetailedStravaActivity:
+        """Fetch a detailed Activity from Strava (all ~60 fields).
+
+        Used by BQ inserter for full activity storage.
+        https://developers.strava.com/docs/reference/#api-models-DetailedActivity
+        """
+        raw = self._client.get_activity(activity_id)
+        return DetailedStravaActivity(**raw)
+
+    def read_standard_activity_by_id(self, activity_id: int) -> StandardActivity:
+        """Fetch a standard Activity from Strava (only PostgreSQL-relevant fields).
+
+        Used by PostgreSQL writer. Validates only the fields we store.
+        """
+        raw = self._client.get_activity(activity_id)
+        return StandardActivity.model_validate(raw)
 
     def read_activities_by_year(
         self, year: int
@@ -300,22 +456,56 @@ class DetailedStravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivitie
         - Social: kudos_count, comment_count, photo_count
         - Map: summary_polyline (not full polyline)
         """
-        date_start = int(datetime(year, 1, 1, tzinfo=UTC).strftime("%s"))
-        date_end = int(datetime(year + 1, 1, 1, tzinfo=UTC).strftime("%s"))
+        date_start = int(datetime(year, 1, 1, tzinfo=UTC).timestamp())
+        date_end = int(datetime(year + 1, 1, 1, tzinfo=UTC).timestamp())
 
         page = 1
-        activities = []
+        activities: list[SummaryStravaActivity] = []
         while True:
-            resp = self._read_activities(
+            raw_activities = self._client.list_activities(
                 after=date_start,
                 before=date_end,
                 page=page,
             )
-            if len(resp) == 0:
+            if len(raw_activities) == 0:
                 break
 
-            activities.extend(resp)
+            activities.extend(
+                SummaryStravaActivity(**activity) for activity in raw_activities
+            )
             logger.info("Page %s successfully fetched", page)
             page += 1
 
         return activities
+
+
+# =============================================================================
+# Factory Functions
+# =============================================================================
+
+
+def create_strava_activities_repo(
+    tokens: StravaTokenSet,
+    api_config: StravaApiConfig | None = None,
+) -> StravaActivitiesRepo:
+    """Create a fully-wired StravaActivitiesRepo.
+
+    This factory hides the internal wiring of token management and API client
+    from callers. It's the recommended way to create a repository.
+
+    Args:
+        tokens: Strava OAuth tokens (client_id, client_secret, refresh_token,
+                and optionally access_token)
+        api_config: Optional API configuration (URLs, timeouts, retry settings)
+
+    Returns:
+        Configured StravaActivitiesRepo ready for use
+    """
+    config = api_config or StravaApiConfig()
+
+    # Build the dependency chain
+    token_repo = StravaTokenRepo(tokens, config)
+    token_manager = StravaTokenManager(token_repo, tokens.access_token)
+    api_client = StravaApiClient(token_manager, config)
+
+    return StravaActivitiesRepo(api_client)

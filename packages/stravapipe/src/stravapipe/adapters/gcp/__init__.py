@@ -1,7 +1,7 @@
 """GCP adapters."""
 
 from stravapipe.adapters.gcp._bigquery import ActivitiesRepo
-from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
+from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
 from stravapipe.config import BQInserterConfig
 from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
@@ -33,6 +33,7 @@ def make_read_activities(config: BQInserterConfig) -> ReadActivitiesMetadata:
 __all__ = [
     "ActivitiesRepo",
     "BigQueryClientWrapper",
+    "MergeResult",
     "make_bigquery_client_wrapper",
     "make_read_activities",
     "make_write_activities",

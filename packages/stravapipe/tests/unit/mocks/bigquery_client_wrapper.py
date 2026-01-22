@@ -1,4 +1,7 @@
-from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
+from collections.abc import Sequence
+from typing import Any
+
+from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
 
 
 class MockBigQueryClientWrapper(BigQueryClientWrapper):
@@ -8,7 +11,12 @@ class MockBigQueryClientWrapper(BigQueryClientWrapper):
         self.dataset_name: str | None = None
         self.written_activities: list[dict] | None = None
         self.executed_queries: list[str] = []
-        self.query_stats: dict = {"rows_affected": 1, "execution_time_ms": 100}
+        self.query_stats: MergeResult = {
+            "rows_affected": 1,
+            "execution_time_ms": 100,
+            "job_id": "test-job-id",
+            "query_preview": "test-query",
+        }
 
     def insert_rows_json(
         self, rows: list[dict], *, dataset_name: str, table_name: str
@@ -17,7 +25,16 @@ class MockBigQueryClientWrapper(BigQueryClientWrapper):
         self.table_name = table_name
         self.dataset_name = dataset_name
 
-    def execute_merge_query(self, query: str) -> dict:
+    def execute_merge_query(
+        self, query: str, query_params: Sequence[Any] | None = None
+    ) -> MergeResult:
         """Mock implementation of execute_merge_query for testing"""
         self.executed_queries.append(query)
         return self.query_stats
+
+    def execute_dml_query(
+        self, query: str, query_parameters: Sequence[Any] | None = None
+    ) -> int:
+        """Mock implementation of execute_dml_query for testing"""
+        self.executed_queries.append(query)
+        return 1

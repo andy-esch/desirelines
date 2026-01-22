@@ -2,6 +2,17 @@
 
 Defines the contract for PostgreSQL-backed activity repository.
 Only includes methods actually needed by the postgres_writer cloud function.
+
+Error Handling Pattern:
+    These methods return bool for "not found" scenarios instead of raising
+    exceptions. This is intentional for webhook processing where:
+    - Events can be duplicated (CREATE twice for same activity)
+    - Events can arrive out of order (DELETE before CREATE)
+    - Idempotency is preferred over strict error handling
+
+    Compare to Strava adapters which raise ActivityNotFoundError on 404:
+    - Strava 404 is unexpected (we only fetch when we expect it to exist)
+    - Postgres "not found" is expected (activities predating our sync)
 """
 
 from abc import ABC, abstractmethod
@@ -15,10 +26,8 @@ class ActivityRepository(ABC):
     This port is used with the Unit of Work pattern - implementations
     receive their database session from the UoW, not from __init__.
 
-    Methods:
-    - upsert: Write full activity (CREATE webhook)
-    - update_metadata: Update only name/type/sport (UPDATE webhook)
-    - delete: Remove activity (DELETE webhook)
+    Methods return bool for success/not-found to support idempotent webhook
+    processing. Database errors still raise exceptions.
     """
 
     @abstractmethod
@@ -52,7 +61,7 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update_metadata(self, activity_id: int, updates: dict) -> bool:
+    def update_metadata(self, activity_id: int, updates: dict) -> bool | None:
         """Update only metadata fields (name, type, sport).
 
         Used for UPDATE webhooks - only updates changed fields.
@@ -63,7 +72,9 @@ class ActivityRepository(ABC):
             updates: Dict with optional keys: 'title', 'type'
 
         Returns:
-            True if updated, False if activity not found
+            True if updated successfully
+            False if activity not found
+            None if no valid updates provided (empty dict or unrecognized keys)
         """
         raise NotImplementedError
 

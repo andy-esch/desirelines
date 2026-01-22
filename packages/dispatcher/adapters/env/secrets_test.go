@@ -89,13 +89,91 @@ func TestSecretCache_GetSecrets(t *testing.T) {
 	}
 }
 
-func TestSecretCache_FileNotFound(t *testing.T) {
+func TestSecretCache_FileNotFound_EnvFallback(t *testing.T) {
+	// Set environment variables as fallback
+	if err := os.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "env-fallback-token"); err != nil {
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	if err := os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "54321"); err != nil {
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("STRAVA_WEBHOOK_VERIFY_TOKEN"); err != nil {
+			t.Logf("Failed to unset STRAVA_WEBHOOK_VERIFY_TOKEN: %v", err)
+		}
+		if err := os.Unsetenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID"); err != nil {
+			t.Logf("Failed to unset STRAVA_WEBHOOK_SUBSCRIPTION_ID: %v", err)
+		}
+	}()
+
+	log := logger.NewNoOpLogger()
+	cache := env.NewSecretCache("/nonexistent/path/secrets.json", time.Minute, log)
+
+	verifyToken, subscriptionID, err := cache.GetSecrets()
+	if err != nil {
+		t.Errorf("Expected env fallback to work, got error %v", err)
+	}
+	if verifyToken != "env-fallback-token" { //nolint:gosec // Test constant
+		t.Errorf("Expected env fallback token 'env-fallback-token', got '%s'", verifyToken)
+	}
+	if subscriptionID != 54321 {
+		t.Errorf("Expected env fallback subscription ID 54321, got %d", subscriptionID)
+	}
+}
+
+func TestSecretCache_InsecurePermissions(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "secret_cache_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() {
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Logf("Failed to clean up temp dir: %v", removeErr)
+		}
+	}()
+
+	secretsPath := filepath.Join(tempDir, "insecure.json")
+
+	// Create secrets file with insecure permissions (world readable)
+	secrets := map[string]any{
+		"webhook_verify_token":    "secret-token",
+		"webhook_subscription_id": 12345,
+	}
+	data, err := json.Marshal(secrets)
+	if err != nil {
+		t.Fatalf("Failed to marshal secrets: %v", err)
+	}
+	// Write with insecure permissions (0644 - world readable)
+	err = os.WriteFile(secretsPath, data, 0o644) //nolint:gosec // Intentional insecure permissions for test
+	if err != nil {
+		t.Fatalf("Failed to write secrets file: %v", err)
+	}
+
+	log := logger.NewNoOpLogger()
+	cache := env.NewSecretCache(secretsPath, time.Minute, log)
+
+	_, _, err = cache.GetSecrets()
+	if err == nil {
+		t.Errorf("Expected error for insecure file permissions, got nil")
+	}
+}
+
+func TestSecretCache_InvalidSubscriptionIDFromEnv(t *testing.T) {
+	if err := os.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "not-a-number"); err != nil {
+		t.Fatalf("Failed to set env var: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID"); err != nil {
+			t.Logf("Failed to unset STRAVA_WEBHOOK_SUBSCRIPTION_ID: %v", err)
+		}
+	}()
+
 	log := logger.NewNoOpLogger()
 	cache := env.NewSecretCache("/nonexistent/path/secrets.json", time.Minute, log)
 
 	_, _, err := cache.GetSecrets()
 	if err == nil {
-		t.Errorf("Expected error for nonexistent file, got nil")
+		t.Errorf("Expected error for invalid subscription ID, got nil")
 	}
 }
 

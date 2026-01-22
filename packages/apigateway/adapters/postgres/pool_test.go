@@ -100,20 +100,6 @@ func TestValidateConnectionString(t *testing.T) {
 	}
 }
 
-// TestValidateApplicationName tests the deprecated alias still works
-func TestValidateApplicationName(t *testing.T) {
-	// Just verify the alias calls through correctly
-	err := validateApplicationName("postgresql://user@host/db?application_name=test")
-	if err != nil {
-		t.Errorf("validateApplicationName() error = %v, want no error", err)
-	}
-
-	err = validateApplicationName("postgresql://user@host/db")
-	if !errors.Is(err, ErrMissingApplicationName) {
-		t.Errorf("validateApplicationName() error = %v, want ErrMissingApplicationName", err)
-	}
-}
-
 func TestSentinelErrors(t *testing.T) {
 	t.Run("ErrMissingApplicationName is sentinel", func(t *testing.T) {
 		err := validateConnectionString("postgresql://user@host/db")

@@ -63,29 +63,11 @@ if (config.emulators.enabled) {
 
 // Promise that resolves when initial auth state is determined
 // CRITICAL: Firestore subscriptions MUST wait for this to avoid permission errors
-let authReadyResolved = false;
-let unsubscribeAuthReady: (() => void) | undefined;
-
-// Set up one-time listener for initial auth state
-// eslint-disable-next-line prefer-const -- Cannot use const due to callback accessing it before initialization
-unsubscribeAuthReady = onAuthStateChanged(auth, (_user) => {
-  if (!authReadyResolved) {
-    authReadyResolved = true;
-    if (unsubscribeAuthReady) {
-      unsubscribeAuthReady(); // Only need first event
-    }
-  }
-});
-
 const authReadyPromise = new Promise<void>((resolve) => {
-  const checkReady = () => {
-    if (authReadyResolved) {
-      resolve();
-    } else {
-      setTimeout(checkReady, 10);
-    }
-  };
-  checkReady();
+  const unsubscribe = onAuthStateChanged(auth, () => {
+    resolve();
+    unsubscribe();
+  });
 });
 
 /**
@@ -94,9 +76,7 @@ const authReadyPromise = new Promise<void>((resolve) => {
  * "Missing or insufficient permissions" errors
  */
 export async function waitForAuthReady(): Promise<void> {
-  if (authReadyPromise) {
-    await authReadyPromise;
-  }
+  await authReadyPromise;
 }
 
 // Legacy function exports for backward compatibility

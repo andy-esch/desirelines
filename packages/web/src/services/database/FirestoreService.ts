@@ -5,17 +5,75 @@
  * All Firestore-specific code is contained here.
  */
 
-import { doc, getDoc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  type DocumentSnapshot,
+} from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import type { DatabaseService } from "./DatabaseService";
+import type {
+  DatabaseService,
+  GetDocumentOptions,
+  SubscribeDocumentOptions,
+} from "./DatabaseService";
+
+// Retry configuration for subscriptions
+const SUBSCRIPTION_RETRY_CONFIG = {
+  maxRetries: 5,
+  baseDelayMs: 1000, // Start with 1 second
+  maxDelayMs: 30000, // Cap at 30 seconds
+};
+
+/**
+ * Check if an error is transient and worth retrying
+ */
+function isTransientError(error: Error & { code?: string }): boolean {
+  const transientCodes = [
+    "unavailable", // Service temporarily unavailable
+    "resource-exhausted", // Rate limited / quota exceeded
+    "deadline-exceeded", // Request timed out
+    "aborted", // Operation aborted
+    "internal", // Internal server error (may be transient)
+  ];
+  return transientCodes.includes(error.code ?? "");
+}
+
+/**
+ * Calculate exponential backoff delay with jitter
+ */
+function getRetryDelay(attempt: number): number {
+  const { baseDelayMs, maxDelayMs } = SUBSCRIPTION_RETRY_CONFIG;
+  // Exponential backoff: 1s, 2s, 4s, 8s, 16s (capped at maxDelayMs)
+  const exponentialDelay = baseDelayMs * Math.pow(2, attempt);
+  const cappedDelay = Math.min(exponentialDelay, maxDelayMs);
+  // Add jitter (±25%) to prevent thundering herd
+  const jitter = cappedDelay * 0.25 * (Math.random() * 2 - 1);
+  return Math.round(cappedDelay + jitter);
+}
 
 export class FirestoreService implements DatabaseService {
-  async getDocument<T>(path: string): Promise<T | null> {
+  async getDocument<T>(path: string, options?: GetDocumentOptions<T>): Promise<T | null> {
     const docRef = doc(db, path);
     const snapshot = await getDoc(docRef);
 
     if (!snapshot.exists()) return null;
-    return snapshot.data() as T;
+
+    const data = snapshot.data();
+
+    // Validate with schema if provided
+    if (options?.schema) {
+      const result = options.schema.safeParse(data);
+      if (!result.success) {
+        console.error("Firestore data validation failed:", result.error);
+        throw new Error(`Data validation failed for document at ${path}: ${result.error.message}`);
+      }
+      return result.data;
+    }
+
+    return data as T;
   }
 
   async setDocument<T>(path: string, data: T, options?: { merge?: boolean }): Promise<void> {
@@ -33,27 +91,93 @@ export class FirestoreService implements DatabaseService {
   subscribeToDocument<T>(
     path: string,
     callback: (data: T | null) => void,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
+    options?: SubscribeDocumentOptions<T>
   ): () => void {
     const docRef = doc(db, path);
+    let unsubscribe: (() => void) | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+    let isCleanedUp = false;
 
-    return onSnapshot(
-      docRef,
-      (snapshot) => {
-        if (!snapshot.exists()) {
-          callback(null);
+    const handleSnapshot = (snapshot: DocumentSnapshot) => {
+      // Reset retry count on successful snapshot
+      retryCount = 0;
+
+      if (!snapshot.exists()) {
+        callback(null);
+        return;
+      }
+
+      const data = snapshot.data();
+
+      // Validate with schema if provided
+      if (options?.schema) {
+        const result = options.schema.safeParse(data);
+        if (!result.success) {
+          console.error("Firestore subscription data validation failed:", result.error);
+          if (onError) {
+            onError(
+              new Error(`Data validation failed for document at ${path}: ${result.error.message}`)
+            );
+          }
           return;
         }
-        callback(snapshot.data() as T);
-      },
-      (error) => {
+        callback(result.data);
+        return;
+      }
+
+      callback(data as T);
+    };
+
+    const handleError = (error: Error & { code?: string }) => {
+      // Don't retry if already cleaned up
+      if (isCleanedUp) return;
+
+      // Check if error is transient and we haven't exceeded max retries
+      if (isTransientError(error) && retryCount < SUBSCRIPTION_RETRY_CONFIG.maxRetries) {
+        const delay = getRetryDelay(retryCount);
+        retryCount++;
+
+        console.warn(
+          `Firestore subscription error (attempt ${retryCount}/${SUBSCRIPTION_RETRY_CONFIG.maxRetries}), ` +
+            `retrying in ${delay}ms:`,
+          error.code || error.message
+        );
+
+        // Schedule retry
+        retryTimeout = setTimeout(() => {
+          if (!isCleanedUp) {
+            subscribe();
+          }
+        }, delay);
+      } else {
+        // Non-transient error or max retries exceeded - report to caller
         if (onError) {
           onError(error);
         } else {
-          console.error("Firestore subscription error:", error);
+          console.error("Firestore subscription error (not retrying):", error);
         }
       }
-    );
+    };
+
+    const subscribe = () => {
+      unsubscribe = onSnapshot(docRef, handleSnapshot, handleError);
+    };
+
+    // Start the subscription
+    subscribe();
+
+    // Return cleanup function
+    return () => {
+      isCleanedUp = true;
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }
 }
 

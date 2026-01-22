@@ -108,14 +108,17 @@ func TestParseStravaWebhook(t *testing.T) {
 }
 
 func TestToStravaJSON(t *testing.T) {
+	title := "Morning Run"
 	event := &pb.WebhookEvent{
-		AspectType:     pb.AspectType_ASPECT_TYPE_CREATE,
+		AspectType:     pb.AspectType_ASPECT_TYPE_UPDATE,
 		ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
 		ObjectId:       12345,
 		OwnerId:        67890,
 		EventTime:      1704067200,
 		SubscriptionId: 999,
-		Updates:        map[string]string{"title": "Morning Run"},
+		Updates: &pb.ActivityUpdates{
+			Title: &title,
+		},
 	}
 
 	data, err := ToStravaJSON(event)
@@ -138,6 +141,140 @@ func TestToStravaJSON(t *testing.T) {
 	if parsed.ObjectId != event.ObjectId {
 		t.Errorf("Roundtrip ObjectId = %v, want %v", parsed.ObjectId, event.ObjectId)
 	}
+	if parsed.Updates == nil || parsed.Updates.Title == nil {
+		t.Error("Roundtrip ActivityUpdates.Title is nil")
+	} else if *parsed.Updates.Title != title {
+		t.Errorf("Roundtrip ActivityUpdates.Title = %v, want %v", *parsed.Updates.Title, title)
+	}
+}
+
+func TestParseActivityUpdates(t *testing.T) {
+	tests := []struct {
+		name        string
+		json        string
+		wantTitle   *string
+		wantType    *string
+		wantPrivate *bool
+	}{
+		{
+			name: "activity update with title",
+			json: `{
+				"aspect_type": "update",
+				"object_type": "activity",
+				"object_id": 12345,
+				"owner_id": 67890,
+				"event_time": 1704067200,
+				"subscription_id": 999,
+				"updates": {"title": "Evening Ride"}
+			}`,
+			wantTitle: strPtr("Evening Ride"),
+		},
+		{
+			name: "activity update with type",
+			json: `{
+				"aspect_type": "update",
+				"object_type": "activity",
+				"object_id": 12345,
+				"owner_id": 67890,
+				"event_time": 1704067200,
+				"subscription_id": 999,
+				"updates": {"type": "Ride"}
+			}`,
+			wantType: strPtr("Ride"),
+		},
+		{
+			name: "activity update with private true",
+			json: `{
+				"aspect_type": "update",
+				"object_type": "activity",
+				"object_id": 12345,
+				"owner_id": 67890,
+				"event_time": 1704067200,
+				"subscription_id": 999,
+				"updates": {"private": "true"}
+			}`,
+			wantPrivate: boolPtr(true),
+		},
+		{
+			name: "activity update with all fields",
+			json: `{
+				"aspect_type": "update",
+				"object_type": "activity",
+				"object_id": 12345,
+				"owner_id": 67890,
+				"event_time": 1704067200,
+				"subscription_id": 999,
+				"updates": {"title": "Morning Run", "type": "Run", "private": "false"}
+			}`,
+			wantTitle:   strPtr("Morning Run"),
+			wantType:    strPtr("Run"),
+			wantPrivate: boolPtr(false),
+		},
+		{
+			name: "create event has no activity updates",
+			json: `{
+				"aspect_type": "create",
+				"object_type": "activity",
+				"object_id": 12345,
+				"owner_id": 67890,
+				"event_time": 1704067200,
+				"subscription_id": 999
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event, err := ParseStravaWebhook([]byte(tt.json))
+			if err != nil {
+				t.Fatalf("ParseStravaWebhook() error = %v", err)
+			}
+
+			wantNilUpdates := tt.wantTitle == nil && tt.wantType == nil && tt.wantPrivate == nil
+			if wantNilUpdates {
+				if event.Updates != nil {
+					t.Errorf("Expected ActivityUpdates to be nil, got %+v", event.Updates)
+				}
+				return
+			}
+
+			if event.Updates == nil {
+				t.Fatal("ActivityUpdates is nil, expected non-nil")
+			}
+
+			assertOptionalStringField(t, "Title", event.Updates.Title, tt.wantTitle)
+			assertOptionalStringField(t, "Type", event.Updates.Type, tt.wantType)
+			assertOptionalBoolField(t, "Private", event.Updates.Private, tt.wantPrivate)
+		})
+	}
+}
+
+func assertOptionalStringField(t *testing.T, name string, got, want *string) {
+	t.Helper()
+	if want == nil {
+		return
+	}
+	if got == nil || *got != *want {
+		t.Errorf("%s = %v, want %v", name, got, *want)
+	}
+}
+
+func assertOptionalBoolField(t *testing.T, name string, got, want *bool) {
+	t.Helper()
+	if want == nil {
+		return
+	}
+	if got == nil || *got != *want {
+		t.Errorf("%s = %v, want %v", name, got, *want)
+	}
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 func TestValidate(t *testing.T) {

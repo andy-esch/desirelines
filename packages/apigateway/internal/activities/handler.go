@@ -29,9 +29,9 @@ import (
 )
 
 const (
-	errMsgDatabaseUnavailable = "Database not available"
 	errMsgInternalServerError = "Internal server error"
-	dbTimeout                 = 10 * time.Second
+	// DefaultDBTimeout is the default timeout for database queries.
+	DefaultDBTimeout = 10 * time.Second
 )
 
 // Handler holds dependencies for activity handlers.
@@ -39,13 +39,20 @@ type Handler struct {
 	repo        repository.ActivityRepository
 	sportConfig *config.SportConfig
 	logger      *slog.Logger
+	dbTimeout   time.Duration
 }
 
-// NewHandler creates a new activities handler.
+// NewHandler creates a new activities handler with default timeout.
 func NewHandler(repo repository.ActivityRepository, sportConfig *config.SportConfig, logger *slog.Logger) *Handler {
+	return NewHandlerWithTimeout(repo, sportConfig, logger, DefaultDBTimeout)
+}
+
+// NewHandlerWithTimeout creates a new activities handler with custom timeout.
+func NewHandlerWithTimeout(repo repository.ActivityRepository, sportConfig *config.SportConfig, logger *slog.Logger, dbTimeout time.Duration) *Handler {
 	return &Handler{
 		repo:        repo,
 		sportConfig: sportConfig,
+		dbTimeout:   dbTimeout,
 		logger:      logger,
 	}
 }
@@ -58,12 +65,6 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.repo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
-	}
-
 	yearInt, err := strconv.Atoi(year)
 	if err != nil {
 		// This should never happen since year is validated, but handle it properly
@@ -72,7 +73,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
 	metadata, err := h.repo.GetYearMetadata(ctx, yearInt)
@@ -92,8 +93,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 
 // sportQueryParams holds validated parameters for sport-based queries.
 type sportQueryParams struct {
-	year         string
-	yearInt      int
+	year         int // parsed year value (only used when useDateRange is false)
 	sportTypes   []string
 	from         string // empty if not using date range
 	to           string // empty if not using date range
@@ -103,19 +103,21 @@ type sportQueryParams struct {
 // validateSportQuery validates common parameters for metrics and source endpoints.
 // Returns nil and writes error response if validation fails.
 func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sportQueryParams {
-	year, ok := h.validateAndGetYear(w, r)
+	yearStr, ok := h.validateAndGetYear(w, r)
 	if !ok {
+		return nil
+	}
+
+	// Parse year to int (validation already confirmed it's a valid 4-digit year)
+	yearInt, parseErr := strconv.Atoi(yearStr)
+	if parseErr != nil {
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
 	sportTypes, ok := h.validateAndGetSportTypes(w, r)
 	if !ok {
-		return nil
-	}
-
-	if h.repo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
@@ -128,25 +130,13 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		return nil
 	}
 
-	params := &sportQueryParams{
-		year:         year,
+	return &sportQueryParams{
+		year:         yearInt,
 		sportTypes:   sportTypes,
 		from:         fromStr,
 		to:           toStr,
 		useDateRange: fromStr != "" && toStr != "",
 	}
-
-	if !params.useDateRange {
-		yearInt, parseErr := strconv.Atoi(year)
-		if parseErr != nil {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return nil
-		}
-		params.yearInt = yearInt
-	}
-
-	return params
 }
 
 // logAndRespondDBError logs a database error and writes an error response.
@@ -176,7 +166,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
 	var result *generated.SportMetrics
@@ -184,7 +174,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	if params.useDateRange {
 		result, err = h.repo.GetSportMetricsByDateRange(ctx, params.from, params.to, params.sportTypes)
 	} else {
-		result, err = h.repo.GetSportMetrics(ctx, params.yearInt, params.sportTypes)
+		result, err = h.repo.GetSportMetrics(ctx, params.year, params.sportTypes)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
@@ -204,7 +194,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	if params == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
 	var result *generated.DailySummary
@@ -212,7 +202,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	if params.useDateRange {
 		result, err = h.repo.GetDailySummaryByDateRange(ctx, params.from, params.to, params.sportTypes)
 	} else {
-		result, err = h.repo.GetDailySummary(ctx, params.yearInt, params.sportTypes)
+		result, err = h.repo.GetDailySummary(ctx, params.year, params.sportTypes)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
@@ -224,22 +214,16 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 // HandleGetActivity serves a single activity by ID.
 // GET /activities/{id}
 func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
-	if h.repo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
-	}
-
 	// Parse activity ID from path
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
+	if err != nil || id <= 0 {
 		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid activity ID format")
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
 	activity, err := h.repo.GetActivityByID(ctx, id)
@@ -266,79 +250,19 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 // HandleListActivities serves a paginated list of activities.
 // GET /activities?from=2025-01-01&to=2025-12-31&sport=cycling&limit=20&cursor=...
 func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
-	if h.repo == nil {
-		apiErr := apierrors.NewAPIError(http.StatusServiceUnavailable, errMsgDatabaseUnavailable)
+	filter, apiErr := h.parseListActivitiesFilter(r)
+	if !apiErr.IsZero() {
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
-	// Parse query parameters
-	query := r.URL.Query()
-
-	filter := repository.ActivityListFilter{
-		Limit: 20, // Default
-	}
-
-	// Parse 'from' date
-	if fromStr := query.Get("from"); fromStr != "" {
-		if !validate.Date(fromStr) {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.From = &fromStr
-	}
-
-	// Parse 'to' date
-	if toStr := query.Get("to"); toStr != "" {
-		if !validate.Date(toStr) {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.To = &toStr
-	}
-
-	// Parse 'sport' (optional) - maps to Strava sport types
-	if sport := query.Get("sport"); sport != "" {
-		stravaTypes := h.sportConfig.GetStravaTypes(sport)
-		if stravaTypes == nil {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.SportTypes = stravaTypes
-	}
-
-	// Parse 'limit'
-	if limitStr := query.Get("limit"); limitStr != "" {
-		limit, err := strconv.Atoi(limitStr)
-		if err != nil || limit < 1 || limit > 100 {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-100)")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.Limit = limit
-	}
-
-	// Parse 'cursor' for pagination
-	if cursorStr := query.Get("cursor"); cursorStr != "" {
-		cursor, err := decodeCursor(cursorStr)
-		if err != nil {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid cursor")
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return
-		}
-		filter.Cursor = cursor
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
-	result, err := h.repo.ListActivities(ctx, filter)
+	result, err := h.repo.ListActivities(ctx, *filter)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err)
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr = apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
 			fmt.Sprintf("Database query failed: %v", err),
@@ -348,6 +272,66 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.respondProtobuf(w, r, result)
+}
+
+// parseListActivitiesFilter parses and validates query parameters for ListActivities.
+// Returns a zero-value APIError (Status=0) on success.
+func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.ActivityListFilter, apierrors.APIError) {
+	query := r.URL.Query()
+	filter := repository.ActivityListFilter{
+		Limit: 20, // Default
+	}
+
+	// Parse 'from' date
+	if fromStr := query.Get("from"); fromStr != "" {
+		if !validate.Date(fromStr) {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
+		}
+		filter.From = &fromStr
+	}
+
+	// Parse 'to' date
+	if toStr := query.Get("to"); toStr != "" {
+		if !validate.Date(toStr) {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
+		}
+		filter.To = &toStr
+	}
+
+	// Parse 'sport' (optional) - maps to Strava sport types
+	if sport := query.Get("sport"); sport != "" {
+		if errMsg := validate.Sport(sport); errMsg != "" {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+		}
+		stravaTypes := h.sportConfig.GetStravaTypes(sport)
+		if stravaTypes == nil {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
+		}
+		filter.SportTypes = stravaTypes
+	}
+
+	// Parse 'limit'
+	if limitStr := query.Get("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit < 1 || limit > 100 {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-100)")
+		}
+		filter.Limit = limit
+	}
+
+	// Parse 'cursor' for pagination
+	if cursorStr := query.Get("cursor"); cursorStr != "" {
+		if errMsg := validate.Cursor(cursorStr); errMsg != "" {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+		}
+		cursor, err := decodeCursor(cursorStr)
+		if err != nil {
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid cursor")
+		}
+		filter.Cursor = cursor
+	}
+
+	return &filter, apierrors.APIError{}
 }
 
 // validateAndGetYear extracts and validates the year path parameter.
@@ -370,6 +354,13 @@ func (h *Handler) validateAndGetSportTypes(w http.ResponseWriter, r *http.Reques
 	sport := r.URL.Query().Get("sport")
 	if sport == "" {
 		err := apierrors.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
+		apierrors.WriteError(w, r, err, h.logger)
+		return nil, false
+	}
+
+	// Validate length to prevent oversized inputs
+	if errMsg := validate.Sport(sport); errMsg != "" {
+		err := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
 		apierrors.WriteError(w, r, err, h.logger)
 		return nil, false
 	}
@@ -398,13 +389,24 @@ func decodeCursor(s string) (*repository.ActivityCursor, error) {
 	}
 
 	// Validate timestamp format (RFC3339) to prevent database errors
-	if _, err = time.Parse(time.RFC3339, parts[0]); err != nil {
+	ts, err := time.Parse(time.RFC3339, parts[0])
+	if err != nil {
 		return nil, fmt.Errorf("invalid cursor timestamp: %w", err)
+	}
+
+	// Reject future timestamps - cursors should only reference past data
+	if ts.After(time.Now()) {
+		return nil, fmt.Errorf("invalid cursor: timestamp is in the future")
 	}
 
 	id, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("parse id: %w", err)
+	}
+
+	// Reject non-positive IDs - activity IDs must be positive
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid cursor: id must be positive")
 	}
 
 	return &repository.ActivityCursor{

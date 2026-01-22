@@ -37,8 +37,8 @@ func TestHandler_Handle(t *testing.T) {
 			pinger:         &mockPinger{pingErr: nil},
 			expectedStatus: http.StatusOK,
 			expectedBody: Response{
-				Status:   statusHealthy,
-				Database: statusHealthy,
+				Status:   StatusHealthy,
+				Database: StatusHealthy,
 			},
 		},
 		{
@@ -46,8 +46,8 @@ func TestHandler_Handle(t *testing.T) {
 			pinger:         &mockPinger{pingErr: errors.New("connection refused")},
 			expectedStatus: http.StatusOK,
 			expectedBody: Response{
-				Status:   statusHealthy,
-				Database: statusUnhealthy,
+				Status:   StatusHealthy,
+				Database: StatusUnhealthy,
 			},
 		},
 		{
@@ -55,7 +55,7 @@ func TestHandler_Handle(t *testing.T) {
 			pinger:         nil,
 			expectedStatus: http.StatusOK,
 			expectedBody: Response{
-				Status:   statusHealthy,
+				Status:   StatusHealthy,
 				Database: "", // Empty string; omitempty ensures this is omitted from JSON
 			},
 		},

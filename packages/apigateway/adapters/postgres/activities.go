@@ -1,15 +1,38 @@
+// Package postgres provides PostgreSQL adapters for the repository interfaces.
+// This is the infrastructure layer in hexagonal architecture, implementing
+// the ports defined in the repository package.
+//
+// Components:
+//   - Pool: Connection pool wrapper with serverless-optimized settings
+//   - ActivityRepository: Implements repository.ActivityRepository for activities data
+//
+// The package uses pgx/v5 for PostgreSQL connectivity and provides:
+//   - Cumulative metrics queries (GetSportMetrics, GetSportMetricsByDateRange)
+//   - Daily summary queries (GetDailySummary, GetDailySummaryByDateRange)
+//   - Activity CRUD operations (GetActivityByID, ListActivities)
+//   - Year metadata aggregation (GetYearMetadata)
+//
+// All queries use parameterized statements to prevent SQL injection.
 package postgres
 
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
+	"github.com/jackc/pgx/v5"
 )
+
+// AggregationVersion is the version string for the data aggregation schema.
+// Increment when the aggregation logic or data format changes.
+const AggregationVersion = "2.0"
 
 // ActivityRepository implements repository.ActivityRepository for PostgreSQL.
 // This is an adapter in hexagonal architecture - infrastructure layer.
@@ -41,6 +64,15 @@ func (r *ActivityRepository) Close() error {
 // The query generates a dense timeseries from `from` to `to`,
 // left joining with actual activity data and using COALESCE to fill zeros for days without activity.
 // sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
+//
+// Performance note: Uses PostgreSQL's generate_series() for dense date generation.
+// This is efficient for bounded ranges (max 366 days) as it:
+//   - Executes entirely in the database (no round-trips)
+//   - Uses PostgreSQL's optimized set-returning functions
+//   - Computes cumulative sums via window functions in a single pass
+//
+// For very sparse data over long ranges, consider application-side date filling,
+// but this adds complexity and memory overhead for cumulative sum calculation.
 func (r *ActivityRepository) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.SportMetrics, error) {
 	query := `
 		SELECT
@@ -201,6 +233,16 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 	}
 	defer rows.Close()
 
+	return scanDailySummaryRows(rows)
+}
+
+// scanDailySummaryRows scans database rows into DailySummary.
+// Shared by both GetDailySummary and GetDailySummaryByDateRange.
+func scanDailySummaryRows(rows interface {
+	Next() bool
+	Scan(dest ...interface{}) error
+	Err() error
+}) (*generated.DailySummary, error) {
 	summary := &generated.DailySummary{
 		Daily: make(map[string]*generated.DailyActivity),
 	}
@@ -257,39 +299,18 @@ func (r *ActivityRepository) GetDailySummaryByDateRange(ctx context.Context, fro
 	}
 	defer rows.Close()
 
-	summary := &generated.DailySummary{
-		Daily: make(map[string]*generated.DailyActivity),
-	}
-	for rows.Next() {
-		var date time.Time
-		var distance, elevation, timeMinutes float64
-		var activities int32
-		var activityIDs []int64
-
-		if scanErr := rows.Scan(&date, &distance, &elevation, &timeMinutes, &activities, &activityIDs); scanErr != nil {
-			return nil, fmt.Errorf("scan daily summary row: %w", scanErr)
-		}
-
-		dateStr := date.Format("2006-01-02")
-		summary.Daily[dateStr] = &generated.DailyActivity{
-			DistanceMeters:  &distance,
-			ElevationMeters: &elevation,
-			TimeMinutes:     &timeMinutes,
-			Activities:      activities,
-			ActivityIds:     activityIDs,
-		}
-	}
-
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, fmt.Errorf("iterate daily summary rows: %w", rowsErr)
-	}
-
-	return summary, nil
+	return scanDailySummaryRows(rows)
 }
 
 // GetYearMetadata returns metadata about activities for a given year.
 // Includes list of sports, per-sport totals, and last updated timestamp.
 func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
+	// Validate year range early to avoid unnecessary DB query and satisfy G115 (int to int32)
+	if year < 0 || year > math.MaxInt32 {
+		return nil, fmt.Errorf("year %d out of valid range (0-%d)", year, math.MaxInt32)
+	}
+	yearInt32 := int32(year)
+
 	query := `
 		SELECT
 			sport,
@@ -349,17 +370,12 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*ge
 		lastUpdatedStr = &s
 	}
 
-	// Range check for year to satisfy G115 (integer overflow)
-	if year < 0 || year > 9999 {
-		return nil, fmt.Errorf("year %d out of valid range", year)
-	}
-
 	return &generated.YearMetadata{
-		Year:               int32(year),
+		Year:               yearInt32,
 		Sports:             sports,
 		Totals:             totals,
 		LastUpdated:        lastUpdatedStr,
-		AggregationVersion: "2.0", // Hardcoded version for now
+		AggregationVersion: AggregationVersion,
 	}, nil
 }
 
@@ -403,7 +419,7 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*ac
 
 	if err != nil {
 		// Check for not found - pgx returns specific error
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("query activity by id: %w", err)
@@ -426,60 +442,82 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*ac
 	}, nil
 }
 
+// queryBuilder helps construct parameterized SQL queries safely.
+// It automatically manages argument numbering to prevent off-by-one errors.
+type queryBuilder struct {
+	query  string
+	args   []interface{}
+	argNum int
+}
+
+// newQueryBuilder creates a query builder with the base query.
+func newQueryBuilder(baseQuery string) *queryBuilder {
+	return &queryBuilder{
+		query:  baseQuery,
+		args:   make([]interface{}, 0),
+		argNum: 1,
+	}
+}
+
+// addCondition appends a WHERE condition with a single parameter.
+// The format string should contain exactly one %d placeholder for the argument number.
+func (qb *queryBuilder) addCondition(format string, arg interface{}) {
+	qb.query += fmt.Sprintf(format, qb.argNum)
+	qb.args = append(qb.args, arg)
+	qb.argNum++
+}
+
+// addCondition2 appends a WHERE condition with two parameters.
+// The format string should contain exactly two %d placeholders for consecutive argument numbers.
+func (qb *queryBuilder) addCondition2(format string, arg1, arg2 interface{}) {
+	qb.query += fmt.Sprintf(format, qb.argNum, qb.argNum+1)
+	qb.args = append(qb.args, arg1, arg2)
+	qb.argNum += 2
+}
+
+// append adds a literal string to the query (no parameters).
+func (qb *queryBuilder) append(s string) {
+	qb.query += s
+}
+
 // ListActivities returns activities matching the filter criteria with cursor-based pagination.
 // Results are ordered by (start_date_local DESC, id DESC) for stable ordering.
 // Uses keyset pagination for O(1) performance regardless of offset.
 func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
 	// Build query dynamically based on filter
 	// We fetch limit+1 to determine if there are more results
-
-	var query string
-	var args []interface{}
-	argNum := 1
-
-	// Base SELECT
-	baseSelect := `
+	qb := newQueryBuilder(`
 		SELECT
 			id, name, type, sport, start_date_local,
 			distance, moving_time, total_elevation_gain
 		FROM desirelines.activities
 		WHERE 1=1
-	`
-
-	query = baseSelect
+	`)
 
 	// Add date range filters
 	if filter.From != nil {
-		query += fmt.Sprintf(" AND start_date_local >= $%d::date", argNum)
-		args = append(args, *filter.From)
-		argNum++
+		qb.addCondition(" AND start_date_local >= $%d::date", *filter.From)
 	}
 
 	if filter.To != nil {
 		// Add 1 day to make 'to' inclusive (end of day)
-		query += fmt.Sprintf(" AND start_date_local < ($%d::date + interval '1 day')", argNum)
-		args = append(args, *filter.To)
-		argNum++
+		qb.addCondition(" AND start_date_local < ($%d::date + interval '1 day')", *filter.To)
 	}
 
 	// Add sport filter (filter on 'type' column which contains Strava types)
 	if len(filter.SportTypes) > 0 {
-		query += fmt.Sprintf(" AND type = ANY($%d)", argNum)
-		args = append(args, filter.SportTypes)
-		argNum++
+		qb.addCondition(" AND type = ANY($%d)", filter.SportTypes)
 	}
 
 	// Add cursor constraint for pagination
 	if filter.Cursor != nil {
 		// Keyset pagination: get rows where (start_date_local, id) < (cursor.timestamp, cursor.id)
 		// This works because we order by start_date_local DESC, id DESC
-		query += fmt.Sprintf(" AND (start_date_local, id) < ($%d::timestamp, $%d)", argNum, argNum+1)
-		args = append(args, filter.Cursor.Timestamp, filter.Cursor.ID)
-		argNum += 2
+		qb.addCondition2(" AND (start_date_local, id) < ($%d::timestamp, $%d)", filter.Cursor.Timestamp, filter.Cursor.ID)
 	}
 
 	// Order by for stable pagination
-	query += " ORDER BY start_date_local DESC, id DESC"
+	qb.append(" ORDER BY start_date_local DESC, id DESC")
 
 	// Limit (+1 to detect if there are more results)
 	limit := filter.Limit
@@ -489,10 +527,9 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	if limit > 100 {
 		limit = 100 // Max limit
 	}
-	query += fmt.Sprintf(" LIMIT $%d", argNum)
-	args = append(args, limit+1)
+	qb.addCondition(" LIMIT $%d", limit+1)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := r.pool.Query(ctx, qb.query, qb.args...)
 	if err != nil {
 		return nil, fmt.Errorf("query activities list: %w", err)
 	}
@@ -591,7 +628,13 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 
 // encodeCursor encodes an ActivityCursor to a base64 string.
 // Uses simple "timestamp|id" format rather than JSON for efficiency.
+// Optimized to minimize allocations by building the byte slice directly.
 func encodeCursor(cursor *repository.ActivityCursor) string {
-	data := fmt.Sprintf("%s|%d", cursor.Timestamp, cursor.ID)
-	return base64.URLEncoding.EncodeToString([]byte(data))
+	// Pre-allocate buffer: timestamp (typically 20-30 bytes) + "|" + id (up to 19 digits)
+	// Using append operations avoids intermediate string allocations
+	buf := make([]byte, 0, len(cursor.Timestamp)+1+20)
+	buf = append(buf, cursor.Timestamp...)
+	buf = append(buf, '|')
+	buf = strconv.AppendInt(buf, cursor.ID, 10)
+	return base64.URLEncoding.EncodeToString(buf)
 }

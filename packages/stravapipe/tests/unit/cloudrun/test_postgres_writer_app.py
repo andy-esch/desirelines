@@ -27,7 +27,12 @@ def client(mock_postgres_config):
     """Create a test client with mocked configuration."""
     from stravapipe.cloudrun.postgres_writer_app import app
 
-    return TestClient(app)
+    with patch(
+        "stravapipe.cloudrun.postgres_writer_app.make_session_factory"
+    ) as mock_make_session_factory:
+        mock_make_session_factory.return_value = MagicMock()
+        with TestClient(app) as client:
+            yield client
 
 
 def make_cloudevent_headers(

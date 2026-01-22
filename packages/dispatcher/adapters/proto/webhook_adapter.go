@@ -37,15 +37,47 @@ func ParseStravaWebhook(data []byte) (*pb.WebhookEvent, error) {
 		return nil, err
 	}
 
-	return &pb.WebhookEvent{
+	event := &pb.WebhookEvent{
 		AspectType:     aspectType,
 		ObjectType:     objectType,
 		ObjectId:       raw.ObjectID,
 		OwnerId:        raw.OwnerID,
 		EventTime:      raw.EventTime,
 		SubscriptionId: raw.SubscriptionID,
-		Updates:        raw.Updates,
-	}, nil
+	}
+
+	// Convert updates map to typed ActivityUpdates for activity update events
+	if objectType == pb.ObjectType_OBJECT_TYPE_ACTIVITY &&
+		aspectType == pb.AspectType_ASPECT_TYPE_UPDATE &&
+		len(raw.Updates) > 0 {
+		event.Updates = parseActivityUpdates(raw.Updates)
+	}
+
+	return event, nil
+}
+
+// parseActivityUpdates converts Strava's updates map to typed ActivityUpdates.
+func parseActivityUpdates(updates map[string]string) *pb.ActivityUpdates {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	activityUpdates := &pb.ActivityUpdates{}
+
+	if title, ok := updates["title"]; ok {
+		activityUpdates.Title = &title
+	}
+
+	if activityType, ok := updates["type"]; ok {
+		activityUpdates.Type = &activityType
+	}
+
+	if privateStr, ok := updates["private"]; ok {
+		private := privateStr == "true"
+		activityUpdates.Private = &private
+	}
+
+	return activityUpdates
 }
 
 // parseAspectType converts Strava's string aspect_type to proto enum.
@@ -110,9 +142,40 @@ func ToStravaJSON(event *pb.WebhookEvent) ([]byte, error) {
 		OwnerID:        event.OwnerId,
 		EventTime:      event.EventTime,
 		SubscriptionID: event.SubscriptionId,
-		Updates:        event.Updates,
+		Updates:        activityUpdatesToMap(event.Updates),
 	}
 	return json.Marshal(raw)
+}
+
+// activityUpdatesToMap converts typed ActivityUpdates back to map for JSON serialization.
+func activityUpdatesToMap(updates *pb.ActivityUpdates) map[string]string {
+	if updates == nil {
+		return nil
+	}
+
+	result := make(map[string]string)
+
+	if updates.Title != nil {
+		result["title"] = *updates.Title
+	}
+
+	if updates.Type != nil {
+		result["type"] = *updates.Type
+	}
+
+	if updates.Private != nil {
+		if *updates.Private {
+			result["private"] = "true"
+		} else {
+			result["private"] = "false"
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
 }
 
 // Validate checks if the WebhookEvent has valid required fields.
