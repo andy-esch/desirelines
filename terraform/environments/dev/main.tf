@@ -51,6 +51,9 @@ module "desirelines" {
 
   # API Gateway CORS configuration
   api_gateway_allowed_origins = "https://desirelines-dev.web.app,http://localhost:5173"
+
+  # Infisical configuration
+  infisical_project_id = "99dc2cfc-d853"
 }
 
 # Get project details for IAM configuration

@@ -2,14 +2,13 @@ package env
 
 import (
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"math"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,49 +16,39 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 )
 
-const (
-	// DefaultSecretCacheTTL is the default cache TTL for secret reloading
-	DefaultSecretCacheTTL = 5 * time.Minute
-
-	// maxSecureFileMode is the maximum allowed file mode for secrets files.
-	// Only owner read/write is permitted (0600).
-	maxSecureFileMode fs.FileMode = 0o600
-)
-
-// stravaSecrets represents the structure of the mounted secret file.
-type stravaSecrets struct {
-	WebhookVerifyToken    string `json:"webhook_verify_token"`
-	WebhookSubscriptionID int    `json:"webhook_subscription_id"`
-}
+// DefaultSecretCacheTTL is the default cache TTL for secret reloading.
+const DefaultSecretCacheTTL = 5 * time.Minute
 
 // SecretCache provides TTL-based caching with content hash validation for secrets.
 // It implements the SecretProvider interface.
 type SecretCache struct {
-	lastCheck      time.Time
-	contentHash    string
-	secretsPath    string
-	verifyToken    string
-	ttl            time.Duration
-	subscriptionID int32
-	mu             sync.RWMutex
-	logger         *slog.Logger
+	lastCheck          time.Time
+	contentHash        string
+	verifyTokenPath    string
+	subscriptionIDPath string
+	verifyToken        string
+	ttl                time.Duration
+	subscriptionID     int32
+	mu                 sync.RWMutex
+	logger             *slog.Logger
 }
 
 // Compile-time check that SecretCache implements SecretProvider.
 var _ ports.SecretProvider = (*SecretCache)(nil)
 
 // NewSecretCache creates a new secret cache with the specified TTL.
-func NewSecretCache(secretsPath string, ttl time.Duration, logger *slog.Logger) *SecretCache {
+func NewSecretCache(verifyTokenPath, subscriptionIDPath string, ttl time.Duration, logger *slog.Logger) *SecretCache {
 	return &SecretCache{
-		secretsPath: secretsPath,
-		ttl:         ttl,
-		logger:      logger,
+		verifyTokenPath:    verifyTokenPath,
+		subscriptionIDPath: subscriptionIDPath,
+		ttl:                ttl,
+		logger:             logger,
 	}
 }
 
 // NewDefaultSecretCache creates a new secret cache with default settings.
 func NewDefaultSecretCache(logger *slog.Logger) *SecretCache {
-	return NewSecretCache(config.DefaultSecretsPath, DefaultSecretCacheTTL, logger)
+	return NewSecretCache(config.SecretPathVerifyToken, config.SecretPathSubscriptionID, DefaultSecretCacheTTL, logger)
 }
 
 // GetSecrets returns cached secrets or reloads them if TTL expired or content changed.
@@ -82,41 +71,34 @@ func (c *SecretCache) GetSecrets() (string, int32, error) {
 		return c.verifyToken, c.subscriptionID, nil
 	}
 
-	currentHash, err := c.hashFile()
+	currentHash, err := c.hashFiles()
 	if err != nil {
-		if os.IsNotExist(err) {
-			// File doesn't exist
-			if c.verifyToken != "" {
-				// We have cached values from a previous successful load
-				// File may be temporarily unavailable - return cached values
-				c.logger.Warn("Secrets file missing, using cached values", "path", c.secretsPath)
-				return c.verifyToken, c.subscriptionID, nil
-			}
-			// First load with no file - try environment variables
-			if loadErr := c.loadSecretsFromEnv(); loadErr != nil {
-				return "", 0, loadErr
-			}
-			c.lastCheck = time.Now()
-			return c.verifyToken, c.subscriptionID, nil
-		}
-		c.logger.Error("Failed to hash secrets file", "error", err)
+		c.logger.Error("Failed to hash secrets files", "error", err)
 		// Return cached values if available
 		if c.verifyToken != "" {
 			return c.verifyToken, c.subscriptionID, nil
 		}
-		return "", 0, fmt.Errorf("failed to read secrets file: %w", err)
+		// First load with no file - try environment variables
+		if loadErr := c.loadSecretsFromEnv(); loadErr != nil {
+			return "", 0, loadErr
+		}
+		c.lastCheck = time.Now()
+		return c.verifyToken, c.subscriptionID, nil
 	}
 
 	// Content changed or first load
 	if currentHash != c.contentHash {
-		if loadErr := c.loadSecrets(); loadErr != nil {
-			c.logger.Error("Failed to reload secrets", "error", loadErr)
+		token, subID, loadErr := c.loadSecrets()
+		if loadErr != nil {
+			c.logger.Warn("Failed to reload secrets, using cached values", "error", loadErr)
 			// Return cached values if available
 			if c.verifyToken != "" {
 				return c.verifyToken, c.subscriptionID, nil
 			}
 			return "", 0, fmt.Errorf("failed to load secrets: %w", loadErr)
 		}
+		c.verifyToken = token
+		c.subscriptionID = subID
 		c.contentHash = currentHash
 		c.logger.Info("Secrets reloaded due to content change")
 	}
@@ -125,70 +107,95 @@ func (c *SecretCache) GetSecrets() (string, int32, error) {
 	return c.verifyToken, c.subscriptionID, nil
 }
 
-// hashFile computes SHA256 hash of the secrets file content.
-// Returns error if file doesn't exist (caller decides whether to use cache or env vars).
-func (c *SecretCache) hashFile() (string, error) {
-	file, err := os.Open(c.secretsPath)
-	if err != nil {
+// hashFiles computes SHA256 hash of both secret files.
+func (c *SecretCache) hashFiles() (string, error) {
+	h := sha256.New()
+
+	// Hash verify token file
+	if err := c.addFileToHash(h, c.verifyTokenPath); err != nil {
 		return "", err
 	}
-	defer func() {
-		closeErr := file.Close()
-		if closeErr != nil {
-			c.logger.Error("Failed to close file", "error", closeErr)
-		}
-	}()
 
-	hash := sha256.New()
-	if _, copyErr := io.Copy(hash, file); copyErr != nil {
-		return "", copyErr
+	// Hash subscription ID file
+	if err := c.addFileToHash(h, c.subscriptionIDPath); err != nil {
+		return "", err
 	}
 
-	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-// loadSecrets reads and parses the secrets file.
-// Verifies file permissions before reading.
-// Called only when file is known to exist.
-func (c *SecretCache) loadSecrets() error {
-	// Verify file permissions
-	info, err := os.Stat(c.secretsPath)
+func (c *SecretCache) addFileToHash(h io.Writer, path string) error {
+	file, err := os.Open(path) //nolint:gosec // Path comes from trusted config
 	if err != nil {
-		return fmt.Errorf("failed to stat secrets file: %w", err)
-	}
-
-	// Check file permissions - reject if group or world readable
-	mode := info.Mode().Perm()
-	if mode&0o077 != 0 {
-		return fmt.Errorf("secrets file %s has insecure permissions %04o (expected %04o or stricter)",
-			c.secretsPath, mode, maxSecureFileMode)
-	}
-
-	file, err := os.Open(c.secretsPath)
-	if err != nil {
+		if os.IsNotExist(err) {
+			// If file doesn't exist, write a placeholder to the hash
+			// so that if it appears later, the hash changes.
+			// Hash.Write never returns an error for in-memory hashes.
+			_, _ = h.Write([]byte("not-found")) //nolint:errcheck
+			return nil
+		}
 		return err
 	}
 	defer func() {
-		closeErr := file.Close()
-		if closeErr != nil {
-			c.logger.Error("Failed to close secrets file", "error", closeErr)
+		if closeErr := file.Close(); closeErr != nil {
+			c.logger.Warn("Failed to close secrets file", "path", path, "error", closeErr)
 		}
 	}()
+	_, err = io.Copy(h, file)
+	return err
+}
 
-	var secrets stravaSecrets
-	if decodeErr := json.NewDecoder(file).Decode(&secrets); decodeErr != nil {
-		return decodeErr
+// loadSecrets reads and parses the secrets files.
+func (c *SecretCache) loadSecrets() (string, int32, error) {
+	var verifyToken string
+	var subscriptionID int32
+
+	// 1. Load Verify Token
+	tokenBytes, err := os.ReadFile(c.verifyTokenPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return "", 0, fmt.Errorf("failed to read verify token file: %w", err)
+		}
+		// Fallback to environment
+		verifyToken = config.GetEnvOrDefault("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+		if verifyToken == "" {
+			return "", 0, fmt.Errorf("verify token not found in file or environment")
+		}
+	} else {
+		verifyToken = strings.TrimSpace(string(tokenBytes))
 	}
 
-	// Validate subscription ID is within int32 bounds (proto uses int32)
-	if secrets.WebhookSubscriptionID < 0 || secrets.WebhookSubscriptionID > math.MaxInt32 {
-		return fmt.Errorf("webhook_subscription_id must be between 0 and %d", math.MaxInt32)
+	// 2. Load Subscription ID
+	subIDBytes, err := os.ReadFile(c.subscriptionIDPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return "", 0, fmt.Errorf("failed to read subscription id file: %w", err)
+		}
+		// Fallback to environment
+		subIDStr := config.GetEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
+		if subIDStr == "" {
+			return "", 0, fmt.Errorf("subscription id not found in file or environment")
+		}
+		parsed, parseErr := strconv.Atoi(subIDStr)
+		if parseErr != nil {
+			return "", 0, fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID from env: %w", parseErr)
+		}
+		if parsed < 0 || parsed > math.MaxInt32 {
+			return "", 0, fmt.Errorf("STRAVA_WEBHOOK_SUBSCRIPTION_ID must be between 0 and %d", math.MaxInt32)
+		}
+		subscriptionID = int32(parsed) //nolint:gosec // Validated above
+	} else {
+		parsed, parseErr := strconv.Atoi(strings.TrimSpace(string(subIDBytes)))
+		if parseErr != nil {
+			return "", 0, fmt.Errorf("invalid subscription id in file: %w", parseErr)
+		}
+		if parsed < 0 || parsed > math.MaxInt32 {
+			return "", 0, fmt.Errorf("subscription id must be between 0 and %d", math.MaxInt32)
+		}
+		subscriptionID = int32(parsed) //nolint:gosec // Validated above
 	}
 
-	c.verifyToken = secrets.WebhookVerifyToken
-	c.subscriptionID = int32(secrets.WebhookSubscriptionID) //nolint:gosec // Validated above
-
-	return nil
+	return verifyToken, subscriptionID, nil
 }
 
 // loadSecretsFromEnv loads secrets from environment variables.

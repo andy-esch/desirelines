@@ -92,3 +92,8 @@ variable "api_gateway_allowed_origins" {
   type        = string
   default     = ""
 }
+
+variable "infisical_project_id" {
+  description = "Infisical Project ID (used as suffix for integration Service Account)"
+  type        = string
+}

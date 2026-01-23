@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	// DefaultSecretsPath is the standard secret volume mount path
-	// #nosec G101 - This is a file path, not a credential
-	DefaultSecretsPath = "/etc/secrets/strava_auth.json"
+	// SecretPathVerifyToken is the path to the webhook verify token secret file.
+	SecretPathVerifyToken = "/etc/secrets/STRAVA_WEBHOOK_VERIFY_TOKEN/value" //nolint:gosec // Path, not credential
+	// SecretPathSubscriptionID is the path to the subscription ID secret file.
+	SecretPathSubscriptionID = "/etc/secrets/STRAVA_WEBHOOK_SUBSCRIPTION_ID/value" //nolint:gosec // Path, not credential
 
 	// DefaultReadTimeout is the default read timeout for HTTP requests.
 	DefaultReadTimeout = 30 * time.Second

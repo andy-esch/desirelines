@@ -1,6 +1,6 @@
 """Configuration for PostgreSQL writer cloud function."""
 
-import json
+import logging
 import os
 
 from pydantic import Field
@@ -8,8 +8,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Import directly from module to avoid pulling in SQLAlchemy dependencies
 from stravapipe.adapters.postgres._connection import load_connection_string
-from stravapipe.config.common import StravaApiConfig
+from stravapipe.config.common import StravaApiConfig, load_secrets_from_volumes
 from stravapipe.domain import StravaTokenSet
+
+logger = logging.getLogger(__name__)
 
 
 class PostgresWriterConfig(BaseSettings):
@@ -81,23 +83,27 @@ def load_postgres_writer_config() -> PostgresWriterConfig:
         ValidationError: If required configuration is missing or invalid.
         ConnectionStringError: If PostgreSQL connection string is missing or invalid.
     """
-    # Load Strava secrets from mounted volume if available
-    strava_secrets_path = "/etc/secrets/strava_auth.json"
-    if os.path.exists(strava_secrets_path):
-        with open(strava_secrets_path, encoding="utf-8") as f:
-            strava_auth = json.load(f)
-            if strava_auth.get("client_id"):
-                os.environ["STRAVA_CLIENT_ID"] = str(strava_auth["client_id"])
-            if strava_auth.get("client_secret"):
-                os.environ["STRAVA_CLIENT_SECRET"] = strava_auth["client_secret"]
-            if strava_auth.get("refresh_token"):
-                os.environ["STRAVA_REFRESH_TOKEN"] = strava_auth["refresh_token"]
+    secret_names = [
+        "STRAVA_CLIENT_ID",
+        "STRAVA_CLIENT_SECRET",
+        "STRAVA_REFRESH_TOKEN",
+    ]
+    # Load Strava secrets from atomic mounted volumes if available
+    raw_secrets = load_secrets_from_volumes(secret_names)
+
+    # Log fallbacks for secrets not found in volumes
+    for name in secret_names:
+        if name not in raw_secrets:
+            if os.getenv(name):
+                logger.info("config: loaded %s from environment", name)
+
+    # Map UPPER_CASE secret names to snake_case model fields
+    config_dict = {k.lower(): v for k, v in raw_secrets.items()}
 
     # Load PostgreSQL connection string with validation and dialect transformation
     # This reads from secret volume or env var, validates application_name,
     # and transforms postgresql:// to postgresql+psycopg://
-    conn_str = load_connection_string()
-    os.environ["POSTGRES_CONNECTION_STRING"] = conn_str
+    config_dict["postgres_connection_string"] = load_connection_string()
 
-    # Load config from environment variables (and secrets set above)
-    return PostgresWriterConfig.model_validate({})
+    # Load config, prioritizing passed values over env vars
+    return PostgresWriterConfig.model_validate(config_dict)

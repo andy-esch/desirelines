@@ -4,6 +4,18 @@
 # Image base URL from shared artifacts project
 locals {
   image_base_url = var.external_artifact_registry
+
+  # Secret definitions for dynamic blocks
+  strava_webhook_secrets = {
+    "STRAVA_WEBHOOK_VERIFY_TOKEN"    = google_secret_manager_secret.strava_webhook_verify_token.secret_id
+    "STRAVA_WEBHOOK_SUBSCRIPTION_ID" = google_secret_manager_secret.strava_webhook_subscription_id.secret_id
+  }
+
+  strava_api_secrets = {
+    "STRAVA_CLIENT_ID"     = google_secret_manager_secret.strava_client_id.secret_id
+    "STRAVA_CLIENT_SECRET" = google_secret_manager_secret.strava_client_secret.secret_id
+    "STRAVA_REFRESH_TOKEN" = google_secret_manager_secret.strava_refresh_token.secret_id
+  }
 }
 
 # ==============================================================================
@@ -57,22 +69,28 @@ resource "google_cloud_run_v2_service" "dispatcher" {
         value = "INFO"
       }
 
-      # Mount Strava secrets as volume
-      volume_mounts {
-        name       = "strava-secrets"
-        mount_path = "/etc/secrets"
+      # Mount Strava Webhook secrets as atomic volumes
+      dynamic "volume_mounts" {
+        for_each = local.strava_webhook_secrets
+        content {
+          name       = lower(replace(volume_mounts.key, "_", "-"))
+          mount_path = "/etc/secrets/${volume_mounts.key}"
+        }
       }
     }
 
-    volumes {
-      name = "strava-secrets"
-      secret {
-        secret       = google_secret_manager_secret.strava_auth.secret_id
-        default_mode = 292 # 0444 in octal (read-only)
-        items {
-          version = "latest"
-          path    = "strava_auth.json"
-          mode    = 292 # 0444
+    dynamic "volumes" {
+      for_each = local.strava_webhook_secrets
+      content {
+        name = lower(replace(volumes.key, "_", "-"))
+        secret {
+          secret       = volumes.value
+          default_mode = 292 # 0444
+          items {
+            version = "latest"
+            path    = "value"
+            mode    = 292
+          }
         }
       }
     }
@@ -84,6 +102,10 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
     percent = 100
   }
+
+  depends_on = [
+    google_secret_manager_secret_iam_member.dispatcher_webhook_tokens
+  ]
 }
 
 # Allow unauthenticated access to dispatcher (required for Strava webhooks)
@@ -256,22 +278,28 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
         value = "true"
       }
 
-      # Mount Strava secrets as volume
-      volume_mounts {
-        name       = "strava-secrets"
-        mount_path = "/etc/secrets"
+      # Mount Strava API secrets as atomic volumes
+      dynamic "volume_mounts" {
+        for_each = local.strava_api_secrets
+        content {
+          name       = lower(replace(volume_mounts.key, "_", "-"))
+          mount_path = "/etc/secrets/${volume_mounts.key}"
+        }
       }
     }
 
-    volumes {
-      name = "strava-secrets"
-      secret {
-        secret       = google_secret_manager_secret.strava_auth.secret_id
-        default_mode = 292 # 0444 in octal (read-only)
-        items {
-          version = "latest"
-          path    = "strava_auth.json"
-          mode    = 292 # 0444
+    dynamic "volumes" {
+      for_each = local.strava_api_secrets
+      content {
+        name = lower(replace(volumes.key, "_", "-"))
+        secret {
+          secret       = volumes.value
+          default_mode = 292
+          items {
+            version = "latest"
+            path    = "value"
+            mode    = 292
+          }
         }
       }
     }
@@ -283,6 +311,10 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
     percent = 100
   }
+
+  depends_on = [
+    google_secret_manager_secret_iam_member.bq_inserter_api_tokens
+  ]
 }
 
 # ==============================================================================
@@ -338,10 +370,13 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
         value = "true"
       }
 
-      # Mount Strava secrets as volume
-      volume_mounts {
-        name       = "strava-secrets"
-        mount_path = "/etc/secrets"
+      # Mount Strava API secrets as atomic volumes
+      dynamic "volume_mounts" {
+        for_each = local.strava_api_secrets
+        content {
+          name       = lower(replace(volume_mounts.key, "_", "-"))
+          mount_path = "/etc/secrets/${volume_mounts.key}"
+        }
       }
 
       # Mount PostgreSQL secrets as volume (read/write writer role)
@@ -351,15 +386,18 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
       }
     }
 
-    volumes {
-      name = "strava-secrets"
-      secret {
-        secret       = google_secret_manager_secret.strava_auth.secret_id
-        default_mode = 292 # 0444 in octal (read-only)
-        items {
-          version = "latest"
-          path    = "strava_auth.json"
-          mode    = 292 # 0444
+    dynamic "volumes" {
+      for_each = local.strava_api_secrets
+      content {
+        name = lower(replace(volumes.key, "_", "-"))
+        secret {
+          secret       = volumes.value
+          default_mode = 292
+          items {
+            version = "latest"
+            path    = "value"
+            mode    = 292
+          }
         }
       }
     }
@@ -386,7 +424,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
   }
 
   depends_on = [
-    google_secret_manager_secret_iam_member.postgres_writer_strava_auth_access,
+    google_secret_manager_secret_iam_member.postgres_writer_api_tokens,
     google_secret_manager_secret_iam_member.postgres_writer_postgres_access,
   ]
 }

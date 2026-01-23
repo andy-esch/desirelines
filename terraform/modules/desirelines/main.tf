@@ -46,7 +46,9 @@ resource "google_project_service" "required_apis" {
     "run.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
-    "firestore.googleapis.com"
+    "firestore.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "secretmanager.googleapis.com"
   ]) : []
 
   project = var.gcp_project_id
@@ -252,6 +254,36 @@ resource "google_service_account" "postgres_writer" {
   description  = "Service account for PostgreSQL writer function in ${var.environment} environment"
 }
 
+# Infisical Integration Service Account
+# Required for Secret Manager Sync. Suffix is determined by Infisical Project ID.
+resource "google_service_account" "infisical_sync" {
+  account_id   = "infisical-sync-${var.infisical_project_id}"
+  display_name = "Infisical Secret Sync (${title(var.environment)})"
+  description  = "Service account for Infisical to sync secrets to GCP Secret Manager"
+}
+
+# Grant Infisical permission to manage secrets (list, create, update, delete)
+# Required "admin" role because Infisical needs to list secrets in the dashboard to link them.
+resource "google_project_iam_member" "infisical_secret_admin" {
+  project = var.gcp_project_id
+  role    = "roles/secretmanager.admin"
+  member  = "serviceAccount:${google_service_account.infisical_sync.email}"
+}
+
+# Grant Service Account Token Creator to the Infisical service account on itself for impersonation
+resource "google_service_account_iam_member" "infisical_token_creator" {
+  service_account_id = google_service_account.infisical_sync.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.infisical_sync.email}"
+}
+
+# Allow Infisical Cloud US to impersonate the sync service account
+resource "google_service_account_iam_member" "infisical_cloud_impersonation" {
+  service_account_id = google_service_account.infisical_sync.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:infisical-us@infisical-us.iam.gserviceaccount.com"
+}
+
 # IAM permissions for dispatcher (PubSub Publisher only)
 resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   topic  = google_pubsub_topic.activity_events.name
@@ -309,7 +341,95 @@ resource "google_service_account_iam_member" "postgres_writer_impersonation" {
 }
 
 # ==============================================================================
-# Strava Auth Secret
+# Strava Auth Secrets (Atomic)
+# ==============================================================================
+# Individual secrets for granular access control and rotation.
+# Values are synced from Infisical.
+
+resource "google_secret_manager_secret" "strava_client_id" {
+  secret_id = "STRAVA_CLIENT_ID"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-api" }
+}
+
+resource "google_secret_manager_secret" "strava_client_secret" {
+  secret_id = "STRAVA_CLIENT_SECRET"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-api" }
+}
+
+resource "google_secret_manager_secret" "strava_refresh_token" {
+  secret_id = "STRAVA_REFRESH_TOKEN"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-api" }
+}
+
+resource "google_secret_manager_secret" "strava_webhook_verify_token" {
+  secret_id = "STRAVA_WEBHOOK_VERIFY_TOKEN"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-webhook" }
+}
+
+resource "google_secret_manager_secret" "strava_webhook_subscription_id" {
+  secret_id = "STRAVA_WEBHOOK_SUBSCRIPTION_ID"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-webhook" }
+}
+
+# IAM Permissions for Atomic Secrets
+
+# Dispatcher needs Webhook tokens
+resource "google_secret_manager_secret_iam_member" "dispatcher_webhook_tokens" {
+  for_each = toset([
+    google_secret_manager_secret.strava_webhook_verify_token.secret_id,
+    google_secret_manager_secret.strava_webhook_subscription_id.secret_id
+  ])
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.dispatcher.email}"
+}
+
+# BQ Inserter needs API tokens
+resource "google_secret_manager_secret_iam_member" "bq_inserter_api_tokens" {
+  for_each = toset([
+    google_secret_manager_secret.strava_client_id.secret_id,
+    google_secret_manager_secret.strava_client_secret.secret_id,
+    google_secret_manager_secret.strava_refresh_token.secret_id
+  ])
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.bq_inserter.email}"
+}
+
+# Postgres Writer needs API tokens
+resource "google_secret_manager_secret_iam_member" "postgres_writer_api_tokens" {
+  for_each = toset([
+    google_secret_manager_secret.strava_client_id.secret_id,
+    google_secret_manager_secret.strava_client_secret.secret_id,
+    google_secret_manager_secret.strava_refresh_token.secret_id
+  ])
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.postgres_writer.email}"
+}
+
+# ==============================================================================
+# Strava Auth Secret (DEPRECATED - To be removed after migration)
 # ==============================================================================
 # Secret value must be added manually after creation (contains API credentials).
 # Format: JSON with client_id, client_secret, refresh_token, access_token
@@ -479,4 +599,3 @@ resource "google_secret_manager_secret_iam_member" "postgres_developer_access" {
 # Container images are managed in the shared desirelines-artifacts project.
 # See terraform/environments/artifacts/ for that configuration.
 # The image URL is passed in via the external_artifact_registry variable.
-

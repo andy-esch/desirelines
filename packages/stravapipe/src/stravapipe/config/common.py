@@ -1,6 +1,9 @@
 """Common configuration shared across functions."""
 
+import logging
 from typing import NamedTuple
+
+logger = logging.getLogger(__name__)
 
 
 class StravaApiConfig(NamedTuple):
@@ -26,3 +29,36 @@ class StravaApiConfig(NamedTuple):
     # Activity fetch: more retries, longer backoff (can tolerate delays)
     activity_retry_attempts: int = 3
     activity_retry_backoff: float = 1.0
+
+
+def load_secrets_from_volumes(
+    secret_names: list[str], base_path: str = "/etc/secrets"
+) -> dict[str, str]:
+    """Load secrets from atomic volume mounts.
+
+    Iterates through the provided secret names. For each secret, attempts to
+    read the value from `{base_path}/{secret_name}/value`.
+
+    Args:
+        secret_names: List of secret names (e.g. ["STRAVA_CLIENT_ID"]).
+                      The filename is expected to be `{name}/value`.
+        base_path: Base directory for secrets. Defaults to "/etc/secrets".
+
+    Returns:
+        Dictionary mapping secret names to their values.
+
+    Raises:
+        OSError: If a file exists but cannot be read (e.g. permission denied).
+                 FileNotFoundError is ignored (graceful fallback).
+    """
+    secrets: dict[str, str] = {}
+    for name in secret_names:
+        secret_path = f"{base_path}/{name}/value"
+        try:
+            with open(secret_path, encoding="utf-8") as f:
+                secrets[name] = f.read()
+                logger.info("config: loaded %s from file: %s", name, secret_path)
+        except FileNotFoundError:
+            # Secret not mounted, skip (will rely on env var or default)
+            pass
+    return secrets

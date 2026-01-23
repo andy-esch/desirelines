@@ -53,6 +53,9 @@ prod)
 	;;
 esac
 
+# Cleanup trap to ensure secret files are removed
+trap 'rm -f .env.staging.local .env.production.local' EXIT
+
 echo "🚀 Deploying web application to Firebase Hosting"
 echo "📍 Environment: $ENVIRONMENT"
 echo "🎯 Firebase Project: $FIREBASE_PROJECT"
@@ -64,6 +67,14 @@ if ! command -v firebase &>/dev/null; then
 	echo "❌ Error: Firebase CLI not found"
 	echo "   Install: npm install -g firebase-tools"
 	echo "   Then run: firebase login"
+	exit 1
+fi
+
+# Check if Infisical CLI is installed
+if ! command -v infisical &>/dev/null; then
+	echo "❌ Error: Infisical CLI not found"
+	echo "   Install: brew install infisical/tap/infisical"
+	echo "   Then run: infisical login"
 	exit 1
 fi
 
@@ -82,24 +93,42 @@ if [ ! -f "package.json" ]; then
 	exit 1
 fi
 
-# Check for required environment file
+# Fetch secrets from Infisical
+echo "🔑 Fetching secrets from Infisical..."
 if [ "$ENVIRONMENT" = "dev" ]; then
-	if [ ! -f ".env.staging.local" ]; then
-		echo "❌ Error: .env.staging.local not found"
-		echo "   This file is required for staging deployments"
-		echo "   Create it with: cp .env.staging.local.example .env.staging.local"
-		echo "   Then add your staging credentials"
+	echo "   Exporting dev secrets to .env.staging.local..."
+	if ! infisical export --env=dev --path=/frontend >.env.staging.local; then
+		echo "❌ Error: Failed to export secrets from Infisical"
+		echo "   Ensure you are logged in (infisical login) and have access to /frontend"
 		exit 1
 	fi
 elif [ "$ENVIRONMENT" = "prod" ]; then
-	if [ ! -f ".env.production.local" ]; then
-		echo "❌ Error: .env.production.local not found"
-		echo "   This file is required for production deployments"
-		echo "   Create it with: cp .env.production.local.example .env.production.local"
-		echo "   Then add your production credentials"
+	echo "   Exporting prod secrets to .env.production.local..."
+	if ! infisical export --env=prod --path=/frontend >.env.production.local; then
+		echo "❌ Error: Failed to export secrets from Infisical"
 		exit 1
 	fi
 fi
+echo "✅ Secrets exported"
+
+# Validate exported secrets
+echo "🔍 Validating exported secrets..."
+ENV_FILE=""
+if [ "$ENVIRONMENT" = "dev" ]; then
+	ENV_FILE=".env.staging.local"
+elif [ "$ENVIRONMENT" = "prod" ]; then
+	ENV_FILE=".env.production.local"
+fi
+
+if [ -n "$ENV_FILE" ]; then
+	if ! grep -q "^VITE_" "$ENV_FILE"; then
+		echo "❌ Error: No VITE_ variables found in $ENV_FILE"
+		echo "   Ensure your Infisical secrets in /frontend are prefixed with VITE_"
+		exit 1
+	fi
+	echo "✅ Validation passed"
+fi
+echo ""
 
 # Build web application with environment-specific mode
 echo "📦 Building web application..."
