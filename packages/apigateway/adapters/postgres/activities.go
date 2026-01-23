@@ -13,6 +13,26 @@
 //   - Year metadata aggregation (GetYearMetadata)
 //
 // All queries use parameterized statements to prevent SQL injection.
+//
+// # Schema Names
+//
+// Queries explicitly use "desirelines.activities" rather than relying on search_path.
+// This is intentional: explicit schema names are self-documenting, work regardless of
+// connection configuration, and prevent accidental queries to wrong schemas.
+//
+// # Timezone Handling
+//
+// The start_date_local column is a TIMESTAMP (without timezone) containing the
+// activity start time in the athlete's local timezone, exactly as Strava provides.
+// Queries use start_date_local::date to extract dates, which is correct because:
+//
+//   - It returns the date the user experienced the activity (e.g., "Jan 15" for a
+//     late-night run in Tokyo stays "Jan 15", not "Jan 14" as UTC would show)
+//   - TIMESTAMP (without timezone) is not affected by PostgreSQL session timezone
+//   - No UTC conversion should occur - that would misrepresent the user's experience
+//
+// This is intentional and correct for the Strava data model where activities are
+// meaningfully grouped by the user's local date, not a global timestamp.
 package postgres
 
 import (
@@ -73,6 +93,8 @@ func (r *ActivityRepository) Close() error {
 //
 // For very sparse data over long ranges, consider application-side date filling,
 // but this adds complexity and memory overhead for cumulative sum calculation.
+//
+// See package documentation for timezone handling rationale.
 func (r *ActivityRepository) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.SportMetrics, error) {
 	query := `
 		SELECT
@@ -627,14 +649,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 }
 
 // encodeCursor encodes an ActivityCursor to a base64 string.
-// Uses simple "timestamp|id" format rather than JSON for efficiency.
-// Optimized to minimize allocations by building the byte slice directly.
+// Format: "timestamp|id" encoded as URL-safe base64.
 func encodeCursor(cursor *repository.ActivityCursor) string {
-	// Pre-allocate buffer: timestamp (typically 20-30 bytes) + "|" + id (up to 19 digits)
-	// Using append operations avoids intermediate string allocations
-	buf := make([]byte, 0, len(cursor.Timestamp)+1+20)
-	buf = append(buf, cursor.Timestamp...)
-	buf = append(buf, '|')
-	buf = strconv.AppendInt(buf, cursor.ID, 10)
-	return base64.URLEncoding.EncodeToString(buf)
+	data := cursor.Timestamp + "|" + strconv.FormatInt(cursor.ID, 10)
+	return base64.URLEncoding.EncodeToString([]byte(data))
 }

@@ -8,6 +8,25 @@
 //   - GET /activities/{id} - Single activity by ID
 //
 // All endpoints require authentication (handled by middleware).
+//
+// # Validation Patterns
+//
+// This package uses two intentional validation patterns:
+//
+// 1. "Write and return bool" - for validators that take ResponseWriter:
+//
+//	year, ok := h.validateAndGetYear(w, r)
+//	if !ok { return }  // Response already written
+//
+// This pattern enables clean composition of multiple validations without
+// repetitive WriteError calls at each step.
+//
+// 2. "Return error" - for pure parsing functions without ResponseWriter:
+//
+//	filter, apiErr := h.parseListActivitiesFilter(r)
+//	if !apiErr.IsZero() { apierrors.WriteError(...); return }
+//
+// This pattern keeps parsing logic decoupled from HTTP response writing.
 package activities
 
 import (
@@ -159,7 +178,11 @@ func (h *Handler) logAndRespondDBError(w http.ResponseWriter, r *http.Request, e
 // Without from/to, falls back to year-based query for backwards compatibility.
 // GET /activities/{year}/metrics?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
 //
-//nolint:dupl // HandleMetrics and HandleSource share structure but operate on different types
+// (SportMetrics vs DailySummary). Abstracting via generics or interfaces would add complexity
+// without meaningful benefit. Shared logic is already extracted (validateSportQuery,
+// logAndRespondDBError, respondProtobuf). Each handler remains clear and self-contained.
+//
+//nolint:dupl // Intentional: HandleMetrics and HandleSource share structure but differ in types
 func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	params := h.validateSportQuery(w, r)
 	if params == nil {
@@ -188,7 +211,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 // Without from/to, falls back to year-based query for backwards compatibility.
 // GET /activities/{year}/source?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
 //
-//nolint:dupl // HandleSource and HandleMetrics share structure but operate on different types
+//nolint:dupl // Intentional duplication - see HandleMetrics comment for rationale.
 func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	params := h.validateSportQuery(w, r)
 	if params == nil {
@@ -394,8 +417,13 @@ func decodeCursor(s string) (*repository.ActivityCursor, error) {
 		return nil, fmt.Errorf("invalid cursor timestamp: %w", err)
 	}
 
-	// Reject future timestamps - cursors should only reference past data
-	if ts.After(time.Now()) {
+	// Reject timestamps too far in the future - cursors should reference past data.
+	// We allow 1 minute tolerance for minor clock differences between Cloud Run
+	// instances (though GCP NTP sync keeps drift to milliseconds). This is a sanity
+	// check against obviously invalid/tampered cursors, not a security boundary.
+	// Architecture note: Single database + Cloud Run means clock skew is not a
+	// practical concern; this tolerance is purely defensive.
+	if ts.After(time.Now().Add(1 * time.Minute)) {
 		return nil, fmt.Errorf("invalid cursor: timestamp is in the future")
 	}
 

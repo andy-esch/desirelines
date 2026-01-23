@@ -44,9 +44,9 @@ func TestHandler_Handle(t *testing.T) {
 		{
 			name:           "unhealthy database",
 			pinger:         &mockPinger{pingErr: errors.New("connection refused")},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusServiceUnavailable,
 			expectedBody: Response{
-				Status:   StatusHealthy,
+				Status:   StatusUnhealthy,
 				Database: StatusUnhealthy,
 			},
 		},

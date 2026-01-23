@@ -58,10 +58,12 @@ func NewHandlerWithTimeout(pinger Pinger, logger *slog.Logger, timeout time.Dura
 }
 
 // Handle returns API health status.
+// Returns 200 OK when healthy, 503 Service Unavailable when database is down.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	response := Response{
 		Status: StatusHealthy,
 	}
+	statusCode := http.StatusOK
 
 	// Check database connectivity if a pinger is configured
 	if h.pinger != nil {
@@ -70,11 +72,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 		if err := h.pinger.Ping(ctx); err != nil {
 			h.logger.Warn("Database health check failed", "error", err)
+			response.Status = StatusUnhealthy
 			response.Database = StatusUnhealthy
+			statusCode = http.StatusServiceUnavailable
 		} else {
 			response.Database = StatusHealthy
 		}
 	}
 
-	server.RespondJSON(w, r, http.StatusOK, response, h.logger)
+	server.RespondJSON(w, r, statusCode, response, h.logger)
 }

@@ -26,6 +26,7 @@ func TestYear(t *testing.T) {
 		{"two digit year", "24", false},
 		{"three digit year", "202", false},
 		{"five digit year", "20245", false},
+		{"very long string", "20242024202420242024", false},
 		{"letters", "abcd", false},
 		{"mixed alphanumeric", "20a4", false},
 		{"empty string", "", false},

@@ -1,3 +1,21 @@
+// Package config provides sport configuration management for the API Gateway.
+//
+// # Design: Singleton Loading + Dependency Injection for Usage
+//
+// This package uses a two-layer approach:
+//
+//  1. Loading layer: LoadSportConfig() uses sync.Once to load config exactly once.
+//     This is appropriate because sport config is application-wide, immutable after
+//     startup, and expensive to parse/validate.
+//
+//  2. Usage layer: Handlers and business logic receive *SportConfig via constructor
+//     injection (see activities.NewHandler). This enables proper testing and avoids
+//     hidden dependencies in business logic.
+//
+// For testing:
+//   - Unit tests that need custom configs use loadSportConfigInternal() directly
+//   - Handler tests create configs and inject them via constructors
+//   - The sync.Once doesn't affect test isolation because handlers use injected instances
 package config
 
 import (
@@ -40,6 +58,9 @@ type SportConfig struct {
 	data SportConfigData
 }
 
+// Package-level state for singleton loading pattern.
+// These are only used by LoadSportConfig() - business logic receives *SportConfig
+// via dependency injection and doesn't access these directly.
 var (
 	sportConfig     *SportConfig
 	sportConfigErr  error
