@@ -44,7 +44,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-bq-inserter-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.bq_inserter_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MEAN"
@@ -79,7 +79,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-postgres-writer-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.postgres_writer_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MEAN"
@@ -550,7 +550,7 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
     display_name = "BQ Inserter DLQ has messages"
 
     condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"desirelines-bq-inserter-dlq\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.bq_inserter_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
       duration        = "60s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0

@@ -49,11 +49,6 @@ variable "firestore_location" {
   default     = "us-central1"
 }
 
-variable "service_account_email" {
-  description = "Service account email for resource access"
-  type        = string
-}
-
 variable "developer_email" {
   description = "Email of the developer account for BigQuery console access (optional)"
   type        = string
@@ -73,6 +68,11 @@ variable "deployment_version" {
   description = "Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest')"
   type        = string
   default     = "latest"
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$", var.deployment_version))
+    error_message = "deployment_version must be a valid Docker tag: start with alphanumeric, contain only alphanumeric/dots/hyphens/underscores, max 128 characters."
+  }
 }
 
 variable "external_artifact_registry" {

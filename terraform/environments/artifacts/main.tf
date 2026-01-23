@@ -4,8 +4,8 @@
 terraform {
   required_version = ">= 1.12"
 
+  # Configure backend with: terraform init -backend-config=backend.tfvars
   backend "gcs" {
-    bucket = "desirelines-artifacts-terraform-state"
     prefix = "terraform/state"
   }
 
