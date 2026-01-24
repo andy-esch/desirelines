@@ -18,6 +18,8 @@ type mockTokenVerifier struct {
 	err   error
 }
 
+var _ middleware.TokenVerifier = (*mockTokenVerifier)(nil)
+
 func (m *mockTokenVerifier) VerifyIDToken(_ context.Context, _ string) (*auth.Token, error) {
 	if m.err != nil {
 		return nil, m.err
@@ -40,7 +42,10 @@ func Example_authMiddlewareSetup() {
 
 	// Public routes (no auth)
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			// This shouldn't happen in this example context
+			panic(err)
+		}
 	})
 
 	// In production, you would use:
@@ -68,7 +73,11 @@ func Example_tokenVerifierInterface() {
 		return
 	}
 
-	email := token.Claims["email"].(string)
+	email, ok := token.Claims["email"].(string)
+	if !ok {
+		fmt.Println("email claim not found")
+		return
+	}
 	fmt.Println("verified email:", email)
 	// Output: verified email: test@example.com
 }

@@ -17,8 +17,8 @@ func ExamplePublisher() {
 	event := &generated.WebhookEvent{
 		ObjectId:   123456789,
 		OwnerId:    12345,
-		AspectType: generated.AspectType_CREATE,
-		ObjectType: generated.ObjectType_ACTIVITY,
+		AspectType: generated.AspectType_ASPECT_TYPE_CREATE,
+		ObjectType: generated.ObjectType_OBJECT_TYPE_ACTIVITY,
 	}
 
 	err := publisher.Publish(context.Background(), event, "correlation-123")
@@ -28,8 +28,8 @@ func ExamplePublisher() {
 	}
 
 	// Verify the mock received the call
-	fmt.Println("published events:", len(publisher.PublishedEvents))
-	fmt.Println("object_id:", publisher.PublishedEvents[0].ObjectId)
+	fmt.Println("published events:", len(publisher.Published))
+	fmt.Println("object_id:", publisher.Published[0].ObjectId)
 	// Output:
 	// published events: 1
 	// object_id: 123456789
@@ -79,7 +79,9 @@ func Example_customPublisher() {
 	publisher := &customPublisher{}
 
 	event := &generated.WebhookEvent{ObjectId: 999}
-	_ = publisher.Publish(context.Background(), event, "id")
+	if err := publisher.Publish(context.Background(), event, "id"); err != nil {
+		fmt.Println("error:", err)
+	}
 
 	fmt.Println("custom publisher received:", len(publisher.events), "events")
 	// Output: custom publisher received: 1 events
