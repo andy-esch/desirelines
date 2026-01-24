@@ -73,3 +73,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4 // indirect
 	google.golang.org/grpc v1.75.1 // indirect
 )
+
+replace github.com/andy-esch/desirelines/packages/shared => ../shared
