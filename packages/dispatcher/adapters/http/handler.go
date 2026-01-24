@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"net/http"
 	"strings"
 
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
+	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
@@ -46,7 +46,7 @@ type HandlerConfig struct {
 
 // NewHandler creates a new webhook handler with injected dependencies.
 func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, logger *slog.Logger, cfg *HandlerConfig) *Handler {
-	maxBodySize := int64(1 << 20) // Default 1MB
+	maxBodySize := config.DefaultMaxRequestBodySize
 	if cfg != nil && cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
 	}
@@ -179,6 +179,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current subscription ID from secret provider
+	// subscriptionID is already int32, validated at load time
 	_, subscriptionID, err := h.secretProvider.GetSecrets()
 	if err != nil {
 		apiErr := gcplog.NewAPIErrorWithLog(
@@ -190,18 +191,8 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
-	// Compare as int32 to avoid platform-dependent int size issues.
-	// subscriptionID from config is validated to be positive during loading,
-	// so casting to int32 is safe for valid subscription IDs.
-	if subscriptionID > math.MaxInt32 {
-		apiErr := gcplog.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id config")
-		apiErr.Code = ErrCodeConfigError
-		gcplog.WriteError(w, r, apiErr, h.logger)
-		return
-	}
-	expectedSubID := int32(subscriptionID) //nolint:gosec // Checked range above
 
-	if webhook.SubscriptionId != expectedSubID {
+	if webhook.SubscriptionId != subscriptionID {
 		apiErr := gcplog.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
 		apiErr.Code = ErrCodeInvalidSubscriptionID
 		gcplog.WriteError(w, r, apiErr, h.logger)
@@ -209,7 +200,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if webhook.ObjectType != generated.ObjectType_OBJECT_TYPE_ACTIVITY {
-		h.writeSuccess(w)
+		h.writeAcknowledged(w)
 		return
 	}
 
@@ -232,11 +223,22 @@ type successResponse struct {
 	Success bool `json:"success"`
 }
 
+// writeSuccess returns 201 Created when a message is published to Pub/Sub.
 func (h *Handler) writeSuccess(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(successResponse{Success: true}); err != nil {
 		h.logger.Error("Failed to encode success response", "error", err)
+	}
+}
+
+// writeAcknowledged returns 200 OK when a webhook is received but no action is taken
+// (e.g., non-activity events that are intentionally ignored).
+func (h *Handler) writeAcknowledged(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(successResponse{Success: true}); err != nil {
+		h.logger.Error("Failed to encode acknowledged response", "error", err)
 	}
 }
 

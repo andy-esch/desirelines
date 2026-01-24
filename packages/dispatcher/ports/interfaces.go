@@ -15,6 +15,7 @@ type Publisher interface {
 }
 
 // SecretProvider defines the outbound port for retrieving webhook secrets.
+// The subscription ID is returned as int32 to match the protobuf field type.
 type SecretProvider interface {
-	GetSecrets() (string, int, error)
+	GetSecrets() (verifyToken string, subscriptionID int32, err error)
 }

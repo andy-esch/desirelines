@@ -20,7 +20,7 @@ const (
 	DefaultReadHeaderTimeout = 10 * time.Second
 
 	// DefaultMaxRequestBodySize is the default maximum request body size (1MB)
-	DefaultMaxRequestBodySize = 1 << 20
+	DefaultMaxRequestBodySize int64 = 1 << 20
 )
 
 // Config holds non-secret configuration for the dispatcher.
