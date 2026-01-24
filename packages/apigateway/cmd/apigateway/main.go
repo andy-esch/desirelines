@@ -40,6 +40,7 @@ const (
 )
 
 func main() {
+	// Logger configured for GCP Cloud Logging. See packages/shared/gcplog/README.md
 	log := gcplog.New()
 	log.Info("Starting API Gateway")
 
