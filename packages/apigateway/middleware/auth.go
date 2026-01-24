@@ -20,6 +20,15 @@ type TokenVerifier interface {
 }
 
 // AuthMiddleware validates Firebase ID tokens and checks email authorization.
+//
+// Design note: This middleware intentionally combines authentication (token verification)
+// and authorization (email allowlist) because:
+//   - The authorization model is simple (email allowlist, not RBAC)
+//   - All protected routes require both auth + authz - no route needs auth without authz
+//   - The TokenVerifier interface already enables comprehensive testing
+//   - Splitting would add complexity (context passing) without concrete benefit
+//
+// If authorization needs grow complex (roles, resources, etc.), consider splitting.
 type AuthMiddleware struct {
 	verifier      TokenVerifier
 	allowedEmails map[string]bool

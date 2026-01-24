@@ -1,4 +1,8 @@
 // Package server provides HTTP server setup, middleware, and response helpers.
+//
+// This is a read-only API - all endpoints are GET requests. Request body size limits
+// are not needed because GET requests don't have bodies. Query parameters are validated
+// individually with length limits (see pkg/validate).
 package server
 
 import (

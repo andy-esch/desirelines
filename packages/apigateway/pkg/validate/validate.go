@@ -1,3 +1,15 @@
+// Package validate provides shared validation functions for the API Gateway.
+//
+// # Return Value Patterns
+//
+// Functions use two patterns based on their error reporting needs:
+//
+// Bool return (Year, Date): Single failure mode where the caller provides context-specific
+// error messages. For example, Date() returns bool so callers can distinguish "Invalid 'from'
+// date" from "Invalid 'to' date" - context only available at the call site.
+//
+// String return (Sport, Cursor, DateRange): Multiple failure modes or specific error details
+// that the function can provide. Returns "" on success, error message on failure.
 package validate
 
 import (
@@ -31,14 +43,11 @@ const (
 
 	// MaxDateLength is the maximum length of a date string (YYYY-MM-DD = 10).
 	MaxDateLength = 10
-
-	// MaxYearLength is the maximum length of a year string (YYYY = 4).
-	MaxYearLength = 4
 )
 
 // Year validates that the year string is a 4-digit number within valid bounds.
 func Year(s string) bool {
-	if len(s) != 4 || len(s) > MaxYearLength {
+	if len(s) != 4 {
 		return false
 	}
 	year, err := strconv.Atoi(s)

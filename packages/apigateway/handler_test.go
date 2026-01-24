@@ -209,9 +209,9 @@ func TestHandlerHealth(t *testing.T) {
 
 		router.ServeHTTP(w, req)
 
-		// Health check should still return 200 (overall service is healthy)
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d", w.Code)
+		// Health check should return 503 when database is unhealthy
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
 		}
 
 		var response HealthResponse
@@ -219,8 +219,8 @@ func TestHandlerHealth(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		if response.Status != health.StatusHealthy {
-			t.Errorf("expected status %q, got %q", health.StatusHealthy, response.Status)
+		if response.Status != health.StatusUnhealthy {
+			t.Errorf("expected status %q, got %q", health.StatusUnhealthy, response.Status)
 		}
 
 		if response.Database != health.StatusUnhealthy {

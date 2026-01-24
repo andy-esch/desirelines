@@ -3,10 +3,12 @@ package activities
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
@@ -15,7 +17,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// mockRepo implements repository.ActivityRepository for testing
+// mockRepo is a minimal mock for unit tests that don't exercise repository methods.
+// Tests here focus on validation logic (cursor decoding, year validation, etc.).
+// For handler integration tests with actual repository interactions, see the
+// more complete mockActivityRepository in handler_test.go (root package).
 type mockRepo struct {
 	sportMetrics *generated.SportMetrics
 	err          error
@@ -106,6 +111,21 @@ func TestDecodeCursor(t *testing.T) {
 			input:   base64.URLEncoding.EncodeToString([]byte("|123")),
 			wantErr: true,
 		},
+		{
+			name:    "zero ID rejected",
+			input:   base64.URLEncoding.EncodeToString([]byte("2025-01-01T12:00:00Z|0")),
+			wantErr: true,
+		},
+		{
+			name:    "negative ID rejected",
+			input:   base64.URLEncoding.EncodeToString([]byte("2025-01-01T12:00:00Z|-5")),
+			wantErr: true,
+		},
+		{
+			name:    "far future timestamp rejected",
+			input:   base64.URLEncoding.EncodeToString([]byte("2099-01-01T12:00:00Z|123")),
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -125,6 +145,35 @@ func TestDecodeCursor(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDecodeCursorClockTolerance verifies the 1-minute tolerance for future timestamps.
+// This tolerance exists to handle minor clock differences between Cloud Run instances,
+// though GCP NTP sync typically keeps drift to milliseconds.
+func TestDecodeCursorClockTolerance(t *testing.T) {
+	t.Run("timestamp 30 seconds in future is accepted", func(t *testing.T) {
+		futureTs := time.Now().Add(30 * time.Second).UTC().Format(time.RFC3339)
+		cursor := base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf("%s|123", futureTs)))
+
+		got, err := decodeCursor(cursor)
+		if err != nil {
+			t.Errorf("decodeCursor() should accept timestamp 30s in future, got error: %v", err)
+			return
+		}
+		if got.ID != 123 {
+			t.Errorf("decodeCursor() ID = %v, want 123", got.ID)
+		}
+	})
+
+	t.Run("timestamp 2 minutes in future is rejected", func(t *testing.T) {
+		futureTs := time.Now().Add(2 * time.Minute).UTC().Format(time.RFC3339)
+		cursor := base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf("%s|123", futureTs)))
+
+		_, err := decodeCursor(cursor)
+		if err == nil {
+			t.Error("decodeCursor() should reject timestamp 2 minutes in future")
+		}
+	})
 }
 
 func TestHandler_validateAndGetYear(t *testing.T) {
