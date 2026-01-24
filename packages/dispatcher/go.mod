@@ -4,6 +4,7 @@ go 1.25
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.0.0
+	github.com/andy-esch/desirelines/packages/shared v0.0.0
 	github.com/google/uuid v1.6.0
 )
 

@@ -14,11 +14,11 @@ import (
 	httpadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/http"
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/pubsub"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
-	"github.com/andy-esch/desirelines/packages/dispatcher/pkg/logger"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
 func main() {
-	log := logger.New()
+	log := gcplog.New()
 	log.Info("Starting dispatcher service")
 
 	ctx := context.Background()

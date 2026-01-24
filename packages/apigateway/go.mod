@@ -5,6 +5,7 @@ go 1.25
 require (
 	cloud.google.com/go/storage v1.56.0
 	firebase.google.com/go/v4 v4.18.0
+	github.com/andy-esch/desirelines/packages/shared v0.0.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-playground/validator/v10 v10.28.0
 	github.com/jackc/pgx/v5 v5.7.6

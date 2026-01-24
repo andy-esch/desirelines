@@ -3,5 +3,6 @@ go 1.25.1
 use (
 	./packages/apigateway
 	./packages/dispatcher
-  ./scripts/ops/backfills
+	./packages/shared
+	./scripts/ops/backfills
 )

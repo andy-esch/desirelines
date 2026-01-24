@@ -1,4 +1,4 @@
-package logger
+package gcplog
 
 import (
 	"bytes"
@@ -61,9 +61,7 @@ func (h *LogCaptureHandler) WithGroup(name string) slog.Handler {
 	return h
 }
 
-// NewCaptureLogger returns a logger and a slice pointer that will be populated with logs.
-// Note: This implementation uses a custom handler for inspection.
-// For simple "did it log" assertions, checking the returned slice is enough.
+// NewCaptureLogger returns a logger and a handler that captures logs for inspection.
 func NewCaptureLogger() (*slog.Logger, *LogCaptureHandler) {
 	handler := &LogCaptureHandler{}
 	return slog.New(handler), handler

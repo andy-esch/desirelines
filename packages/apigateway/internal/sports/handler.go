@@ -8,7 +8,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
-	"github.com/andy-esch/desirelines/packages/apigateway/pkg/apierrors"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
 // Handler holds dependencies for the sport config handler.
@@ -31,24 +31,24 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 	data := h.configProvider()
 	if len(data) == 0 {
 		h.logger.Error("Embedded sport config is empty")
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to load sport config",
 			"Embedded sport config is not available",
 		)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	// Validate it's valid JSON without unmarshaling
 	if !json.Valid(data) {
 		h.logger.Error("Embedded sport config is invalid JSON")
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Invalid sport config",
 			"JSON validation failed",
 		)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 

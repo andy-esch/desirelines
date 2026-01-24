@@ -27,8 +27,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/sports"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
-	"github.com/andy-esch/desirelines/packages/apigateway/pkg/logger"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
 // Server timeout defaults (can be overridden via environment variables).
@@ -40,7 +40,7 @@ const (
 )
 
 func main() {
-	log := logger.New()
+	log := gcplog.New()
 	log.Info("Starting API Gateway")
 
 	ctx := context.Background()

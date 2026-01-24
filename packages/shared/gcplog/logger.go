@@ -1,6 +1,6 @@
-// Package logger provides structured logging for the API Gateway using Go's slog package.
+// Package gcplog provides structured logging for Go services using slog.
 // It configures logging to output JSON format compatible with Google Cloud Logging.
-package logger
+package gcplog
 
 import (
 	"io"

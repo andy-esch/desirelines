@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/env"
-	"github.com/andy-esch/desirelines/packages/dispatcher/pkg/logger"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
 func TestSecretCache_GetSecrets(t *testing.T) {
@@ -33,7 +33,7 @@ func TestSecretCache_GetSecrets(t *testing.T) {
 	writeSecretsFile(t, secretsPath, initialSecrets)
 
 	// Create cache with short TTL for testing
-	log := logger.NewNoOpLogger()
+	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache(secretsPath, 100*time.Millisecond, log)
 
 	// First call should load from file
@@ -106,7 +106,7 @@ func TestSecretCache_FileNotFound_EnvFallback(t *testing.T) {
 		}
 	}()
 
-	log := logger.NewNoOpLogger()
+	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache("/nonexistent/path/secrets.json", time.Minute, log)
 
 	verifyToken, subscriptionID, err := cache.GetSecrets()
@@ -149,7 +149,7 @@ func TestSecretCache_InsecurePermissions(t *testing.T) {
 		t.Fatalf("Failed to write secrets file: %v", err)
 	}
 
-	log := logger.NewNoOpLogger()
+	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache(secretsPath, time.Minute, log)
 
 	_, _, err = cache.GetSecrets()
@@ -168,7 +168,7 @@ func TestSecretCache_InvalidSubscriptionIDFromEnv(t *testing.T) {
 		}
 	}()
 
-	log := logger.NewNoOpLogger()
+	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache("/nonexistent/path/secrets.json", time.Minute, log)
 
 	_, _, err := cache.GetSecrets()
@@ -196,7 +196,7 @@ func TestSecretCache_InvalidJSON(t *testing.T) {
 		t.Fatalf("Failed to write invalid JSON file: %v", err)
 	}
 
-	log := logger.NewNoOpLogger()
+	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache(secretsPath, time.Minute, log)
 
 	_, _, err = cache.GetSecrets()
@@ -225,7 +225,7 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 	}
 	writeSecretsFile(t, secretsPath, initialSecrets)
 
-	log := logger.NewNoOpLogger()
+	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache(secretsPath, 100*time.Millisecond, log)
 
 	// Load initial values
@@ -275,7 +275,7 @@ func TestSecretCache_ContentHashDetection(t *testing.T) {
 	}
 	writeSecretsFile(t, secretsPath, initialSecrets)
 
-	log := logger.NewNoOpLogger()
+	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache(secretsPath, 50*time.Millisecond, log) // Short TTL for testing
 
 	// Load initial values

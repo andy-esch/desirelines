@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/andy-esch/desirelines/packages/apigateway/pkg/apierrors"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
 // validConfigJSON is a minimal but realistic sport config matching the actual schema.
@@ -128,7 +128,7 @@ func TestHandler_HandleConfig(t *testing.T) {
 			}
 
 			if tt.checkError {
-				var errResp apierrors.ErrorResponse
+				var errResp gcplog.ErrorResponse
 				if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
 					t.Fatalf("failed to unmarshal error response: %v", err)
 				}

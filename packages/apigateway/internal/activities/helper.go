@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
-	"github.com/andy-esch/desirelines/packages/apigateway/pkg/apierrors"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -25,8 +25,8 @@ func (h *Handler) respondProtobuf(w http.ResponseWriter, r *http.Request, msg pr
 	data, err := marshaler.Marshal(msg)
 	if err != nil {
 		h.logger.Error("Error marshaling protobuf response", "error", err)
-		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, "Internal server error")
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, "Internal server error")
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 

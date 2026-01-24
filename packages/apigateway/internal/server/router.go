@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -44,7 +44,7 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	// Essential middleware
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
-	r.Use(middleware.Logger(logger))
+	r.Use(gcplog.HTTPRequestLogger(logger))
 	r.Use(chiMiddleware.Recoverer)
 
 	// CORS middleware for all routes

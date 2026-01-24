@@ -1,5 +1,4 @@
-// Package apierrors provides standardized error handling for the API Gateway.
-package apierrors
+package gcplog
 
 import (
 	"encoding/json"

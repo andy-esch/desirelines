@@ -10,10 +10,9 @@ import (
 	"testing"
 
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
-	"github.com/andy-esch/desirelines/packages/dispatcher/pkg/apierrors"
-	"github.com/andy-esch/desirelines/packages/dispatcher/pkg/logger"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
 // Test constants for webhook event data.
@@ -27,8 +26,8 @@ const (
 
 // parseErrorResponse parses a JSON error response body.
 // Returns nil if parsing fails (e.g., for non-JSON responses).
-func parseErrorResponse(body string) *apierrors.ErrorResponse {
-	var resp apierrors.ErrorResponse
+func parseErrorResponse(body string) *gcplog.ErrorResponse {
+	var resp gcplog.ErrorResponse
 	if err := json.Unmarshal([]byte(body), &resp); err != nil {
 		return nil
 	}
@@ -98,7 +97,7 @@ func TestHandler_HandleVerification(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := logger.NewNoOpLogger()
+			log := gcplog.NewNoOpLogger()
 			mockSecrets := &portstest.MockSecretProvider{
 				VerifyToken: tt.mockVerify,
 				Err:         tt.mockVerifyErr,
@@ -261,7 +260,7 @@ type handleEventTestCase struct {
 }
 
 func runHandleEventTest(t *testing.T, tt handleEventTestCase) {
-	log := logger.NewNoOpLogger()
+	log := gcplog.NewNoOpLogger()
 	mockSecrets := &portstest.MockSecretProvider{
 		SubscriptionID: tt.mockSubID,
 		Err:            tt.mockSubErr,
@@ -330,7 +329,7 @@ func runHandleEventTest(t *testing.T, tt handleEventTestCase) {
 
 // Test health endpoints
 func TestHandler_Health(t *testing.T) {
-	log := logger.NewNoOpLogger()
+	log := gcplog.NewNoOpLogger()
 	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockSecretProvider{}, log, nil)
 	router := handler.RegisterRoutes()
 
@@ -370,7 +369,7 @@ func TestHandler_Health(t *testing.T) {
 // Test Close
 func TestHandler_Close(t *testing.T) {
 	mockPublisher := &portstest.MockPublisher{}
-	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{}, logger.NewNoOpLogger(), nil)
+	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{}, gcplog.NewNoOpLogger(), nil)
 
 	err := handler.Close(context.Background())
 	if err != nil {

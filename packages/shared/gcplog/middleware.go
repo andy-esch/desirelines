@@ -1,4 +1,4 @@
-package middleware
+package gcplog
 
 import (
 	"log/slog"
@@ -8,8 +8,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-// Logger is a middleware that logs structured request information using slog.
-func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
+// HTTPRequestLogger is a middleware that logs structured request information using slog.
+func HTTPRequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
