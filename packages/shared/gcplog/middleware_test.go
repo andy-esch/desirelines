@@ -63,7 +63,8 @@ func TestHTTPRequestLogger_LogsRequest(t *testing.T) {
 	if httpReq["requestUrl"] != "/test" {
 		t.Errorf("expected requestUrl /test, got %v", httpReq["requestUrl"])
 	}
-	if httpReq["status"] != 200 {
+	// slog stores integers as int64
+	if httpReq["status"] != int64(200) {
 		t.Errorf("expected status 200, got %v", httpReq["status"])
 	}
 	if httpReq["userAgent"] != "test-agent" {
@@ -147,11 +148,11 @@ func TestHTTPRequestLogger_CapturesBytesWritten(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected httpRequest group, got %T", logs[0].Attrs["httpRequest"])
 	}
-	responseSize, ok := httpReq["responseSize"].(int)
+	responseSize, ok := httpReq["responseSize"].(int64)
 	if !ok {
-		t.Fatalf("expected responseSize to be int, got %T", httpReq["responseSize"])
+		t.Fatalf("expected responseSize to be int64, got %T", httpReq["responseSize"])
 	}
-	if responseSize != len(responseBody) {
+	if responseSize != int64(len(responseBody)) {
 		t.Errorf("expected responseSize %d, got %d", len(responseBody), responseSize)
 	}
 }
