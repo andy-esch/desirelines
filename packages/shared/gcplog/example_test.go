@@ -2,6 +2,7 @@ package gcplog_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -72,7 +73,9 @@ func ExampleHTTPRequestLogger() {
 	r.Use(gcplog.HTTPRequestLogger(logger))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			panic(err) // Should not happen in example
+		}
 	})
 
 	// Each request will be logged with httpRequest field in GCP format:
@@ -104,7 +107,9 @@ func ExampleWithCloudTraceContext() {
 			// tc.TraceID, tc.SpanID, tc.TraceSampled available
 			_ = tc
 		}
-		_, _ = w.Write([]byte("[]"))
+		if _, err := w.Write([]byte("[]")); err != nil {
+			panic(err) // Should not happen in example
+		}
 	})
 
 	// Requests with X-Cloud-Trace-Context or traceparent headers will have

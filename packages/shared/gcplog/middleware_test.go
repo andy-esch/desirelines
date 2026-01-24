@@ -17,7 +17,9 @@ func TestHTTPRequestLogger_LogsRequest(t *testing.T) {
 	// Create a simple handler that returns 200
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	})
 
 	// Build the middleware chain
@@ -125,7 +127,9 @@ func TestHTTPRequestLogger_CapturesBytesWritten(t *testing.T) {
 	responseBody := "Hello, World!"
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(responseBody))
+		if _, err := w.Write([]byte(responseBody)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	})
 
 	r := chi.NewRouter()

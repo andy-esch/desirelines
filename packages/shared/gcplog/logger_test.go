@@ -2,6 +2,7 @@ package gcplog
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"testing"
