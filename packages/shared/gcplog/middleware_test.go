@@ -1,6 +1,7 @@
 package gcplog
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -50,17 +51,23 @@ func TestHTTPRequestLogger_LogsRequest(t *testing.T) {
 	if log.Level != slog.LevelInfo {
 		t.Errorf("expected INFO level for 200 status, got %v", log.Level)
 	}
-	if log.Attrs["method"] != "GET" {
-		t.Errorf("expected method GET, got %v", log.Attrs["method"])
+
+	// Check httpRequest nested structure (GCP format)
+	httpReq, ok := log.Attrs["httpRequest"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected httpRequest group, got %T", log.Attrs["httpRequest"])
 	}
-	if log.Attrs["path"] != "/test" {
-		t.Errorf("expected path /test, got %v", log.Attrs["path"])
+	if httpReq["requestMethod"] != "GET" {
+		t.Errorf("expected requestMethod GET, got %v", httpReq["requestMethod"])
 	}
-	if log.Attrs["status"] != 200 {
-		t.Errorf("expected status 200, got %v", log.Attrs["status"])
+	if httpReq["requestUrl"] != "/test" {
+		t.Errorf("expected requestUrl /test, got %v", httpReq["requestUrl"])
 	}
-	if log.Attrs["user_agent"] != "test-agent" {
-		t.Errorf("expected user_agent test-agent, got %v", log.Attrs["user_agent"])
+	if httpReq["status"] != 200 {
+		t.Errorf("expected status 200, got %v", httpReq["status"])
+	}
+	if httpReq["userAgent"] != "test-agent" {
+		t.Errorf("expected userAgent test-agent, got %v", httpReq["userAgent"])
 	}
 }
 
@@ -135,12 +142,17 @@ func TestHTTPRequestLogger_CapturesBytesWritten(t *testing.T) {
 		t.Fatalf("expected 1 log entry, got %d", len(logs))
 	}
 
-	bytes, ok := logs[0].Attrs["bytes"].(int)
+	// Check responseSize in httpRequest group
+	httpReq, ok := logs[0].Attrs["httpRequest"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected bytes to be int, got %T", logs[0].Attrs["bytes"])
+		t.Fatalf("expected httpRequest group, got %T", logs[0].Attrs["httpRequest"])
 	}
-	if bytes != len(responseBody) {
-		t.Errorf("expected bytes %d, got %d", len(responseBody), bytes)
+	responseSize, ok := httpReq["responseSize"].(int)
+	if !ok {
+		t.Fatalf("expected responseSize to be int, got %T", httpReq["responseSize"])
+	}
+	if responseSize != len(responseBody) {
+		t.Errorf("expected responseSize %d, got %d", len(responseBody), responseSize)
 	}
 }
 
@@ -172,5 +184,238 @@ func TestHTTPRequestLogger_IncludesRequestID(t *testing.T) {
 	}
 	if requestID == "" {
 		t.Error("expected non-empty request_id")
+	}
+}
+
+func TestHTTPRequestLogger_IncludesLatency(t *testing.T) {
+	logger, handler := NewCaptureLogger()
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	r := chi.NewRouter()
+	r.Use(HTTPRequestLogger(logger))
+	r.Get("/", nextHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	logs := handler.Logs()
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(logs))
+	}
+
+	httpReq, ok := logs[0].Attrs["httpRequest"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected httpRequest group, got %T", logs[0].Attrs["httpRequest"])
+	}
+
+	latency, ok := httpReq["latency"].(string)
+	if !ok {
+		t.Fatalf("expected latency to be string, got %T", httpReq["latency"])
+	}
+	if latency == "" {
+		t.Error("expected non-empty latency")
+	}
+	// Should end with 's' for seconds format
+	if latency[len(latency)-1] != 's' {
+		t.Errorf("expected latency to end with 's', got %q", latency)
+	}
+}
+
+func TestWithCloudTraceContext_GCPHeader(t *testing.T) {
+	tests := []struct {
+		name           string
+		header         string
+		expectedTrace  string
+		expectedSpan   string
+		expectedSample bool
+	}{
+		{
+			name:           "full header with sampling",
+			header:         "105445aa7843bc8bf206b120001000/1;o=1",
+			expectedTrace:  "105445aa7843bc8bf206b120001000",
+			expectedSpan:   "1",
+			expectedSample: true,
+		},
+		{
+			name:           "header without sampling",
+			header:         "105445aa7843bc8bf206b120001000/2;o=0",
+			expectedTrace:  "105445aa7843bc8bf206b120001000",
+			expectedSpan:   "2",
+			expectedSample: false,
+		},
+		{
+			name:           "header without span",
+			header:         "105445aa7843bc8bf206b120001000",
+			expectedTrace:  "105445aa7843bc8bf206b120001000",
+			expectedSpan:   "",
+			expectedSample: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedTC *TraceContext
+
+			handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedTC = GetTraceContext(r.Context())
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("X-Cloud-Trace-Context", tt.header)
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if capturedTC == nil {
+				t.Fatal("expected trace context to be captured")
+			}
+			// Without project ID env, trace is just the raw ID
+			if capturedTC.TraceID != tt.expectedTrace {
+				t.Errorf("traceID = %q, want %q", capturedTC.TraceID, tt.expectedTrace)
+			}
+			if capturedTC.SpanID != tt.expectedSpan {
+				t.Errorf("spanID = %q, want %q", capturedTC.SpanID, tt.expectedSpan)
+			}
+			if capturedTC.TraceSampled != tt.expectedSample {
+				t.Errorf("traceSampled = %v, want %v", capturedTC.TraceSampled, tt.expectedSample)
+			}
+		})
+	}
+}
+
+func TestWithCloudTraceContext_W3CTraceparent(t *testing.T) {
+	tests := []struct {
+		name           string
+		header         string
+		expectedTrace  string
+		expectedSpan   string
+		expectedSample bool
+	}{
+		{
+			name:           "sampled trace",
+			header:         "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+			expectedTrace:  "0af7651916cd43dd8448eb211c80319c",
+			expectedSpan:   "b7ad6b7169203331",
+			expectedSample: true,
+		},
+		{
+			name:           "not sampled trace",
+			header:         "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00",
+			expectedTrace:  "0af7651916cd43dd8448eb211c80319c",
+			expectedSpan:   "b7ad6b7169203331",
+			expectedSample: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedTC *TraceContext
+
+			handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedTC = GetTraceContext(r.Context())
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("traceparent", tt.header)
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if capturedTC == nil {
+				t.Fatal("expected trace context to be captured")
+			}
+			if capturedTC.TraceID != tt.expectedTrace {
+				t.Errorf("traceID = %q, want %q", capturedTC.TraceID, tt.expectedTrace)
+			}
+			if capturedTC.SpanID != tt.expectedSpan {
+				t.Errorf("spanID = %q, want %q", capturedTC.SpanID, tt.expectedSpan)
+			}
+			if capturedTC.TraceSampled != tt.expectedSample {
+				t.Errorf("traceSampled = %v, want %v", capturedTC.TraceSampled, tt.expectedSample)
+			}
+		})
+	}
+}
+
+func TestWithCloudTraceContext_NoHeader(t *testing.T) {
+	var capturedTC *TraceContext
+
+	handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTC = GetTraceContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if capturedTC != nil {
+		t.Error("expected no trace context when header is missing")
+	}
+}
+
+func TestGetTraceContext_NilContext(t *testing.T) {
+	tc := GetTraceContext(context.Background())
+	if tc != nil {
+		t.Error("expected nil trace context for empty context")
+	}
+}
+
+func TestHTTPRequestLogger_IncludesTraceContext(t *testing.T) {
+	logger, handler := NewCaptureLogger()
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	r := chi.NewRouter()
+	r.Use(WithCloudTraceContext)
+	r.Use(HTTPRequestLogger(logger))
+	r.Get("/", nextHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Cloud-Trace-Context", "abc123/456;o=1")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	logs := handler.Logs()
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(logs))
+	}
+
+	log := logs[0]
+
+	// Check trace fields are present
+	trace, ok := log.Attrs["logging.googleapis.com/trace"].(string)
+	if !ok {
+		t.Fatalf("expected trace to be string, got %T", log.Attrs["logging.googleapis.com/trace"])
+	}
+	if trace != "abc123" {
+		t.Errorf("trace = %q, want %q", trace, "abc123")
+	}
+
+	spanID, ok := log.Attrs["logging.googleapis.com/spanId"].(string)
+	if !ok {
+		t.Fatalf("expected spanId to be string, got %T", log.Attrs["logging.googleapis.com/spanId"])
+	}
+	if spanID != "456" {
+		t.Errorf("spanId = %q, want %q", spanID, "456")
+	}
+
+	sampled, ok := log.Attrs["logging.googleapis.com/trace_sampled"].(bool)
+	if !ok {
+		t.Fatalf("expected trace_sampled to be bool, got %T", log.Attrs["logging.googleapis.com/trace_sampled"])
+	}
+	if !sampled {
+		t.Error("expected trace_sampled to be true")
 	}
 }

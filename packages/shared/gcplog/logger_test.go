@@ -161,10 +161,10 @@ func TestNewWithOptions_AddSource(t *testing.T) {
 		t.Fatalf("failed to parse log output: %v", err)
 	}
 
-	// Check that source info is present
-	source, ok := output["source"].(map[string]any)
+	// Check that source info is present with GCP field name
+	source, ok := output["logging.googleapis.com/sourceLocation"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected source field as object, got %T", output["source"])
+		t.Fatalf("expected logging.googleapis.com/sourceLocation field as object, got %T", output["logging.googleapis.com/sourceLocation"])
 	}
 	if source["file"] == nil {
 		t.Error("expected source.file to be present")
@@ -188,5 +188,62 @@ func TestNewWithLevel_Convenience(t *testing.T) {
 
 	if buf.Len() == 0 {
 		t.Error("expected DEBUG message when level is DEBUG")
+	}
+}
+
+func TestCriticalSeverityLevel(t *testing.T) {
+	var buf bytes.Buffer
+	logger := NewWithOptions(Options{
+		Writer: &buf,
+	})
+
+	// Use the custom CRITICAL level
+	logger.Log(nil, LevelCritical, "system crash")
+
+	var output map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
+		t.Fatalf("failed to parse log output: %v", err)
+	}
+
+	if output["severity"] != "CRITICAL" {
+		t.Errorf("severity = %v, want CRITICAL", output["severity"])
+	}
+	if output["message"] != "system crash" {
+		t.Errorf("message = %v, want %q", output["message"], "system crash")
+	}
+}
+
+func TestAllSeverityLevels(t *testing.T) {
+	tests := []struct {
+		name     string
+		level    slog.Level
+		expected string
+	}{
+		{"Debug", slog.LevelDebug, "DEBUG"},
+		{"Info", slog.LevelInfo, "INFO"},
+		{"Warn", slog.LevelWarn, "WARNING"},
+		{"Error", slog.LevelError, "ERROR"},
+		{"Critical", LevelCritical, "CRITICAL"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			logger := NewWithOptions(Options{
+				Level:  slog.LevelDebug, // Allow all levels
+				Writer: &buf,
+			})
+
+			logger.Log(nil, tt.level, "test")
+
+			var output map[string]any
+			if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
+				t.Fatalf("failed to parse log output: %v", err)
+			}
+
+			if output["severity"] != tt.expected {
+				t.Errorf("severity = %v, want %q", output["severity"], tt.expected)
+			}
+		})
 	}
 }

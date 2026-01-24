@@ -39,7 +39,7 @@ func (h *LogCaptureHandler) Handle(_ context.Context, r slog.Record) error {
 
 	attrs := make(map[string]any)
 	r.Attrs(func(a slog.Attr) bool {
-		attrs[a.Key] = a.Value.Any()
+		attrs[a.Key] = flattenAttr(a)
 		return true
 	})
 
@@ -49,6 +49,18 @@ func (h *LogCaptureHandler) Handle(_ context.Context, r slog.Record) error {
 		Attrs:   attrs,
 	})
 	return nil
+}
+
+// flattenAttr converts an attribute to its value, handling groups specially.
+func flattenAttr(a slog.Attr) any {
+	if a.Value.Kind() == slog.KindGroup {
+		group := make(map[string]any)
+		for _, ga := range a.Value.Group() {
+			group[ga.Key] = flattenAttr(ga)
+		}
+		return group
+	}
+	return a.Value.Any()
 }
 
 // WithAttrs returns a new handler with attributes (not implemented for simple capture).

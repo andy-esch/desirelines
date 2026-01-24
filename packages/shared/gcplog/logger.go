@@ -8,6 +8,10 @@ import (
 	"os"
 )
 
+// LevelCritical is a custom log level for critical errors (system crashes, etc.).
+// This maps to GCP's CRITICAL severity, which is higher than ERROR.
+const LevelCritical = slog.Level(12)
+
 // Options configures the GCP logger behavior.
 type Options struct {
 	// Level sets the minimum log level. Defaults to slog.LevelInfo.
@@ -63,17 +67,21 @@ func NewWithOptions(opts Options) *slog.Logger {
 					return a
 				}
 				switch {
-				case level < slog.LevelInfo:
-					a.Value = slog.StringValue("DEBUG")
-				case level < slog.LevelWarn:
-					a.Value = slog.StringValue("INFO")
-				case level < slog.LevelError:
-					a.Value = slog.StringValue("WARNING")
-				default:
+				case level >= LevelCritical:
+					a.Value = slog.StringValue("CRITICAL")
+				case level >= slog.LevelError:
 					a.Value = slog.StringValue("ERROR")
+				case level >= slog.LevelWarn:
+					a.Value = slog.StringValue("WARNING")
+				case level >= slog.LevelInfo:
+					a.Value = slog.StringValue("INFO")
+				default:
+					a.Value = slog.StringValue("DEBUG")
 				}
 			case slog.TimeKey:
 				a.Key = "timestamp"
+			case slog.SourceKey:
+				a.Key = "logging.googleapis.com/sourceLocation"
 			}
 			return a
 		},
