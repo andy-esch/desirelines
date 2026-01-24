@@ -6,22 +6,26 @@ import (
 	"time"
 )
 
+// unsetEnv unsets an environment variable and restores it after the test.
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	prev, existed := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("Failed to unset env var %s: %v", key, err)
+	}
+	t.Cleanup(func() {
+		if existed {
+			if err := os.Setenv(key, prev); err != nil {
+				t.Fatalf("Failed to restore env var %s: %v", key, err)
+			}
+		}
+	})
+}
+
 func TestLoadConfig_EnvVars(t *testing.T) {
-	// Set environment variables
-	if err := os.Setenv("GCP_PROJECT_ID", "test-project"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	if err := os.Setenv("GCP_PUBSUB_TOPIC", "test-topic"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	if err := os.Setenv("LOG_LEVEL", "DEBUG"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	defer cleanupEnv(t,
-		"GCP_PROJECT_ID",
-		"GCP_PUBSUB_TOPIC",
-		"LOG_LEVEL",
-	)
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("LOG_LEVEL", "DEBUG")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -40,28 +44,20 @@ func TestLoadConfig_EnvVars(t *testing.T) {
 }
 
 func TestLoadConfig_DefaultValues(t *testing.T) {
-	// Clear any environment variables
-	cleanupEnv(t,
-		"GCP_PROJECT_ID",
-		"GCP_PUBSUB_TOPIC",
-		"LOG_LEVEL",
-		"HTTP_READ_TIMEOUT",
-		"HTTP_WRITE_TIMEOUT",
-		"HTTP_READ_HEADER_TIMEOUT",
-		"MAX_REQUEST_BODY_SIZE",
-	)
+	// Clear optional env vars to test defaults
+	unsetEnv(t, "LOG_LEVEL")
+	unsetEnv(t, "HTTP_READ_TIMEOUT")
+	unsetEnv(t, "HTTP_WRITE_TIMEOUT")
+	unsetEnv(t, "HTTP_READ_HEADER_TIMEOUT")
+	unsetEnv(t, "MAX_REQUEST_BODY_SIZE")
+
+	// Set required env vars
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
 
 	cfg, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
-	}
-
-	// GCP values should be empty (no defaults)
-	if cfg.GCPProjectID != "" {
-		t.Errorf("Expected empty GCP project, got '%s'", cfg.GCPProjectID)
-	}
-	if cfg.GCPPubSubTopicID != "" {
-		t.Errorf("Expected empty GCP topic, got '%s'", cfg.GCPPubSubTopicID)
 	}
 
 	// LogLevel should have default value
@@ -86,25 +82,39 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_MissingGCPProjectID(t *testing.T) {
+	unsetEnv(t, "GCP_PROJECT_ID")
+	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Error("Expected error for missing GCP_PROJECT_ID, got nil")
+	}
+	if err != nil && err.Error() != "required environment variable GCP_PROJECT_ID is not set" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestLoadConfig_MissingGCPPubSubTopic(t *testing.T) {
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	unsetEnv(t, "GCP_PUBSUB_TOPIC")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Error("Expected error for missing GCP_PUBSUB_TOPIC, got nil")
+	}
+	if err != nil && err.Error() != "required environment variable GCP_PUBSUB_TOPIC is not set" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
 func TestLoadConfig_CustomTimeouts(t *testing.T) {
-	if err := os.Setenv("HTTP_READ_TIMEOUT", "45s"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	if err := os.Setenv("HTTP_WRITE_TIMEOUT", "1m"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	if err := os.Setenv("HTTP_READ_HEADER_TIMEOUT", "15s"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	if err := os.Setenv("MAX_REQUEST_BODY_SIZE", "2097152"); err != nil { // 2MB
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	defer cleanupEnv(t,
-		"HTTP_READ_TIMEOUT",
-		"HTTP_WRITE_TIMEOUT",
-		"HTTP_READ_HEADER_TIMEOUT",
-		"MAX_REQUEST_BODY_SIZE",
-	)
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("HTTP_READ_TIMEOUT", "45s")
+	t.Setenv("HTTP_WRITE_TIMEOUT", "1m")
+	t.Setenv("HTTP_READ_HEADER_TIMEOUT", "15s")
+	t.Setenv("MAX_REQUEST_BODY_SIZE", "2097152") // 2MB
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -126,10 +136,9 @@ func TestLoadConfig_CustomTimeouts(t *testing.T) {
 }
 
 func TestLoadConfig_InvalidTimeout(t *testing.T) {
-	if err := os.Setenv("HTTP_READ_TIMEOUT", "invalid"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	defer cleanupEnv(t, "HTTP_READ_TIMEOUT")
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("HTTP_READ_TIMEOUT", "invalid")
 
 	_, err := LoadConfig()
 	if err == nil {
@@ -138,10 +147,9 @@ func TestLoadConfig_InvalidTimeout(t *testing.T) {
 }
 
 func TestLoadConfig_NegativeTimeout(t *testing.T) {
-	if err := os.Setenv("HTTP_READ_TIMEOUT", "-5s"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	defer cleanupEnv(t, "HTTP_READ_TIMEOUT")
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("HTTP_READ_TIMEOUT", "-5s")
 
 	_, err := LoadConfig()
 	if err == nil {
@@ -150,10 +158,9 @@ func TestLoadConfig_NegativeTimeout(t *testing.T) {
 }
 
 func TestLoadConfig_InvalidBodySize(t *testing.T) {
-	if err := os.Setenv("MAX_REQUEST_BODY_SIZE", "not-a-number"); err != nil {
-		t.Fatalf("Failed to set env var: %v", err)
-	}
-	defer cleanupEnv(t, "MAX_REQUEST_BODY_SIZE")
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("MAX_REQUEST_BODY_SIZE", "not-a-number")
 
 	_, err := LoadConfig()
 	if err == nil {
@@ -206,14 +213,11 @@ func TestGetEnvOrDefault(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up before and after
-			cleanupEnv(t, tt.key)
-			defer cleanupEnv(t, tt.key)
+			// Ensure clean state
+			unsetEnv(t, tt.key)
 
 			if tt.setEnv {
-				if err := os.Setenv(tt.key, tt.envValue); err != nil {
-					t.Fatalf("Failed to set env var: %v", err)
-				}
+				t.Setenv(tt.key, tt.envValue)
 			}
 
 			result := GetEnvOrDefault(tt.key, tt.defaultValue)
@@ -221,16 +225,5 @@ func TestGetEnvOrDefault(t *testing.T) {
 				t.Errorf("GetEnvOrDefault() = '%s', expected '%s'", result, tt.expected)
 			}
 		})
-	}
-}
-
-// Helper function to clean up environment variables
-func cleanupEnv(t *testing.T, keys ...string) {
-	t.Helper()
-	for _, key := range keys {
-		if err := os.Unsetenv(key); err != nil {
-			// Log the error but don't fail the test, as cleanup is best-effort
-			t.Logf("warn: failed to unset environment variable %q: %v", key, err)
-		}
 	}
 }

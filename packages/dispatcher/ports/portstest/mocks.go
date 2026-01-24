@@ -29,11 +29,11 @@ func (m *MockPublisher) Close(ctx context.Context) error {
 // MockSecretProvider is a mock implementation of SecretProvider for testing.
 type MockSecretProvider struct {
 	VerifyToken    string
-	SubscriptionID int
+	SubscriptionID int32
 	Err            error
 }
 
 // GetSecrets implements the SecretProvider interface.
-func (m *MockSecretProvider) GetSecrets() (string, int, error) {
+func (m *MockSecretProvider) GetSecrets() (string, int32, error) {
 	return m.VerifyToken, m.SubscriptionID, m.Err
 }

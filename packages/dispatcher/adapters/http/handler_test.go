@@ -224,7 +224,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 				SubscriptionID: testSubscriptionID,
 			},
 			mockSubID:      testSubscriptionID,
-			expectedStatus: http.StatusCreated,
+			expectedStatus: http.StatusOK, // 200 OK for acknowledged but ignored events
 			expectedBody:   "success",
 		},
 		{
@@ -251,7 +251,7 @@ type handleEventTestCase struct {
 	method         string
 	contentType    string
 	payload        any
-	mockSubID      int
+	mockSubID      int32
 	mockSubErr     error
 	publishErr     error
 	expectedStatus int

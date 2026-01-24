@@ -20,7 +20,7 @@ const (
 	DefaultReadHeaderTimeout = 10 * time.Second
 
 	// DefaultMaxRequestBodySize is the default maximum request body size (1MB)
-	DefaultMaxRequestBodySize = 1 << 20
+	DefaultMaxRequestBodySize int64 = 1 << 20
 )
 
 // Config holds non-secret configuration for the dispatcher.
@@ -38,7 +38,19 @@ type Config struct {
 
 // LoadConfig loads non-secret configuration from environment variables.
 // Secrets are loaded separately by SecretCache for caching and hot-reload support.
+// Returns an error if required configuration is missing.
 func LoadConfig() (*Config, error) {
+	// Validate required environment variables first (fail fast)
+	gcpProjectID := os.Getenv("GCP_PROJECT_ID")
+	if gcpProjectID == "" {
+		return nil, fmt.Errorf("required environment variable GCP_PROJECT_ID is not set")
+	}
+
+	gcpPubSubTopicID := os.Getenv("GCP_PUBSUB_TOPIC")
+	if gcpPubSubTopicID == "" {
+		return nil, fmt.Errorf("required environment variable GCP_PUBSUB_TOPIC is not set")
+	}
+
 	readTimeout, err := parseDurationEnv("HTTP_READ_TIMEOUT", DefaultReadTimeout)
 	if err != nil {
 		return nil, err
@@ -60,8 +72,8 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return &Config{
-		GCPProjectID:       GetEnvOrDefault("GCP_PROJECT_ID", ""),
-		GCPPubSubTopicID:   GetEnvOrDefault("GCP_PUBSUB_TOPIC", ""),
+		GCPProjectID:       gcpProjectID,
+		GCPPubSubTopicID:   gcpPubSubTopicID,
 		LogLevel:           GetEnvOrDefault("LOG_LEVEL", "INFO"),
 		ReadTimeout:        readTimeout,
 		WriteTimeout:       writeTimeout,

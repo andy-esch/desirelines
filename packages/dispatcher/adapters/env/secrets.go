@@ -40,7 +40,7 @@ type SecretCache struct {
 	secretsPath    string
 	verifyToken    string
 	ttl            time.Duration
-	subscriptionID int
+	subscriptionID int32
 	mu             sync.RWMutex
 	logger         *slog.Logger
 }
@@ -63,7 +63,7 @@ func NewDefaultSecretCache(logger *slog.Logger) *SecretCache {
 }
 
 // GetSecrets returns cached secrets or reloads them if TTL expired or content changed.
-func (c *SecretCache) GetSecrets() (string, int, error) {
+func (c *SecretCache) GetSecrets() (string, int32, error) {
 	c.mu.RLock()
 
 	// Fast path: TTL not expired
@@ -180,9 +180,13 @@ func (c *SecretCache) loadSecrets() error {
 		return decodeErr
 	}
 
-	// Direct field access with compile-time type safety
+	// Validate subscription ID is within int32 bounds (proto uses int32)
+	if secrets.WebhookSubscriptionID < 0 || secrets.WebhookSubscriptionID > math.MaxInt32 {
+		return fmt.Errorf("webhook_subscription_id must be between 0 and %d", math.MaxInt32)
+	}
+
 	c.verifyToken = secrets.WebhookVerifyToken
-	c.subscriptionID = secrets.WebhookSubscriptionID
+	c.subscriptionID = int32(secrets.WebhookSubscriptionID) //nolint:gosec // Validated above
 
 	return nil
 }
@@ -203,6 +207,6 @@ func (c *SecretCache) loadSecretsFromEnv() error {
 		return fmt.Errorf("STRAVA_WEBHOOK_SUBSCRIPTION_ID must be between 0 and %d", math.MaxInt32)
 	}
 
-	c.subscriptionID = parsed
+	c.subscriptionID = int32(parsed) //nolint:gosec // Validated above
 	return nil
 }

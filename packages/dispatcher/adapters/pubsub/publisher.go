@@ -24,9 +24,6 @@ var (
 	// ErrPublisherClosed is returned when Publish is called on a closed publisher.
 	ErrPublisherClosed = errors.New("publisher is closed")
 
-	// ErrPublisherNotInitialized is returned when publisher is nil.
-	ErrPublisherNotInitialized = errors.New("publisher not initialized")
-
 	// projectIDRegex validates GCP project ID format.
 	// Project IDs must be 6-30 characters: lowercase letters, digits, hyphens.
 	// Must start with a letter and cannot end with a hyphen.
@@ -85,17 +82,12 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 
 // Publish sends a webhook event to the configured Pub/Sub topic.
 // Returns ErrPublisherClosed if called after Close.
-// Returns ErrPublisherNotInitialized if the publisher was not properly initialized.
 // If the context has no deadline, a default timeout of 30s is applied.
 func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) error {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
 		return ErrPublisherClosed
-	}
-	if p.publisher == nil {
-		p.mu.RUnlock()
-		return ErrPublisherNotInitialized
 	}
 	p.mu.RUnlock()
 
@@ -137,9 +129,10 @@ func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent
 }
 
 // Close releases resources held by the PubSub client.
-// The context can be used to set a deadline for the close operation.
 // After Close returns, subsequent Publish calls will return ErrPublisherClosed.
-func (p *Publisher) Close(ctx context.Context) error {
+// The context parameter is accepted for interface compatibility but is not used,
+// as the underlying PubSub client.Close() does not support context cancellation.
+func (p *Publisher) Close(_ context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -152,20 +145,7 @@ func (p *Publisher) Close(ctx context.Context) error {
 		return nil
 	}
 
-	// Create a channel to signal completion
-	done := make(chan error, 1)
-	go func() {
-		done <- p.client.Close()
-	}()
-
-	// Wait for close or context cancellation
-	select {
-	case err := <-done:
-		p.client = nil
-		return err
-	case <-ctx.Done():
-		// Context canceled/timed out, but close is still in progress
-		// We've marked as closed, so new publishes will fail
-		return ctx.Err()
-	}
+	err := p.client.Close()
+	p.client = nil
+	return err
 }
