@@ -1,4 +1,3 @@
-// Package proto provides adapters for converting between Strava JSON and protobuf types.
 package proto
 
 import (

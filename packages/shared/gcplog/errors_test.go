@@ -1,4 +1,4 @@
-package apierrors
+package gcplog
 
 import (
 	"context"

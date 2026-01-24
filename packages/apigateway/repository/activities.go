@@ -1,5 +1,3 @@
-// Package repository defines domain interfaces for data access.
-// These are ports in hexagonal architecture - they belong to the domain layer.
 package repository
 
 import (

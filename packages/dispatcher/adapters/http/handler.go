@@ -1,4 +1,3 @@
-// Package httpadapter provides HTTP handlers for receiving webhook notifications.
 package httpadapter
 
 import (
@@ -12,10 +11,9 @@ import (
 	"strings"
 
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
-	"github.com/andy-esch/desirelines/packages/dispatcher/middleware"
-	"github.com/andy-esch/desirelines/packages/dispatcher/pkg/apierrors"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -66,7 +64,8 @@ func (h *Handler) RegisterRoutes() http.Handler {
 
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
-	r.Use(middleware.Logger(h.logger))
+	r.Use(gcplog.WithCloudTraceContext)
+	r.Use(gcplog.HTTPRequestLogger(h.logger))
 	r.Use(chiMiddleware.Recoverer)
 
 	// Health check endpoint for Cloud Run / docker health checks
@@ -93,33 +92,33 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("hub.verify_token")
 
 	if mode != "subscribe" {
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			fmt.Sprintf("invalid hub.mode: %s", mode),
 			"Invalid hub.mode provided in verification request",
 		)
 		apiErr.Code = ErrCodeInvalidHubMode
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	// Get current verify token from secret provider
 	verifyToken, _, err := h.secretProvider.GetSecrets()
 	if err != nil {
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Configuration error",
 			fmt.Sprintf("Failed to get verify token: %v", err),
 		)
 		apiErr.Code = ErrCodeConfigError
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	if token != verifyToken {
-		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
+		apiErr := gcplog.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
 		apiErr.Code = ErrCodeInvalidVerifyToken
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -133,9 +132,9 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// Validate Content-Type header
 	contentType := r.Header.Get("Content-Type")
 	if contentType == "" || !strings.Contains(contentType, "application/json") {
-		apiErr := apierrors.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		apiErr := gcplog.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		apiErr.Code = ErrCodeInvalidContentType
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -144,68 +143,68 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Failed to read request body",
 			fmt.Sprintf("Read failed: %v", err),
 		)
 		apiErr.Code = ErrCodeReadFailed
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	// Parse JSON into Protobuf using adapter
 	webhook, err := webhookproto.ParseStravaWebhook(bodyBytes)
 	if err != nil {
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Invalid JSON payload",
 			fmt.Sprintf("Proto parse failed: %v", err),
 		)
 		apiErr.Code = ErrCodeInvalidJSON
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	// Validate proto event
 	if validateErr := webhookproto.Validate(webhook); validateErr != nil {
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Webhook validation failed",
 			fmt.Sprintf("Validation error: %v", validateErr),
 		)
 		apiErr.Code = ErrCodeValidationFailed
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	// Get current subscription ID from secret provider
 	_, subscriptionID, err := h.secretProvider.GetSecrets()
 	if err != nil {
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Configuration error",
 			fmt.Sprintf("Failed to get subscription ID: %v", err),
 		)
 		apiErr.Code = ErrCodeConfigError
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 	// Compare as int32 to avoid platform-dependent int size issues.
 	// subscriptionID from config is validated to be positive during loading,
 	// so casting to int32 is safe for valid subscription IDs.
 	if subscriptionID > math.MaxInt32 {
-		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id config")
+		apiErr := gcplog.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id config")
 		apiErr.Code = ErrCodeConfigError
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 	expectedSubID := int32(subscriptionID) //nolint:gosec // Checked range above
 
 	if webhook.SubscriptionId != expectedSubID {
-		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
+		apiErr := gcplog.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
 		apiErr.Code = ErrCodeInvalidSubscriptionID
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -215,13 +214,13 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if publishErr := h.publisher.Publish(r.Context(), webhook, chiMiddleware.GetReqID(r.Context())); publishErr != nil {
-		apiErr := apierrors.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to publish event",
 			fmt.Sprintf("Publish failed: %v", publishErr),
 		)
 		apiErr.Code = ErrCodePublishFailed
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 

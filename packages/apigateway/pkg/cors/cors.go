@@ -1,4 +1,3 @@
-// Package cors provides CORS (Cross-Origin Resource Sharing) handling for the API Gateway.
 package cors
 
 import (

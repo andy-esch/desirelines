@@ -1,4 +1,3 @@
-// Package middleware provides HTTP middleware functions for the API Gateway.
 package middleware
 
 import (
@@ -11,7 +10,7 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
-	"github.com/andy-esch/desirelines/packages/apigateway/pkg/apierrors"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
 // TokenVerifier defines the interface for verifying ID tokens.
@@ -92,7 +91,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			m.logger.Warn("Auth: Authentication failed", "reason", "missing_header")
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
+			gcplog.WriteError(w, r, gcplog.ErrUnauthorized, m.logger)
 			return
 		}
 
@@ -100,7 +99,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			m.logger.Warn("Auth: Authentication failed", "reason", "invalid_header_format")
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
+			gcplog.WriteError(w, r, gcplog.ErrUnauthorized, m.logger)
 			return
 		}
 
@@ -110,7 +109,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		token, err := m.verifier.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
 			m.logger.Warn("Auth: Authentication failed", "reason", "token_verification_failed", "error", err)
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
+			gcplog.WriteError(w, r, gcplog.ErrUnauthorized, m.logger)
 			return
 		}
 
@@ -118,14 +117,14 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		email, ok := token.Claims["email"].(string)
 		if !ok || email == "" {
 			m.logger.Warn("Auth: Authentication failed", "reason", "missing_email_claim")
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
+			gcplog.WriteError(w, r, gcplog.ErrUnauthorized, m.logger)
 			return
 		}
 
 		// Check if email is in allowlist
 		if !m.allowedEmails[email] {
 			m.logger.Warn("Auth: Authorization failed", "reason", "email_not_authorized", "email", email)
-			apierrors.WriteError(w, r, apierrors.ErrForbidden, m.logger)
+			gcplog.WriteError(w, r, gcplog.ErrForbidden, m.logger)
 			return
 		}
 

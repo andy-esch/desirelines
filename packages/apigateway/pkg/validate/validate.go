@@ -1,4 +1,3 @@
-// Package validate provides shared validation functions for the API Gateway.
 package validate
 
 import (

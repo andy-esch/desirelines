@@ -107,8 +107,8 @@ packages/apigateway/
 │       ├── middleware.go    # CORS middleware
 │       └── response.go      # JSON response helpers
 ├── pkg/                     # Shared utilities (importable)
-│   └── validate/
-│       └── validate.go      # Date, year validation helpers
+│   ├── validate/            # Date, year, input validation
+│   └── cors/                # CORS origin handling
 ├── repository/              # Domain interfaces (ports)
 │   ├── activities.go        # ActivityRepository interface
 │   └── types.go             # Domain types (Activity, SportMetrics, etc.)
@@ -121,12 +121,6 @@ packages/apigateway/
 ├── config/
 │   ├── sport_config.go      # Sport category mappings
 │   └── sport_types.json     # Embedded sport configuration
-├── apierrors/
-│   └── errors.go            # Structured error types
-├── cors/
-│   └── cors.go              # Origin validation
-├── logger/
-│   └── logger.go            # slog-based structured logging
 ├── handler_test.go          # Integration tests
 └── README.md
 ```
@@ -287,6 +281,20 @@ types/generated/
 ```
 
 Run `just proto-gen-backend` to regenerate. See [`schemas/proto/README.md`](../../schemas/proto/README.md).
+
+## Package Documentation
+
+Each package has GoDoc documentation viewable via `go doc`:
+
+| Package | Description |
+|---------|-------------|
+| [pkg/validate](./pkg/validate/) | Input validation (dates, years, sports, cursors) |
+| [pkg/cors](./pkg/cors/) | CORS origin handling |
+| [middleware](./middleware/) | Firebase JWT authentication |
+| [config](./config/) | Sport category configuration |
+| [repository](./repository/) | Domain interfaces (ActivityRepository) |
+
+Logging uses the shared [gcplog](../shared/gcplog/) package.
 
 ## Related Documentation
 

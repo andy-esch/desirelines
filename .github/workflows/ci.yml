@@ -133,7 +133,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [dispatcher, apigateway]
+        package: [dispatcher, apigateway, shared]
 
     steps:
       - name: Checkout code

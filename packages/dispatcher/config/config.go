@@ -1,4 +1,3 @@
-// Package config handles configuration loading for the dispatcher service.
 package config
 
 import (
