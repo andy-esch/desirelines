@@ -21,10 +21,6 @@ packages/dispatcher/
 ├── ports/interfaces.go          # Port interfaces (Publisher, SecretProvider)
 ├── types/generated/webhook.pb.go # Generated protobuf types
 ├── config/config.go             # Configuration loading
-├── middleware/logger.go         # HTTP middleware
-├── pkg/                         # Shared utilities
-│   ├── apierrors/               # API error handling
-│   └── logger/                  # Structured logging
 └── Dockerfile                   # Cloud Run container
 ```
 
@@ -104,3 +100,18 @@ terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
 ```
 
 See [Docker Guide](../../docs/guides/docker.md) and [Deployment Guide](../../docs/guides/deployment.md).
+
+## Package Documentation
+
+Each package has GoDoc documentation viewable via `go doc`:
+
+| Package | Description |
+|---------|-------------|
+| [ports](./ports/) | Port interfaces (Publisher, SecretProvider) |
+| [adapters/http](./adapters/http/) | HTTP webhook handler |
+| [adapters/pubsub](./adapters/pubsub/) | Google Cloud Pub/Sub adapter |
+| [adapters/env](./adapters/env/) | Secrets loading with caching |
+| [adapters/proto](./adapters/proto/) | JSON ↔ protobuf conversion |
+| [config](./config/) | Configuration loading |
+
+Logging uses the shared [gcplog](../shared/gcplog/) package.
