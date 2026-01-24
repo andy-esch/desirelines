@@ -1,4 +1,3 @@
-// Package config provides sport configuration management for the API Gateway.
 package config
 
 import (

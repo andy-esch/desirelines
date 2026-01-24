@@ -1,4 +1,3 @@
-// Package httpadapter provides HTTP handlers for receiving webhook notifications.
 package httpadapter
 
 import (
@@ -65,6 +64,7 @@ func (h *Handler) RegisterRoutes() http.Handler {
 
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
+	r.Use(gcplog.WithCloudTraceContext)
 	r.Use(gcplog.HTTPRequestLogger(h.logger))
 	r.Use(chiMiddleware.Recoverer)
 

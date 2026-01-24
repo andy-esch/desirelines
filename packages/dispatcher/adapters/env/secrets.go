@@ -1,4 +1,3 @@
-// Package env provides adapters for loading configuration and secrets from the environment and filesystem.
 package env
 
 import (

@@ -44,6 +44,7 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	// Essential middleware
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
+	r.Use(gcplog.WithCloudTraceContext)
 	r.Use(gcplog.HTTPRequestLogger(logger))
 	r.Use(chiMiddleware.Recoverer)
 

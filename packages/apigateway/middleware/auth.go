@@ -1,4 +1,3 @@
-// Package middleware provides HTTP middleware functions for the API Gateway.
 package middleware
 
 import (

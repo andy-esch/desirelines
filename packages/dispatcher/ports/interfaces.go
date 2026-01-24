@@ -1,15 +1,3 @@
-// Package ports defines the outbound ports (interfaces) for the dispatcher service.
-//
-// This package follows the hexagonal architecture (ports and adapters) pattern:
-//   - Ports are interfaces that define how the core domain interacts with external systems
-//   - Adapters are concrete implementations of these interfaces (found in adapters/)
-//
-// The dispatcher service uses these ports:
-//   - Publisher: publishes webhook events to a message queue (e.g., Pub/Sub)
-//   - SecretProvider: retrieves webhook verification secrets (from file or environment)
-//
-// This separation allows the core logic to remain independent of infrastructure concerns,
-// making it easier to test (via mocks in portstest/) and swap implementations.
 package ports
 
 import (

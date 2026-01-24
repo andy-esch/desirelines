@@ -1,5 +1,3 @@
-// Package gcplog provides structured logging for Go services using slog.
-// It configures logging to output JSON format compatible with Google Cloud Logging.
 package gcplog
 
 import (

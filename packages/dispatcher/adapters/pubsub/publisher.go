@@ -1,4 +1,3 @@
-// Package pubsub provides a Google Cloud Pub/Sub adapter for the dispatcher.
 package pubsub
 
 import (
