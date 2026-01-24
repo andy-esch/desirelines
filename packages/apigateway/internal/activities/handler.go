@@ -22,9 +22,9 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
-	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/go-chi/chi/v5"
 )
 
