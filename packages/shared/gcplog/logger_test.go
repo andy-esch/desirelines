@@ -77,7 +77,7 @@ func TestGCPSeverityMapping(t *testing.T) {
 			})
 			logger := slog.New(handler)
 
-			logger.Log(nil, tt.level, "test")
+			logger.Log(context.TODO(), tt.level, "test")
 
 			var output map[string]any
 			if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
@@ -198,7 +198,7 @@ func TestCriticalSeverityLevel(t *testing.T) {
 	})
 
 	// Use the custom CRITICAL level
-	logger.Log(nil, LevelCritical, "system crash")
+	logger.Log(context.TODO(), LevelCritical, "system crash")
 
 	var output map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
@@ -234,7 +234,7 @@ func TestAllSeverityLevels(t *testing.T) {
 				Writer: &buf,
 			})
 
-			logger.Log(nil, tt.level, "test")
+			logger.Log(context.TODO(), tt.level, "test")
 
 			var output map[string]any
 			if err := json.Unmarshal(buf.Bytes(), &output); err != nil {

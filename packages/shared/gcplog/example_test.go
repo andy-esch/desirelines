@@ -57,7 +57,7 @@ func ExampleLevelCritical() {
 	logger := gcplog.NewWithOptions(gcplog.Options{Writer: &buf})
 
 	// Use CRITICAL for unrecoverable errors
-	logger.Log(nil, gcplog.LevelCritical, "database connection pool exhausted")
+	logger.Log(context.TODO(), gcplog.LevelCritical, "database connection pool exhausted")
 
 	fmt.Println(strings.Contains(buf.String(), `"severity":"CRITICAL"`))
 	// Output: true
@@ -72,7 +72,7 @@ func ExampleHTTPRequestLogger() {
 	r.Use(gcplog.HTTPRequestLogger(logger))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	})
 
 	// Each request will be logged with httpRequest field in GCP format:
@@ -104,7 +104,7 @@ func ExampleWithCloudTraceContext() {
 			// tc.TraceID, tc.SpanID, tc.TraceSampled available
 			_ = tc
 		}
-		w.Write([]byte("[]"))
+		_, _ = w.Write([]byte("[]"))
 	})
 
 	// Requests with X-Cloud-Trace-Context or traceparent headers will have

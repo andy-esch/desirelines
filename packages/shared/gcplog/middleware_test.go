@@ -17,7 +17,7 @@ func TestHTTPRequestLogger_LogsRequest(t *testing.T) {
 	// Create a simple handler that returns 200
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	// Build the middleware chain
@@ -125,7 +125,7 @@ func TestHTTPRequestLogger_CapturesBytesWritten(t *testing.T) {
 	responseBody := "Hello, World!"
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(responseBody))
+		_, _ = w.Write([]byte(responseBody))
 	})
 
 	r := chi.NewRouter()
@@ -227,6 +227,38 @@ func TestHTTPRequestLogger_IncludesLatency(t *testing.T) {
 	}
 }
 
+// runTraceTest is a helper to reduce duplication between GCP and W3C trace tests
+func runTraceTest(t *testing.T, headerName, headerValue, expectedTrace, expectedSpan string, expectedSample bool) {
+	t.Helper()
+
+	var capturedTC *TraceContext
+
+	handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTC = GetTraceContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set(headerName, headerValue)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if capturedTC == nil {
+		t.Fatal("expected trace context to be captured")
+	}
+	// Without project ID env, trace is just the raw ID
+	if capturedTC.TraceID != expectedTrace {
+		t.Errorf("traceID = %q, want %q", capturedTC.TraceID, expectedTrace)
+	}
+	if capturedTC.SpanID != expectedSpan {
+		t.Errorf("spanID = %q, want %q", capturedTC.SpanID, expectedSpan)
+	}
+	if capturedTC.TraceSampled != expectedSample {
+		t.Errorf("traceSampled = %v, want %v", capturedTC.TraceSampled, expectedSample)
+	}
+}
+
 func TestWithCloudTraceContext_GCPHeader(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -260,32 +292,7 @@ func TestWithCloudTraceContext_GCPHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var capturedTC *TraceContext
-
-			handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				capturedTC = GetTraceContext(r.Context())
-				w.WriteHeader(http.StatusOK)
-			}))
-
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			req.Header.Set("X-Cloud-Trace-Context", tt.header)
-			w := httptest.NewRecorder()
-
-			handler.ServeHTTP(w, req)
-
-			if capturedTC == nil {
-				t.Fatal("expected trace context to be captured")
-			}
-			// Without project ID env, trace is just the raw ID
-			if capturedTC.TraceID != tt.expectedTrace {
-				t.Errorf("traceID = %q, want %q", capturedTC.TraceID, tt.expectedTrace)
-			}
-			if capturedTC.SpanID != tt.expectedSpan {
-				t.Errorf("spanID = %q, want %q", capturedTC.SpanID, tt.expectedSpan)
-			}
-			if capturedTC.TraceSampled != tt.expectedSample {
-				t.Errorf("traceSampled = %v, want %v", capturedTC.TraceSampled, tt.expectedSample)
-			}
+			runTraceTest(t, "X-Cloud-Trace-Context", tt.header, tt.expectedTrace, tt.expectedSpan, tt.expectedSample)
 		})
 	}
 }
@@ -316,31 +323,7 @@ func TestWithCloudTraceContext_W3CTraceparent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var capturedTC *TraceContext
-
-			handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				capturedTC = GetTraceContext(r.Context())
-				w.WriteHeader(http.StatusOK)
-			}))
-
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			req.Header.Set("traceparent", tt.header)
-			w := httptest.NewRecorder()
-
-			handler.ServeHTTP(w, req)
-
-			if capturedTC == nil {
-				t.Fatal("expected trace context to be captured")
-			}
-			if capturedTC.TraceID != tt.expectedTrace {
-				t.Errorf("traceID = %q, want %q", capturedTC.TraceID, tt.expectedTrace)
-			}
-			if capturedTC.SpanID != tt.expectedSpan {
-				t.Errorf("spanID = %q, want %q", capturedTC.SpanID, tt.expectedSpan)
-			}
-			if capturedTC.TraceSampled != tt.expectedSample {
-				t.Errorf("traceSampled = %v, want %v", capturedTC.TraceSampled, tt.expectedSample)
-			}
+			runTraceTest(t, "traceparent", tt.header, tt.expectedTrace, tt.expectedSpan, tt.expectedSample)
 		})
 	}
 }
