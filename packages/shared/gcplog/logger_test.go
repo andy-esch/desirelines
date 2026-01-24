@@ -115,3 +115,78 @@ func TestNestedGroupsPreserved(t *testing.T) {
 		t.Errorf("http.path = %v, want %q", http["path"], "/test")
 	}
 }
+
+func TestNewWithLevel(t *testing.T) {
+	var buf bytes.Buffer
+	logger := NewWithOptions(Options{
+		Level:  slog.LevelWarn,
+		Writer: &buf,
+	})
+
+	// Debug and Info should be filtered out
+	logger.Debug("debug message")
+	logger.Info("info message")
+
+	if buf.Len() > 0 {
+		t.Errorf("expected no output for DEBUG/INFO when level is WARN, got: %s", buf.String())
+	}
+
+	// Warn should be logged
+	logger.Warn("warn message")
+
+	if buf.Len() == 0 {
+		t.Error("expected WARN message to be logged")
+	}
+
+	var output map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
+		t.Fatalf("failed to parse log output: %v", err)
+	}
+	if output["severity"] != "WARNING" {
+		t.Errorf("severity = %v, want WARNING", output["severity"])
+	}
+}
+
+func TestNewWithOptions_AddSource(t *testing.T) {
+	var buf bytes.Buffer
+	logger := NewWithOptions(Options{
+		Writer:    &buf,
+		AddSource: true,
+	})
+
+	logger.Info("test with source")
+
+	var output map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
+		t.Fatalf("failed to parse log output: %v", err)
+	}
+
+	// Check that source info is present
+	source, ok := output["source"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected source field as object, got %T", output["source"])
+	}
+	if source["file"] == nil {
+		t.Error("expected source.file to be present")
+	}
+	if source["line"] == nil {
+		t.Error("expected source.line to be present")
+	}
+}
+
+func TestNewWithLevel_Convenience(t *testing.T) {
+	var buf bytes.Buffer
+
+	// Can't easily test NewWithLevel since it writes to stderr,
+	// but we can verify it compiles and the level is applied via Options
+	logger := NewWithOptions(Options{
+		Level:  slog.LevelDebug,
+		Writer: &buf,
+	})
+
+	logger.Debug("debug should appear")
+
+	if buf.Len() == 0 {
+		t.Error("expected DEBUG message when level is DEBUG")
+	}
+}

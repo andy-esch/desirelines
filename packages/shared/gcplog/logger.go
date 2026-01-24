@@ -8,16 +8,42 @@ import (
 	"os"
 )
 
-// New configures slog for Google Cloud structured logging writing to stderr.
+// Options configures the GCP logger behavior.
+type Options struct {
+	// Level sets the minimum log level. Defaults to slog.LevelInfo.
+	Level slog.Level
+	// Writer sets the output destination. Defaults to os.Stderr.
+	Writer io.Writer
+	// AddSource includes file:line in log output. Defaults to false.
+	AddSource bool
+}
+
+// New configures slog for Google Cloud structured logging writing to stderr at INFO level.
 func New() *slog.Logger {
-	return NewWithWriter(os.Stderr)
+	return NewWithOptions(Options{})
+}
+
+// NewWithLevel configures slog for Google Cloud structured logging at the specified level.
+func NewWithLevel(level slog.Level) *slog.Logger {
+	return NewWithOptions(Options{Level: level})
 }
 
 // NewWithWriter configures slog for Google Cloud structured logging writing to w.
 // Maps slog keys to Google Cloud Logging expected field names and severity levels.
 func NewWithWriter(w io.Writer) *slog.Logger {
-	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+	return NewWithOptions(Options{Writer: w})
+}
+
+// NewWithOptions configures slog for Google Cloud structured logging with full control.
+func NewWithOptions(opts Options) *slog.Logger {
+	// Apply defaults
+	if opts.Writer == nil {
+		opts.Writer = os.Stderr
+	}
+
+	handler := slog.NewJSONHandler(opts.Writer, &slog.HandlerOptions{
+		Level:     opts.Level,
+		AddSource: opts.AddSource,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			// Don't modify attributes in nested groups
 			if groups != nil {
