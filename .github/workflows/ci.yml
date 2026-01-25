@@ -69,7 +69,8 @@ jobs:
         uses: pantsbuild/actions/init-pants@v10
         with:
           gha-cache-key: v1-validation
-          named-caches-hash: ${{ hashFiles('pants.toml') }}
+          named-caches-hash: ${{ hashFiles('packages/*/go.sum', 'packages/stravapipe/uv.lock', 'go.work.sum', 'pants.toml') }}
+          cache-lmdb-store: true
 
       - name: Verify BUILD files
         run: "pants tailor --check ::"
