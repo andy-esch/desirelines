@@ -15,8 +15,8 @@ class ConnectionStringError(Exception):
     """Invalid or missing connection string configuration."""
 
 
-# Cloud Run secret mount path
-_SECRET_PATH = "/etc/secrets/postgres/connection_string"
+# Cloud Run secret mount path (Infisical-managed secrets use INFISICAL_ prefix)
+_SECRET_PATH = "/etc/secrets/INFISICAL_POSTGRES_CONN_WRITER/value"
 
 # Environment variable name
 _ENV_VAR = "POSTGRES_CONNECTION_STRING"

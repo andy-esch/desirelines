@@ -41,7 +41,7 @@ provider "infisical" {}
 
 data "infisical_secrets" "backend_config" {
   env_slug     = "dev"
-  folder_path  = "/"
+  folder_path  = "/backend/config"
   workspace_id = var.infisical_workspace_id
 }
 
@@ -79,8 +79,8 @@ module "desirelines" {
 
   # Application config from Infisical (single source of truth)
   app_config = {
-    log_level      = data.infisical_secrets.backend_config.secrets["LOG_LEVEL"]
-    allowed_emails = data.infisical_secrets.backend_config.secrets["ALLOWED_EMAILS"]
+    log_level      = data.infisical_secrets.backend_config.secrets["LOG_LEVEL"].value
+    allowed_emails = data.infisical_secrets.backend_config.secrets["ALLOWED_EMAILS"].value
   }
 }
 

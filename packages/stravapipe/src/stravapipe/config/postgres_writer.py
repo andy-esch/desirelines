@@ -72,8 +72,8 @@ def load_postgres_writer_config() -> PostgresWriterConfig:
     """Load and validate configuration for the PostgreSQL writer function.
 
     Priority order:
-    1. Secret volumes at /etc/secrets/ (if present)
-    2. Environment variables
+    1. Secret volumes at /etc/secrets/INFISICAL_* (if present)
+    2. Environment variables (STRAVA_* for backwards compatibility)
     3. .env file (if present)
 
     Returns:
@@ -84,9 +84,9 @@ def load_postgres_writer_config() -> PostgresWriterConfig:
         ConnectionStringError: If PostgreSQL connection string is missing or invalid.
     """
     secret_names = [
-        "STRAVA_CLIENT_ID",
-        "STRAVA_CLIENT_SECRET",
-        "STRAVA_REFRESH_TOKEN",
+        "INFISICAL_STRAVA_CLIENT_ID",
+        "INFISICAL_STRAVA_CLIENT_SECRET",
+        "INFISICAL_STRAVA_REFRESH_TOKEN",
     ]
     # Load Strava secrets from atomic mounted volumes if available
     raw_secrets = load_secrets_from_volumes(secret_names)
@@ -94,11 +94,14 @@ def load_postgres_writer_config() -> PostgresWriterConfig:
     # Log fallbacks for secrets not found in volumes
     for name in secret_names:
         if name not in raw_secrets:
-            if os.getenv(name):
-                logger.info("config: loaded %s from environment", name)
+            # Check env var without INFISICAL_ prefix for backwards compatibility
+            env_name = name.replace("INFISICAL_", "")
+            if os.getenv(env_name):
+                logger.info("config: loaded %s from environment", env_name)
 
-    # Map UPPER_CASE secret names to snake_case model fields
-    config_dict = {k.lower(): v for k, v in raw_secrets.items()}
+    # Map INFISICAL_STRAVA_* secret names to strava_* model fields
+    # Strip INFISICAL_ prefix and convert to lowercase
+    config_dict = {k.replace("INFISICAL_", "").lower(): v for k, v in raw_secrets.items()}
 
     # Load PostgreSQL connection string with validation and dialect transformation
     # This reads from secret volume or env var, validates application_name,

@@ -349,54 +349,55 @@ resource "google_service_account_iam_member" "postgres_writer_impersonation" {
 }
 
 # ==============================================================================
-# Strava Auth Secrets (Atomic)
+# Infisical-Managed Secrets (Strava API)
 # ==============================================================================
-# Individual secrets for granular access control and rotation.
-# Values are synced from Infisical.
+# Secret containers for Infisical sync. Terraform creates the container and IAM
+# bindings; Infisical manages the secret values.
+# Naming convention: INFISICAL_ prefix indicates provenance.
 
 resource "google_secret_manager_secret" "strava_client_id" {
-  secret_id = "STRAVA_CLIENT_ID"
+  secret_id = "INFISICAL_STRAVA_CLIENT_ID"
   project   = var.gcp_project_id
   replication {
     auto {}
   }
-  labels = { environment = var.environment, purpose = "strava-api" }
+  labels = { environment = var.environment, purpose = "strava-api", managed_by = "infisical" }
 }
 
 resource "google_secret_manager_secret" "strava_client_secret" {
-  secret_id = "STRAVA_CLIENT_SECRET"
+  secret_id = "INFISICAL_STRAVA_CLIENT_SECRET"
   project   = var.gcp_project_id
   replication {
     auto {}
   }
-  labels = { environment = var.environment, purpose = "strava-api" }
+  labels = { environment = var.environment, purpose = "strava-api", managed_by = "infisical" }
 }
 
 resource "google_secret_manager_secret" "strava_refresh_token" {
-  secret_id = "STRAVA_REFRESH_TOKEN"
+  secret_id = "INFISICAL_STRAVA_REFRESH_TOKEN"
   project   = var.gcp_project_id
   replication {
     auto {}
   }
-  labels = { environment = var.environment, purpose = "strava-api" }
+  labels = { environment = var.environment, purpose = "strava-api", managed_by = "infisical" }
 }
 
 resource "google_secret_manager_secret" "strava_webhook_verify_token" {
-  secret_id = "STRAVA_WEBHOOK_VERIFY_TOKEN"
+  secret_id = "INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN"
   project   = var.gcp_project_id
   replication {
     auto {}
   }
-  labels = { environment = var.environment, purpose = "strava-webhook" }
+  labels = { environment = var.environment, purpose = "strava-webhook", managed_by = "infisical" }
 }
 
 resource "google_secret_manager_secret" "strava_webhook_subscription_id" {
-  secret_id = "STRAVA_WEBHOOK_SUBSCRIPTION_ID"
+  secret_id = "INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID"
   project   = var.gcp_project_id
   replication {
     auto {}
   }
-  labels = { environment = var.environment, purpose = "strava-webhook" }
+  labels = { environment = var.environment, purpose = "strava-webhook", managed_by = "infisical" }
 }
 
 # IAM Permissions for Atomic Secrets
@@ -490,15 +491,15 @@ resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access
 }
 
 # ==============================================================================
-# PostgreSQL Connection Secrets
+# Infisical-Managed Secrets (PostgreSQL Connections)
 # ==============================================================================
-# Each database role has its own secret with connection string.
-# Secret values must be added manually after creation (contain passwords).
-# Naming convention: postgres-conn
+# Secret containers for Infisical sync. Terraform creates the container and IAM
+# bindings; Infisical manages the secret values.
+# Naming convention: INFISICAL_ prefix indicates provenance.
 
 # Admin connection (for manual database management)
 resource "google_secret_manager_secret" "postgres_conn_admin" {
-  secret_id = "postgres-conn-admin"
+  secret_id = "INFISICAL_POSTGRES_CONN_ADMIN"
   project   = var.gcp_project_id
 
   replication {
@@ -508,12 +509,13 @@ resource "google_secret_manager_secret" "postgres_conn_admin" {
   labels = {
     environment = var.environment
     purpose     = "postgres-admin"
+    managed_by  = "infisical"
   }
 }
 
 # Flyway connection (for schema migrations)
 resource "google_secret_manager_secret" "postgres_conn_flyway" {
-  secret_id = "postgres-conn-flyway"
+  secret_id = "INFISICAL_POSTGRES_CONN_FLYWAY"
   project   = var.gcp_project_id
 
   replication {
@@ -523,12 +525,13 @@ resource "google_secret_manager_secret" "postgres_conn_flyway" {
   labels = {
     environment = var.environment
     purpose     = "postgres-flyway"
+    managed_by  = "infisical"
   }
 }
 
 # API Gateway connection (read-only access)
 resource "google_secret_manager_secret" "postgres_conn_apigateway" {
-  secret_id = "postgres-conn-apigateway"
+  secret_id = "INFISICAL_POSTGRES_CONN_APIGATEWAY"
   project   = var.gcp_project_id
 
   replication {
@@ -538,12 +541,13 @@ resource "google_secret_manager_secret" "postgres_conn_apigateway" {
   labels = {
     environment = var.environment
     purpose     = "postgres-apigateway"
+    managed_by  = "infisical"
   }
 }
 
 # PostgreSQL Writer connection (read/write access)
 resource "google_secret_manager_secret" "postgres_conn_writer" {
-  secret_id = "postgres-conn-writer"
+  secret_id = "INFISICAL_POSTGRES_CONN_WRITER"
   project   = var.gcp_project_id
 
   replication {
@@ -553,12 +557,13 @@ resource "google_secret_manager_secret" "postgres_conn_writer" {
   labels = {
     environment = var.environment
     purpose     = "postgres-writer"
+    managed_by  = "infisical"
   }
 }
 
 # Reader connection (generic read-only, for future services)
 resource "google_secret_manager_secret" "postgres_conn_reader" {
-  secret_id = "postgres-conn-reader"
+  secret_id = "INFISICAL_POSTGRES_CONN_READER"
   project   = var.gcp_project_id
 
   replication {
@@ -568,6 +573,7 @@ resource "google_secret_manager_secret" "postgres_conn_reader" {
   labels = {
     environment = var.environment
     purpose     = "postgres-reader"
+    managed_by  = "infisical"
   }
 }
 

@@ -6,15 +6,16 @@ locals {
   image_base_url = var.external_artifact_registry
 
   # Secret definitions for dynamic blocks
+  # Keys use INFISICAL_ prefix to match Infisical-managed secret names
   strava_webhook_secrets = {
-    "STRAVA_WEBHOOK_VERIFY_TOKEN"    = google_secret_manager_secret.strava_webhook_verify_token.secret_id
-    "STRAVA_WEBHOOK_SUBSCRIPTION_ID" = google_secret_manager_secret.strava_webhook_subscription_id.secret_id
+    "INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN"    = google_secret_manager_secret.strava_webhook_verify_token.secret_id
+    "INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID" = google_secret_manager_secret.strava_webhook_subscription_id.secret_id
   }
 
   strava_api_secrets = {
-    "STRAVA_CLIENT_ID"     = google_secret_manager_secret.strava_client_id.secret_id
-    "STRAVA_CLIENT_SECRET" = google_secret_manager_secret.strava_client_secret.secret_id
-    "STRAVA_REFRESH_TOKEN" = google_secret_manager_secret.strava_refresh_token.secret_id
+    "INFISICAL_STRAVA_CLIENT_ID"     = google_secret_manager_secret.strava_client_id.secret_id
+    "INFISICAL_STRAVA_CLIENT_SECRET" = google_secret_manager_secret.strava_client_secret.secret_id
+    "INFISICAL_STRAVA_REFRESH_TOKEN" = google_secret_manager_secret.strava_refresh_token.secret_id
   }
 }
 
@@ -175,19 +176,19 @@ resource "google_cloud_run_v2_service" "api_gateway" {
 
       # Mount PostgreSQL secrets as volume (read-only apigateway role)
       volume_mounts {
-        name       = "postgres-secrets"
-        mount_path = "/etc/secrets/postgres"
+        name       = "infisical-postgres-conn-apigateway"
+        mount_path = "/etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY"
       }
     }
 
     volumes {
-      name = "postgres-secrets"
+      name = "infisical-postgres-conn-apigateway"
       secret {
         secret       = google_secret_manager_secret.postgres_conn_apigateway.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
-          path    = "connection_string"
+          path    = "value"
           mode    = 292 # 0444
         }
       }
@@ -381,8 +382,8 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
 
       # Mount PostgreSQL secrets as volume (read/write writer role)
       volume_mounts {
-        name       = "postgres-secrets"
-        mount_path = "/etc/secrets/postgres"
+        name       = "infisical-postgres-conn-writer"
+        mount_path = "/etc/secrets/INFISICAL_POSTGRES_CONN_WRITER"
       }
     }
 
@@ -403,13 +404,13 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     }
 
     volumes {
-      name = "postgres-secrets"
+      name = "infisical-postgres-conn-writer"
       secret {
         secret       = google_secret_manager_secret.postgres_conn_writer.secret_id
         default_mode = 292 # 0444 in octal (read-only)
         items {
           version = "latest"
-          path    = "connection_string"
+          path    = "value"
           mode    = 292 # 0444
         }
       }
