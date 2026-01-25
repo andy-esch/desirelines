@@ -20,9 +20,12 @@ files(
 docker_image(
     name="dispatcher",
     source="Dockerfile",
-    # Build context: packages/dispatcher directory (where go.mod, go.sum, and source files are)
-    context_root="packages/dispatcher",
-    dependencies=[":sources"],
+    # Build context: repo root to allow access to local 'shared' package
+    context_root=".",
+    dependencies=[
+        ":sources",
+        "packages/shared:sources",
+    ],
     image_tags=[
         "latest",
         "{build_args.GIT_COMMIT}",  # Interpolated from GIT_COMMIT build arg

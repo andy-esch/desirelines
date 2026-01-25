@@ -4,18 +4,22 @@
 # Build stage
 FROM golang:1.25-alpine AS builder
 
+# Building from repository root context to allow access to local shared packages.
 WORKDIR /app
 
-# Copy go module files (context is packages/apigateway)
-COPY go.mod ./
-COPY go.sum* ./
+# Mirror repo structure for module manifests to satisfy local 'replace' directives.
+COPY packages/shared/go.mod packages/shared/go.sum* ./packages/shared/
+COPY packages/apigateway/go.mod packages/apigateway/go.sum* ./packages/apigateway/
+
+WORKDIR /app/packages/apigateway
 
 # Download dependencies
 RUN go mod download
 RUN go mod verify
 
-# Copy source code
-COPY . .
+# Mirror source code structure to resolve '../shared' at compile time.
+COPY packages/shared/ ../shared/
+COPY packages/apigateway/ .
 
 # Build the application from cmd/apigateway (package main)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o /app/apigateway ./cmd/apigateway
