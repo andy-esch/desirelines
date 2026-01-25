@@ -136,10 +136,11 @@ resource "google_project_iam_member" "secret_accessor" {
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
 
-# Pub/Sub Viewer - Read Pub/Sub IAM policies for state refresh
-resource "google_project_iam_member" "pubsub_viewer" {
+# Pub/Sub Admin - Manage Pub/Sub topics, subscriptions, and their IAM policies
+# Required for Terraform to manage dead letter topic IAM bindings
+resource "google_project_iam_member" "pubsub_admin" {
   project = var.project_id
-  role    = "roles/pubsub.viewer"
+  role    = "roles/pubsub.admin"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
 
@@ -157,6 +158,14 @@ resource "google_project_iam_member" "bigquery_admin" {
 resource "google_project_iam_member" "security_reviewer" {
   project = var.project_id
   role    = "roles/iam.securityReviewer"
+  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
+}
+
+# Service Account Admin - Manage IAM policies on service accounts
+# Required for Terraform to manage service account IAM bindings (e.g., infisical sync)
+resource "google_project_iam_member" "service_account_admin" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountAdmin"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
 
