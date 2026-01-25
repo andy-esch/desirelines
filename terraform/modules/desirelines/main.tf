@@ -270,6 +270,14 @@ resource "google_project_iam_member" "infisical_secret_admin" {
   member  = "serviceAccount:${google_service_account.infisical_sync.email}"
 }
 
+# Grant Infisical permission to check enabled APIs
+# Required for GCP App Connection setup in Infisical dashboard
+resource "google_project_iam_member" "infisical_service_usage_admin" {
+  project = var.gcp_project_id
+  role    = "roles/serviceusage.serviceUsageAdmin"
+  member  = "serviceAccount:${google_service_account.infisical_sync.email}"
+}
+
 # Grant Service Account Token Creator to the Infisical service account on itself for impersonation
 resource "google_service_account_iam_member" "infisical_token_creator" {
   service_account_id = google_service_account.infisical_sync.name

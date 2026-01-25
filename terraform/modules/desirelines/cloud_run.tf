@@ -66,7 +66,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
 
       env {
         name  = "LOG_LEVEL"
-        value = "INFO"
+        value = var.app_config.log_level
       }
 
       # Mount Strava Webhook secrets as atomic volumes
@@ -165,7 +165,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
 
       env {
         name  = "ALLOWED_EMAILS"
-        value = var.developer_email != null ? var.developer_email : ""
+        value = var.app_config.allowed_emails
       }
 
       env {
@@ -270,7 +270,7 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
 
       env {
         name  = "LOG_LEVEL"
-        value = "INFO"
+        value = var.app_config.log_level
       }
 
       env {
@@ -362,7 +362,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
 
       env {
         name  = "LOG_LEVEL"
-        value = "INFO"
+        value = var.app_config.log_level
       }
 
       env {

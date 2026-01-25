@@ -32,3 +32,8 @@ variable "github_repository" {
   type        = string
   default     = "andy-esch/desirelines"
 }
+
+variable "infisical_workspace_id" {
+  description = "Infisical Workspace ID for fetching application config"
+  type        = string
+}
