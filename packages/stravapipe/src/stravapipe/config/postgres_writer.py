@@ -101,7 +101,9 @@ def load_postgres_writer_config() -> PostgresWriterConfig:
 
     # Map INFISICAL_STRAVA_* secret names to strava_* model fields
     # Strip INFISICAL_ prefix and convert to lowercase
-    config_dict = {k.replace("INFISICAL_", "").lower(): v for k, v in raw_secrets.items()}
+    config_dict = {
+        k.replace("INFISICAL_", "").lower(): v for k, v in raw_secrets.items()
+    }
 
     # Load PostgreSQL connection string with validation and dialect transformation
     # This reads from secret volume or env var, validates application_name,

@@ -94,7 +94,9 @@ def load_bq_inserter_config() -> BQInserterConfig:
 
     # Map INFISICAL_STRAVA_* secret names to strava_* model fields
     # Strip INFISICAL_ prefix and convert to lowercase
-    config_dict = {k.replace("INFISICAL_", "").lower(): v for k, v in raw_secrets.items()}
+    config_dict = {
+        k.replace("INFISICAL_", "").lower(): v for k, v in raw_secrets.items()
+    }
 
     # Load config, prioritizing passed values (secrets) over env vars
     return BQInserterConfig.model_validate(config_dict)
