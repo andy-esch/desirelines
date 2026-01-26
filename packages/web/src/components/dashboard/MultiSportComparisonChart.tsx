@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { LineChart, Line, ResponsiveContainer, XAxis } from "recharts";
 import { parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
+import { SLATE } from "../../constants/uiColors";
 import TimeRangeSelector from "./TimeRangeSelector";
 import RecentActivitiesList from "./RecentActivitiesList";
 import { SparklineSkeleton, ActivityRowSkeleton } from "../Skeleton";
@@ -85,7 +86,7 @@ function SparklineRow({
                   dataKey="date"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 9, fill: "#999" }}
+                  tick={{ fontSize: 9, fill: SLATE.LIGHT }}
                   tickFormatter={formatAxisDate}
                   interval="preserveStartEnd"
                   minTickGap={50}
