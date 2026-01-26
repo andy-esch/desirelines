@@ -46,11 +46,12 @@ class PostgresWriterConfig(BaseSettings):
     )
 
     @property
-    def strava_tokens(self) -> StravaTokenSet:
+    def tokens(self) -> StravaTokenSet:
         """Get Strava tokens for API authentication."""
         return StravaTokenSet(
             client_id=self.strava_client_id,
             client_secret=self.strava_client_secret,
+            access_token="",  # Will be refreshed on first use
             refresh_token=self.strava_refresh_token,
         )
 
