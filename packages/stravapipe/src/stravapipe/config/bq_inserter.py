@@ -1,11 +1,10 @@
 """Configuration for BigQuery inserter cloud function."""
 
 import logging
-import os
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from stravapipe.config.common import StravaApiConfig, load_secrets_from_volumes
+from stravapipe.config.common import StravaApiConfig, load_strava_secrets
 from stravapipe.domain import StravaTokenSet
 
 logger = logging.getLogger(__name__)
@@ -76,27 +75,8 @@ def load_bq_inserter_config() -> BQInserterConfig:
     Raises:
         ValidationError: If required configuration is missing or invalid.
     """
-    secret_names = [
-        "INFISICAL_STRAVA_CLIENT_ID",
-        "INFISICAL_STRAVA_CLIENT_SECRET",
-        "INFISICAL_STRAVA_REFRESH_TOKEN",
-    ]
-    # Load Strava secrets from atomic mounted volumes if available
-    raw_secrets = load_secrets_from_volumes(secret_names)
-
-    # Log fallbacks for secrets not found in volumes
-    for name in secret_names:
-        if name not in raw_secrets:
-            # Check env var without INFISICAL_ prefix for backwards compatibility
-            env_name = name.replace("INFISICAL_", "")
-            if os.getenv(env_name):
-                logger.info("config: loaded %s from environment", env_name)
-
-    # Map INFISICAL_STRAVA_* secret names to strava_* model fields
-    # Strip INFISICAL_ prefix and convert to lowercase
-    config_dict = {
-        k.replace("INFISICAL_", "").lower(): v for k, v in raw_secrets.items()
-    }
+    # Load Strava secrets and map keys
+    config_dict = load_strava_secrets()
 
     # Load config, prioritizing passed values (secrets) over env vars
     return BQInserterConfig.model_validate(config_dict)

@@ -1,6 +1,7 @@
 """Common configuration shared across functions."""
 
 import logging
+import os
 from typing import NamedTuple
 
 logger = logging.getLogger(__name__)
@@ -62,3 +63,39 @@ def load_secrets_from_volumes(
             # Secret not mounted, skip (will rely on env var or default)
             pass
     return secrets
+
+
+def load_strava_secrets() -> dict[str, str]:
+    """Load Strava API secrets from volumes or environment.
+
+    Standardizes the loading of:
+    - INFISICAL_STRAVA_CLIENT_ID -> strava_client_id
+    - INFISICAL_STRAVA_CLIENT_SECRET -> strava_client_secret
+    - INFISICAL_STRAVA_REFRESH_TOKEN -> strava_refresh_token
+
+    Returns:
+        Dictionary with mapped keys (field names for config model).
+    """
+    # Map infrastructure secret names (from Infisical/Terraform) to application config keys
+    secret_mapping = {
+        "INFISICAL_STRAVA_CLIENT_ID": "strava_client_id",
+        "INFISICAL_STRAVA_CLIENT_SECRET": "strava_client_secret",
+        "INFISICAL_STRAVA_REFRESH_TOKEN": "strava_refresh_token",
+    }
+
+    secret_names = list(secret_mapping.keys())
+
+    # Load Strava secrets from atomic mounted volumes if available
+    raw_secrets = load_secrets_from_volumes(secret_names)
+
+    # Log fallbacks for secrets not found in volumes
+    for name in secret_names:
+        if name not in raw_secrets:
+            # Check env var without INFISICAL_ prefix for backwards compatibility
+            # This logic mimics the previous string replacement but only for LOGGING purposes
+            env_name = name.replace("INFISICAL_", "")
+            if os.getenv(env_name):
+                logger.info("config: loaded %s from environment", env_name)
+
+    # Return mapped dictionary
+    return {secret_mapping[k]: v for k, v in raw_secrets.items() if k in secret_mapping}
