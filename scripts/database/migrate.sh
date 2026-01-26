@@ -43,7 +43,8 @@ fi
 
 # Get connection string from Secret Manager
 # Use flyway connection string (has schema management permissions)
-SECRET_NAME="postgres-conn-flyway"
+# Secrets are managed in Infisical and synced to GCP Secret Manager
+SECRET_NAME="INFISICAL_POSTGRES_CONN_FLYWAY"
 echo -e "${YELLOW}📥 Fetching connection string from Secret Manager (${SECRET_NAME})...${NC}"
 CONNECTION_STRING=$(gcloud secrets versions access latest \
 	--secret="${SECRET_NAME}" \

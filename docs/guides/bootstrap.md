@@ -2,7 +2,7 @@
 
 This guide shows how to bootstrap a complete desirelines environment (dev or prod) from scratch.
 
-## Prerequisites (5 minutes)
+## Prerequisites
 
 1. **Create GCP project** (manual):
    ```bash
@@ -13,28 +13,28 @@ This guide shows how to bootstrap a complete desirelines environment (dev or pro
    - Go to https://console.cloud.google.com/billing
    - Link the project to your billing account
 
-3. **Set up Infisical credentials** (manual):
-   - Ensure you have access to the Desirelines Infisical project.
+3. **Set up Infisical** (manual):
+   - Ensure you have access to the Desirelines Infisical project
    - Install the CLI: `brew install infisical/tap/infisical`
    - Log in: `infisical login`
-   - Populate secrets in the `/backend/secrets` and `/backend/config` folders for your environment (`dev` or `prod`).
+   - Populate secrets in `/backend/secrets` and config in `/backend/config` for your environment
+   - Configure GCP Secret Manager sync in Infisical dashboard
+   - See [secrets.md](./secrets.md) for details
 
-## One-Command Bootstrap (5-10 minutes)
-
-> **Note**: The bootstrap script is being updated to fully integrate with the new Infisical workflow. For now, ensure secrets are populated in Infisical before running terraform.
+## One-Command Bootstrap
 
 ```bash
-# Bootstrap dev environment
 ./scripts/ops/setup/bootstrap-environment.sh dev
 ```
 
 The script will:
-1. ✅ Validate prerequisites (project exists, billing enabled)
-2. ✅ Create terraform service account with all required permissions
-3. ✅ Set up authentication and impersonation
-4. ✅ Create terraform state bucket
-5. ✅ Build and publish Docker images
-6. ✅ Deploy complete infrastructure (BigQuery, PubSub, Cloud Run, etc.)
+1. Validate prerequisites (project exists, billing enabled)
+2. Create terraform service account with required permissions
+3. Set up authentication and impersonation
+4. Create terraform state bucket
+5. Verify Infisical secrets are configured
+6. Build and publish Docker images
+7. Deploy complete infrastructure
 
 ## What Gets Created
 
@@ -42,25 +42,23 @@ The script will:
 - **BigQuery datasets**: Raw activities (analytics/archival)
 - **PubSub topics**: Activity processing pipeline
 - **Cloud Run services**: dispatcher, api-gateway, bq-inserter, postgres-writer
-- **Secret Manager**: Atomic secrets (synced from Infisical)
+- **Secret Manager**: Secret containers (values synced from Infisical)
 - **Cloud Storage**: Terraform state bucket
 
 ### Service Accounts
-- **terraform-desirelines**: For infrastructure management (same name across environments)
-- **Dedicated service account per Cloud Run service**: dispatcher, api-gateway, bq-inserter, postgres-writer
+- **terraform-desirelines**: For infrastructure management
+- **Dedicated service account per Cloud Run service**
 
 ## Updating the Environment
 
 After the initial bootstrap, to deploy changes:
 
 ```bash
-# Package new function code
-pants package functions::
-
-# Deploy infrastructure updates
-cd terraform/environments/dev  # or prod
-terraform apply -var="function_source_tag=$(git rev-parse --short HEAD)"
+just build-publish
+just tf-deploy dev
 ```
+
+Or via CI/CD by merging to main (auto-deploys to dev).
 
 ## Troubleshooting
 
@@ -73,40 +71,31 @@ terraform apply -var="function_source_tag=$(git rev-parse --short HEAD)"
 2. **"Billing not enabled"**
    - Enable billing in console: https://console.cloud.google.com/billing
 
-3. **"StravaAuth-{env}.json not found"**
-   - Create the file with your Strava API credentials (see Prerequisites)
+3. **Secrets not found**
+   - Verify Infisical sync is configured and working
+   - Check secrets exist: `gcloud secrets list --project=desirelines-dev`
+   - See [secrets.md](./secrets.md) for setup instructions
 
 4. **Permission errors during terraform apply**
-   - If terraform fails with IAM permission errors, the terraform service account may need additional roles
-   - The bootstrap script grants comprehensive permissions, but if you created the SA manually, run:
-     ```bash
-     ./scripts/ops/setup/bootstrap-terraform-sa.sh dev  # to add missing permissions
-     ```
+   - The terraform service account may need additional roles
+   - Run: `./scripts/ops/setup/bootstrap-terraform-sa.sh dev`
    - Ensure you have Owner/Editor role on the project
-   - Run: `gcloud auth list` to verify authentication
-
-5. **Cross-project access errors (prod only)**
-   - Production environment needs read access to dev project resources
-   - Ensure the bootstrap script completed successfully (it grants these permissions automatically)
 
 ### Manual Recovery
 
-If the bootstrap script fails partway through, you can run individual steps:
+If the bootstrap script fails partway through:
 
 ```bash
 # Create terraform SA only
 ./scripts/ops/setup/bootstrap-terraform-sa.sh dev
 
-# Deploy secrets only
-./scripts/ops/deploy/deploy-secrets.sh StravaAuth-dev.json
-
-# Package functions only
-pants package functions::
+# Build and publish images
+just build-publish
 
 # Deploy terraform only
 cd terraform/environments/dev
 terraform init -backend-config="bucket=desirelines-dev-terraform-state"
-terraform apply -var="function_source_tag=$(git rev-parse --short HEAD)"
+terraform apply
 ```
 
 ## Environment Cleanup
@@ -118,7 +107,12 @@ cd terraform/environments/dev  # or prod
 terraform destroy
 ```
 
-This will remove all infrastructure but preserve:
+This removes all infrastructure but preserves:
 - The terraform state bucket (for safety)
 - The terraform service account
-- Secrets in Secret Manager
+- Secrets in Secret Manager (managed by Infisical)
+
+## Related
+
+- [secrets.md](./secrets.md) - Secrets management with Infisical
+- [deployment.md](./deployment.md) - Deployment procedures

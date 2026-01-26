@@ -32,18 +32,19 @@ if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "prod" ]]; then
 fi
 
 # Determine which secret to use based on role
+# Secrets are managed in Infisical and synced to GCP Secret Manager
 case "$ROLE_FLAG" in
 --admin)
 	ROLE="admin"
-	SECRET_NAME="postgres-conn-admin"
+	SECRET_NAME="INFISICAL_POSTGRES_CONN_ADMIN"
 	;;
 --apigateway)
 	ROLE="apigateway (read-only)"
-	SECRET_NAME="postgres-conn-apigateway"
+	SECRET_NAME="INFISICAL_POSTGRES_CONN_APIGATEWAY"
 	;;
 --writer)
 	ROLE="writer"
-	SECRET_NAME="postgres-conn-writer"
+	SECRET_NAME="INFISICAL_POSTGRES_CONN_WRITER"
 	;;
 *)
 	echo -e "${RED}Role flag must be --admin, --apigateway, or --writer${NC}"

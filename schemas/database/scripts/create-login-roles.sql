@@ -6,11 +6,13 @@
 -- Role groups must be created first - see docs/guides/database-setup.md Section 2.
 --
 -- See: local/init-roles.sql for the local dev equivalent (with hardcoded passwords)
--- Secret naming convention: postgres-conn-{role}
+--
+-- Connection strings are stored in Infisical (/backend/secrets) and synced to
+-- GCP Secret Manager with INFISICAL_ prefix. See docs/guides/secrets.md.
 
 -- =============================================================================
 -- Flyway migrations (DDL via ddl_grp)
--- Secret: postgres-conn-flyway
+-- Infisical: POSTGRES_CONN_FLYWAY
 -- =============================================================================
 CREATE ROLE flyway WITH LOGIN PASSWORD 'GENERATE_SECURE_32CHAR_PASSWORD';
 GRANT desirelines_ddl_grp TO flyway;
@@ -19,7 +21,7 @@ COMMENT ON ROLE flyway IS 'Flyway database migrations';
 
 -- =============================================================================
 -- postgres-writer service (read/write via dml_grp)
--- Secret: postgres-conn-writer
+-- Infisical: POSTGRES_CONN_WRITER
 -- =============================================================================
 CREATE ROLE writer WITH LOGIN PASSWORD 'GENERATE_SECURE_32CHAR_PASSWORD';
 GRANT desirelines_dml_grp TO writer;
@@ -28,7 +30,7 @@ COMMENT ON ROLE writer IS 'postgres-writer Cloud Run service';
 
 -- =============================================================================
 -- apigateway service (read-only via ro_grp)
--- Secret: postgres-conn-apigateway
+-- Infisical: POSTGRES_CONN_APIGATEWAY
 -- =============================================================================
 CREATE ROLE apigateway WITH LOGIN PASSWORD 'GENERATE_SECURE_32CHAR_PASSWORD';
 GRANT desirelines_ro_grp TO apigateway;
@@ -37,7 +39,7 @@ COMMENT ON ROLE apigateway IS 'apigateway Cloud Run service (read-only)';
 
 -- =============================================================================
 -- Reader (general read-only access via ro_grp)
--- Secret: postgres-conn-reader
+-- Infisical: POSTGRES_CONN_READER
 -- =============================================================================
 CREATE ROLE reader WITH LOGIN PASSWORD 'GENERATE_SECURE_32CHAR_PASSWORD';
 GRANT desirelines_ro_grp TO reader;
@@ -46,7 +48,7 @@ COMMENT ON ROLE reader IS 'General read-only access';
 
 -- =============================================================================
 -- Admin access for manual operations (DDL via ddl_grp)
--- Secret: postgres-conn-admin
+-- Infisical: POSTGRES_CONN_ADMIN
 -- =============================================================================
 CREATE ROLE admin WITH LOGIN PASSWORD 'GENERATE_SECURE_32CHAR_PASSWORD';
 GRANT desirelines_ddl_grp TO admin;
