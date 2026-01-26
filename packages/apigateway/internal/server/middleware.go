@@ -18,8 +18,11 @@ func CORSMiddleware(corsHandler *cors.Handler) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Set CORS headers for all requests
-			corsHandler.SetHeaders(w, r)
+			// Set CORS headers - reject if origin not allowed
+			if !corsHandler.SetHeaders(w, r) {
+				http.Error(w, "Origin not allowed", http.StatusForbidden)
+				return
+			}
 
 			// Continue to next handler
 			next.ServeHTTP(w, r)
