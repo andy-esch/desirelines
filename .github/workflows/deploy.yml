@@ -41,6 +41,7 @@ jobs:
       git_sha: ${{ steps.metadata.outputs.git_sha }}
       environment: ${{ steps.metadata.outputs.environment }}
       timestamp: ${{ steps.metadata.outputs.timestamp }}
+      infisical_workspace_id: ${{ steps.metadata.outputs.infisical_workspace_id }}
 
     # Required for Workload Identity Federation
     permissions:
@@ -57,6 +58,7 @@ jobs:
           echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "environment=${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}" >> $GITHUB_OUTPUT
           echo "timestamp=$(date -u +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          echo "infisical_workspace_id=$(jq -r '.workspaceId' .infisical.json)" >> $GITHUB_OUTPUT
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -174,21 +176,28 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        env:
+          # Provider Authentication
+          INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+          INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+          # Input Variables
+          TF_VAR_deployment_version: ${{ needs.build-images.outputs.git_sha }}
+          TF_VAR_gcp_project_id: desirelines-${{ needs.build-images.outputs.environment }}
+          TF_VAR_gcp_project_number: ${{ secrets.GCP_PROJECT_NUMBER }}
+          TF_VAR_developer_email: ${{ secrets.DEVELOPER_EMAIL }}
+          TF_VAR_gcp_region: us-central1
+          TF_VAR_infisical_workspace_id: ${{ needs.build-images.outputs.infisical_workspace_id }}
         run: |
           cd terraform/environments/${{ needs.build-images.outputs.environment }}
 
-          ENV="${{ needs.build-images.outputs.environment }}"
-
           terraform plan \
-            -var="deployment_version=${{ needs.build-images.outputs.git_sha }}" \
-            -var="gcp_project_id=desirelines-${ENV}" \
-            -var="gcp_project_number=${{ secrets.GCP_PROJECT_NUMBER }}" \
-            -var="developer_email=${{ secrets.DEVELOPER_EMAIL }}" \
-            -var="gcp_region=us-central1" \
             -input=false \
             -out=tfplan
 
       - name: Terraform Apply
+        env:
+          INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+          INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
         run: |
           cd terraform/environments/${{ needs.build-images.outputs.environment }}
           terraform apply -auto-approve tfplan
@@ -337,22 +346,30 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Get API Gateway URL
-        id: api-url
+      - name: Install Infisical CLI
+        uses: Infisical/setup-action@v1
+        with:
+          version: "0.36.2" # Pin version for stability
+
+      - name: Export Secrets
+        working-directory: packages/web
+        env:
+          INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+          INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+          INFISICAL_PROJECT_ID: ${{ needs.build-images.outputs.infisical_workspace_id }}
         run: |
-          URL=$(gcloud run services describe desirelines-api-gateway \
-            --project=desirelines-${{ needs.build-images.outputs.environment }} \
-            --region=us-central1 \
-            --format='value(status.url)')
-          echo "url=$URL" >> $GITHUB_OUTPUT
+          ENV="${{ needs.build-images.outputs.environment }}"
+          echo "🔑 Exporting secrets for environment: $ENV"
+          
+          if [ "$ENV" = "prod" ]; then
+            infisical export --env=prod --path=/frontend > .env.production.local
+          else
+            # Map dev to dev (staging in codebase)
+            infisical export --env=dev --path=/frontend > .env.staging.local
+          fi
 
       - name: Build for environment
         working-directory: packages/web
-        env:
-          VITE_FIREBASE_API_KEY: ${{ needs.build-images.outputs.environment == 'prod' && secrets.FIREBASE_API_KEY_PROD || secrets.FIREBASE_API_KEY_DEV }}
-          VITE_FIREBASE_AUTH_DOMAIN: desirelines-${{ needs.build-images.outputs.environment }}.firebaseapp.com
-          VITE_FIREBASE_PROJECT_ID: desirelines-${{ needs.build-images.outputs.environment }}
-          VITE_API_GATEWAY_URL: ${{ steps.api-url.outputs.url }}
         run: npm run build
 
       - name: Deploy to Firebase Hosting

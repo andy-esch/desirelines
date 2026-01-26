@@ -19,10 +19,11 @@ scripts/
 | Task | Command |
 |------|---------|
 | Local dev setup | `./scripts/ops/setup/setup-local.sh` |
-| Build & publish | `pants publish ::` |
+| Build & publish | `just build-publish` |
 | Deploy web | `just deploy-web <env>` |
-| Deploy secrets | `./scripts/ops/deploy/deploy-secrets.sh StravaAuth-dev.json` |
+| Deploy backend | `just tf-deploy <env>` |
 | Backfill Strava | `uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024` |
+| Manage webhook | `just webhook <action> <env>` |
 
 ## By Directory
 
@@ -30,10 +31,10 @@ scripts/
 
 Consolidated operational scripts.
 
-- **`ops/setup/`**: Bootstrapping (`bootstrap-environment.sh`, `setup-local.sh`).
-- **`ops/deploy/`**: Deployment (`deploy-web.sh`, `deploy-secrets.sh`).
-- **`ops/backfills/`**: Data tools (`backfill_from_strava.py`).
-- **`ops/webhook-management.sh`**: Webhook operations.
+- **`ops/setup/`**: Bootstrapping (`bootstrap-environment.sh`, `setup-local.sh`)
+- **`ops/deploy/`**: Deployment (`deploy-web.sh`, `build-and-publish.sh`)
+- **`ops/backfills/`**: Data tools (`backfill_from_strava.py`)
+- **`ops/webhook-management.sh`**: Webhook operations (create, view, delete)
 
 ### `database/`
 
@@ -46,9 +47,8 @@ Database connection and migration helpers (PostgreSQL).
 
 Local development environment setup.
 
-- `local-dev/` - Docker-compose helpers (under review).
-
 ## Related Documentation
 
 - [Bootstrap Guide](../docs/guides/bootstrap.md)
 - [Deployment Guide](../docs/guides/deployment.md)
+- [Secrets Guide](../docs/guides/secrets.md)

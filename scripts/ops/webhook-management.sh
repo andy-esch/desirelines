@@ -2,8 +2,11 @@
 
 # Strava webhook management script
 # Usage: ./scripts/webhook-management.sh <command> <environment>
-# Commands: create, view, delete, generate-token, rotate-token
+# Commands: create, view, delete
 # Example: ./scripts/webhook-management.sh create dev
+#
+# Secrets are managed in Infisical and synced to GCP Secret Manager.
+# See docs/guides/secrets.md for details.
 
 set -euo pipefail
 
@@ -11,7 +14,7 @@ set -euo pipefail
 if [ $# -ne 2 ]; then
 	echo "❌ Error: Please specify command and environment"
 	echo "Usage: $0 <command> <environment>"
-	echo "Commands: create, view, delete, generate-token, rotate-token"
+	echo "Commands: create, view, delete"
 	echo "Example: $0 create dev"
 	exit 1
 fi
@@ -47,6 +50,12 @@ if [ "$GCP_PROJECT_ID" != "$EXPECTED_PROJECT" ]; then
 	exit 1
 fi
 echo "✅ Project verified: $GCP_PROJECT_ID"
+
+# Helper function to read a secret from Secret Manager
+read_secret() {
+	local secret_name="$1"
+	gcloud secrets versions access latest --secret="$secret_name" --project="$GCP_PROJECT_ID" 2>/dev/null
+}
 
 # Helper function for confirmation prompt
 confirm_action() {
@@ -89,10 +98,17 @@ case "$COMMAND" in
 		--format="value(status.url)")
 	CALLBACK_URL="${BASE_URL}/webhook"
 
-	STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth" --project="$GCP_PROJECT_ID")
-	CLIENT_ID=$(echo "$STRAVA_AUTH" | jq -r '.client_id')
-	CLIENT_SECRET=$(echo "$STRAVA_AUTH" | jq -r '.client_secret')
-	VERIFY_TOKEN=$(echo "$STRAVA_AUTH" | jq -r '.webhook_verify_token')
+	# Read individual secrets (synced from Infisical)
+	CLIENT_ID=$(read_secret "INFISICAL_STRAVA_CLIENT_ID")
+	CLIENT_SECRET=$(read_secret "INFISICAL_STRAVA_CLIENT_SECRET")
+	VERIFY_TOKEN=$(read_secret "INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN")
+
+	if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$VERIFY_TOKEN" ]; then
+		echo "❌ Error: Could not read required secrets from Secret Manager"
+		echo "   Ensure Infisical sync is configured and secrets exist."
+		echo "   See docs/guides/secrets.md for setup instructions."
+		exit 1
+	fi
 
 	echo "   Environment:  $ENV_NAME"
 	echo "   Project:      $GCP_PROJECT_ID"
@@ -121,9 +137,13 @@ case "$COMMAND" in
 	echo "   Project:     $GCP_PROJECT_ID"
 	echo ""
 
-	STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth" --project="$GCP_PROJECT_ID")
-	CLIENT_ID=$(echo "$STRAVA_AUTH" | jq -r '.client_id')
-	CLIENT_SECRET=$(echo "$STRAVA_AUTH" | jq -r '.client_secret')
+	CLIENT_ID=$(read_secret "INFISICAL_STRAVA_CLIENT_ID")
+	CLIENT_SECRET=$(read_secret "INFISICAL_STRAVA_CLIENT_SECRET")
+
+	if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+		echo "❌ Error: Could not read Strava credentials from Secret Manager"
+		exit 1
+	fi
 
 	curl -sG \
 		-d client_id="$CLIENT_ID" \
@@ -136,10 +156,20 @@ case "$COMMAND" in
 	echo "🗑️  Deleting Strava webhook subscription"
 	echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-	STRAVA_AUTH=$(gcloud secrets versions access latest --secret="strava-auth" --project="$GCP_PROJECT_ID")
-	SUBSCRIPTION_ID=$(echo "$STRAVA_AUTH" | jq -r '.webhook_subscription_id')
-	CLIENT_ID=$(echo "$STRAVA_AUTH" | jq -r '.client_id')
-	CLIENT_SECRET=$(echo "$STRAVA_AUTH" | jq -r '.client_secret')
+	CLIENT_ID=$(read_secret "INFISICAL_STRAVA_CLIENT_ID")
+	CLIENT_SECRET=$(read_secret "INFISICAL_STRAVA_CLIENT_SECRET")
+	SUBSCRIPTION_ID=$(read_secret "INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID")
+
+	if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+		echo "❌ Error: Could not read Strava credentials from Secret Manager"
+		exit 1
+	fi
+
+	if [ -z "$SUBSCRIPTION_ID" ]; then
+		echo "❌ Error: No subscription ID found in INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID"
+		echo "   You may need to look up the subscription ID manually using 'view' command"
+		exit 1
+	fi
 
 	echo "   Environment:     $ENV_NAME"
 	echo "   Project:         $GCP_PROJECT_ID"
@@ -155,66 +185,12 @@ case "$COMMAND" in
 		"https://www.strava.com/api/v3/push_subscriptions/$SUBSCRIPTION_ID?client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET" | jq .
 	;;
 
-"generate-token")
-	echo ""
-	echo "🔐 Generating webhook verify token"
-	echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	echo "   Environment: $ENV_NAME"
-	echo "   Project:     $GCP_PROJECT_ID"
-	echo ""
-
-	VERIFY_TOKEN=$(openssl rand -hex 32)
-	echo "Generated token: ${VERIFY_TOKEN:0:8}... (truncated for security)"
-
-	if gcloud secrets describe strava-webhook-verify-token --project="$GCP_PROJECT_ID" >/dev/null 2>&1; then
-		echo "Secret exists, adding new version..."
-		echo -n "$VERIFY_TOKEN" | gcloud secrets versions add strava-webhook-verify-token \
-			--project="$GCP_PROJECT_ID" \
-			--data-file=-
-	else
-		echo "Creating new secret..."
-		echo -n "$VERIFY_TOKEN" | gcloud secrets create strava-webhook-verify-token \
-			--project="$GCP_PROJECT_ID" \
-			--data-file=-
-	fi
-
-	echo ""
-	echo "✅ Webhook verify token stored in Secret Manager"
-	;;
-
-"rotate-token")
-	echo ""
-	echo "🔄 Rotating webhook verify token"
-	echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	echo "   Environment: $ENV_NAME"
-	echo "   Project:     $GCP_PROJECT_ID"
-
-	confirm_action \
-		"This will rotate the webhook verify token in Secret Manager." \
-		"   After rotation, you MUST:
-   1. Redeploy dispatcher to pick up new token
-   2. Delete old webhook subscription
-   3. Create new webhook subscription"
-
-	VERIFY_TOKEN=$(openssl rand -hex 32)
-	echo "Generated new token: ${VERIFY_TOKEN:0:8}..."
-
-	echo -n "$VERIFY_TOKEN" | gcloud secrets versions add strava-webhook-verify-token \
-		--project="$GCP_PROJECT_ID" \
-		--data-file=-
-
-	echo ""
-	echo "✅ Token rotated successfully!"
-	echo ""
-	echo "📋 Next steps:"
-	echo "   1. Redeploy dispatcher to pick up new token"
-	echo "   2. Delete old subscription: $0 delete $ENV_NAME"
-	echo "   3. Create new subscription: $0 create $ENV_NAME"
-	;;
-
 *)
 	echo "❌ Error: Unknown command '$COMMAND'"
-	echo "Available commands: create, view, delete, generate-token, rotate-token"
+	echo "Available commands: create, view, delete"
+	echo ""
+	echo "Note: Token generation/rotation is now managed in Infisical."
+	echo "      See docs/guides/secrets.md for details."
 	exit 1
 	;;
 esac

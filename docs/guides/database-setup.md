@@ -84,43 +84,26 @@ GRANT desirelines_ddl_grp TO admin;
 ALTER ROLE admin SET search_path = desirelines, extensions, public;
 ```
 
-## 5. Store Credentials in Secret Manager
+## 5. Store Credentials in Infisical
 
-Secret naming convention: `postgres-conn-{role}`
+Connection strings are stored in Infisical and synced to GCP Secret Manager.
 
-```bash
-ENV=dev  # or prod
-HOST="ep-xxx-pooler.us-east-2.aws.neon.tech"  # your Neon pooler host
+1. **Add connection strings to Infisical** (`/backend/secrets` folder, `dev` or `prod` environment):
 
-# Create secrets for each role (replace PASSWORD with actual values)
-# flyway
-echo -n "postgres://flyway:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=flyway" | \
-  gcloud secrets create postgres-conn-flyway \
-    --project=desirelines-$ENV --replication-policy=automatic --data-file=-
+   | Secret Name | Value Format |
+   |-------------|--------------|
+   | `POSTGRES_CONN_FLYWAY` | `postgres://flyway:PASSWORD@HOST-pooler/desirelines?sslmode=require&channel_binding=require&application_name=flyway` |
+   | `POSTGRES_CONN_WRITER` | `postgres://writer:PASSWORD@HOST-pooler/desirelines?sslmode=require&channel_binding=require&application_name=postgres-writer` |
+   | `POSTGRES_CONN_APIGATEWAY` | `postgres://apigateway:PASSWORD@HOST-pooler/desirelines?sslmode=require&channel_binding=require&application_name=apigateway` |
+   | `POSTGRES_CONN_READER` | `postgres://reader:PASSWORD@HOST-pooler/desirelines?sslmode=require&channel_binding=require&application_name=reader` |
+   | `POSTGRES_CONN_ADMIN` | `postgres://admin:PASSWORD@HOST-pooler/desirelines?sslmode=require&channel_binding=require&application_name=admin` |
 
-# writer
-echo -n "postgres://writer:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=postgres-writer" | \
-  gcloud secrets create postgres-conn-writer \
-    --project=desirelines-$ENV --replication-policy=automatic --data-file=-
+2. **Verify sync to GCP Secret Manager**:
+   ```bash
+   gcloud secrets list --project=desirelines-dev --filter="name:INFISICAL_POSTGRES"
+   ```
 
-# apigateway
-echo -n "postgres://apigateway:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=apigateway" | \
-  gcloud secrets create postgres-conn-apigateway \
-    --project=desirelines-$ENV --replication-policy=automatic --data-file=-
-
-# reader
-echo -n "postgres://reader:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=reader" | \
-  gcloud secrets create postgres-conn-reader \
-    --project=desirelines-$ENV --replication-policy=automatic --data-file=-
-
-# admin
-echo -n "postgres://admin:PASSWORD@${HOST}/desirelines?sslmode=require&channel_binding=require&application_name=admin" | \
-  gcloud secrets create postgres-conn-admin \
-    --project=desirelines-$ENV --replication-policy=automatic --data-file=-
-
-# Verify
-gcloud secrets list --project=desirelines-$ENV --filter="name:postgres-conn"
-```
+See [secrets.md](./secrets.md) for details on secrets management.
 
 ## 6. Run Migrations
 

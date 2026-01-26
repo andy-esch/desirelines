@@ -92,3 +92,26 @@ variable "api_gateway_allowed_origins" {
   type        = string
   default     = ""
 }
+
+variable "infisical_project_id" {
+  description = "Infisical Project ID (used as suffix for integration Service Account)"
+  type        = string
+}
+
+# ==============================================================================
+# Application Config (sourced from Infisical at deploy time)
+# ==============================================================================
+# These values are fetched from Infisical by the calling environment and passed
+# to the module. This keeps Infisical as the single source of truth for app config.
+
+variable "app_config" {
+  description = "Application configuration values from Infisical"
+  type = object({
+    log_level      = string
+    allowed_emails = string
+  })
+  default = {
+    log_level      = "INFO"
+    allowed_emails = ""
+  }
+}

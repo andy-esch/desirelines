@@ -49,8 +49,8 @@ resource "google_pubsub_subscription" "bq_inserter" {
   # Retain messages for 7 days (matches topic retention)
   message_retention_duration = "604800s"
 
-  # Enable exactly-once delivery for data consistency
-  enable_exactly_once_delivery = true
+  # Note: exactly-once delivery is not supported with push subscriptions
+  # Data consistency is achieved through idempotent handlers in the service
 
   labels = merge(local.common_labels, {
     service = "bq-inserter"
@@ -101,8 +101,8 @@ resource "google_pubsub_subscription" "postgres_writer" {
   # Retain messages for 7 days (matches topic retention)
   message_retention_duration = "604800s"
 
-  # Enable exactly-once delivery for data consistency
-  enable_exactly_once_delivery = true
+  # Note: exactly-once delivery is not supported with push subscriptions
+  # Data consistency is achieved through idempotent handlers in the service
 
   labels = merge(local.common_labels, {
     service = "postgres-writer"

@@ -46,7 +46,9 @@ resource "google_project_service" "required_apis" {
     "run.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
-    "firestore.googleapis.com"
+    "firestore.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "secretmanager.googleapis.com"
   ]) : []
 
   project = var.gcp_project_id
@@ -252,6 +254,44 @@ resource "google_service_account" "postgres_writer" {
   description  = "Service account for PostgreSQL writer function in ${var.environment} environment"
 }
 
+# Infisical Integration Service Account
+# Required for Secret Manager Sync. Suffix is determined by Infisical Project ID.
+resource "google_service_account" "infisical_sync" {
+  account_id   = "infisical-sync-${var.infisical_project_id}"
+  display_name = "Infisical Secret Sync (${title(var.environment)})"
+  description  = "Service account for Infisical to sync secrets to GCP Secret Manager"
+}
+
+# Grant Infisical permission to manage secrets (list, create, update, delete)
+# Required "admin" role because Infisical needs to list secrets in the dashboard to link them.
+resource "google_project_iam_member" "infisical_secret_admin" {
+  project = var.gcp_project_id
+  role    = "roles/secretmanager.admin"
+  member  = "serviceAccount:${google_service_account.infisical_sync.email}"
+}
+
+# Grant Infisical permission to check enabled APIs
+# Required for GCP App Connection setup in Infisical dashboard
+resource "google_project_iam_member" "infisical_service_usage_admin" {
+  project = var.gcp_project_id
+  role    = "roles/serviceusage.serviceUsageAdmin"
+  member  = "serviceAccount:${google_service_account.infisical_sync.email}"
+}
+
+# Grant Service Account Token Creator to the Infisical service account on itself for impersonation
+resource "google_service_account_iam_member" "infisical_token_creator" {
+  service_account_id = google_service_account.infisical_sync.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.infisical_sync.email}"
+}
+
+# Allow Infisical Cloud US to impersonate the sync service account
+resource "google_service_account_iam_member" "infisical_cloud_impersonation" {
+  service_account_id = google_service_account.infisical_sync.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:infisical-us@infisical-us.iam.gserviceaccount.com"
+}
+
 # IAM permissions for dispatcher (PubSub Publisher only)
 resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   topic  = google_pubsub_topic.activity_events.name
@@ -309,68 +349,104 @@ resource "google_service_account_iam_member" "postgres_writer_impersonation" {
 }
 
 # ==============================================================================
-# Strava Auth Secret
+# Infisical-Managed Secrets (Strava API)
 # ==============================================================================
-# Secret value must be added manually after creation (contains API credentials).
-# Format: JSON with client_id, client_secret, refresh_token, access_token
+# Secret containers for Infisical sync. Terraform creates the container and IAM
+# bindings; Infisical manages the secret values.
+# Naming convention: INFISICAL_ prefix indicates provenance.
 
-resource "google_secret_manager_secret" "strava_auth" {
-  secret_id = "strava-auth"
+resource "google_secret_manager_secret" "strava_client_id" {
+  secret_id = "INFISICAL_STRAVA_CLIENT_ID"
   project   = var.gcp_project_id
-
   replication {
     auto {}
   }
-
-  labels = {
-    environment = var.environment
-    purpose     = "strava-api-auth"
-  }
-
-  depends_on = [google_project_service.required_apis]
+  labels = { environment = var.environment, purpose = "strava-api", managed_by = "infisical" }
 }
 
-# Secret Manager IAM permissions for service accounts
+resource "google_secret_manager_secret" "strava_client_secret" {
+  secret_id = "INFISICAL_STRAVA_CLIENT_SECRET"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-api", managed_by = "infisical" }
+}
 
-# Dispatcher access to Strava auth secret
-resource "google_secret_manager_secret_iam_member" "dispatcher_strava_auth_access" {
-  secret_id = google_secret_manager_secret.strava_auth.secret_id
+resource "google_secret_manager_secret" "strava_refresh_token" {
+  secret_id = "INFISICAL_STRAVA_REFRESH_TOKEN"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-api", managed_by = "infisical" }
+}
+
+resource "google_secret_manager_secret" "strava_webhook_verify_token" {
+  secret_id = "INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-webhook", managed_by = "infisical" }
+}
+
+resource "google_secret_manager_secret" "strava_webhook_subscription_id" {
+  secret_id = "INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-webhook", managed_by = "infisical" }
+}
+
+# IAM Permissions for Atomic Secrets
+
+# Dispatcher needs Webhook tokens
+resource "google_secret_manager_secret_iam_member" "dispatcher_webhook_tokens" {
+  for_each = toset([
+    google_secret_manager_secret.strava_webhook_verify_token.secret_id,
+    google_secret_manager_secret.strava_webhook_subscription_id.secret_id
+  ])
+  secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.dispatcher.email}"
 }
 
-# BQ Inserter access to Strava auth secret
-resource "google_secret_manager_secret_iam_member" "bq_inserter_strava_auth_access" {
-  secret_id = google_secret_manager_secret.strava_auth.secret_id
+# BQ Inserter needs API tokens
+resource "google_secret_manager_secret_iam_member" "bq_inserter_api_tokens" {
+  for_each = toset([
+    google_secret_manager_secret.strava_client_id.secret_id,
+    google_secret_manager_secret.strava_client_secret.secret_id,
+    google_secret_manager_secret.strava_refresh_token.secret_id
+  ])
+  secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
-# PostgreSQL Writer access to Strava auth secret
-resource "google_secret_manager_secret_iam_member" "postgres_writer_strava_auth_access" {
-  secret_id = google_secret_manager_secret.strava_auth.secret_id
+# Postgres Writer needs API tokens
+resource "google_secret_manager_secret_iam_member" "postgres_writer_api_tokens" {
+  for_each = toset([
+    google_secret_manager_secret.strava_client_id.secret_id,
+    google_secret_manager_secret.strava_client_secret.secret_id,
+    google_secret_manager_secret.strava_refresh_token.secret_id
+  ])
+  secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.postgres_writer.email}"
 }
 
-# Grant developer access to secrets for local development
-resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access" {
-  count     = var.developer_email != null ? 1 : 0
-  secret_id = google_secret_manager_secret.strava_auth.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "user:${var.developer_email}"
-}
-
 # ==============================================================================
-# PostgreSQL Connection Secrets
+# Infisical-Managed Secrets (PostgreSQL Connections)
 # ==============================================================================
-# Each database role has its own secret with connection string.
-# Secret values must be added manually after creation (contain passwords).
-# Naming convention: postgres-conn
+# Secret containers for Infisical sync. Terraform creates the container and IAM
+# bindings; Infisical manages the secret values.
+# Naming convention: INFISICAL_ prefix indicates provenance.
 
 # Admin connection (for manual database management)
 resource "google_secret_manager_secret" "postgres_conn_admin" {
-  secret_id = "postgres-conn-admin"
+  secret_id = "INFISICAL_POSTGRES_CONN_ADMIN"
   project   = var.gcp_project_id
 
   replication {
@@ -380,12 +456,13 @@ resource "google_secret_manager_secret" "postgres_conn_admin" {
   labels = {
     environment = var.environment
     purpose     = "postgres-admin"
+    managed_by  = "infisical"
   }
 }
 
 # Flyway connection (for schema migrations)
 resource "google_secret_manager_secret" "postgres_conn_flyway" {
-  secret_id = "postgres-conn-flyway"
+  secret_id = "INFISICAL_POSTGRES_CONN_FLYWAY"
   project   = var.gcp_project_id
 
   replication {
@@ -395,12 +472,13 @@ resource "google_secret_manager_secret" "postgres_conn_flyway" {
   labels = {
     environment = var.environment
     purpose     = "postgres-flyway"
+    managed_by  = "infisical"
   }
 }
 
 # API Gateway connection (read-only access)
 resource "google_secret_manager_secret" "postgres_conn_apigateway" {
-  secret_id = "postgres-conn-apigateway"
+  secret_id = "INFISICAL_POSTGRES_CONN_APIGATEWAY"
   project   = var.gcp_project_id
 
   replication {
@@ -410,12 +488,13 @@ resource "google_secret_manager_secret" "postgres_conn_apigateway" {
   labels = {
     environment = var.environment
     purpose     = "postgres-apigateway"
+    managed_by  = "infisical"
   }
 }
 
 # PostgreSQL Writer connection (read/write access)
 resource "google_secret_manager_secret" "postgres_conn_writer" {
-  secret_id = "postgres-conn-writer"
+  secret_id = "INFISICAL_POSTGRES_CONN_WRITER"
   project   = var.gcp_project_id
 
   replication {
@@ -425,12 +504,13 @@ resource "google_secret_manager_secret" "postgres_conn_writer" {
   labels = {
     environment = var.environment
     purpose     = "postgres-writer"
+    managed_by  = "infisical"
   }
 }
 
 # Reader connection (generic read-only, for future services)
 resource "google_secret_manager_secret" "postgres_conn_reader" {
-  secret_id = "postgres-conn-reader"
+  secret_id = "INFISICAL_POSTGRES_CONN_READER"
   project   = var.gcp_project_id
 
   replication {
@@ -440,6 +520,7 @@ resource "google_secret_manager_secret" "postgres_conn_reader" {
   labels = {
     environment = var.environment
     purpose     = "postgres-reader"
+    managed_by  = "infisical"
   }
 }
 
@@ -479,4 +560,3 @@ resource "google_secret_manager_secret_iam_member" "postgres_developer_access" {
 # Container images are managed in the shared desirelines-artifacts project.
 # See terraform/environments/artifacts/ for that configuration.
 # The image URL is passed in via the external_artifact_registry variable.
-

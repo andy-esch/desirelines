@@ -1,40 +1,42 @@
 // Package env provides adapters for loading configuration and secrets from the environment and filesystem.
 //
 // This adapter implements [ports.SecretProvider] to retrieve Strava webhook
-// verification secrets from a mounted secrets file (typical in Cloud Run/Kubernetes).
+// verification secrets from mounted secret files (typical in Cloud Run/Kubernetes).
 //
 // # Basic Usage
 //
 //	secretProvider := env.NewDefaultSecretCache(logger)
 //	verifyToken, subscriptionID, err := secretProvider.GetSecrets()
 //
-// # Secret File Format
+// # Atomic Secret Files
 //
-// The secrets file must be JSON with this structure:
+// Secrets are mounted as individual files (atomic mounts):
 //
-//	{
-//	    "webhook_verify_token": "your-strava-verify-token",
-//	    "webhook_subscription_id": 12345
-//	}
+//	/etc/secrets/INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN/value
+//	/etc/secrets/INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID/value
 //
-// Default path: /etc/secrets/strava/secrets.json (configurable via constructor)
+// This replaces the previous JSON blob approach and provides:
+//   - Granular access control per secret
+//   - Independent rotation of individual secrets
+//   - Simpler code (no JSON parsing)
 //
-// # Security
+// # Environment Variable Fallback
 //
-// The adapter enforces secure file permissions:
-//   - Maximum allowed mode is 0600 (owner read/write only)
-//   - Files with more permissive modes are rejected
+// For local development, secrets can be provided via environment variables:
+//
+//	STRAVA_WEBHOOK_VERIFY_TOKEN=your-token
+//	STRAVA_WEBHOOK_SUBSCRIPTION_ID=12345
 //
 // # Caching
 //
 // [SecretCache] provides TTL-based caching with content-hash validation:
 //   - Secrets are cached for 5 minutes by default
-//   - On cache expiry, file is re-read only if content hash changed
+//   - On cache expiry, files are re-read only if content hash changed
 //   - Enables secret rotation without service restart
 //
 // Example with custom TTL:
 //
-//	cache := env.NewSecretCache("/path/to/secrets.json", 1*time.Minute, logger)
+//	cache := env.NewSecretCache(verifyTokenPath, subscriptionIDPath, 1*time.Minute, logger)
 //
 // # Thread Safety
 //
@@ -43,8 +45,6 @@
 //
 // # Cloud Run Integration
 //
-// In Cloud Run, mount secrets from Secret Manager:
-//
-//	gcloud run services update dispatcher \
-//	    --update-secrets=/etc/secrets/strava/secrets.json=strava-webhook-secrets:latest
+// In Cloud Run, secrets are mounted automatically via Terraform configuration.
+// The secret values are managed by Infisical and synced to GCP Secret Manager.
 package env

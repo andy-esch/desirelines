@@ -5,6 +5,7 @@ files(
     name="sources",
     sources=[
         "go.mod",
+        "go.sum",
         "**/*.go",
         "README.md",
     ],

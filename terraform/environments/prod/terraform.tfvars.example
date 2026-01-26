@@ -9,3 +9,6 @@ deployment_version = "abc1234"                 # Git SHA for deployed code (Clou
 
 # Developer access
 developer_email = "your-email@example.com"     # For BigQuery console access
+
+# Infisical configuration (for fetching app config at deploy time)
+infisical_workspace_id = "your-workspace-id"   # Found in Infisical Project Settings

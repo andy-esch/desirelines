@@ -209,35 +209,29 @@ cd ..
 echo "✅ Terraform state bucket created"
 
 # =============================================================================
-# Step 4: Deploy secrets (using default compute SA initially)
+# Step 4: Verify Infisical secrets configuration
 # =============================================================================
 echo ""
-echo "4️⃣ Deploying secrets..."
+echo "4️⃣ Verifying secrets configuration..."
 
-# Deploy secrets (API already enabled above)
+# Secrets are managed in Infisical and synced to GCP Secret Manager.
+# Terraform will create the secret containers; Infisical populates the values.
+# See docs/guides/secrets.md for setup instructions.
 
-# Local file can have environment suffix for clarity, but secret name is just "strava-auth"
-# Each GCP project is already environment-specific, so no suffix needed in secret name
-SECRET_FILE="strava-auth-$ENV_NAME.json"
-SECRET_NAME="strava-auth"
-
-if [[ ! -f "$SECRET_FILE" ]]; then
-	echo "❌ Error: $SECRET_FILE not found"
-	echo "   Please create this file with your Strava API credentials"
+echo "   Secrets are managed via Infisical."
+echo "   Ensure the following before proceeding:"
+echo "   1. Infisical project has secrets in /backend/secrets for $ENV_NAME environment"
+echo "   2. GCP Secret Manager sync is configured in Infisical"
+echo ""
+echo "   See docs/guides/secrets.md for details."
+echo ""
+read -p "Have you configured Infisical secrets for $ENV_NAME? (y/N): " -r </dev/tty
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+	echo "❌ Please configure Infisical secrets first, then re-run this script."
 	exit 1
 fi
 
-# Create secret (no environment suffix - each project is already env-specific)
-gcloud secrets create "$SECRET_NAME" --data-file="$SECRET_FILE" --quiet ||
-	gcloud secrets versions add "$SECRET_NAME" --data-file="$SECRET_FILE" --quiet
-
-# Grant access to terraform service account (for initial deployment)
-# Terraform will create the runtime service accounts and update permissions later
-gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
-	--member="serviceAccount:$SA_EMAIL" \
-	--role="roles/secretmanager.secretAccessor" --quiet
-
-echo "✅ Secrets deployed"
+echo "✅ Secrets configuration verified"
 
 # =============================================================================
 # Step 5: Package functions (skip for local environment)

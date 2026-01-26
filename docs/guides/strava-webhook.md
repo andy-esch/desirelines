@@ -67,13 +67,15 @@ just create-webhook dev  # or prod
 1. **Separate Strava account** - Use dedicated dev account
 2. **OAuth2 authorization** - Authorize dev account for dev application
 3. **Webhook subscription** - Point to dev dispatcher endpoint
-4. **Secret storage** - Store credentials in `strava-auth-dev` secret
+4. **Secret storage** - Store credentials in Infisical `/backend/secrets` (dev environment)
 
 ### Production Environment
 1. **Main Strava account** - Use your primary account
 2. **OAuth2 authorization** - Authorize main account for prod application
 3. **Webhook subscription** - Point to prod dispatcher endpoint
-4. **Secret storage** - Store credentials in `strava-auth-prod` secret
+4. **Secret storage** - Store credentials in Infisical `/backend/secrets` (prod environment)
+
+See [secrets.md](./secrets.md) for details on secrets management.
 
 ## Troubleshooting
 

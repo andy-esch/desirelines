@@ -237,9 +237,9 @@ def main() -> int:
     conn_str = os.environ.get("POSTGRES_CONNECTION_STRING")
     if not conn_str:
         print("Error: POSTGRES_CONNECTION_STRING environment variable not set")
-        print("Get it from Secret Manager:")
+        print("Get it from Secret Manager (secrets managed by Infisical):")
         print(
-            "  export POSTGRES_CONNECTION_STRING=$(gcloud secrets versions access latest --secret=postgres-conn-admin --project=desirelines-dev)"
+            "  export POSTGRES_CONNECTION_STRING=$(gcloud secrets versions access latest --secret=INFISICAL_POSTGRES_CONN_ADMIN --project=desirelines-dev)"
         )
         return 1
 

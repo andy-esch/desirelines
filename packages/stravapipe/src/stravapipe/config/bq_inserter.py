@@ -1,19 +1,20 @@
 """Configuration for BigQuery inserter cloud function."""
 
-import json
-import os
+import logging
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from stravapipe.config.common import StravaApiConfig
+from stravapipe.config.common import StravaApiConfig, load_strava_secrets
 from stravapipe.domain import StravaTokenSet
+
+logger = logging.getLogger(__name__)
 
 
 class BQInserterConfig(BaseSettings):
     """Configuration for the BigQuery inserter cloud function.
 
     Loads configuration from environment variables and optionally from
-    secret volumes mounted at /etc/secrets/strava_auth.json.
+    secret volumes mounted at /etc/secrets/.
     """
 
     # GCP configuration
@@ -64,8 +65,8 @@ def load_bq_inserter_config() -> BQInserterConfig:
     """Load and validate configuration for the BQ inserter function.
 
     Priority order:
-    1. Secret volume at /etc/secrets/strava_auth.json (if present)
-    2. Environment variables
+    1. Secret volumes at /etc/secrets/INFISICAL_STRAVA_* (if present)
+    2. Environment variables (STRAVA_* for backwards compatibility)
     3. .env file (if present)
 
     Returns:
@@ -74,22 +75,8 @@ def load_bq_inserter_config() -> BQInserterConfig:
     Raises:
         ValidationError: If required configuration is missing or invalid.
     """
-    # Load Strava secrets from mounted volume if available
-    strava_secrets = {}
-    secrets_path = "/etc/secrets/strava_auth.json"
-    if os.path.exists(secrets_path):
-        with open(secrets_path, encoding="utf-8") as f:
-            strava_auth = json.load(f)
-            strava_secrets = {
-                "STRAVA_CLIENT_ID": strava_auth.get("client_id"),
-                "STRAVA_CLIENT_SECRET": strava_auth.get("client_secret"),
-                "STRAVA_REFRESH_TOKEN": strava_auth.get("refresh_token"),
-            }
+    # Load Strava secrets and map keys
+    config_dict = load_strava_secrets()
 
-    # Set environment variables from secrets (takes precedence)
-    for key, value in strava_secrets.items():
-        if value is not None:
-            os.environ[key] = str(value)
-
-    # Load config from environment variables (and secrets set above)
-    return BQInserterConfig.model_validate({})
+    # Load config, prioritizing passed values (secrets) over env vars
+    return BQInserterConfig.model_validate(config_dict)

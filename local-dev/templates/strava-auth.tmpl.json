@@ -1,7 +1,7 @@
 {
-  "client_id": ${STRAVA_CLIENT_ID},
-  "client_secret": "${STRAVA_CLIENT_SECRET}",
-  "refresh_token": "${STRAVA_REFRESH_TOKEN}",
-  "webhook_verify_token": "${STRAVA_WEBHOOK_VERIFY_TOKEN}",
-  "webhook_subscription_id": ${STRAVA_WEBHOOK_SUBSCRIPTION_ID}
+  "client_id": ${INFISICAL_STRAVA_CLIENT_ID},
+  "client_secret": "${INFISICAL_STRAVA_CLIENT_SECRET}",
+  "refresh_token": "${INFISICAL_STRAVA_REFRESH_TOKEN}",
+  "webhook_verify_token": "${INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN}",
+  "webhook_subscription_id": ${INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID}
 }

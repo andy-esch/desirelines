@@ -228,8 +228,8 @@ func parseCommaSeparatedEnv(key string) []string {
 
 // getConnectionString reads PostgreSQL connection string from secret mount or environment variable.
 func getConnectionString() (string, error) {
-	// Try secret mount first (Cloud Run)
-	const secretPath = "/etc/secrets/postgres/connection_string" //nolint:gosec // G101: Not credentials, just a file path
+	// Try secret mount first (Cloud Run) - Infisical-managed secrets use INFISICAL_ prefix
+	const secretPath = "/etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY/value" //nolint:gosec // G101: Not credentials, just a file path
 	if data, err := os.ReadFile(secretPath); err == nil {
 		return strings.TrimSpace(string(data)), nil
 	}

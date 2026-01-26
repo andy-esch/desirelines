@@ -14,6 +14,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
+    infisical = {
+      source  = "infisical/infisical"
+      version = "~> 0.12"
+    }
   }
 }
 
@@ -21,6 +25,24 @@ terraform {
 provider "google" {
   project = var.gcp_project_id
   region  = var.gcp_region
+}
+
+# Configure Infisical Provider
+# Authentication via environment variables:
+#   INFISICAL_UNIVERSAL_AUTH_CLIENT_ID
+#   INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET
+provider "infisical" {}
+
+# ==============================================================================
+# Infisical Configuration Data Source
+# ==============================================================================
+# Fetch application config from Infisical at deploy time.
+# This makes Infisical the single source of truth for app configuration.
+
+data "infisical_secrets" "backend_config" {
+  env_slug     = "prod"
+  folder_path  = "/backend/config"
+  workspace_id = var.infisical_workspace_id
 }
 
 # Use the desirelines module
@@ -51,6 +73,15 @@ module "desirelines" {
 
   # API Gateway CORS configuration (production domains only)
   api_gateway_allowed_origins = "https://desirelines-prod.web.app,https://desirelines.andyes.ch"
+
+  # Infisical configuration
+  infisical_project_id = "99dc2cfc-d853"
+
+  # Application config from Infisical (single source of truth)
+  app_config = {
+    log_level      = data.infisical_secrets.backend_config.secrets["LOG_LEVEL"].value
+    allowed_emails = data.infisical_secrets.backend_config.secrets["ALLOWED_EMAILS"].value
+  }
 }
 
 # Get project for IAM configuration
