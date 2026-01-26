@@ -93,9 +93,11 @@ Deploys to Firebase Hosting.
 
 ### Prerequisites
 
-Create `.env.staging.local` or `.env.production.local` (see `packages/web/README.md`).
+Configuration is managed by **Infisical**. Ensure you have the Infisical CLI installed and are logged in (`infisical login`).
 
 ### Deploy
+
+The deployment script automatically fetches the required secrets from Infisical and generates the necessary environment files.
 
 ```bash
 # Dev/staging

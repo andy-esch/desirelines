@@ -438,59 +438,6 @@ resource "google_secret_manager_secret_iam_member" "postgres_writer_api_tokens" 
 }
 
 # ==============================================================================
-# Strava Auth Secret (DEPRECATED - To be removed after migration)
-# ==============================================================================
-# Secret value must be added manually after creation (contains API credentials).
-# Format: JSON with client_id, client_secret, refresh_token, access_token
-
-resource "google_secret_manager_secret" "strava_auth" {
-  secret_id = "strava-auth"
-  project   = var.gcp_project_id
-
-  replication {
-    auto {}
-  }
-
-  labels = {
-    environment = var.environment
-    purpose     = "strava-api-auth"
-  }
-
-  depends_on = [google_project_service.required_apis]
-}
-
-# Secret Manager IAM permissions for service accounts
-
-# Dispatcher access to Strava auth secret
-resource "google_secret_manager_secret_iam_member" "dispatcher_strava_auth_access" {
-  secret_id = google_secret_manager_secret.strava_auth.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.dispatcher.email}"
-}
-
-# BQ Inserter access to Strava auth secret
-resource "google_secret_manager_secret_iam_member" "bq_inserter_strava_auth_access" {
-  secret_id = google_secret_manager_secret.strava_auth.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.bq_inserter.email}"
-}
-
-# PostgreSQL Writer access to Strava auth secret
-resource "google_secret_manager_secret_iam_member" "postgres_writer_strava_auth_access" {
-  secret_id = google_secret_manager_secret.strava_auth.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.postgres_writer.email}"
-}
-
-# Grant developer access to secrets for local development
-resource "google_secret_manager_secret_iam_member" "strava_auth_developer_access" {
-  count     = var.developer_email != null ? 1 : 0
-  secret_id = google_secret_manager_secret.strava_auth.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "user:${var.developer_email}"
-}
-
-# ==============================================================================
 # Infisical-Managed Secrets (PostgreSQL Connections)
 # ==============================================================================
 # Secret containers for Infisical sync. Terraform creates the container and IAM

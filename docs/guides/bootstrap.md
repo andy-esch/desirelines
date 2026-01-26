@@ -13,35 +13,28 @@ This guide shows how to bootstrap a complete desirelines environment (dev or pro
    - Go to https://console.cloud.google.com/billing
    - Link the project to your billing account
 
-3. **Create Strava API credentials** (manual):
-   - Create `StravaAuth-dev.json` (or `StravaAuth-prod.json`) with your Strava API credentials
-   - Format:
-     ```json
-     {
-       "client_id": "your_client_id",
-       "client_secret": "your_client_secret",
-       "refresh_token": "your_refresh_token"
-     }
-     ```
+3. **Set up Infisical credentials** (manual):
+   - Ensure you have access to the Desirelines Infisical project.
+   - Install the CLI: `brew install infisical/tap/infisical`
+   - Log in: `infisical login`
+   - Populate secrets in the `/backend/secrets` and `/backend/config` folders for your environment (`dev` or `prod`).
 
 ## One-Command Bootstrap (5-10 minutes)
+
+> **Note**: The bootstrap script is being updated to fully integrate with the new Infisical workflow. For now, ensure secrets are populated in Infisical before running terraform.
 
 ```bash
 # Bootstrap dev environment
 ./scripts/ops/setup/bootstrap-environment.sh dev
-
-# Or bootstrap prod environment
-./scripts/ops/setup/bootstrap-environment.sh prod
 ```
 
-That's it! The script will:
+The script will:
 1. ✅ Validate prerequisites (project exists, billing enabled)
 2. ✅ Create terraform service account with all required permissions
 3. ✅ Set up authentication and impersonation
 4. ✅ Create terraform state bucket
-5. ✅ Deploy secrets to Secret Manager
-6. ✅ Build and push Docker images
-7. ✅ Deploy complete infrastructure (BigQuery, PubSub, Cloud Run, etc.)
+5. ✅ Build and publish Docker images
+6. ✅ Deploy complete infrastructure (BigQuery, PubSub, Cloud Run, etc.)
 
 ## What Gets Created
 
@@ -49,7 +42,7 @@ That's it! The script will:
 - **BigQuery datasets**: Raw activities (analytics/archival)
 - **PubSub topics**: Activity processing pipeline
 - **Cloud Run services**: dispatcher, api-gateway, bq-inserter, postgres-writer
-- **Secret Manager**: Strava API credentials, PostgreSQL connection string
+- **Secret Manager**: Atomic secrets (synced from Infisical)
 - **Cloud Storage**: Terraform state bucket
 
 ### Service Accounts
