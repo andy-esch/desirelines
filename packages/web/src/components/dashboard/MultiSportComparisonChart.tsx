@@ -86,7 +86,11 @@ function UnifiedSparklineTooltip({
   if (!active || !payload || payload.length === 0 || !label) return null;
 
   const date = parseLocalDateStrict(label);
-  const formattedDate = formatDisplayDate(date, { weekday: "short", month: "short", day: "numeric" });
+  const formattedDate = formatDisplayDate(date, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 
   // Get raw values from the payload's data entry
   const dataEntry = payload[0]?.payload ?? {};
@@ -125,7 +129,13 @@ function UnifiedSparklineTooltip({
               }}
             />
             <span style={{ color: "#444" }}>{meta.displayName}</span>
-            <span style={{ color: hasActivity ? "#000" : "#999", marginLeft: "auto", fontWeight: hasActivity ? 500 : 400 }}>
+            <span
+              style={{
+                color: hasActivity ? "#000" : "#999",
+                marginLeft: "auto",
+                fontWeight: hasActivity ? 500 : 400,
+              }}
+            >
               {formatMetricValue(rawValue, meta.isDistanceSport, meta.isTimeSport)}
             </span>
           </div>

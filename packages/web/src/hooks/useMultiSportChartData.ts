@@ -3,7 +3,12 @@ import { useDailySportData } from "../hooks/useDailySportData";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useSportConfig } from "../hooks/useSportConfig";
 import type { TimeRange } from "../utils/dataNormalization";
-import { getSportDisplayName, filterValidSports, isDistanceSport, isTimeSport } from "../utils/sportConfig";
+import {
+  getSportDisplayName,
+  filterValidSports,
+  isDistanceSport,
+  isTimeSport,
+} from "../utils/sportConfig";
 import { toDailyArray, normalizeToRange, getTimeRangeCutoff } from "../utils/chartUtils";
 import { toLocalDateString } from "../utils/dateUtils";
 
@@ -19,11 +24,11 @@ const MAX_SPORTS_DISPLAY = 8;
  * Progression: Magenta -> Cyan -> Green -> Yellow -> Orange
  */
 const SPARKLINE_SPECTRUM = [
-  { r: 255, g: 0, b: 255 },   // Magenta (top)
-  { r: 0, g: 255, b: 255 },   // Electric Cyan
-  { r: 0, g: 255, b: 128 },   // Neon Green-Cyan
-  { r: 255, g: 200, b: 0 },   // Neon Yellow-Orange
-  { r: 255, g: 95, b: 31 },   // Orange (bottom)
+  { r: 255, g: 0, b: 255 }, // Magenta (top)
+  { r: 0, g: 255, b: 255 }, // Electric Cyan
+  { r: 0, g: 255, b: 128 }, // Neon Green-Cyan
+  { r: 255, g: 200, b: 0 }, // Neon Yellow-Orange
+  { r: 255, g: 95, b: 31 }, // Orange (bottom)
 ] as const;
 
 /**
@@ -61,7 +66,7 @@ function getSpectrumColor(index: number, total: number): string {
   // Find which segment of the spectrum we're in
   const numSegments = SPARKLINE_SPECTRUM.length - 1;
   const segmentIndex = Math.min(Math.floor(t * numSegments), numSegments - 1);
-  const segmentT = (t * numSegments) - segmentIndex;
+  const segmentT = t * numSegments - segmentIndex;
 
   const c1 = SPARKLINE_SPECTRUM[segmentIndex];
   const c2 = SPARKLINE_SPECTRUM[segmentIndex + 1];
@@ -84,7 +89,7 @@ function getSpectrumTextColor(index: number, total: number): string {
   const t = index / (total - 1);
   const numSegments = SPARKLINE_SPECTRUM.length - 1;
   const segmentIndex = Math.min(Math.floor(t * numSegments), numSegments - 1);
-  const segmentT = (t * numSegments) - segmentIndex;
+  const segmentT = t * numSegments - segmentIndex;
 
   const c1 = SPARKLINE_SPECTRUM[segmentIndex];
   const c2 = SPARKLINE_SPECTRUM[segmentIndex + 1];
@@ -160,7 +165,8 @@ export function useMultiSportChartData() {
       // Find year with most recent actual activity (not filled zeros)
       // Uses raw data keys since they only contain dates with activity
       const activityDates = Object.keys(sportData).sort();
-      const lastActivityDate = activityDates.length > 0 ? activityDates[activityDates.length - 1] : null;
+      const lastActivityDate =
+        activityDates.length > 0 ? activityDates[activityDates.length - 1] : null;
       const lastActivityYear = lastActivityDate
         ? parseInt(lastActivityDate.split("-")[0], 10)
         : new Date().getFullYear();
@@ -212,15 +218,20 @@ export function useMultiSportChartData() {
   // Uses rainbow spectrum colors based on vertical position
   const sportMeta = useMemo(() => {
     const total = sparklineData.length;
-    return sparklineData.map(({ sport, displayName, lastActivityYear, isDistanceSport: isDistance, isTimeSport: isTime }, index) => ({
-      sport,
-      displayName,
-      color: getSpectrumColor(index, total),
-      textColor: getSpectrumTextColor(index, total),
-      lastActivityYear,
-      isDistanceSport: isDistance,
-      isTimeSport: isTime,
-    }));
+    return sparklineData.map(
+      (
+        { sport, displayName, lastActivityYear, isDistanceSport: isDistance, isTimeSport: isTime },
+        index
+      ) => ({
+        sport,
+        displayName,
+        color: getSpectrumColor(index, total),
+        textColor: getSpectrumTextColor(index, total),
+        lastActivityYear,
+        isDistanceSport: isDistance,
+        isTimeSport: isTime,
+      })
+    );
   }, [sparklineData]);
 
   // Calculate dynamic height based on number of sports

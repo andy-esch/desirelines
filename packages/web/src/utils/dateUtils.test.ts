@@ -233,13 +233,7 @@ describe("formatDisplayDate", () => {
 describe("generateDateRange", () => {
   it("generates all dates in range (inclusive)", () => {
     const result = generateDateRange("2026-01-01", "2026-01-05");
-    expect(result).toEqual([
-      "2026-01-01",
-      "2026-01-02",
-      "2026-01-03",
-      "2026-01-04",
-      "2026-01-05",
-    ]);
+    expect(result).toEqual(["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"]);
   });
 
   it("returns single date when from equals to", () => {
