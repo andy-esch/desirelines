@@ -14,26 +14,43 @@ vi.mock("./useSportConfig");
 
 describe("useMultiSportChartData", () => {
   const mockSportConfig: SportConfig = {
+    version: "1.0.0",
     sport_categories: {
       cycling: {
         display_name: "Cycling",
+        strava_types: ["Ride"],
+        excluded_types: [],
         primary_metric: "distance_meters",
         metrics: ["distance_meters", "time_minutes"],
+        has_distance: true,
+        has_elevation: true,
       },
       running: {
         display_name: "Running",
+        strava_types: ["Run"],
+        excluded_types: [],
         primary_metric: "distance_meters",
         metrics: ["distance_meters", "time_minutes"],
+        has_distance: true,
+        has_elevation: true,
       },
       yoga: {
         display_name: "Yoga",
+        strava_types: ["Yoga"],
+        excluded_types: [],
         primary_metric: "time_minutes",
         metrics: ["time_minutes", "activities"],
+        has_distance: false,
+        has_elevation: false,
       },
       workout: {
         display_name: "Workout",
+        strava_types: ["Workout"],
+        excluded_types: [],
         primary_metric: "time_minutes",
         metrics: ["time_minutes", "activities"],
+        has_distance: false,
+        has_elevation: false,
       },
     },
   };
@@ -69,6 +86,7 @@ describe("useMultiSportChartData", () => {
       setVisibleSports: vi.fn(),
       isLoading: false,
       isSaving: false,
+      saveError: null,
       error: null,
     });
 
@@ -90,6 +108,7 @@ describe("useMultiSportChartData", () => {
         setVisibleSports: vi.fn(),
         isLoading: true,
         isSaving: false,
+        saveError: null,
         error: null,
       });
 
@@ -133,6 +152,7 @@ describe("useMultiSportChartData", () => {
         setVisibleSports: vi.fn(),
         isLoading: false,
         isSaving: false,
+        saveError: null,
         error: null,
       });
 
@@ -211,6 +231,7 @@ describe("useMultiSportChartData", () => {
         setVisibleSports: vi.fn(),
         isLoading: false,
         isSaving: false,
+        saveError: null,
         error: null,
       });
 
@@ -226,6 +247,7 @@ describe("useMultiSportChartData", () => {
         setVisibleSports: vi.fn(),
         isLoading: false,
         isSaving: false,
+        saveError: null,
         error: null,
       });
 
@@ -376,10 +398,10 @@ describe("useMultiSportChartData", () => {
       const { result } = renderHook(() => useMultiSportChartData());
 
       act(() => {
-        result.current.setTimeRange("1month");
+        result.current.setTimeRange("4weeks");
       });
 
-      expect(result.current.timeRange).toBe("1month");
+      expect(result.current.timeRange).toBe("4weeks");
     });
   });
 
