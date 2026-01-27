@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { LineChart, Line, ResponsiveContainer, XAxis } from "recharts";
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
+import { convertDistance, getDistanceLabel, DEFAULT_USER_SETTINGS } from "../../utils/units";
 import TimeRangeSelector from "./TimeRangeSelector";
 import RecentActivitiesList from "./RecentActivitiesList";
 import { SparklineSkeleton, ActivityRowSkeleton } from "../Skeleton";
@@ -8,6 +9,16 @@ import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
 
 interface MultiSportComparisonChartProps {
   className?: string;
+}
+
+interface SportMetaItem {
+  sport: string;
+  displayName: string;
+  color: string;
+  textColor: string;
+  lastActivityYear: number;
+  isDistanceSport: boolean;
+  isTimeSport: boolean;
 }
 
 /**
@@ -19,97 +30,136 @@ function formatAxisDate(dateStr: string): string {
   return formatDisplayDate(date);
 }
 
+interface TooltipPayloadItem {
+  dataKey?: string | number;
+  value?: number;
+  payload?: Record<string, number | string>;
+}
+
+interface UnifiedSparklineTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string;
+  sportMeta: SportMetaItem[];
+}
+
 /**
- * Individual sparkline row component.
+ * Format a raw metric value for display in tooltip.
+ * Distance sports show converted value with unit (e.g., "5.2 mi").
+ * Time sports show minutes (e.g., "45 min").
+ * Session-based sports show just the count.
  */
-function SparklineRow({
-  sport,
-  displayName,
-  data,
-  color,
-  textColor,
-  showXAxis = false,
-  rowHeight,
-  xAxisHeight,
-}: {
-  sport: string;
-  displayName: string;
-  data: { date: string; value: number }[];
-  color: string;
-  textColor: string;
-  showXAxis?: boolean;
-  rowHeight: number;
-  xAxisHeight: number;
-}) {
-  const hasData = data.length > 0;
-  const currentYear = new Date().getFullYear();
+function formatMetricValue(rawValue: number, isDistance: boolean, isTime: boolean): string {
+  if (rawValue === 0) return "-";
 
-  // Link to the year with most recent activity (data is sorted by date)
-  // Falls back to current year if no data
-  const linkYear = hasData ? parseInt(data[data.length - 1].date.split("-")[0], 10) : currentYear;
+  if (isDistance) {
+    // Convert meters to user's preferred unit
+    const unit = DEFAULT_USER_SETTINGS.distanceUnit;
+    const converted = convertDistance(rawValue, unit);
+    const label = getDistanceLabel(unit);
+    // Show 1 decimal for values >= 10, otherwise show more precision
+    const decimals = converted >= 10 ? 1 : 2;
+    return `${converted.toFixed(decimals)} ${label}`;
+  }
 
-  // Height is taller when showing x-axis (need room for axis labels)
-  const chartHeight = showXAxis ? rowHeight + xAxisHeight : rowHeight;
+  if (isTime) {
+    // Time-based: show minutes with 0 or 1 decimal
+    const decimals = rawValue >= 10 ? 0 : 1;
+    return `${rawValue.toFixed(decimals)} min`;
+  }
+
+  // Session-based: show as integer
+  return Math.round(rawValue).toString();
+}
+
+/**
+ * Custom tooltip for unified sparkline chart.
+ * Shows date and actual metric values with colored indicators.
+ * Semi-transparent background to avoid occluding chart lines.
+ */
+function UnifiedSparklineTooltip({
+  active,
+  payload,
+  label,
+  sportMeta,
+}: UnifiedSparklineTooltipProps) {
+  if (!active || !payload || payload.length === 0 || !label) return null;
+
+  const date = parseLocalDateStrict(label);
+  const formattedDate = formatDisplayDate(date, { weekday: "short", month: "short", day: "numeric" });
+
+  // Get raw values from the payload's data entry
+  const dataEntry = payload[0]?.payload ?? {};
 
   return (
-    <div className={`d-flex gap-2 ${showXAxis ? "align-items-start" : "align-items-center"}`}>
-      {/* Label - links to sport page */}
-      <Link
-        to={`/${sport}/${linkYear}`}
-        className="text-end small text-decoration-none"
-        style={{
-          width: 70,
-          color: textColor,
-          fontWeight: 600,
-          fontSize: "0.75rem",
-          paddingTop: showXAxis ? 12 : 0,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-        title={displayName}
-      >
-        {displayName}
-      </Link>
-
-      {/* Sparkline */}
-      <div style={{ flex: 1, height: chartHeight, minWidth: 0 }}>
-        {hasData ? (
-          <ResponsiveContainer width="100%" height="100%" minWidth={50} minHeight={30}>
-            <LineChart
-              data={data}
-              margin={{ top: 4, right: 4, bottom: showXAxis ? 16 : 4, left: 4 }}
-            >
-              {showXAxis && (
-                <XAxis
-                  dataKey="date"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 9, fill: "#999" }}
-                  tickFormatter={formatAxisDate}
-                  interval="preserveStartEnd"
-                  minTickGap={50}
-                />
-              )}
-              <Line
-                type="linear"
-                dataKey="value"
-                stroke={color}
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <div
-            className="d-flex align-items-center justify-content-center h-100 text-muted"
-            style={{ fontSize: "0.65rem" }}
-          >
-            No data
-          </div>
-        )}
+    <div
+      className="rounded shadow-sm p-2"
+      style={{
+        background: "rgba(255, 255, 255, 0.92)",
+        border: "1px solid rgba(0, 0, 0, 0.15)",
+        fontSize: "0.75rem",
+        minWidth: 110,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div className="mb-1" style={{ color: "#666", fontWeight: 500 }}>
+        {formattedDate}
       </div>
+      {sportMeta.map((meta) => {
+        const rawValue = (dataEntry[`${meta.sport}_raw`] as number) ?? 0;
+        const hasActivity = rawValue > 0;
+
+        return (
+          <div
+            key={meta.sport}
+            className="d-flex align-items-center gap-2"
+            style={{ opacity: hasActivity ? 1 : 0.4 }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: meta.color,
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ color: "#444" }}>{meta.displayName}</span>
+            <span style={{ color: hasActivity ? "#000" : "#999", marginLeft: "auto", fontWeight: hasActivity ? 500 : 400 }}>
+              {formatMetricValue(rawValue, meta.isDistanceSport, meta.isTimeSport)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Legend showing sport names with links to sport pages.
+ */
+function SparklineLegend({ sportMeta }: { sportMeta: SportMetaItem[] }) {
+  return (
+    <div className="d-flex flex-wrap gap-2 mb-2" style={{ fontSize: "0.75rem" }}>
+      {sportMeta.map(({ sport, displayName, color, textColor, lastActivityYear }) => (
+        <Link
+          key={sport}
+          to={`/${sport}/${lastActivityYear}`}
+          className="d-flex align-items-center gap-1 text-decoration-none"
+          style={{ color: textColor }}
+          title={displayName}
+        >
+          <span
+            style={{
+              width: 12,
+              height: 3,
+              background: color,
+              borderRadius: 1,
+            }}
+          />
+          <span style={{ fontWeight: 500 }}>{displayName}</span>
+        </Link>
+      ))}
     </div>
   );
 }
@@ -120,17 +170,19 @@ export default function MultiSportComparisonChart({
   const {
     timeRange,
     setTimeRange,
-    sparklineData,
+    unifiedChartData,
+    sportMeta,
     validSports,
     isLoading,
     error,
     activityPageSize,
     sparklineContainerHeight,
     hasAnyData,
-    MAX_SPORTS_DISPLAY,
     SPARKLINE_ROW_HEIGHT,
-    SPARKLINE_XAXIS_HEIGHT,
   } = useMultiSportChartData();
+
+  // Calculate chart height based on number of sports (min 120px, max 200px)
+  const chartHeight = Math.min(200, Math.max(120, validSports.length * 30 + 40));
 
   if (isLoading) {
     return (
@@ -206,31 +258,65 @@ export default function MultiSportComparisonChart({
         </div>
       ) : (
         <div className="row g-3 justify-content-center">
-          {/* Left: Sparklines */}
+          {/* Left: Unified Sparkline Chart */}
           <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
             <div
-              className="border rounded p-2 h-100 d-flex flex-column justify-content-center gap-2"
+              className="border rounded p-2 h-100"
               style={{
                 minHeight: sparklineContainerHeight,
-                maxHeight: MAX_SPORTS_DISPLAY * SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT + 32,
-                overflowY: validSports.length >= MAX_SPORTS_DISPLAY ? "auto" : "visible",
                 minWidth: 0,
                 background: "transparent",
               }}
             >
-              {sparklineData.map(({ sport, displayName, data: sData, color, textColor }, index) => (
-                <SparklineRow
-                  key={sport}
-                  sport={sport}
-                  displayName={displayName}
-                  data={sData}
-                  color={color}
-                  textColor={textColor}
-                  showXAxis={index === sparklineData.length - 1}
-                  rowHeight={SPARKLINE_ROW_HEIGHT}
-                  xAxisHeight={SPARKLINE_XAXIS_HEIGHT}
-                />
-              ))}
+              {/* Legend with sport links */}
+              <SparklineLegend sportMeta={sportMeta} />
+
+              {/* Unified chart with all sports */}
+              <div style={{ height: chartHeight }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={50}>
+                  <LineChart
+                    data={unifiedChartData}
+                    margin={{ top: 8, right: 8, bottom: 20, left: 8 }}
+                  >
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 9, fill: "#999" }}
+                      tickFormatter={formatAxisDate}
+                      interval="preserveStartEnd"
+                      minTickGap={50}
+                    />
+                    <YAxis domain={[0, 1]} hide />
+                    <Tooltip
+                      content={({ active, payload, label }) => (
+                        <UnifiedSparklineTooltip
+                          active={active}
+                          payload={payload as TooltipPayloadItem[] | undefined}
+                          label={label as string | undefined}
+                          sportMeta={sportMeta}
+                        />
+                      )}
+                      cursor={{
+                        stroke: "rgba(100, 100, 100, 0.5)",
+                        strokeWidth: 1,
+                      }}
+                    />
+                    {sportMeta.map(({ sport, color }) => (
+                      <Line
+                        key={sport}
+                        type="linear"
+                        dataKey={sport}
+                        stroke={color}
+                        strokeWidth={1.5}
+                        dot={false}
+                        activeDot={{ r: 4, strokeWidth: 0 }}
+                        isAnimationActive={false}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
