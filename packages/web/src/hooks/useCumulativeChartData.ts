@@ -1,3 +1,15 @@
+/**
+ * Date convention: All dates in the chart pipeline use UTC timestamps.
+ *
+ * The API returns dates as "YYYY-MM-DD" strings from `start_date_local` —
+ * these are already in the athlete's local timezone (from Strava).
+ * JavaScript's `new Date("2025-01-15")` parses date-only strings as UTC midnight,
+ * which preserves the calendar date. We use `Date.UTC()` for all computed
+ * boundaries (year start/end, goal lines) to stay consistent.
+ *
+ * All formatters (axis ticks, tooltips) must use `timeZone: "UTC"` to read
+ * back the correct calendar date from these timestamps.
+ */
 import { useMemo } from "react";
 import type { DistanceEntry } from "../types/activity";
 import type {
