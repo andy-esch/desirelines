@@ -222,9 +222,9 @@ describe("MultiSportComparisonChart", () => {
     it("renders sparklines for each sport", () => {
       renderWithRouter(<MultiSportComparisonChart />);
 
-      // Should have 3 sparklines (one per sport)
-      const charts = screen.getAllByTestId("responsive-container");
-      expect(charts.length).toBeGreaterThanOrEqual(1);
+      // Should have 1 unified chart with 3 lines (one per sport)
+      expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
+      expect(screen.getAllByTestId("chart-line")).toHaveLength(3);
     });
 
     it("renders chart heading", () => {
@@ -390,8 +390,9 @@ describe("MultiSportComparisonChart", () => {
 
         renderWithRouter(<MultiSportComparisonChart />);
 
-        // Should render 1 sparkline
-        expect(screen.getAllByTestId("responsive-container")).toHaveLength(1);
+        // Should render 1 unified chart with 1 line (single sport)
+        expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
+        expect(screen.getAllByTestId("chart-line")).toHaveLength(1);
         expect(screen.getByRole("link", { name: "Cycling" })).toBeInTheDocument();
       });
 
@@ -471,8 +472,9 @@ describe("MultiSportComparisonChart", () => {
 
         renderWithRouter(<MultiSportComparisonChart />);
 
-        // Should render 5 sparklines
-        expect(screen.getAllByTestId("responsive-container")).toHaveLength(5);
+        // Should render 1 unified chart with 5 lines (one per sport)
+        expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
+        expect(screen.getAllByTestId("chart-line")).toHaveLength(5);
         expect(screen.getByRole("link", { name: "Cycling" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Running" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Yoga" })).toBeInTheDocument();
@@ -613,8 +615,9 @@ describe("MultiSportComparisonChart", () => {
 
         renderWithRouter(<MultiSportComparisonChart />);
 
-        // Should render 10 sparklines
-        expect(screen.getAllByTestId("responsive-container")).toHaveLength(10);
+        // Should render 1 unified chart with 10 lines (one per sport)
+        expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
+        expect(screen.getAllByTestId("chart-line")).toHaveLength(10);
       });
     });
 

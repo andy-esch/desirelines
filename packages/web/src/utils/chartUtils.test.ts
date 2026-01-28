@@ -172,6 +172,87 @@ describe("chartUtils", () => {
       expect(result[0].date).toBe("2026-01-01");
       expect(result[1].date).toBe("2026-12-31");
     });
+
+    describe("with dateRange parameter (dense array)", () => {
+      it("fills missing dates with zeros", () => {
+        const data = {
+          "2026-01-01": { distanceMeters: 3000, activities: 1, activityIds: [1] },
+          "2026-01-03": { distanceMeters: 5000, activities: 1, activityIds: [2] },
+        };
+
+        const result = toDailyArray(data, "cycling", mockSportConfig, {
+          from: "2026-01-01",
+          to: "2026-01-03",
+        });
+
+        expect(result).toHaveLength(3);
+        expect(result[0]).toEqual({ date: "2026-01-01", value: 3000 });
+        expect(result[1]).toEqual({ date: "2026-01-02", value: 0 }); // Filled with zero
+        expect(result[2]).toEqual({ date: "2026-01-03", value: 5000 });
+      });
+
+      it("generates all zeros for empty data with date range", () => {
+        const result = toDailyArray({}, "cycling", mockSportConfig, {
+          from: "2026-01-01",
+          to: "2026-01-03",
+        });
+
+        expect(result).toHaveLength(3);
+        expect(result.every((d) => d.value === 0)).toBe(true);
+        expect(result[0].date).toBe("2026-01-01");
+        expect(result[2].date).toBe("2026-01-03");
+      });
+
+      it("generates single-day range", () => {
+        const data = {
+          "2026-01-15": { distanceMeters: 10000, activities: 1, activityIds: [1] },
+        };
+
+        const result = toDailyArray(data, "cycling", mockSportConfig, {
+          from: "2026-01-15",
+          to: "2026-01-15",
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({ date: "2026-01-15", value: 10000 });
+      });
+
+      it("uses correct metric for time-based sports", () => {
+        const data = {
+          "2026-01-01": { distanceMeters: 0, timeMinutes: 60, activities: 1, activityIds: [1] },
+          "2026-01-03": { distanceMeters: 0, timeMinutes: 90, activities: 1, activityIds: [2] },
+        };
+
+        const result = toDailyArray(data, "yoga", mockSportConfig, {
+          from: "2026-01-01",
+          to: "2026-01-03",
+        });
+
+        expect(result).toHaveLength(3);
+        expect(result[0].value).toBe(60);
+        expect(result[1].value).toBe(0); // Missing day
+        expect(result[2].value).toBe(90);
+      });
+
+      it("handles two-week range typical of sparklines", () => {
+        const data = {
+          "2026-01-01": { distanceMeters: 5000, activities: 1, activityIds: [1] },
+          "2026-01-07": { distanceMeters: 8000, activities: 1, activityIds: [2] },
+          "2026-01-14": { distanceMeters: 6000, activities: 1, activityIds: [3] },
+        };
+
+        const result = toDailyArray(data, "cycling", mockSportConfig, {
+          from: "2026-01-01",
+          to: "2026-01-14",
+        });
+
+        expect(result).toHaveLength(14);
+        expect(result[0].value).toBe(5000); // Jan 1
+        expect(result[1].value).toBe(0); // Jan 2 (no activity)
+        expect(result[6].value).toBe(8000); // Jan 7
+        expect(result[13].value).toBe(6000); // Jan 14
+      });
+    });
   });
 
   describe("getTimeRangeCutoff", () => {

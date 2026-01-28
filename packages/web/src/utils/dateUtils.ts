@@ -203,3 +203,36 @@ export function formatChartAxisDate(timestamp: number): string {
     timeZone: "UTC",
   }).format(date);
 }
+
+/**
+ * Generate an array of date strings from start to end (inclusive).
+ *
+ * Useful for creating dense date arrays that include days with no data.
+ *
+ * @param from - Start date in YYYY-MM-DD format
+ * @param to - End date in YYYY-MM-DD format
+ * @returns Array of date strings in YYYY-MM-DD format
+ *
+ * @example
+ * ```ts
+ * generateDateRange("2026-01-01", "2026-01-05");
+ * // ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"]
+ * ```
+ */
+export function generateDateRange(from: string, to: string): string[] {
+  const dates: string[] = [];
+  const start = parseLocalDate(from);
+  const end = parseLocalDate(to);
+
+  if (!start || !end) {
+    return [];
+  }
+
+  const current = new Date(start);
+  while (current <= end) {
+    dates.push(toLocalDateString(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}

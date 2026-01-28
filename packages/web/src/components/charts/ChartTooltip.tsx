@@ -44,10 +44,11 @@ export const ChartTooltip = ({
   if (!active || !payload || payload.length === 0) return null;
 
   const date = new Date(label as string);
-  const formattedDate = date.toLocaleDateString("en-US", {
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-  });
+    timeZone: "UTC",
+  }).format(date);
 
   // Find actual value and goal values from payload
   const actualEntry = payload.find((p) => p.dataKey === "actual" || p.name?.includes("Data"));

@@ -22,6 +22,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceDot,
+  ReferenceArea,
 } from "recharts";
 import type {
   CumulativeChartDataPoint,
@@ -79,6 +80,20 @@ export interface CumulativeChartPresenterProps {
   // --- Feature Toggles ---
   /** Whether to show achievement markers and legend */
   showAchievements?: boolean;
+
+  // --- Zoom ---
+  /** Whether chart is currently zoomed */
+  isZoomed?: boolean;
+  /** Left edge of drag selection (timestamp), undefined when not dragging */
+  selectionLeft?: number;
+  /** Right edge of drag selection (timestamp), undefined when not dragging */
+  selectionRight?: number;
+  /** Mouse down handler for drag-to-zoom */
+  onChartMouseDown?: (e: { activeLabel?: string | number }) => void;
+  /** Mouse move handler for drag-to-zoom */
+  onChartMouseMove?: (e: { activeLabel?: string | number }) => void;
+  /** Mouse up handler for drag-to-zoom */
+  onChartMouseUp?: () => void;
 }
 
 // ============================================================================
@@ -216,11 +231,24 @@ export function CumulativeChartPresenter({
   estimatedYearEnd,
   isSessionsMode,
   showAchievements = true,
+  isZoomed = false,
+  selectionLeft,
+  selectionRight,
+  onChartMouseDown,
+  onChartMouseMove,
+  onChartMouseUp,
 }: CumulativeChartPresenterProps) {
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", userSelect: "none" }}>
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
-        <LineChart data={mergedData} margin={CHART_CONFIG.margin} accessibilityLayer>
+        <LineChart
+          data={mergedData}
+          margin={CHART_CONFIG.margin}
+          accessibilityLayer
+          onMouseDown={onChartMouseDown as never}
+          onMouseMove={onChartMouseMove as never}
+          onMouseUp={onChartMouseUp}
+        >
           {/* Grid */}
           <CartesianGrid
             strokeDasharray={CHART_CONFIG.grid.strokeDasharray}
@@ -233,7 +261,7 @@ export function CumulativeChartPresenter({
             dataKey="date"
             type="number"
             domain={[startDate.getTime(), displayEndDate.getTime()]}
-            scale="time"
+            allowDataOverflow
             tickFormatter={formatChartAxisDate}
             stroke={CHART_CONFIG.axis.stroke}
             tick={{ fontSize: 11 }}
@@ -248,8 +276,9 @@ export function CumulativeChartPresenter({
               position: "insideLeft",
             }}
             stroke={CHART_CONFIG.axis.stroke}
-            domain={[0, calculateCumulativeYAxisMax]}
-            ticks={yAxisTicks}
+            allowDataOverflow
+            domain={isZoomed ? [0, "auto"] : [0, calculateCumulativeYAxisMax]}
+            ticks={isZoomed ? undefined : yAxisTicks}
           />
 
           {/* Tooltip */}
@@ -327,6 +356,16 @@ export function CumulativeChartPresenter({
                 )}
               />
             ))}
+          {/* Drag selection overlay */}
+          {selectionLeft != null && selectionRight != null && (
+            <ReferenceArea
+              x1={selectionLeft}
+              x2={selectionRight}
+              strokeOpacity={0.3}
+              fill={CHART_CONFIG.selection.fill}
+              fillOpacity={CHART_CONFIG.selection.fillOpacity}
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
 

@@ -74,6 +74,12 @@ export const CHART_CONFIG = {
     duration: 50,
   },
 
+  /** Drag-to-zoom selection overlay */
+  selection: {
+    fill: "#8884d8",
+    fillOpacity: 0.2,
+  },
+
   /** Goal achievement marker styling (visibility controlled by showAchievements prop) */
   achievementMarker: {
     /** Use SVG path star (true) or unicode character (false) */

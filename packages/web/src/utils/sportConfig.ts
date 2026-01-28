@@ -185,6 +185,18 @@ export function isDistanceSport(sport: string, sportConfig: SportConfig | null):
 }
 
 /**
+ * Check if a sport uses time as its primary metric.
+ *
+ * @param sport - Sport key
+ * @param sportConfig - Sport configuration from API
+ * @returns true if the sport's primary metric is time-based
+ */
+export function isTimeSport(sport: string, sportConfig: SportConfig | null): boolean {
+  const metric = getPrimaryMetric(sport, sportConfig);
+  return metric === "time_minutes";
+}
+
+/**
  * Get all available metrics for a sport.
  *
  * @param sport - Sport key

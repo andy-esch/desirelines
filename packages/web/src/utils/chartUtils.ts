@@ -11,6 +11,7 @@ import type { TimeRange } from "./dataNormalization";
 import type { DailyActivity, SportConfig } from "../api/activities";
 import type { DailySportData } from "../hooks/useDailySportData";
 import { isDistanceSport } from "./sportConfig";
+import { generateDateRange } from "./dateUtils";
 
 /**
  * Get the primary metric value for a sport from daily activity data.
@@ -44,9 +45,14 @@ export function getMetricValue(
 /**
  * Convert daily sport data (map) to sorted array with primary metric values.
  *
+ * When a dateRange is provided, generates a dense array with all dates in the range,
+ * filling zeros for days without activity. This ensures charts show gaps in training
+ * rather than connecting directly between activity days.
+ *
  * @param data - Map of date strings to daily activity data
  * @param sport - Sport key (e.g., "cycling")
  * @param sportConfig - Sport configuration from API
+ * @param dateRange - Optional date range to fill. If provided, generates entries for all dates.
  * @returns Array of { date, value } objects sorted by date ascending
  *
  * @example
@@ -55,9 +61,19 @@ export function getMetricValue(
  *   "2026-01-03": { distanceMeters: 5000, activities: 1 },
  *   "2026-01-01": { distanceMeters: 3000, activities: 1 },
  * };
+ *
+ * // Without dateRange - sparse array (original behavior)
  * toDailyArray(data, "cycling", config);
  * // Returns [
  * //   { date: "2026-01-01", value: 3000 },
+ * //   { date: "2026-01-03", value: 5000 },
+ * // ]
+ *
+ * // With dateRange - dense array with zeros for missing days
+ * toDailyArray(data, "cycling", config, { from: "2026-01-01", to: "2026-01-03" });
+ * // Returns [
+ * //   { date: "2026-01-01", value: 3000 },
+ * //   { date: "2026-01-02", value: 0 },
  * //   { date: "2026-01-03", value: 5000 },
  * // ]
  * ```
@@ -65,8 +81,19 @@ export function getMetricValue(
 export function toDailyArray(
   data: DailySportData,
   sport: string,
-  sportConfig: SportConfig | null
+  sportConfig: SportConfig | null,
+  dateRange?: { from: string; to: string }
 ): { date: string; value: number }[] {
+  // If dateRange provided, generate dense array with all dates
+  if (dateRange) {
+    const allDates = generateDateRange(dateRange.from, dateRange.to);
+    return allDates.map((date) => ({
+      date,
+      value: data[date] ? getMetricValue(data[date], sport, sportConfig) : 0,
+    }));
+  }
+
+  // Original sparse behavior (no date range)
   const entries = Object.entries(data);
   if (entries.length === 0) return [];
 

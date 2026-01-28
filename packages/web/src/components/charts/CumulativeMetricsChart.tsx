@@ -11,7 +11,7 @@
  * - Container (this file): Data, state, callbacks
  * - Presenter (CumulativeChartPresenter): Pure rendering
  */
-import { memo } from "react";
+import { memo, useState, useRef, useCallback, useMemo } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
 import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
@@ -60,22 +60,55 @@ interface CumulativeMetricsChartProps {
  * Header controls for the chart (view toggle, achievement toggle).
  * Extracted to keep the main component clean.
  */
+type RangePreset = "7d" | "30d" | "month" | "ytd" | "full";
+
 function HeaderControls({
-  showFullYear,
-  onViewChange,
+  activeRange,
+  onRangeChange,
   showAchievements,
   onAchievementsChange,
   achievementCount,
+  isZoomed,
+  onResetZoom,
 }: {
-  showFullYear: boolean;
-  onViewChange?: (showFullYear: boolean) => void;
+  activeRange: RangePreset;
+  onRangeChange: (preset: RangePreset) => void;
   showAchievements: boolean;
   onAchievementsChange?: (show: boolean) => void;
   achievementCount: number;
+  isZoomed: boolean;
+  onResetZoom: () => void;
 }) {
+  const presets: { key: RangePreset; label: string }[] = [
+    { key: "7d", label: "7d" },
+    { key: "30d", label: "30d" },
+    { key: "month", label: "This Month" },
+    { key: "ytd", label: "YTD" },
+    { key: "full", label: "Full Year" },
+  ];
+
   return (
     <>
-      {/* Achievement toggle - only show if there are achievements and callback provided */}
+      {/* Unified range selector */}
+      <div className="btn-group btn-group-sm" role="group">
+        {presets.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            className={`btn ${activeRange === key && !isZoomed ? "btn-secondary" : "btn-outline-secondary"}`}
+            onClick={() => onRangeChange(key)}
+          >
+            {label}
+          </button>
+        ))}
+        {isZoomed && (
+          <button type="button" className="btn btn-outline-warning" onClick={onResetZoom}>
+            Reset
+          </button>
+        )}
+      </div>
+
+      {/* Achievement toggle */}
       {onAchievementsChange && achievementCount > 0 && (
         <button
           type="button"
@@ -85,37 +118,6 @@ function HeaderControls({
         >
           {showAchievements ? "★" : "☆"} {achievementCount}
         </button>
-      )}
-
-      {/* View toggle - only show if callback provided */}
-      {onViewChange && (
-        <div className="btn-group btn-group-sm" role="group">
-          <input
-            type="radio"
-            className="btn-check"
-            name="chartView"
-            id="viewCurrent"
-            autoComplete="off"
-            checked={!showFullYear}
-            onChange={() => onViewChange(false)}
-          />
-          <label className="btn btn-outline-secondary" htmlFor="viewCurrent">
-            Current
-          </label>
-
-          <input
-            type="radio"
-            className="btn-check"
-            name="chartView"
-            id="viewFullYear"
-            autoComplete="off"
-            checked={showFullYear}
-            onChange={() => onViewChange(true)}
-          />
-          <label className="btn btn-outline-secondary" htmlFor="viewFullYear">
-            Full Year
-          </label>
-        </div>
       )}
     </>
   );
@@ -159,6 +161,17 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     onRetry,
   } = props;
 
+  // Active range preset — drives which button is highlighted and x-axis domain
+  const [activeRange, setActiveRange] = useState<RangePreset>(showFullYear ? "full" : "ytd");
+  // When user drags to zoom, we set a custom domain and clear the active preset
+  const [dragZoomDomain, setDragZoomDomain] = useState<{ start: number; end: number } | null>(null);
+  const isDragZoomed = dragZoomDomain !== null;
+
+  // Drag selection state (ephemeral, only during mouse drag)
+  const [selectionLeft, setSelectionLeft] = useState<number | undefined>(undefined);
+  const [selectionRight, setSelectionRight] = useState<number | undefined>(undefined);
+  const dragAnchor = useRef<number | undefined>(undefined);
+
   // Derive display values
   const isSessionsMode = unit === "sessions";
   const chartTitle = isSessionsMode ? "Cumulative Sessions" : "Cumulative Distance";
@@ -169,7 +182,6 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     totalDistanceTraveled,
     estimatedYearEnd,
     startDate,
-    displayEndDate,
     goalLines,
     goalAchievements,
     mergedData,
@@ -179,18 +191,117 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     year,
     goals,
     distanceData,
-    showFullYear,
+    showFullYear: true, // Always generate full year data so goal projections extend; x-axis domain handles visual clipping
     sport,
   });
+
+  // Drag-to-zoom handlers
+  const handleChartMouseDown = useCallback((e: { activeLabel?: string | number }) => {
+    if (e.activeLabel != null) {
+      const ts = Number(e.activeLabel);
+      dragAnchor.current = ts;
+      setSelectionLeft(ts);
+      setSelectionRight(ts);
+    }
+  }, []);
+
+  const handleChartMouseMove = useCallback((e: { activeLabel?: string | number }) => {
+    if (dragAnchor.current != null && e.activeLabel != null) {
+      setSelectionRight(Number(e.activeLabel));
+    }
+  }, []);
+
+  const handleChartMouseUp = useCallback(() => {
+    if (dragAnchor.current != null && selectionLeft != null && selectionRight != null) {
+      const left = Math.min(selectionLeft, selectionRight);
+      const right = Math.max(selectionLeft, selectionRight);
+      if (right - left > 0) {
+        setDragZoomDomain({ start: left, end: right });
+      }
+    }
+    dragAnchor.current = undefined;
+    setSelectionLeft(undefined);
+    setSelectionRight(undefined);
+  }, [selectionLeft, selectionRight]);
+
+  const resetDragZoom = useCallback(() => {
+    setDragZoomDomain(null);
+  }, []);
+
+  // Range preset handler — computes domain relative to available data
+  const handleRangeChange = useCallback(
+    (preset: RangePreset) => {
+      setActiveRange(preset);
+      setDragZoomDomain(null); // Clear any drag zoom
+      // ytd/full are handled via showFullYear in the hook, not zoom domain
+      if (preset === "ytd") {
+        onViewChange?.(false);
+      } else if (preset === "full") {
+        onViewChange?.(true);
+      }
+    },
+    [onViewChange]
+  );
+
+  // Compute effective x-axis domain
+  // All dates use UTC to match the hook's Date.UTC() convention
+  const today = new Date();
+  const anchorYear = today.getFullYear() === year ? today.getUTCFullYear() : year;
+  const anchorMonth = today.getFullYear() === year ? today.getUTCMonth() : 11;
+  const anchorDay = today.getFullYear() === year ? today.getUTCDate() : 31;
+
+  const effectiveDomain = (() => {
+    if (isDragZoomed) {
+      return { start: new Date(dragZoomDomain.start), end: new Date(dragZoomDomain.end) };
+    }
+    if (activeRange === "7d" || activeRange === "30d" || activeRange === "month") {
+      let startTs: number;
+      let endTs: number;
+      if (activeRange === "7d") {
+        endTs = Date.UTC(anchorYear, anchorMonth, anchorDay);
+        startTs = Date.UTC(anchorYear, anchorMonth, anchorDay - 7);
+      } else if (activeRange === "30d") {
+        endTs = Date.UTC(anchorYear, anchorMonth, anchorDay);
+        startTs = Date.UTC(anchorYear, anchorMonth, anchorDay - 30);
+      } else {
+        // Full calendar month: 1st to last day of current month
+        startTs = Date.UTC(anchorYear, anchorMonth, 1);
+        endTs = Date.UTC(anchorYear, anchorMonth + 1, 0);
+      }
+      // Clamp start to year boundary
+      const yearStartTs = Date.UTC(year, 0, 1);
+      if (startTs < yearStartTs) {
+        startTs = yearStartTs;
+      }
+      return { start: new Date(startTs), end: new Date(endTs) };
+    }
+    if (activeRange === "ytd") {
+      return { start: startDate, end: new Date(Date.UTC(anchorYear, anchorMonth, anchorDay)) };
+    }
+    // "full" — full year
+    return { start: startDate, end: new Date(Date.UTC(year, 11, 31)) };
+  })();
+
+  // Filter mergedData to visible x-axis range so y-axis auto-scales to visible data
+  const visibleData = useMemo(() => {
+    const startTs = effectiveDomain.start.getTime();
+    const endTs = effectiveDomain.end.getTime();
+    return mergedData.filter((d) => {
+      const ts = d.date.getTime();
+      return ts >= startTs && ts <= endTs;
+    });
+  }, [mergedData, effectiveDomain.start, effectiveDomain.end]);
 
   // Build header controls
   const headerControls = (
     <HeaderControls
-      showFullYear={showFullYear}
-      onViewChange={onViewChange}
+      activeRange={activeRange}
+      onRangeChange={handleRangeChange}
       showAchievements={showAchievements}
       onAchievementsChange={onAchievementsChange}
       achievementCount={goalAchievements.length}
+      isZoomed={isDragZoomed}
+      onResetZoom={resetDragZoom}
     />
   );
 
@@ -207,12 +318,12 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
       infoTooltip="Y-axis labels show where each line currently sits — your actual progress vs. where goal trajectories are today. This shows the 'race' between your progress and your goals."
     >
       <CumulativeChartPresenter
-        mergedData={mergedData}
+        mergedData={visibleData}
         goalLines={goalLines}
         goalAchievements={goalAchievements}
         currentValues={currentValues}
-        startDate={startDate}
-        displayEndDate={displayEndDate}
+        startDate={effectiveDomain.start}
+        displayEndDate={effectiveDomain.end}
         yAxisTicks={yAxisTicks}
         year={year}
         unitLabel={unitLabel}
@@ -220,6 +331,12 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
         estimatedYearEnd={estimatedYearEnd}
         isSessionsMode={isSessionsMode}
         showAchievements={showAchievements}
+        isZoomed={isDragZoomed || activeRange !== "full"}
+        selectionLeft={selectionLeft}
+        selectionRight={selectionRight}
+        onChartMouseDown={handleChartMouseDown}
+        onChartMouseMove={handleChartMouseMove}
+        onChartMouseUp={handleChartMouseUp}
       />
     </ChartContainer>
   );

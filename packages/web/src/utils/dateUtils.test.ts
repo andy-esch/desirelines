@@ -7,6 +7,7 @@ import {
   addDays,
   isSameDay,
   formatDisplayDate,
+  generateDateRange,
 } from "./dateUtils";
 
 describe("toLocalDateString", () => {
@@ -226,5 +227,54 @@ describe("formatDisplayDate", () => {
   it("handles different months", () => {
     expect(formatDisplayDate(new Date(2026, 5, 20))).toBe("Jun 20");
     expect(formatDisplayDate(new Date(2026, 11, 25))).toBe("Dec 25");
+  });
+});
+
+describe("generateDateRange", () => {
+  it("generates all dates in range (inclusive)", () => {
+    const result = generateDateRange("2026-01-01", "2026-01-05");
+    expect(result).toEqual(["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"]);
+  });
+
+  it("returns single date when from equals to", () => {
+    const result = generateDateRange("2026-01-15", "2026-01-15");
+    expect(result).toEqual(["2026-01-15"]);
+  });
+
+  it("returns empty array for invalid from date", () => {
+    const result = generateDateRange("invalid", "2026-01-05");
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array for invalid to date", () => {
+    const result = generateDateRange("2026-01-01", "invalid");
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array when from is after to", () => {
+    const result = generateDateRange("2026-01-10", "2026-01-05");
+    expect(result).toEqual([]);
+  });
+
+  it("handles month boundaries", () => {
+    const result = generateDateRange("2026-01-30", "2026-02-02");
+    expect(result).toEqual(["2026-01-30", "2026-01-31", "2026-02-01", "2026-02-02"]);
+  });
+
+  it("handles year boundaries", () => {
+    const result = generateDateRange("2025-12-30", "2026-01-02");
+    expect(result).toEqual(["2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02"]);
+  });
+
+  it("handles leap year February", () => {
+    const result = generateDateRange("2024-02-28", "2024-03-01");
+    expect(result).toEqual(["2024-02-28", "2024-02-29", "2024-03-01"]);
+  });
+
+  it("handles two-week range (typical sparkline use case)", () => {
+    const result = generateDateRange("2026-01-01", "2026-01-14");
+    expect(result).toHaveLength(14);
+    expect(result[0]).toBe("2026-01-01");
+    expect(result[13]).toBe("2026-01-14");
   });
 });

@@ -20,6 +20,9 @@ setup-secrets:
     echo "      - Fetching /backend/config..."
     infisical export --env=local --path=/backend/config --format=dotenv >> .env.local
 
+    echo "      - Fetching /local..."
+    infisical export --env=local --path=/local --format=dotenv >> .env.local
+
     # 2. Export Frontend .env
     echo "   📦 Generating packages/web/.env.development.local..."
     infisical export --env=local --path=/frontend --format=dotenv > packages/web/.env.development.local
