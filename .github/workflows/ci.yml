@@ -246,7 +246,7 @@ jobs:
 
       - name: Validate all environments
         run: |
-          for env in artifacts dev prod; do
+          for env in artifacts; do
             echo "Validating $env environment..."
             cd terraform/environments/$env
             terraform fmt -check

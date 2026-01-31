@@ -12,7 +12,7 @@ Terraform module to set up Workload Identity Federation for GitHub Actions, enab
 
 ## Usage
 
-### In your environment (e.g., `terraform/environments/dev/main.tf`)
+### In your environment (e.g., `desirelines-deploy/environments/dev/main.tf`)
 
 ```hcl
 module "github_actions" {
@@ -36,14 +36,16 @@ output "github_wif_service_account" {
 
 ### Apply Terraform
 
+From the `desirelines-deploy` repo:
+
 ```bash
-cd terraform/environments/dev
+cd desirelines-deploy/environments/dev
 terraform init
-terraform apply
+infisical run --env=dev --path=/ci/secrets -- terraform apply
 
 # Get the values for GitHub secrets
-terraform output github_wif_provider
-terraform output github_wif_service_account
+infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_provider
+infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_service_account
 ```
 
 ### Add GitHub Secrets

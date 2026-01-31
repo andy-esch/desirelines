@@ -1,42 +1,22 @@
 # Terraform Infrastructure
 
-Terraform configurations for Desirelines infrastructure.
+Terraform modules and build infrastructure for Desirelines.
+
+## Architecture
+
+This repo contains **modules** and the **artifacts** environment only. Deployment environments (dev, prod) live in the private `desirelines-deploy` repo for GitOps with committed sensitive values.
+
+| Location | Purpose |
+|----------|---------|
+| `modules/desirelines/` | Main infrastructure module (Cloud Run, PubSub, BigQuery, etc.) |
+| `modules/github-actions-wif/` | Workload Identity Federation module |
+| `environments/artifacts/` | Artifact Registry (shared across environments) |
 
 ## Prerequisites
 
 - **Terraform** 1.14.3 (pinned in `.terraform-version`)
 - **Google Cloud SDK** authenticated
-- **GCP Project** with billing enabled
 - **pre-commit** installed (for validation hooks)
-
-## Quick Start
-
-```bash
-# Dev environment
-just tf-dev-init
-just tf-dev-plan
-just tf-dev-apply   # requires confirmation
-
-# Prod environment
-just tf-prod-init
-just tf-prod-plan
-just tf-prod-apply  # requires typing "production"
-```
-
-## Task Runner (just)
-
-| Target | Description |
-|--------|-------------|
-| `tf-dev-init` | Initialize dev backend |
-| `tf-dev-plan` | Plan dev changes |
-| `tf-dev-apply` | Apply to dev (confirmation required) |
-| `tf-dev-drift` | Check for drift in dev |
-| `tf-prod-init` | Initialize prod backend |
-| `tf-prod-plan` | Plan prod changes |
-| `tf-prod-apply` | Apply to prod (confirmation required) |
-| `tf-prod-drift` | Check for drift in prod |
-| `tf-fmt` | Format all .tf files |
-| `tf-validate-all` | Validate all environments |
 
 ## Directory Structure
 
@@ -44,19 +24,43 @@ just tf-prod-apply  # requires typing "production"
 terraform/
 ├── .terraform-version     # Pinned version (1.14.3)
 ├── environments/
-│   ├── artifacts/         # Shared artifact registry
-│   ├── dev/               # Development environment
-│   └── prod/              # Production environment
+│   └── artifacts/         # Shared artifact registry (desirelines-artifacts project)
 └── modules/
     ├── desirelines/       # Main infrastructure module
     └── github-actions-wif/ # Workload Identity Federation
 ```
 
+## Module Development
+
+Modules in this repo are referenced by the deploy repo via git tags:
+
+```hcl
+module "desirelines" {
+  source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/desirelines?ref=tf-1"
+}
+```
+
+When making module changes:
+1. Make changes to `terraform/modules/`
+2. Merge to main
+3. Tag with next `tf-N` integer (e.g., `git tag tf-2 && git push origin tf-2`)
+4. Deploy repo updates module refs (manually or via Renovate)
+
+## Artifacts Environment
+
+The `artifacts/` environment manages the Artifact Registry in the `desirelines-artifacts` GCP project. This rarely changes and is applied manually:
+
+```bash
+cd terraform/environments/artifacts
+terraform init
+terraform plan
+terraform apply
+```
+
 ## CI/CD
 
-- **CI validation**: `terraform fmt -check` and `terraform validate` on PRs
-- **Deployment**: Merge to main auto-deploys to dev; prod requires manual trigger
-- **Drift detection**: Runs daily, creates GitHub issue if drift found
+- **CI validation**: `terraform fmt -check` and `terraform validate` on PRs (artifacts environment + modules)
+- **Deployment**: Handled by `desirelines-deploy` repo
 
 See [docs/guides/ci.md](../docs/guides/ci.md) for details.
 
@@ -74,37 +78,11 @@ Terraform validation runs automatically on commit when `.tf` files are staged:
 
 Install: `pre-commit install`
 
-## Configuration
-
-Copy example files and customize:
-
-```bash
-cp environments/dev/terraform.tfvars.example environments/dev/terraform.tfvars
-```
-
-| Variable | Description |
-|----------|-------------|
-| `gcp_project_id` | GCP Project ID |
-| `gcp_project_number` | GCP Project Number |
-| `deployment_version` | Container image tag (git SHA) |
-
-## Image Validation
-
-Terraform validates that all Docker images exist in Artifact Registry before deployment.
-If images are missing, `terraform plan` fails with a clear error:
-
-```
-Error: Image not found: .../dispatcher:abc1234
-Run 'just build-publish' first.
-```
-
-This prevents partial deployments when images haven't been built.
-
 ## Security
 
-- Never commit `*.tfvars` files (contain project config)
 - State files stored in GCS with versioning
 - Sensitive outputs marked with `sensitive = true`
+- Sensitive tfvars committed only in the private deploy repo
 
 ## Related
 

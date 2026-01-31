@@ -56,7 +56,7 @@ Secrets synced to GCP Secret Manager use the `INFISICAL_` prefix to indicate pro
    - Target project: `desirelines-dev` or `desirelines-prod`
    - Sync path: `/backend/secrets`
 
-3. **Run Terraform**
+3. **Run Terraform** (from `desirelines-deploy` repo)
    - Terraform creates secret containers with proper IAM bindings
    - Infisical populates the values via sync
 
@@ -74,10 +74,7 @@ infisical run --env=local -- your-command
 
 1. Update the value in Infisical dashboard
 2. Infisical automatically syncs to GCP Secret Manager
-3. Redeploy Cloud Run services to pick up new values:
-   ```bash
-   just tf-deploy dev
-   ```
+3. Redeploy Cloud Run services to pick up new values (merge to main or trigger deploy repo manually)
 
 ## Rotating Secrets
 
@@ -91,7 +88,7 @@ infisical run --env=local -- your-command
 ### Webhook Verify Token
 
 1. Update `STRAVA_WEBHOOK_VERIFY_TOKEN` in Infisical
-2. Redeploy dispatcher: `just tf-deploy dev`
+2. Redeploy dispatcher (merge to main or trigger deploy repo)
 3. Delete old webhook: `just webhook delete dev`
 4. Create new webhook: `just webhook create dev`
 

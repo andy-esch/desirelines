@@ -7,15 +7,13 @@ CI/CD workflows for Desirelines using GitHub Actions.
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
 | `ci.yml` | PR, push to main | Tests, lint, validate |
-| `deploy.yml` | Push to main, manual | Build images, deploy |
-| `drift-detection.yml` | Daily 8am UTC, manual | Detect terraform drift |
+| `deploy.yml` | Push to main | Build images, trigger deploy repo |
 
 ## Concurrency
 
 Workflows use concurrency groups to prevent conflicts:
 - **CI**: Cancels in-progress runs on same branch (fast feedback)
-- **Deploy**: Queues deployments to same environment (no cancel)
-- **Drift**: Single run at a time
+- **Deploy**: Queues builds (no cancel)
 
 ## Overview
 
@@ -122,7 +120,7 @@ npm run build
 **Coverage:** Uploaded to Codecov.
 
 ### 5. Terraform
-Validates Terraform configuration for all environments.
+Validates Terraform configuration for modules and the artifacts environment (the only environment remaining in this repo).
 
 ```bash
 # Run locally
@@ -134,7 +132,7 @@ just tf-validate-all
 - `terraform init -backend=false` - Configuration loading
 - `terraform validate` - Syntax and consistency
 
-**Environments validated:** artifacts, dev, prod, plus the shared module.
+**Validated:** `environments/artifacts` and all modules. Dev/prod environments are in the private `desirelines-deploy` repo.
 
 ## Running CI Locally
 
@@ -309,32 +307,19 @@ The `main` branch requires:
 
 ## Deployment Workflow
 
-The `deploy.yml` workflow handles deployments:
+The `deploy.yml` workflow handles build and deploy triggering:
 
-| Trigger | Environment | Behavior |
-|---------|-------------|----------|
-| Push to main | dev | Automatic |
-| Manual dispatch | dev or prod | Choose environment |
+| Trigger | Behavior |
+|---------|----------|
+| Push to main | Build images → push to Artifact Registry → trigger `desirelines-deploy` |
 
 **Steps:**
 1. Build Docker images with Pants
 2. Push to Artifact Registry
-3. Run `terraform apply` with git SHA as version
-4. Verify Cloud Run services are healthy
+3. Send `repository_dispatch` to `desirelines-deploy` via GitHub App token
+4. Deploy repo handles terraform apply, service verification, web deploy, and state tracking
 
-## Drift Detection
-
-The `drift-detection.yml` workflow runs daily to detect infrastructure drift:
-
-- Runs `terraform plan` for dev and prod
-- Creates GitHub issue if changes detected
-- Can be triggered manually via workflow dispatch
-
-Check drift locally:
-```bash
-just tf-dev-drift
-just tf-prod-drift
-```
+Terraform operations, drift detection, and deployment state tracking all live in the private `desirelines-deploy` repo.
 
 ## Related Documentation
 

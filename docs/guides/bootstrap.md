@@ -51,14 +51,15 @@ The script will:
 
 ## Updating the Environment
 
-After the initial bootstrap, to deploy changes:
+After the initial bootstrap, deploy changes by merging to main (auto-deploys to dev).
+
+For manual deployment, use the `desirelines-deploy` repo:
 
 ```bash
-just build-publish
-just tf-deploy dev
+cd desirelines-deploy/environments/dev
+infisical run --env=dev --path=/ci/secrets -- terraform plan
+infisical run --env=dev --path=/ci/secrets -- terraform apply
 ```
-
-Or via CI/CD by merging to main (auto-deploys to dev).
 
 ## Troubleshooting
 
@@ -92,19 +93,19 @@ If the bootstrap script fails partway through:
 # Build and publish images
 just build-publish
 
-# Deploy terraform only
-cd terraform/environments/dev
-terraform init -backend-config="bucket=desirelines-dev-terraform-state"
-terraform apply
+# Deploy terraform only (from desirelines-deploy repo)
+cd desirelines-deploy/environments/dev
+terraform init
+infisical run --env=dev --path=/ci/secrets -- terraform apply
 ```
 
 ## Environment Cleanup
 
-To completely tear down an environment:
+To completely tear down an environment (from `desirelines-deploy` repo):
 
 ```bash
-cd terraform/environments/dev  # or prod
-terraform destroy
+cd desirelines-deploy/environments/dev  # or prod
+infisical run --env=dev --path=/ci/secrets -- terraform destroy
 ```
 
 This removes all infrastructure but preserves:
