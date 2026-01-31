@@ -14,14 +14,32 @@ Quick reference for deploying Desirelines services.
 
 ---
 
+## Architecture
+
+Deployment uses a **two-repo GitOps model**:
+
+| Repo | Role |
+|------|------|
+| `desirelines` (this repo, public) | Build Docker images, push to Artifact Registry, trigger deploy |
+| `desirelines-deploy` (private) | Terraform config, deployment workflows, state tracking |
+
+Terraform environments (`dev/`, `prod/`) live in the private deploy repo where sensitive values (project numbers, emails) can be committed safely.
+
+---
+
 ## CI/CD (Preferred)
 
-Deployments should go through CI/CD when possible.
+| Action | How |
+|--------|-----|
+| Deploy to dev | Merge PR to main (automatic: build → push → trigger deploy repo) |
+| Deploy to prod | `workflow_dispatch` on `desirelines-deploy` → creates PR → review → merge → apply |
 
-| Action | Trigger |
-|--------|---------|
-| Deploy to dev | Merge PR to main (automatic) |
-| Deploy to prod | Manual workflow dispatch in GitHub Actions |
+### What happens on merge to main
+
+1. `desirelines` CI builds Docker images and pushes to Artifact Registry
+2. `trigger-deploy` job sends `repository_dispatch` to `desirelines-deploy`
+3. Deploy repo auto-applies terraform for dev, updates `.deployed/dev.json`
+4. Web frontend is built and deployed to Firebase Hosting
 
 See [ci.md](./ci.md) for workflow details.
 
@@ -29,53 +47,18 @@ See [ci.md](./ci.md) for workflow details.
 
 ## Backend Services
 
-### Safe Deploy (Recommended)
+### Deploy via CI (Recommended)
 
-Use `just tf-deploy` for validated deployments with safety checks:
+Merge to main triggers automatic dev deployment. No manual terraform needed.
 
-```bash
-just tf-deploy dev          # Deploy to dev (uses current HEAD)
-just tf-deploy prod         # Deploy to prod (requires confirmation)
-just tf-deploy dev sha=abc  # Deploy specific commit
-```
+### Manual Deploy (from deploy repo)
 
-The command displays the commit SHA being deployed and validates GCP project, service account impersonation before showing the plan. Confirm the SHA matches your rebuilt docker images.
-
-### Manual Deploy
-
-For more control, use individual commands:
+For manual control, work from a cloned `desirelines-deploy`:
 
 ```bash
-# Build and push images
-just build-publish
-
-# Plan and apply
-just tf-dev-plan
-just tf-dev-apply  # requires typing "dev"
-```
-
-### Prod Deploy (Manual)
-
-```bash
-# Ensure tests pass
-just test
-
-# Build with version
-just build-publish
-
-# Plan and apply
-just tf-prod-plan
-just tf-prod-apply  # requires typing "production"
-
-# Update webhook if dispatcher URL changed
-just delete-webhook prod && just create-webhook prod
-```
-
-### Check for Drift
-
-```bash
-just tf-dev-drift   # Quick drift check
-just tf-prod-drift
+cd desirelines-deploy/environments/dev
+infisical run --env=dev --path=/ci/secrets -- terraform plan
+infisical run --env=dev --path=/ci/secrets -- terraform apply
 ```
 
 ### Verify Deployment
@@ -89,15 +72,11 @@ gcloud run services logs read desirelines-dispatcher --region=us-central1 --limi
 
 ## Web Frontend
 
-Deploys to Firebase Hosting.
+Deploys to Firebase Hosting. Now handled by `deploy-web.yml` in the deploy repo (runs after backend deploy).
 
-### Prerequisites
+### Local Deploy
 
 Configuration is managed by **Infisical**. Ensure you have the Infisical CLI installed and are logged in (`infisical login`).
-
-### Deploy
-
-The deployment script automatically fetches the required secrets from Infisical and generates the necessary environment files.
 
 ```bash
 # Dev/staging
@@ -141,9 +120,9 @@ gcloud artifacts docker images list \
   us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/dispatcher \
   --sort-by=~CREATE_TIME --limit=5
 
-# Deploy previous version via CI/CD or:
-cd terraform/environments/prod
-terraform apply -var="deployment_version=PREVIOUS_SHA"
+# Deploy previous version via deploy repo:
+# Update deployment_version in desirelines-deploy/environments/dev/terraform.tfvars
+# Then terraform apply (or trigger via workflow_dispatch)
 ```
 
 ---
@@ -155,7 +134,7 @@ terraform apply -var="deployment_version=PREVIOUS_SHA"
 | `denied: Permission denied` | `gcloud auth configure-docker us-central1-docker.pkg.dev` |
 | `.env.*.local not found` | Create env file per `packages/web/README.md` |
 | Webhook not receiving events | Check OAuth2 - see [strava-webhook.md](./strava-webhook.md) |
-| `ModuleNotFoundError` | Rebuild: `just build-publish` then `just tf-dev-apply` |
+| `ModuleNotFoundError` | Rebuild: `just build-publish` then deploy via CI |
 
 ### Check Service Health
 
@@ -174,4 +153,4 @@ gcloud run services logs read desirelines-dispatcher \
 - [bootstrap.md](./bootstrap.md) - Initial environment setup
 - [strava-webhook.md](./strava-webhook.md) - Webhook configuration
 - [ci.md](./ci.md) - CI/CD pipeline
-- [terraform/README.md](../../terraform/README.md) - Terraform operations
+- [terraform/README.md](../../terraform/README.md) - Terraform modules

@@ -94,9 +94,8 @@ Built and deployed via Pants:
 # Build and publish
 GIT_COMMIT=$(git rev-parse --short HEAD) pants publish packages/dispatcher:dispatcher
 
-# Deploy via Terraform
-cd terraform/environments/dev
-terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
+# Deploy by merging to main (triggers CI → deploy repo)
+# Or manually from desirelines-deploy repo
 ```
 
 See [Docker Guide](../../docs/guides/docker.md) and [Deployment Guide](../../docs/guides/deployment.md).

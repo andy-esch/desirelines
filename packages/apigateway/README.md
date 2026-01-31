@@ -253,11 +253,7 @@ GIT_COMMIT=$(git rev-parse --short HEAD) pants publish packages/apigateway:apiga
 
 ### Deploy to Cloud Run
 
-```bash
-# Deploy via Terraform
-cd terraform/environments/dev
-terraform apply -var="deployment_version=$(git rev-parse --short HEAD)"
-```
+Deploy by merging to main (triggers CI → deploy repo), or manually from the `desirelines-deploy` repo.
 
 ### Health Check
 

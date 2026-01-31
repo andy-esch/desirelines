@@ -21,28 +21,16 @@ Workload Identity Federation allows GitHub Actions to authenticate to GCP using 
 
 ### 1. Configure Terraform Variables
 
-The GitHub repository is already configured in `terraform/environments/dev/variables.tf`:
-
-```hcl
-variable "github_repository" {
-  description = "GitHub repository for CI/CD (format: owner/repo)"
-  type        = string
-  default     = "andy-esch/desirelines"
-}
-```
-
-If your repository is different, update `terraform/environments/dev/terraform.tfvars`:
-
-```hcl
-github_repository = "your-org/your-repo"
-```
+WIF configuration is managed in the `desirelines-deploy` repo. The GitHub repository is configured in the environment's `terraform.tfvars`.
 
 ### 2. Apply Terraform
 
+From the `desirelines-deploy` repo:
+
 ```bash
-cd terraform/environments/dev
+cd desirelines-deploy/environments/dev
 terraform init
-terraform apply
+infisical run --env=dev --path=/ci/secrets -- terraform apply
 ```
 
 This creates:
@@ -89,20 +77,15 @@ Create a test PR, merge it to main, and watch `.github/workflows/deploy.yml` run
 
 ## Repeat for Production
 
-For production environment (`desirelines-prod`):
+For production environment (`desirelines-prod`), from the `desirelines-deploy` repo:
 
 ```bash
-cd terraform/environments/prod
-
-# Update terraform.tfvars if needed
-terraform apply
-
-# Get secrets
-terraform output github_wif_provider
-terraform output github_wif_service_account
+cd desirelines-deploy/environments/prod
+terraform init
+infisical run --env=prod --path=/ci/secrets -- terraform apply
 ```
 
-Then add `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT` secrets to GitHub (can use same secrets for both envs or separate them).
+WIF secrets (`WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`) are synced to GitHub via Infisical, scoped per environment.
 
 ## Permissions Granted
 
@@ -173,11 +156,11 @@ gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
 
 ### Authentication Fails in GitHub Actions
 
-**Check Terraform outputs:**
+**Check Terraform outputs** (from `desirelines-deploy` repo):
 ```bash
-cd terraform/environments/dev
-terraform output github_wif_provider
-terraform output github_wif_service_account
+cd desirelines-deploy/environments/dev
+infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_provider
+infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_service_account
 ```
 
 **Verify resources exist:**
@@ -207,14 +190,14 @@ gcloud projects get-iam-policy desirelines-dev \
 
 ### Recreate from Terraform
 
-If something is misconfigured:
+If something is misconfigured (from `desirelines-deploy` repo):
 
 ```bash
-cd terraform/environments/dev
+cd desirelines-deploy/environments/dev
 
 # Destroy and recreate
-terraform destroy -target=module.github_actions
-terraform apply
+infisical run --env=dev --path=/ci/secrets -- terraform destroy -target=module.github_actions
+infisical run --env=dev --path=/ci/secrets -- terraform apply
 ```
 
 ## Security Best Practices

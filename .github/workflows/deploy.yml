@@ -1,7 +1,6 @@
-name: Deploy
+name: Build & Deploy
 
 on:
-  # Auto-deploy to dev when PR is merged to main
   push:
     branches:
       - main
@@ -9,20 +8,9 @@ on:
       - "**/README.md"
       - "docs/**"
 
-  # Manual deployment (choose dev or prod)
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Environment to deploy to"
-        required: true
-        type: choice
-        options:
-          - dev
-          - prod
-
-# Prevent concurrent deployments to the same environment
+# Prevent concurrent builds
 concurrency:
-  group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+  group: build-deploy
   cancel-in-progress: false
 
 jobs:
@@ -39,9 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       git_sha: ${{ steps.metadata.outputs.git_sha }}
-      environment: ${{ steps.metadata.outputs.environment }}
-      timestamp: ${{ steps.metadata.outputs.timestamp }}
-      infisical_workspace_id: ${{ steps.metadata.outputs.infisical_workspace_id }}
 
     # Required for Workload Identity Federation
     permissions:
@@ -56,9 +41,6 @@ jobs:
         id: metadata
         run: |
           echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "environment=${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}" >> $GITHUB_OUTPUT
-          echo "timestamp=$(date -u +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
-          echo "infisical_workspace_id=$(jq -r '.workspaceId' .infisical.json)" >> $GITHUB_OUTPUT
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -93,14 +75,11 @@ jobs:
 
       - name: Build and publish Docker images
         run: |
-          echo "🐳 Building and publishing Cloud Run images..."
           GIT_COMMIT=${{ steps.metadata.outputs.git_sha }} pants publish \
             packages/dispatcher:dispatcher \
             packages/apigateway:apigateway \
             packages/stravapipe:bq-inserter \
             packages/stravapipe:postgres-writer
-
-          echo "✅ Docker images published to Artifact Registry"
 
   # ===========================================================================
   # Job 2: Trigger Deploy Repo
@@ -110,8 +89,6 @@ jobs:
     name: Trigger deploy repo
     runs-on: ubuntu-latest
     needs: [build-images]
-    # Only trigger on push to main (not manual workflow_dispatch to avoid double-deploy)
-    if: github.event_name == 'push'
 
     steps:
       - name: Generate GitHub App token
@@ -134,298 +111,3 @@ jobs:
             -f "client_payload[env]=dev"
 
           echo "Triggered deploy repo with image_tag=${{ needs.build-images.outputs.git_sha }}"
-
-  # ===========================================================================
-  # Job 3: Terraform Deployment (LEGACY — remove after deploy repo is validated)
-  # ===========================================================================
-  deploy:
-    name: Deploy to ${{ needs.build-images.outputs.environment }}
-    runs-on: ubuntu-latest
-    needs: [build-images]
-
-    # Required for Workload Identity Federation
-    permissions:
-      contents: read
-      id-token: write
-
-    # Use GitHub Environment for protection rules
-    environment: ${{ needs.build-images.outputs.environment }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v3
-
-      - name: Validate Docker images exist
-        run: |
-          VERSION="${{ needs.build-images.outputs.git_sha }}"
-          REGISTRY="us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services"
-          IMAGES="dispatcher apigateway bq-inserter postgres-writer"
-
-          echo "Validating images for version: $VERSION"
-          MISSING=""
-
-          for IMAGE in $IMAGES; do
-            if ! gcloud artifacts docker images describe "$REGISTRY/$IMAGE:$VERSION" > /dev/null 2>&1; then
-              MISSING="$MISSING $IMAGE:$VERSION"
-            else
-              echo "✓ $IMAGE:$VERSION exists"
-            fi
-          done
-
-          if [ -n "$MISSING" ]; then
-            echo ""
-            echo "❌ Missing images:$MISSING"
-            echo ""
-            echo "Run 'just build-publish' to build and push images first."
-            exit 1
-          fi
-
-          echo "✅ All images exist for version $VERSION"
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.14.3"
-
-      - name: Terraform Init
-        run: |
-          cd terraform/environments/${{ needs.build-images.outputs.environment }}
-
-          # Configure backend bucket based on environment
-          BACKEND_BUCKET="desirelines-${{ needs.build-images.outputs.environment }}-terraform-state"
-
-          terraform init \
-            -backend-config="bucket=${BACKEND_BUCKET}" \
-            -input=false
-
-      - name: Terraform Plan
-        id: plan
-        env:
-          # Provider Authentication
-          INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
-          INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
-          # Input Variables
-          TF_VAR_deployment_version: ${{ needs.build-images.outputs.git_sha }}
-          TF_VAR_gcp_project_id: desirelines-${{ needs.build-images.outputs.environment }}
-          TF_VAR_gcp_project_number: ${{ secrets.GCP_PROJECT_NUMBER }}
-          TF_VAR_developer_email: ${{ secrets.DEVELOPER_EMAIL }}
-          TF_VAR_gcp_region: us-central1
-          TF_VAR_infisical_workspace_id: ${{ needs.build-images.outputs.infisical_workspace_id }}
-        run: |
-          cd terraform/environments/${{ needs.build-images.outputs.environment }}
-
-          terraform plan \
-            -input=false \
-            -out=tfplan
-
-      - name: Terraform Apply
-        env:
-          INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
-          INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
-        run: |
-          cd terraform/environments/${{ needs.build-images.outputs.environment }}
-          terraform apply -auto-approve tfplan
-
-      # =======================================================================
-      # Deployment Verification
-      # =======================================================================
-
-      - name: Wait for services to be ready
-        run: sleep 10
-
-      - name: Verify Cloud Run - Dispatcher
-        if: ${{ !inputs.skip_tests }}
-        run: |
-          DISPATCHER_URL=$(gcloud run services describe desirelines-dispatcher \
-            --region=us-central1 \
-            --format='value(status.url)')
-
-          echo "Testing dispatcher at: $DISPATCHER_URL/webhook"
-
-          # Expect 400 (validation error) for incomplete webhook data
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "$DISPATCHER_URL/webhook" \
-            -H "Content-Type: application/json" \
-            -d '{"object_type": "activity", "aspect_type": "create"}')
-
-          if [ "$STATUS" = "400" ]; then
-            echo "✅ Dispatcher responding correctly (400 validation error)"
-          else
-            echo "❌ Unexpected status: $STATUS"
-            exit 1
-          fi
-
-      - name: Verify Cloud Run - API Gateway
-        if: ${{ !inputs.skip_tests }}
-        run: |
-          GATEWAY_URL=$(gcloud run services describe desirelines-api-gateway \
-            --region=us-central1 \
-            --format='value(status.url)')
-
-          echo "Testing API Gateway at: $GATEWAY_URL/health"
-
-          RESPONSE=$(curl -s "$GATEWAY_URL/health")
-
-          if echo "$RESPONSE" | grep -q '"status":"healthy"'; then
-            echo "✅ API Gateway health check passed"
-          else
-            echo "❌ Unexpected response: $RESPONSE"
-            exit 1
-          fi
-
-      - name: Verify Cloud Run - BQ Inserter
-        if: ${{ !inputs.skip_tests }}
-        run: |
-          # BQ Inserter is internal-only, so we can only verify it's deployed
-          # (can't call health endpoint without authentication)
-          STATUS=$(gcloud run services describe desirelines-bq-inserter \
-            --region=us-central1 \
-            --format='value(status.conditions[0].status)' 2>/dev/null || echo "NOT_FOUND")
-
-          if [ "$STATUS" = "True" ]; then
-            echo "✅ BQ Inserter deployed and ready"
-          else
-            echo "❌ BQ Inserter not ready: $STATUS"
-            exit 1
-          fi
-
-      - name: Verify Cloud Run - PostgreSQL Writer
-        if: ${{ !inputs.skip_tests }}
-        run: |
-          # PostgreSQL Writer is internal-only, so we can only verify it's deployed
-          # (can't call health endpoint without authentication)
-          STATUS=$(gcloud run services describe desirelines-postgres-writer \
-            --region=us-central1 \
-            --format='value(status.conditions[0].status)' 2>/dev/null || echo "NOT_FOUND")
-
-          if [ "$STATUS" = "True" ]; then
-            echo "✅ PostgreSQL Writer deployed and ready"
-          else
-            echo "❌ PostgreSQL Writer not ready: $STATUS"
-            exit 1
-          fi
-
-      # =======================================================================
-      # Deployment Summary
-      # =======================================================================
-
-      - name: Deployment Summary
-        if: always()
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🚀 Backend Deployment Summary"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Environment:       ${{ needs.build-images.outputs.environment }}"
-          echo "Git SHA:           ${{ needs.build-images.outputs.git_sha }}"
-          echo "Timestamp:         ${{ needs.build-images.outputs.timestamp }}"
-          echo "Triggered by:      ${{ github.event_name }}"
-          echo "Actor:             ${{ github.actor }}"
-          echo ""
-          echo "🐳 Cloud Run Services (Docker images):"
-          echo "  - dispatcher:${{ needs.build-images.outputs.git_sha }}"
-          echo "  - apigateway:${{ needs.build-images.outputs.git_sha }}"
-          echo "  - bq-inserter:${{ needs.build-images.outputs.git_sha }}"
-          echo "  - postgres-writer:${{ needs.build-images.outputs.git_sha }}"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-  # ===========================================================================
-  # Job 3: Deploy Web Frontend to Firebase Hosting
-  # ===========================================================================
-  # Builds and deploys the React web application to Firebase Hosting
-  # Runs after backend deployment to ensure API Gateway URL is current
-  deploy-web:
-    name: Deploy Web to ${{ needs.build-images.outputs.environment }}
-    runs-on: ubuntu-latest
-    needs: [build-images, deploy]
-
-    # Required for Workload Identity Federation
-    permissions:
-      contents: read
-      id-token: write
-
-    # Use GitHub Environment for protection rules
-    environment: ${{ needs.build-images.outputs.environment }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-          cache-dependency-path: packages/web/package-lock.json
-
-      - name: Install dependencies
-        working-directory: packages/web
-        run: npm ci
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v3
-
-      - name: Install Infisical CLI
-        uses: Infisical/setup-action@v1
-        with:
-          version: "0.36.2" # Pin version for stability
-
-      - name: Export Secrets
-        working-directory: packages/web
-        env:
-          INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
-          INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
-          INFISICAL_PROJECT_ID: ${{ needs.build-images.outputs.infisical_workspace_id }}
-        run: |
-          ENV="${{ needs.build-images.outputs.environment }}"
-          echo "🔑 Exporting secrets for environment: $ENV"
-          
-          if [ "$ENV" = "prod" ]; then
-            infisical export --env=prod --path=/frontend > .env.production.local
-          else
-            # Map dev to dev (staging in codebase)
-            infisical export --env=dev --path=/frontend > .env.staging.local
-          fi
-
-      - name: Build for environment
-        working-directory: packages/web
-        run: npm run build
-
-      - name: Deploy to Firebase Hosting
-        run: |
-          npm install -g firebase-tools
-          firebase deploy --only hosting \
-            --project desirelines-${{ needs.build-images.outputs.environment }}
-
-      - name: Web Deployment Summary
-        if: always()
-        run: |
-          ENV="${{ needs.build-images.outputs.environment }}"
-          if [ "$ENV" = "prod" ]; then
-            SITE_URL="https://desirelines.andyes.ch"
-          else
-            SITE_URL="https://desirelines-${ENV}.web.app"
-          fi
-
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🌐 Web Deployment Summary"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Environment:       ${{ needs.build-images.outputs.environment }}"
-          echo "Firebase Project:  desirelines-${{ needs.build-images.outputs.environment }}"
-          echo "Site URL:          $SITE_URL"
-          echo "API Gateway:       ${{ steps.api-url.outputs.url }}"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

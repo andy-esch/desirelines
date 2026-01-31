@@ -21,7 +21,7 @@ scripts/
 | Local dev setup | `./scripts/ops/setup/setup-local.sh` |
 | Build & publish | `just build-publish` |
 | Deploy web | `just deploy-web <env>` |
-| Deploy backend | `just tf-deploy <env>` |
+| Deploy backend | Merge to main (auto) or via `desirelines-deploy` repo |
 | Backfill Strava | `uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024` |
 | Manage webhook | `just webhook <action> <env>` |
 
