@@ -22,7 +22,7 @@ A web app that transforms your Strava data into visual progress tracking. Set an
 # Or manually:
 uv sync
 cd packages/dispatcher && go mod download
-cp .env.example .env
+just setup-secrets
 ```
 
 ### Prerequisites
