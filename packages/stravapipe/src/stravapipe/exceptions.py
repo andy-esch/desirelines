@@ -31,6 +31,7 @@ class StravaApiError(StravaPipeError):
 
 class StravaTokenError(StravaApiError):
     """Raised when strava token refresh fails."""
+    status_code = 400
 
     pass
 
