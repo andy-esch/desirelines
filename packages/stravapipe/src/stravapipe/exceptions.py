@@ -30,7 +30,7 @@ class StravaApiError(StravaPipeError):
 
 
 class StravaTokenError(StravaApiError):
-    """Raised when token refresh fails."""
+    """Raised when strava token refresh fails."""
 
     pass
 
