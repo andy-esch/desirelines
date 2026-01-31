@@ -1,4 +1,4 @@
-"""Custom exceptions for stravapipe package."""
+"""Custom exceptions for stravapipe package..."""
 
 from collections.abc import Sequence
 
@@ -31,7 +31,6 @@ class StravaApiError(StravaPipeError):
 
 class StravaTokenError(StravaApiError):
     """Raised when strava token refresh fails."""
-    status_code = 400
 
     pass
 
