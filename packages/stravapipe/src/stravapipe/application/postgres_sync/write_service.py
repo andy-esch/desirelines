@@ -4,7 +4,7 @@ This service coordinates reading from Strava API and writing to PostgreSQL
 using the Unit of Work pattern for transaction management.
 
 Data written from this service into PostgreSQL will be read in the frontend
-via API Gateway
+via API Gateway.
 """
 
 import logging
