@@ -96,6 +96,7 @@ resource "google_service_account_iam_member" "workload_identity_user" {
 
 # Cloud Run Developer - Deploy new revisions of existing services
 resource "google_project_iam_member" "run_developer" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/run.developer"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -103,6 +104,7 @@ resource "google_project_iam_member" "run_developer" {
 
 # Artifact Registry Writer - Push Docker images
 resource "google_project_iam_member" "artifact_registry_writer" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/artifactregistry.writer"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -110,6 +112,7 @@ resource "google_project_iam_member" "artifact_registry_writer" {
 
 # Storage Object Admin - Terraform state and assets
 resource "google_project_iam_member" "storage_object_admin" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/storage.objectAdmin"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -117,6 +120,7 @@ resource "google_project_iam_member" "storage_object_admin" {
 
 # Service Account User - Required to deploy services that run as other SAs
 resource "google_project_iam_member" "service_account_user" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/iam.serviceAccountUser"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -124,6 +128,7 @@ resource "google_project_iam_member" "service_account_user" {
 
 # Viewer - Read-only access to verify deployments
 resource "google_project_iam_member" "viewer" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/viewer"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -136,6 +141,7 @@ resource "google_project_iam_member" "viewer" {
 
 # Secret Manager Secret Accessor - Read secrets (Terraform data sources)
 resource "google_project_iam_member" "secret_accessor" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -144,6 +150,7 @@ resource "google_project_iam_member" "secret_accessor" {
 # Pub/Sub Admin - Manage Pub/Sub topics, subscriptions, and their IAM policies
 # Required for Terraform to manage dead letter topic IAM bindings
 resource "google_project_iam_member" "pubsub_admin" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/pubsub.admin"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -153,6 +160,7 @@ resource "google_project_iam_member" "pubsub_admin" {
 # Note: Terraform refreshes all resources in state, even with -target flags
 # Requires 'admin' role because updating dataset metadata needs bigquery.datasets.update
 resource "google_project_iam_member" "bigquery_admin" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/bigquery.admin"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -161,6 +169,7 @@ resource "google_project_iam_member" "bigquery_admin" {
 # Security Reviewer - Read IAM policies without modifying them
 # Required for Terraform to refresh state of IAM bindings
 resource "google_project_iam_member" "security_reviewer" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/iam.securityReviewer"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -169,6 +178,7 @@ resource "google_project_iam_member" "security_reviewer" {
 # Service Account Admin - Manage IAM policies on service accounts
 # Required for Terraform to manage service account IAM bindings (e.g., infisical sync)
 resource "google_project_iam_member" "service_account_admin" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/iam.serviceAccountAdmin"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
@@ -176,6 +186,7 @@ resource "google_project_iam_member" "service_account_admin" {
 
 # Firebase Hosting Admin - Deploy web frontend to Firebase Hosting
 resource "google_project_iam_member" "firebase_hosting_admin" {
+  count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/firebasehosting.admin"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"

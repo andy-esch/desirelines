@@ -66,14 +66,13 @@ terraform output github_secrets_setup
    - Value from `terraform output github_wif_service_account`
    - Example: `github-actions-deploy@desirelines-dev.iam.gserviceaccount.com`
 
-### 5. Test the Deployment
+### 5. Test the Setup
 
-Create a test PR, merge it to main, and watch `.github/workflows/deploy.yml` run:
+Merge a change to main and watch the CI workflow run:
 
 1. ✅ Authenticates via Workload Identity (no keys!)
-2. ✅ Builds and publishes Docker images
-3. ✅ Deploys via Terraform
-4. ✅ Verifies endpoints
+2. ✅ Builds and pushes Docker images to Artifact Registry
+3. ✅ Triggers deployment via `repository_dispatch` to `desirelines-deploy`
 
 ## Repeat for Production
 
@@ -85,16 +84,20 @@ terraform init
 infisical run --env=prod --path=/ci/secrets -- terraform apply
 ```
 
-WIF secrets (`WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`) are synced to GitHub via Infisical, scoped per environment.
+**Note on secrets**: The public repo's `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT` are **manually set** as repository-level secrets (not synced via Infisical), because the two repos need different SAs and Infisical can't differentiate per-repo for the same secret name. The deploy repo's WIF secrets are environment-scoped and synced via Infisical.
 
 ## Permissions Granted
 
-The Terraform module grants these roles to the service account:
+When `grant_default_roles = true` (the default), the module grants 11 project-level IAM roles for full deployment capability. See `terraform/modules/github-actions-wif/README.md` for the complete list.
 
-- `roles/run.admin` - Deploy Cloud Run services
-- `roles/artifactregistry.writer` - Push Docker images
-- `roles/storage.objectAdmin` - Terraform state and assets
-- `roles/iam.serviceAccountUser` - Deploy as other service accounts
+When `grant_default_roles = false`, no project-level roles are granted — suitable for build-only SAs that only push images to Artifact Registry (with cross-project AR access granted separately).
+
+### Two-SA Architecture
+
+| Repo | SA | `grant_default_roles` | Purpose |
+|------|----|-----------------------|---------|
+| `desirelines` (public) | `github-actions-deploy` | `false` | Build & push images only |
+| `desirelines-deploy` (private) | `ci-deploy` | `true` + additional roles | Full Terraform deploy |
 
 ## Manual Setup (Not Recommended)
 
