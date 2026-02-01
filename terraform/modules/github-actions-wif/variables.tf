@@ -64,3 +64,23 @@ variable "service_account_display_name" {
   type        = string
   default     = "GitHub Actions Deployment"
 }
+
+# Pool creation control (set false to reuse existing pool)
+variable "create_pool" {
+  description = "Whether to create the WIF pool and provider (set false to reuse existing)"
+  type        = bool
+  default     = true
+}
+
+variable "workload_identity_pool_name" {
+  description = "Full resource name of existing WIF pool (required when create_pool=false)"
+  type        = string
+  default     = ""
+}
+
+# Additional IAM roles
+variable "additional_project_roles" {
+  description = "Additional project-level IAM roles to grant the service account"
+  type        = list(string)
+  default     = []
+}
