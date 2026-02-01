@@ -78,6 +78,12 @@ variable "workload_identity_pool_name" {
   default     = ""
 }
 
+variable "grant_default_roles" {
+  description = "Whether to grant the default set of project-level IAM roles (set false for build-only SAs)"
+  type        = bool
+  default     = true
+}
+
 # Additional IAM roles
 variable "additional_project_roles" {
   description = "Additional project-level IAM roles to grant the service account"

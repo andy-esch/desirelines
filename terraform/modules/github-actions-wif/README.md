@@ -15,22 +15,25 @@ Terraform module to set up Workload Identity Federation for GitHub Actions, enab
 ### In your environment (e.g., `desirelines-deploy/environments/dev/main.tf`)
 
 ```hcl
-module "github_actions" {
-  source = "../../modules/github-actions-wif"
+# Full deploy SA (default — grants all project-level roles)
+module "ci_deploy" {
+  source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/github-actions-wif?ref=tf-3"
 
   project_id        = var.gcp_project_id
   environment       = "dev"
-  github_repository = "andy-esch/desirelines"  # Your GitHub repo
+  github_repository = "andy-esch/desirelines-deploy"
+
+  service_account_id = "ci-deploy"
 }
 
-# Output the values needed for GitHub secrets
-output "github_wif_provider" {
-  value     = module.github_actions.wif_provider
-  sensitive = true
-}
+# Build-only SA (no project-level roles)
+module "github_actions" {
+  source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/github-actions-wif?ref=tf-3"
 
-output "github_wif_service_account" {
-  value = module.github_actions.wif_service_account
+  project_id          = var.gcp_project_id
+  environment         = "dev"
+  github_repository   = "andy-esch/desirelines"
+  grant_default_roles = false
 }
 ```
 
@@ -75,7 +78,13 @@ infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_servic
 | `pool_id` | Workload Identity Pool ID | `string` | `"github-actions"` | no |
 | `provider_id` | Workload Identity Provider ID | `string` | `"github-oidc"` | no |
 | `service_account_id` | Service account ID | `string` | `"github-actions-deploy"` | no |
-| `grant_secret_access` | Grant Secret Manager access | `bool` | `false` | no |
+| `service_account_display_name` | Display name for service account | `string` | `"GitHub Actions Deployment"` | no |
+| `pool_display_name` | Display name for Workload Identity Pool | `string` | `"GitHub Actions Pool"` | no |
+| `provider_display_name` | Display name for Workload Identity Provider | `string` | `"GitHub OIDC Provider"` | no |
+| `grant_default_roles` | Grant the default set of project-level IAM roles (set `false` for build-only SAs) | `bool` | `true` | no |
+| `create_pool` | Whether to create the WIF pool and provider (set `false` to reuse existing) | `bool` | `true` | no |
+| `workload_identity_pool_name` | Full resource name of existing WIF pool (required when `create_pool=false`) | `string` | `""` | no |
+| `additional_project_roles` | Additional project-level IAM roles to grant | `list(string)` | `[]` | no |
 
 ## Outputs
 
@@ -89,7 +98,7 @@ infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_servic
 
 ## Permissions Granted
 
-The deployment service account receives these roles:
+When `grant_default_roles = true` (the default), the service account receives these project-level roles:
 
 - `roles/run.developer` - Deploy Cloud Run services
 - `roles/artifactregistry.writer` - Push Docker images
@@ -97,9 +106,13 @@ The deployment service account receives these roles:
 - `roles/iam.serviceAccountUser` - Deploy as other service accounts
 - `roles/secretmanager.secretAccessor` - Read secrets
 - `roles/viewer` - Verify deployments
-- `roles/pubsub.viewer` - Terraform state refresh
+- `roles/pubsub.admin` - Manage Pub/Sub resources
 - `roles/bigquery.admin` - Terraform state refresh
 - `roles/iam.securityReviewer` - Terraform state refresh
+- `roles/iam.serviceAccountAdmin` - Manage SA IAM bindings
+- `roles/firebasehosting.admin` - Deploy web frontend
+
+When `grant_default_roles = false`, **no project-level roles** are granted. Use this for build-only service accounts that only need cross-project Artifact Registry access (granted separately).
 
 ## Security Considerations
 
