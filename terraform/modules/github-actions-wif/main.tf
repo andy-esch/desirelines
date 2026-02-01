@@ -20,6 +20,9 @@ terraform {
 locals {
   # Extract repository owner from "owner/repo" format
   repository_owner = var.github_repository_owner != "" ? var.github_repository_owner : split("/", var.github_repository)[0]
+
+  # Use created pool name or provided existing pool name
+  pool_name = var.create_pool ? google_iam_workload_identity_pool.github_actions[0].name : var.workload_identity_pool_name
 }
 
 # ==============================================================================
@@ -27,6 +30,7 @@ locals {
 # ==============================================================================
 
 resource "google_iam_workload_identity_pool" "github_actions" {
+  count                     = var.create_pool ? 1 : 0
   workload_identity_pool_id = var.pool_id
   display_name              = var.pool_display_name
   description               = "Workload Identity Pool for GitHub Actions CI/CD"
@@ -38,7 +42,8 @@ resource "google_iam_workload_identity_pool" "github_actions" {
 # ==============================================================================
 
 resource "google_iam_workload_identity_pool_provider" "github" {
-  workload_identity_pool_id          = google_iam_workload_identity_pool.github_actions.workload_identity_pool_id
+  count                              = var.create_pool ? 1 : 0
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github_actions[0].workload_identity_pool_id
   workload_identity_pool_provider_id = var.provider_id
   display_name                       = var.provider_display_name
   description                        = "GitHub OIDC provider for ${var.github_repository}"
@@ -77,7 +82,7 @@ resource "google_service_account" "github_actions_deploy" {
 resource "google_service_account_iam_member" "workload_identity_user" {
   service_account_id = google_service_account.github_actions_deploy.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.repository/${var.github_repository}"
+  member             = "principalSet://iam.googleapis.com/${local.pool_name}/attribute.repository/${var.github_repository}"
 }
 
 # ==============================================================================
@@ -174,4 +179,15 @@ resource "google_project_iam_member" "firebase_hosting_admin" {
   project = var.project_id
   role    = "roles/firebasehosting.admin"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
+}
+
+# ==============================================================================
+# Additional Project-Level Roles (configurable per invocation)
+# ==============================================================================
+
+resource "google_project_iam_member" "additional_roles" {
+  for_each = toset(var.additional_project_roles)
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
