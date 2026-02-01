@@ -226,6 +226,20 @@ resource "google_pubsub_topic_iam_member" "dead_letter_publisher" {
   member = "serviceAccount:service-${var.gcp_project_number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
+# Grant PubSub service account permission to ack messages from source subscriptions
+# Required for dead letter forwarding: without this, DLQ delivery silently fails
+# and messages retry indefinitely instead of being forwarded after max_delivery_attempts
+resource "google_pubsub_subscription_iam_member" "dlq_subscriber" {
+  for_each = toset([
+    google_pubsub_subscription.bq_inserter.name,
+    google_pubsub_subscription.postgres_writer.name,
+  ])
+
+  subscription = each.value
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:service-${var.gcp_project_number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
 # ==============================================================================
 # Service Accounts (per-service for least privilege)
 # ==============================================================================

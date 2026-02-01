@@ -24,3 +24,9 @@ variable "github_actions_sa_email" {
   description = "GitHub Actions service account email (from dev project WIF) that can push images"
   type        = string
 }
+
+variable "ci_deploy_sa_emails" {
+  description = "CI deploy service account emails (dev + prod) that need reader access to pull images"
+  type        = list(string)
+  default     = []
+}

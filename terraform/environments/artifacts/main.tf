@@ -80,3 +80,15 @@ resource "google_artifact_registry_repository_iam_member" "github_actions_push" 
   role       = "roles/artifactregistry.writer"
   member     = "serviceAccount:${var.github_actions_sa_email}"
 }
+
+# ==============================================================================
+# IAM: Allow ci-deploy SAs to pull images (for Terraform state refresh)
+# ==============================================================================
+resource "google_artifact_registry_repository_iam_member" "ci_deploy_pull" {
+  for_each   = toset(var.ci_deploy_sa_emails)
+  project    = var.gcp_project_id
+  location   = var.gcp_region
+  repository = google_artifact_registry_repository.services.name
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${each.value}"
+}

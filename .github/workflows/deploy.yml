@@ -111,3 +111,46 @@ jobs:
             -f "client_payload[env]=dev"
 
           echo "Triggered deploy repo with image_tag=${{ needs.build-images.outputs.git_sha }}"
+
+  # ===========================================================================
+  # Job 3: Auto-tag Terraform Modules
+  # ===========================================================================
+  # When terraform/modules/** files change, compute next tf-N tag and push it.
+  # This enables Renovate in desirelines-deploy to detect module updates.
+  tag-terraform-modules:
+    name: Tag Terraform modules
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          fetch-tags: true
+
+      - name: Check for module changes
+        id: changes
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q '^terraform/modules/'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Compute and push next tf-N tag
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git fetch --tags
+          # Find the highest existing tf-N tag
+          LATEST=$(git tag -l 'tf-*' | sed 's/tf-//' | sort -n | tail -1)
+          if [ -z "$LATEST" ]; then
+            NEXT=1
+          else
+            NEXT=$((LATEST + 1))
+          fi
+          TAG="tf-${NEXT}"
+          echo "Tagging as ${TAG}"
+          git tag "$TAG"
+          git push origin "$TAG"
