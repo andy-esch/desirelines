@@ -24,6 +24,7 @@ resource "google_pubsub_subscription" "bq_inserter" {
 
     oidc_token {
       service_account_email = google_service_account.bq_inserter.email
+      audience              = google_cloud_run_v2_service.bq_inserter.uri
     }
 
     attributes = {
@@ -76,6 +77,7 @@ resource "google_pubsub_subscription" "postgres_writer" {
 
     oidc_token {
       service_account_email = google_service_account.postgres_writer.email
+      audience              = google_cloud_run_v2_service.postgres_writer.uri
     }
 
     attributes = {
