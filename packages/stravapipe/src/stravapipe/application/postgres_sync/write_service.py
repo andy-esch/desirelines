@@ -1,7 +1,8 @@
 """PostgreSQL write service for syncing Strava activities.
 
 This service coordinates reading from Strava API and writing to PostgreSQL
-using the Unit of Work pattern for transaction management.
+using the Unit of Work pattern for transaction management. Events triggered
+on webhook events received (create, update, delete).
 
 Data written from this service into PostgreSQL will be read in the frontend
 via API Gateway.
