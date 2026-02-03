@@ -508,13 +508,13 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
 
 # Email notification channel for alerts
 resource "google_monitoring_notification_channel" "email_alerts" {
-  count = var.developer_email != null ? 1 : 0
+  for_each = var.developer_email != null ? toset([var.developer_email]) : toset([])
 
   display_name = "Desirelines ${title(var.environment)} - Developer Email"
   type         = "email"
 
   labels = {
-    email_address = var.developer_email
+    email_address = each.value
   }
 
   enabled = true
@@ -526,8 +526,6 @@ resource "google_monitoring_notification_channel" "email_alerts" {
 
 # CRITICAL: DLQ Messages Detected (BQ Inserter)
 resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
-  count = var.developer_email != null ? 1 : 0
-
   display_name = "🚨 DLQ: BQ Inserter Has Messages"
   combiner     = "OR"
 
@@ -562,7 +560,7 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
     }
   }
 
-  notification_channels = [google_monitoring_notification_channel.email_alerts[0].id]
+  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[var.developer_email].id] : []
 
   alert_strategy {
     auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
@@ -571,8 +569,6 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
 
 # HIGH: Service 4xx Error Rate (Client Errors)
 resource "google_monitoring_alert_policy" "service_4xx_errors" {
-  count = var.developer_email != null ? 1 : 0
-
   display_name = "⚠️ Cloud Run: High 4xx Error Rate"
   combiner     = "OR"
 
@@ -619,7 +615,7 @@ resource "google_monitoring_alert_policy" "service_4xx_errors" {
     }
   }
 
-  notification_channels = [google_monitoring_notification_channel.email_alerts[0].id]
+  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[var.developer_email].id] : []
 
   alert_strategy {
     auto_close = "3600s" # Auto-resolve after 1 hour
@@ -628,8 +624,6 @@ resource "google_monitoring_alert_policy" "service_4xx_errors" {
 
 # CRITICAL: Service 5xx Error Rate (Server Errors)
 resource "google_monitoring_alert_policy" "service_5xx_errors" {
-  count = var.developer_email != null ? 1 : 0
-
   display_name = "🚨 Cloud Run: 5xx Server Errors"
   combiner     = "OR"
 
@@ -677,7 +671,7 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
     }
   }
 
-  notification_channels = [google_monitoring_notification_channel.email_alerts[0].id]
+  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[var.developer_email].id] : []
 
   alert_strategy {
     auto_close = "3600s" # Auto-resolve after 1 hour
@@ -686,8 +680,6 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
 
 # HIGH: Message Backlog Too Old
 resource "google_monitoring_alert_policy" "old_messages" {
-  count = var.developer_email != null ? 1 : 0
-
   display_name = "⚠️ PubSub: Old Unacked Messages"
   combiner     = "OR"
 
@@ -724,7 +716,7 @@ resource "google_monitoring_alert_policy" "old_messages" {
     }
   }
 
-  notification_channels = [google_monitoring_notification_channel.email_alerts[0].id]
+  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[var.developer_email].id] : []
 
   alert_strategy {
     auto_close = "3600s" # Auto-resolve after 1 hour
@@ -740,10 +732,10 @@ output "monitoring_dashboard_url" {
 # Output alert policy IDs
 output "alert_policy_ids" {
   description = "IDs of created alert policies"
-  value = var.developer_email != null ? {
-    dlq_bq_inserter = google_monitoring_alert_policy.dlq_bq_inserter[0].id
-    service_4xx     = google_monitoring_alert_policy.service_4xx_errors[0].id
-    service_5xx     = google_monitoring_alert_policy.service_5xx_errors[0].id
-    old_messages    = google_monitoring_alert_policy.old_messages[0].id
-  } : {}
+  value = {
+    dlq_bq_inserter = google_monitoring_alert_policy.dlq_bq_inserter.id
+    service_4xx     = google_monitoring_alert_policy.service_4xx_errors.id
+    service_5xx     = google_monitoring_alert_policy.service_5xx_errors.id
+    old_messages    = google_monitoring_alert_policy.old_messages.id
+  }
 }
