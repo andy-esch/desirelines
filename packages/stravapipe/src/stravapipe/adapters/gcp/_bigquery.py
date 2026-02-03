@@ -12,11 +12,11 @@ from stravapipe.domain import (
     MinimalStravaActivity,
     SummaryStravaActivity,
 )
-from stravapipe.exceptions import ActivityNotFoundError
+from stravapipe.exceptions import ActivityNotFoundError, BigQueryError
 from stravapipe.ports.out.read import ReadActivitiesMetadata
+from stravapipe.ports.out.write import WriteActivities
 
 logger = logging.getLogger(__name__)
-from stravapipe.ports.out.write import WriteActivities
 
 
 class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
@@ -220,7 +220,7 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
         try:
             self._client.execute_dml_query(delete_query, query_params)
-        except Exception as e:
+        except BigQueryError as e:
             if isinstance(e.__cause__, BadRequest):
                 logger.warning(
                     "Staging cleanup skipped — rows still in streaming buffer",
