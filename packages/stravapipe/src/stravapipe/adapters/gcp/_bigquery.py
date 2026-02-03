@@ -1,5 +1,8 @@
 """BigQuery adapter for reading and writing Strava activities."""
 
+import logging
+
+from google.api_core.exceptions import BadRequest
 from google.cloud import bigquery
 from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
 
@@ -9,9 +12,11 @@ from stravapipe.domain import (
     MinimalStravaActivity,
     SummaryStravaActivity,
 )
-from stravapipe.exceptions import ActivityNotFoundError
+from stravapipe.exceptions import ActivityNotFoundError, BigQueryError
 from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
+
+logger = logging.getLogger(__name__)
 
 
 class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
@@ -203,13 +208,26 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
 
         Called after successful MERGE to prevent staging table from growing indefinitely.
         Uses parameterized query to prevent SQL injection.
+
+        If rows are still in BigQuery's streaming buffer (up to ~90 minutes after
+        insert), the DELETE will fail. This is safe to ignore — the MERGE is
+        idempotent, so stale staging rows only cause redundant no-op merges.
         """
         delete_query = f"""
         DELETE FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
         WHERE id IN UNNEST(@activity_ids)
         """
         query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
-        self._client.execute_dml_query(delete_query, query_params)
+        try:
+            self._client.execute_dml_query(delete_query, query_params)
+        except BigQueryError as e:
+            if isinstance(e.__cause__, BadRequest):
+                logger.warning(
+                    "Staging cleanup skipped — rows still in streaming buffer",
+                    extra={"activity_ids": activity_ids},
+                )
+            else:
+                raise
 
     def _build_merge_query(
         self, activity_id: int

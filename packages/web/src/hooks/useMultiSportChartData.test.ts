@@ -330,8 +330,9 @@ describe("useMultiSportChartData", () => {
         // (exact values depend on lane calculation)
         const values = [cyclingVal, runningVal, yogaVal].sort((a, b) => a - b);
         // Adjacent values should have some separation
-        expect(values[1] - values[0]).toBeGreaterThan(0.1);
-        expect(values[2] - values[1]).toBeGreaterThan(0.1);
+        // With 3 sports, min gap is ~0.067 (1/3 height * 20% padding), so we check > 0.05
+        expect(values[1] - values[0]).toBeGreaterThan(0.05);
+        expect(values[2] - values[1]).toBeGreaterThan(0.05);
       }
     });
   });
