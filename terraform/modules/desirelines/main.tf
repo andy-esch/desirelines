@@ -75,15 +75,6 @@ resource "google_bigquery_dataset" "activities_dataset" {
   # Enable deletion protection for production
   delete_contents_on_destroy = var.environment != "prod"
 
-  # Optional developer access for BigQuery console
-  dynamic "access" {
-    for_each = var.developer_email != null ? [var.developer_email] : []
-    content {
-      role          = "OWNER"
-      user_by_email = access.value
-    }
-  }
-
   depends_on = [google_project_service.required_apis]
 }
 
@@ -314,6 +305,14 @@ resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
 }
 
 # IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)
+
+# Optional developer OWNER access for BigQuery console
+resource "google_bigquery_dataset_iam_member" "developer_owner" {
+  count      = var.developer_email != null ? 1 : 0
+  dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
+  role       = "roles/bigquery.dataOwner"
+  member     = "user:${var.developer_email}"
+}
 
 resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
