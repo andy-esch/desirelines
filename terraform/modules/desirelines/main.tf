@@ -48,7 +48,6 @@ resource "google_project_service" "required_apis" {
     "cloudbuild.googleapis.com",
     "firestore.googleapis.com",
     "iamcredentials.googleapis.com",
-    "secretmanager.googleapis.com"
   ]) : []
 
   project = var.gcp_project_id
@@ -318,12 +317,6 @@ resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.bq_inserter.email}"
-}
-
-resource "google_project_iam_member" "bq_inserter_bigquery_data_editor" {
-  project = var.gcp_project_id
-  role    = "roles/bigquery.dataEditor"
-  member  = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
 resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
