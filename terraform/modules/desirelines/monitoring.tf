@@ -412,90 +412,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
             }
           }
-        },
-
-        # ====================================================================
-        # Section Header: Storage & Data Pipeline - Row 34
-        # ====================================================================
-        {
-          yPos   = 34
-          width  = 12
-          height = 2
-          widget = {
-            title = "💾 Storage & Data Pipeline"
-            text = {
-              content = "Monitor Cloud Storage operations and aggregation file health."
-              format  = "MARKDOWN"
-              style   = {}
-            }
-          }
-        },
-
-        # Storage Object Count - Row 36, Left
-        {
-          yPos   = 36
-          width  = 6
-          height = 4
-          widget = {
-            title = "Aggregation Files Count (all versions)"
-            xyChart = {
-              dataSets = [{
-                timeSeriesQuery = {
-                  timeSeriesFilter = {
-                    filter = "resource.type=\"gcs_bucket\" AND resource.labels.bucket_name=monitoring.regex.full_match(\".*desirelines-aggregation\") AND metric.type=\"storage.googleapis.com/storage/object_count\""
-                    aggregation = {
-                      alignmentPeriod    = "300s"
-                      perSeriesAligner   = "ALIGN_MEAN"
-                      crossSeriesReducer = "REDUCE_SUM"
-                      groupByFields      = ["resource.bucket_name"]
-                    }
-                  }
-                }
-                plotType       = "LINE"
-                targetAxis     = "Y1"
-                legendTemplate = "$${resource.labels.bucket_name}"
-              }]
-              timeshiftDuration = "0s"
-              yAxis = {
-                label = "Files"
-                scale = "LINEAR"
-              }
-            }
-          }
-        },
-
-        # Storage Total Bytes - Row 36, Right
-        {
-          xPos   = 6
-          yPos   = 36
-          width  = 6
-          height = 4
-          widget = {
-            title = "Storage Total Size (MB)"
-            xyChart = {
-              dataSets = [{
-                timeSeriesQuery = {
-                  timeSeriesFilter = {
-                    filter = "resource.type=\"gcs_bucket\" AND resource.labels.bucket_name=monitoring.regex.full_match(\".*desirelines-aggregation\") AND metric.type=\"storage.googleapis.com/storage/total_bytes\""
-                    aggregation = {
-                      alignmentPeriod    = "300s"
-                      perSeriesAligner   = "ALIGN_MEAN"
-                      crossSeriesReducer = "REDUCE_SUM"
-                      groupByFields      = ["resource.bucket_name"]
-                    }
-                  }
-                }
-                plotType       = "LINE"
-                targetAxis     = "Y1"
-                legendTemplate = "$${resource.labels.bucket_name}"
-              }]
-              timeshiftDuration = "0s"
-              yAxis = {
-                label = "Megabytes"
-                scale = "LINEAR"
-              }
-            }
-          }
         }
       ]
     }
@@ -505,6 +421,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
 # ============================================================================
 # Notification Channels
 # ============================================================================
+# Notification channels are conditional: created only if developer_email is set.
+# Alert policies below always exist (visible in GCP Console) but only send
+# notifications if a channel is configured. Uses count instead of for_each
+# because developer_email is marked sensitive (for_each keys appear in state).
 
 # Email notification channel for alerts
 resource "google_monitoring_notification_channel" "email_alerts" {
