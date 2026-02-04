@@ -508,13 +508,13 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
 
 # Email notification channel for alerts
 resource "google_monitoring_notification_channel" "email_alerts" {
-  for_each = var.developer_email != null ? toset([nonsensitive(var.developer_email)]) : toset([])
+  count = var.developer_email != null ? 1 : 0
 
   display_name = "Desirelines ${title(var.environment)} - Developer Email"
   type         = "email"
 
   labels = {
-    email_address = each.value
+    email_address = var.developer_email
   }
 
   enabled = true
@@ -560,7 +560,7 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
     }
   }
 
-  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[nonsensitive(var.developer_email)].id] : []
+  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
 
   alert_strategy {
     auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
@@ -615,7 +615,7 @@ resource "google_monitoring_alert_policy" "service_4xx_errors" {
     }
   }
 
-  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[nonsensitive(var.developer_email)].id] : []
+  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
 
   alert_strategy {
     auto_close = "3600s" # Auto-resolve after 1 hour
@@ -671,7 +671,7 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
     }
   }
 
-  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[nonsensitive(var.developer_email)].id] : []
+  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
 
   alert_strategy {
     auto_close = "3600s" # Auto-resolve after 1 hour
@@ -716,7 +716,7 @@ resource "google_monitoring_alert_policy" "old_messages" {
     }
   }
 
-  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[nonsensitive(var.developer_email)].id] : []
+  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
 
   alert_strategy {
     auto_close = "3600s" # Auto-resolve after 1 hour
