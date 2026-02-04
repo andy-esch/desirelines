@@ -421,6 +421,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
 # ============================================================================
 # Notification Channels
 # ============================================================================
+# Notification channels are conditional: created only if developer_email is set.
+# Alert policies below always exist (visible in GCP Console) but only send
+# notifications if a channel is configured. Uses count instead of for_each
+# because developer_email is marked sensitive (for_each keys appear in state).
 
 # Email notification channel for alerts
 resource "google_monitoring_notification_channel" "email_alerts" {

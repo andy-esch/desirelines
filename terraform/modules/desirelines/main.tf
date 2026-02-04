@@ -296,7 +296,15 @@ resource "google_service_account_iam_member" "infisical_cloud_impersonation" {
   member             = "serviceAccount:infisical-us@infisical-us.iam.gserviceaccount.com"
 }
 
-# IAM permissions for dispatcher (PubSub Publisher only)
+# ==============================================================================
+# Service-Specific IAM Permissions
+# ==============================================================================
+# Per-service least-privilege IAM grants. Each service gets only the permissions
+# it needs. PubSub subscriber permissions for Cloud Run services are handled
+# automatically by Eventarc triggers (not managed here).
+
+# Dispatcher publishes activity events to PubSub for downstream processing
+# Flow: Strava webhook → Dispatcher → PubSub → BQ Inserter / Postgres Writer
 resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   topic  = google_pubsub_topic.activity_events.name
   role   = "roles/pubsub.publisher"
@@ -305,7 +313,9 @@ resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
 
 # IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)
 
-# Optional developer OWNER access for BigQuery console
+# Developer OWNER access for BigQuery console (optional)
+# Allows developer to run ad-hoc queries, inspect tables, and manage data
+# through the BigQuery console UI without using service accounts
 resource "google_bigquery_dataset_iam_member" "developer_owner" {
   count      = var.developer_email != null ? 1 : 0
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
@@ -313,19 +323,27 @@ resource "google_bigquery_dataset_iam_member" "developer_owner" {
   member     = "user:${var.developer_email}"
 }
 
+# BQ Inserter needs dataEditor on the dataset for insert/update/delete operations
 resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
+# BQ Inserter needs jobUser to run queries (required for MERGE operations)
 resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
   project = var.gcp_project_id
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
-# Service Account Impersonation permissions (allows your user to impersonate the service accounts)
+# ==============================================================================
+# Developer Service Account Impersonation
+# ==============================================================================
+# Allows developer to impersonate service accounts for local development/testing.
+# This enables running Cloud Run services locally with production credentials,
+# debugging permission issues, and testing IAM configurations without deploying.
+
 resource "google_service_account_iam_member" "dispatcher_impersonation" {
   count              = var.developer_email != null ? 1 : 0
   service_account_id = google_service_account.dispatcher.name
