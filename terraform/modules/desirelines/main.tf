@@ -308,7 +308,7 @@ resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
 
 # Optional developer OWNER access for BigQuery console
 resource "google_bigquery_dataset_iam_member" "developer_owner" {
-  for_each   = var.developer_email != null ? toset([var.developer_email]) : toset([])
+  for_each   = var.developer_email != null ? toset([nonsensitive(var.developer_email)]) : toset([])
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
   role       = "roles/bigquery.dataOwner"
   member     = "user:${each.value}"
