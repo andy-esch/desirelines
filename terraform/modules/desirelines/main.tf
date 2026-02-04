@@ -154,7 +154,7 @@ resource "google_bigquery_table" "deleted_activities" {
 # Stores user-specific frontend configs (goals, annotations, preferences)
 resource "google_firestore_database" "user_configs" {
   project     = var.gcp_project_id
-  name        = "desirelines-user-configs"
+  name        = "${var.project_name}-user-configs"
   location_id = var.firestore_location
   type        = "FIRESTORE_NATIVE"
 
