@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchActivities, type ActivitySummary, type ActivityListFilter } from "../api/activities";
 import { useAuth } from "./useAuth";
@@ -7,6 +7,52 @@ import {
   generateCoordinatedFillLevels,
   getDemoSports,
 } from "../utils/demoDataGenerator";
+
+const DEMO_ACTIVITIES_CACHE_KEY = "demo-activities";
+
+/**
+ * Get or generate demo activities, cached in sessionStorage for cross-page consistency.
+ */
+function getSessionDemoActivities(): ActivitySummary[] {
+  const currentYear = new Date().getFullYear();
+
+  try {
+    const stored = sessionStorage.getItem(DEMO_ACTIVITIES_CACHE_KEY);
+    if (stored) {
+      const cached = JSON.parse(stored) as { year: number; activities: ActivitySummary[] };
+      if (cached.year === currentYear) {
+        return cached.activities;
+      }
+    }
+  } catch {
+    // Cache miss or invalid data
+  }
+
+  const sports = getDemoSports();
+  const fillLevels = generateCoordinatedFillLevels();
+
+  const allActivities = sports.flatMap((sport) =>
+    generateDemoActivities(sport, currentYear, {
+      count: 10,
+      overrideFillLevel: fillLevels[sport],
+    })
+  );
+
+  allActivities.sort(
+    (a, b) => new Date(b.startDateLocal).getTime() - new Date(a.startDateLocal).getTime()
+  );
+
+  try {
+    sessionStorage.setItem(
+      DEMO_ACTIVITIES_CACHE_KEY,
+      JSON.stringify({ year: currentYear, activities: allActivities })
+    );
+  } catch {
+    // Storage full or unavailable
+  }
+
+  return allActivities;
+}
 
 export interface UseActivitiesResult {
   activities: ActivitySummary[];
@@ -39,50 +85,9 @@ export interface UseActivitiesResult {
 export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseActivitiesResult {
   const { user, loading: authLoading } = useAuth();
 
-  // Generate demo activities for unauthenticated users.
-  // Cached in sessionStorage so the same activities appear across all pages.
-  const demoActivities = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const cacheKey = "demo-activities";
-
-    // Try to read from session cache
-    try {
-      const stored = sessionStorage.getItem(cacheKey);
-      if (stored) {
-        const cached = JSON.parse(stored) as { year: number; activities: ActivitySummary[] };
-        if (cached.year === currentYear) {
-          return cached.activities;
-        }
-      }
-    } catch {
-      // Cache miss or invalid data
-    }
-
-    // Generate fresh demo activities
-    const sports = getDemoSports();
-    const fillLevels = generateCoordinatedFillLevels();
-
-    const allActivities = sports.flatMap((sport) =>
-      generateDemoActivities(sport, currentYear, {
-        count: 10,
-        overrideFillLevel: fillLevels[sport],
-      })
-    );
-
-    // Sort by date descending (most recent first)
-    allActivities.sort(
-      (a, b) => new Date(b.startDateLocal).getTime() - new Date(a.startDateLocal).getTime()
-    );
-
-    // Cache for other pages
-    try {
-      sessionStorage.setItem(cacheKey, JSON.stringify({ year: currentYear, activities: allActivities }));
-    } catch {
-      // Storage full or unavailable
-    }
-
-    return allActivities;
-  }, []);
+  // Demo activities cached in sessionStorage so the same activities appear across all pages.
+  // Uses lazy useState initializer (runs once per mount, appropriate for side effects).
+  const [demoActivities] = useState(() => getSessionDemoActivities());
 
   const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, error, refetch } =
     useInfiniteQuery({

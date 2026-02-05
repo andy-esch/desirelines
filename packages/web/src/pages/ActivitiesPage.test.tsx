@@ -3,11 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import ActivitiesPage from "./ActivitiesPage";
-import * as useAuthModule from "../hooks/useAuth";
 import * as useActivitiesModule from "../hooks/useActivities";
 
-// Mock dependencies
-vi.mock("../hooks/useAuth");
+// Mock dependencies - useActivities is mocked; useAuth is called internally
+// by useActivities but that's fully mocked so useAuth never runs.
 vi.mock("../hooks/useActivities");
 
 const renderWithRouter = (initialRoute = "/activities") => {
@@ -38,14 +37,6 @@ describe("ActivitiesPage", () => {
 
   describe("authentication", () => {
     it("shows activities page with filters when not authenticated", () => {
-      vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
-        user: null,
-        loading: false,
-        signIn: vi.fn(),
-        signOut: vi.fn(),
-        error: null,
-      });
-
       vi.spyOn(useActivitiesModule, "useActivities").mockReturnValue({
         activities: [],
         isLoading: false,
@@ -63,14 +54,6 @@ describe("ActivitiesPage", () => {
     });
 
     it("shows activities when authenticated", async () => {
-      vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
-        user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
-        loading: false,
-        signIn: vi.fn(),
-        signOut: vi.fn(),
-        error: null,
-      });
-
       vi.spyOn(useActivitiesModule, "useActivities").mockReturnValue({
         activities: mockActivities,
         isLoading: false,
@@ -89,14 +72,6 @@ describe("ActivitiesPage", () => {
 
   describe("filters", () => {
     beforeEach(() => {
-      vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
-        user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
-        loading: false,
-        signIn: vi.fn(),
-        signOut: vi.fn(),
-        error: null,
-      });
-
       vi.spyOn(useActivitiesModule, "useActivities").mockReturnValue({
         activities: mockActivities,
         isLoading: false,
@@ -184,14 +159,6 @@ describe("ActivitiesPage", () => {
 
   describe("loading state", () => {
     it("shows loading state while auth is loading", () => {
-      vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
-        user: null,
-        loading: true,
-        signIn: vi.fn(),
-        signOut: vi.fn(),
-        error: null,
-      });
-
       vi.spyOn(useActivitiesModule, "useActivities").mockReturnValue({
         activities: [],
         isLoading: true,
@@ -203,21 +170,13 @@ describe("ActivitiesPage", () => {
 
       renderWithRouter();
 
-      // Should not show sign in prompt while loading
-      expect(screen.queryByText("Sign In Required")).not.toBeInTheDocument();
+      // Page renders normally during loading (no auth gate)
+      expect(screen.getByText("Activities")).toBeInTheDocument();
     });
   });
 
   describe("page header", () => {
     it("displays page title", () => {
-      vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
-        user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
-        loading: false,
-        signIn: vi.fn(),
-        signOut: vi.fn(),
-        error: null,
-      });
-
       vi.spyOn(useActivitiesModule, "useActivities").mockReturnValue({
         activities: [],
         isLoading: false,
