@@ -2,7 +2,6 @@ import React, { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import ActivityTable from "../components/ActivityTable";
 import { useActivities } from "../hooks/useActivities";
-import { useAuth } from "../hooks/useAuth";
 import { DEFAULT_USER_SETTINGS, type DistanceUnit, type ElevationUnit } from "../utils/units";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
 
@@ -60,7 +59,6 @@ function calculateDateRange(range: TimeRange): { from?: string; to?: string } {
 }
 
 const ActivitiesPage: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Get filter values from URL or defaults
@@ -105,26 +103,6 @@ const ActivitiesPage: React.FC = () => {
     }
     setSearchParams(params);
   };
-
-  // Show login prompt for unauthenticated users
-  if (!authLoading && !user) {
-    return (
-      <div className="flex-grow-1" style={{ background: pageBackgrounds.activities }}>
-        <div className="container py-4">
-          <div className="row justify-content-center">
-            <div className="col-md-6">
-              <div className="card text-center">
-                <div className="card-body py-5">
-                  <h2 className="card-title">Sign In Required</h2>
-                  <p className="card-text text-muted">Please sign in to view your activities.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex-grow-1" style={{ background: pageBackgrounds.activities }}>

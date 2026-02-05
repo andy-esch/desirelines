@@ -37,7 +37,7 @@ describe("ActivitiesPage", () => {
   });
 
   describe("authentication", () => {
-    it("shows sign in prompt when not authenticated", () => {
+    it("shows activities page with filters when not authenticated", () => {
       vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
         user: null,
         loading: false,
@@ -57,8 +57,9 @@ describe("ActivitiesPage", () => {
 
       renderWithRouter();
 
-      expect(screen.getByText("Sign In Required")).toBeInTheDocument();
-      expect(screen.getByText("Please sign in to view your activities.")).toBeInTheDocument();
+      expect(screen.getByText("Activities")).toBeInTheDocument();
+      expect(screen.getByLabelText("Time:")).toBeInTheDocument();
+      expect(screen.getByLabelText("Sport:")).toBeInTheDocument();
     });
 
     it("shows activities when authenticated", async () => {

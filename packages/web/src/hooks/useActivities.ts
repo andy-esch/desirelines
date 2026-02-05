@@ -39,13 +39,29 @@ export interface UseActivitiesResult {
 export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseActivitiesResult {
   const { user, loading: authLoading } = useAuth();
 
-  // Generate demo activities for unauthenticated users
+  // Generate demo activities for unauthenticated users.
+  // Cached in sessionStorage so the same activities appear across all pages.
   const demoActivities = useMemo(() => {
     const currentYear = new Date().getFullYear();
+    const cacheKey = "demo-activities";
+
+    // Try to read from session cache
+    try {
+      const stored = sessionStorage.getItem(cacheKey);
+      if (stored) {
+        const cached = JSON.parse(stored) as { year: number; activities: ActivitySummary[] };
+        if (cached.year === currentYear) {
+          return cached.activities;
+        }
+      }
+    } catch {
+      // Cache miss or invalid data
+    }
+
+    // Generate fresh demo activities
     const sports = getDemoSports();
     const fillLevels = generateCoordinatedFillLevels();
 
-    // Generate activities for all sports and combine
     const allActivities = sports.flatMap((sport) =>
       generateDemoActivities(sport, currentYear, {
         count: 10,
@@ -54,9 +70,18 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
     );
 
     // Sort by date descending (most recent first)
-    return allActivities.sort(
+    allActivities.sort(
       (a, b) => new Date(b.startDateLocal).getTime() - new Date(a.startDateLocal).getTime()
     );
+
+    // Cache for other pages
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({ year: currentYear, activities: allActivities }));
+    } catch {
+      // Storage full or unavailable
+    }
+
+    return allActivities;
   }, []);
 
   const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, error, refetch } =

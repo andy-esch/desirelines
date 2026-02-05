@@ -262,23 +262,15 @@ describe("generateDemoActivities", () => {
       const activities = generateDemoActivities("cycling", 2024, 10, "full");
       const names = activities.map((a) => a.name);
 
-      // Should include real-sounding names
-      const validNames = [
-        "Morning Ride",
-        "Evening Spin",
-        "Weekend Long Ride",
-        "Lunch Loop",
-        "Recovery Ride",
-        "Hill Repeats",
-        "Coffee Shop Ride",
-        "Commute",
-        "Group Ride",
-        "Solo Adventure",
-      ];
-
+      // All names should be non-empty strings
       names.forEach((name) => {
-        expect(validNames).toContain(name);
+        expect(typeof name).toBe("string");
+        expect(name.length).toBeGreaterThan(0);
       });
+
+      // Should have some variety across 10 activities
+      const uniqueNames = new Set(names);
+      expect(uniqueNames.size).toBeGreaterThan(1);
     });
   });
 

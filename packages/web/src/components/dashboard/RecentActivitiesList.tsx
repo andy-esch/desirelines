@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { useActivities } from "../../hooks/useActivities";
-import { useAuth } from "../../hooks/useAuth";
 import NeonSpinner from "../NeonSpinner";
 import type { TimeRange } from "../../utils/dataNormalization";
 
@@ -50,7 +49,6 @@ interface RecentActivitiesListProps {
 }
 
 export default function RecentActivitiesList({ timeRange, pageSize }: RecentActivitiesListProps) {
-  const { user } = useAuth();
   const [page, setPage] = useState(0);
 
   // Reset page when time range changes
@@ -82,17 +80,6 @@ export default function RecentActivitiesList({ timeRange, pageSize }: RecentActi
       setPage((p) => p + 1);
     }
   };
-
-  if (!user) {
-    return (
-      <div
-        className="d-flex align-items-center justify-content-center h-100 text-muted"
-        style={{ fontSize: "0.8rem" }}
-      >
-        Sign in to see activities
-      </div>
-    );
-  }
 
   if (isLoading && activities.length === 0) {
     return (

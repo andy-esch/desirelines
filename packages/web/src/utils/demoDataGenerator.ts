@@ -17,6 +17,7 @@ import {
   type DemoSportConfig,
   type FillLevel,
 } from "../constants/demoConfig";
+import { generateActivityName } from "./activityNameGenerator";
 
 // Re-export types for consumers
 export type { FillLevel };
@@ -282,13 +283,6 @@ export function generateCoordinatedFillLevels(): Record<string, FillLevel> {
 }
 
 /**
- * Get a random element from an array
- */
-function randomChoice<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-/**
  * Generate a value with variance
  */
 function withVariance(base: number, variance: number): number {
@@ -338,7 +332,6 @@ const DEFAULT_DISTANCE_SPORT_CONFIG: DemoSportConfig = {
   durationVariance: 0.3,
   avgElevationMeters: 100,
   goals: { conservative: 500, target: 750, stretch: 1000 },
-  activityNames: ["Morning Session", "Afternoon Session", "Weekend Activity"],
 };
 
 /**
@@ -352,7 +345,6 @@ const DEFAULT_TIME_SPORT_CONFIG: DemoSportConfig = {
   avgDurationSeconds: 3600, // 1 hour
   durationVariance: 0.3,
   goals: { conservative: 100, target: 150, stretch: 200 }, // hours
-  activityNames: ["Morning Session", "Afternoon Session", "Evening Session"],
 };
 
 /**
@@ -633,7 +625,7 @@ export function generateDemoActivities(
 
     activities.push({
       id: activityId++,
-      name: randomChoice(config.activityNames),
+      name: generateActivityName(sport, hour),
       type: getStravaTypeForSport(sport),
       sport: sport,
       startDateLocal: formatTimestamp(activityDate),
