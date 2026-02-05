@@ -113,6 +113,18 @@ export function getMetricUnitLabel(unit: MetricUnit): string {
   return unit;
 }
 
+/**
+ * Format a metric value for compact display.
+ * Distance: 1 decimal for < 100, locale-formatted integer for >= 100.
+ * Sessions: rounded integer.
+ */
+export function formatMetricDisplayValue(value: number, isDistance: boolean): string {
+  if (isDistance) {
+    return value >= 100 ? Math.round(value).toLocaleString() : value.toFixed(1);
+  }
+  return Math.round(value).toString();
+}
+
 // Default user settings (can be loaded from Firestore later)
 export interface UserSettings {
   distanceUnit: DistanceUnit;

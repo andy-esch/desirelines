@@ -35,6 +35,21 @@ function dayOfYearToDateString(year: number, dayOfYear: number): string {
 }
 
 /**
+ * Extract the target goal value from a list of goal entries.
+ * Prefers the goal labeled "Target", falls back to the middle value when sorted.
+ * Returns null if the array is empty.
+ */
+export function getTargetGoalValue(
+  goals: ReadonlyArray<{ value: number; label?: string }>
+): number | null {
+  if (goals.length === 0) return null;
+  const targetEntry = goals.find((g) => g.label === "Target");
+  if (targetEntry) return targetEntry.value;
+  const sorted = [...goals].sort((a, b) => a.value - b.value);
+  return sorted[Math.min(1, sorted.length - 1)].value;
+}
+
+/**
  * Individual goal with unique value
  */
 export interface Goal {
