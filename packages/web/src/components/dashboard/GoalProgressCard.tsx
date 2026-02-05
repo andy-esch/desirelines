@@ -2,15 +2,23 @@ import { Link } from "react-router-dom";
 import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboardGoalData";
 import { formatMetricDisplayValue } from "../../utils/units";
 import type { YearContext } from "../../utils/yearContext";
+import RaceTrack, { RaceTrackLegend } from "../RaceTrack";
 
 /**
- * Per-sport progress bars toward annual goals.
+ * Per-sport goal progress visualization using race track metaphor.
  *
- * Uses neon progress bar styling from GoalSummaryTable:
- * - progress-neon / progress-bar-neon CSS classes
- * - boxShadow glow effect per sport color
- * - Pace status per sport (Ahead / On Track / Behind)
- * - Links sport names to sport detail pages
+ * Shows two emoji markers racing along a horizontal track:
+ * - Dragon (🐲) at your actual progress toward the annual goal
+ * - Ghost (👻) at where you'd be if perfectly on pace
+ *
+ * When ahead of pace, the dragon leads the ghost.
+ * When behind, the ghost leads.
+ *
+ * Features:
+ * - Sport name links to detail pages
+ * - Status text (Ahead/On Track/Behind) per sport
+ * - Metric values below track (current / goal)
+ * - Legend explaining the markers
  */
 export default function GoalProgressCard() {
   const { sportData, yearContext, isLoading, error } = useDashboardGoalData();
@@ -45,10 +53,7 @@ export default function GoalProgressCard() {
           ))}
 
           {/* Legend */}
-          <div className="d-flex gap-3 pt-2 mt-1">
-            <LegendItem filled label="On Track" />
-            <LegendItem filled={false} label="Behind" />
-          </div>
+          <RaceTrackLegend className="pt-2 mt-1" showPace={yearContext.shouldShowPacing} />
         </>
       )}
     </div>
@@ -61,7 +66,12 @@ interface SportProgressRowProps {
 }
 
 function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
-  const progress = sport.targetGoal > 0 ? (sport.currentValue / sport.targetGoal) * 100 : 0;
+  // Calculate positions as percentages
+  const youPosition = sport.targetGoal > 0 ? (sport.currentValue / sport.targetGoal) * 100 : 0;
+
+  // Goal pace position: what % of the year has elapsed
+  const totalDays = yearContext.daysElapsed + yearContext.daysRemaining;
+  const pacePosition = totalDays > 0 ? (yearContext.daysElapsed / totalDays) * 100 : 0;
 
   const status = getStatusForDashboard(sport.currentValue, sport.targetGoal, yearContext);
 
@@ -77,56 +87,20 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
         </Link>
         <span className="small text-muted">{status}</span>
       </div>
-      <div className="progress progress-neon" style={{ height: 16, position: "relative" }}>
-        <div
-          className="progress-bar progress-bar-neon"
-          role="progressbar"
-          style={{
-            width: `${Math.min(100, progress)}%`,
-            backgroundColor: sport.color,
-            boxShadow: `0 0 ${1 + (progress / 100) * 3}px ${sport.color}`,
-          }}
-          aria-valuenow={progress}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        />
-        <span
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            fontSize: "0.65rem",
-            fontWeight: 500,
-            color: progress > 50 ? "#fff" : "#333",
-            textShadow: progress > 50 ? "0 0 2px rgba(0,0,0,0.5)" : "none",
-          }}
-        >
-          {progress.toFixed(0)}%
-        </span>
-      </div>
+
+      <RaceTrack
+        primaryPosition={youPosition}
+        pacePosition={pacePosition}
+        showPace={yearContext.shouldShowPacing}
+        trackColor={sport.color}
+        height={28}
+      />
+
       <div className="small text-muted" style={{ fontSize: "0.7rem" }}>
         {formatMetricDisplayValue(sport.currentValue, sport.isDistanceSport)} /{" "}
         {formatMetricDisplayValue(sport.targetGoal, sport.isDistanceSport)} {sport.metricUnit}
       </div>
     </div>
-  );
-}
-
-function LegendItem({ filled, label }: { filled: boolean; label: string }) {
-  return (
-    <span className="d-flex align-items-center gap-1">
-      <span
-        style={{
-          display: "inline-block",
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          backgroundColor: filled ? "rgba(0, 200, 100, 0.85)" : "rgba(150, 150, 150, 0.5)",
-        }}
-      />
-      <small className="text-muted">{label}</small>
-    </span>
   );
 }
 

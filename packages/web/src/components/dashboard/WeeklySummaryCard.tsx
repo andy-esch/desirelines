@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useWeeklySummary } from "../../hooks/useWeeklySummary";
 import { formatMetricDisplayValue } from "../../utils/units";
 
@@ -79,7 +80,7 @@ export default function WeeklySummaryCard() {
                   <span
                     className="badge"
                     style={{
-                      backgroundColor: getAchievementColor(sport.achievementPct),
+                      ...getAchievementStyle(sport.achievementPct),
                       fontSize: "0.65rem",
                       minWidth: 42,
                     }}
@@ -114,9 +115,39 @@ export default function WeeklySummaryCard() {
   );
 }
 
-function getAchievementColor(pct: number): string {
-  if (pct >= 100) return "rgba(0, 200, 100, 0.85)";
-  if (pct >= 75) return "rgba(0, 180, 200, 0.8)";
-  if (pct >= 50) return "rgba(180, 150, 0, 0.8)";
-  return "rgba(150, 150, 150, 0.6)";
+/**
+ * NEON-themed achievement badge styles.
+ * Uses the app's NEON color palette with characteristic glow effects.
+ */
+function getAchievementStyle(pct: number): CSSProperties {
+  // >= 100%: Neon green (goal achieved)
+  if (pct >= 100) {
+    return {
+      backgroundColor: "rgba(0, 255, 128, 0.9)",
+      color: "#1a202c",
+      boxShadow: "0 0 6px rgba(0, 255, 128, 0.6)",
+    };
+  }
+  // >= 75%: Electric cyan (on track)
+  if (pct >= 75) {
+    return {
+      backgroundColor: "rgba(0, 212, 255, 0.85)",
+      color: "#1a202c",
+      boxShadow: "0 0 5px rgba(0, 212, 255, 0.5)",
+    };
+  }
+  // >= 50%: Neon yellow-orange (halfway)
+  if (pct >= 50) {
+    return {
+      backgroundColor: "rgba(255, 200, 0, 0.85)",
+      color: "#1a202c",
+      boxShadow: "0 0 4px rgba(255, 200, 0, 0.4)",
+    };
+  }
+  // < 50%: Muted magenta (behind)
+  return {
+    backgroundColor: "rgba(180, 0, 255, 0.5)",
+    color: "#fff",
+    boxShadow: "0 0 3px rgba(180, 0, 255, 0.3)",
+  };
 }
