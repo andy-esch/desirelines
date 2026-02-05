@@ -64,7 +64,11 @@ function readFromLocalStorage(
   const stored = localStorage.getItem(key);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === "object") {
+        return parsed;
+      }
+      logApiError(new Error("Invalid storage format"), "Stored config is not an object");
     } catch (err) {
       logApiError(err, "Failed to parse stored config, using defaults");
     }
@@ -267,15 +271,22 @@ export function useUserConfig(
     if (localDataRaw) {
       try {
         const localData = JSON.parse(localDataRaw);
-
-        mutation
-          .mutateAsync(localData)
-          .then(() => {
-            localStorage.removeItem(key);
-          })
-          .catch((err) => {
-            logApiError(err, `[useUserConfig] Migration failed for ${key}`);
-          });
+        if (localData && typeof localData === "object") {
+          mutation
+            .mutateAsync(localData)
+            .then(() => {
+              localStorage.removeItem(key);
+            })
+            .catch((err) => {
+              logApiError(err, `[useUserConfig] Migration failed for ${key}`);
+            });
+        } else {
+          logApiError(
+            new Error("Invalid migration data format"),
+            `[useUserConfig] localStorage data for ${key} is not an object`
+          );
+          localStorage.removeItem(key);
+        }
       } catch (err) {
         logApiError(err, `[useUserConfig] Invalid localStorage data for ${key}, clearing`);
         localStorage.removeItem(key);

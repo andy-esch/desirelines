@@ -58,11 +58,12 @@ function calculateDateRange(range: TimeRange): { from?: string; to?: string } {
   }
 }
 
+const VALID_RANGES: TimeRange[] = ["2w", "4w", "2m", "6m", "ytd", "all"];
+
 const ActivitiesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Get filter values from URL or defaults
-  const VALID_RANGES: TimeRange[] = ["2w", "4w", "2m", "6m", "ytd", "all"];
   const rangeParam = searchParams.get("range");
   const timeRange: TimeRange = VALID_RANGES.includes(rangeParam as TimeRange)
     ? (rangeParam as TimeRange)

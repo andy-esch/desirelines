@@ -19,9 +19,9 @@ function getSessionDemoActivities(): ActivitySummary[] {
   try {
     const stored = sessionStorage.getItem(DEMO_ACTIVITIES_CACHE_KEY);
     if (stored) {
-      const cached = JSON.parse(stored) as { year: number; activities: ActivitySummary[] };
-      if (cached.year === currentYear) {
-        return cached.activities;
+      const cached = JSON.parse(stored);
+      if (cached?.year === currentYear && Array.isArray(cached.activities)) {
+        return cached.activities as ActivitySummary[];
       }
     }
   } catch {

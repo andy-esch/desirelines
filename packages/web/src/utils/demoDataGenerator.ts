@@ -107,15 +107,18 @@ export function getSessionFillLevels(sports?: string[]): Record<string, FillLeve
   try {
     const stored = sessionStorage.getItem(SESSION_FILL_LEVELS_KEY);
     if (stored) {
-      const parsed: StoredFillLevels = JSON.parse(stored);
-      // Sort a copy to avoid mutating stored data
-      const storedKey = [...parsed.sports].sort().join(",");
+      const parsed = JSON.parse(stored);
+      // Validate structure before using
+      if (Array.isArray(parsed?.sports) && parsed?.levels && typeof parsed.levels === "object") {
+        // Sort a copy to avoid mutating stored data
+        const storedKey = [...parsed.sports].sort().join(",");
 
-      // If sports match, use stored levels
-      if (storedKey === targetKey) {
-        return parsed.levels;
+        // If sports match, use stored levels
+        if (storedKey === targetKey) {
+          return parsed.levels as Record<string, FillLevel>;
+        }
       }
-      // Sports changed - regenerate
+      // Sports changed or invalid data - regenerate
     }
   } catch {
     // Session storage not available or invalid data - generate fresh
@@ -184,9 +187,14 @@ export function getDemoActivityCounts(
   try {
     const stored = sessionStorage.getItem(SESSION_ACTIVITY_COUNTS_KEY);
     if (stored) {
-      const cached: CachedActivityCounts = JSON.parse(stored);
-      if (cached.year === year && cached.sportsKey === sportsKey) {
-        return cached.counts;
+      const cached = JSON.parse(stored);
+      if (
+        cached?.year === year &&
+        cached?.sportsKey === sportsKey &&
+        cached?.counts &&
+        typeof cached.counts === "object"
+      ) {
+        return cached.counts as Record<string, number>;
       }
     }
   } catch {
