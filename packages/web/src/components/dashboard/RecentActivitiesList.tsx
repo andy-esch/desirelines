@@ -83,17 +83,6 @@ export default function RecentActivitiesList({ timeRange, pageSize }: RecentActi
     }
   };
 
-  if (!user) {
-    return (
-      <div
-        className="d-flex align-items-center justify-content-center h-100 text-muted"
-        style={{ fontSize: "0.8rem" }}
-      >
-        Sign in to see activities
-      </div>
-    );
-  }
-
   if (isLoading && activities.length === 0) {
     return (
       <div className="d-flex align-items-center justify-content-center h-100">
@@ -145,14 +134,18 @@ export default function RecentActivitiesList({ timeRange, pageSize }: RecentActi
                   maxWidth: 140,
                 }}
               >
-                <a
-                  href={`https://www.strava.com/activities/${activity.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-decoration-none"
-                >
-                  {activity.name}
-                </a>
+                {user ? (
+                  <a
+                    href={`https://www.strava.com/activities/${activity.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-decoration-none"
+                  >
+                    {activity.name}
+                  </a>
+                ) : (
+                  <span title="Links disabled in demo mode">{activity.name}</span>
+                )}
               </td>
               <td className="text-muted text-end px-1 py-1" style={{ whiteSpace: "nowrap" }}>
                 {formatDistance(activity.distanceMeters)}

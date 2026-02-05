@@ -17,6 +17,7 @@ import {
   type DemoSportConfig,
   type FillLevel,
 } from "../constants/demoConfig";
+import { generateActivityName } from "./activityNameGenerator";
 
 // Re-export types for consumers
 export type { FillLevel };
@@ -106,15 +107,18 @@ export function getSessionFillLevels(sports?: string[]): Record<string, FillLeve
   try {
     const stored = sessionStorage.getItem(SESSION_FILL_LEVELS_KEY);
     if (stored) {
-      const parsed: StoredFillLevels = JSON.parse(stored);
-      // Sort a copy to avoid mutating stored data
-      const storedKey = [...parsed.sports].sort().join(",");
+      const parsed = JSON.parse(stored);
+      // Validate structure before using
+      if (Array.isArray(parsed?.sports) && parsed?.levels && typeof parsed.levels === "object") {
+        // Sort a copy to avoid mutating stored data
+        const storedKey = [...parsed.sports].sort().join(",");
 
-      // If sports match, use stored levels
-      if (storedKey === targetKey) {
-        return parsed.levels;
+        // If sports match, use stored levels
+        if (storedKey === targetKey) {
+          return parsed.levels as Record<string, FillLevel>;
+        }
       }
-      // Sports changed - regenerate
+      // Sports changed or invalid data - regenerate
     }
   } catch {
     // Session storage not available or invalid data - generate fresh
@@ -183,9 +187,14 @@ export function getDemoActivityCounts(
   try {
     const stored = sessionStorage.getItem(SESSION_ACTIVITY_COUNTS_KEY);
     if (stored) {
-      const cached: CachedActivityCounts = JSON.parse(stored);
-      if (cached.year === year && cached.sportsKey === sportsKey) {
-        return cached.counts;
+      const cached = JSON.parse(stored);
+      if (
+        cached?.year === year &&
+        cached?.sportsKey === sportsKey &&
+        cached?.counts &&
+        typeof cached.counts === "object"
+      ) {
+        return cached.counts as Record<string, number>;
       }
     }
   } catch {
@@ -282,13 +291,6 @@ export function generateCoordinatedFillLevels(): Record<string, FillLevel> {
 }
 
 /**
- * Get a random element from an array
- */
-function randomChoice<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-/**
  * Generate a value with variance
  */
 function withVariance(base: number, variance: number): number {
@@ -338,7 +340,6 @@ const DEFAULT_DISTANCE_SPORT_CONFIG: DemoSportConfig = {
   durationVariance: 0.3,
   avgElevationMeters: 100,
   goals: { conservative: 500, target: 750, stretch: 1000 },
-  activityNames: ["Morning Session", "Afternoon Session", "Weekend Activity"],
 };
 
 /**
@@ -352,7 +353,6 @@ const DEFAULT_TIME_SPORT_CONFIG: DemoSportConfig = {
   avgDurationSeconds: 3600, // 1 hour
   durationVariance: 0.3,
   goals: { conservative: 100, target: 150, stretch: 200 }, // hours
-  activityNames: ["Morning Session", "Afternoon Session", "Evening Session"],
 };
 
 /**
@@ -633,7 +633,7 @@ export function generateDemoActivities(
 
     activities.push({
       id: activityId++,
-      name: randomChoice(config.activityNames),
+      name: generateActivityName(sport, hour),
       type: getStravaTypeForSport(sport),
       sport: sport,
       startDateLocal: formatTimestamp(activityDate),

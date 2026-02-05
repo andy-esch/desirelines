@@ -91,7 +91,9 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        return parsed.goals || [];
+        if (parsed && Array.isArray(parsed.goals)) {
+          return parsed.goals;
+        }
       } catch {
         // Fall back to defaults
       }

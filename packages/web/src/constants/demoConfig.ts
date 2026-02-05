@@ -30,8 +30,6 @@ export interface DemoSportConfig {
     target: number;
     stretch: number;
   };
-  /** Activity name templates */
-  activityNames: string[];
 }
 
 /**
@@ -55,18 +53,6 @@ export const DEMO_SPORT_CONFIG: Record<DemoSport, DemoSportConfig> = {
       target: 2500,
       stretch: 3000,
     },
-    activityNames: [
-      "Morning Ride",
-      "Evening Spin",
-      "Weekend Long Ride",
-      "Lunch Loop",
-      "Recovery Ride",
-      "Hill Repeats",
-      "Coffee Shop Ride",
-      "Commute",
-      "Group Ride",
-      "Solo Adventure",
-    ],
   },
   running: {
     fillLevel: "partial",
@@ -81,18 +67,6 @@ export const DEMO_SPORT_CONFIG: Record<DemoSport, DemoSportConfig> = {
       target: 750,
       stretch: 1000,
     },
-    activityNames: [
-      "Morning Run",
-      "Evening Jog",
-      "Long Run",
-      "Tempo Run",
-      "Easy Recovery",
-      "Trail Run",
-      "Interval Training",
-      "Fartlek",
-      "Race Day",
-      "Treadmill Session",
-    ],
   },
   yoga: {
     fillLevel: "empty",
@@ -106,18 +80,6 @@ export const DEMO_SPORT_CONFIG: Record<DemoSport, DemoSportConfig> = {
       target: 150,
       stretch: 200,
     },
-    activityNames: [
-      "Morning Flow",
-      "Evening Stretch",
-      "Vinyasa Session",
-      "Yin Yoga",
-      "Power Yoga",
-      "Restorative Practice",
-      "Sun Salutations",
-      "Hip Opener Flow",
-      "Balance & Strength",
-      "Meditation & Stretch",
-    ],
   },
   hiking: {
     fillLevel: "full",
@@ -132,18 +94,6 @@ export const DEMO_SPORT_CONFIG: Record<DemoSport, DemoSportConfig> = {
       target: 300,
       stretch: 400,
     },
-    activityNames: [
-      "Morning Hike",
-      "Trail Exploration",
-      "Summit Attempt",
-      "Nature Walk",
-      "Canyon Trek",
-      "Ridge Walk",
-      "Forest Trail",
-      "Weekend Adventure",
-      "Peak Bagging",
-      "Backcountry Hike",
-    ],
   },
   workout: {
     fillLevel: "full",
@@ -157,18 +107,6 @@ export const DEMO_SPORT_CONFIG: Record<DemoSport, DemoSportConfig> = {
       target: 200,
       stretch: 250,
     },
-    activityNames: [
-      "Strength Training",
-      "HIIT Session",
-      "CrossFit WOD",
-      "Upper Body Day",
-      "Lower Body Day",
-      "Core Workout",
-      "Cardio Session",
-      "Circuit Training",
-      "Recovery Session",
-      "Full Body Workout",
-    ],
   },
 };
 
