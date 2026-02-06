@@ -243,7 +243,10 @@ export default function SportPage({ sport }: SportPageProps) {
 
   return (
     <div className="container-fluid">
-      <div className="row" style={{ background: pageBackgrounds.sport }}>
+      <div
+        className="row page-background"
+        style={{ "--page-background": pageBackgrounds.sport } as React.CSSProperties}
+      >
         <Sidebar
           estimatedYearEnd={estimatedYearEnd}
           currentValue={currentValue}

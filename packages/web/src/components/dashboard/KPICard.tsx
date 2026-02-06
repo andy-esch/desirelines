@@ -29,7 +29,7 @@ const KPICard = React.memo(({ title, value, subtitle, indicator }: KPICardProps)
   return (
     <div className="col-md-4">
       <div className="glass-panel-kpi h-100">
-        <div className="d-flex flex-column justify-content-between py-3">
+        <div className="d-flex flex-column justify-content-between p-2">
           <h6 className="mb-2 text-muted small">{title}</h6>
           <div>
             <h2 className="mb-1">{value}</h2>
