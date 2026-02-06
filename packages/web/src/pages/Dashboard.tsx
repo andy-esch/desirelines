@@ -1,5 +1,7 @@
 import { useAuth } from "../hooks/useAuth";
 import MultiSportComparisonChart from "../components/dashboard/MultiSportComparisonChart";
+import WeeklySummaryCard from "../components/dashboard/WeeklySummaryCard";
+import GoalProgressCard from "../components/dashboard/GoalProgressCard";
 import ActivityCalendarHeatmap from "../components/dashboard/ActivityCalendarHeatmap";
 import NeonSpinner from "../components/NeonSpinner";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
@@ -60,6 +62,16 @@ export default function Dashboard() {
 
         {/* Multi-Sport Comparison Chart */}
         <MultiSportComparisonChart className="mb-4" />
+
+        {/* Weekly Summary + Goal Progress row */}
+        <div className="row g-3 mb-4">
+          <div className="col-md-6">
+            <WeeklySummaryCard />
+          </div>
+          <div className="col-md-6">
+            <GoalProgressCard />
+          </div>
+        </div>
 
         {/* Activity Calendar Heatmap */}
         <ActivityCalendarHeatmap className="mb-4" />

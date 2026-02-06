@@ -54,7 +54,7 @@ function interpolateColor(
  * @param total - Total number of items
  * @returns RGB color string
  */
-function getSpectrumColor(index: number, total: number): string {
+export function getSpectrumColor(index: number, total: number): string {
   if (total <= 1) {
     const c = SPARKLINE_SPECTRUM[0];
     return `rgb(${c.r}, ${c.g}, ${c.b})`;

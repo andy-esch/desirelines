@@ -1,0 +1,192 @@
+import { useMemo } from "react";
+import { useQueries } from "@tanstack/react-query";
+import { useAuth } from "./useAuth";
+import { useVisibleSports } from "./useVisibleSports";
+import { useSportConfig } from "./useSportConfig";
+import { useUserConfig } from "./useUserConfig";
+import { getSpectrumColor } from "./useMultiSportChartData";
+import { fetchSportMetrics, type MetricsEntry } from "../api/activities";
+import {
+  generateDemoMetrics,
+  generateDemoGoals,
+  getSessionFillLevels,
+} from "../utils/demoDataGenerator";
+import { filterValidSports, getSportDisplayName } from "../utils/sportConfig";
+import { isDistanceMetricSport, getMetricConfig } from "../config/metricConfig";
+import { getTargetGoalValue } from "../utils/goalCalculations";
+import {
+  convertDistance,
+  getDistanceLabel,
+  goalMetersToDisplay,
+  getUserSettings,
+} from "../utils/units";
+import { createYearContext, type YearContext } from "../utils/yearContext";
+import { UserConfigService } from "../services/userConfigService";
+import type { GoalsForYear } from "../types/generated/user_config";
+
+export interface SportGoalData {
+  sport: string;
+  displayName: string;
+  color: string;
+  currentValue: number;
+  targetGoal: number;
+  metricUnit: string;
+  isDistanceSport: boolean;
+}
+
+/**
+ * Hook that fetches YTD cumulative metrics + goals for all visible sports.
+ *
+ * Handles both demo and auth modes:
+ * - Demo: generateDemoMetrics for YTD, generateDemoGoals for goals
+ * - Auth: API calls for metrics, Firestore for goals (cache-shared with useUserConfig)
+ */
+export function useDashboardGoalData(): {
+  sportData: SportGoalData[];
+  yearContext: YearContext;
+  isLoading: boolean;
+  error: Error | null;
+} {
+  const { user, loading: authLoading } = useAuth();
+  const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
+  const { sportConfig, isLoading: configLoading } = useSportConfig();
+  const { data: prefs } = useUserConfig("preferences");
+
+  const currentYear = new Date().getFullYear();
+  const yearContext = useMemo(() => createYearContext(currentYear), [currentYear]);
+  const userSettings = useMemo(() => getUserSettings(prefs), [prefs]);
+
+  const validSports = useMemo(
+    () => filterValidSports(visibleSports, sportConfig),
+    [visibleSports, sportConfig]
+  );
+
+  // --- YTD Cumulative Metrics ---
+
+  // Demo: generate cumulative metrics synchronously
+  const demoMetrics = useMemo(() => {
+    if (user) return null;
+    const fillLevels = getSessionFillLevels(validSports);
+    const result: Record<string, MetricsEntry[]> = {};
+    for (const sport of validSports) {
+      result[sport] = generateDemoMetrics(sport, currentYear, {
+        overrideFillLevel: fillLevels[sport],
+        allSports: validSports,
+      });
+    }
+    return result;
+  }, [user, validSports, currentYear]);
+
+  // Auth: batch fetch cumulative metrics
+  const metricsQueries = useQueries({
+    queries: validSports.map((sport) => ({
+      queryKey: ["sportMetrics", currentYear, sport],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        fetchSportMetrics({ year: currentYear, sport, signal }),
+      enabled: !authLoading && !!user,
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  // --- Goals ---
+
+  // Demo: generate goals synchronously
+  const demoGoals = useMemo(() => {
+    if (user) return null;
+    const result: Record<string, { conservative: number; target: number; stretch: number }> = {};
+    for (const sport of validSports) {
+      result[sport] = generateDemoGoals(sport);
+    }
+    return result;
+  }, [user, validSports]);
+
+  // Auth: batch fetch goals (query keys match useUserConfig for cache sharing)
+  const effectiveUserId = user?.uid ?? "default";
+  const configService = useMemo(() => {
+    if (!user) return null;
+    return new UserConfigService(undefined, "v1");
+  }, [user]);
+
+  const goalsQueries = useQueries({
+    queries: validSports.map((sport) => ({
+      queryKey: ["userConfig", "goals", currentYear, sport, effectiveUserId, "v1"],
+      queryFn: async (): Promise<GoalsForYear | null> => {
+        if (!configService) return null;
+        return configService.getConfigSection("goals", currentYear, sport);
+      },
+      enabled: !authLoading && !!user,
+      staleTime: Infinity,
+    })),
+  });
+
+  // --- Combine into SportGoalData ---
+
+  const sportData = useMemo(() => {
+    const total = validSports.length;
+    return validSports.map((sport, index) => {
+      const isDistance = isDistanceMetricSport(sport);
+      const metricConfig = getMetricConfig(sport);
+
+      // Get YTD value (in display units)
+      let currentValue = 0;
+      const metrics = user ? metricsQueries[index]?.data : demoMetrics?.[sport];
+
+      if (metrics && metrics.length > 0) {
+        const lastEntry = metrics[metrics.length - 1];
+        currentValue = isDistance
+          ? convertDistance(lastEntry.distance ?? 0, userSettings.distanceUnit)
+          : (lastEntry.activities ?? 0);
+      }
+
+      // Get target goal (in display units)
+      let targetGoal = metricConfig.defaultGoalValue;
+      if (user) {
+        const goalsData = goalsQueries[index]?.data;
+        if (goalsData?.goals?.length) {
+          const goalValue = getTargetGoalValue(goalsData.goals);
+          if (goalValue !== null) {
+            targetGoal = isDistance
+              ? goalMetersToDisplay(goalValue, userSettings.distanceUnit)
+              : goalValue;
+          }
+        }
+      } else if (demoGoals?.[sport]) {
+        targetGoal = demoGoals[sport].target;
+      }
+
+      return {
+        sport,
+        displayName: getSportDisplayName(sport, sportConfig),
+        color: getSpectrumColor(index, total),
+        currentValue,
+        targetGoal,
+        metricUnit: isDistance ? getDistanceLabel(userSettings.distanceUnit) : "sessions",
+        isDistanceSport: isDistance,
+      };
+    });
+  }, [
+    validSports,
+    sportConfig,
+    user,
+    demoMetrics,
+    metricsQueries,
+    demoGoals,
+    goalsQueries,
+    userSettings,
+  ]);
+
+  const isLoading =
+    prefsLoading ||
+    configLoading ||
+    authLoading ||
+    (!!user && (metricsQueries.some((q) => q.isLoading) || goalsQueries.some((q) => q.isLoading)));
+  const queryError =
+    metricsQueries.find((q) => q.error)?.error ?? goalsQueries.find((q) => q.error)?.error ?? null;
+
+  return {
+    sportData,
+    yearContext,
+    isLoading,
+    error: queryError as Error | null,
+  };
+}

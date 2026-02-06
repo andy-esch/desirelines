@@ -82,6 +82,26 @@ vi.mock("../hooks/useSportConfig", () => ({
   })),
 }));
 
+// Mock useWeeklySummary hook (used by WeeklySummaryCard)
+vi.mock("../hooks/useWeeklySummary", () => ({
+  useWeeklySummary: vi.fn(() => ({
+    sportTotals: [],
+    weekLabel: "Feb 3 – Feb 5",
+    isLoading: false,
+    error: null,
+  })),
+}));
+
+// Mock useDashboardGoalData hook (used by GoalProgressCard)
+vi.mock("../hooks/useDashboardGoalData", () => ({
+  useDashboardGoalData: vi.fn(() => ({
+    sportData: [],
+    yearContext: { year: 2026, daysElapsed: 36, daysRemaining: 329, isPastYear: false },
+    isLoading: false,
+    error: null,
+  })),
+}));
+
 // Mock recharts to avoid rendering issues in tests
 vi.mock("recharts", () => ({
   LineChart: ({ children }: { children: React.ReactNode }) => (

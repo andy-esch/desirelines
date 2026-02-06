@@ -35,6 +35,34 @@ function dayOfYearToDateString(year: number, dayOfYear: number): string {
 }
 
 /**
+ * Pace ratio thresholds for determining goal status.
+ * paceRatio = currentValue / proratedGoal (where 1.0 = exactly on pace).
+ *
+ * Used by GoalSummaryTable (sport page) and GoalProgressCard (dashboard).
+ */
+export const PACE_THRESHOLDS = {
+  AHEAD: 1.1,
+  ON_TRACK: 0.9,
+  SLIGHTLY_BEHIND: 0.75,
+  BEHIND: 0.5,
+} as const;
+
+/**
+ * Extract the target goal value from a list of goal entries.
+ * Prefers the goal labeled "Target", falls back to the middle value when sorted.
+ * Returns null if the array is empty.
+ */
+export function getTargetGoalValue(
+  goals: ReadonlyArray<{ value: number; label?: string }>
+): number | null {
+  if (goals.length === 0) return null;
+  const targetEntry = goals.find((g) => g.label === "Target");
+  if (targetEntry) return targetEntry.value;
+  const sorted = [...goals].sort((a, b) => a.value - b.value);
+  return sorted[Math.floor(sorted.length / 2)].value;
+}
+
+/**
  * Individual goal with unique value
  */
 export interface Goal {
