@@ -2,9 +2,10 @@ from unittest.mock import patch
 
 from stravapipe.adapters.gcp import (
     make_bigquery_client_wrapper,
+    make_read_activities,
     make_write_activities,
 )
-from stravapipe.adapters.gcp._bigquery import ActivitiesWriter
+from stravapipe.adapters.gcp._bigquery import ActivitiesReader, ActivitiesWriter
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
 
 
@@ -41,3 +42,10 @@ class TestGcpAdapterFactories:
         repo = make_write_activities(mock_bq_inserter_config)
         assert hasattr(repo, "_client")
         assert hasattr(repo, "_dataset_name")
+
+    @patch("stravapipe.adapters.gcp._clients.BigQueryClient")
+    def test_make_read_activities_returns_correct_type(
+        self, mock_client, mock_bq_inserter_config
+    ):
+        result = make_read_activities(mock_bq_inserter_config)
+        assert isinstance(result, ActivitiesReader)
