@@ -1,5 +1,5 @@
 import React from "react";
-import { Goals } from "../utils/goalCalculations";
+import { Goals, PACE_THRESHOLDS } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
 import { getDangerThreshold } from "../constants/dangerZoneThresholds";
@@ -77,10 +77,10 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
     // For current/future years, compare against prorated goal (where you should be now)
     const paceRatio = calculatePaceRatio(goalValue);
 
-    if (paceRatio >= 1.1) return "Ahead";
-    if (paceRatio >= 0.9) return "On Track";
-    if (paceRatio >= 0.75) return "Slightly Behind";
-    if (paceRatio >= 0.5) return "Behind";
+    if (paceRatio >= PACE_THRESHOLDS.AHEAD) return "Ahead";
+    if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return "On Track";
+    if (paceRatio >= PACE_THRESHOLDS.SLIGHTLY_BEHIND) return "Slightly Behind";
+    if (paceRatio >= PACE_THRESHOLDS.BEHIND) return "Behind";
     return "Far Behind";
   };
 

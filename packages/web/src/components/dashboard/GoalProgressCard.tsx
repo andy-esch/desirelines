@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboardGoalData";
+import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { formatMetricDisplayValue } from "../../utils/units";
 import type { YearContext } from "../../utils/yearContext";
 import RaceTrack, { RaceTrackLegend } from "../RaceTrack";
@@ -124,8 +125,8 @@ function getStatusForDashboard(
   if (proratedGoal === 0) return currentValue > 0 ? "Ahead" : "—";
   const paceRatio = currentValue / proratedGoal;
 
-  if (paceRatio >= 1.1) return "Ahead";
-  if (paceRatio >= 0.9) return "On Track";
-  if (paceRatio >= 0.75) return "Slightly Behind";
+  if (paceRatio >= PACE_THRESHOLDS.AHEAD) return "Ahead";
+  if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return "On Track";
+  if (paceRatio >= PACE_THRESHOLDS.SLIGHTLY_BEHIND) return "Slightly Behind";
   return "Behind";
 }
