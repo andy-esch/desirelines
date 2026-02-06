@@ -172,6 +172,17 @@ class SummaryStravaActivity(BaseModel):
     - Aggregation calculations (has distance, date, type, etc.)
     """
 
+    # Fields present in SummaryActivity but not in the BigQuery schema.
+    # Used by to_bq_dict() to exclude them during serialization.
+    _BQ_EXCLUDE_FIELDS: set[str] = {
+        "resource_state",  # Conflicts with athlete.resource_state
+        "location_city",
+        "location_state",
+        "location_country",
+        "from_accepted_tag",
+        "utc_offset",
+    }
+
     # Core identification
     id: int
     resource_state: int
@@ -269,6 +280,10 @@ class SummaryStravaActivity(BaseModel):
     # - stats_visibility: list[StatsVisibility]
     # - display_hide_heartrate_option: bool
     # - available_zones: list[str]
+
+    def to_bq_dict(self) -> dict:
+        """Serialize to dict for BigQuery insertion, excluding fields not in the BQ schema."""
+        return self.model_dump(mode="json", exclude=self._BQ_EXCLUDE_FIELDS)
 
 
 class MinimalStravaActivity(BaseModel):

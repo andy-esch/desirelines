@@ -1,4 +1,4 @@
-"""BigQuery adapter for reading and writing Strava activities."""
+"""BigQuery adapters for reading and writing Strava activities."""
 
 import logging
 
@@ -19,8 +19,8 @@ from stravapipe.ports.out.write import WriteActivities
 logger = logging.getLogger(__name__)
 
 
-class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
-    """Read and write Strava Activities to/from BigQuery"""
+class ActivitiesWriter(WriteActivities):
+    """Write Strava Activities to BigQuery via staging table + MERGE."""
 
     # BigQuery streaming insert limit per API call
     # https://cloud.google.com/bigquery/quotas#streaming_inserts
@@ -65,18 +65,6 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
         "private",
         "total_photo_count",
         "trainer",
-    )
-
-    # Fields to exclude when inserting SummaryActivity (not in BQ schema)
-    _SUMMARY_FIELDS_TO_EXCLUDE: frozenset[str] = frozenset(
-        {
-            "resource_state",  # Conflicts with athlete.resource_state
-            "location_city",
-            "location_state",
-            "location_country",
-            "from_accepted_tag",
-            "utc_offset",
-        }
     )
 
     def __init__(
@@ -159,26 +147,17 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
     def _write_batch_to_staging(
         self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
     ) -> None:
-        """Insert multiple activities to staging table in one API call
+        """Insert multiple activities to staging table in one API call.
 
         Accepts both DetailedActivity and SummaryActivity models.
-
-        For SummaryActivity, excludes fields not in BigQuery schema:
-        - resource_state (top-level, conflicts with nested athlete.resource_state)
-        - location_city/state/country (not in schema)
-        - from_accepted_tag (not in schema)
-        - utc_offset (not in schema, we have timezone)
-        - calories when None (BigQuery rejects empty numeric fields)
+        SummaryActivity uses to_bq_dict() to exclude fields not in the BQ schema.
         """
         activities_dict = []
         for activity in activities:
-            data = activity.model_dump(mode="json")
-
-            # If this is a SummaryActivity, remove fields not in BQ schema
             if isinstance(activity, SummaryStravaActivity):
-                for field in self._SUMMARY_FIELDS_TO_EXCLUDE:
-                    data.pop(field, None)
-
+                data = activity.to_bq_dict()
+            else:
+                data = activity.model_dump(mode="json")
             activities_dict.append(data)
 
         self._client.insert_rows_json(
@@ -300,6 +279,21 @@ class ActivitiesRepo(WriteActivities, ReadActivitiesMetadata):
             INSERT ({insert_cols})
             VALUES ({insert_vals})
         """
+
+
+class ActivitiesReader(ReadActivitiesMetadata):
+    """Read Strava activity metadata from BigQuery."""
+
+    def __init__(
+        self,
+        client: BigQueryClientWrapper,
+        *,
+        dataset_name: str,
+        table_name: str = "activities",
+    ):
+        self._client = client
+        self._dataset_name = dataset_name
+        self._table_name = table_name
 
     def read_activity_metadata(self, activity_id: int) -> MinimalStravaActivity:
         """Query BigQuery for minimal activity metadata by ID.
