@@ -3,7 +3,6 @@
 import logging
 
 from google.api_core.exceptions import BadRequest
-from google.cloud import bigquery
 from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
 
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
@@ -294,6 +293,7 @@ class ActivitiesReader(ReadActivitiesMetadata):
         self._client = client
         self._dataset_name = dataset_name
         self._table_name = table_name
+        self._deleted_table_name = f"deleted_{table_name}"
 
     def read_activity_metadata(self, activity_id: int) -> MinimalStravaActivity:
         """Query BigQuery for minimal activity metadata by ID.
@@ -329,20 +329,14 @@ class ActivitiesReader(ReadActivitiesMetadata):
 
             -- Also check deleted activities (handles race condition)
             SELECT id, type, start_date_local, distance, moving_time, total_elevation_gain
-            FROM `{self._client.project_id}.{self._dataset_name}.deleted_activities`
+            FROM `{self._client.project_id}.{self._dataset_name}.{self._deleted_table_name}`
             WHERE id = @activity_id
         )
         LIMIT 1
         """
 
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("activity_id", "INT64", activity_id)
-            ]
-        )
-
-        result = self._client._client.query(query, job_config=job_config).result()
-        rows = list(result)
+        query_params = [ScalarQueryParameter("activity_id", "INT64", activity_id)]
+        rows = self._client.execute_query(query, query_params)
 
         if not rows:
             raise ActivityNotFoundError(

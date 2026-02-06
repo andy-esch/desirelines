@@ -9,6 +9,7 @@ Note on type: ignore[prop-decorator]:
 
 from datetime import datetime
 import json
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
@@ -174,7 +175,7 @@ class SummaryStravaActivity(BaseModel):
 
     # Fields present in SummaryActivity but not in the BigQuery schema.
     # Used by to_bq_dict() to exclude them during serialization.
-    _BQ_EXCLUDE_FIELDS: set[str] = {
+    _BQ_EXCLUDE_FIELDS: ClassVar[set[str]] = {
         "resource_state",  # Conflicts with athlete.resource_state
         "location_city",
         "location_state",

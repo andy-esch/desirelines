@@ -18,6 +18,13 @@ class MockBigQueryClientWrapper(BigQueryClientWrapper):
             "query_preview": "test-query",
         }
 
+    def execute_query(
+        self, query: str, query_parameters: Sequence[Any] | None = None
+    ) -> list:
+        """Mock implementation of execute_query for testing"""
+        self.executed_queries.append(query)
+        return []
+
     def insert_rows_json(
         self, rows: list[dict], *, dataset_name: str, table_name: str
     ) -> None:

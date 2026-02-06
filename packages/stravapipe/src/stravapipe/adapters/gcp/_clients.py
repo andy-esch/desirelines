@@ -43,6 +43,27 @@ class BigQueryClientWrapper:
             )
         logger.info("Successfully inserted %s rows into %s.", len(rows), table_id)
 
+    def execute_query(
+        self,
+        query: str,
+        query_parameters: Sequence[ScalarQueryParameter | ArrayQueryParameter]
+        | None = None,
+    ) -> list:
+        """Execute a SELECT query and return the result rows.
+
+        Args:
+            query: SQL query string with optional @param placeholders
+            query_parameters: List of BigQuery query parameters
+
+        Returns:
+            List of BigQuery Row objects
+        """
+        job_config = QueryJobConfig(
+            query_parameters=query_parameters if query_parameters else []
+        )
+        result = self._client.query(query, job_config=job_config).result()
+        return list(result)
+
     def execute_merge_query(
         self,
         query: str,
