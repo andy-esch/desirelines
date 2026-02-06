@@ -4,7 +4,7 @@ from stravapipe.adapters.gcp import (
     make_bigquery_client_wrapper,
     make_write_activities,
 )
-from stravapipe.adapters.gcp._bigquery import ActivitiesRepo
+from stravapipe.adapters.gcp._bigquery import ActivitiesWriter
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
 
 
@@ -30,9 +30,8 @@ class TestGcpAdapterFactories:
     def test_make_write_activities_returns_correct_type(
         self, mock_client, mock_bq_inserter_config
     ):
-        # This test covers line 16: ActivitiesRepo instantiation
         result = make_write_activities(mock_bq_inserter_config)
-        assert isinstance(result, ActivitiesRepo)
+        assert isinstance(result, ActivitiesWriter)
 
     @patch("stravapipe.adapters.gcp._clients.BigQueryClient")
     def test_make_write_activities_uses_app_config(
