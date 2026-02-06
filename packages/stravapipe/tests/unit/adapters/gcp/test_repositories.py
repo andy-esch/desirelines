@@ -214,9 +214,7 @@ class TestActivitiesWriterBatch:
         assert written[0]["id"] == summary_activity.id
         assert written[0]["name"] == "Test Run"
 
-    def test_batch_merge_query_uses_array_param(
-        self, write_activities_repo, activity2
-    ):
+    def test_batch_merge_query_uses_array_param(self, write_activities_repo, activity2):
         write_activities_repo.write_activities_batch([activity2])
         merge_query = write_activities_repo._client.executed_queries[0]
         assert "UNNEST(@activity_ids)" in merge_query

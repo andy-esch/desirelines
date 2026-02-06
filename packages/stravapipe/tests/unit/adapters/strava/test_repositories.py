@@ -413,9 +413,7 @@ class TestStravaApiClientListActivities:
             )
             m.post(api_config.token_url, json={"access_token": "new_token"})
 
-            result = client.list_activities(
-                before=1700000000, after=1690000000, page=1
-            )
+            result = client.list_activities(before=1700000000, after=1690000000, page=1)
 
         assert len(result) == 1
         assert token_manager_with_token._current_access_token == "new_token"
