@@ -119,11 +119,11 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   }
 
   return (
-    <div className="card">
+    <div className="card glass-panel">
       <div className="card-body p-0">
         <div className="table-responsive">
-          <table className="table table-hover table-sm mb-0">
-            <thead className="table-light">
+          <table className="table table-hover table-sm table-dark-transparent mb-0">
+            <thead>
               <tr>
                 <th>Date</th>
                 <th>Name</th>

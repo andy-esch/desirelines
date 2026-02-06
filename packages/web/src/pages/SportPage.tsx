@@ -243,7 +243,10 @@ export default function SportPage({ sport }: SportPageProps) {
 
   return (
     <div className="container-fluid">
-      <div className="row">
+      <div
+        className="row page-background"
+        style={{ "--page-background": pageBackgrounds.sport } as React.CSSProperties}
+      >
         <Sidebar
           estimatedYearEnd={estimatedYearEnd}
           currentValue={currentValue}
@@ -273,10 +276,7 @@ export default function SportPage({ sport }: SportPageProps) {
           }
         />
 
-        <main
-          className="col-md-9 ms-sm-auto col-lg-10 px-md-4"
-          style={{ background: pageBackgrounds.sport }}
-        >
+        <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
           <div className="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3">
             <h1 className="h2">
               {sport.charAt(0).toUpperCase() + sport.slice(1)} {currentYear}
@@ -350,36 +350,40 @@ export default function SportPage({ sport }: SportPageProps) {
 
           <div className="row">
             <div className="col-12 mb-4">
-              <CumulativeMetricsChart
-                year={currentYear}
-                goals={isViewingPrimaryMetric ? goals : []}
-                distanceData={chartData}
-                isLoading={isLoading}
-                error={error}
-                showFullYear={showFullYear}
-                onViewChange={setShowFullYear}
-                showAchievements={showAchievements}
-                onAchievementsChange={setShowAchievements}
-                unit={metricUnit}
-                sport={sport}
-                onRetry={retry}
-              />
+              <div className="glass-panel">
+                <CumulativeMetricsChart
+                  year={currentYear}
+                  goals={isViewingPrimaryMetric ? goals : []}
+                  distanceData={chartData}
+                  isLoading={isLoading}
+                  error={error}
+                  showFullYear={showFullYear}
+                  onViewChange={setShowFullYear}
+                  showAchievements={showAchievements}
+                  onAchievementsChange={setShowAchievements}
+                  unit={metricUnit}
+                  sport={sport}
+                  onRetry={retry}
+                />
+              </div>
             </div>
           </div>
 
           <div className="row">
             <div className="col-12 mb-4">
-              <PacingMetricsChart
-                year={currentYear}
-                goals={isViewingPrimaryMetric ? goals : []}
-                distanceData={chartData}
-                isLoading={isLoading}
-                error={error}
-                showFullYear={showFullYear}
-                unit={metricUnit}
-                sport={sport}
-                onRetry={retry}
-              />
+              <div className="glass-panel">
+                <PacingMetricsChart
+                  year={currentYear}
+                  goals={isViewingPrimaryMetric ? goals : []}
+                  distanceData={chartData}
+                  isLoading={isLoading}
+                  error={error}
+                  showFullYear={showFullYear}
+                  unit={metricUnit}
+                  sport={sport}
+                  onRetry={retry}
+                />
+              </div>
             </div>
           </div>
         </main>

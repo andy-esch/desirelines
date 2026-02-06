@@ -45,9 +45,9 @@ export default function Sidebar({
   };
 
   return (
-    <div className="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary">
+    <div className="sidebar glass-panel-flush col-md-3 col-lg-2">
       <div
-        className="offcanvas-md offcanvas-start bg-body-tertiary"
+        className="offcanvas-md offcanvas-start"
         data-tabindex="-1"
         id="sidebarMenu"
         aria-labelledby="sidebarMenuLabel"

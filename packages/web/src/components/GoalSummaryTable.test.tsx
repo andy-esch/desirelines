@@ -281,7 +281,7 @@ describe("GoalSummaryTable", () => {
       );
 
       const row = container.querySelector("tbody tr");
-      expect(row).toHaveClass("table-warning");
+      expect(row).toHaveClass("table-row-danger");
     });
 
     it("highlights row for dangerous pace (running)", () => {
@@ -299,7 +299,7 @@ describe("GoalSummaryTable", () => {
       );
 
       const row = container.querySelector("tbody tr");
-      expect(row).toHaveClass("table-warning");
+      expect(row).toHaveClass("table-row-danger");
     });
 
     it("highlights row for dangerous pace (yoga)", () => {
@@ -317,7 +317,7 @@ describe("GoalSummaryTable", () => {
       );
 
       const row = container.querySelector("tbody tr");
-      expect(row).toHaveClass("table-warning");
+      expect(row).toHaveClass("table-row-danger");
     });
 
     it("does not highlight row for safe pace", () => {
@@ -334,7 +334,7 @@ describe("GoalSummaryTable", () => {
       );
 
       const row = container.querySelector("tbody tr");
-      expect(row).not.toHaveClass("table-warning");
+      expect(row).not.toHaveClass("table-row-danger");
     });
 
     it("shows warning icon for dangerous goals", () => {

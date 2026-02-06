@@ -212,8 +212,8 @@ export default function MultiSportComparisonChart({
           {/* Left: Sparkline skeletons */}
           <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
             <div
-              className="border rounded p-2 h-100 d-flex flex-column justify-content-center gap-2"
-              style={{ minHeight: sparklineContainerHeight, background: "transparent" }}
+              className="glass-panel h-100 d-flex flex-column justify-content-center gap-2"
+              style={{ minHeight: sparklineContainerHeight }}
             >
               {/* Show 4 skeleton rows to approximate typical sport count */}
               <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
@@ -226,8 +226,8 @@ export default function MultiSportComparisonChart({
           {/* Right: Activity list skeletons */}
           <div className="col-md-6">
             <div
-              className="border rounded p-2 h-100 overflow-hidden"
-              style={{ minHeight: sparklineContainerHeight, background: "transparent" }}
+              className="glass-panel h-100 overflow-hidden"
+              style={{ minHeight: sparklineContainerHeight }}
             >
               <div className="d-flex flex-column gap-1">
                 <ActivityRowSkeleton />
@@ -261,8 +261,8 @@ export default function MultiSportComparisonChart({
 
       {!hasAnyData ? (
         <div
-          className="border rounded d-flex align-items-center justify-content-center"
-          style={{ height: sparklineContainerHeight, background: "transparent" }}
+          className="glass-panel d-flex align-items-center justify-content-center"
+          style={{ height: sparklineContainerHeight }}
         >
           <p className="text-muted mb-0">No activity data for selected time range</p>
         </div>
@@ -271,11 +271,10 @@ export default function MultiSportComparisonChart({
           {/* Left: Unified Sparkline Chart */}
           <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
             <div
-              className="border rounded p-2 h-100"
+              className="glass-panel h-100"
               style={{
                 minHeight: sparklineContainerHeight,
                 minWidth: 0,
-                background: "transparent",
               }}
             >
               {/* Legend with sport links */}
@@ -333,8 +332,8 @@ export default function MultiSportComparisonChart({
           {/* Right: Recent Activities */}
           <div className="col-md-6">
             <div
-              className="border rounded p-2 h-100 overflow-hidden"
-              style={{ minHeight: sparklineContainerHeight, background: "transparent" }}
+              className="glass-panel h-100 overflow-hidden"
+              style={{ minHeight: sparklineContainerHeight }}
             >
               <RecentActivitiesList timeRange={timeRange} pageSize={activityPageSize} />
             </div>

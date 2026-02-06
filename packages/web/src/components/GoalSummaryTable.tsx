@@ -88,13 +88,13 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   const sortedGoals = [...goals].sort((a, b) => a.value - b.value);
 
   return (
-    <div className="card mb-4">
+    <div className="card glass-panel mb-4">
       <div className="card-header">
         <h5>Goal Achievability Summary</h5>
       </div>
       <div className="card-body">
         <div className="table-responsive">
-          <table className="table table-hover table-sm">
+          <table className="table table-hover table-sm table-dark-transparent">
             <thead>
               <tr>
                 <th style={{ width: "10px" }}></th>
@@ -119,7 +119,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                 const goalColor = GOAL_COLORS[originalIndex % GOAL_COLORS.length];
 
                 return (
-                  <tr key={goal.id} className={isDangerous ? "table-warning" : ""}>
+                  <tr key={goal.id} className={isDangerous ? "table-row-danger" : ""}>
                     <td
                       style={{
                         borderLeft: `4px solid ${goalColor}`,
