@@ -9,13 +9,14 @@ import type { GoalsForYear } from "../services/userConfigService";
 /**
  * One-time migration hook: converts goals from legacy miles format to meters.
  *
- * Runs once per year/sport when goals are first loaded. Uses a ref to prevent
+ * Runs once per userId/year/sport when goals are first loaded. Uses a ref to prevent
  * re-triggering within the same component lifecycle, and a localStorage flag
- * to prevent re-triggering across page loads.
+ * (scoped by userId) to prevent re-triggering across page loads.
  *
  * Only applies to distance-based sports; non-distance sports are a no-op.
  *
  * @param goalsData   - Goals loaded from Firestore/localStorage
+ * @param userId      - Authenticated user's UID (for per-user migration tracking)
  * @param year        - Year for migration tracking
  * @param sport       - Sport key for migration tracking
  * @param hasDistance  - Whether this sport uses distance as its primary metric
@@ -23,36 +24,40 @@ import type { GoalsForYear } from "../services/userConfigService";
  */
 export function useGoalMigration(
   goalsData: GoalsForYear | null,
+  userId: string,
   year: number,
   sport: string,
   hasDistance: boolean,
   updateGoals: (goals: GoalsForYear) => Promise<void>
 ): void {
-  const migrationTriggered = useRef(false);
+  // Track which context was last migrated so we re-run when year/sport changes
+  const lastMigratedContext = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!goalsData || migrationTriggered.current) return;
+    const context = `${userId}_${year}_${sport}`;
+    if (!goalsData || lastMigratedContext.current === context) return;
     if (!hasDistance) return;
 
-    if (!isGoalUnitMigrated(year, sport) && goalsData.goals.length > 0) {
-      migrationTriggered.current = true;
+    if (!isGoalUnitMigrated(userId, year, sport) && goalsData.goals.length > 0) {
+      lastMigratedContext.current = context;
       const { goals: migratedGoals, needsSave } = migrateGoalUnitsIfNeeded(
         goalsData,
+        userId,
         year,
         sport
       );
 
       if (needsSave) {
         updateGoals(migratedGoals)
-          .then(() => markGoalUnitMigrated(year, sport))
+          .then(() => markGoalUnitMigrated(userId, year, sport))
           .catch((error) => {
             // Error is surfaced by useUserConfig; don't mark as migrated so it retries.
             // eslint-disable-next-line no-console
             console.error(`Failed to save migrated goals for ${year}/${sport}:`, error);
           });
       } else {
-        markGoalUnitMigrated(year, sport);
+        markGoalUnitMigrated(userId, year, sport);
       }
     }
-  }, [goalsData, year, sport, hasDistance, updateGoals]);
+  }, [goalsData, userId, year, sport, hasDistance, updateGoals]);
 }

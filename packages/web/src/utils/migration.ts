@@ -14,19 +14,25 @@ import type { GoalsForYear } from "../services/userConfigService";
 const GOAL_UNIT_MIGRATION_PREFIX = "desirelines_goals_meters_migrated_";
 
 /**
- * Check if goals for a year/sport have been migrated to meters
+ * Build the localStorage key for migration tracking.
+ * Includes userId to isolate migration state per user on shared devices.
  */
-export function isGoalUnitMigrated(year: number, sport: string): boolean {
-  const key = `${GOAL_UNIT_MIGRATION_PREFIX}${year}_${sport}`;
-  return localStorage.getItem(key) !== null;
+function getMigrationKey(userId: string, year: number, sport: string): string {
+  return `${GOAL_UNIT_MIGRATION_PREFIX}${userId}_${year}_${sport}`;
 }
 
 /**
- * Mark goals for a year/sport as migrated to meters
+ * Check if goals for a user/year/sport have been migrated to meters
  */
-export function markGoalUnitMigrated(year: number, sport: string): void {
-  const key = `${GOAL_UNIT_MIGRATION_PREFIX}${year}_${sport}`;
-  localStorage.setItem(key, new Date().toISOString());
+export function isGoalUnitMigrated(userId: string, year: number, sport: string): boolean {
+  return localStorage.getItem(getMigrationKey(userId, year, sport)) !== null;
+}
+
+/**
+ * Mark goals for a user/year/sport as migrated to meters
+ */
+export function markGoalUnitMigrated(userId: string, year: number, sport: string): void {
+  localStorage.setItem(getMigrationKey(userId, year, sport), new Date().toISOString());
 }
 
 /**
@@ -75,11 +81,12 @@ function isLikelyAlreadyMeters(goals: GoalsForYear): boolean {
  */
 export function migrateGoalUnitsIfNeeded(
   goals: GoalsForYear,
+  userId: string,
   year: number,
   sport: string
 ): { goals: GoalsForYear; needsSave: boolean } {
   // If already migrated (localStorage flag), return as-is
-  if (isGoalUnitMigrated(year, sport)) {
+  if (isGoalUnitMigrated(userId, year, sport)) {
     return { goals, needsSave: false };
   }
 
@@ -91,7 +98,7 @@ export function migrateGoalUnitsIfNeeded(
       `[Migration] Goals for ${year}/${sport} appear to already be in meters (value > ${METERS_HEURISTIC_THRESHOLD}), skipping conversion`
     );
     // Mark as migrated so we don't check again
-    markGoalUnitMigrated(year, sport);
+    markGoalUnitMigrated(userId, year, sport);
     return { goals, needsSave: false };
   }
 

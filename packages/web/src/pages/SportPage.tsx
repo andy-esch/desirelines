@@ -21,6 +21,7 @@ import {
   estimateYearEndDistance,
   type Goals,
 } from "../utils/goalCalculations";
+import { useAuth } from "../hooks/useAuth";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useGoalMigration } from "../hooks/useGoalMigration";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
@@ -42,6 +43,7 @@ interface SportPageProps {
 export default function SportPage({ sport }: SportPageProps) {
   const { year } = useParams<{ year?: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
   const [showFullYear, setShowFullYear] = useState(true);
   const [showAchievements, setShowAchievements] = useState(true);
@@ -176,7 +178,14 @@ export default function SportPage({ sport }: SportPageProps) {
   } = useUserConfig("goals", currentYear, sport, defaultGoalsForYear);
 
   // One-time migration: convert goals from legacy miles format to meters
-  useGoalMigration(goalsData, currentYear, sport, !!sportInfo?.has_distance, updateGoals);
+  useGoalMigration(
+    goalsData,
+    user?.uid ?? "",
+    currentYear,
+    sport,
+    !!sportInfo?.has_distance,
+    updateGoals
+  );
 
   // Convert goals from meters (storage) to display units (miles/km) for UI
   // Non-distance sports (yoga) don't need conversion
