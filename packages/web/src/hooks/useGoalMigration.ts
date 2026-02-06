@@ -43,9 +43,13 @@ export function useGoalMigration(
       );
 
       if (needsSave) {
-        updateGoals(migratedGoals).then(() => {
-          markGoalUnitMigrated(year, sport);
-        });
+        updateGoals(migratedGoals)
+          .then(() => markGoalUnitMigrated(year, sport))
+          .catch((error) => {
+            // Error is surfaced by useUserConfig; don't mark as migrated so it retries.
+            // eslint-disable-next-line no-console
+            console.error(`Failed to save migrated goals for ${year}/${sport}:`, error);
+          });
       } else {
         markGoalUnitMigrated(year, sport);
       }

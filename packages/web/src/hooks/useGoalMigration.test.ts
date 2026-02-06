@@ -92,6 +92,29 @@ describe("useGoalMigration", () => {
     });
   });
 
+  it("does not mark migrated when save fails", async () => {
+    mockIsGoalUnitMigrated.mockReturnValue(false);
+    mockMigrateGoalUnitsIfNeeded.mockReturnValue({
+      goals: MIGRATED_GOALS,
+      needsSave: true,
+    });
+    const saveError = new Error("Firestore unavailable");
+    updateGoals.mockRejectedValue(saveError);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    renderHook(() => useGoalMigration(GOALS_DATA, 2026, "cycling", true, updateGoals));
+
+    await vi.waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "Failed to save migrated goals for 2026/cycling:",
+        saveError
+      );
+    });
+
+    expect(mockMarkGoalUnitMigrated).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
   it("marks migrated without saving when needsSave is false", () => {
     mockIsGoalUnitMigrated.mockReturnValue(false);
     mockMigrateGoalUnitsIfNeeded.mockReturnValue({
