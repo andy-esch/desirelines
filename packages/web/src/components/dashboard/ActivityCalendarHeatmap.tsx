@@ -283,7 +283,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
           <h2 className="h6 mb-0 text-muted">Activity Calendar</h2>
         </div>
         <div
-          className="border rounded d-flex align-items-center justify-content-center"
+          className="glass-panel d-flex align-items-center justify-content-center"
           style={{ height: 120 }}
         >
           <NeonSpinner size="sm" />
@@ -350,7 +350,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
         </div>
       </div>
 
-      <div className="border rounded p-2 overflow-auto d-flex flex-column align-items-center">
+      <div className="glass-panel overflow-auto d-flex flex-column align-items-center">
         <div
           style={{
             display: "inline-block",

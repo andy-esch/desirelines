@@ -28,25 +28,11 @@ export interface KPICardProps {
 const KPICard = React.memo(({ title, value, subtitle, indicator }: KPICardProps) => {
   return (
     <div className="col-md-4">
-      <div
-        className="card h-100"
-        style={{
-          transition: "transform 0.2s ease, box-shadow 0.2s ease",
-          cursor: "default",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "translateY(-4px)";
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "";
-        }}
-      >
-        <div className="card-body d-flex flex-column justify-content-between py-3">
-          <h6 className="card-subtitle mb-2 text-muted small">{title}</h6>
+      <div className="glass-panel-kpi h-100">
+        <div className="d-flex flex-column justify-content-between py-3">
+          <h6 className="mb-2 text-muted small">{title}</h6>
           <div>
-            <h2 className="card-title mb-1">{value}</h2>
+            <h2 className="mb-1">{value}</h2>
             <small className="text-muted">
               {subtitle}
               {indicator}

@@ -26,7 +26,7 @@ export default function GoalProgressCard() {
 
   if (error) {
     return (
-      <div className="border rounded p-2 h-100" style={{ background: "transparent" }}>
+      <div className="glass-panel h-100">
         <div className="text-center text-muted py-3">
           <small>Unable to load goal progress</small>
         </div>
@@ -35,7 +35,7 @@ export default function GoalProgressCard() {
   }
 
   return (
-    <div className="border rounded p-2 h-100" style={{ background: "transparent" }}>
+    <div className="glass-panel h-100">
       <div className="mb-2">
         <h6 className="h6 mb-0 text-muted">{yearContext.year} Goals</h6>
       </div>

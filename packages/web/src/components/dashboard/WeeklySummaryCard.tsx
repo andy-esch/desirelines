@@ -15,7 +15,7 @@ export default function WeeklySummaryCard() {
 
   if (error) {
     return (
-      <div className="border rounded p-2 h-100" style={{ background: "transparent" }}>
+      <div className="glass-panel h-100">
         <div className="text-center text-muted py-3">
           <small>Unable to load weekly summary</small>
         </div>
@@ -34,7 +34,7 @@ export default function WeeklySummaryCard() {
   const distanceUnit = distanceSports[0]?.metricUnit ?? "mi";
 
   return (
-    <div className="border rounded p-2 h-100" style={{ background: "transparent" }}>
+    <div className="glass-panel h-100">
       <div className="d-flex justify-content-between align-items-center mb-2">
         <h6 className="h6 mb-0 text-muted">This Week</h6>
         <small className="text-muted">{weekLabel}</small>

@@ -207,6 +207,71 @@ a.logo-link:hover {
 }
 
 /* ==========================================================================
+   Glass Panels — unified transparent container system
+   ========================================================================== */
+
+/* Shared base for standard and KPI variants */
+.glass-panel,
+.glass-panel-kpi {
+  background: transparent;
+  border: 1px solid var(--slate-light);
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+}
+
+/* Standard container */
+.glass-panel {
+  transition: border-color 0.2s ease;
+}
+.glass-panel:hover {
+  border-color: var(--slate-lighter);
+}
+
+/* Sidebar variant: no padding, right border only */
+.glass-panel-flush {
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--slate-light);
+  border-radius: 0;
+  padding: 0;
+}
+
+/* KPI cards: hover lift with cyan glow */
+.glass-panel-kpi {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  cursor: default;
+}
+.glass-panel-kpi:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.15);
+  border-color: var(--slate-lighter);
+}
+
+/* Force .card backgrounds transparent when used with glass-panel.
+   Reset padding so .card-header/.card-body manage their own spacing. */
+.card.glass-panel {
+  background: transparent;
+  padding: 0;
+}
+.card.glass-panel > .card-header,
+.card.glass-panel > .card-body {
+  background: transparent;
+}
+
+/* Sidebar offcanvas: transparent on desktop (glass effect), solid on mobile overlay */
+.glass-panel-flush .offcanvas-md {
+  background-color: transparent;
+}
+@media (max-width: 767.98px) {
+  .glass-panel-flush .offcanvas-md {
+    background-color: var(--bs-body-bg);
+  }
+}
+
+/* ==========================================================================
    Progress Bars - NEON gradient shine effect
    ========================================================================== */
 
@@ -253,6 +318,14 @@ a.logo-link:hover {
 }
 .table-dark-transparent tbody tr:hover {
   background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Transparent danger row - subtle red tint that works on gradient pages */
+.table-dark-transparent tbody tr.table-row-danger {
+  background-color: rgba(255, 50, 50, 0.08);
+}
+.table-dark-transparent tbody tr.table-row-danger:hover {
+  background-color: rgba(255, 50, 50, 0.12);
 }
 
 /* ==========================================================================
