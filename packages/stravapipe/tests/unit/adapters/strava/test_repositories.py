@@ -382,9 +382,11 @@ def summary_activity_json():
 
 
 class TestStravaApiClientListActivities:
+    LIST_PATH = "/athlete/activities"
+
     def test_list_activities_success(self, api_client, api_config):
         """list_activities returns raw activity dicts."""
-        endpoint = f"{api_config.api_base_url}/athlete/activities"
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
         mock_response = [{"id": 1}, {"id": 2}]
 
         with Mocker() as m:
@@ -401,7 +403,7 @@ class TestStravaApiClientListActivities:
     ):
         """401 on list triggers token refresh and successful retry."""
         client = StravaApiClient(token_manager_with_token, api_config)
-        endpoint = f"{api_config.api_base_url}/athlete/activities"
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
 
         with Mocker() as m:
             m.get(
@@ -460,11 +462,13 @@ class TestStravaActivitiesRepoStandard:
 
 
 class TestStravaActivitiesRepoByYear:
+    LIST_PATH = "/athlete/activities"
+
     def test_read_activities_by_year_single_page(
         self, activities_repo, api_config, summary_activity_json
     ):
         """Single page of results followed by empty page."""
-        endpoint = f"{api_config.api_base_url}/athlete/activities"
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
 
         with Mocker() as m:
             m.get(
@@ -484,7 +488,7 @@ class TestStravaActivitiesRepoByYear:
         self, activities_repo, api_config, summary_activity_json
     ):
         """Multiple pages paginated until empty response."""
-        endpoint = f"{api_config.api_base_url}/athlete/activities"
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
         page2_activity = {**summary_activity_json, "id": 88888}
 
         with Mocker() as m:
@@ -504,7 +508,7 @@ class TestStravaActivitiesRepoByYear:
 
     def test_read_activities_by_year_empty(self, activities_repo, api_config):
         """Year with no activities returns empty list."""
-        endpoint = f"{api_config.api_base_url}/athlete/activities"
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
 
         with Mocker() as m:
             m.get(endpoint, json=[])

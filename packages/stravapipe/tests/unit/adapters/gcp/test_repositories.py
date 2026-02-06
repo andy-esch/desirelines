@@ -6,7 +6,12 @@ from types import SimpleNamespace
 import pytest
 
 from stravapipe.adapters.gcp._bigquery import ActivitiesReader, ActivitiesWriter
-from stravapipe.domain import DetailedStravaActivity, SummaryStravaActivity
+from stravapipe.domain import (
+    DetailedStravaActivity,
+    MetaAthlete,
+    SummaryMap,
+    SummaryStravaActivity,
+)
 from stravapipe.exceptions import ActivityNotFoundError
 from tests.unit.mocks.bigquery_client_wrapper import MockBigQueryClientWrapper
 
@@ -33,7 +38,7 @@ def summary_activity():
         id=99999,
         resource_state=2,
         external_id="test.fit",
-        athlete={"id": 123, "resource_state": 1},
+        athlete=MetaAthlete(id=123, resource_state=1),
         name="Test Run",
         type="Run",
         sport_type="Run",
@@ -54,7 +59,7 @@ def summary_activity():
         athlete_count=1,
         photo_count=0,
         has_kudoed=False,
-        map={"id": "a99999", "summary_polyline": "abc", "resource_state": 2},
+        map=SummaryMap(id="a99999", summary_polyline="abc", resource_state=2),
         trainer=False,
         commute=False,
         manual=False,
