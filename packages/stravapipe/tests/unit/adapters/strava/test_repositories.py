@@ -21,7 +21,12 @@ from stravapipe.adapters.strava._repositories import (
     create_strava_activities_repo,
 )
 from stravapipe.config import StravaApiConfig
-from stravapipe.domain import DetailedStravaActivity, StravaTokenSet
+from stravapipe.domain import (
+    DetailedStravaActivity,
+    StandardActivity,
+    StravaTokenSet,
+    SummaryStravaActivity,
+)
 from stravapipe.exceptions import (
     ActivityNotFoundError,
     StravaApiError,
@@ -327,3 +332,184 @@ class TestStravaActivitiesRepoIntegration:
 
             with pytest.raises(StravaTokenError):
                 repo.read_activity_by_id(activity_id)
+
+
+# =============================================================================
+# Shared fixture for summary activity data (list endpoint response)
+# =============================================================================
+
+
+@pytest.fixture
+def summary_activity_json():
+    """Minimal summary activity dict as returned by the Strava list endpoint."""
+    return {
+        "id": 77777,
+        "resource_state": 2,
+        "external_id": "test.fit",
+        "athlete": {"id": 123, "resource_state": 1},
+        "name": "Morning Run",
+        "type": "Run",
+        "sport_type": "Run",
+        "distance": 5000.0,
+        "moving_time": 1800,
+        "elapsed_time": 2000,
+        "total_elevation_gain": 50.0,
+        "start_date": "2025-06-15T08:00:00Z",
+        "start_date_local": "2025-06-15T10:00:00Z",
+        "timezone": "(GMT+02:00) Europe/Berlin",
+        "start_latlng": [52.52, 13.40],
+        "end_latlng": [52.53, 13.41],
+        "achievement_count": 0,
+        "kudos_count": 2,
+        "comment_count": 0,
+        "athlete_count": 1,
+        "photo_count": 0,
+        "has_kudoed": False,
+        "map": {"id": "a77777", "summary_polyline": "abc", "resource_state": 2},
+        "trainer": False,
+        "commute": False,
+        "manual": False,
+        "private": False,
+        "flagged": False,
+        "average_speed": 2.78,
+        "max_speed": 3.5,
+    }
+
+
+# =============================================================================
+# StravaApiClient - list_activities tests
+# =============================================================================
+
+
+class TestStravaApiClientListActivities:
+    def test_list_activities_success(self, api_client, api_config):
+        """list_activities returns raw activity dicts."""
+        endpoint = f"{api_config.api_base_url}/athlete/activities"
+        mock_response = [{"id": 1}, {"id": 2}]
+
+        with Mocker() as m:
+            m.get(endpoint, json=mock_response)
+            result = api_client.list_activities(
+                before=1700000000, after=1690000000, page=1
+            )
+
+        assert len(result) == 2
+        assert result[0]["id"] == 1
+
+    def test_list_activities_401_refresh_and_retry(
+        self, token_manager_with_token, api_config
+    ):
+        """401 on list triggers token refresh and successful retry."""
+        client = StravaApiClient(token_manager_with_token, api_config)
+        endpoint = f"{api_config.api_base_url}/athlete/activities"
+
+        with Mocker() as m:
+            m.get(
+                endpoint,
+                [
+                    {"status_code": 401},
+                    {"json": [{"id": 1}], "status_code": 200},
+                ],
+            )
+            m.post(api_config.token_url, json={"access_token": "new_token"})
+
+            result = client.list_activities(
+                before=1700000000, after=1690000000, page=1
+            )
+
+        assert len(result) == 1
+        assert token_manager_with_token._current_access_token == "new_token"
+
+
+# =============================================================================
+# StravaActivitiesRepo - read_standard_activity_by_id tests
+# =============================================================================
+
+
+class TestStravaActivitiesRepoStandard:
+    def test_read_standard_activity_by_id(
+        self, activities_repo, activity_json, api_config
+    ):
+        """read_standard_activity_by_id returns a StandardActivity."""
+        activity_id = 12345678987654321
+        with Mocker() as m:
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            m.get(endpoint, json=activity_json)
+            result = activities_repo.read_standard_activity_by_id(activity_id)
+
+        assert isinstance(result, StandardActivity)
+        assert result.id == activity_id
+        assert result.type == "Ride"
+
+    def test_read_standard_activity_has_computed_fields(
+        self, activities_repo, activity_json, api_config
+    ):
+        """StandardActivity should have computed user_id, sport, and year."""
+        activity_id = 12345678987654321
+        with Mocker() as m:
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            m.get(endpoint, json=activity_json)
+            result = activities_repo.read_standard_activity_by_id(activity_id)
+
+        assert result.user_id == str(result.athlete.id)
+        assert result.sport == result.sport_type
+        assert isinstance(result.year, int)
+
+
+# =============================================================================
+# StravaActivitiesRepo - read_activities_by_year tests
+# =============================================================================
+
+
+class TestStravaActivitiesRepoByYear:
+    def test_read_activities_by_year_single_page(
+        self, activities_repo, api_config, summary_activity_json
+    ):
+        """Single page of results followed by empty page."""
+        endpoint = f"{api_config.api_base_url}/athlete/activities"
+
+        with Mocker() as m:
+            m.get(
+                endpoint,
+                [
+                    {"json": [summary_activity_json], "status_code": 200},
+                    {"json": [], "status_code": 200},
+                ],
+            )
+            result = activities_repo.read_activities_by_year(2025)
+
+        assert len(result) == 1
+        assert isinstance(result[0], SummaryStravaActivity)
+        assert result[0].id == 77777
+
+    def test_read_activities_by_year_multi_page(
+        self, activities_repo, api_config, summary_activity_json
+    ):
+        """Multiple pages paginated until empty response."""
+        endpoint = f"{api_config.api_base_url}/athlete/activities"
+        page2_activity = {**summary_activity_json, "id": 88888}
+
+        with Mocker() as m:
+            m.get(
+                endpoint,
+                [
+                    {"json": [summary_activity_json], "status_code": 200},
+                    {"json": [page2_activity], "status_code": 200},
+                    {"json": [], "status_code": 200},
+                ],
+            )
+            result = activities_repo.read_activities_by_year(2025)
+
+        assert len(result) == 2
+        assert result[0].id == 77777
+        assert result[1].id == 88888
+
+    def test_read_activities_by_year_empty(self, activities_repo, api_config):
+        """Year with no activities returns empty list."""
+        endpoint = f"{api_config.api_base_url}/athlete/activities"
+
+        with Mocker() as m:
+            m.get(endpoint, json=[])
+            result = activities_repo.read_activities_by_year(2020)
+
+        assert result == []

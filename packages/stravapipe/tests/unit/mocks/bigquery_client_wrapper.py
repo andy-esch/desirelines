@@ -11,6 +11,7 @@ class MockBigQueryClientWrapper(BigQueryClientWrapper):
         self.dataset_name: str | None = None
         self.written_activities: list[dict] | None = None
         self.executed_queries: list[str] = []
+        self.query_results: list = []
         self.query_stats: MergeResult = {
             "rows_affected": 1,
             "execution_time_ms": 100,
@@ -23,7 +24,7 @@ class MockBigQueryClientWrapper(BigQueryClientWrapper):
     ) -> list:
         """Mock implementation of execute_query for testing"""
         self.executed_queries.append(query)
-        return []
+        return self.query_results
 
     def insert_rows_json(
         self, rows: list[dict], *, dataset_name: str, table_name: str
