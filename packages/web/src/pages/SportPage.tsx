@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   convertDistance,
@@ -7,11 +7,6 @@ import {
   goalMetersToDisplay,
   goalDisplayToMeters,
 } from "../utils/units";
-import {
-  migrateGoalUnitsIfNeeded,
-  markGoalUnitMigrated,
-  isGoalUnitMigrated,
-} from "../utils/migration";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
 import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
 import PacingMetricsChart from "../components/charts/PacingMetricsChart";
@@ -27,6 +22,7 @@ import {
   type Goals,
 } from "../utils/goalCalculations";
 import { useUserConfig } from "../hooks/useUserConfig";
+import { useGoalMigration } from "../hooks/useGoalMigration";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
 import { useSportData } from "../hooks/useSportData";
@@ -179,35 +175,8 @@ export default function SportPage({ sport }: SportPageProps) {
     clearSaveError: clearGoalsSaveError,
   } = useUserConfig("goals", currentYear, sport, defaultGoalsForYear);
 
-  // Track if we've triggered migration for this session to avoid loops
-  const migrationTriggered = useRef(false);
-
-  // One-time migration: convert goals from miles to meters (legacy format)
-  // This runs once per year/sport when goals are first loaded
-  useEffect(() => {
-    if (!goalsData || migrationTriggered.current) return;
-    if (!sportInfo?.has_distance) return; // Only distance sports need migration
-
-    // Check if migration is needed
-    if (!isGoalUnitMigrated(currentYear, sport) && goalsData.goals.length > 0) {
-      migrationTriggered.current = true;
-      const { goals: migratedGoals, needsSave } = migrateGoalUnitsIfNeeded(
-        goalsData,
-        currentYear,
-        sport
-      );
-
-      if (needsSave) {
-        // Save migrated goals (now in meters)
-        updateGoals(migratedGoals).then(() => {
-          markGoalUnitMigrated(currentYear, sport);
-        });
-      } else {
-        // Already migrated or no conversion needed
-        markGoalUnitMigrated(currentYear, sport);
-      }
-    }
-  }, [goalsData, currentYear, sport, sportInfo?.has_distance, updateGoals]);
+  // One-time migration: convert goals from legacy miles format to meters
+  useGoalMigration(goalsData, currentYear, sport, !!sportInfo?.has_distance, updateGoals);
 
   // Convert goals from meters (storage) to display units (miles/km) for UI
   // Non-distance sports (yoga) don't need conversion
