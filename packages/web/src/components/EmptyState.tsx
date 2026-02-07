@@ -9,6 +9,8 @@ interface EmptyStateProps {
   unit?: MetricUnit;
   /** If provided, shows a link to view data from a different year */
   suggestedYear?: number;
+  /** Route prefix for links (e.g., "/demo" for demo mode) */
+  linkPrefix?: string;
 }
 
 /**
@@ -22,7 +24,14 @@ interface EmptyStateProps {
  * <EmptyState message="No chart data available" />
  * <EmptyState sport="cycling" year={2026} suggestedYear={2025} />
  */
-export function EmptyState({ sport, year, message, unit, suggestedYear }: EmptyStateProps) {
+export function EmptyState({
+  sport,
+  year,
+  message,
+  unit,
+  suggestedYear,
+  linkPrefix = "",
+}: EmptyStateProps) {
   const defaultMessage =
     sport && year
       ? `No ${sport} ${unit === "sessions" ? "sessions" : "activities"} recorded for ${year}`
@@ -38,7 +47,10 @@ export function EmptyState({ sport, year, message, unit, suggestedYear }: EmptyS
       <p className={styles["empty-state-subtitle"]}>{message || defaultMessage}</p>
       {suggestedYear && sport && (
         <p className={styles["empty-state-subtitle"]} style={{ marginTop: "0.5rem" }}>
-          <Link to={`/${sport}/${suggestedYear}`} style={{ color: "var(--accent-cyan, #00d4ff)" }}>
+          <Link
+            to={`${linkPrefix}/${sport}/${suggestedYear}`}
+            style={{ color: "var(--accent-cyan, #00d4ff)" }}
+          >
             View {suggestedYear} instead →
           </Link>
         </p>

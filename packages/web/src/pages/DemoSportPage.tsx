@@ -1,24 +1,16 @@
-import { useState, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { convertDistance, getUserSettings } from "../utils/units";
-import { pageBackgrounds } from "../styles/pageBackgrounds";
-import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
-import PacingMetricsChart from "../components/charts/PacingMetricsChart";
-import Sidebar from "../components/layout/Sidebar";
-import FilterControls from "../components/layout/FilterControls";
-import GoalControls from "../components/GoalControls";
-import { useDemoSidebarSportData } from "../hooks/useSidebarSportData";
-import KPICards from "../components/dashboard/KPICards";
-import GoalSummaryTable from "../components/GoalSummaryTable";
-import EmptyState from "../components/EmptyState";
 import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import { useGoalStats } from "../hooks/useGoalStats";
 import { useDemoData, getDemoGoalsForSport } from "../hooks/useDemoData";
+import { useDemoSidebarSportData } from "../hooks/useSidebarSportData";
 import { getMetricConfig } from "../config/metricConfig";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
 import { createYearContext } from "../utils/yearContext";
+import SportPageContent from "../components/SportPageContent";
 
 interface DemoSportPageProps {
   sport: string;
@@ -32,10 +24,8 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   const { year } = useParams<{ year?: string }>();
   const navigate = useNavigate();
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
-  const [showFullYear, setShowFullYear] = useState(true);
-  const [showAchievements, setShowAchievements] = useState(true);
 
-  // Fetch generated demo data
+  // Fetch generated demo data (uses config defaults from demoConfig.ts)
   const { metrics, sportConfig, isLoading, error } = useDemoData(currentYear, sport);
 
   // Fetch sidebar sport data for demo mode
@@ -85,8 +75,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   // Goals management - use localStorage for demo persistence
   const storageKey = `demo_goals_${sport}_${currentYear}`;
 
-  const [goals, setGoals] = useState<Goals>(() => {
-    // Try to load from localStorage first
+  const loadGoals = useCallback((): Goals => {
     const stored = localStorage.getItem(storageKey);
     if (stored) {
       try {
@@ -98,7 +87,6 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
         // Fall back to defaults
       }
     }
-    // Use generated demo goals for this sport
     const demoGoals = getDemoGoalsForSport(sport);
     if (demoGoals) {
       return [
@@ -107,17 +95,22 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
         { id: "3", value: demoGoals.stretch, label: "Stretch" },
       ];
     }
-    // Fallback
     return [
       { id: "1", value: 2000, label: "Conservative" },
       { id: "2", value: 2500, label: "Target" },
       { id: "3", value: 3000, label: "Stretch" },
     ];
-  });
+  }, [storageKey, sport]);
+
+  const [goals, setGoals] = useState<Goals>(loadGoals);
+
+  // Re-load goals when sport or year changes (storageKey changes)
+  useEffect(() => {
+    setGoals(loadGoals());
+  }, [loadGoals]);
 
   const handleGoalsChange = async (newGoals: Goals): Promise<void> => {
     setGoals(newGoals);
-    // Persist to localStorage
     localStorage.setItem(storageKey, JSON.stringify({ goals: newGoals }));
   };
 
@@ -145,145 +138,34 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
         </div>
       </div>
 
-      <div className="container-fluid">
-        <div
-          className="row page-background"
-          style={{ "--page-background": pageBackgrounds.sport } as React.CSSProperties}
-        >
-          <Sidebar
-            estimatedYearEnd={estimatedYearEnd}
-            currentValue={currentValue}
-            unit={metricUnit}
-            isLoading={isLoading}
-            showAuthButton={false}
-            filtersSlot={
-              <FilterControls
-                sport={sport}
-                availableSports={availableSports}
-                sportCounts={sportCounts}
-                onSportChange={(newSport) => navigate(`/demo/${newSport}/${currentYear}`)}
-                currentYear={currentYear}
-                onYearChange={(newYear) => navigate(`/demo/${sport}/${newYear}`)}
-              />
-            }
-            goalsSlot={
-              <GoalControls
-                goals={goals}
-                onGoalsChange={handleGoalsChange}
-                estimatedYearEnd={estimatedYearEnd}
-                unit={metricUnit}
-                sport={sport}
-                isSaving={false}
-                saveError={null}
-                onClearSaveError={undefined}
-              />
-            }
-          />
-
-          <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-            <div className="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3">
-              <h1 className="h2">
-                {sport.charAt(0).toUpperCase() + sport.slice(1)} {currentYear}
-              </h1>
-            </div>
-
-            {/* No data banner - show when viewing current year with no activities */}
-            {!isLoading && currentValue === 0 && currentYear === new Date().getFullYear() && (
-              <div
-                className="alert d-flex align-items-center mb-3"
-                role="alert"
-                style={{
-                  backgroundColor: "rgba(0, 212, 255, 0.1)",
-                  border: "1px solid rgba(0, 212, 255, 0.3)",
-                  color: "var(--slate-light, #94a3b8)",
-                }}
-              >
-                <span>
-                  No {sport} activities recorded for {currentYear}.{" "}
-                  <Link
-                    to={`/demo/${sport}/${currentYear - 1}`}
-                    style={{ color: "var(--accent-cyan, #00d4ff)" }}
-                  >
-                    View {currentYear - 1} instead →
-                  </Link>
-                </span>
-              </div>
-            )}
-
-            <KPICards
-              currentDistance={currentValue}
-              nextGoal={nextGoal}
-              nextGoalProgress={nextGoalProgress}
-              nextGoalGap={nextGoalGap}
-              paceNeededForNextGoal={paceNeededForNextGoal}
-              averagePace={averagePace}
-              momentumIndicator={momentumIndicator}
-              yearContext={yearContext}
-              unit={metricUnit}
-              isLoading={isLoading}
-            />
-
-            {!isLoading && !error && chartData.length === 0 ? (
-              <EmptyState
-                sport={sport}
-                year={currentYear}
-                unit={metricUnit}
-                suggestedYear={
-                  currentYear === new Date().getFullYear() ? currentYear - 1 : undefined
-                }
-              />
-            ) : (
-              <GoalSummaryTable
-                goals={goals}
-                currentDistance={currentValue}
-                yearContext={yearContext}
-                unit={metricUnit}
-                sport={sport}
-                isLoading={isLoading}
-              />
-            )}
-
-            <div className="row">
-              <div className="col-12 mb-4">
-                <div className="glass-panel">
-                  <CumulativeMetricsChart
-                    year={currentYear}
-                    goals={goals}
-                    distanceData={chartData}
-                    isLoading={isLoading}
-                    error={error}
-                    showFullYear={showFullYear}
-                    onViewChange={setShowFullYear}
-                    showAchievements={showAchievements}
-                    onAchievementsChange={setShowAchievements}
-                    unit={metricUnit}
-                    sport={sport}
-                    onRetry={undefined} // Demo data cannot error
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="row">
-              <div className="col-12 mb-4">
-                <div className="glass-panel">
-                  <PacingMetricsChart
-                    year={currentYear}
-                    goals={goals}
-                    distanceData={chartData}
-                    isLoading={isLoading}
-                    error={error}
-                    showFullYear={showFullYear}
-                    unit={metricUnit}
-                    sport={sport}
-                    onRetry={undefined} // Demo data cannot error
-                  />
-                </div>
-              </div>
-            </div>
-          </main>
-        </div>
-      </div>
+      <SportPageContent
+        sport={sport}
+        currentYear={currentYear}
+        yearContext={yearContext}
+        chartData={chartData}
+        currentValue={currentValue}
+        estimatedYearEnd={estimatedYearEnd}
+        isLoading={isLoading}
+        error={error}
+        unit={metricUnit}
+        goals={goals}
+        chartGoals={goals}
+        onGoalsChange={handleGoalsChange}
+        isGoalsSaving={false}
+        goalsSaveError={null}
+        nextGoal={nextGoal}
+        nextGoalProgress={nextGoalProgress}
+        nextGoalGap={nextGoalGap}
+        paceNeededForNextGoal={paceNeededForNextGoal}
+        averagePace={averagePace}
+        momentumIndicator={momentumIndicator}
+        availableSports={availableSports}
+        sportCounts={sportCounts}
+        showAuthButton={false}
+        onSportChange={(newSport) => navigate(`/demo/${newSport}/${currentYear}`)}
+        onYearChange={(newYear) => navigate(`/demo/${sport}/${newYear}`)}
+        routePrefix="/demo"
+      />
     </>
   );
 }

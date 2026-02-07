@@ -43,6 +43,7 @@ export function useVisibleSports(knownSports?: string[]) {
     updateData,
     isSaving,
     saveError,
+    clearSaveError,
   } = useUserConfig("preferences");
 
   /**
@@ -118,5 +119,7 @@ export function useVisibleSports(knownSports?: string[]) {
     isSaving,
     /** Error saving preferences (null if no error) */
     saveError,
+    /** Clear the save error */
+    clearSaveError,
   };
 }

@@ -3,6 +3,7 @@ import { useDailySportData } from "../hooks/useDailySportData";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useSportConfig } from "../hooks/useSportConfig";
 import type { TimeRange } from "../utils/dataNormalization";
+import type { TuningParams } from "../utils/demoDataGenerator";
 import {
   getSportDisplayName,
   filterValidSports,
@@ -124,7 +125,7 @@ function getActivityPageSize(sportCount: number): number {
  * - Normalizing data for sparklines (0-1 scale)
  * - Coordinating layout calculations (height, page size)
  */
-export function useMultiSportChartData() {
+export function useMultiSportChartData(tuningParams?: TuningParams) {
   const currentYear = new Date().getFullYear();
   const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
 
@@ -151,6 +152,7 @@ export function useMultiSportChartData() {
     from,
     to,
     sports: validSports,
+    tuningParams,
   });
 
   // Process data for each sport's sparkline

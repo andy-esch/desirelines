@@ -5,9 +5,11 @@ import { useSportConfig } from "../../hooks/useSportConfig";
 import { filterValidSports } from "../../utils/sportConfig";
 import { toLocalDateString } from "../../utils/dateUtils";
 import NeonSpinner from "../NeonSpinner";
+import type { TuningParams } from "../../utils/demoDataGenerator";
 
 interface ActivityCalendarHeatmapProps {
   className?: string;
+  tuningParams?: TuningParams;
 }
 
 /** Time range option for the heatmap */
@@ -195,7 +197,10 @@ function getYearOptions(): number[] {
  * Defaults to trailing 12 months, with dropdown to select specific years.
  * Supports filtering by visible sports or showing all sports.
  */
-export default function ActivityCalendarHeatmap({ className = "" }: ActivityCalendarHeatmapProps) {
+export default function ActivityCalendarHeatmap({
+  className = "",
+  tuningParams,
+}: ActivityCalendarHeatmapProps) {
   const [timeRange, setTimeRange] = useState<TimeRangeOption>("trailing12");
   const [sportFilter, setSportFilter] = useState<SportFilterMode>("all");
   const currentYear = new Date().getFullYear();
@@ -234,6 +239,7 @@ export default function ActivityCalendarHeatmap({ className = "" }: ActivityCale
     from,
     to,
     sports: activeSports,
+    tuningParams,
   });
 
   const isLoading = prefsLoading || configLoading || dataLoading;

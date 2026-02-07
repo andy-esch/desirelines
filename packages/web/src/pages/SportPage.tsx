@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   convertDistance,
   convertElevation,
@@ -7,15 +7,6 @@ import {
   goalMetersToDisplay,
   goalDisplayToMeters,
 } from "../utils/units";
-import { pageBackgrounds } from "../styles/pageBackgrounds";
-import CumulativeMetricsChart from "../components/charts/CumulativeMetricsChart";
-import PacingMetricsChart from "../components/charts/PacingMetricsChart";
-import Sidebar from "../components/layout/Sidebar";
-import FilterControls from "../components/layout/FilterControls";
-import GoalControls from "../components/GoalControls";
-import KPICards from "../components/dashboard/KPICards";
-import GoalSummaryTable from "../components/GoalSummaryTable";
-import EmptyState from "../components/EmptyState";
 import {
   generateDefaultGoals,
   estimateYearEndDistance,
@@ -30,11 +21,11 @@ import { useSportData } from "../hooks/useSportData";
 import { useSidebarSportData } from "../hooks/useSidebarSportData";
 import { getMetricConfig, getMetricFieldName } from "../config/metricConfig";
 import { getSportMetrics, getPrimaryMetric } from "../utils/sportConfig";
-import MetricSelector from "../components/charts/MetricSelector";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
 import { createYearContext } from "../utils/yearContext";
+import SportPageContent from "../components/SportPageContent";
 
 interface SportPageProps {
   sport: string;
@@ -45,8 +36,6 @@ export default function SportPage({ sport }: SportPageProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
-  const [showFullYear, setShowFullYear] = useState(true);
-  const [showAchievements, setShowAchievements] = useState(true);
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
 
   // Fetch sport metrics and config
@@ -242,152 +231,38 @@ export default function SportPage({ sport }: SportPageProps) {
   const { momentumIndicator } = useTrainingMomentum(chartData, averagePace);
 
   return (
-    <div className="container-fluid">
-      <div
-        className="row page-background"
-        style={{ "--page-background": pageBackgrounds.sport } as React.CSSProperties}
-      >
-        <Sidebar
-          estimatedYearEnd={estimatedYearEnd}
-          currentValue={currentValue}
-          unit={metricUnit}
-          isLoading={isLoading || !!error}
-          filtersSlot={
-            <FilterControls
-              sport={sport}
-              availableSports={availableSports}
-              sportCounts={sportCounts}
-              onSportChange={(newSport) => navigate(`/${newSport}/${currentYear}`)}
-              currentYear={currentYear}
-              onYearChange={(newYear) => navigate(`/${sport}/${newYear}`)}
-            />
-          }
-          goalsSlot={
-            <GoalControls
-              goals={goals}
-              onGoalsChange={handleGoalsChange}
-              estimatedYearEnd={estimatedYearEnd}
-              unit={metricUnit}
-              sport={sport}
-              isSaving={isGoalsSaving}
-              saveError={goalsSaveError}
-              onClearSaveError={clearGoalsSaveError}
-            />
-          }
-        />
-
-        <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-          <div className="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3">
-            <h1 className="h2">
-              {sport.charAt(0).toUpperCase() + sport.slice(1)} {currentYear}
-            </h1>
-          </div>
-
-          {/* No data banner - show when viewing current year with no activities */}
-          {!isLoading && currentValue === 0 && currentYear === new Date().getFullYear() && (
-            <div
-              className="alert d-flex align-items-center mb-3"
-              role="alert"
-              style={{
-                backgroundColor: "rgba(0, 212, 255, 0.1)",
-                border: "1px solid rgba(0, 212, 255, 0.3)",
-                color: "var(--slate-light, #94a3b8)",
-              }}
-            >
-              <span>
-                No {sport} activities recorded for {currentYear}.{" "}
-                <Link
-                  to={`/${sport}/${currentYear - 1}`}
-                  style={{ color: "var(--accent-cyan, #00d4ff)" }}
-                >
-                  View {currentYear - 1} instead →
-                </Link>
-              </span>
-            </div>
-          )}
-
-          <KPICards
-            currentDistance={currentValue}
-            nextGoal={nextGoal}
-            nextGoalProgress={nextGoalProgress}
-            nextGoalGap={nextGoalGap}
-            paceNeededForNextGoal={paceNeededForNextGoal}
-            averagePace={averagePace}
-            momentumIndicator={momentumIndicator}
-            yearContext={yearContext}
-            unit={metricUnit}
-            isLoading={isLoading || !!error}
-          />
-
-          {!isLoading && !error && chartData.length === 0 ? (
-            <EmptyState
-              sport={sport}
-              year={currentYear}
-              unit={metricUnit}
-              suggestedYear={currentYear === new Date().getFullYear() ? currentYear - 1 : undefined}
-            />
-          ) : (
-            <GoalSummaryTable
-              goals={goals}
-              currentDistance={currentValue}
-              yearContext={yearContext}
-              unit={metricUnit}
-              sport={sport}
-              isLoading={isLoading || !!error}
-            />
-          )}
-
-          {/* Metric Selector - only show when multiple metrics available */}
-          {availableMetrics.length > 1 && (
-            <div className="d-flex justify-content-end align-items-center mb-3">
-              <MetricSelector
-                availableMetrics={availableMetrics}
-                selectedMetric={activeMetric}
-                onMetricChange={setSelectedMetric}
-              />
-            </div>
-          )}
-
-          <div className="row">
-            <div className="col-12 mb-4">
-              <div className="glass-panel">
-                <CumulativeMetricsChart
-                  year={currentYear}
-                  goals={isViewingPrimaryMetric ? goals : []}
-                  distanceData={chartData}
-                  isLoading={isLoading}
-                  error={error}
-                  showFullYear={showFullYear}
-                  onViewChange={setShowFullYear}
-                  showAchievements={showAchievements}
-                  onAchievementsChange={setShowAchievements}
-                  unit={metricUnit}
-                  sport={sport}
-                  onRetry={retry}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="row">
-            <div className="col-12 mb-4">
-              <div className="glass-panel">
-                <PacingMetricsChart
-                  year={currentYear}
-                  goals={isViewingPrimaryMetric ? goals : []}
-                  distanceData={chartData}
-                  isLoading={isLoading}
-                  error={error}
-                  showFullYear={showFullYear}
-                  unit={metricUnit}
-                  sport={sport}
-                  onRetry={retry}
-                />
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
-    </div>
+    <SportPageContent
+      sport={sport}
+      currentYear={currentYear}
+      yearContext={yearContext}
+      chartData={chartData}
+      currentValue={currentValue}
+      estimatedYearEnd={estimatedYearEnd}
+      isLoading={isLoading}
+      error={error}
+      onRetry={retry}
+      unit={metricUnit}
+      goals={goals}
+      chartGoals={isViewingPrimaryMetric ? goals : []}
+      onGoalsChange={handleGoalsChange}
+      isGoalsSaving={isGoalsSaving}
+      goalsSaveError={goalsSaveError}
+      onClearGoalsSaveError={clearGoalsSaveError}
+      nextGoal={nextGoal}
+      nextGoalProgress={nextGoalProgress}
+      nextGoalGap={nextGoalGap}
+      paceNeededForNextGoal={paceNeededForNextGoal}
+      averagePace={averagePace}
+      momentumIndicator={momentumIndicator}
+      availableSports={availableSports}
+      sportCounts={sportCounts}
+      showAuthButton={true}
+      onSportChange={(newSport) => navigate(`/${newSport}/${currentYear}`)}
+      onYearChange={(newYear) => navigate(`/${sport}/${newYear}`)}
+      routePrefix=""
+      availableMetrics={availableMetrics}
+      activeMetric={activeMetric}
+      onMetricChange={setSelectedMetric}
+    />
   );
 }

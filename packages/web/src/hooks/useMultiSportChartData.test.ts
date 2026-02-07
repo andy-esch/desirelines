@@ -87,6 +87,7 @@ describe("useMultiSportChartData", () => {
       isLoading: false,
       isSaving: false,
       saveError: null,
+      clearSaveError: vi.fn(),
       error: null,
     });
 
@@ -109,6 +110,7 @@ describe("useMultiSportChartData", () => {
         isLoading: true,
         isSaving: false,
         saveError: null,
+        clearSaveError: vi.fn(),
         error: null,
       });
 
@@ -153,6 +155,7 @@ describe("useMultiSportChartData", () => {
         isLoading: false,
         isSaving: false,
         saveError: null,
+        clearSaveError: vi.fn(),
         error: null,
       });
 
@@ -232,6 +235,7 @@ describe("useMultiSportChartData", () => {
         isLoading: false,
         isSaving: false,
         saveError: null,
+        clearSaveError: vi.fn(),
         error: null,
       });
 
@@ -248,6 +252,7 @@ describe("useMultiSportChartData", () => {
         isLoading: false,
         isSaving: false,
         saveError: null,
+        clearSaveError: vi.fn(),
         error: null,
       });
 

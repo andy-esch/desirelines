@@ -3,6 +3,7 @@ import { Goals, validateGoals, generateDefaultGoals } from "../utils/goalCalcula
 import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
 import { useGoalManager } from "../hooks/useGoalManager";
+import { InlineAlert } from "./InlineAlert";
 
 interface GoalControlsProps {
   goals: Goals;
@@ -71,21 +72,14 @@ const GoalControls: React.FC<GoalControlsProps> = ({
         )}
       </h6>
       {effectiveSaveError && (
-        <div className="alert alert-danger py-1 px-2 small" role="alert">
+        <InlineAlert
+          size="sm"
+          onDismiss={onClearSaveError || managerSaveError ? effectiveClearSaveError : undefined}
+        >
           {effectiveSaveError.message || "Failed to save. Please try again."}
-          {(onClearSaveError || managerSaveError) && (
-            <button
-              type="button"
-              className="btn-close btn-sm float-end"
-              aria-label="Dismiss"
-              onClick={effectiveClearSaveError}
-            />
-          )}
-        </div>
+        </InlineAlert>
       )}
-      {!validation.valid && (
-        <div className="alert alert-danger py-1 px-2 small">{validation.error}</div>
-      )}
+      {!validation.valid && <InlineAlert size="sm">{validation.error}</InlineAlert>}
 
       <div className="list-group list-group-flush mb-2">
         {goals.map((goal, index) => (

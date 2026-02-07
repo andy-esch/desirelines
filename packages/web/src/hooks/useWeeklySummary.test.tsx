@@ -106,6 +106,7 @@ describe("useWeeklySummary", () => {
       isLoading: false,
       isSaving: false,
       saveError: null,
+      clearSaveError: vi.fn(),
       error: null,
     });
 
@@ -152,6 +153,7 @@ describe("useWeeklySummary", () => {
         isLoading: true,
         isSaving: false,
         saveError: null,
+        clearSaveError: vi.fn(),
         error: null,
       });
 
@@ -335,6 +337,7 @@ describe("useWeeklySummary", () => {
         isLoading: false,
         isSaving: false,
         saveError: null,
+        clearSaveError: vi.fn(),
         error: null,
       });
 

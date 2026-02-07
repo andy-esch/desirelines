@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useFullUserConfig } from "../../hooks/useUserConfig";
 import { DEMO_SPORT_LABELS, type DemoSport } from "../../constants/demoConfig";
 import NeonSpinner from "../NeonSpinner";
+import { InlineAlert } from "../InlineAlert";
 import type { SportGoalsForYear } from "../../services/userConfigService";
 
 /** Flattened goal row for display */
@@ -71,11 +72,7 @@ export function GoalManagementTable() {
   }
 
   if (error) {
-    return (
-      <div className="alert alert-danger" role="alert">
-        Failed to load goals: {error.message}
-      </div>
-    );
+    return <InlineAlert>Failed to load goals: {error.message}</InlineAlert>;
   }
 
   if (goalRows.length === 0) {
