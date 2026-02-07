@@ -18,9 +18,27 @@ import {
   type FillLevel,
 } from "../constants/demoConfig";
 import { generateActivityName } from "./activityNameGenerator";
+import { logNormal, poisson } from "./distributions";
 
 // Re-export types for consumers
 export type { FillLevel };
+
+/**
+ * Tuning parameters for distribution calibration.
+ * Used by the Dashboard to override per-sport config defaults at runtime.
+ */
+export interface TuningParams {
+  distanceSigma?: number;
+  durationSigma?: number;
+  activitiesPerWeek?: number;
+  /** Scale factor applied to each sport's configured activitiesPerWeek (e.g., 1.5 = 50% more).
+   *  Used by the dashboard panel so each sport keeps its own base rate. */
+  activitiesPerWeekMultiplier?: number;
+  /** Override per-activity average distance (meters) */
+  avgDistanceMeters?: number;
+  /** Override per-activity average duration (seconds) */
+  avgDurationSeconds?: number;
+}
 
 // =============================================================================
 // Constants
@@ -291,11 +309,77 @@ export function generateCoordinatedFillLevels(): Record<string, FillLevel> {
 }
 
 /**
- * Generate a value with variance
+ * Generate a value with uniform variance (used for elevation).
  */
-function withVariance(base: number, variance: number): number {
+function withUniformVariance(base: number, variance: number): number {
   const multiplier = 1 + (Math.random() * 2 - 1) * variance;
   return Math.max(0, base * multiplier);
+}
+
+/**
+ * Sample a value from a log-normal distribution.
+ * Falls back to uniform variance if sigma is not provided.
+ */
+function sampleValue(mean: number, sigma: number): number {
+  if (mean <= 0) return 0;
+  return logNormal(mean, sigma);
+}
+
+/**
+ * Generate a Poisson-based activity schedule for a date range.
+ * Returns a Set of day-of-year indices that have activities.
+ *
+ * When a restPattern is provided, weeks cycle through on/off phases:
+ * e.g. { onWeeks: 3, offWeeks: 1 } → 3 active weeks, then 1 rest week, repeat.
+ */
+function generateActivitySchedule(
+  startDay: number,
+  endDay: number,
+  activitiesPerWeek: number,
+  year: number,
+  restPattern?: { onWeeks: number; offWeeks: number },
+): Set<number> {
+  const activityDays = new Set<number>();
+  const cycleLength = restPattern ? restPattern.onWeeks + restPattern.offWeeks : 0;
+
+  // Iterate week by week (7-day blocks)
+  let weekIndex = 0;
+  for (let weekStart = startDay; weekStart <= endDay; weekStart += 7) {
+    // Check if this is a rest week
+    if (restPattern && cycleLength > 0) {
+      const positionInCycle = weekIndex % cycleLength;
+      if (positionInCycle >= restPattern.onWeeks) {
+        // Rest week — skip activity generation
+        weekIndex++;
+        continue;
+      }
+    }
+
+    const weekEnd = Math.min(weekStart + 6, endDay);
+    const daysInWeek = weekEnd - weekStart + 1;
+    // Scale lambda for partial weeks at boundaries
+    const lambda = activitiesPerWeek * (daysInWeek / 7);
+    const count = Math.min(poisson(lambda), daysInWeek);
+
+    // Pick `count` random days from this week (uniform, no duplicates)
+    const weekDays: number[] = [];
+    for (let d = weekStart; d <= weekEnd; d++) {
+      weekDays.push(d);
+    }
+    // Fisher-Yates shuffle, pick first `count`
+    for (let i = weekDays.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [weekDays[i], weekDays[j]] = [weekDays[j], weekDays[i]];
+    }
+    for (let i = 0; i < count; i++) {
+      activityDays.add(weekDays[i]);
+    }
+
+    weekIndex++;
+  }
+  // Suppress unused parameter lint — year reserved for future seasonal weighting
+  void year;
+  return activityDays;
 }
 
 /**
@@ -413,6 +497,8 @@ export interface GenerateDemoMetricsOptions {
   sportInfo?: { has_distance?: boolean; has_elevation?: boolean };
   /** All sports in the session (for coordinated fill levels) */
   allSports?: string[];
+  /** Tuning overrides for distribution parameters */
+  tuningParams?: TuningParams;
 }
 
 /**
@@ -463,17 +549,26 @@ export function generateDemoMetrics(
 
   const startDate = new Date(year, 0, 1);
 
-  // Adjust activity rate based on fill level
-  let effectiveActivityRate = config.activityRate;
-  let startDayOffset = 0;
+  // Resolve distribution parameters (tuning > config > defaults)
+  const distSigma = opts.tuningParams?.distanceSigma ?? config.distanceSigma ?? 0.4;
+  const durSigma = opts.tuningParams?.durationSigma ?? config.durationSigma ?? 0.3;
+  const baseApw = opts.tuningParams?.activitiesPerWeek ?? config.activitiesPerWeek ?? (config.activityRate * 7);
+  const apw = baseApw * (opts.tuningParams?.activitiesPerWeekMultiplier ?? 1);
 
+  // Determine start offset for partial fill
+  let startDayOffset = 0;
   if (fillLevel === "partial") {
-    // Partial: lower activity rate, start later in the year
-    effectiveActivityRate = config.activityRate * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER;
-    // Start activities after configured offset
     const daysInYear = getDayOfYear(endDate);
     startDayOffset = Math.floor(daysInYear * PARTIAL_FILL_CONFIG.YEAR_START_OFFSET);
   }
+
+  // Effective activities/week for partial fill
+  const effectiveApw = fillLevel === "partial" ? apw * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER : apw;
+
+  // Pre-compute Poisson-based activity schedule
+  const startDay = startDayOffset + 1;
+  const endDay = getDayOfYear(endDate);
+  const activityDays = generateActivitySchedule(startDay, endDay, effectiveApw, year, config.restPattern);
 
   const metrics: MetricsEntry[] = [];
   let cumulativeDistance = 0;
@@ -487,22 +582,14 @@ export function generateDemoMetrics(
     const currentDate = new Date(currentTime);
     const dayOfYear = getDayOfYear(currentDate);
 
-    // Determine if this day has activity
-    let hasActivity = false;
-    if (dayOfYear > startDayOffset) {
-      // Weekly pattern: more likely on weekends
-      const dayOfWeek = currentDate.getDay();
-      const weekendBonus = dayOfWeek === 0 || dayOfWeek === 6 ? ACTIVITY_PARAMS.WEEKEND_BONUS : 1.0;
-
-      hasActivity = Math.random() < effectiveActivityRate * weekendBonus;
-    }
-
-    if (hasActivity) {
-      // Generate activity for this day
-      const distance = withVariance(config.avgDistanceMeters, config.distanceVariance);
-      const duration = withVariance(config.avgDurationSeconds, config.durationVariance);
+    if (activityDays.has(dayOfYear)) {
+      // Generate activity values using log-normal distributions
+      const avgDist = opts.tuningParams?.avgDistanceMeters ?? config.avgDistanceMeters;
+      const avgDur = opts.tuningParams?.avgDurationSeconds ?? config.avgDurationSeconds;
+      const distance = sampleValue(avgDist, distSigma);
+      const duration = sampleValue(avgDur, durSigma);
       const elevation = config.avgElevationMeters
-        ? withVariance(config.avgElevationMeters, ACTIVITY_PARAMS.ELEVATION_VARIANCE)
+        ? withUniformVariance(config.avgElevationMeters, ACTIVITY_PARAMS.ELEVATION_VARIANCE)
         : 0;
 
       cumulativeDistance += distance;
@@ -616,11 +703,13 @@ export function generateDemoActivities(
       break;
     }
 
-    // Generate activity
-    const distance = withVariance(config.avgDistanceMeters, config.distanceVariance);
-    const duration = withVariance(config.avgDurationSeconds, config.durationVariance);
+    // Generate activity using log-normal distributions
+    const distSigma = config.distanceSigma ?? 0.4;
+    const durSigma = config.durationSigma ?? 0.3;
+    const distance = sampleValue(config.avgDistanceMeters, distSigma);
+    const duration = sampleValue(config.avgDurationSeconds, durSigma);
     const elevation = config.avgElevationMeters
-      ? withVariance(config.avgElevationMeters, ACTIVITY_PARAMS.ELEVATION_VARIANCE)
+      ? withUniformVariance(config.avgElevationMeters, ACTIVITY_PARAMS.ELEVATION_VARIANCE)
       : undefined;
 
     // Pick a time of day and create the activity date
@@ -700,6 +789,8 @@ export interface GenerateDemoDailyDataOptions {
   sportInfo?: { has_distance?: boolean; has_elevation?: boolean };
   /** All sports in the session (for coordinated fill levels) */
   allSports?: string[];
+  /** Tuning overrides for distribution parameters */
+  tuningParams?: TuningParams;
 }
 
 /**
@@ -743,16 +834,24 @@ export function generateDemoDailyData(
   const today = new Date();
   const effectiveEnd = endDate > today ? today : endDate;
 
-  // Adjust activity rate based on fill level
-  let effectiveActivityRate = config.activityRate;
-  let startDayOffset = 0;
+  // Resolve distribution parameters
+  const distSigma = opts.tuningParams?.distanceSigma ?? config.distanceSigma ?? 0.4;
+  const durSigma = opts.tuningParams?.durationSigma ?? config.durationSigma ?? 0.3;
+  const baseApw = opts.tuningParams?.activitiesPerWeek ?? config.activitiesPerWeek ?? (config.activityRate * 7);
+  const apw = baseApw * (opts.tuningParams?.activitiesPerWeekMultiplier ?? 1);
 
+  let startDayOffset = 0;
   if (fillLevel === "partial") {
-    effectiveActivityRate = config.activityRate * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER;
-    // For partial, only show recent activities
     const totalDays = Math.ceil((effectiveEnd.getTime() - startDate.getTime()) / ONE_DAY_MS);
     startDayOffset = Math.floor(totalDays * PARTIAL_FILL_CONFIG.YEAR_START_OFFSET);
   }
+
+  const effectiveApw = fillLevel === "partial" ? apw * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER : apw;
+
+  // Pre-compute Poisson-based activity schedule (using day indices relative to range)
+  const totalDays = Math.ceil((effectiveEnd.getTime() - startDate.getTime()) / ONE_DAY_MS) + 1;
+  const scheduleStart = startDayOffset + 1;
+  const activityDays = generateActivitySchedule(scheduleStart, totalDays, effectiveApw, fromYear, config.restPattern);
 
   let activityIdCounter = 2000000000 + Math.floor(Math.random() * 100000000);
   let dayIndex = 0;
@@ -766,17 +865,7 @@ export function generateDemoDailyData(
     dayIndex++;
     const currentDate = new Date(currentTime);
 
-    // Skip days before start offset (for partial fill)
-    if (dayIndex <= startDayOffset) {
-      continue;
-    }
-
-    // Determine if this day has activity
-    const dayOfWeek = currentDate.getDay();
-    const weekendBonus = dayOfWeek === 0 || dayOfWeek === 6 ? ACTIVITY_PARAMS.WEEKEND_BONUS : 1.0;
-    const hasActivity = Math.random() < effectiveActivityRate * weekendBonus;
-
-    if (hasActivity) {
+    if (activityDays.has(dayIndex)) {
       // Generate 1-2 activities for this day
       const numActivities = Math.random() < 0.2 ? 2 : 1;
       const activityIds: number[] = [];
@@ -785,12 +874,14 @@ export function generateDemoDailyData(
       let totalTime = 0;
       let totalElevation = 0;
 
+      const avgDist = opts.tuningParams?.avgDistanceMeters ?? config.avgDistanceMeters;
+      const avgDur = opts.tuningParams?.avgDurationSeconds ?? config.avgDurationSeconds;
       for (let i = 0; i < numActivities; i++) {
         activityIds.push(activityIdCounter++);
-        totalDistance += withVariance(config.avgDistanceMeters, config.distanceVariance);
-        totalTime += withVariance(config.avgDurationSeconds, config.durationVariance);
+        totalDistance += sampleValue(avgDist, distSigma);
+        totalTime += sampleValue(avgDur, durSigma);
         if (config.avgElevationMeters) {
-          totalElevation += withVariance(
+          totalElevation += withUniformVariance(
             config.avgElevationMeters,
             ACTIVITY_PARAMS.ELEVATION_VARIANCE
           );

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
 import { fetchDailySummary, type DailyActivity } from "../api/activities";
-import { generateDemoDailyData, getSessionFillLevels } from "../utils/demoDataGenerator";
+import { generateDemoDailyData, getSessionFillLevels, type TuningParams } from "../utils/demoDataGenerator";
 
 /**
  * @deprecated Use string sport keys instead. Kept for backwards compatibility.
@@ -45,6 +45,8 @@ export interface UseDailySportDataOptions {
    * If not provided, defaults to ["cycling", "running", "yoga"] for backwards compatibility.
    */
   sports?: string[];
+  /** Tuning overrides for distribution parameters (demo mode only) */
+  tuningParams?: TuningParams;
 }
 
 /**
@@ -75,7 +77,7 @@ const DEFAULT_SPORTS = ["cycling", "running", "yoga"];
 export function useDailySportData(options: UseDailySportDataOptions): DailySportDataResult {
   const { user, loading: authLoading } = useAuth();
 
-  const { year, from, to } = options;
+  const { year, from, to, tuningParams } = options;
   // Note: Callers must ensure `options.sports` is referentially stable (memoized) to prevent
   // unnecessary re-renders or query churn. We avoid internal memoization hacks here.
   const sports = options.sports ?? DEFAULT_SPORTS;
@@ -91,11 +93,12 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
       result[sport] = generateDemoDailyData(sport, from, to, {
         overrideFillLevel: fillLevel,
         allSports: sports,
+        tuningParams,
       });
     }
 
     return result;
-  }, [sports, from, to]);
+  }, [sports, from, to, tuningParams]);
 
   const queries = useQueries({
     queries: sports.map((sport) => ({

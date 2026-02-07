@@ -25,7 +25,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   const navigate = useNavigate();
   const currentYear = year ? parseInt(year) : new Date().getFullYear();
 
-  // Fetch generated demo data
+  // Fetch generated demo data (uses config defaults from demoConfig.ts)
   const { metrics, sportConfig, isLoading, error } = useDemoData(currentYear, sport);
 
   // Fetch sidebar sport data for demo mode

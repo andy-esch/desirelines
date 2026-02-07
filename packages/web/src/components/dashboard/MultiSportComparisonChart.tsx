@@ -6,9 +6,11 @@ import TimeRangeSelector from "./TimeRangeSelector";
 import RecentActivitiesList from "./RecentActivitiesList";
 import { SparklineSkeleton, ActivityRowSkeleton } from "../Skeleton";
 import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
+import type { TuningParams } from "../../utils/demoDataGenerator";
 
 interface MultiSportComparisonChartProps {
   className?: string;
+  tuningParams?: TuningParams;
 }
 
 interface SportMetaItem {
@@ -176,6 +178,7 @@ function SparklineLegend({ sportMeta }: { sportMeta: SportMetaItem[] }) {
 
 export default function MultiSportComparisonChart({
   className = "",
+  tuningParams,
 }: MultiSportComparisonChartProps) {
   const {
     timeRange,
@@ -189,7 +192,7 @@ export default function MultiSportComparisonChart({
     sparklineContainerHeight,
     hasAnyData,
     SPARKLINE_ROW_HEIGHT,
-  } = useMultiSportChartData();
+  } = useMultiSportChartData(tuningParams);
 
   // Calculate chart height based on number of sports (min 120px, max 200px)
   const chartHeight = Math.min(200, Math.max(120, validSports.length * 30 + 40));
