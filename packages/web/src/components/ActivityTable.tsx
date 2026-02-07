@@ -197,7 +197,9 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                         isSessionSport
                           ? (1 / goalTarget!) * 100
                           : activity.distanceMeters > 0
-                            ? (convertDistance(activity.distanceMeters, distanceUnit) / goalTarget!) * 100
+                            ? (convertDistance(activity.distanceMeters, distanceUnit) /
+                                goalTarget!) *
+                              100
                             : null
                       )}
                     </td>

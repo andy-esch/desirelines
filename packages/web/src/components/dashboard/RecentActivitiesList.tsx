@@ -64,7 +64,10 @@ interface RecentActivitiesListProps {
   pageSize: number;
 }
 
-export default function RecentActivitiesList({ timeRange, pageSize: fallbackPageSize }: RecentActivitiesListProps) {
+export default function RecentActivitiesList({
+  timeRange,
+  pageSize: fallbackPageSize,
+}: RecentActivitiesListProps) {
   const { user } = useAuth();
   const [page, setPage] = useState(0);
 
@@ -87,9 +90,10 @@ export default function RecentActivitiesList({ timeRange, pageSize: fallbackPage
     return () => observer.disconnect();
   }, [handleResize]);
 
-  const pageSize = containerHeight > 0
-    ? Math.max(MIN_ROWS, Math.floor((containerHeight - HEADER_HEIGHT) / ROW_HEIGHT))
-    : fallbackPageSize;
+  const pageSize =
+    containerHeight > 0
+      ? Math.max(MIN_ROWS, Math.floor((containerHeight - HEADER_HEIGHT) / ROW_HEIGHT))
+      : fallbackPageSize;
 
   // Goal data for impact % column
   const { sportData } = useDashboardGoalData();
@@ -182,12 +186,42 @@ export default function RecentActivitiesList({ timeRange, pageSize: fallbackPage
         </colgroup>
         <thead>
           <tr style={{ height: HEADER_HEIGHT }}>
-            <th className="text-start ps-0 pe-2 py-0 text-muted fw-normal align-middle" style={{ fontSize: "0.7rem" }}>Name</th>
-            <th className="text-start px-1 py-0 text-muted fw-normal align-middle" style={{ fontSize: "0.7rem" }}>Sport</th>
-            <th className="text-end px-1 py-0 text-muted fw-normal align-middle" style={{ fontSize: "0.7rem" }}>Goal Impact</th>
-            <th className="text-end px-1 py-0 text-muted fw-normal align-middle" style={{ fontSize: "0.7rem" }}>Distance</th>
-            <th className="text-end px-1 py-0 text-muted fw-normal align-middle" style={{ fontSize: "0.7rem" }}>Time</th>
-            <th className="text-end ps-1 pe-0 py-0 text-muted fw-normal align-middle" style={{ fontSize: "0.7rem" }}>Date</th>
+            <th
+              className="text-start ps-0 pe-2 py-0 text-muted fw-normal align-middle"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Name
+            </th>
+            <th
+              className="text-start px-1 py-0 text-muted fw-normal align-middle"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Sport
+            </th>
+            <th
+              className="text-end px-1 py-0 text-muted fw-normal align-middle"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Goal Impact
+            </th>
+            <th
+              className="text-end px-1 py-0 text-muted fw-normal align-middle"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Distance
+            </th>
+            <th
+              className="text-end px-1 py-0 text-muted fw-normal align-middle"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Time
+            </th>
+            <th
+              className="text-end ps-1 pe-0 py-0 text-muted fw-normal align-middle"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Date
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -206,45 +240,61 @@ export default function RecentActivitiesList({ timeRange, pageSize: fallbackPage
               impactTooltip = `vs. ${Math.round(goal.impactGoal).toLocaleString()} ${goal.metricUnit} ${goalLabel}`;
             }
             return (
-            <tr key={activity.id} style={{ height: ROW_HEIGHT }}>
-              <td
-                className="text-start ps-0 pe-2 py-0 align-middle"
-                style={{
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: 140,
-                }}
-              >
-                {user ? (
-                  <a
-                    href={`https://www.strava.com/activities/${activity.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-decoration-none"
-                  >
-                    {activity.name}
-                  </a>
-                ) : (
-                  <span title="Links disabled in demo mode">{activity.name}</span>
-                )}
-              </td>
-              <td className="text-muted text-start px-1 py-0 align-middle" style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}>
-                {activity.sport}
-              </td>
-              <td className="text-muted text-end px-1 py-0 align-middle" style={{ whiteSpace: "nowrap", fontSize: "0.75rem" }} title={impactTooltip}>
-                {formatImpactPct(impactPct)}
-              </td>
-              <td className="text-muted text-end px-1 py-0 align-middle" style={{ whiteSpace: "nowrap" }}>
-                {formatDistance(activity.distanceMeters)}
-              </td>
-              <td className="text-muted text-end px-1 py-0 align-middle" style={{ whiteSpace: "nowrap" }}>
-                {formatDuration(activity.movingTimeSeconds)}
-              </td>
-              <td className="text-muted text-end ps-1 pe-0 py-0 align-middle" style={{ whiteSpace: "nowrap" }}>
-                {formatActivityDate(activity.startDateLocal)}
-              </td>
-            </tr>
+              <tr key={activity.id} style={{ height: ROW_HEIGHT }}>
+                <td
+                  className="text-start ps-0 pe-2 py-0 align-middle"
+                  style={{
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: 140,
+                  }}
+                >
+                  {user ? (
+                    <a
+                      href={`https://www.strava.com/activities/${activity.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-decoration-none"
+                    >
+                      {activity.name}
+                    </a>
+                  ) : (
+                    <span title="Links disabled in demo mode">{activity.name}</span>
+                  )}
+                </td>
+                <td
+                  className="text-muted text-start px-1 py-0 align-middle"
+                  style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}
+                >
+                  {activity.sport}
+                </td>
+                <td
+                  className="text-muted text-end px-1 py-0 align-middle"
+                  style={{ whiteSpace: "nowrap", fontSize: "0.75rem" }}
+                  title={impactTooltip}
+                >
+                  {formatImpactPct(impactPct)}
+                </td>
+                <td
+                  className="text-muted text-end px-1 py-0 align-middle"
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {formatDistance(activity.distanceMeters)}
+                </td>
+                <td
+                  className="text-muted text-end px-1 py-0 align-middle"
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {formatDuration(activity.movingTimeSeconds)}
+                </td>
+                <td
+                  className="text-muted text-end ps-1 pe-0 py-0 align-middle"
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {formatActivityDate(activity.startDateLocal)}
+                </td>
+              </tr>
             );
           })}
         </tbody>

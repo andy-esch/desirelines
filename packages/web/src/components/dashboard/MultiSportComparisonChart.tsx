@@ -273,10 +273,7 @@ export default function MultiSportComparisonChart({
         <div className="row g-3 justify-content-center">
           {/* Left: Unified Sparkline Chart */}
           <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
-            <div
-              className="glass-panel h-100 d-flex flex-column"
-              style={{ minWidth: 0 }}
-            >
+            <div className="glass-panel h-100 d-flex flex-column" style={{ minWidth: 0 }}>
               {/* Legend with sport links */}
               <SparklineLegend sportMeta={sportMeta} />
 
