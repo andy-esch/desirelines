@@ -56,6 +56,9 @@ type SportConfigData struct {
 // SportConfig contains the data as a SportConfigData struct
 type SportConfig struct {
 	data SportConfigData
+	// reverseMap maps Strava sport_type values to category names.
+	// Built at load time for O(1) lookups. E.g., "Ride" → "cycling".
+	reverseMap map[string]string
 }
 
 // Package-level state for singleton loading pattern.
@@ -123,7 +126,15 @@ func loadSportConfigInternal(configPath string) (*SportConfig, error) {
 		)
 	}
 
-	return &SportConfig{data: configData}, nil
+	// Build reverse lookup map: Strava type → category name
+	reverseMap := make(map[string]string)
+	for categoryName, category := range configData.SportCategories {
+		for _, stravaType := range category.StravaTypes {
+			reverseMap[stravaType] = categoryName
+		}
+	}
+
+	return &SportConfig{data: configData, reverseMap: reverseMap}, nil
 }
 
 // ListSports returns all available sports
@@ -135,12 +146,12 @@ func (c *SportConfig) ListSports() []string {
 	return sports
 }
 
-// GetCategory returns the general category that a sport belongs to
-//
-//	E.g., VirtualRide -> cycling, Ride -> cycling, Run -> running, etc.
-func (c *SportConfig) GetCategory(sport string) (SportCategory, bool) {
-	category, ok := c.data.SportCategories[sport]
-	return category, ok
+// GetCategory returns the SportCategory config for a category name.
+// For example, GetCategory("cycling") returns the cycling config with its Strava types, metrics, etc.
+// Returns false if the category doesn't exist.
+func (c *SportConfig) GetCategory(category string) (SportCategory, bool) {
+	cat, ok := c.data.SportCategories[category]
+	return cat, ok
 }
 
 // ValidateSport ensures that an input sport is a sport that
@@ -160,6 +171,16 @@ func (c *SportConfig) GetStravaTypes(category string) []string {
 		return nil
 	}
 	return cat.StravaTypes
+}
+
+// GetCategoryForStravaType returns the category name for a Strava sport_type value.
+// For example, "Ride" returns "cycling", "TrailRun" returns "running".
+// Returns the original value unchanged if no mapping exists.
+func (c *SportConfig) GetCategoryForStravaType(stravaType string) string {
+	if category, ok := c.reverseMap[stravaType]; ok {
+		return category
+	}
+	return stravaType
 }
 
 // GetRawConfigJSON returns the raw embedded sport config JSON
