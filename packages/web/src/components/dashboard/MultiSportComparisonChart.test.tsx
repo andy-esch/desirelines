@@ -47,6 +47,15 @@ vi.mock("../../hooks/useDashboardGoalData", () => ({
   })),
 }));
 
+// Mock useUserConfig hook (used by RecentActivitiesList for distance unit)
+vi.mock("../../hooks/useUserConfig", () => ({
+  useUserConfig: vi.fn(() => ({
+    data: null,
+    isLoading: false,
+    error: null,
+  })),
+}));
+
 // Mock recharts to avoid rendering issues in tests
 vi.mock("recharts", () => ({
   LineChart: ({ children }: { children: React.ReactNode }) => (

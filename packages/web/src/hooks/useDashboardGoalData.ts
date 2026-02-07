@@ -156,7 +156,7 @@ export function useDashboardGoalData(): {
               : goalValue;
           }
           // Find the smallest goal for impact calculations
-          const minGoal = [...goalsData.goals].sort((a, b) => a.value - b.value)[0];
+          const minGoal = goalsData.goals.reduce((min, g) => (g.value < min.value ? g : min));
           impactGoal = isDistance
             ? goalMetersToDisplay(minGoal.value, userSettings.distanceUnit)
             : minGoal.value;

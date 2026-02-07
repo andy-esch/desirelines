@@ -4,6 +4,7 @@ import {
   convertDistance,
   formatDistance,
   formatElevation,
+  formatImpactPct,
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
@@ -92,12 +93,6 @@ function formatPaceOrSpeed(
 
   // Other sports (yoga, etc.) - no pace/speed
   return "-";
-}
-
-function formatImpactPct(pct: number | null): string {
-  if (pct == null) return "—";
-  if (pct < 0.1) return "<0.1%";
-  return `${pct.toFixed(1)}%`;
 }
 
 const ActivityTable: React.FC<ActivityTableProps> = ({

@@ -3,8 +3,15 @@ import { useActivities } from "../../hooks/useActivities";
 import { useAuth } from "../../hooks/useAuth";
 import { useDashboardGoalData } from "../../hooks/useDashboardGoalData";
 import type { SportGoalData } from "../../hooks/useDashboardGoalData";
+import { useUserConfig } from "../../hooks/useUserConfig";
 import NeonSpinner from "../NeonSpinner";
 import type { TimeRange } from "../../utils/dataNormalization";
+import {
+  convertDistance,
+  formatDistance,
+  formatImpactPct,
+  getUserSettings,
+} from "../../utils/units";
 
 import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
 import { toLocalDateString as toLocal } from "../../utils/dateUtils";
@@ -25,15 +32,6 @@ function getDateRangeFromTimeRange(timeRange: TimeRange): { from: string; to: st
 }
 
 /**
- * Format distance in miles.
- */
-function formatDistance(meters: number): string {
-  if (!meters) return "";
-  const miles = meters / 1609.344;
-  return `${miles.toFixed(1)} mi`;
-}
-
-/**
  * Format duration.
  */
 function formatDuration(seconds: number): string {
@@ -51,12 +49,6 @@ function formatDuration(seconds: number): string {
 function formatActivityDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function formatImpactPct(pct: number | null): string {
-  if (pct == null) return "—";
-  if (pct < 0.1) return "<0.1%";
-  return `${pct.toFixed(1)}%`;
 }
 
 interface RecentActivitiesListProps {
@@ -94,6 +86,10 @@ export default function RecentActivitiesList({
     containerHeight > 0
       ? Math.max(MIN_ROWS, Math.floor((containerHeight - HEADER_HEIGHT) / ROW_HEIGHT))
       : fallbackPageSize;
+
+  // User preferences for distance unit
+  const { data: prefs } = useUserConfig("preferences");
+  const distanceUnit = useMemo(() => getUserSettings(prefs).distanceUnit, [prefs]);
 
   // Goal data for impact % column
   const { sportData } = useDashboardGoalData();
@@ -231,7 +227,7 @@ export default function RecentActivitiesList({
             let impactTooltip = "";
             if (goal?.impactGoal) {
               if (goal.isDistanceSport) {
-                const displayDist = activity.distanceMeters / 1609.344;
+                const displayDist = convertDistance(activity.distanceMeters, distanceUnit);
                 impactPct = (displayDist / goal.impactGoal) * 100;
               } else {
                 impactPct = (1 / goal.impactGoal) * 100;
@@ -280,7 +276,9 @@ export default function RecentActivitiesList({
                   className="text-muted text-end px-1 py-0 align-middle"
                   style={{ whiteSpace: "nowrap" }}
                 >
-                  {formatDistance(activity.distanceMeters)}
+                  {activity.distanceMeters
+                    ? formatDistance(activity.distanceMeters, distanceUnit)
+                    : ""}
                 </td>
                 <td
                   className="text-muted text-end px-1 py-0 align-middle"
