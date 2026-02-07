@@ -51,6 +51,24 @@ function formatActivityDate(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/**
+ * Compute inline styles for the impact percentage column.
+ * Interpolates from slate (0%) to magenta (2%+) with a glow effect.
+ */
+function getImpactStyle(pct: number | null): React.CSSProperties | undefined {
+  if (pct == null) return undefined;
+  const t = Math.min(Math.max(pct / 2, 0), 1);
+  const r = Math.round(113 + 142 * t);
+  const g = Math.round(128 - 128 * t);
+  const b = Math.round(150 + 105 * t);
+  const glowRadius = 6 * t;
+  const glowAlpha = 0.6 * t;
+  return {
+    color: `rgb(${r}, ${g}, ${b})`,
+    textShadow: t > 0.05 ? `0 0 ${glowRadius}px rgba(255, 0, 255, ${glowAlpha})` : undefined,
+  };
+}
+
 interface RecentActivitiesListProps {
   timeRange: TimeRange;
   pageSize: number;
@@ -269,8 +287,12 @@ export default function RecentActivitiesList({
                   {activity.sport}
                 </td>
                 <td
-                  className="text-muted text-end px-1 py-0 align-middle"
-                  style={{ whiteSpace: "nowrap", fontSize: "0.75rem" }}
+                  className={`${impactPct == null ? "text-muted " : ""}text-end px-1 py-0 align-middle`}
+                  style={{
+                    whiteSpace: "nowrap",
+                    fontSize: "0.75rem",
+                    ...getImpactStyle(impactPct),
+                  }}
                   title={impactTooltip}
                 >
                   {formatImpactPct(impactPct)}
