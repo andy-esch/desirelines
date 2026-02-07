@@ -188,10 +188,12 @@ describe("MultiSportComparisonChart", () => {
       mockUseDailySportData.mockReturnValue(
         mockDailySportDataReturn({ data: emptyDailySportData })
       );
+      mockUseActivities.mockReturnValue(mockActivitiesReturn({ activities: [] }));
 
       renderWithRouter(<MultiSportComparisonChart />);
 
-      expect(screen.getByText("No activity data for selected time range")).toBeInTheDocument();
+      // Sparklines still render; activity list shows its own empty message
+      expect(screen.getByText("No activities in this time range")).toBeInTheDocument();
     });
   });
 
@@ -311,13 +313,16 @@ describe("MultiSportComparisonChart", () => {
 
   describe("edge cases", () => {
     describe("empty visibleSports array", () => {
-      it("shows no data message when visibleSports is empty", () => {
+      it("still renders both panels when visibleSports is empty", () => {
         mockUseDailySportData.mockReturnValue(mockDailySportDataReturn({ data: {} }));
         mockUseVisibleSports.mockReturnValue(mockVisibleSportsReturn({ visibleSports: [] }));
+        mockUseActivities.mockReturnValue(mockActivitiesReturn({ activities: [] }));
 
         renderWithRouter(<MultiSportComparisonChart />);
 
-        expect(screen.getByText("No activity data for selected time range")).toBeInTheDocument();
+        // Both panels render — sparkline panel has no lines, activity list shows its own empty state
+        expect(screen.getByText("No activities in this time range")).toBeInTheDocument();
+        expect(screen.getByText("Recent Activity")).toBeInTheDocument();
       });
 
       it("does not crash when visibleSports is empty", () => {
