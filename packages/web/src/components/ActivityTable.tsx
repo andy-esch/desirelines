@@ -1,6 +1,7 @@
 import React from "react";
 import type { ActivitySummary } from "../api/activities";
 import {
+  convertDistance,
   formatDistance,
   formatElevation,
   type DistanceUnit,
@@ -17,6 +18,10 @@ interface ActivityTableProps {
   onRetry: () => void;
   distanceUnit?: DistanceUnit;
   elevationUnit?: ElevationUnit;
+  /** Annual goal target in display units. When set, shows "Impact" column. */
+  goalTarget?: number;
+  /** Whether this is a session-based sport (no distance). */
+  isSessionSport?: boolean;
 }
 
 /** Format seconds to MM:SS or H:MM:SS */
@@ -89,6 +94,12 @@ function formatPaceOrSpeed(
   return "-";
 }
 
+function formatImpactPct(pct: number | null): string {
+  if (pct == null) return "—";
+  if (pct < 0.1) return "<0.1%";
+  return `${pct.toFixed(1)}%`;
+}
+
 const ActivityTable: React.FC<ActivityTableProps> = ({
   activities,
   isLoading,
@@ -98,7 +109,10 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   onRetry,
   distanceUnit = "miles",
   elevationUnit = "feet",
+  goalTarget,
+  isSessionSport = false,
 }) => {
+  const showImpact = goalTarget != null && goalTarget > 0;
   if (error) {
     return (
       <div className="alert alert-danger" role="alert">
@@ -132,6 +146,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                 <th className="text-end">Time</th>
                 <th className="text-end">Elevation</th>
                 <th className="text-end">Pace/Speed</th>
+                {showImpact && <th className="text-end">Impact</th>}
                 <th></th>
               </tr>
             </thead>
@@ -176,6 +191,17 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                       distanceUnit
                     )}
                   </td>
+                  {showImpact && (
+                    <td className="text-end text-nowrap text-muted">
+                      {formatImpactPct(
+                        isSessionSport
+                          ? (1 / goalTarget!) * 100
+                          : activity.distanceMeters > 0
+                            ? (convertDistance(activity.distanceMeters, distanceUnit) / goalTarget!) * 100
+                            : null
+                      )}
+                    </td>
+                  )}
                   <td className="text-end pe-3">
                     <a
                       href={`https://www.strava.com/activities/${activity.id}`}

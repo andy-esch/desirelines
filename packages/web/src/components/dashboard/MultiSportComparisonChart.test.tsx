@@ -37,6 +37,16 @@ vi.mock("../../hooks/useSportConfig", () => ({
   useSportConfig: vi.fn(),
 }));
 
+// Mock useDashboardGoalData hook (used by RecentActivitiesList for impact % column)
+vi.mock("../../hooks/useDashboardGoalData", () => ({
+  useDashboardGoalData: vi.fn(() => ({
+    sportData: [],
+    yearContext: { year: 2025, dayOfYear: 1, daysInYear: 365, fractionElapsed: 0 },
+    isLoading: false,
+    error: null,
+  })),
+}));
+
 // Mock recharts to avoid rendering issues in tests
 vi.mock("recharts", () => ({
   LineChart: ({ children }: { children: React.ReactNode }) => (
