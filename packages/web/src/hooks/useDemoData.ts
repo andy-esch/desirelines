@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { MetricsEntry, SportConfig } from "../api/activities";
 import { usePublicSportConfig } from "./usePublicSportConfig";
-import { generateDemoMetrics, generateDemoGoals } from "../utils/demoDataGenerator";
+import { generateDemoMetrics, generateDemoGoals, type TuningParams } from "../utils/demoDataGenerator";
 
 export interface DemoDataResult {
   /** Generated metrics array for the sport/year */
@@ -23,7 +23,11 @@ export interface DemoDataResult {
  * @param sport - The sport type (any sport from API config)
  * @returns Object containing metrics, config, and loading state
  */
-export function useDemoData(year: number, sport: string): DemoDataResult {
+export function useDemoData(
+  year: number,
+  sport: string,
+  tuningParams?: TuningParams,
+): DemoDataResult {
   const { sportConfig, isLoading: configLoading, error: configError } = usePublicSportConfig();
 
   // Memoize allSports to avoid creating new array reference on every render
@@ -47,8 +51,9 @@ export function useDemoData(year: number, sport: string): DemoDataResult {
         ? { has_distance: sportInfo.has_distance, has_elevation: sportInfo.has_elevation }
         : undefined,
       allSports,
+      tuningParams,
     });
-  }, [year, sport, sportConfig, sportInfo, allSports]);
+  }, [year, sport, sportConfig, sportInfo, allSports, tuningParams]);
 
   return {
     metrics,

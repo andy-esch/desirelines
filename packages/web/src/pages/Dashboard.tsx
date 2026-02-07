@@ -5,6 +5,7 @@ import GoalProgressCard from "../components/dashboard/GoalProgressCard";
 import ActivityCalendarHeatmap from "../components/dashboard/ActivityCalendarHeatmap";
 import NeonSpinner from "../components/NeonSpinner";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
+import type { TuningParams } from "../utils/demoDataGenerator";
 
 /**
  * Dashboard landing page showing multi-sport overview.
@@ -18,6 +19,18 @@ import { pageBackgrounds } from "../styles/pageBackgrounds";
  * - MultiSportComparisonChart with sparklines and recent activities
  * - Sign-in prompt for unauthenticated users
  */
+
+/**
+ * Calibrated demo tuning for the dashboard view.
+ * Scales each sport's configured activitiesPerWeek by 0.7x and uses
+ * "low" consistency sigmas to produce a natural-looking heatmap.
+ * See DEMO_DATA.md for details on changing these values.
+ */
+const DASHBOARD_DEMO_TUNING: TuningParams = {
+  activitiesPerWeekMultiplier: 0.7,
+  distanceSigma: 0.6,
+  durationSigma: 0.5,
+};
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -34,6 +47,8 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  const tuningParams = !user ? DASHBOARD_DEMO_TUNING : undefined;
 
   return (
     <div className="flex-grow-1" style={{ background: pageBackgrounds.dashboard }}>
@@ -61,7 +76,7 @@ export default function Dashboard() {
         </div>
 
         {/* Multi-Sport Comparison Chart */}
-        <MultiSportComparisonChart className="mb-4" />
+        <MultiSportComparisonChart className="mb-4" tuningParams={tuningParams} />
 
         {/* Weekly Summary + Goal Progress row */}
         <div className="row g-3 mb-4">
@@ -74,7 +89,7 @@ export default function Dashboard() {
         </div>
 
         {/* Activity Calendar Heatmap */}
-        <ActivityCalendarHeatmap className="mb-4" />
+        <ActivityCalendarHeatmap className="mb-4" tuningParams={tuningParams} />
 
         {/* Sign-in prompt for unauthenticated users */}
         {!user && (

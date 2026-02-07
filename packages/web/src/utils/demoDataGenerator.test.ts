@@ -328,25 +328,25 @@ describe("generateDemoGoals", () => {
   it("returns goals for cycling", () => {
     const goals = generateDemoGoals("cycling");
 
-    expect(goals.conservative).toBe(2000);
-    expect(goals.target).toBe(2500);
-    expect(goals.stretch).toBe(3000);
+    expect(goals.conservative).toBe(3500);
+    expect(goals.target).toBe(4000);
+    expect(goals.stretch).toBe(5000);
   });
 
   it("returns goals for running", () => {
     const goals = generateDemoGoals("running");
 
     expect(goals.conservative).toBe(500);
-    expect(goals.target).toBe(750);
-    expect(goals.stretch).toBe(1000);
+    expect(goals.target).toBe(625);
+    expect(goals.stretch).toBe(800);
   });
 
   it("returns goals for yoga (in hours)", () => {
     const goals = generateDemoGoals("yoga");
 
-    expect(goals.conservative).toBe(100);
-    expect(goals.target).toBe(150);
-    expect(goals.stretch).toBe(200);
+    expect(goals.conservative).toBe(80);
+    expect(goals.target).toBe(100);
+    expect(goals.stretch).toBe(150);
   });
 
   it("goals are in ascending order", () => {
@@ -449,16 +449,16 @@ describe("realistic data generation", () => {
 
     cyclingActivities.forEach((a) => {
       const miles = a.distanceMeters / 1609.344;
-      // Cycling: 25 miles avg with 40% variance = ~15-35 miles
-      expect(miles).toBeGreaterThan(5);
-      expect(miles).toBeLessThan(60);
+      // Cycling: 25 miles avg, log-normal sigma=0.4 (wider tail than uniform)
+      expect(miles).toBeGreaterThan(2);
+      expect(miles).toBeLessThan(100);
     });
 
     runningActivities.forEach((a) => {
       const miles = a.distanceMeters / 1609.344;
-      // Running: 5 miles avg with 50% variance = ~2.5-7.5 miles
-      expect(miles).toBeGreaterThan(1);
-      expect(miles).toBeLessThan(15);
+      // Running: 5 miles avg, log-normal sigma=0.5 (wider tail than uniform)
+      expect(miles).toBeGreaterThan(0.5);
+      expect(miles).toBeLessThan(25);
     });
   });
 
@@ -469,16 +469,16 @@ describe("realistic data generation", () => {
 
     cyclingActivities.forEach((a) => {
       const hours = a.movingTimeSeconds / 3600;
-      // Cycling: 1.5h avg with 30% variance = ~1-2 hours
-      expect(hours).toBeGreaterThan(0.5);
-      expect(hours).toBeLessThan(4);
+      // Cycling: 1.5h avg, log-normal sigma=0.3 (wider tail than uniform)
+      expect(hours).toBeGreaterThan(0.3);
+      expect(hours).toBeLessThan(6);
     });
 
     runningActivities.forEach((a) => {
       const mins = a.movingTimeSeconds / 60;
-      // Running: 45 min avg with 30% variance = ~30-60 mins
-      expect(mins).toBeGreaterThan(15);
-      expect(mins).toBeLessThan(120);
+      // Running: 45 min avg, log-normal sigma=0.3 (wider tail than uniform)
+      expect(mins).toBeGreaterThan(10);
+      expect(mins).toBeLessThan(180);
     });
   });
 });

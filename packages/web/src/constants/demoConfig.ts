@@ -12,15 +12,15 @@ export type DemoSport = "cycling" | "running" | "yoga" | "hiking" | "workout";
 export interface DemoSportConfig {
   /** How much data to generate */
   fillLevel: FillLevel;
-  /** Percentage of days with activity (0-1) */
+  /** Percentage of days with activity (0-1). Fallback when activitiesPerWeek is not set. */
   activityRate: number;
   /** Average distance per activity in meters */
   avgDistanceMeters: number;
-  /** Variance in distance (multiplier, e.g., 0.3 = +/- 30%) */
+  /** Variance in distance (multiplier, e.g., 0.3 = +/- 30%). Fallback for uniform variance. */
   distanceVariance: number;
   /** Average duration per activity in seconds */
   avgDurationSeconds: number;
-  /** Variance in duration */
+  /** Variance in duration. Fallback for uniform variance. */
   durationVariance: number;
   /** Average elevation per activity in meters (optional) */
   avgElevationMeters?: number;
@@ -30,6 +30,18 @@ export interface DemoSportConfig {
     target: number;
     stretch: number;
   };
+  /** Avg activities per week (Poisson lambda). Falls back to activityRate * 7. */
+  activitiesPerWeek?: number;
+  /** Log-normal sigma for distance spread (default 0.4) */
+  distanceSigma?: number;
+  /** Log-normal sigma for duration spread (default 0.3) */
+  durationSigma?: number;
+  /** Weekly volume in display units (miles for distance sports, hours for time sports).
+   *  Used by the tuning panel — avgDistanceMeters/avgDurationSeconds are derived from this. */
+  weeklyVolume?: number;
+  /** Rest/training cycle pattern. onWeeks active, then offWeeks rest (no activities).
+   *  Omit for always-on sports (e.g., yoga). */
+  restPattern?: { onWeeks: number; offWeeks: number };
 }
 
 /**
@@ -42,71 +54,92 @@ export interface DemoSportConfig {
 export const DEMO_SPORT_CONFIG: Record<DemoSport, DemoSportConfig> = {
   cycling: {
     fillLevel: "full",
-    activityRate: 0.6, // ~60% of days have activity
-    avgDistanceMeters: 40000, // ~25 miles average
+    activityRate: 0.57, // 4/7 ≈ 57% of days
+    avgDistanceMeters: 32187, // 80 mi/wk ÷ 4 rides = 20 mi/ride
     distanceVariance: 0.4,
-    avgDurationSeconds: 5400, // 1.5 hours
+    avgDurationSeconds: 4800, // ~1.3 hr (20 mi @ ~15 mph)
     durationVariance: 0.3,
     avgElevationMeters: 300,
     goals: {
-      conservative: 2000, // miles
-      target: 2500,
-      stretch: 3000,
+      conservative: 3500,
+      target: 4000,
+      stretch: 5000,
     },
+    activitiesPerWeek: 4,
+    distanceSigma: 0.4,
+    durationSigma: 0.3,
+    weeklyVolume: 80, // miles
+    restPattern: { onWeeks: 4, offWeeks: 1 },
   },
   running: {
     fillLevel: "partial",
-    activityRate: 0.25, // ~25% of days, but clustered in recent months
-    avgDistanceMeters: 8000, // ~5 miles average
+    activityRate: 0.43, // 3/7 ≈ 43% of days
+    avgDistanceMeters: 6437, // 12 mi/wk ÷ 3 runs = 4 mi/run
     distanceVariance: 0.5,
-    avgDurationSeconds: 2700, // 45 minutes
+    avgDurationSeconds: 2400, // ~40 min (4 mi @ ~10 min/mi)
     durationVariance: 0.3,
     avgElevationMeters: 50,
     goals: {
-      conservative: 500, // miles
-      target: 750,
-      stretch: 1000,
+      conservative: 500,
+      target: 625,
+      stretch: 800,
     },
+    activitiesPerWeek: 3,
+    distanceSigma: 0.5,
+    durationSigma: 0.3,
+    weeklyVolume: 12, // miles
+    restPattern: { onWeeks: 3, offWeeks: 1 },
   },
   yoga: {
     fillLevel: "empty",
-    activityRate: 0.15, // ~15% of days
+    activityRate: 0.29, // 2/7 ≈ 29% of days
     avgDistanceMeters: 0,
     distanceVariance: 0,
-    avgDurationSeconds: 3600, // 1 hour
+    avgDurationSeconds: 3600, // 2 hr/wk ÷ 2 sessions = 1 hr
     durationVariance: 0.2,
     goals: {
-      conservative: 100, // hours
-      target: 150,
-      stretch: 200,
+      conservative: 80,
+      target: 100,
+      stretch: 150,
     },
+    activitiesPerWeek: 2,
+    durationSigma: 0.2,
+    weeklyVolume: 2, // hours
   },
   hiking: {
     fillLevel: "full",
-    activityRate: 0.15, // ~15% of days (weekend warrior)
-    avgDistanceMeters: 12000, // ~7.5 miles average
+    activityRate: 0.14, // 1/7 ≈ 14% of days
+    avgDistanceMeters: 12875, // 8 mi/wk ÷ 1 hike = 8 mi
     distanceVariance: 0.5,
-    avgDurationSeconds: 10800, // 3 hours
+    avgDurationSeconds: 10800, // ~3 hours
     durationVariance: 0.4,
     avgElevationMeters: 500,
     goals: {
-      conservative: 200, // miles
-      target: 300,
-      stretch: 400,
+      conservative: 300,
+      target: 400,
+      stretch: 500,
     },
+    activitiesPerWeek: 1,
+    distanceSigma: 0.5,
+    durationSigma: 0.4,
+    weeklyVolume: 8, // miles
+    restPattern: { onWeeks: 1, offWeeks: 5 },
   },
   workout: {
     fillLevel: "full",
-    activityRate: 0.4, // ~40% of days
-    avgDistanceMeters: 0, // Time-based sport
+    activityRate: 0.43, // 3/7 ≈ 43% of days
+    avgDistanceMeters: 0,
     distanceVariance: 0,
-    avgDurationSeconds: 3600, // 1 hour
+    avgDurationSeconds: 3600, // 3 hr/wk ÷ 3 sessions = 1 hr
     durationVariance: 0.3,
     goals: {
-      conservative: 150, // hours
-      target: 200,
-      stretch: 250,
+      conservative: 120,
+      target: 156,
+      stretch: 200,
     },
+    activitiesPerWeek: 3,
+    durationSigma: 0.3,
+    weeklyVolume: 3, // hours
   },
 };
 
