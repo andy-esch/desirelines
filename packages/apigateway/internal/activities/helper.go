@@ -45,35 +45,26 @@ func (h *Handler) categorizeSports(metadata *generated.YearMetadata) {
 	// Rebuild Totals map with categorized keys, merging duplicates
 	// (e.g., "Ride" and "VirtualRide" both map to "cycling")
 	if len(metadata.Totals) > 0 {
+		mergeFloat64Ptr := func(target **float64, source *float64) {
+			if source == nil {
+				return
+			}
+			if *target == nil {
+				*target = source
+				return
+			}
+			sum := **target + *source
+			*target = &sum
+		}
+
 		remapped := make(map[string]*generated.SportTotals, len(metadata.Totals))
 		for rawSport, totals := range metadata.Totals {
 			category := h.sportConfig.GetCategoryForStravaType(rawSport)
 			if existing, ok := remapped[category]; ok {
 				// Merge totals for the same category
-				if totals.DistanceMeters != nil {
-					if existing.DistanceMeters == nil {
-						existing.DistanceMeters = totals.DistanceMeters
-					} else {
-						sum := *existing.DistanceMeters + *totals.DistanceMeters
-						existing.DistanceMeters = &sum
-					}
-				}
-				if totals.ElevationMeters != nil {
-					if existing.ElevationMeters == nil {
-						existing.ElevationMeters = totals.ElevationMeters
-					} else {
-						sum := *existing.ElevationMeters + *totals.ElevationMeters
-						existing.ElevationMeters = &sum
-					}
-				}
-				if totals.TimeMinutes != nil {
-					if existing.TimeMinutes == nil {
-						existing.TimeMinutes = totals.TimeMinutes
-					} else {
-						sum := *existing.TimeMinutes + *totals.TimeMinutes
-						existing.TimeMinutes = &sum
-					}
-				}
+				mergeFloat64Ptr(&existing.DistanceMeters, totals.DistanceMeters)
+				mergeFloat64Ptr(&existing.ElevationMeters, totals.ElevationMeters)
+				mergeFloat64Ptr(&existing.TimeMinutes, totals.TimeMinutes)
 				existing.Activities += totals.Activities
 			} else {
 				remapped[category] = totals
