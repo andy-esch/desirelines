@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { convertDistance, getUserSettings } from "../utils/units";
 import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
@@ -75,8 +75,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   // Goals management - use localStorage for demo persistence
   const storageKey = `demo_goals_${sport}_${currentYear}`;
 
-  const [goals, setGoals] = useState<Goals>(() => {
-    // Try to load from localStorage first
+  const loadGoals = useCallback((): Goals => {
     const stored = localStorage.getItem(storageKey);
     if (stored) {
       try {
@@ -88,7 +87,6 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
         // Fall back to defaults
       }
     }
-    // Use generated demo goals for this sport
     const demoGoals = getDemoGoalsForSport(sport);
     if (demoGoals) {
       return [
@@ -97,17 +95,22 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
         { id: "3", value: demoGoals.stretch, label: "Stretch" },
       ];
     }
-    // Fallback
     return [
       { id: "1", value: 2000, label: "Conservative" },
       { id: "2", value: 2500, label: "Target" },
       { id: "3", value: 3000, label: "Stretch" },
     ];
-  });
+  }, [storageKey, sport]);
+
+  const [goals, setGoals] = useState<Goals>(loadGoals);
+
+  // Re-load goals when sport or year changes (storageKey changes)
+  useEffect(() => {
+    setGoals(loadGoals());
+  }, [loadGoals]);
 
   const handleGoalsChange = async (newGoals: Goals): Promise<void> => {
     setGoals(newGoals);
-    // Persist to localStorage
     localStorage.setItem(storageKey, JSON.stringify({ goals: newGoals }));
   };
 
