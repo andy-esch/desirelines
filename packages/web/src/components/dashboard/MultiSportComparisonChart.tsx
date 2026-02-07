@@ -190,7 +190,6 @@ export default function MultiSportComparisonChart({
     error,
     activityPageSize,
     sparklineContainerHeight,
-    hasAnyData,
     SPARKLINE_ROW_HEIGHT,
   } = useMultiSportChartData(tuningParams);
 
@@ -262,78 +261,69 @@ export default function MultiSportComparisonChart({
         <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
       </div>
 
-      {!hasAnyData ? (
-        <div
-          className="glass-panel d-flex align-items-center justify-content-center"
-          style={{ height: sparklineContainerHeight }}
-        >
-          <p className="text-muted mb-0">No activity data for selected time range</p>
-        </div>
-      ) : (
-        <div className="row g-3 justify-content-center">
-          {/* Left: Unified Sparkline Chart */}
-          <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
-            <div className="glass-panel h-100 d-flex flex-column" style={{ minWidth: 0 }}>
-              {/* Legend with sport links */}
-              <SparklineLegend sportMeta={sportMeta} />
+      <div className="row g-3 justify-content-center">
+        {/* Left: Unified Sparkline Chart */}
+        <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
+          <div className="glass-panel h-100 d-flex flex-column" style={{ minWidth: 0 }}>
+            {/* Legend with sport links */}
+            <SparklineLegend sportMeta={sportMeta} />
 
-              {/* Unified chart — grows to fill available height */}
-              <div className="flex-grow-1" style={{ minHeight: chartHeight }}>
-                <ResponsiveContainer width="100%" height="100%" minWidth={50}>
-                  <LineChart
-                    data={unifiedChartData}
-                    margin={{ top: 8, right: 8, bottom: 4, left: 8 }}
-                  >
-                    <XAxis
-                      dataKey="date"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fontSize: 9, fill: "#999" }}
-                      tickFormatter={formatAxisDate}
-                      interval="preserveStartEnd"
-                      minTickGap={50}
-                    />
-                    <YAxis domain={[0, 1]} hide />
-                    <Tooltip
-                      content={({ active, payload, label }) => (
-                        <UnifiedSparklineTooltip
-                          active={active}
-                          payload={payload as TooltipPayloadItem[] | undefined}
-                          label={label as string | undefined}
-                          sportMeta={sportMeta}
-                        />
-                      )}
-                      cursor={{
-                        stroke: "rgba(100, 100, 100, 0.5)",
-                        strokeWidth: 1,
-                      }}
-                    />
-                    {sportMeta.map(({ sport, color }) => (
-                      <Line
-                        key={sport}
-                        type="linear"
-                        dataKey={sport}
-                        stroke={color}
-                        strokeWidth={1.5}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 0 }}
-                        isAnimationActive={false}
+            {/* Unified chart — grows to fill available height */}
+            <div className="flex-grow-1" style={{ minHeight: chartHeight }}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={50}>
+                <LineChart
+                  data={unifiedChartData}
+                  margin={{ top: 8, right: 8, bottom: 4, left: 8 }}
+                >
+                  <XAxis
+                    dataKey="date"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 9, fill: "#999" }}
+                    tickFormatter={formatAxisDate}
+                    interval="preserveStartEnd"
+                    minTickGap={50}
+                  />
+                  <YAxis domain={[0, 1]} hide />
+                  <Tooltip
+                    content={({ active, payload, label }) => (
+                      <UnifiedSparklineTooltip
+                        active={active}
+                        payload={payload as TooltipPayloadItem[] | undefined}
+                        label={label as string | undefined}
+                        sportMeta={sportMeta}
                       />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Recent Activities */}
-          <div className="col-md-6">
-            <div className="glass-panel h-100 overflow-hidden">
-              <RecentActivitiesList timeRange={timeRange} pageSize={activityPageSize} />
+                    )}
+                    cursor={{
+                      stroke: "rgba(100, 100, 100, 0.5)",
+                      strokeWidth: 1,
+                    }}
+                  />
+                  {sportMeta.map(({ sport, color }) => (
+                    <Line
+                      key={sport}
+                      type="linear"
+                      dataKey={sport}
+                      stroke={color}
+                      strokeWidth={1.5}
+                      dot={false}
+                      activeDot={{ r: 4, strokeWidth: 0 }}
+                      isAnimationActive={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Right: Recent Activities */}
+        <div className="col-md-6">
+          <div className="glass-panel h-100 overflow-hidden">
+            <RecentActivitiesList timeRange={timeRange} pageSize={activityPageSize} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

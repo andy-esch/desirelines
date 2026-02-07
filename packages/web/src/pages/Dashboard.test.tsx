@@ -103,6 +103,15 @@ vi.mock("../hooks/useDashboardGoalData", () => ({
   })),
 }));
 
+// Mock useUserConfig hook (used by RecentActivitiesList for distance unit)
+vi.mock("../hooks/useUserConfig", () => ({
+  useUserConfig: vi.fn(() => ({
+    data: null,
+    isLoading: false,
+    error: null,
+  })),
+}));
+
 // Mock recharts to avoid rendering issues in tests
 vi.mock("recharts", () => ({
   LineChart: ({ children }: { children: React.ReactNode }) => (
@@ -170,12 +179,11 @@ describe("Dashboard", () => {
       expect(screen.getByText(/Check back soon/)).toBeInTheDocument();
     });
 
-    it("renders sport labels as links in sparkline chart", () => {
+    it("renders sparkline chart panels even with no data", () => {
       renderWithRouter(<Dashboard />);
 
-      // Sport labels are links in the MultiSportComparisonChart component
-      // When there's no data, the empty state is shown instead
-      expect(screen.getByText("No activity data for selected time range")).toBeInTheDocument();
+      // Both panels always render — activity list shows its own empty state
+      expect(screen.getByText("No activities in this time range")).toBeInTheDocument();
     });
   });
 
