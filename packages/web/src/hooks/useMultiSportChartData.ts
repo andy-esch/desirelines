@@ -14,7 +14,7 @@ import { toDailyArray, normalizeToRange, getTimeRangeCutoff } from "../utils/cha
 import { toLocalDateString } from "../utils/dateUtils";
 
 const SPARKLINE_ROW_HEIGHT = 36;
-const SPARKLINE_XAXIS_HEIGHT = 24;
+const SPARKLINE_XAXIS_HEIGHT = 12;
 const SPARKLINE_PADDING = 16;
 const MIN_SPORTS_FOR_HEIGHT = 3;
 const MAX_SPORTS_DISPLAY = 8;

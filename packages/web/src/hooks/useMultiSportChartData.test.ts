@@ -428,7 +428,7 @@ describe("useMultiSportChartData", () => {
       const { result } = renderHook(() => useMultiSportChartData());
       expect(result.current.MAX_SPORTS_DISPLAY).toBe(8);
       expect(result.current.SPARKLINE_ROW_HEIGHT).toBe(36);
-      expect(result.current.SPARKLINE_XAXIS_HEIGHT).toBe(24);
+      expect(result.current.SPARKLINE_XAXIS_HEIGHT).toBe(12);
     });
   });
 

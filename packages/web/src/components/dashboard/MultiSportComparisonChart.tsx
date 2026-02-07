@@ -194,8 +194,8 @@ export default function MultiSportComparisonChart({
     SPARKLINE_ROW_HEIGHT,
   } = useMultiSportChartData(tuningParams);
 
-  // Calculate chart height based on number of sports (min 120px, max 200px)
-  const chartHeight = Math.min(200, Math.max(120, validSports.length * 30 + 40));
+  // Calculate chart height based on number of sports (min 100px, max 180px)
+  const chartHeight = Math.min(180, Math.max(100, validSports.length * 30 + 20));
 
   if (isLoading) {
     return (
@@ -273,22 +273,16 @@ export default function MultiSportComparisonChart({
         <div className="row g-3 justify-content-center">
           {/* Left: Unified Sparkline Chart */}
           <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
-            <div
-              className="glass-panel h-100"
-              style={{
-                minHeight: sparklineContainerHeight,
-                minWidth: 0,
-              }}
-            >
+            <div className="glass-panel h-100 d-flex flex-column" style={{ minWidth: 0 }}>
               {/* Legend with sport links */}
               <SparklineLegend sportMeta={sportMeta} />
 
-              {/* Unified chart with all sports */}
-              <div style={{ height: chartHeight }}>
+              {/* Unified chart — grows to fill available height */}
+              <div className="flex-grow-1" style={{ minHeight: chartHeight }}>
                 <ResponsiveContainer width="100%" height="100%" minWidth={50}>
                   <LineChart
                     data={unifiedChartData}
-                    margin={{ top: 8, right: 8, bottom: 20, left: 8 }}
+                    margin={{ top: 8, right: 8, bottom: 4, left: 8 }}
                   >
                     <XAxis
                       dataKey="date"
@@ -334,10 +328,7 @@ export default function MultiSportComparisonChart({
 
           {/* Right: Recent Activities */}
           <div className="col-md-6">
-            <div
-              className="glass-panel h-100 overflow-hidden"
-              style={{ minHeight: sparklineContainerHeight }}
-            >
+            <div className="glass-panel h-100 overflow-hidden">
               <RecentActivitiesList timeRange={timeRange} pageSize={activityPageSize} />
             </div>
           </div>

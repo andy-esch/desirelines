@@ -75,6 +75,12 @@ export function formatDistance(meters: number, unit: DistanceUnit, decimals = 1)
   return `${value.toFixed(decimals)} ${label}`;
 }
 
+export function formatImpactPct(pct: number | null): string {
+  if (pct == null) return "—";
+  if (pct < 0.1) return "<0.1%";
+  return `${pct.toFixed(1)}%`;
+}
+
 export function formatElevation(meters: number, unit: ElevationUnit, decimals = 0): string {
   const value = convertElevation(meters, unit);
   const label = getElevationLabel(unit);

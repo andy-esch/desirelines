@@ -32,6 +32,10 @@ export interface SportGoalData {
   targetGoal: number;
   metricUnit: string;
   isDistanceSport: boolean;
+  /** Smallest (least conservative) goal value in display units, for impact calculations */
+  impactGoal: number;
+  /** Label of the smallest goal (e.g. "Conservative") */
+  impactGoalLabel: string;
 }
 
 /**
@@ -140,6 +144,8 @@ export function useDashboardGoalData(): {
 
       // Get target goal (in display units)
       let targetGoal = metricConfig.defaultGoalValue;
+      let impactGoal = targetGoal;
+      let impactGoalLabel = "";
       if (user) {
         const goalsData = goalsQueries[index]?.data;
         if (goalsData?.goals?.length) {
@@ -149,9 +155,17 @@ export function useDashboardGoalData(): {
               ? goalMetersToDisplay(goalValue, userSettings.distanceUnit)
               : goalValue;
           }
+          // Find the smallest goal for impact calculations
+          const minGoal = goalsData.goals.reduce((min, g) => (g.value < min.value ? g : min));
+          impactGoal = isDistance
+            ? goalMetersToDisplay(minGoal.value, userSettings.distanceUnit)
+            : minGoal.value;
+          impactGoalLabel = minGoal.label ?? "";
         }
       } else if (demoGoals?.[sport]) {
         targetGoal = demoGoals[sport].target;
+        impactGoal = demoGoals[sport].conservative;
+        impactGoalLabel = "Conservative";
       }
 
       return {
@@ -162,6 +176,8 @@ export function useDashboardGoalData(): {
         targetGoal,
         metricUnit: isDistance ? getDistanceLabel(userSettings.distanceUnit) : "sessions",
         isDistanceSport: isDistance,
+        impactGoal,
+        impactGoalLabel,
       };
     });
   }, [
