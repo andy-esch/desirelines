@@ -89,6 +89,7 @@ describe("useDashboardGoalData", () => {
       isLoading: false,
       isSaving: false,
       saveError: null,
+      clearSaveError: vi.fn(),
       error: null,
     });
 
@@ -129,6 +130,7 @@ describe("useDashboardGoalData", () => {
         isLoading: true,
         isSaving: false,
         saveError: null,
+        clearSaveError: vi.fn(),
         error: null,
       });
 
@@ -283,6 +285,7 @@ describe("useDashboardGoalData", () => {
         isLoading: false,
         isSaving: false,
         saveError: null,
+        clearSaveError: vi.fn(),
         error: null,
       });
 
@@ -303,6 +306,7 @@ describe("useDashboardGoalData", () => {
         isLoading: false,
         isSaving: false,
         saveError: null,
+        clearSaveError: vi.fn(),
         error: null,
       });
 

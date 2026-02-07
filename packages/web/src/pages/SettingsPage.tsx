@@ -8,6 +8,7 @@ import { GoalManagementTable } from "../components/settings/GoalManagementTable"
 import { SportVisibilitySettings } from "../components/settings/SportVisibilitySettings";
 import { CheckIcon } from "../components/icons";
 import NeonSpinner from "../components/NeonSpinner";
+import { InlineAlert } from "../components/InlineAlert";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
 import {
   COMMON_TIMEZONES,
@@ -28,6 +29,7 @@ export default function SettingsPage() {
     loading: prefsLoading,
     isSaving,
     saveError,
+    clearSaveError,
   } = useUserConfig("preferences", undefined, undefined, DEFAULT_PREFERENCES);
 
   // Scroll to anchor (e.g., #sport-visibility) after page loads
@@ -92,9 +94,9 @@ export default function SettingsPage() {
         <h1 className="h2 mb-4">Settings</h1>
 
         {saveError && (
-          <div className="alert alert-danger mb-4" role="alert">
+          <InlineAlert className="mb-4" onDismiss={clearSaveError}>
             {saveError.message}
-          </div>
+          </InlineAlert>
         )}
 
         <SettingsSection

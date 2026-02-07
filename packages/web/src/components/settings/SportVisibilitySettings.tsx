@@ -3,6 +3,7 @@ import { useSportConfig } from "../../hooks/useSportConfig";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { CheckIcon, CloseIcon, EyeIcon, EyeSlashIcon } from "../icons";
 import NeonSpinner from "../NeonSpinner";
+import { InlineAlert } from "../InlineAlert";
 
 /** Duration to show "Saved" indicator */
 const SAVE_SUCCESS_DURATION = 2000;
@@ -150,6 +151,7 @@ export function SportVisibilitySettings() {
     isLoading: prefsLoading,
     isSaving,
     saveError,
+    clearSaveError,
   } = useVisibleSports();
 
   // Local state for UI
@@ -420,9 +422,9 @@ export function SportVisibilitySettings() {
 
       {/* Save error */}
       {saveError && (
-        <div className="alert alert-danger mt-3 mb-0" role="alert">
+        <InlineAlert className="mt-3 mb-0" onDismiss={clearSaveError}>
           Failed to save: {saveError.message}
-        </div>
+        </InlineAlert>
       )}
     </div>
   );

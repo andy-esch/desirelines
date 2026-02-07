@@ -184,6 +184,9 @@ describe("useVisibleSports", () => {
 
   describe("setVisibleSports validation", () => {
     it("should not allow empty sports selection", async () => {
+      // Suppress expected console.warn from validation
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
       vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
         user: { uid: "user-123" },
         loading: false,
@@ -207,9 +210,13 @@ describe("useVisibleSports", () => {
       });
 
       expect(updateDataMock).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
     });
 
     it("should not allow setting when filtered to empty with knownSports", async () => {
+      // Suppress expected console.warn from validation
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
       vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
         user: { uid: "user-123" },
         loading: false,
@@ -235,6 +242,7 @@ describe("useVisibleSports", () => {
       });
 
       expect(updateDataMock).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
     });
 
     it("should expose setVisibleSports function", () => {

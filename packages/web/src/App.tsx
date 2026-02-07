@@ -7,6 +7,8 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-
 import Header from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import PageLoader from "./components/PageLoader";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { PageErrorFallback } from "./components/PageErrorFallback";
 import { ServiceProvider } from "./contexts/ServiceContext";
 
 // Lazy load pages for code splitting
@@ -21,6 +23,26 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 /** Sports with demo data generators (unauthenticated experience) */
 const DEMO_SPORTS = ["cycling", "running", "yoga"] as const;
 
+/** Wrapper that adds an error boundary with PageErrorFallback */
+function WithErrorBoundary({
+  children,
+  resetKeys,
+}: {
+  children: React.ReactNode;
+  resetKeys?: unknown[];
+}) {
+  return (
+    <ErrorBoundary
+      resetKeys={resetKeys}
+      fallbackRender={({ error, resetErrorBoundary }) => (
+        <PageErrorFallback error={error} onReset={resetErrorBoundary} />
+      )}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+
 function App() {
   const currentYear = new Date().getFullYear();
 
@@ -33,24 +55,66 @@ function App() {
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 {/* Dashboard - landing page for all users */}
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route
+                  path="/"
+                  element={
+                    <WithErrorBoundary>
+                      <Dashboard />
+                    </WithErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <WithErrorBoundary>
+                      <Dashboard />
+                    </WithErrorBoundary>
+                  }
+                />
 
                 {/* Activities list page */}
-                <Route path="/activities" element={<ActivitiesPage />} />
+                <Route
+                  path="/activities"
+                  element={
+                    <WithErrorBoundary>
+                      <ActivitiesPage />
+                    </WithErrorBoundary>
+                  }
+                />
 
                 {/* Origins/About page */}
-                <Route path="/origins" element={<OriginsPage />} />
+                <Route
+                  path="/origins"
+                  element={
+                    <WithErrorBoundary>
+                      <OriginsPage />
+                    </WithErrorBoundary>
+                  }
+                />
 
                 {/* Settings page (authenticated users only) */}
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route
+                  path="/settings"
+                  element={
+                    <WithErrorBoundary>
+                      <SettingsPage />
+                    </WithErrorBoundary>
+                  }
+                />
 
                 {/* Sport detail pages - dynamic routing for any sport */}
                 <Route path="/:sport" element={<SportRedirect currentYear={currentYear} />} />
                 <Route path="/:sport/:year" element={<DynamicSportPage />} />
 
                 {/* Demo routes - dedicated demo experience (only for sports with demo data) */}
-                <Route path="/demo" element={<Dashboard />} />
+                <Route
+                  path="/demo"
+                  element={
+                    <WithErrorBoundary>
+                      <Dashboard />
+                    </WithErrorBoundary>
+                  }
+                />
                 {DEMO_SPORTS.map((sport) => (
                   <Route
                     key={`demo-${sport}`}
@@ -62,7 +126,11 @@ function App() {
                   <Route
                     key={`demo-${sport}-year`}
                     path={`/demo/${sport}/:year`}
-                    element={<DemoSportPage sport={sport} />}
+                    element={
+                      <WithErrorBoundary resetKeys={[sport]}>
+                        <DemoSportPage sport={sport} />
+                      </WithErrorBoundary>
+                    }
                   />
                 ))}
 
@@ -84,13 +152,17 @@ function SportRedirect({ currentYear }: { currentYear: number }) {
   return <Navigate to={`/${sport}/${currentYear}`} replace />;
 }
 
-/** Dynamic sport page that extracts sport from URL params */
+/** Dynamic sport page that extracts sport from URL params and wraps in error boundary */
 function DynamicSportPage() {
-  const { sport } = useParams<{ sport: string }>();
+  const { sport, year } = useParams<{ sport: string; year: string }>();
   if (!sport) {
     return <Navigate to="/" replace />;
   }
-  return <UnifiedSportPage sport={sport} />;
+  return (
+    <WithErrorBoundary resetKeys={[sport, year]}>
+      <UnifiedSportPage sport={sport} />
+    </WithErrorBoundary>
+  );
 }
 
 export default App;

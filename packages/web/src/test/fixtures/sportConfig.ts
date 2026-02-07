@@ -141,6 +141,7 @@ export function mockVisibleSportsReturn(overrides?: {
     error: overrides?.error ?? null,
     isSaving: overrides?.isSaving ?? false,
     saveError: overrides?.saveError ?? null,
+    clearSaveError: vi.fn(),
   };
 }
 

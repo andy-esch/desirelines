@@ -1,9 +1,3 @@
-/**
- * Tests for ErrorChart component
- *
- * Presentation component that displays error messages with retry functionality.
- */
-
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -28,7 +22,7 @@ describe("ErrorChart", () => {
     expect(alert).toHaveClass("alert", "alert-danger");
   });
 
-  it("shows retry button", () => {
+  it("shows retry button when onRetry provided", () => {
     render(<ErrorChart error={mockError} onRetry={mockRetry} />);
 
     const retryButton = screen.getByRole("button", { name: /retry/i });
@@ -45,23 +39,16 @@ describe("ErrorChart", () => {
     expect(mockRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("does not show retry button when onRetry not provided", () => {
+    render(<ErrorChart error={mockError} />);
+
+    expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+  });
+
   it("displays different error messages correctly", () => {
     const customError = new Error("Database connection timeout");
     render(<ErrorChart error={customError} onRetry={mockRetry} />);
 
     expect(screen.getByText("Database connection timeout")).toBeInTheDocument();
-  });
-
-  it("handles multiple clicks on retry button", async () => {
-    const user = userEvent.setup();
-    const retryHandler = vi.fn();
-    render(<ErrorChart error={mockError} onRetry={retryHandler} />);
-
-    const retryButton = screen.getByRole("button", { name: /retry/i });
-    await user.click(retryButton);
-    await user.click(retryButton);
-    await user.click(retryButton);
-
-    expect(retryHandler).toHaveBeenCalledTimes(3);
   });
 });

@@ -124,6 +124,9 @@ describe("useGoalManager", () => {
   });
 
   it("should handle save errors", async () => {
+    // Suppress expected console.error from logApiError
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
     const error = new Error("Failed to save");
     const failingProps = { ...defaultProps, onGoalsChange: vi.fn().mockRejectedValue(error) };
     const { result } = renderHook(() => useGoalManager(failingProps));
@@ -139,6 +142,7 @@ describe("useGoalManager", () => {
     });
 
     expect(result.current.saveError).toBeNull();
+    errorSpy.mockRestore();
   });
 
   it("should handle parallel edits on different goals without cancelling each other", async () => {

@@ -36,9 +36,7 @@ describe("EmptyState", () => {
         </MemoryRouter>
       );
 
-      expect(
-        screen.getByText("No cycling activities recorded for 2025")
-      ).toBeInTheDocument();
+      expect(screen.getByText("No cycling activities recorded for 2025")).toBeInTheDocument();
     });
 
     it("shows sessions wording for session-based sports", () => {
@@ -48,9 +46,7 @@ describe("EmptyState", () => {
         </MemoryRouter>
       );
 
-      expect(
-        screen.getByText("No yoga sessions recorded for 2025")
-      ).toBeInTheDocument();
+      expect(screen.getByText("No yoga sessions recorded for 2025")).toBeInTheDocument();
     });
 
     it("uses custom message when provided", () => {

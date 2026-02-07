@@ -38,6 +38,7 @@ vi.mock("../hooks/useVisibleSports", () => ({
     error: null,
     isSaving: false,
     saveError: null,
+    clearSaveError: vi.fn(),
   })),
 }));
 
