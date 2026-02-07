@@ -29,13 +29,21 @@ resource "google_artifact_registry_repository" "services" {
   description   = "Container registry for desirelines Cloud Run services (shared across all environments)"
   format        = "DOCKER"
 
-  # Cleanup policy: keep only last 5 versions of each image
+  # Cleanup policy: keep only last 5 versions of each image, delete all others
   cleanup_policy_dry_run = false
   cleanup_policies {
     id     = "keep-recent-versions"
     action = "KEEP"
     most_recent_versions {
       keep_count = 5
+    }
+  }
+  cleanup_policies {
+    id     = "delete-old-images"
+    action = "DELETE"
+    condition {
+      tag_state  = "ANY"
+      older_than = "604800s" # 7 days
     }
   }
 
