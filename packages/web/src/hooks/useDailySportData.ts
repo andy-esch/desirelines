@@ -2,7 +2,11 @@ import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
 import { fetchDailySummary, type DailyActivity } from "../api/activities";
-import { generateDemoDailyData, getSessionFillLevels, type TuningParams } from "../utils/demoDataGenerator";
+import {
+  generateDemoDailyData,
+  getSessionFillLevels,
+  type TuningParams,
+} from "../utils/demoDataGenerator";
 
 /**
  * @deprecated Use string sport keys instead. Kept for backwards compatibility.

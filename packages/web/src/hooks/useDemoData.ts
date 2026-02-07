@@ -1,7 +1,11 @@
 import { useMemo } from "react";
 import type { MetricsEntry, SportConfig } from "../api/activities";
 import { usePublicSportConfig } from "./usePublicSportConfig";
-import { generateDemoMetrics, generateDemoGoals, type TuningParams } from "../utils/demoDataGenerator";
+import {
+  generateDemoMetrics,
+  generateDemoGoals,
+  type TuningParams,
+} from "../utils/demoDataGenerator";
 
 export interface DemoDataResult {
   /** Generated metrics array for the sport/year */
@@ -26,7 +30,7 @@ export interface DemoDataResult {
 export function useDemoData(
   year: number,
   sport: string,
-  tuningParams?: TuningParams,
+  tuningParams?: TuningParams
 ): DemoDataResult {
   const { sportConfig, isLoading: configLoading, error: configError } = usePublicSportConfig();
 

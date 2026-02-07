@@ -197,7 +197,10 @@ function getYearOptions(): number[] {
  * Defaults to trailing 12 months, with dropdown to select specific years.
  * Supports filtering by visible sports or showing all sports.
  */
-export default function ActivityCalendarHeatmap({ className = "", tuningParams }: ActivityCalendarHeatmapProps) {
+export default function ActivityCalendarHeatmap({
+  className = "",
+  tuningParams,
+}: ActivityCalendarHeatmapProps) {
   const [timeRange, setTimeRange] = useState<TimeRangeOption>("trailing12");
   const [sportFilter, setSportFilter] = useState<SportFilterMode>("all");
   const currentYear = new Date().getFullYear();

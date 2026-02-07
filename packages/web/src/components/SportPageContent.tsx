@@ -105,6 +105,7 @@ export default function SportPageContent({
   const [showFullYear, setShowFullYear] = useState(true);
   const [showAchievements, setShowAchievements] = useState(true);
 
+  const isCurrentYear = currentYear === new Date().getFullYear();
   const loadingOrError = isLoading || !!error;
 
   return (
@@ -151,7 +152,7 @@ export default function SportPageContent({
           </div>
 
           {/* No data banner - show when viewing current year with no activities */}
-          {!isLoading && currentValue === 0 && currentYear === new Date().getFullYear() && (
+          {!isLoading && currentValue === 0 && isCurrentYear && (
             <div
               className="alert d-flex align-items-center mb-3"
               role="alert"
@@ -191,7 +192,7 @@ export default function SportPageContent({
               sport={sport}
               year={currentYear}
               unit={unit}
-              suggestedYear={currentYear === new Date().getFullYear() ? currentYear - 1 : undefined}
+              suggestedYear={isCurrentYear ? currentYear - 1 : undefined}
               linkPrefix={routePrefix}
             />
           ) : (

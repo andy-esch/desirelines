@@ -12,8 +12,7 @@ describe("boxMuller", () => {
     }
 
     const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
-    const variance =
-      samples.reduce((sum, x) => sum + (x - mean) ** 2, 0) / samples.length;
+    const variance = samples.reduce((sum, x) => sum + (x - mean) ** 2, 0) / samples.length;
 
     expect(mean).toBeCloseTo(0, 1); // within 0.05 of 0
     expect(variance).toBeCloseTo(1, 0); // within 0.5 of 1

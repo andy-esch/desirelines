@@ -337,7 +337,7 @@ function generateActivitySchedule(
   endDay: number,
   activitiesPerWeek: number,
   year: number,
-  restPattern?: { onWeeks: number; offWeeks: number },
+  restPattern?: { onWeeks: number; offWeeks: number }
 ): Set<number> {
   const activityDays = new Set<number>();
   const cycleLength = restPattern ? restPattern.onWeeks + restPattern.offWeeks : 0;
@@ -552,7 +552,8 @@ export function generateDemoMetrics(
   // Resolve distribution parameters (tuning > config > defaults)
   const distSigma = opts.tuningParams?.distanceSigma ?? config.distanceSigma ?? 0.4;
   const durSigma = opts.tuningParams?.durationSigma ?? config.durationSigma ?? 0.3;
-  const baseApw = opts.tuningParams?.activitiesPerWeek ?? config.activitiesPerWeek ?? (config.activityRate * 7);
+  const baseApw =
+    opts.tuningParams?.activitiesPerWeek ?? config.activitiesPerWeek ?? config.activityRate * 7;
   const apw = baseApw * (opts.tuningParams?.activitiesPerWeekMultiplier ?? 1);
 
   // Determine start offset for partial fill
@@ -563,12 +564,19 @@ export function generateDemoMetrics(
   }
 
   // Effective activities/week for partial fill
-  const effectiveApw = fillLevel === "partial" ? apw * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER : apw;
+  const effectiveApw =
+    fillLevel === "partial" ? apw * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER : apw;
 
   // Pre-compute Poisson-based activity schedule
   const startDay = startDayOffset + 1;
   const endDay = getDayOfYear(endDate);
-  const activityDays = generateActivitySchedule(startDay, endDay, effectiveApw, year, config.restPattern);
+  const activityDays = generateActivitySchedule(
+    startDay,
+    endDay,
+    effectiveApw,
+    year,
+    config.restPattern
+  );
 
   const metrics: MetricsEntry[] = [];
   let cumulativeDistance = 0;
@@ -837,7 +845,8 @@ export function generateDemoDailyData(
   // Resolve distribution parameters
   const distSigma = opts.tuningParams?.distanceSigma ?? config.distanceSigma ?? 0.4;
   const durSigma = opts.tuningParams?.durationSigma ?? config.durationSigma ?? 0.3;
-  const baseApw = opts.tuningParams?.activitiesPerWeek ?? config.activitiesPerWeek ?? (config.activityRate * 7);
+  const baseApw =
+    opts.tuningParams?.activitiesPerWeek ?? config.activitiesPerWeek ?? config.activityRate * 7;
   const apw = baseApw * (opts.tuningParams?.activitiesPerWeekMultiplier ?? 1);
 
   let startDayOffset = 0;
@@ -846,12 +855,19 @@ export function generateDemoDailyData(
     startDayOffset = Math.floor(totalDays * PARTIAL_FILL_CONFIG.YEAR_START_OFFSET);
   }
 
-  const effectiveApw = fillLevel === "partial" ? apw * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER : apw;
+  const effectiveApw =
+    fillLevel === "partial" ? apw * PARTIAL_FILL_CONFIG.ACTIVITY_RATE_MULTIPLIER : apw;
 
   // Pre-compute Poisson-based activity schedule (using day indices relative to range)
   const totalDays = Math.ceil((effectiveEnd.getTime() - startDate.getTime()) / ONE_DAY_MS) + 1;
   const scheduleStart = startDayOffset + 1;
-  const activityDays = generateActivitySchedule(scheduleStart, totalDays, effectiveApw, fromYear, config.restPattern);
+  const activityDays = generateActivitySchedule(
+    scheduleStart,
+    totalDays,
+    effectiveApw,
+    fromYear,
+    config.restPattern
+  );
 
   let activityIdCounter = 2000000000 + Math.floor(Math.random() * 100000000);
   let dayIndex = 0;
