@@ -107,6 +107,9 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Map raw Strava sport types to category names (e.g., "Ride" → "cycling")
+	h.categorizeSports(metadata)
+
 	h.respondProtobuf(w, r, metadata)
 }
 
@@ -267,6 +270,9 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Map raw Strava sport type to category name (e.g., "Ride" → "cycling")
+	activity.Sport = h.sportConfig.GetCategoryForStravaType(activity.Sport)
+
 	h.respondProtobuf(w, r, activity)
 }
 
@@ -292,6 +298,11 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 		)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
+	}
+
+	// Map raw Strava sport types to category names (e.g., "Ride" → "cycling")
+	for _, a := range result.Activities {
+		a.Sport = h.sportConfig.GetCategoryForStravaType(a.Sport)
 	}
 
 	h.respondProtobuf(w, r, result)

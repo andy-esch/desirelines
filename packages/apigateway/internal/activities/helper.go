@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -31,4 +32,64 @@ func (h *Handler) respondProtobuf(w http.ResponseWriter, r *http.Request, msg pr
 	}
 
 	server.RespondRawJSON(w, r, http.StatusOK, data, h.logger)
+}
+
+// categorizeSports maps raw Strava sport types to category names in YearMetadata.
+// Updates both the Sports slice and the Totals map keys in place.
+func (h *Handler) categorizeSports(metadata *generated.YearMetadata) {
+	// Map Sports slice
+	for i, sport := range metadata.Sports {
+		metadata.Sports[i] = h.sportConfig.GetCategoryForStravaType(sport)
+	}
+
+	// Rebuild Totals map with categorized keys, merging duplicates
+	// (e.g., "Ride" and "VirtualRide" both map to "cycling")
+	if len(metadata.Totals) > 0 {
+		remapped := make(map[string]*generated.SportTotals, len(metadata.Totals))
+		for rawSport, totals := range metadata.Totals {
+			category := h.sportConfig.GetCategoryForStravaType(rawSport)
+			if existing, ok := remapped[category]; ok {
+				// Merge totals for the same category
+				if totals.DistanceMeters != nil {
+					if existing.DistanceMeters == nil {
+						existing.DistanceMeters = totals.DistanceMeters
+					} else {
+						sum := *existing.DistanceMeters + *totals.DistanceMeters
+						existing.DistanceMeters = &sum
+					}
+				}
+				if totals.ElevationMeters != nil {
+					if existing.ElevationMeters == nil {
+						existing.ElevationMeters = totals.ElevationMeters
+					} else {
+						sum := *existing.ElevationMeters + *totals.ElevationMeters
+						existing.ElevationMeters = &sum
+					}
+				}
+				if totals.TimeMinutes != nil {
+					if existing.TimeMinutes == nil {
+						existing.TimeMinutes = totals.TimeMinutes
+					} else {
+						sum := *existing.TimeMinutes + *totals.TimeMinutes
+						existing.TimeMinutes = &sum
+					}
+				}
+				existing.Activities += totals.Activities
+			} else {
+				remapped[category] = totals
+			}
+		}
+		metadata.Totals = remapped
+	}
+
+	// Deduplicate Sports slice (multiple raw types may map to same category)
+	seen := make(map[string]bool, len(metadata.Sports))
+	deduped := make([]string, 0, len(metadata.Sports))
+	for _, sport := range metadata.Sports {
+		if !seen[sport] {
+			seen[sport] = true
+			deduped = append(deduped, sport)
+		}
+	}
+	metadata.Sports = deduped
 }

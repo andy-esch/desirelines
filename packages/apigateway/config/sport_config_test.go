@@ -178,6 +178,52 @@ func TestInvalidSchemaFails(t *testing.T) {
 	}
 }
 
+func TestGetCategoryForStravaType(t *testing.T) {
+	config, err := LoadSportConfig("sport_types.json")
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	tests := []struct {
+		stravaType string
+		want       string
+	}{
+		{"Ride", "cycling"},
+		{"VirtualRide", "cycling"},
+		{"GravelRide", "cycling"},
+		{"MountainBikeRide", "cycling"},
+		{"Run", "running"},
+		{"TrailRun", "running"},
+		{"VirtualRun", "running"},
+		{"Yoga", "yoga"},
+		{"Hike", "hiking"},
+		{"Walk", "walking"},
+		{"WeightTraining", "workout"},
+		{"Swim", "swimming"},
+		{"EBikeRide", "ebike"},
+	}
+
+	for _, tt := range tests {
+		got := config.GetCategoryForStravaType(tt.stravaType)
+		if got != tt.want {
+			t.Errorf("GetCategoryForStravaType(%q) = %q, want %q", tt.stravaType, got, tt.want)
+		}
+	}
+}
+
+func TestGetCategoryForStravaTypeUnknown(t *testing.T) {
+	config, err := LoadSportConfig("sport_types.json")
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Unknown types should be returned as-is
+	got := config.GetCategoryForStravaType("UnknownSport")
+	if got != "UnknownSport" {
+		t.Errorf("GetCategoryForStravaType(%q) = %q, want %q", "UnknownSport", got, "UnknownSport")
+	}
+}
+
 func TestEmptyStravaTypesFails(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "test.json")
