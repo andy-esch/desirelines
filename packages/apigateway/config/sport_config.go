@@ -146,12 +146,12 @@ func (c *SportConfig) ListSports() []string {
 	return sports
 }
 
-// GetCategory returns the general category that a sport belongs to
-//
-//	E.g., VirtualRide -> cycling, Ride -> cycling, Run -> running, etc.
-func (c *SportConfig) GetCategory(sport string) (SportCategory, bool) {
-	category, ok := c.data.SportCategories[sport]
-	return category, ok
+// GetCategory returns the SportCategory config for a category name.
+// For example, GetCategory("cycling") returns the cycling config with its Strava types, metrics, etc.
+// Returns false if the category doesn't exist.
+func (c *SportConfig) GetCategory(category string) (SportCategory, bool) {
+	cat, ok := c.data.SportCategories[category]
+	return cat, ok
 }
 
 // ValidateSport ensures that an input sport is a sport that
