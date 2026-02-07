@@ -74,7 +74,19 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
   const totalDays = yearContext.daysElapsed + yearContext.daysRemaining;
   const pacePosition = totalDays > 0 ? (yearContext.daysElapsed / totalDays) * 100 : 0;
 
-  const status = getStatusForDashboard(sport.currentValue, sport.targetGoal, yearContext);
+  const { label: status, delta } = getStatusForDashboard(
+    sport.currentValue,
+    sport.targetGoal,
+    yearContext
+  );
+
+  // Format delta text: "+123 mi Ahead" or "-45 mi Behind"
+  let statusDisplay = status;
+  if (delta !== null) {
+    const sign = delta >= 0 ? "+" : "";
+    const formatted = formatMetricDisplayValue(Math.abs(delta), sport.isDistanceSport);
+    statusDisplay = `${sign}${formatted} ${sport.metricUnit} ${status}`;
+  }
 
   return (
     <div className="mb-2">
@@ -86,7 +98,7 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
         >
           {sport.displayName}
         </Link>
-        <span className="small text-muted">{status}</span>
+        <span className="small text-muted">{statusDisplay}</span>
       </div>
 
       <RaceTrack
@@ -105,28 +117,35 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
   );
 }
 
+interface DashboardStatus {
+  label: string;
+  /** Delta between current value and prorated goal (positive = ahead, negative = behind). null when no delta applies. */
+  delta: number | null;
+}
+
 function getStatusForDashboard(
   currentValue: number,
   targetGoal: number,
   yearContext: Pick<YearContext, "daysElapsed" | "daysRemaining" | "isPastYear">
-): string {
+): DashboardStatus {
   const progress = targetGoal > 0 ? (currentValue / targetGoal) * 100 : 0;
 
   if (yearContext.isPastYear) {
-    return progress >= 100 ? "Achieved" : "Not Met";
+    return { label: progress >= 100 ? "Achieved" : "Not Met", delta: null };
   }
 
-  if (progress >= 100) return "Achieved";
+  if (progress >= 100) return { label: "Achieved", delta: null };
 
   // Calculate pace ratio: actual vs expected at this point
   const totalDays = yearContext.daysElapsed + yearContext.daysRemaining;
-  if (totalDays === 0) return "—";
+  if (totalDays === 0) return { label: "—", delta: null };
   const proratedGoal = targetGoal * (yearContext.daysElapsed / totalDays);
-  if (proratedGoal === 0) return currentValue > 0 ? "Ahead" : "—";
+  if (proratedGoal === 0) return { label: currentValue > 0 ? "Ahead" : "—", delta: null };
   const paceRatio = currentValue / proratedGoal;
+  const delta = currentValue - proratedGoal;
 
-  if (paceRatio >= PACE_THRESHOLDS.AHEAD) return "Ahead";
-  if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return "On Track";
-  if (paceRatio >= PACE_THRESHOLDS.SLIGHTLY_BEHIND) return "Slightly Behind";
-  return "Behind";
+  if (paceRatio >= PACE_THRESHOLDS.AHEAD) return { label: "Ahead", delta };
+  if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return { label: "On Track", delta };
+  if (paceRatio >= PACE_THRESHOLDS.SLIGHTLY_BEHIND) return { label: "Slightly Behind", delta };
+  return { label: "Behind", delta };
 }
