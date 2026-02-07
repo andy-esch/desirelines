@@ -186,14 +186,14 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                       distanceUnit
                     )}
                   </td>
-                  {showImpact && (
+                  {showImpact && goalTarget > 0 && (
                     <td className="text-end text-nowrap text-muted">
                       {formatImpactPct(
                         isSessionSport
-                          ? (1 / goalTarget!) * 100
+                          ? (1 / goalTarget) * 100
                           : activity.distanceMeters > 0
                             ? (convertDistance(activity.distanceMeters, distanceUnit) /
-                                goalTarget!) *
+                                goalTarget) *
                               100
                             : null
                       )}

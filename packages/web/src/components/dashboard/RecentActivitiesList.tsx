@@ -116,7 +116,10 @@ export default function RecentActivitiesList({
   }, [from, to]);
 
   const totalPages = Math.ceil(activities.length / pageSize);
-  const startIdx = page * pageSize;
+  // Clamp page if pageSize changed (e.g. container resized) and current page is now out of range
+  const clampedPage = Math.min(page, Math.max(0, totalPages - 1));
+  if (clampedPage !== page) setPage(clampedPage);
+  const startIdx = clampedPage * pageSize;
   const visibleActivities = activities.slice(startIdx, startIdx + pageSize);
 
   const canGoUp = page > 0;
