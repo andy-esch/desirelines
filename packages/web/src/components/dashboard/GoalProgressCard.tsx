@@ -145,7 +145,7 @@ function getStatusForDashboard(
   const delta = currentValue - proratedGoal;
 
   if (paceRatio >= PACE_THRESHOLDS.AHEAD) return { label: "Ahead", delta };
-  if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return { label: "On Track", delta: null };
+  if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return { label: "On Track", delta };
   if (paceRatio >= PACE_THRESHOLDS.SLIGHTLY_BEHIND) return { label: "Slightly Behind", delta };
   return { label: "Behind", delta };
 }

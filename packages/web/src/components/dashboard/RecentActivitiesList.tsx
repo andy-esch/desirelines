@@ -13,6 +13,7 @@ import {
   getUserSettings,
 } from "../../utils/units";
 
+import { SLATE, ACCENT } from "../../constants/uiColors";
 import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
 import { toLocalDateString as toLocal } from "../../utils/dateUtils";
 
@@ -51,21 +52,40 @@ function formatActivityDate(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** Parse a hex color string (e.g. "#718096") into RGB components */
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const n = parseInt(hex.slice(1), 16);
+  return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
+}
+
+/** Impact glow color endpoints (derived from site color library) */
+const IMPACT_COLOR_START = hexToRgb(SLATE.LIGHT);
+const IMPACT_COLOR_END = hexToRgb(ACCENT.MAGENTA);
+/** Impact percentage at which glow reaches full intensity */
+const IMPACT_FULL_PCT = 2;
+/** Maximum glow radius in px */
+const IMPACT_GLOW_RADIUS = 6;
+/** Maximum glow opacity */
+const IMPACT_GLOW_ALPHA = 0.6;
+/** Minimum interpolation value before glow is applied */
+const IMPACT_GLOW_THRESHOLD = 0.05;
+
 /**
  * Compute inline styles for the impact percentage column.
  * Interpolates from slate (0%) to magenta (2%+) with a glow effect.
  */
 function getImpactStyle(pct: number | null): React.CSSProperties | undefined {
   if (pct == null) return undefined;
-  const t = Math.min(Math.max(pct / 2, 0), 1);
-  const r = Math.round(113 + 142 * t);
-  const g = Math.round(128 - 128 * t);
-  const b = Math.round(150 + 105 * t);
-  const glowRadius = 6 * t;
-  const glowAlpha = 0.6 * t;
+  const t = Math.min(Math.max(pct / IMPACT_FULL_PCT, 0), 1);
+  const r = Math.round(IMPACT_COLOR_START.r + (IMPACT_COLOR_END.r - IMPACT_COLOR_START.r) * t);
+  const g = Math.round(IMPACT_COLOR_START.g + (IMPACT_COLOR_END.g - IMPACT_COLOR_START.g) * t);
+  const b = Math.round(IMPACT_COLOR_START.b + (IMPACT_COLOR_END.b - IMPACT_COLOR_START.b) * t);
+  const glowRadius = IMPACT_GLOW_RADIUS * t;
+  const glowAlpha = IMPACT_GLOW_ALPHA * t;
   return {
     color: `rgb(${r}, ${g}, ${b})`,
-    textShadow: t > 0.05 ? `0 0 ${glowRadius}px rgba(255, 0, 255, ${glowAlpha})` : undefined,
+    textShadow:
+      t > IMPACT_GLOW_THRESHOLD ? `0 0 ${glowRadius}px rgba(255, 0, 255, ${glowAlpha})` : undefined,
   };
 }
 
