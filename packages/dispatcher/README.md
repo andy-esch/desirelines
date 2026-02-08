@@ -1,12 +1,14 @@
 # Dispatcher (Go)
 
-Receives Strava webhook events and publishes to PubSub for downstream processing.
+Receives Strava webhook events, enriches CREATE events with activity data from the Strava API, and publishes enriched events to PubSub for downstream processing.
 
 ## Architecture
 
 ```
-Strava Webhook → Dispatcher (Cloud Run) → PubSub Topic → Eventarc → downstream services
+Strava Webhook → Dispatcher (Cloud Run) → [enrich with Strava API] → PubSub Topic → Eventarc → downstream services
 ```
+
+The dispatcher is the **only service** that calls the Strava API. Downstream consumers (bq-inserter, postgres-writer) receive enriched events with activity data inline and do not need Strava API credentials.
 
 **Package Structure (Hexagonal Architecture):**
 
@@ -16,9 +18,10 @@ packages/dispatcher/
 ├── adapters/
 │   ├── http/handler.go          # HTTP handler (inbound adapter)
 │   ├── pubsub/publisher.go      # PubSub publishing (outbound adapter)
+│   ├── strava/client.go         # Strava API client (outbound adapter)
 │   ├── proto/webhook_adapter.go # JSON ↔ protobuf conversion
 │   └── env/secrets.go           # Environment/secrets adapter
-├── ports/interfaces.go          # Port interfaces (Publisher, SecretProvider)
+├── ports/interfaces.go          # Port interfaces (Publisher, SecretProvider, StravaClient)
 ├── types/generated/webhook.pb.go # Generated protobuf types
 ├── config/config.go             # Configuration loading
 └── Dockerfile                   # Cloud Run container
@@ -49,6 +52,16 @@ STRAVA_WEBHOOK_SUBSCRIPTION_ID=123456
 LOG_LEVEL=INFO   # Default: INFO
 PORT=8080        # Default: 8080 (Cloud Run sets this)
 ```
+
+### Strava API Secrets
+
+The dispatcher enriches CREATE events by fetching activity data from the Strava API. Credentials are loaded from secret file mounts (preferred) with environment variable fallback:
+
+| Secret Mount | Env Var Fallback | Description |
+|-------------|------------------|-------------|
+| `/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value` | `STRAVA_CLIENT_ID` | Strava API app client ID |
+| `/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value` | `STRAVA_CLIENT_SECRET` | Strava API app client secret |
+| `/etc/secrets/INFISICAL_STRAVA_REFRESH_TOKEN/value` | `STRAVA_REFRESH_TOKEN` | OAuth refresh token |
 
 ## Development
 
@@ -106,9 +119,10 @@ Each package has GoDoc documentation viewable via `go doc`:
 
 | Package | Description |
 |---------|-------------|
-| [ports](./ports/) | Port interfaces (Publisher, SecretProvider) |
+| [ports](./ports/) | Port interfaces (Publisher, SecretProvider, StravaClient) |
 | [adapters/http](./adapters/http/) | HTTP webhook handler |
 | [adapters/pubsub](./adapters/pubsub/) | Google Cloud Pub/Sub adapter |
+| [adapters/strava](./adapters/strava/) | Strava API client (token management, activity fetch) |
 | [adapters/env](./adapters/env/) | Secrets loading with caching |
 | [adapters/proto](./adapters/proto/) | JSON ↔ protobuf conversion |
 | [config](./config/) | Configuration loading |

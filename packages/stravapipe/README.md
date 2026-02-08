@@ -84,10 +84,10 @@ See [Docker Guide](../../docs/guides/docker.md) and [Deployment Guide](../../doc
 
 Each service has its own config class in `config/`:
 
-- `BQInserterConfig` - BigQuery dataset, Strava credentials
-- `PostgresWriterConfig` - Connection string, Strava credentials
+- `BQInserterConfig` - GCP project, BigQuery dataset
+- `PostgresWriterConfig` - GCP project, PostgreSQL connection string
 
-All load from environment variables with Secret Manager integration for production.
+All load from environment variables with Secret Manager integration for production. Strava API credentials are **not** needed by these services — the dispatcher enriches events with activity data before publishing to PubSub.
 
 ### PostgreSQL Connection Pooling
 
