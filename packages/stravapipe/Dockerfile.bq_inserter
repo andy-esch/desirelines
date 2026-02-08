@@ -28,8 +28,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy package source code (includes cloudrun module with FastAPI app)
 COPY src/stravapipe ./stravapipe
 
-# Create non-root user for security
-RUN useradd --create-home appuser
+# Create non-root system user and own application files
+RUN useradd --system --no-create-home appuser && chown -R appuser:appuser /app/stravapipe
 USER appuser
 
 EXPOSE 8080
