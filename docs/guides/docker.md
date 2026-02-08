@@ -98,16 +98,18 @@ docker compose build dispatcher
 
 ### Go Services
 
-Multi-stage build: `golang:1.25-alpine` → `alpine:latest` (~20MB final)
+Multi-stage build: `golang:1.25-alpine` → `gcr.io/distroless/static-debian12:nonroot` (~27-55MB final)
 
 ```dockerfile
 FROM golang:1.25-alpine AS builder
-# ... build binary ...
+# ... build statically-linked binary (CGO_ENABLED=0) ...
 
-FROM alpine:latest
-COPY --from=builder /app/main /app/main
-CMD ["/app/main"]
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=builder /app/main /main
+ENTRYPOINT ["/main"]
 ```
+
+Distroless provides CA certs, timezone data, and a non-root user (UID 65534) with no shell or package manager.
 
 ### Python Services (Cloud Run)
 

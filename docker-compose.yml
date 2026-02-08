@@ -24,19 +24,7 @@ services:
     depends_on:
       pubsub-bootstrap:
         condition: service_completed_successfully
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8080/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # No healthcheck - distroless has no wget/curl. Cloud Run uses native HTTP probes.
 
   bq-inserter:
     profiles: ["backend"] # Backend pipeline only
@@ -282,19 +270,7 @@ services:
           memory: 128M
         reservations:
           memory: 32M
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8080/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # No healthcheck - distroless has no wget/curl. Cloud Run uses native HTTP probes.
 
 # No named volumes - postgres uses anonymous volume for clean-slate local dev
 # To preserve data across restarts, switch back to named volume:
