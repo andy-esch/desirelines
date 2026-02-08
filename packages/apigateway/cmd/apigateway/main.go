@@ -72,7 +72,7 @@ func main() {
 		log.Info("Server listening", "port", port)
 		if serverErr := srv.ListenAndServe(); serverErr != nil && serverErr != http.ErrServerClosed {
 			log.Error("Server failed", "error", serverErr)
-			os.Exit(1)
+			quit <- syscall.SIGTERM
 		}
 	}()
 
@@ -161,7 +161,7 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 func buildRouter(deps *Dependencies) http.Handler {
 	// Create feature handlers with their dependencies
 	healthHandler := health.NewHandler(deps.repo, deps.logger)
-	sportsHandler := sports.NewHandler(deps.logger)
+	sportsHandler := sports.NewHandler(deps.logger, deps.sportConfig)
 	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig, deps.logger)
 
 	// Configure and create router
@@ -197,9 +197,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 // Returns defaultValue if the environment variable is not set or invalid.
 func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 	if value := os.Getenv(key); value != "" {
-		if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+		seconds, err := strconv.Atoi(value)
+		if err == nil && seconds > 0 {
 			return time.Duration(seconds) * time.Second
 		}
+		slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
 	}
 	return defaultValue
 }

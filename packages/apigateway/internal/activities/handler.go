@@ -98,10 +98,9 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	metadata, err := h.repo.GetYearMetadata(ctx, yearInt)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "year", year)
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIError(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
-			fmt.Sprintf("Database query failed: %v", err),
 		)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
@@ -109,6 +108,11 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 
 	// Map raw Strava sport types to category names (e.g., "Ride" → "cycling")
 	h.categorizeSports(metadata)
+
+	// Cache past years (immutable) for 1 hour
+	if yearInt < time.Now().Year() {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
 
 	h.respondProtobuf(w, r, metadata)
 }
@@ -152,6 +156,19 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		return nil
 	}
 
+	// Validate year consistency if date range is present
+	if fromStr != "" && toStr != "" {
+		// Basic check: at least the 'from' date must match the URL year
+		// This prevents "GET /activities/2020?from=2024..."
+		// We allow 'to' date to be in the next year to support fiscal year logic if needed later,
+		// but standard usage should be within the same year.
+		if !strings.HasPrefix(fromStr, yearStr) {
+			apiErr := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Date range must start in year %s", yearStr))
+			gcplog.WriteError(w, r, apiErr, h.logger)
+			return nil
+		}
+	}
+
 	return &sportQueryParams{
 		year:         yearInt,
 		sportTypes:   sportTypes,
@@ -168,10 +185,9 @@ func (h *Handler) logAndRespondDBError(w http.ResponseWriter, r *http.Request, e
 	} else {
 		h.logger.Error("Database query failed", "error", err, "year", params.year, "sportTypes", params.sportTypes)
 	}
-	apiErr := gcplog.NewAPIErrorWithLog(
+	apiErr := gcplog.NewAPIError(
 		http.StatusInternalServerError,
 		errMsgInternalServerError,
-		fmt.Sprintf("Database query failed: %v", err),
 	)
 	gcplog.WriteError(w, r, apiErr, h.logger)
 }
@@ -206,6 +222,21 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		h.logAndRespondDBError(w, r, err, params)
 		return
 	}
+
+	// Cache past years (immutable) for 1 hour
+	currentYear := time.Now().Year()
+	if !params.useDateRange && params.year < currentYear {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	} else if params.useDateRange {
+		// Check if 'to' date is in a past year
+		if len(params.to) >= 4 {
+			toYear, _ := strconv.Atoi(params.to[:4])
+			if toYear < currentYear {
+				w.Header().Set("Cache-Control", "public, max-age=3600")
+			}
+		}
+	}
+
 	h.respondProtobuf(w, r, result)
 }
 
@@ -234,6 +265,21 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		h.logAndRespondDBError(w, r, err, params)
 		return
 	}
+
+	// Cache past years (immutable) for 1 hour
+	currentYear := time.Now().Year()
+	if !params.useDateRange && params.year < currentYear {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	} else if params.useDateRange {
+		// Check if 'to' date is in a past year
+		if len(params.to) >= 4 {
+			toYear, _ := strconv.Atoi(params.to[:4])
+			if toYear < currentYear {
+				w.Header().Set("Cache-Control", "public, max-age=3600")
+			}
+		}
+	}
+
 	h.respondProtobuf(w, r, result)
 }
 
@@ -255,10 +301,9 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	activity, err := h.repo.GetActivityByID(ctx, id)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "activityId", id)
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIError(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
-			fmt.Sprintf("Database query failed: %v", err),
 		)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
@@ -291,10 +336,9 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	result, err := h.repo.ListActivities(ctx, *filter)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err)
-		apiErr = gcplog.NewAPIErrorWithLog(
+		apiErr = gcplog.NewAPIError(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
-			fmt.Sprintf("Database query failed: %v", err),
 		)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
@@ -313,7 +357,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.ActivityListFilter, gcplog.APIError) {
 	query := r.URL.Query()
 	filter := repository.ActivityListFilter{
-		Limit: 20, // Default
+		Limit: repository.DefaultListLimit,
 	}
 
 	// Parse 'from' date
@@ -347,8 +391,8 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 	// Parse 'limit'
 	if limitStr := query.Get("limit"); limitStr != "" {
 		limit, err := strconv.Atoi(limitStr)
-		if err != nil || limit < 1 || limit > 100 {
-			return nil, gcplog.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-100)")
+		if err != nil || limit < 1 || limit > repository.MaxListLimit {
+			return nil, gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid 'limit' (must be 1-%d)", repository.MaxListLimit))
 		}
 		filter.Limit = limit
 	}

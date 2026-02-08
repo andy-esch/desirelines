@@ -214,7 +214,7 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 			FROM (
 				SELECT generate_series(
 					make_date($1, 1, 1),
-					LEAST(CURRENT_DATE, make_date($1, 12, 31)),
+					make_date($1, 12, 31),
 					'1 day'::interval
 				)::date as date
 			) all_dates
@@ -557,10 +557,10 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	// Limit (+1 to detect if there are more results)
 	limit := filter.Limit
 	if limit <= 0 {
-		limit = 20 // Default limit
+		limit = repository.DefaultListLimit
 	}
-	if limit > 100 {
-		limit = 100 // Max limit
+	if limit > repository.MaxListLimit {
+		limit = repository.MaxListLimit
 	}
 	qb.addCondition(" LIMIT $%d", limit+1)
 

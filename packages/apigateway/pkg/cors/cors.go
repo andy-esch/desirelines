@@ -45,6 +45,7 @@ func (h *Handler) SetHeaders(w http.ResponseWriter, r *http.Request) bool {
 	if h.allowedOrigins[origin] {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Add("Vary", "Origin")
 		return true
 	}
 

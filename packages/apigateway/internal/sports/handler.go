@@ -13,22 +13,22 @@ import (
 
 // Handler holds dependencies for the sport config handler.
 type Handler struct {
-	logger         *slog.Logger
-	configProvider func() []byte
+	logger      *slog.Logger
+	sportConfig *config.SportConfig
 }
 
 // NewHandler creates a new sport config handler.
-func NewHandler(logger *slog.Logger) *Handler {
+func NewHandler(logger *slog.Logger, sportConfig *config.SportConfig) *Handler {
 	return &Handler{
-		logger:         logger,
-		configProvider: config.GetRawConfigJSON,
+		logger:      logger,
+		sportConfig: sportConfig,
 	}
 }
 
 // HandleConfig serves the sport configuration JSON.
 func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 	// Get embedded sport config JSON
-	data := h.configProvider()
+	data := h.sportConfig.RawJSON()
 	if len(data) == 0 {
 		h.logger.Error("Embedded sport config is empty")
 		apiErr := gcplog.NewAPIErrorWithLog(
@@ -51,6 +51,9 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
+
+	// Cache static config for 1 hour
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 
 	// Write raw JSON directly (no marshal/unmarshal cycle)
 	server.RespondRawJSON(w, r, http.StatusOK, data, h.logger)

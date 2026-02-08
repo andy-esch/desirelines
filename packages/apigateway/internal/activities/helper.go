@@ -20,7 +20,7 @@ func (h *Handler) respondProtobuf(w http.ResponseWriter, r *http.Request, msg pr
 
 	marshaler := protojson.MarshalOptions{
 		UseProtoNames:   false,
-		EmitUnpopulated: false,
+		EmitUnpopulated: true,
 	}
 
 	data, err := marshaler.Marshal(msg)
@@ -50,7 +50,8 @@ func (h *Handler) categorizeSports(metadata *generated.YearMetadata) {
 				return
 			}
 			if *target == nil {
-				*target = source
+				v := *source
+				*target = &v
 				return
 			}
 			sum := **target + *source
