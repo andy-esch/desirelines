@@ -23,27 +23,16 @@ COPY packages/apigateway/ .
 
 # Build the application from cmd/apigateway (package main)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o /app/apigateway ./cmd/apigateway
+RUN chmod +x /app/apigateway
 
-# Runtime stage
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates tzdata wget
+# Runtime stage - distroless for minimal attack surface
+# :nonroot tag provides a non-root user (UID 65534) with no shell or package manager
+FROM gcr.io/distroless/static-debian12:nonroot
 
-# Create non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
-WORKDIR /home/appuser
-
-# Copy binary from builder (built to /app/apigateway)
-COPY --from=builder --chown=appuser:appgroup /app/apigateway ./
-
-# Grant execute permissions
-RUN chmod +x ./apigateway
-
-# Switch to non-root user
-USER appuser
+COPY --from=builder /app/apigateway /apigateway
 
 # Service listens on PORT environment variable
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["./apigateway"]
+ENTRYPOINT ["/apigateway"]

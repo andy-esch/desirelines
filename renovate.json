@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "description": "Group all Dockerfile base image updates into one PR",
+      "matchManagers": ["dockerfile"],
+      "groupName": "dockerfile base images"
+    },
+    {
+      "description": "Group all Go module updates into one PR",
+      "matchManagers": ["gomod"],
+      "groupName": "go modules"
+    },
+    {
+      "description": "Group all GitHub Actions updates into one PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "Group all npm updates into one PR",
+      "matchManagers": ["npm"],
+      "groupName": "npm dependencies"
+    },
+    {
+      "description": "Group all docker-compose image updates into one PR",
+      "matchManagers": ["docker-compose"],
+      "groupName": "docker-compose images"
+    }
+  ]
+}
