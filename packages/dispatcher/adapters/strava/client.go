@@ -140,7 +140,7 @@ func (c *Client) FetchActivity(ctx context.Context, activityID int64) ([]byte, e
 			if retryErr == nil {
 				return retryBody, nil
 			}
-			return nil, fmt.Errorf("%w: still failing after token refresh", ErrStravaAuth)
+			return nil, fmt.Errorf("%w: still failing after token refresh: %w", ErrStravaAuth, retryErr)
 		}
 
 		lastErr = err
