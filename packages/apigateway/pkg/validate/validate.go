@@ -104,11 +104,11 @@ func DateRangeYearOverlap(fromStr, toStr string, year int) string {
 
 	fromDate, err := parseDate(fromStr)
 	if err != nil {
-		return "Invalid 'from' date format (expected YYYY-MM-DD)"
+		panic("programmer error: DateRangeYearOverlap called with invalid 'from' date: " + err.Error())
 	}
 	toDate, err := parseDate(toStr)
 	if err != nil {
-		return "Invalid 'to' date format (expected YYYY-MM-DD)"
+		panic("programmer error: DateRangeYearOverlap called with invalid 'to' date: " + err.Error())
 	}
 
 	fromYear := fromDate.Year()
