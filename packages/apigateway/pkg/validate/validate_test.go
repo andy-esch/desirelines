@@ -182,6 +182,50 @@ func searchSubstring(s, substr string) bool {
 	return false
 }
 
+func TestDateRangeYearOverlap(t *testing.T) {
+	tests := []struct {
+		name    string
+		from    string
+		to      string
+		year    int
+		wantErr bool
+	}{
+		// Valid - both dates in URL year
+		{"both in year", "2026-01-01", "2026-06-15", 2026, false},
+		{"full year", "2026-01-01", "2026-12-31", 2026, false},
+
+		// Valid - rolling window, from in previous year
+		{"from in prev year", "2025-08-08", "2026-02-08", 2026, false},
+		{"from dec prev year", "2025-12-01", "2026-01-15", 2026, false},
+
+		// Valid - to overflows into next year
+		{"to in next year", "2024-12-15", "2025-01-01", 2024, false},
+
+		// Valid - no dates provided
+		{"empty dates", "", "", 2026, false},
+
+		// Invalid - neither date in URL year
+		{"both in wrong year", "2024-01-01", "2024-06-01", 2026, true},
+		{"both in future year", "2027-01-01", "2027-06-01", 2026, true},
+
+		// Invalid - from too far back (2 years before URL year)
+		{"from two years back", "2024-06-01", "2026-02-01", 2026, true},
+
+		// Invalid - to too far forward (2 years after URL year)
+		{"to two years forward", "2026-12-01", "2028-01-01", 2026, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DateRangeYearOverlap(tt.from, tt.to, tt.year)
+			gotErr := got != ""
+			if gotErr != tt.wantErr {
+				t.Errorf("DateRangeYearOverlap(%q, %q, %d) = %q, wantErr %v", tt.from, tt.to, tt.year, got, tt.wantErr)
+			}
+		})
+	}
+}
+
 // Benchmark tests for performance-sensitive validation
 func BenchmarkYear(b *testing.B) {
 	for i := 0; i < b.N; i++ {

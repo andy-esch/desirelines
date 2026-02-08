@@ -88,6 +88,44 @@ func parseDate(s string) (time.Time, error) {
 	return time.Parse(DateFormat, s)
 }
 
+// DateRangeYearOverlap checks that a validated date range overlaps with the given URL year.
+// The range must have at least one endpoint in the URL year; the other may be in an
+// adjacent year (previous or next) to support rolling windows:
+//
+//	GET /activities/2026/source?from=2025-08-08&to=2026-02-08  (from in previous year)
+//	GET /activities/2024/metrics?from=2024-12-15&to=2025-01-01 (to in next year)
+//
+// Assumes fromStr and toStr have already been validated by DateRange.
+// Returns an error message if invalid, empty string if valid.
+func DateRangeYearOverlap(fromStr, toStr string, year int) string {
+	if fromStr == "" || toStr == "" {
+		return ""
+	}
+
+	fromDate, err := parseDate(fromStr)
+	if err != nil {
+		return "Invalid 'from' date format (expected YYYY-MM-DD)"
+	}
+	toDate, err := parseDate(toStr)
+	if err != nil {
+		return "Invalid 'to' date format (expected YYYY-MM-DD)"
+	}
+
+	fromYear := fromDate.Year()
+	toYear := toDate.Year()
+
+	if fromYear != year && toYear != year {
+		return fmt.Sprintf("Date range must overlap with year %d", year)
+	}
+	if fromYear != year && fromYear != year-1 {
+		return fmt.Sprintf("Date range must start in %d or %d", year-1, year)
+	}
+	if toYear != year && toYear != year+1 {
+		return fmt.Sprintf("Date range must end in %d or %d", year, year+1)
+	}
+	return ""
+}
+
 // DateRange validates from/to date parameters.
 // Returns an error message if validation fails, empty string if valid.
 func DateRange(fromStr, toStr string) string {
