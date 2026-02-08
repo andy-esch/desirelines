@@ -56,4 +56,4 @@ def load_bq_inserter_config() -> BQInserterConfig:
     Raises:
         ValidationError: If required configuration is missing or invalid.
     """
-    return BQInserterConfig()
+    return BQInserterConfig()  # type: ignore[call-arg]  # fields from env vars
