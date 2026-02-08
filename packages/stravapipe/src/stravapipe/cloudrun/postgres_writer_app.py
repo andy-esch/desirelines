@@ -287,10 +287,9 @@ async def _handle_update(
         )
 
     uow = SqlAlchemyUnitOfWork(session_factory)
-
-    # If activity doesn't exist, skip with warning
-    # (going forward, CREATEs always carry data so backfill is not needed)
     with uow:
+        # If activity doesn't exist, skip with warning
+        # (going forward, CREATEs always carry data so backfill is not needed)
         if not uow.activities.exists(activity_id):
             logger.warning(
                 "Activity %s not in PostgreSQL, skipping UPDATE (no backfill)",
@@ -304,9 +303,7 @@ async def _handle_update(
                 reason=SkipReason.NOT_FOUND,
             )
 
-    # Activity exists - update metadata only
-    uow = SqlAlchemyUnitOfWork(session_factory)
-    with uow:
+        # Activity exists - update metadata only
         updated = uow.activities.update_metadata(activity_id, relevant_updates)
         uow.commit()
 
