@@ -467,19 +467,9 @@ func decodeCursor(s string) (*repository.ActivityCursor, error) {
 	}
 
 	// Validate timestamp format (RFC3339) to prevent database errors
-	ts, err := time.Parse(time.RFC3339, parts[0])
+	_, err = time.Parse(time.RFC3339, parts[0])
 	if err != nil {
 		return nil, fmt.Errorf("invalid cursor timestamp: %w", err)
-	}
-
-	// Reject timestamps too far in the future - cursors should reference past data.
-	// We allow 1 minute tolerance for minor clock differences between Cloud Run
-	// instances (though GCP NTP sync keeps drift to milliseconds). This is a sanity
-	// check against obviously invalid/tampered cursors, not a security boundary.
-	// Architecture note: Single database + Cloud Run means clock skew is not a
-	// practical concern; this tolerance is purely defensive.
-	if ts.After(time.Now().Add(1 * time.Minute)) {
-		return nil, fmt.Errorf("invalid cursor: timestamp is in the future")
 	}
 
 	id, err := strconv.ParseInt(parts[1], 10, 64)
