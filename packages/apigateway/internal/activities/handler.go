@@ -156,14 +156,33 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		return nil
 	}
 
-	// Validate year consistency if date range is present
+	// Validate year consistency if date range is present.
+	// At least one of from/to must be in the URL year. The other may be in an
+	// adjacent year to support rolling windows in both directions:
+	//   - from in previous year: GET /activities/2026/source?from=2025-08-08&to=2026-02-08
+	//   - to in next year:       GET /activities/2024/metrics?from=2024-12-15&to=2025-01-01
+	// This still prevents nonsensical requests like "GET /activities/2020?from=2024...".
 	if fromStr != "" && toStr != "" {
-		// Basic check: at least the 'from' date must match the URL year
-		// This prevents "GET /activities/2020?from=2024..."
-		// We allow 'to' date to be in the next year to support fiscal year logic if needed later,
-		// but standard usage should be within the same year.
-		if !strings.HasPrefix(fromStr, yearStr) {
-			apiErr := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Date range must start in year %s", yearStr))
+		fromYear := fromStr[:4]
+		toYear := toStr[:4]
+		prevYear := strconv.Itoa(yearInt - 1)
+		nextYear := strconv.Itoa(yearInt + 1)
+
+		fromInYear := fromYear == yearStr
+		toInYear := toYear == yearStr
+
+		if !fromInYear && !toInYear {
+			apiErr := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Date range must overlap with year %s", yearStr))
+			gcplog.WriteError(w, r, apiErr, h.logger)
+			return nil
+		}
+		if !fromInYear && fromYear != prevYear {
+			apiErr := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Date range must start in %s or %s", prevYear, yearStr))
+			gcplog.WriteError(w, r, apiErr, h.logger)
+			return nil
+		}
+		if !toInYear && toYear != nextYear {
+			apiErr := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Date range must end in %s or %s", yearStr, nextYear))
 			gcplog.WriteError(w, r, apiErr, h.logger)
 			return nil
 		}
