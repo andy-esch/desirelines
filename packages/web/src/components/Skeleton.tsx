@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import ReactSkeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { SKELETON_THEMES } from "../constants/uiColors";
+import { SKELETON_THEMES, SKELETON_DUAL_THEMES } from "../constants/uiColors";
 
 interface SkeletonProps {
   /** Number of skeleton lines to render */
@@ -18,6 +18,8 @@ interface SkeletonProps {
   style?: React.CSSProperties;
   /** Additional CSS class */
   className?: string;
+  /** Explicit dual-color theme index (0–2). When set, uses SKELETON_DUAL_THEMES instead of random single-color. */
+  dualTheme?: number;
 }
 
 /**
@@ -47,12 +49,16 @@ export default function Skeleton({
   borderRadius,
   style,
   className,
+  dualTheme,
 }: SkeletonProps) {
   // Select a random neon theme once on mount (stable across re-renders)
   const theme = useMemo(() => {
+    if (dualTheme != null) {
+      return SKELETON_DUAL_THEMES[dualTheme % SKELETON_DUAL_THEMES.length];
+    }
     const index = Math.floor(Math.random() * SKELETON_THEMES.length);
     return SKELETON_THEMES[index];
-  }, []);
+  }, [dualTheme]);
 
   return (
     <SkeletonTheme baseColor={theme.baseColor} highlightColor={theme.highlightColor}>

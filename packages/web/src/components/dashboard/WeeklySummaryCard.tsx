@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { useWeeklySummary } from "../../hooks/useWeeklySummary";
 import { formatMetricDisplayValue } from "../../utils/units";
+import Skeleton from "../Skeleton";
 
 /**
  * Compact card showing this-week totals per sport with prorated weekly goal %.
@@ -40,8 +41,23 @@ export default function WeeklySummaryCard() {
         <small className="text-muted">{weekLabel}</small>
       </div>
       {isLoading ? (
-        <div className="text-center text-muted py-3">
-          <small>Loading...</small>
+        <div role="status" aria-label="Loading weekly summary">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="d-flex align-items-center justify-content-between py-1"
+              style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}
+            >
+              <div className="d-flex align-items-center gap-2">
+                <Skeleton circle height={8} width={8} dualTheme={0} />
+                <Skeleton width={60} height={14} dualTheme={0} />
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <Skeleton width={50} height={14} dualTheme={0} />
+                <Skeleton width={36} height={16} borderRadius={10} dualTheme={0} />
+              </div>
+            </div>
+          ))}
         </div>
       ) : !hasAnyActivity ? (
         <div className="text-center text-muted py-3">

@@ -101,6 +101,37 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		}
 	})
 
+	// Test that queries filter on the 'sport' column (Strava sport_type), not the 'type'
+	// column (Strava broad type). Yoga has type="Workout" but sport="Yoga", so filtering
+	// by ["Yoga"] must match the sport column to find it.
+	t.Run("GetSportMetrics_FiltersBySportNotType", func(t *testing.T) {
+		metrics, err := repo.GetSportMetrics(ctx, 2024, []string{"Yoga"})
+		if err != nil {
+			t.Fatalf("GetSportMetrics failed: %v", err)
+		}
+
+		if len(metrics.Timeseries) != 1 {
+			t.Errorf("expected 1 timeseries entry for Yoga, got %d", len(metrics.Timeseries))
+		}
+
+		if len(metrics.Timeseries) > 0 && metrics.Timeseries[0].Date != "2024-01-15" {
+			t.Errorf("expected Yoga entry on 2024-01-15, got %s", metrics.Timeseries[0].Date)
+		}
+	})
+
+	t.Run("GetSportMetrics_FiltersBySportNotType_Negative", func(t *testing.T) {
+		// Filtering by "Workout" (the broad type) should NOT return the Yoga activity,
+		// because the sport column contains "Yoga", not "Workout".
+		metrics, err := repo.GetSportMetrics(ctx, 2024, []string{"Workout"})
+		if err != nil {
+			t.Fatalf("GetSportMetrics failed: %v", err)
+		}
+
+		if len(metrics.Timeseries) != 0 {
+			t.Errorf("expected 0 timeseries entries for type 'Workout', got %d", len(metrics.Timeseries))
+		}
+	})
+
 	t.Run("GetDailySummary", func(t *testing.T) {
 		// Pass Strava sport types that map to "cycling" category
 		summary, err := repo.GetDailySummary(ctx, 2024, []string{"Ride", "VirtualRide"})
@@ -131,6 +162,32 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("GetDailySummary_FiltersBySportNotType", func(t *testing.T) {
+		// Yoga has type="Workout" but sport="Yoga". Filtering by ["Yoga"]
+		// must match the sport column to find it.
+		summary, err := repo.GetDailySummary(ctx, 2024, []string{"Yoga"})
+		if err != nil {
+			t.Fatalf("GetDailySummary failed: %v", err)
+		}
+
+		if len(summary.Daily) != 1 {
+			t.Errorf("expected 1 daily entry for Yoga, got %d", len(summary.Daily))
+		}
+
+		jan15 := summary.Daily["2024-01-15"]
+		if jan15 == nil {
+			t.Fatal("expected Yoga entry for 2024-01-15")
+		}
+
+		if jan15.Activities != 1 {
+			t.Errorf("expected 1 Yoga activity, got %d", jan15.Activities)
+		}
+
+		if len(jan15.ActivityIds) != 1 || jan15.ActivityIds[0] != 1004 {
+			t.Errorf("expected activity ID [1004], got %v", jan15.ActivityIds)
+		}
+	})
+
 	t.Run("GetYearMetadata", func(t *testing.T) {
 		metadata, err := repo.GetYearMetadata(ctx, 2024)
 		if err != nil {
@@ -141,9 +198,9 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Errorf("expected year 2024, got %d", metadata.Year)
 		}
 
-		// Should have both Ride and Run (raw Strava sport types)
-		if len(metadata.Sports) != 2 {
-			t.Errorf("expected 2 sports, got %d: %v", len(metadata.Sports), metadata.Sports)
+		// Should have Ride, Run, and Yoga (raw Strava sport types)
+		if len(metadata.Sports) != 3 {
+			t.Errorf("expected 3 sports, got %d: %v", len(metadata.Sports), metadata.Sports)
 		}
 
 		// Check Ride totals (raw Strava sport_type)
@@ -237,13 +294,13 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("ListActivities failed: %v", err)
 		}
 
-		// Should return all 3 test activities
-		if len(response.Activities) != 3 {
-			t.Errorf("expected 3 activities, got %d", len(response.Activities))
+		// Should return all 4 test activities
+		if len(response.Activities) != 4 {
+			t.Errorf("expected 4 activities, got %d", len(response.Activities))
 		}
 
 		// Should be ordered by start_date_local DESC (newest first)
-		// Jan 16 > Jan 15 (run at 7am) > Jan 15 (ride at 8am)
+		// Jan 16 > Jan 15 (ride at 8am) > Jan 15 (run at 7am) > Jan 15 (yoga at 6am)
 		if response.Activities[0].ID != 1002 {
 			t.Errorf("expected first activity ID 1002 (newest), got %d", response.Activities[0].ID)
 		}
@@ -296,6 +353,31 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("ListActivities_FiltersBySportNotType", func(t *testing.T) {
+		// Yoga has type="Workout" but sport="Yoga". Filtering by ["Yoga"]
+		// must match the sport column to find it.
+		response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+			SportTypes: []string{"Yoga"},
+			Limit:      10,
+		})
+		if err != nil {
+			t.Fatalf("ListActivities failed: %v", err)
+		}
+
+		if len(response.Activities) != 1 {
+			t.Errorf("expected 1 Yoga activity, got %d", len(response.Activities))
+		}
+
+		if len(response.Activities) > 0 {
+			if response.Activities[0].Sport != "Yoga" {
+				t.Errorf("expected sport 'Yoga', got %s", response.Activities[0].Sport)
+			}
+			if response.Activities[0].Type != "Workout" {
+				t.Errorf("expected type 'Workout', got %s", response.Activities[0].Type)
+			}
+		}
+	})
+
 	t.Run("ListActivities_WithDateRange", func(t *testing.T) {
 		from := "2024-01-15"
 		to := "2024-01-15"
@@ -308,9 +390,9 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("ListActivities failed: %v", err)
 		}
 
-		// Should return 2 activities from Jan 15 (Morning Ride at 8am, Morning Run at 7am)
-		if len(response.Activities) != 2 {
-			t.Errorf("expected 2 activities on Jan 15, got %d", len(response.Activities))
+		// Should return 3 activities from Jan 15 (Ride at 8am, Run at 7am, Yoga at 6am)
+		if len(response.Activities) != 3 {
+			t.Errorf("expected 3 activities on Jan 15, got %d", len(response.Activities))
 		}
 	})
 
@@ -344,9 +426,9 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("ListActivities failed: %v", err)
 		}
 
-		// With only 3 test activities, should return all
-		if len(response.Activities) != 3 {
-			t.Errorf("expected 3 activities with default limit, got %d", len(response.Activities))
+		// With only 4 test activities, should return all
+		if len(response.Activities) != 4 {
+			t.Errorf("expected 4 activities with default limit, got %d", len(response.Activities))
 		}
 	})
 
@@ -359,9 +441,9 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("ListActivities failed: %v", err)
 		}
 
-		// With only 3 test activities, should return all (but limit was capped)
-		if len(response.Activities) != 3 {
-			t.Errorf("expected 3 activities with max limit, got %d", len(response.Activities))
+		// With only 4 test activities, should return all (but limit was capped)
+		if len(response.Activities) != 4 {
+			t.Errorf("expected 4 activities with max limit, got %d", len(response.Activities))
 		}
 	})
 }
@@ -371,10 +453,10 @@ func cleanupTestData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 
-	// Delete test activities (IDs 1001-1003)
+	// Delete test activities (IDs 1001-1004)
 	_, err := pool.Exec(ctx, `
 		DELETE FROM desirelines.activities
-		WHERE id IN (1001, 1002, 1003)
+		WHERE id IN (1001, 1002, 1003, 1004)
 	`)
 	if err != nil {
 		t.Logf("cleanup warning: %v", err)
@@ -389,6 +471,7 @@ func insertTestData(t *testing.T, pool *pgxpool.Pool) {
 	// Test data:
 	// - 2 cycling activities: Jan 15 (10km), Jan 16 (15km)
 	// - 1 running activity: Jan 15 (5km)
+	// - 1 yoga activity: Jan 15 (type="Workout", sport="Yoga" — exercises the type≠sport case)
 	testActivities := []struct {
 		id             int64
 		userID         string
@@ -440,6 +523,19 @@ func insertTestData(t *testing.T, pool *pgxpool.Pool) {
 			movingTime:     1500, // 25 minutes in seconds
 			elapsedTime:    1600,
 			elevationGain:  50,
+		},
+		{
+			id:             1004,
+			userID:         "test-user",
+			name:           "Morning Yoga",
+			activityType:   "Workout", // Strava type (broad category)
+			sport:          "Yoga",    // Strava sport_type (specific) — differs from type!
+			startDateLocal: time.Date(2024, 1, 15, 6, 0, 0, 0, time.UTC),
+			year:           2024,
+			distance:       0,    // Non-distance sport
+			movingTime:     3600, // 60 minutes in seconds
+			elapsedTime:    3700,
+			elevationGain:  0,
 		},
 	}
 
