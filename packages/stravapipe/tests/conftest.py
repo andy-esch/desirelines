@@ -11,7 +11,4 @@ def mock_bq_inserter_config():
     return BQInserterConfig(
         gcp_project_id="test-project",
         gcp_bigquery_dataset="test_dataset",
-        strava_client_id=123,
-        strava_client_secret="test_secret",
-        strava_refresh_token="test_refresh",
     )

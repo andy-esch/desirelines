@@ -80,10 +80,10 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 	}, nil
 }
 
-// Publish sends a webhook event to the configured Pub/Sub topic.
+// Publish sends an enriched webhook event to the configured Pub/Sub topic.
 // Returns ErrPublisherClosed if called after Close.
 // If the context has no deadline, a default timeout of 30s is applied.
-func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) error {
+func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) error {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -98,12 +98,11 @@ func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent
 		defer cancel()
 	}
 
-	// Use ToStravaJSON to serialize with string enums ("create", "activity")
-	// instead of protojson which outputs numeric enums (1, 1).
-	// This maintains compatibility with stravapipe's Pydantic WebhookRequest model.
-	data, err := webhookproto.ToStravaJSON(webhook)
+	// Use ToEnrichedJSON to serialize with string enums ("create", "activity")
+	// and include raw_activity as a nested JSON object.
+	data, err := webhookproto.ToEnrichedJSON(enriched)
 	if err != nil {
-		return fmt.Errorf("failed to marshal webhook data: %w", err)
+		return fmt.Errorf("failed to marshal enriched event: %w", err)
 	}
 
 	result := p.publisher.Publish(ctx, &pubsub.Message{
@@ -119,12 +118,14 @@ func (p *Publisher) Publish(ctx context.Context, webhook *generated.WebhookEvent
 		return fmt.Errorf("failed to publish to PubSub: %w", err)
 	}
 
-	p.logger.Info("Successfully published webhook to PubSub",
+	webhook := enriched.Event
+	p.logger.Info("Successfully published enriched event to PubSub",
 		"message_id", id,
 		"correlation_id", correlationID,
 		"object_id", webhook.ObjectId,
 		"aspect_type", webhookproto.AspectTypeToString(webhook.AspectType),
-		"owner_id", webhook.OwnerId)
+		"owner_id", webhook.OwnerId,
+		"has_raw_activity", enriched.RawActivity != nil)
 	return nil
 }
 

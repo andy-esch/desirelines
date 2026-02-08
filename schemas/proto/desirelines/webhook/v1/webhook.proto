@@ -75,6 +75,18 @@ message WebhookEvent {
   optional ActivityUpdates updates = 7;
 }
 
+// EnrichedEvent wraps a WebhookEvent with optional activity data.
+// For CREATE events, raw_activity contains the full Strava API response (JSON bytes).
+// For UPDATE/DELETE events, raw_activity is not set.
+message EnrichedEvent {
+  // The original webhook event with all metadata.
+  WebhookEvent event = 1;
+
+  // Raw Strava API JSON response for the activity.
+  // Only populated for CREATE events.
+  optional bytes raw_activity = 2;
+}
+
 // WebhookVerificationRequest represents the initial webhook verification challenge.
 // Strava sends this when setting up a webhook subscription.
 message WebhookVerificationRequest {

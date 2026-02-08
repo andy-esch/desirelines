@@ -1,41 +1,13 @@
-"""BQ inserter services for webhook processing."""
+"""BQ inserter services for webhook processing.
+
+Activity data is now provided inline by the dispatcher's enriched events.
+The SyncService (which fetched from Strava API) is no longer used.
+"""
 
 from google.cloud import bigquery
 
-from stravapipe.adapters.gcp import make_write_activities
-from stravapipe.adapters.strava import (
-    make_read_detailed_activities,
-    make_read_strava_token,
-)
 from stravapipe.application.bq_inserter.delete_service import DeleteActivityService
-from stravapipe.application.bq_inserter.sync_service import SyncService
 from stravapipe.config import BQInserterConfig, load_bq_inserter_config
-
-
-def make_sync_service(config: BQInserterConfig | None = None) -> SyncService:
-    """Create a configured SyncService instance.
-
-    Factory function that wires together all dependencies needed for the
-    sync service.
-
-    Args:
-        config: Application configuration. If None, loads from environment.
-
-    Returns:
-        SyncService: Fully configured sync service instance.
-
-    Raises:
-        StravaTokenError: If initial token refresh fails.
-        ConfigurationError: If required configuration is missing.
-    """
-    if config is None:
-        config = load_bq_inserter_config()
-
-    return SyncService(
-        read_strava_token=lambda: make_read_strava_token(config.tokens),
-        read_activities=lambda tokens: make_read_detailed_activities(tokens),
-        write_activities=lambda: make_write_activities(config),
-    )
 
 
 def make_delete_service(
@@ -69,7 +41,5 @@ def make_delete_service(
 
 __all__ = [
     "DeleteActivityService",
-    "SyncService",
     "make_delete_service",
-    "make_sync_service",
 ]

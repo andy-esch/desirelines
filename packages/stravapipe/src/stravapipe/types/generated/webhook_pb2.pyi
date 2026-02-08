@@ -22,6 +22,14 @@ class ActivityUpdates(_message.Message):
     type: str
     def __init__(self, title: Optional[str] = ..., type: Optional[str] = ..., private: bool = ...) -> None: ...
 
+class EnrichedEvent(_message.Message):
+    __slots__ = ["event", "raw_activity"]
+    EVENT_FIELD_NUMBER: ClassVar[int]
+    RAW_ACTIVITY_FIELD_NUMBER: ClassVar[int]
+    event: WebhookEvent
+    raw_activity: bytes
+    def __init__(self, event: Optional[Union[WebhookEvent, Mapping]] = ..., raw_activity: Optional[bytes] = ...) -> None: ...
+
 class WebhookEvent(_message.Message):
     __slots__ = ["aspect_type", "event_time", "object_id", "object_type", "owner_id", "subscription_id", "updates"]
     ASPECT_TYPE_FIELD_NUMBER: ClassVar[int]

@@ -1,4 +1,8 @@
-"""Configuration for PostgreSQL writer cloud function."""
+"""Configuration for PostgreSQL writer cloud function.
+
+Strava API credentials are no longer needed here - the dispatcher
+enriches events with activity data before publishing to Pub/Sub.
+"""
 
 import logging
 
@@ -7,8 +11,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Import directly from module to avoid pulling in SQLAlchemy dependencies
 from stravapipe.adapters.postgres._connection import load_connection_string
-from stravapipe.config.common import StravaApiConfig, load_strava_secrets
-from stravapipe.domain import StravaTokenSet
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +18,9 @@ logger = logging.getLogger(__name__)
 class PostgresWriterConfig(BaseSettings):
     """Configuration for the PostgreSQL writer cloud function.
 
-    Loads configuration from environment variables and optionally from
-    secret volumes mounted at /etc/secrets/.
+    Loads configuration from environment variables and optionally from .env file.
+    Strava API credentials are no longer required - activity data is provided
+    inline by the dispatcher's enriched events.
     """
 
     # GCP configuration
@@ -28,16 +31,8 @@ class PostgresWriterConfig(BaseSettings):
     log_level: str = "INFO"
     enable_cloud_logging: bool = False
 
-    # Strava API configuration (secrets)
-    strava_client_id: int = Field(description="Strava API client ID")
-    strava_client_secret: str = Field(description="Strava API client secret")
-    strava_refresh_token: str = Field(description="Strava API refresh token")
-
     # Database configuration
     postgres_connection_string: str = Field(description="PostgreSQL connection string")
-
-    # API defaults (timeouts, retries)
-    strava_api: StravaApiConfig = StravaApiConfig()
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -45,24 +40,13 @@ class PostgresWriterConfig(BaseSettings):
         extra="ignore",
     )
 
-    @property
-    def tokens(self) -> StravaTokenSet:
-        """Get Strava tokens for API authentication."""
-        return StravaTokenSet(
-            client_id=self.strava_client_id,
-            client_secret=self.strava_client_secret,
-            access_token="",  # Will be refreshed on first use
-            refresh_token=self.strava_refresh_token,
-        )
-
 
 def load_postgres_writer_config() -> PostgresWriterConfig:
     """Load and validate configuration for the PostgreSQL writer function.
 
     Priority order:
-    1. Secret volumes at /etc/secrets/INFISICAL_* (if present)
-    2. Environment variables (STRAVA_* for backwards compatibility)
-    3. .env file (if present)
+    1. Environment variables
+    2. .env file (if present)
 
     Returns:
         Validated PostgresWriterConfig object.
@@ -71,8 +55,7 @@ def load_postgres_writer_config() -> PostgresWriterConfig:
         ValidationError: If required configuration is missing or invalid.
         ConnectionStringError: If PostgreSQL connection string is missing or invalid.
     """
-    # Load Strava secrets and map keys
-    config_dict = load_strava_secrets()
+    config_dict: dict[str, str] = {}
 
     # Load PostgreSQL connection string with validation and dialect transformation
     # This reads from secret volume or env var, validates application_name,

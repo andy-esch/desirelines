@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n*proto/desirelines/webhook/v1/webhook.proto\x12\x16\x64\x65sirelines.webhook.v1\"m\n\x0f\x41\x63tivityUpdates\x12\x12\n\x05title\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x11\n\x04type\x18\x02 \x01(\tH\x01\x88\x01\x01\x12\x14\n\x07private\x18\x03 \x01(\x08H\x02\x88\x01\x01\x42\x08\n\x06_titleB\x07\n\x05_typeB\n\n\x08_private\"\x9d\x02\n\x0cWebhookEvent\x12\x37\n\x0b\x61spect_type\x18\x01 \x01(\x0e\x32\".desirelines.webhook.v1.AspectType\x12\x37\n\x0bobject_type\x18\x02 \x01(\x0e\x32\".desirelines.webhook.v1.ObjectType\x12\x11\n\tobject_id\x18\x03 \x01(\x03\x12\x10\n\x08owner_id\x18\x04 \x01(\x03\x12\x12\n\nevent_time\x18\x05 \x01(\x03\x12\x17\n\x0fsubscription_id\x18\x06 \x01(\x05\x12=\n\x07updates\x18\x07 \x01(\x0b\x32\'.desirelines.webhook.v1.ActivityUpdatesH\x00\x88\x01\x01\x42\n\n\x08_updates\"_\n\x1aWebhookVerificationRequest\x12\x10\n\x08hub_mode\x18\x01 \x01(\t\x12\x15\n\rhub_challenge\x18\x02 \x01(\t\x12\x18\n\x10hub_verify_token\x18\x03 \x01(\t\"4\n\x1bWebhookVerificationResponse\x12\x15\n\rhub_challenge\x18\x01 \x01(\t*q\n\nAspectType\x12\x1b\n\x17\x41SPECT_TYPE_UNSPECIFIED\x10\x00\x12\x16\n\x12\x41SPECT_TYPE_CREATE\x10\x01\x12\x16\n\x12\x41SPECT_TYPE_UPDATE\x10\x02\x12\x16\n\x12\x41SPECT_TYPE_DELETE\x10\x03*\\\n\nObjectType\x12\x1b\n\x17OBJECT_TYPE_UNSPECIFIED\x10\x00\x12\x18\n\x14OBJECT_TYPE_ACTIVITY\x10\x01\x12\x17\n\x13OBJECT_TYPE_ATHLETE\x10\x02\x42\x46ZDgithub.com/andy-esch/desirelines/packages/dispatcher/types/generatedb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n*proto/desirelines/webhook/v1/webhook.proto\x12\x16\x64\x65sirelines.webhook.v1\"m\n\x0f\x41\x63tivityUpdates\x12\x12\n\x05title\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x11\n\x04type\x18\x02 \x01(\tH\x01\x88\x01\x01\x12\x14\n\x07private\x18\x03 \x01(\x08H\x02\x88\x01\x01\x42\x08\n\x06_titleB\x07\n\x05_typeB\n\n\x08_private\"\x9d\x02\n\x0cWebhookEvent\x12\x37\n\x0b\x61spect_type\x18\x01 \x01(\x0e\x32\".desirelines.webhook.v1.AspectType\x12\x37\n\x0bobject_type\x18\x02 \x01(\x0e\x32\".desirelines.webhook.v1.ObjectType\x12\x11\n\tobject_id\x18\x03 \x01(\x03\x12\x10\n\x08owner_id\x18\x04 \x01(\x03\x12\x12\n\nevent_time\x18\x05 \x01(\x03\x12\x17\n\x0fsubscription_id\x18\x06 \x01(\x05\x12=\n\x07updates\x18\x07 \x01(\x0b\x32\'.desirelines.webhook.v1.ActivityUpdatesH\x00\x88\x01\x01\x42\n\n\x08_updates\"p\n\rEnrichedEvent\x12\x33\n\x05\x65vent\x18\x01 \x01(\x0b\x32$.desirelines.webhook.v1.WebhookEvent\x12\x19\n\x0craw_activity\x18\x02 \x01(\x0cH\x00\x88\x01\x01\x42\x0f\n\r_raw_activity\"_\n\x1aWebhookVerificationRequest\x12\x10\n\x08hub_mode\x18\x01 \x01(\t\x12\x15\n\rhub_challenge\x18\x02 \x01(\t\x12\x18\n\x10hub_verify_token\x18\x03 \x01(\t\"4\n\x1bWebhookVerificationResponse\x12\x15\n\rhub_challenge\x18\x01 \x01(\t*q\n\nAspectType\x12\x1b\n\x17\x41SPECT_TYPE_UNSPECIFIED\x10\x00\x12\x16\n\x12\x41SPECT_TYPE_CREATE\x10\x01\x12\x16\n\x12\x41SPECT_TYPE_UPDATE\x10\x02\x12\x16\n\x12\x41SPECT_TYPE_DELETE\x10\x03*\\\n\nObjectType\x12\x1b\n\x17OBJECT_TYPE_UNSPECIFIED\x10\x00\x12\x18\n\x14OBJECT_TYPE_ACTIVITY\x10\x01\x12\x17\n\x13OBJECT_TYPE_ATHLETE\x10\x02\x42\x46ZDgithub.com/andy-esch/desirelines/packages/dispatcher/types/generatedb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'proto.desirelines.webhook.v1.webhook_pb2', globals())
@@ -21,16 +21,18 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'ZDgithub.com/andy-esch/desirelines/packages/dispatcher/types/generated'
-  _ASPECTTYPE._serialized_start=620
-  _ASPECTTYPE._serialized_end=733
-  _OBJECTTYPE._serialized_start=735
-  _OBJECTTYPE._serialized_end=827
+  _ASPECTTYPE._serialized_start=734
+  _ASPECTTYPE._serialized_end=847
+  _OBJECTTYPE._serialized_start=849
+  _OBJECTTYPE._serialized_end=941
   _ACTIVITYUPDATES._serialized_start=70
   _ACTIVITYUPDATES._serialized_end=179
   _WEBHOOKEVENT._serialized_start=182
   _WEBHOOKEVENT._serialized_end=467
-  _WEBHOOKVERIFICATIONREQUEST._serialized_start=469
-  _WEBHOOKVERIFICATIONREQUEST._serialized_end=564
-  _WEBHOOKVERIFICATIONRESPONSE._serialized_start=566
-  _WEBHOOKVERIFICATIONRESPONSE._serialized_end=618
+  _ENRICHEDEVENT._serialized_start=469
+  _ENRICHEDEVENT._serialized_end=581
+  _WEBHOOKVERIFICATIONREQUEST._serialized_start=583
+  _WEBHOOKVERIFICATIONREQUEST._serialized_end=678
+  _WEBHOOKVERIFICATIONRESPONSE._serialized_start=680
+  _WEBHOOKVERIFICATIONRESPONSE._serialized_end=732
 # @@protoc_insertion_point(module_scope)

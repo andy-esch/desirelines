@@ -3,6 +3,9 @@
 This module provides the HTTP interface for receiving Pub/Sub CloudEvents
 and syncing Strava activities to PostgreSQL. It acts as a thin controller,
 delegating business logic to the existing application services.
+
+Activity data is now provided inline in the enriched event from the dispatcher
+(raw_activity field) rather than fetched from the Strava API by this service.
 """
 
 from contextlib import asynccontextmanager
@@ -10,11 +13,9 @@ import uuid
 
 from fastapi import FastAPI, HTTPException, Request
 
+from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
+from stravapipe.adapters.postgres._unit_of_work import create_session_factory
 from stravapipe.adapters.proto import dict_to_webhook_event
-from stravapipe.application.postgres_sync import (
-    make_postgres_write_service,
-    make_session_factory,
-)
 from stravapipe.cfutils.constants import (
     DEFAULT_UNKNOWN,
     ResponseField,
@@ -25,7 +26,7 @@ from stravapipe.cfutils.constants import (
 from stravapipe.cfutils.logging import setup_cloud_function_logging
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_postgres_writer_config
-from stravapipe.exceptions import ActivityNotFoundError
+from stravapipe.domain.activity import StandardActivity
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_cloud_function_logging(__name__)
@@ -61,8 +62,9 @@ async def lifespan(app: FastAPI):
         logger.info("PostgreSQL Writer configuration validated successfully")
 
         # Create session factory once at startup (connection pool)
-        # This is passed to make_postgres_write_service() for each request
-        app.state.session_factory = make_session_factory(config)
+        app.state.session_factory = create_session_factory(
+            config.postgres_connection_string
+        )
         logger.info("PostgreSQL session factory initialized")
     except Exception as e:
         logger.error("Startup initialization failed: %s", e)
@@ -156,9 +158,14 @@ async def handle_pubsub(request: Request):
         # Get shared session factory from app state
         session_factory = request.app.state.session_factory
 
+        # Extract raw_activity from enriched event (populated by dispatcher for CREATE)
+        raw_activity = event_data.get("raw_activity")
+
         # Route by aspect type
         if event.aspect_type == pb.ASPECT_TYPE_CREATE:
-            return await _handle_create(event, correlation_id, session_factory)
+            return await _handle_create(
+                event, raw_activity, correlation_id, session_factory
+            )
         elif event.aspect_type == pb.ASPECT_TYPE_UPDATE:
             return await _handle_update(event, correlation_id, session_factory)
         elif event.aspect_type == pb.ASPECT_TYPE_DELETE:
@@ -189,19 +196,25 @@ async def handle_pubsub(request: Request):
 
 
 async def _handle_create(
-    event: pb.WebhookEvent, correlation_id: str, session_factory
+    event: pb.WebhookEvent,
+    raw_activity: dict | None,
+    correlation_id: str,
+    session_factory,
 ) -> dict:
-    """Handle CREATE events - insert new activity to PostgreSQL."""
+    """Handle CREATE events - insert new activity to PostgreSQL.
+
+    Activity data is provided inline from the dispatcher's enriched event.
+    No Strava API call is needed.
+    """
     activity_id = event.object_id
 
-    try:
-        service = make_postgres_write_service(session_factory=session_factory)
-        inserted = service.create_activity(activity_id)
-    except ActivityNotFoundError:
+    if raw_activity is None:
         logger.warning(
-            "Activity %s not found in Strava",
-            activity_id,
-            extra={"correlation_id": correlation_id},
+            "CREATE event missing raw_activity, skipping",
+            extra={
+                "correlation_id": correlation_id,
+                "activity_id": activity_id,
+            },
         )
         return _response(
             ResponseStatus.SKIPPED,
@@ -210,11 +223,23 @@ async def _handle_create(
             reason=SkipReason.ACTIVITY_NOT_FOUND,
         )
 
+    # Construct StandardActivity from raw Strava API JSON
+    activity = StandardActivity.model_validate(raw_activity)
+
+    # Insert to PostgreSQL within transaction (no Strava API call needed)
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    with uow:
+        inserted = uow.activities.insert(activity)
+        uow.commit()
+
     if inserted:
         logger.info(
             "Created activity %s in PostgreSQL",
             activity_id,
-            extra={"correlation_id": correlation_id},
+            extra={
+                "correlation_id": correlation_id,
+                "user_id": activity.user_id,
+            },
         )
         return _response(ResponseStatus.CREATED, activity_id, correlation_id)
 
@@ -234,7 +259,7 @@ async def _handle_create(
 async def _handle_update(
     event: pb.WebhookEvent, correlation_id: str, session_factory
 ) -> dict:
-    """Handle UPDATE events - update metadata or backfill if missing."""
+    """Handle UPDATE events - update metadata if activity exists."""
     activity_id = event.object_id
     updates = event.updates
 
@@ -261,33 +286,29 @@ async def _handle_update(
             reason=SkipReason.NO_RELEVANT_UPDATES,
         )
 
-    service = make_postgres_write_service(session_factory=session_factory)
+    uow = SqlAlchemyUnitOfWork(session_factory)
 
-    # If activity doesn't exist, delegate to CREATE handler (backfill)
-    if not service.activity_exists(activity_id):
-        logger.info(
-            "Activity %s not in PostgreSQL, backfilling from Strava",
-            activity_id,
-            extra={"correlation_id": correlation_id},
-        )
-        return await _handle_create(event, correlation_id, session_factory)
+    # If activity doesn't exist, skip with warning
+    # (going forward, CREATEs always carry data so backfill is not needed)
+    with uow:
+        if not uow.activities.exists(activity_id):
+            logger.warning(
+                "Activity %s not in PostgreSQL, skipping UPDATE (no backfill)",
+                activity_id,
+                extra={"correlation_id": correlation_id},
+            )
+            return _response(
+                ResponseStatus.SKIPPED,
+                activity_id,
+                correlation_id,
+                reason=SkipReason.NOT_FOUND,
+            )
 
     # Activity exists - update metadata only
-    try:
-        updated = service.update_activity_metadata(activity_id, relevant_updates)
-    except ActivityNotFoundError:
-        # Race condition: activity was deleted between exists check and update
-        logger.warning(
-            "Activity %s not found in Strava during update",
-            activity_id,
-            extra={"correlation_id": correlation_id},
-        )
-        return _response(
-            ResponseStatus.SKIPPED,
-            activity_id,
-            correlation_id,
-            reason=SkipReason.ACTIVITY_NOT_FOUND,
-        )
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    with uow:
+        updated = uow.activities.update_metadata(activity_id, relevant_updates)
+        uow.commit()
 
     if updated:
         logger.info(
@@ -310,8 +331,11 @@ async def _handle_delete(
 ) -> dict:
     """Handle DELETE events - remove activity from PostgreSQL."""
     activity_id = event.object_id
-    service = make_postgres_write_service(session_factory=session_factory)
-    deleted = service.delete_activity(activity_id)
+    uow = SqlAlchemyUnitOfWork(session_factory)
+
+    with uow:
+        deleted = uow.activities.delete(activity_id)
+        uow.commit()
 
     if deleted:
         logger.info(

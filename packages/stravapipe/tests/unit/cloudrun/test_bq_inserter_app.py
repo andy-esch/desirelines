@@ -2,6 +2,9 @@
 
 Tests the HTTP interface layer using FastAPI's TestClient, with mocked service
 layer to isolate endpoint logic from business logic and external dependencies.
+
+Activity data is now provided inline in the enriched event (raw_activity field)
+rather than fetched from the Strava API.
 """
 
 import base64
@@ -61,9 +64,10 @@ def make_webhook_payload(
     object_id: int = 12345678,
     owner_id: int = 98765,
     event_time: int = 1704067200,
+    raw_activity: dict | None = None,
 ) -> dict:
-    """Create a valid Strava webhook payload."""
-    return {
+    """Create a valid enriched event payload."""
+    payload = {
         "aspect_type": aspect_type,
         "event_time": event_time,
         "object_id": object_id,
@@ -72,6 +76,23 @@ def make_webhook_payload(
         "subscription_id": 123456,
         "updates": {},
     }
+    if raw_activity is not None:
+        payload["raw_activity"] = raw_activity
+    return payload
+
+
+# Sample raw activity data for testing
+SAMPLE_RAW_ACTIVITY = {
+    "id": 12345678,
+    "name": "Morning Run",
+    "type": "Run",
+    "sport_type": "Run",
+    "distance": 5000.0,
+    "moving_time": 1800,
+    "elapsed_time": 2000,
+    "start_date_local": "2024-01-01T08:00:00Z",
+    "athlete": {"id": 98765},
+}
 
 
 class TestHealthEndpoint:
@@ -161,46 +182,51 @@ class TestCreateEventHandling:
     """Tests for CREATE aspect_type handling."""
 
     def test_create_event_success(self, client):
-        """CREATE event successfully syncs activity to BigQuery."""
-        with patch(
-            "stravapipe.cloudrun.bq_inserter_app.make_sync_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_factory.return_value = mock_service
+        """CREATE event with raw_activity writes to BigQuery."""
+        mock_writer = MagicMock()
+        mock_writer.write_activity.return_value = {"rows_affected": 1}
+        mock_activity = MagicMock()
 
+        with (
+            patch(
+                "stravapipe.cloudrun.bq_inserter_app.make_write_activities",
+                return_value=mock_writer,
+            ),
+            patch(
+                "stravapipe.cloudrun.bq_inserter_app.DetailedStravaActivity.model_validate",
+                return_value=mock_activity,
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
-                json=make_pubsub_body(make_webhook_payload(aspect_type="create")),
+                json=make_pubsub_body(webhook),
             )
 
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "created"
             assert data["activity_id"] == 12345678
-            mock_service.run.assert_called_once_with(12345678)
+            mock_writer.write_activity.assert_called_once_with(mock_activity)
 
-    def test_create_event_activity_not_found(self, client):
-        """CREATE event when activity not found in Strava returns skipped."""
-        from stravapipe.exceptions import ActivityNotFoundError
+    def test_create_event_missing_raw_activity(self, client):
+        """CREATE event without raw_activity returns skipped."""
+        webhook = make_webhook_payload(aspect_type="create")
+        # No raw_activity field
 
-        with patch(
-            "stravapipe.cloudrun.bq_inserter_app.make_sync_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.run.side_effect = ActivityNotFoundError("Not found")
-            mock_factory.return_value = mock_service
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(webhook),
+        )
 
-            response = client.post(
-                "/",
-                headers=make_cloudevent_headers(),
-                json=make_pubsub_body(make_webhook_payload(aspect_type="create")),
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "skipped"
-            assert data["reason"] == "activity_not_found"
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        assert data["reason"] == "activity_not_found"
 
 
 class TestUpdateEventHandling:
@@ -263,17 +289,26 @@ class TestErrorHandling:
 
     def test_unexpected_error_returns_500(self, client):
         """Unexpected errors return 500 to trigger Pub/Sub retry."""
-        with patch(
-            "stravapipe.cloudrun.bq_inserter_app.make_sync_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.run.side_effect = RuntimeError("BigQuery error")
-            mock_factory.return_value = mock_service
+        mock_writer = MagicMock()
+        mock_writer.write_activity.side_effect = RuntimeError("BigQuery error")
 
+        with (
+            patch(
+                "stravapipe.cloudrun.bq_inserter_app.make_write_activities",
+                return_value=mock_writer,
+            ),
+            patch(
+                "stravapipe.cloudrun.bq_inserter_app.DetailedStravaActivity.model_validate",
+                return_value=MagicMock(),
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
-                json=make_pubsub_body(make_webhook_payload(aspect_type="create")),
+                json=make_pubsub_body(webhook),
             )
 
             assert response.status_code == 500

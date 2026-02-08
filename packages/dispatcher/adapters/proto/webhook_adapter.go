@@ -131,6 +131,19 @@ func ObjectTypeToString(ot pb.ObjectType) string {
 	}
 }
 
+// EnrichedEventJSON extends the webhook JSON with raw activity data.
+// Python consumers call json.loads() and get raw_activity as a dict directly.
+type EnrichedEventJSON struct {
+	AspectType     string            `json:"aspect_type"`
+	ObjectType     string            `json:"object_type"`
+	ObjectID       int64             `json:"object_id"`
+	OwnerID        int64             `json:"owner_id"`
+	EventTime      int64             `json:"event_time"`
+	SubscriptionID int32             `json:"subscription_id"`
+	Updates        map[string]string `json:"updates,omitempty"`
+	RawActivity    json.RawMessage   `json:"raw_activity,omitempty"`
+}
+
 // ToStravaJSON converts a protobuf WebhookEvent back to Strava JSON format.
 // Useful for publishing to PubSub in a format stravapipe expects.
 func ToStravaJSON(event *pb.WebhookEvent) ([]byte, error) {
@@ -144,6 +157,32 @@ func ToStravaJSON(event *pb.WebhookEvent) ([]byte, error) {
 		Updates:        activityUpdatesToMap(event.Updates),
 	}
 	return json.Marshal(raw)
+}
+
+// ToEnrichedJSON converts an EnrichedEvent to JSON for PubSub publishing.
+// Maintains string enums ("create", "activity") and includes raw_activity
+// as a nested JSON object (not base64).
+func ToEnrichedJSON(enriched *pb.EnrichedEvent) ([]byte, error) {
+	if enriched == nil || enriched.Event == nil {
+		return nil, fmt.Errorf("enriched event or inner event is nil")
+	}
+
+	event := enriched.Event
+	result := EnrichedEventJSON{
+		AspectType:     AspectTypeToString(event.AspectType),
+		ObjectType:     ObjectTypeToString(event.ObjectType),
+		ObjectID:       event.ObjectId,
+		OwnerID:        event.OwnerId,
+		EventTime:      event.EventTime,
+		SubscriptionID: event.SubscriptionId,
+		Updates:        activityUpdatesToMap(event.Updates),
+	}
+
+	if enriched.RawActivity != nil {
+		result.RawActivity = json.RawMessage(enriched.RawActivity)
+	}
+
+	return json.Marshal(result)
 }
 
 // activityUpdatesToMap converts typed ActivityUpdates back to map for JSON serialization.

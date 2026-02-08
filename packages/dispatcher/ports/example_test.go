@@ -14,14 +14,17 @@ func ExamplePublisher() {
 	// For testing, use the mock:
 	publisher := &portstest.MockPublisher{}
 
-	event := &generated.WebhookEvent{
-		ObjectId:   123456789,
-		OwnerId:    12345,
-		AspectType: generated.AspectType_ASPECT_TYPE_CREATE,
-		ObjectType: generated.ObjectType_OBJECT_TYPE_ACTIVITY,
+	enriched := &generated.EnrichedEvent{
+		Event: &generated.WebhookEvent{
+			ObjectId:   123456789,
+			OwnerId:    12345,
+			AspectType: generated.AspectType_ASPECT_TYPE_CREATE,
+			ObjectType: generated.ObjectType_OBJECT_TYPE_ACTIVITY,
+		},
+		RawActivity: []byte(`{"id":123456789,"name":"Morning Run"}`),
 	}
 
-	err := publisher.Publish(context.Background(), event, "correlation-123")
+	err := publisher.Publish(context.Background(), enriched, "correlation-123")
 	if err != nil {
 		fmt.Println("publish failed:", err)
 		return
@@ -29,7 +32,7 @@ func ExamplePublisher() {
 
 	// Verify the mock received the call
 	fmt.Println("published events:", len(publisher.Published))
-	fmt.Println("object_id:", publisher.Published[0].ObjectId)
+	fmt.Println("object_id:", publisher.Published[0].Event.ObjectId)
 	// Output:
 	// published events: 1
 	// object_id: 123456789
@@ -58,11 +61,11 @@ func ExampleSecretProvider() {
 
 // customPublisher shows how to implement the Publisher interface
 type customPublisher struct {
-	events []*generated.WebhookEvent
+	events []*generated.EnrichedEvent
 }
 
-func (p *customPublisher) Publish(_ context.Context, webhook *generated.WebhookEvent, _ string) error {
-	p.events = append(p.events, webhook)
+func (p *customPublisher) Publish(_ context.Context, enriched *generated.EnrichedEvent, _ string) error {
+	p.events = append(p.events, enriched)
 	return nil
 }
 
@@ -78,8 +81,10 @@ func Example_customPublisher() {
 	// Implement the Publisher interface for custom backends
 	publisher := &customPublisher{}
 
-	event := &generated.WebhookEvent{ObjectId: 999}
-	if err := publisher.Publish(context.Background(), event, "id"); err != nil {
+	enriched := &generated.EnrichedEvent{
+		Event: &generated.WebhookEvent{ObjectId: 999},
+	}
+	if err := publisher.Publish(context.Background(), enriched, "id"); err != nil {
 		fmt.Println("error:", err)
 	}
 
