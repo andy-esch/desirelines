@@ -140,7 +140,11 @@ func getInt32Env(key string, defaultValue int32) int32 {
 		if err == nil && i >= 0 {
 			return int32(i)
 		}
-		slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
+		if err != nil {
+			slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
+		} else {
+			slog.Warn("Invalid environment variable value (must be non-negative), using default", "key", key, "value", value)
+		}
 	}
 	return defaultValue
 }
@@ -153,7 +157,11 @@ func getDurationEnvMinutes(key string, defaultValue time.Duration) time.Duration
 		if err == nil && minutes > 0 {
 			return time.Duration(minutes) * time.Minute
 		}
-		slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
+		if err != nil {
+			slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
+		} else {
+			slog.Warn("Invalid environment variable value (must be positive), using default", "key", key, "value", value)
+		}
 	}
 	return defaultValue
 }
