@@ -129,18 +129,14 @@ func (c *Client) FetchActivity(ctx context.Context, activityID int64) ([]byte, e
 			return nil, err
 		}
 
-		// 401: refresh token and retry once
+		// 401: refresh token and let the loop retry with the new token
 		if isAuthError(err) {
 			c.logger.Warn("Strava 401, refreshing token", "activity_id", activityID)
 			if refreshErr := c.refreshAccessToken(ctx); refreshErr != nil {
 				return nil, fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
 			}
-			// Retry immediately after refresh
-			retryBody, retryErr := c.doFetchActivity(ctx, activityID)
-			if retryErr == nil {
-				return retryBody, nil
-			}
-			return nil, fmt.Errorf("%w: still failing after token refresh: %w", ErrStravaAuth, retryErr)
+			lastErr = err
+			continue
 		}
 
 		lastErr = err
