@@ -18,10 +18,12 @@ message Activity {
   // Activity name/title.
   string name = 2;
 
-  // Strava activity type (Run, Ride, VirtualRide, etc.).
+  // Strava 'type' field: broad/deprecated category (Run, Ride, Workout, Swim, etc.).
+  // Note: multiple sport_types share the same type (e.g., Yoga → type "Workout").
   string type = 3;
 
-  // Categorized sport (running, cycling, yoga).
+  // App sport category (running, cycling, yoga).
+  // Mapped from Strava's sport_type via sport_types.json config.
   string sport = 4;
 
   // Local start time as ISO 8601 timestamp.
@@ -61,10 +63,11 @@ message ActivitySummary {
   // Activity name/title.
   string name = 2;
 
-  // Strava activity type (Run, Ride, VirtualRide, etc.).
+  // Strava 'type' field: broad/deprecated category (Run, Ride, Workout, Swim, etc.).
   string type = 3;
 
-  // Categorized sport (running, cycling, yoga).
+  // App sport category (running, cycling, yoga).
+  // Mapped from Strava's sport_type via sport_types.json config.
   string sport = 4;
 
   // Local start time as ISO 8601 timestamp.

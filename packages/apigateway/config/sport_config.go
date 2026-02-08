@@ -32,11 +32,22 @@ import (
 //go:embed sport_types.json
 var embeddedSportConfig []byte
 
-// SportCategory is a struct that contains the the configuration/definition
+// SportCategory defines a sport category and its mapping to Strava's data model.
 //
-//	for a specific sport category
+// # Strava type vs sport_type
+//
+// Strava's API has two activity classification fields:
+//   - type: broad/deprecated category (e.g., "Workout" covers yoga, weight training, HIIT, etc.)
+//   - sport_type: specific activity kind (e.g., "Yoga", "WeightTraining", "HIIT")
+//
+// StravaTypes contains sport_type values (the specific ones), NOT type values.
+// The database stores both: column 'type' = Strava type, column 'sport' = Strava sport_type.
+// All filtering queries must use the 'sport' column to match against StravaTypes.
 type SportCategory struct {
-	DisplayName   string   `json:"display_name" validate:"required"`
+	DisplayName string `json:"display_name" validate:"required"`
+	// StravaTypes lists Strava sport_type values belonging to this category.
+	// Example: cycling = ["Ride", "VirtualRide", "GravelRide", "MountainBikeRide", ...]
+	// These match the DB 'sport' column, NOT the 'type' column.
 	StravaTypes   []string `json:"strava_types" validate:"required,min=1"`
 	ExcludedTypes []string `json:"excluded_types"`
 	PrimaryMetric string   `json:"primary_metric" validate:"required"`
@@ -126,7 +137,7 @@ func loadSportConfigInternal(configPath string) (*SportConfig, error) {
 		)
 	}
 
-	// Build reverse lookup map: Strava type → category name
+	// Build reverse lookup map: Strava sport_type → category name
 	reverseMap := make(map[string]string)
 	for categoryName, category := range configData.SportCategories {
 		for _, stravaType := range category.StravaTypes {

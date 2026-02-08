@@ -15,6 +15,8 @@ class SportCategoryModel(BaseModel):
     """Schema for sport category configuration."""
 
     display_name: str
+    # Strava sport_type values (NOT the broad 'type' field).
+    # E.g., ["Yoga"] not ["Workout"]. See SportCategory docstring for details.
     strava_types: list[str] = Field(min_length=1)
     excluded_types: list[str] = []
     primary_metric: str
@@ -31,7 +33,15 @@ class SportConfigModel(BaseModel):
 
 
 class SportCategory:
-    """Sport category configuration."""
+    """Sport category configuration.
+
+    Strava has two activity classification fields:
+      - type: broad/deprecated category (e.g., "Workout" covers yoga, weights, HIIT)
+      - sport_type: specific activity kind (e.g., "Yoga", "WeightTraining", "HIIT")
+
+    strava_types contains sport_type values (the specific ones), NOT type values.
+    The DB stores both: column 'type' = Strava type, column 'sport' = Strava sport_type.
+    """
 
     def __init__(self, name: str, config: dict):
         self.name = name
@@ -43,11 +53,9 @@ class SportCategory:
         self.has_distance = config["has_distance"]
         self.has_elevation = config["has_elevation"]
 
-    def matches(self, strava_type: str) -> bool:
-        """Check if Strava activity type belongs to this sport."""
-        return (
-            strava_type in self.strava_types and strava_type not in self.excluded_types
-        )
+    def matches(self, sport_type: str) -> bool:
+        """Check if a Strava sport_type value belongs to this category."""
+        return sport_type in self.strava_types and sport_type not in self.excluded_types
 
 
 class SportConfig:
@@ -85,10 +93,10 @@ class SportConfig:
             for name, config in validated.sport_categories.items()
         }
 
-    def categorize_activity(self, strava_type: str) -> str | None:
-        """Map Strava activity type to sport category."""
+    def categorize_activity(self, sport_type: str) -> str | None:
+        """Map a Strava sport_type value to its sport category name."""
         for name, category in self.categories.items():
-            if category.matches(strava_type):
+            if category.matches(sport_type):
                 return name
         return None
 

@@ -20,6 +20,19 @@
 // This is intentional: explicit schema names are self-documenting, work regardless of
 // connection configuration, and prevent accidental queries to wrong schemas.
 //
+// # Column Mapping (Strava → DB)
+//
+// Strava's API has two activity classification fields that are easy to confuse:
+//   - type: broad/deprecated category (e.g., "Workout" covers yoga, weights, HIIT, etc.)
+//   - sport_type: specific activity kind (e.g., "Yoga", "WeightTraining", "HIIT")
+//
+// The DB maps these to:
+//   - 'type' column  ← Strava 'type' field     (broad, rarely used for filtering)
+//   - 'sport' column ← Strava 'sport_type' field (specific, used for all filtering)
+//
+// sport_types.json config contains sport_type values. All WHERE clauses that filter
+// by sport must use `sport = ANY(...)`, never `type = ANY(...)`.
+//
 // # Timezone Handling
 //
 // The start_date_local column is a TIMESTAMP (without timezone) containing the
