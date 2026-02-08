@@ -224,19 +224,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cache past years (immutable) for 1 hour
-	currentYear := time.Now().Year()
-	if !params.useDateRange && params.year < currentYear {
-		w.Header().Set("Cache-Control", "public, max-age=3600")
-	} else if params.useDateRange {
-		// Check if 'to' date is in a past year
-		if len(params.to) >= 4 {
-			if toYear, parseErr := strconv.Atoi(params.to[:4]); parseErr == nil {
-				if toYear < currentYear {
-					w.Header().Set("Cache-Control", "public, max-age=3600")
-				}
-			}
-		}
-	}
+	h.setCacheHeaderForPastData(w, params)
 
 	h.respondProtobuf(w, r, result)
 }
@@ -268,21 +256,35 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cache past years (immutable) for 1 hour
+	h.setCacheHeaderForPastData(w, params)
+
+	h.respondProtobuf(w, r, result)
+}
+
+// setCacheHeaderForPastData sets the Cache-Control header if the request is for immutable past data.
+func (h *Handler) setCacheHeaderForPastData(w http.ResponseWriter, params *sportQueryParams) {
 	currentYear := time.Now().Year()
-	if !params.useDateRange && params.year < currentYear {
-		w.Header().Set("Cache-Control", "public, max-age=3600")
-	} else if params.useDateRange {
-		// Check if 'to' date is in a past year
+	isPast := false
+
+	if !params.useDateRange {
+		if params.year < currentYear {
+			isPast = true
+		}
+	} else {
+		// Check if 'to' date is in a past year.
+		// This is safe because date format has been validated.
 		if len(params.to) >= 4 {
 			if toYear, parseErr := strconv.Atoi(params.to[:4]); parseErr == nil {
 				if toYear < currentYear {
-					w.Header().Set("Cache-Control", "public, max-age=3600")
+					isPast = true
 				}
 			}
 		}
 	}
 
-	h.respondProtobuf(w, r, result)
+	if isPast {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
 }
 
 // HandleGetActivity serves a single activity by ID.

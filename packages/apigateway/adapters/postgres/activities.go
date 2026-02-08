@@ -55,6 +55,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
@@ -499,12 +500,8 @@ func newQueryBuilder(baseQuery string) *queryBuilder {
 // It automatically injects the correct argument numbers ($1, $2, etc.).
 func (qb *queryBuilder) AddCondition(format string, args ...interface{}) {
 	// Validate placeholder count
-	placeholders := 0
-	for i := 0; i < len(format)-1; i++ {
-		if format[i] == '%' && format[i+1] == 'd' {
-			placeholders++
-		}
-	}
+	// Count %d placeholders, ignoring escaped %% (which become empty string)
+	placeholders := strings.Count(strings.ReplaceAll(format, "%%", ""), "%d")
 
 	if placeholders != len(args) {
 		panic(fmt.Sprintf("queryBuilder: format %q has %d placeholders but %d args", format, placeholders, len(args)))
