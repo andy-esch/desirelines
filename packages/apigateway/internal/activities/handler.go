@@ -156,17 +156,10 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		return nil
 	}
 
-	// Validate year consistency if date range is present
-	if fromStr != "" && toStr != "" {
-		// Basic check: at least the 'from' date must match the URL year
-		// This prevents "GET /activities/2020?from=2024..."
-		// We allow 'to' date to be in the next year to support fiscal year logic if needed later,
-		// but standard usage should be within the same year.
-		if !strings.HasPrefix(fromStr, yearStr) {
-			apiErr := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Date range must start in year %s", yearStr))
-			gcplog.WriteError(w, r, apiErr, h.logger)
-			return nil
-		}
+	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, yearInt); errMsg != "" {
+		apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return nil
 	}
 
 	return &sportQueryParams{
