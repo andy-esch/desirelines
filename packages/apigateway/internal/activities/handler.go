@@ -98,10 +98,9 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	metadata, err := h.repo.GetYearMetadata(ctx, yearInt)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "year", year)
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIError(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
-			fmt.Sprintf("Database query failed: %v", err),
 		)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
@@ -109,6 +108,11 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 
 	// Map raw Strava sport types to category names (e.g., "Ride" → "cycling")
 	h.categorizeSports(metadata)
+
+	// Cache past years (immutable) for 1 hour
+	if yearInt < time.Now().Year() {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
 
 	h.respondProtobuf(w, r, metadata)
 }
@@ -152,6 +156,19 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		return nil
 	}
 
+	// Validate year consistency if date range is present
+	if fromStr != "" && toStr != "" {
+		// Basic check: at least the 'from' date must match the URL year
+		// This prevents "GET /activities/2020?from=2024..."
+		// We allow 'to' date to be in the next year to support fiscal year logic if needed later,
+		// but standard usage should be within the same year.
+		if !strings.HasPrefix(fromStr, yearStr) {
+			apiErr := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Date range must start in year %s", yearStr))
+			gcplog.WriteError(w, r, apiErr, h.logger)
+			return nil
+		}
+	}
+
 	return &sportQueryParams{
 		year:         yearInt,
 		sportTypes:   sportTypes,
@@ -168,10 +185,9 @@ func (h *Handler) logAndRespondDBError(w http.ResponseWriter, r *http.Request, e
 	} else {
 		h.logger.Error("Database query failed", "error", err, "year", params.year, "sportTypes", params.sportTypes)
 	}
-	apiErr := gcplog.NewAPIErrorWithLog(
+	apiErr := gcplog.NewAPIError(
 		http.StatusInternalServerError,
 		errMsgInternalServerError,
-		fmt.Sprintf("Database query failed: %v", err),
 	)
 	gcplog.WriteError(w, r, apiErr, h.logger)
 }
@@ -206,6 +222,10 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		h.logAndRespondDBError(w, r, err, params)
 		return
 	}
+
+	// Cache past years (immutable) for 1 hour
+	h.setCacheHeaderForPastData(w, params)
+
 	h.respondProtobuf(w, r, result)
 }
 
@@ -234,7 +254,37 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		h.logAndRespondDBError(w, r, err, params)
 		return
 	}
+
+	// Cache past years (immutable) for 1 hour
+	h.setCacheHeaderForPastData(w, params)
+
 	h.respondProtobuf(w, r, result)
+}
+
+// setCacheHeaderForPastData sets the Cache-Control header if the request is for immutable past data.
+func (h *Handler) setCacheHeaderForPastData(w http.ResponseWriter, params *sportQueryParams) {
+	currentYear := time.Now().Year()
+	isPast := false
+
+	if !params.useDateRange {
+		if params.year < currentYear {
+			isPast = true
+		}
+	} else {
+		// Check if 'to' date is in a past year.
+		// This is safe because date format has been validated.
+		if len(params.to) >= 4 {
+			if toYear, parseErr := strconv.Atoi(params.to[:4]); parseErr == nil {
+				if toYear < currentYear {
+					isPast = true
+				}
+			}
+		}
+	}
+
+	if isPast {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
 }
 
 // HandleGetActivity serves a single activity by ID.
@@ -255,10 +305,9 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	activity, err := h.repo.GetActivityByID(ctx, id)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "activityId", id)
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := gcplog.NewAPIError(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
-			fmt.Sprintf("Database query failed: %v", err),
 		)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
@@ -291,10 +340,9 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	result, err := h.repo.ListActivities(ctx, *filter)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err)
-		apiErr = gcplog.NewAPIErrorWithLog(
+		apiErr = gcplog.NewAPIError(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
-			fmt.Sprintf("Database query failed: %v", err),
 		)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
@@ -313,7 +361,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.ActivityListFilter, gcplog.APIError) {
 	query := r.URL.Query()
 	filter := repository.ActivityListFilter{
-		Limit: 20, // Default
+		Limit: repository.DefaultListLimit,
 	}
 
 	// Parse 'from' date
@@ -347,8 +395,8 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 	// Parse 'limit'
 	if limitStr := query.Get("limit"); limitStr != "" {
 		limit, err := strconv.Atoi(limitStr)
-		if err != nil || limit < 1 || limit > 100 {
-			return nil, gcplog.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-100)")
+		if err != nil || limit < 1 || limit > repository.MaxListLimit {
+			return nil, gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid 'limit' (must be 1-%d)", repository.MaxListLimit))
 		}
 		filter.Limit = limit
 	}
@@ -423,19 +471,9 @@ func decodeCursor(s string) (*repository.ActivityCursor, error) {
 	}
 
 	// Validate timestamp format (RFC3339) to prevent database errors
-	ts, err := time.Parse(time.RFC3339, parts[0])
+	_, err = time.Parse(time.RFC3339, parts[0])
 	if err != nil {
 		return nil, fmt.Errorf("invalid cursor timestamp: %w", err)
-	}
-
-	// Reject timestamps too far in the future - cursors should reference past data.
-	// We allow 1 minute tolerance for minor clock differences between Cloud Run
-	// instances (though GCP NTP sync keeps drift to milliseconds). This is a sanity
-	// check against obviously invalid/tampered cursors, not a security boundary.
-	// Architecture note: Single database + Cloud Run means clock skew is not a
-	// practical concern; this tolerance is purely defensive.
-	if ts.After(time.Now().Add(1 * time.Minute)) {
-		return nil, fmt.Errorf("invalid cursor: timestamp is in the future")
 	}
 
 	id, err := strconv.ParseInt(parts[1], 10, 64)

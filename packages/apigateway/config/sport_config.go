@@ -70,6 +70,9 @@ type SportConfig struct {
 	// reverseMap maps Strava sport_type values to category names.
 	// Built at load time for O(1) lookups. E.g., "Ride" → "cycling".
 	reverseMap map[string]string
+	// rawJSON stores the original JSON bytes used to create this config.
+	// Used for serving the config via API endpoint.
+	rawJSON []byte
 }
 
 // Package-level state for singleton loading pattern.
@@ -89,13 +92,14 @@ var SupportedConfigVersions = []string{"1.0"}
 // Uses sync.Once to ensure it's only loaded once in production
 func LoadSportConfig(configPath string) (*SportConfig, error) {
 	sportConfigOnce.Do(func() {
-		sportConfig, sportConfigErr = loadSportConfigInternal(configPath)
+		sportConfig, sportConfigErr = NewSportConfig(configPath)
 	})
 	return sportConfig, sportConfigErr
 }
 
-// loadSportConfigInternal is the internal loader (for testing)
-func loadSportConfigInternal(configPath string) (*SportConfig, error) {
+// NewSportConfig creates a new SportConfig instance from a file or embedded default.
+// Exposed for testing to allow creating isolated config instances.
+func NewSportConfig(configPath string) (*SportConfig, error) {
 	var data []byte
 	var err error
 
@@ -145,7 +149,7 @@ func loadSportConfigInternal(configPath string) (*SportConfig, error) {
 		}
 	}
 
-	return &SportConfig{data: configData, reverseMap: reverseMap}, nil
+	return &SportConfig{data: configData, reverseMap: reverseMap, rawJSON: data}, nil
 }
 
 // ListSports returns all available sports
@@ -194,8 +198,8 @@ func (c *SportConfig) GetCategoryForStravaType(stravaType string) string {
 	return stravaType
 }
 
-// GetRawConfigJSON returns the raw embedded sport config JSON
-// Used for serving the config via API endpoint
-func GetRawConfigJSON() []byte {
-	return embeddedSportConfig
+// RawJSON returns the raw sport config JSON bytes.
+// Used for serving the config via API endpoint.
+func (c *SportConfig) RawJSON() []byte {
+	return c.rawJSON
 }

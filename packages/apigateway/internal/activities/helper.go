@@ -10,6 +10,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+var protoMarshaler = protojson.MarshalOptions{
+	UseProtoNames:   false,
+	EmitUnpopulated: true,
+}
+
 // respondProtobuf marshals a protobuf message to JSON using protojson.
 // Uses UseProtoNames: false to emit camelCase keys (default protojson behavior).
 func (h *Handler) respondProtobuf(w http.ResponseWriter, r *http.Request, msg proto.Message) {
@@ -18,12 +23,7 @@ func (h *Handler) respondProtobuf(w http.ResponseWriter, r *http.Request, msg pr
 		return
 	}
 
-	marshaler := protojson.MarshalOptions{
-		UseProtoNames:   false,
-		EmitUnpopulated: false,
-	}
-
-	data, err := marshaler.Marshal(msg)
+	data, err := protoMarshaler.Marshal(msg)
 	if err != nil {
 		h.logger.Error("Error marshaling protobuf response", "error", err)
 		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, "Internal server error")
@@ -50,7 +50,8 @@ func (h *Handler) categorizeSports(metadata *generated.YearMetadata) {
 				return
 			}
 			if *target == nil {
-				*target = source
+				v := *source
+				*target = &v
 				return
 			}
 			sum := **target + *source

@@ -67,18 +67,19 @@ func main() {
 		ReadHeaderTimeout: getDurationEnv("SERVER_READ_HEADER_TIMEOUT", defaultReadHeaderTimeout),
 	}
 
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
 	// Start server in goroutine to allow graceful shutdown
 	go func() {
 		log.Info("Server listening", "port", port)
 		if serverErr := srv.ListenAndServe(); serverErr != nil && serverErr != http.ErrServerClosed {
 			log.Error("Server failed", "error", serverErr)
-			os.Exit(1)
+			quit <- syscall.SIGTERM
 		}
 	}()
 
-	// Wait for interrupt signal for graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Info("Shutting down server...")
@@ -161,7 +162,7 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 func buildRouter(deps *Dependencies) http.Handler {
 	// Create feature handlers with their dependencies
 	healthHandler := health.NewHandler(deps.repo, deps.logger)
-	sportsHandler := sports.NewHandler(deps.logger)
+	sportsHandler := sports.NewHandler(deps.logger, deps.sportConfig)
 	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig, deps.logger)
 
 	// Configure and create router
@@ -197,8 +198,14 @@ func getEnvOrDefault(key, defaultValue string) string {
 // Returns defaultValue if the environment variable is not set or invalid.
 func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 	if value := os.Getenv(key); value != "" {
-		if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+		seconds, err := strconv.Atoi(value)
+		if err == nil && seconds > 0 {
 			return time.Duration(seconds) * time.Second
+		}
+		if err != nil {
+			slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
+		} else {
+			slog.Warn("Invalid environment variable value (must be positive), using default", "key", key, "value", value)
 		}
 	}
 	return defaultValue

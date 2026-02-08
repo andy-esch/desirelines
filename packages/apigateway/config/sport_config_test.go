@@ -155,7 +155,7 @@ func TestUnsupportedVersionFails(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	_, err = loadSportConfigInternal(configPath)
+	_, err = NewSportConfig(configPath)
 	if err == nil || !strings.Contains(err.Error(), "unsupported sport config version: 99.0") {
 		t.Errorf("Expected version validation error, got: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestInvalidSchemaFails(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	_, err = loadSportConfigInternal(configPath)
+	_, err = NewSportConfig(configPath)
 	if err == nil || !strings.Contains(err.Error(), "invalid sport config schema") {
 		t.Errorf("Expected schema validation error, got: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestEmptyStravaTypesFails(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	_, err = loadSportConfigInternal(configPath)
+	_, err = NewSportConfig(configPath)
 	if err == nil || !strings.Contains(err.Error(), "invalid sport config schema") {
 		t.Errorf("Expected schema validation error for empty strava_types, got: %v", err)
 	}

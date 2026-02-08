@@ -7,6 +7,12 @@
 // This file contains internal types used by the repository layer.
 package repository
 
+// DefaultListLimit is the default number of items to return per page.
+const DefaultListLimit = 20
+
+// MaxListLimit is the maximum number of items allowed per page.
+const MaxListLimit = 100
+
 // =============================================================================
 // Pagination Types (Internal)
 // =============================================================================

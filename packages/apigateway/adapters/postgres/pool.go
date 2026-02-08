@@ -136,8 +136,14 @@ func validateConnectionString(connString string) error {
 // Returns defaultValue if the environment variable is not set or invalid.
 func getInt32Env(key string, defaultValue int32) int32 {
 	if value := os.Getenv(key); value != "" {
-		if i, err := strconv.ParseInt(value, 10, 32); err == nil && i >= 0 {
+		i, err := strconv.ParseInt(value, 10, 32)
+		if err == nil && i >= 0 {
 			return int32(i)
+		}
+		if err != nil {
+			slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
+		} else {
+			slog.Warn("Invalid environment variable value (must be non-negative), using default", "key", key, "value", value)
 		}
 	}
 	return defaultValue
@@ -147,8 +153,14 @@ func getInt32Env(key string, defaultValue int32) int32 {
 // Returns defaultValue if the environment variable is not set or invalid.
 func getDurationEnvMinutes(key string, defaultValue time.Duration) time.Duration {
 	if value := os.Getenv(key); value != "" {
-		if minutes, err := strconv.Atoi(value); err == nil && minutes > 0 {
+		minutes, err := strconv.Atoi(value)
+		if err == nil && minutes > 0 {
 			return time.Duration(minutes) * time.Minute
+		}
+		if err != nil {
+			slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
+		} else {
+			slog.Warn("Invalid environment variable value (must be positive), using default", "key", key, "value", value)
 		}
 	}
 	return defaultValue
