@@ -67,6 +67,10 @@ func main() {
 		ReadHeaderTimeout: getDurationEnv("SERVER_READ_HEADER_TIMEOUT", defaultReadHeaderTimeout),
 	}
 
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
 	// Start server in goroutine to allow graceful shutdown
 	go func() {
 		log.Info("Server listening", "port", port)
@@ -76,9 +80,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal for graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Info("Shutting down server...")

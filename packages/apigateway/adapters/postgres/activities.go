@@ -494,20 +494,31 @@ func newQueryBuilder(baseQuery string) *queryBuilder {
 	}
 }
 
-// addCondition appends a WHERE condition with a single parameter.
-// The format string should contain exactly one %d placeholder for the argument number.
-func (qb *queryBuilder) addCondition(format string, arg interface{}) {
-	qb.query += fmt.Sprintf(format, qb.argNum)
-	qb.args = append(qb.args, arg)
-	qb.argNum++
-}
+// AddCondition appends a WHERE condition with variable parameters.
+// It validates that the number of %d placeholders matches the number of arguments.
+// It automatically injects the correct argument numbers ($1, $2, etc.).
+func (qb *queryBuilder) AddCondition(format string, args ...interface{}) {
+	// Validate placeholder count
+	placeholders := 0
+	for i := 0; i < len(format)-1; i++ {
+		if format[i] == '%' && format[i+1] == 'd' {
+			placeholders++
+		}
+	}
 
-// addCondition2 appends a WHERE condition with two parameters.
-// The format string should contain exactly two %d placeholders for consecutive argument numbers.
-func (qb *queryBuilder) addCondition2(format string, arg1, arg2 interface{}) {
-	qb.query += fmt.Sprintf(format, qb.argNum, qb.argNum+1)
-	qb.args = append(qb.args, arg1, arg2)
-	qb.argNum += 2
+	if placeholders != len(args) {
+		panic(fmt.Sprintf("queryBuilder: format %q has %d placeholders but %d args", format, placeholders, len(args)))
+	}
+
+	// Generate argument indices for Sprintf
+	indices := make([]interface{}, len(args))
+	for i := range indices {
+		indices[i] = qb.argNum + i
+	}
+
+	qb.query += fmt.Sprintf(format, indices...)
+	qb.args = append(qb.args, args...)
+	qb.argNum += len(args)
 }
 
 // append adds a literal string to the query (no parameters).
@@ -531,24 +542,24 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 
 	// Add date range filters
 	if filter.From != nil {
-		qb.addCondition(" AND start_date_local >= $%d::date", *filter.From)
+		qb.AddCondition(" AND start_date_local >= $%d::date", *filter.From)
 	}
 
 	if filter.To != nil {
 		// Add 1 day to make 'to' inclusive (end of day)
-		qb.addCondition(" AND start_date_local < ($%d::date + interval '1 day')", *filter.To)
+		qb.AddCondition(" AND start_date_local < ($%d::date + interval '1 day')", *filter.To)
 	}
 
 	// Add sport filter (filter on 'sport' column which contains Strava sport_type values)
 	if len(filter.SportTypes) > 0 {
-		qb.addCondition(" AND sport = ANY($%d)", filter.SportTypes)
+		qb.AddCondition(" AND sport = ANY($%d)", filter.SportTypes)
 	}
 
 	// Add cursor constraint for pagination
 	if filter.Cursor != nil {
 		// Keyset pagination: get rows where (start_date_local, id) < (cursor.timestamp, cursor.id)
 		// This works because we order by start_date_local DESC, id DESC
-		qb.addCondition2(" AND (start_date_local, id) < ($%d::timestamp, $%d)", filter.Cursor.Timestamp, filter.Cursor.ID)
+		qb.AddCondition(" AND (start_date_local, id) < ($%d::timestamp, $%d)", filter.Cursor.Timestamp, filter.Cursor.ID)
 	}
 
 	// Order by for stable pagination
@@ -562,7 +573,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	if limit > repository.MaxListLimit {
 		limit = repository.MaxListLimit
 	}
-	qb.addCondition(" LIMIT $%d", limit+1)
+	qb.AddCondition(" LIMIT $%d", limit+1)
 
 	rows, err := r.pool.Query(ctx, qb.query, qb.args...)
 	if err != nil {

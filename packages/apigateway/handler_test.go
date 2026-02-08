@@ -114,7 +114,7 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 
 	// Create feature handlers
 	healthHandler := health.NewHandler(activityRepo, logger)
-	sportsHandler := sports.NewHandler(logger)
+	sportsHandler := sports.NewHandler(logger, sportConfig)
 	activitiesHandler := activities.NewHandler(activityRepo, sportConfig, logger)
 
 	// Configure and create router
