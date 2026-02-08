@@ -4,6 +4,7 @@ import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { formatMetricDisplayValue } from "../../utils/units";
 import type { YearContext } from "../../utils/yearContext";
 import RaceTrack, { RaceTrackLegend } from "../RaceTrack";
+import Skeleton from "../Skeleton";
 
 /**
  * Per-sport goal progress visualization using race track metaphor.
@@ -40,8 +41,19 @@ export default function GoalProgressCard() {
         <h6 className="h6 mb-0 text-muted">{yearContext.year} Goals</h6>
       </div>
       {isLoading ? (
-        <div className="text-center text-muted py-3">
-          <small>Loading...</small>
+        <div role="status" aria-label="Loading goal progress">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="mb-2">
+              <div className="d-flex justify-content-between align-items-center mb-1">
+                <Skeleton width={70} height={14} dualTheme={1} />
+                <Skeleton width={90} height={14} dualTheme={1} />
+              </div>
+              <Skeleton height={28} borderRadius={4} dualTheme={1} />
+              <div className="mt-1">
+                <Skeleton width={100} height={10} dualTheme={1} />
+              </div>
+            </div>
+          ))}
         </div>
       ) : sportData.length === 0 ? (
         <div className="text-center text-muted py-3">

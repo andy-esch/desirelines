@@ -20,6 +20,19 @@
 // This is intentional: explicit schema names are self-documenting, work regardless of
 // connection configuration, and prevent accidental queries to wrong schemas.
 //
+// # Column Mapping (Strava → DB)
+//
+// Strava's API has two activity classification fields that are easy to confuse:
+//   - type: broad/deprecated category (e.g., "Workout" covers yoga, weights, HIIT, etc.)
+//   - sport_type: specific activity kind (e.g., "Yoga", "WeightTraining", "HIIT")
+//
+// The DB maps these to:
+//   - 'type' column  ← Strava 'type' field     (broad, rarely used for filtering)
+//   - 'sport' column ← Strava 'sport_type' field (specific, used for all filtering)
+//
+// sport_types.json config contains sport_type values. All WHERE clauses that filter
+// by sport must use `sport = ANY(...)`, never `type = ANY(...)`.
+//
 // # Timezone Handling
 //
 // The start_date_local column is a TIMESTAMP (without timezone) containing the
@@ -123,7 +136,7 @@ func (r *ActivityRepository) GetSportMetricsByDateRange(ctx context.Context, fro
 				FROM desirelines.activities
 				WHERE start_date_local::date >= $1::date
 				  AND start_date_local::date <= $2::date
-				  AND type = ANY($3)
+				  AND sport = ANY($3)
 				GROUP BY start_date_local::date
 			) daily ON all_dates.date = daily.date
 		) dense_daily
@@ -214,7 +227,7 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 					COUNT(*) as activities
 				FROM desirelines.activities
 				WHERE year = $1
-				  AND type = ANY($2)
+				  AND sport = ANY($2)
 				GROUP BY start_date_local::date
 			) daily ON all_dates.date = daily.date
 		) dense_daily
@@ -244,7 +257,7 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 			array_agg(id) as activity_ids
 		FROM desirelines.activities
 		WHERE year = $1
-		  AND type = ANY($2)
+		  AND sport = ANY($2)
 		GROUP BY start_date_local::date
 		ORDER BY start_date_local::date ASC
 	`
@@ -310,7 +323,7 @@ func (r *ActivityRepository) GetDailySummaryByDateRange(ctx context.Context, fro
 		FROM desirelines.activities
 		WHERE start_date_local::date >= $1::date
 		  AND start_date_local::date <= $2::date
-		  AND type = ANY($3)
+		  AND sport = ANY($3)
 		GROUP BY start_date_local::date
 		ORDER BY start_date_local::date ASC
 	`
@@ -526,9 +539,9 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		qb.addCondition(" AND start_date_local < ($%d::date + interval '1 day')", *filter.To)
 	}
 
-	// Add sport filter (filter on 'type' column which contains Strava types)
+	// Add sport filter (filter on 'sport' column which contains Strava sport_type values)
 	if len(filter.SportTypes) > 0 {
-		qb.addCondition(" AND type = ANY($%d)", filter.SportTypes)
+		qb.addCondition(" AND sport = ANY($%d)", filter.SportTypes)
 	}
 
 	// Add cursor constraint for pagination

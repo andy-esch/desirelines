@@ -332,9 +332,12 @@ class StandardActivity(BaseModel):
 
     # Activity metadata
     name: str = Field(description="Activity name/title")
-    type: str = Field(description="Strava activity type (Run, Ride, Swim, etc.)")
+    type: str = Field(
+        description="Strava 'type' field: broad category (Run, Ride, Workout, Swim, etc.)"
+    )
     sport_type: str = Field(
-        description="Strava sport type, normalized to 'sport' column"
+        description="Strava 'sport_type' field: specific kind (Yoga, TrailRun, MountainBikeRide, etc.). "
+        "Stored in DB 'sport' column. This is the field used for filtering, not 'type'."
     )
 
     # Date/time
