@@ -368,119 +368,125 @@ func TestAspectTypeRoundtrip(t *testing.T) {
 	}
 }
 
-func TestToEnrichedJSON(t *testing.T) {
-	t.Run("enriched event with raw_activity", func(t *testing.T) {
-		rawActivity := []byte(`{"id":12345,"name":"Morning Run","distance":5000}`)
-		enriched := &pb.EnrichedEvent{
-			Event: &pb.WebhookEvent{
-				AspectType:     pb.AspectType_ASPECT_TYPE_CREATE,
-				ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
-				ObjectId:       12345,
-				OwnerId:        67890,
-				EventTime:      1704067200,
-				SubscriptionId: 999,
+const (
+	aspectCreate   = "create"
+	aspectDelete   = "delete"
+	objectActivity = "activity"
+)
+
+func TestToEnrichedJSON_WithRawActivity(t *testing.T) {
+	rawActivity := []byte(`{"id":12345,"name":"Morning Run","distance":5000}`)
+	enriched := &pb.EnrichedEvent{
+		Event: &pb.WebhookEvent{
+			AspectType:     pb.AspectType_ASPECT_TYPE_CREATE,
+			ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
+			ObjectId:       12345,
+			OwnerId:        67890,
+			EventTime:      1704067200,
+			SubscriptionId: 999,
+		},
+		RawActivity: rawActivity,
+	}
+
+	data, err := ToEnrichedJSON(enriched)
+	if err != nil {
+		t.Fatalf("ToEnrichedJSON() error = %v", err)
+	}
+
+	// Parse the JSON to verify structure
+	var result EnrichedEventJSON
+	if unmarshalErr := json.Unmarshal(data, &result); unmarshalErr != nil {
+		t.Fatalf("Failed to parse result: %v", unmarshalErr)
+	}
+
+	if result.AspectType != aspectCreate {
+		t.Errorf("aspect_type = %q, want %q", result.AspectType, aspectCreate)
+	}
+	if result.ObjectType != objectActivity {
+		t.Errorf("object_type = %q, want %q", result.ObjectType, objectActivity)
+	}
+	if result.ObjectID != 12345 {
+		t.Errorf("object_id = %d, want %d", result.ObjectID, 12345)
+	}
+	if result.RawActivity == nil {
+		t.Fatal("raw_activity is nil")
+	}
+
+	// Verify raw_activity is valid JSON that round-trips
+	var activity map[string]any
+	if rawUnmarshalErr := json.Unmarshal(result.RawActivity, &activity); rawUnmarshalErr != nil {
+		t.Fatalf("raw_activity is not valid JSON: %v", rawUnmarshalErr)
+	}
+	if activity["name"] != "Morning Run" {
+		t.Errorf("raw_activity.name = %v, want %q", activity["name"], "Morning Run")
+	}
+}
+
+func TestToEnrichedJSON_WithoutRawActivity(t *testing.T) {
+	enriched := &pb.EnrichedEvent{
+		Event: &pb.WebhookEvent{
+			AspectType:     pb.AspectType_ASPECT_TYPE_DELETE,
+			ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
+			ObjectId:       12345,
+			OwnerId:        67890,
+			EventTime:      1704067200,
+			SubscriptionId: 999,
+		},
+	}
+
+	data, err := ToEnrichedJSON(enriched)
+	if err != nil {
+		t.Fatalf("ToEnrichedJSON() error = %v", err)
+	}
+
+	var result EnrichedEventJSON
+	if unmarshalErr := json.Unmarshal(data, &result); unmarshalErr != nil {
+		t.Fatalf("Failed to parse result: %v", unmarshalErr)
+	}
+
+	if result.AspectType != aspectDelete {
+		t.Errorf("aspect_type = %q, want %q", result.AspectType, aspectDelete)
+	}
+	if result.RawActivity != nil {
+		t.Errorf("expected nil raw_activity for DELETE, got %s", string(result.RawActivity))
+	}
+}
+
+func TestToEnrichedJSON_WithUpdates(t *testing.T) {
+	title := "Evening Run"
+	enriched := &pb.EnrichedEvent{
+		Event: &pb.WebhookEvent{
+			AspectType:     pb.AspectType_ASPECT_TYPE_UPDATE,
+			ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
+			ObjectId:       12345,
+			OwnerId:        67890,
+			EventTime:      1704067200,
+			SubscriptionId: 999,
+			Updates: &pb.ActivityUpdates{
+				Title: &title,
 			},
-			RawActivity: rawActivity,
-		}
+		},
+	}
 
-		data, err := ToEnrichedJSON(enriched)
-		if err != nil {
-			t.Fatalf("ToEnrichedJSON() error = %v", err)
-		}
+	data, err := ToEnrichedJSON(enriched)
+	if err != nil {
+		t.Fatalf("ToEnrichedJSON() error = %v", err)
+	}
 
-		// Parse the JSON to verify structure
-		var result EnrichedEventJSON
-		if err := json.Unmarshal(data, &result); err != nil {
-			t.Fatalf("Failed to parse result: %v", err)
-		}
+	var result EnrichedEventJSON
+	if unmarshalErr := json.Unmarshal(data, &result); unmarshalErr != nil {
+		t.Fatalf("Failed to parse result: %v", unmarshalErr)
+	}
 
-		if result.AspectType != "create" {
-			t.Errorf("aspect_type = %q, want %q", result.AspectType, "create")
-		}
-		if result.ObjectType != "activity" {
-			t.Errorf("object_type = %q, want %q", result.ObjectType, "activity")
-		}
-		if result.ObjectID != 12345 {
-			t.Errorf("object_id = %d, want %d", result.ObjectID, 12345)
-		}
-		if result.RawActivity == nil {
-			t.Fatal("raw_activity is nil")
-		}
+	if result.Updates == nil || result.Updates["title"] != "Evening Run" {
+		t.Errorf("expected updates with title 'Evening Run', got %v", result.Updates)
+	}
+	if result.RawActivity != nil {
+		t.Error("expected nil raw_activity for UPDATE")
+	}
+}
 
-		// Verify raw_activity is valid JSON that round-trips
-		var activity map[string]any
-		if err := json.Unmarshal(result.RawActivity, &activity); err != nil {
-			t.Fatalf("raw_activity is not valid JSON: %v", err)
-		}
-		if activity["name"] != "Morning Run" {
-			t.Errorf("raw_activity.name = %v, want %q", activity["name"], "Morning Run")
-		}
-	})
-
-	t.Run("enriched event without raw_activity", func(t *testing.T) {
-		enriched := &pb.EnrichedEvent{
-			Event: &pb.WebhookEvent{
-				AspectType:     pb.AspectType_ASPECT_TYPE_DELETE,
-				ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
-				ObjectId:       12345,
-				OwnerId:        67890,
-				EventTime:      1704067200,
-				SubscriptionId: 999,
-			},
-		}
-
-		data, err := ToEnrichedJSON(enriched)
-		if err != nil {
-			t.Fatalf("ToEnrichedJSON() error = %v", err)
-		}
-
-		var result EnrichedEventJSON
-		if err := json.Unmarshal(data, &result); err != nil {
-			t.Fatalf("Failed to parse result: %v", err)
-		}
-
-		if result.AspectType != "delete" {
-			t.Errorf("aspect_type = %q, want %q", result.AspectType, "delete")
-		}
-		if result.RawActivity != nil {
-			t.Errorf("expected nil raw_activity for DELETE, got %s", string(result.RawActivity))
-		}
-	})
-
-	t.Run("enriched event with updates", func(t *testing.T) {
-		title := "Evening Run"
-		enriched := &pb.EnrichedEvent{
-			Event: &pb.WebhookEvent{
-				AspectType:     pb.AspectType_ASPECT_TYPE_UPDATE,
-				ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
-				ObjectId:       12345,
-				OwnerId:        67890,
-				EventTime:      1704067200,
-				SubscriptionId: 999,
-				Updates: &pb.ActivityUpdates{
-					Title: &title,
-				},
-			},
-		}
-
-		data, err := ToEnrichedJSON(enriched)
-		if err != nil {
-			t.Fatalf("ToEnrichedJSON() error = %v", err)
-		}
-
-		var result EnrichedEventJSON
-		if err := json.Unmarshal(data, &result); err != nil {
-			t.Fatalf("Failed to parse result: %v", err)
-		}
-
-		if result.Updates == nil || result.Updates["title"] != "Evening Run" {
-			t.Errorf("expected updates with title 'Evening Run', got %v", result.Updates)
-		}
-		if result.RawActivity != nil {
-			t.Error("expected nil raw_activity for UPDATE")
-		}
-	})
-
+func TestToEnrichedJSON_NilErrors(t *testing.T) {
 	t.Run("nil enriched event returns error", func(t *testing.T) {
 		_, err := ToEnrichedJSON(nil)
 		if err == nil {

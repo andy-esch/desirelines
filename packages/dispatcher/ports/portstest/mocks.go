@@ -37,7 +37,12 @@ func (m *MockPublisher) PublishedRawActivities() []map[string]any {
 			continue
 		}
 		var parsed map[string]any
-		_ = json.Unmarshal(e.RawActivity, &parsed)
+		if err := json.Unmarshal(e.RawActivity, &parsed); err != nil {
+			// In a test mock helper, we can't easily fail the test without a *testing.T
+			// but we can ensure we don't return partial data.
+			result = append(result, map[string]any{"_parse_error": err.Error()})
+			continue
+		}
 		result = append(result, parsed)
 	}
 	return result

@@ -390,134 +390,132 @@ func runHandleEventTest(t *testing.T, tt handleEventTestCase) {
 	}
 }
 
-func TestHandler_EnrichmentBehavior(t *testing.T) {
-	t.Run("CREATE event includes raw_activity", func(t *testing.T) {
-		log := gcplog.NewNoOpLogger()
-		rawActivity := []byte(`{"id":12345,"name":"Morning Run","distance":5000}`)
-		mockStrava := &portstest.MockStravaClient{FetchResult: rawActivity}
-		mockPublisher := &portstest.MockPublisher{}
+func TestHandler_EnrichmentBehavior_Create(t *testing.T) {
+	log := gcplog.NewNoOpLogger()
+	rawActivity := []byte(`{"id":12345,"name":"Morning Run","distance":5000}`)
+	mockStrava := &portstest.MockStravaClient{FetchResult: rawActivity}
+	mockPublisher := &portstest.MockPublisher{}
 
-		handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, log, nil)
-		router := handler.RegisterRoutes()
+	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, log, nil)
+	router := handler.RegisterRoutes()
 
-		payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
-			AspectType:     "create",
-			ObjectType:     "activity",
-			ObjectID:       testObjectID,
-			OwnerID:        testOwnerID,
-			EventTime:      testEventTime,
-			SubscriptionID: testSubscriptionID,
-		})
-		if marshalErr != nil {
-			t.Fatalf("Failed to marshal payload: %v", marshalErr)
-		}
-
-		req := httptest.NewRequest("POST", "/webhook", strings.NewReader(string(payload)))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusCreated {
-			t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
-		}
-
-		if len(mockPublisher.Published) != 1 {
-			t.Fatalf("expected 1 published event, got %d", len(mockPublisher.Published))
-		}
-
-		enriched := mockPublisher.Published[0]
-		if enriched.RawActivity == nil {
-			t.Fatal("expected raw_activity to be set for CREATE event")
-		}
-		if string(enriched.RawActivity) != string(rawActivity) {
-			t.Errorf("raw_activity = %s, want %s", string(enriched.RawActivity), string(rawActivity))
-		}
-
-		// Verify Strava client was called
-		if len(mockStrava.FetchedIDs) != 1 || mockStrava.FetchedIDs[0] != testObjectID {
-			t.Errorf("expected Strava fetch for activity %d, got %v", testObjectID, mockStrava.FetchedIDs)
-		}
+	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
+		AspectType:     "create",
+		ObjectType:     "activity",
+		ObjectID:       testObjectID,
+		OwnerID:        testOwnerID,
+		EventTime:      testEventTime,
+		SubscriptionID: testSubscriptionID,
 	})
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal payload: %v", marshalErr)
+	}
 
-	t.Run("UPDATE event has no raw_activity", func(t *testing.T) {
-		log := gcplog.NewNoOpLogger()
-		mockStrava := &portstest.MockStravaClient{}
-		mockPublisher := &portstest.MockPublisher{}
+	req := httptest.NewRequest("POST", "/webhook", strings.NewReader(string(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-		handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, log, nil)
-		router := handler.RegisterRoutes()
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
 
-		payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
-			AspectType:     "update",
-			ObjectType:     "activity",
-			ObjectID:       testObjectID,
-			OwnerID:        testOwnerID,
-			EventTime:      testEventTime,
-			SubscriptionID: testSubscriptionID,
-			Updates:        map[string]string{"title": "New Title"},
-		})
-		if marshalErr != nil {
-			t.Fatalf("Failed to marshal payload: %v", marshalErr)
-		}
+	if len(mockPublisher.Published) != 1 {
+		t.Fatalf("expected 1 published event, got %d", len(mockPublisher.Published))
+	}
 
-		req := httptest.NewRequest("POST", "/webhook", strings.NewReader(string(payload)))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+	enriched := mockPublisher.Published[0]
+	if enriched.RawActivity == nil {
+		t.Fatal("expected raw_activity to be set for CREATE event")
+	}
+	if string(enriched.RawActivity) != string(rawActivity) {
+		t.Errorf("raw_activity = %s, want %s", string(enriched.RawActivity), string(rawActivity))
+	}
 
-		if w.Code != http.StatusCreated {
-			t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
-		}
+	// Verify Strava client was called
+	if len(mockStrava.FetchedIDs) != 1 || mockStrava.FetchedIDs[0] != testObjectID {
+		t.Errorf("expected Strava fetch for activity %d, got %v", testObjectID, mockStrava.FetchedIDs)
+	}
+}
 
-		enriched := mockPublisher.Published[0]
-		if enriched.RawActivity != nil {
-			t.Error("expected no raw_activity for UPDATE event")
-		}
+func TestHandler_EnrichmentBehavior_Update(t *testing.T) {
+	log := gcplog.NewNoOpLogger()
+	mockStrava := &portstest.MockStravaClient{}
+	mockPublisher := &portstest.MockPublisher{}
 
-		// Verify Strava client was NOT called
-		if len(mockStrava.FetchedIDs) != 0 {
-			t.Errorf("expected no Strava fetch for UPDATE, got %v", mockStrava.FetchedIDs)
-		}
+	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, log, nil)
+	router := handler.RegisterRoutes()
+
+	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
+		AspectType:     "update",
+		ObjectType:     "activity",
+		ObjectID:       testObjectID,
+		OwnerID:        testOwnerID,
+		EventTime:      testEventTime,
+		SubscriptionID: testSubscriptionID,
+		Updates:        map[string]string{"title": "New Title"},
 	})
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal payload: %v", marshalErr)
+	}
 
-	t.Run("DELETE event has no raw_activity", func(t *testing.T) {
-		log := gcplog.NewNoOpLogger()
-		mockStrava := &portstest.MockStravaClient{}
-		mockPublisher := &portstest.MockPublisher{}
+	req := httptest.NewRequest("POST", "/webhook", strings.NewReader(string(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-		handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, log, nil)
-		router := handler.RegisterRoutes()
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
 
-		payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
-			AspectType:     "delete",
-			ObjectType:     "activity",
-			ObjectID:       testObjectID,
-			OwnerID:        testOwnerID,
-			EventTime:      testEventTime,
-			SubscriptionID: testSubscriptionID,
-		})
-		if marshalErr != nil {
-			t.Fatalf("Failed to marshal payload: %v", marshalErr)
-		}
+	enriched := mockPublisher.Published[0]
+	if enriched.RawActivity != nil {
+		t.Error("expected no raw_activity for UPDATE event")
+	}
 
-		req := httptest.NewRequest("POST", "/webhook", strings.NewReader(string(payload)))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+	// Verify Strava client was NOT called
+	if len(mockStrava.FetchedIDs) != 0 {
+		t.Errorf("expected no Strava fetch for UPDATE, got %v", mockStrava.FetchedIDs)
+	}
+}
 
-		if w.Code != http.StatusCreated {
-			t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
-		}
+func TestHandler_EnrichmentBehavior_Delete(t *testing.T) {
+	log := gcplog.NewNoOpLogger()
+	mockStrava := &portstest.MockStravaClient{}
+	mockPublisher := &portstest.MockPublisher{}
 
-		enriched := mockPublisher.Published[0]
-		if enriched.RawActivity != nil {
-			t.Error("expected no raw_activity for DELETE event")
-		}
+	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, log, nil)
+	router := handler.RegisterRoutes()
 
-		if len(mockStrava.FetchedIDs) != 0 {
-			t.Errorf("expected no Strava fetch for DELETE, got %v", mockStrava.FetchedIDs)
-		}
+	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
+		AspectType:     "delete",
+		ObjectType:     "activity",
+		ObjectID:       testObjectID,
+		OwnerID:        testOwnerID,
+		EventTime:      testEventTime,
+		SubscriptionID: testSubscriptionID,
 	})
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal payload: %v", marshalErr)
+	}
+
+	req := httptest.NewRequest("POST", "/webhook", strings.NewReader(string(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	enriched := mockPublisher.Published[0]
+	if enriched.RawActivity != nil {
+		t.Error("expected no raw_activity for DELETE event")
+	}
+
+	if len(mockStrava.FetchedIDs) != 0 {
+		t.Errorf("expected no Strava fetch for DELETE, got %v", mockStrava.FetchedIDs)
+	}
 }
 
 // Test health endpoints

@@ -1,3 +1,4 @@
+// Package strava provides a client for the Strava REST API.
 package strava
 
 import (
@@ -27,11 +28,14 @@ var (
 )
 
 const (
-	// Secret file paths (same layout as Python services).
-	SecretPathClientID     = "/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value"     //nolint:gosec // Path, not credential
+	// SecretPathClientID is the path to the Strava client ID secret.
+	SecretPathClientID = "/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value" //nolint:gosec // Path, not credential
+	// SecretPathClientSecret is the path to the Strava client secret.
 	SecretPathClientSecret = "/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value" //nolint:gosec // Path, not credential
+	// SecretPathRefreshToken is the path to the Strava refresh token secret.
 	SecretPathRefreshToken = "/etc/secrets/INFISICAL_STRAVA_REFRESH_TOKEN/value" //nolint:gosec // Path, not credential
 
+	//nolint:gosec // URL, not credential
 	defaultTokenURL = "https://www.strava.com/oauth/token"
 	defaultAPIBase  = "https://www.strava.com/api/v3"
 
@@ -132,9 +136,9 @@ func (c *Client) FetchActivity(ctx context.Context, activityID int64) ([]byte, e
 				return nil, fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
 			}
 			// Retry immediately after refresh
-			body, retryErr := c.doFetchActivity(ctx, activityID)
+			retryBody, retryErr := c.doFetchActivity(ctx, activityID)
 			if retryErr == nil {
-				return body, nil
+				return retryBody, nil
 			}
 			return nil, fmt.Errorf("%w: still failing after token refresh", ErrStravaAuth)
 		}
@@ -179,7 +183,9 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64) ([]byte,
 		return nil, fmt.Errorf("http request failed: %w", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Error("Failed to close response body", "error", closeErr)
+		}
 	}()
 
 	body, err := io.ReadAll(resp.Body)
@@ -257,17 +263,22 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 		return fmt.Errorf("token request failed: %w", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Error("Failed to close response body", "error", closeErr)
+		}
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("token refresh returned %d, failed to read body: %w", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("token refresh returned %d: %s", resp.StatusCode, string(body))
 	}
 
 	var tokenResp tokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		return fmt.Errorf("decode token response: %w", err)
+	if decodeErr := json.NewDecoder(resp.Body).Decode(&tokenResp); decodeErr != nil {
+		return fmt.Errorf("decode token response: %w", decodeErr)
 	}
 
 	if tokenResp.AccessToken == "" {

@@ -3,6 +3,7 @@ package strava
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -35,7 +36,9 @@ func TestFetchActivity_Success(t *testing.T) {
 				t.Errorf("unexpected Authorization header: %s", auth)
 			}
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(expectedBody))
+			if _, err := w.Write([]byte(expectedBody)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
 			return
 		}
 		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -58,7 +61,9 @@ func TestFetchActivity_Success(t *testing.T) {
 func TestFetchActivity_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"message":"Record Not Found"}`))
+		if _, err := w.Write([]byte(`{"message":"Record Not Found"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -68,7 +73,7 @@ func TestFetchActivity_NotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for 404")
 	}
-	if err != ErrActivityNotFound {
+	if !errors.Is(err, ErrActivityNotFound) {
 		t.Errorf("expected ErrActivityNotFound, got %v", err)
 	}
 }
@@ -80,9 +85,11 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 		switch r.URL.Path {
 		case "/oauth/token":
 			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]string{
+			if err := json.NewEncoder(w).Encode(map[string]string{
 				"access_token": "new-access-token",
-			})
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
 		case "/api/v3/activities/12345":
 			count := callCount.Add(1)
 			auth := r.Header.Get("Authorization")
@@ -95,7 +102,9 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 			if count == 2 && auth == "Bearer new-access-token" {
 				// Retry with new token: success
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{"id":12345}`))
+				if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
+					t.Errorf("failed to write response: %v", err)
+				}
 				return
 			}
 			t.Errorf("unexpected call %d with auth %q", count, auth)
@@ -125,9 +134,11 @@ func TestFetchActivity_LazyTokenRefresh(t *testing.T) {
 		switch r.URL.Path {
 		case "/oauth/token":
 			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]string{
+			if err := json.NewEncoder(w).Encode(map[string]string{
 				"access_token": "fresh-token",
-			})
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
 		case "/api/v3/activities/1":
 			auth := r.Header.Get("Authorization")
 			if auth != "Bearer fresh-token" {
@@ -136,7 +147,9 @@ func TestFetchActivity_LazyTokenRefresh(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"id":1}`))
+			if _, err := w.Write([]byte(`{"id":1}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -161,7 +174,9 @@ func TestFetchActivity_ServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		callCount.Add(1)
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal"}`))
+		if _, err := w.Write([]byte(`{"error":"internal"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
