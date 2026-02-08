@@ -7,7 +7,7 @@ FROM python:3.13-slim AS builder
 WORKDIR /build
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.10.0 /uv /uvx /bin/
 
 # Copy package files for dependency installation (context is packages/stravapipe)
 COPY pyproject.toml README.md ./
@@ -28,7 +28,10 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy package source code (includes cloudrun module with FastAPI app)
 COPY src/stravapipe ./stravapipe
 
-# Expose port 8080
+# Create non-root user for security
+RUN useradd --create-home appuser
+USER appuser
+
 EXPOSE 8080
 
 # Run with Uvicorn (single worker for Cloud Run)
