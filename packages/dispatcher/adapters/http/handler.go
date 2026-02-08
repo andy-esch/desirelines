@@ -3,11 +3,14 @@ package httpadapter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
+
+	stravaadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
@@ -29,12 +32,14 @@ const (
 	ErrCodeValidationFailed      = "VALIDATION_FAILED"
 	ErrCodeInvalidSubscriptionID = "INVALID_SUBSCRIPTION_ID"
 	ErrCodePublishFailed         = "PUBLISH_FAILED"
+	ErrCodeStravaFetchFailed     = "STRAVA_FETCH_FAILED"
 )
 
 // Handler orchestrates the webhook processing.
 type Handler struct {
 	secretProvider     ports.SecretProvider
 	publisher          ports.Publisher
+	stravaClient       ports.StravaClient
 	logger             *slog.Logger
 	maxRequestBodySize int64
 }
@@ -45,7 +50,7 @@ type HandlerConfig struct {
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
-func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, logger *slog.Logger, cfg *HandlerConfig) *Handler {
+func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, logger *slog.Logger, cfg *HandlerConfig) *Handler {
 	maxBodySize := config.DefaultMaxRequestBodySize
 	if cfg != nil && cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
@@ -53,6 +58,7 @@ func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, 
 	return &Handler{
 		secretProvider:     secretProvider,
 		publisher:          publisher,
+		stravaClient:       stravaClient,
 		logger:             logger,
 		maxRequestBodySize: maxBodySize,
 	}
@@ -204,7 +210,35 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if publishErr := h.publisher.Publish(r.Context(), webhook, chiMiddleware.GetReqID(r.Context())); publishErr != nil {
+	// Build enriched event wrapping the webhook
+	enriched := &generated.EnrichedEvent{Event: webhook}
+
+	// For CREATE events, fetch the activity from Strava API
+	if webhook.AspectType == generated.AspectType_ASPECT_TYPE_CREATE {
+		rawActivity, fetchErr := h.stravaClient.FetchActivity(r.Context(), webhook.ObjectId)
+		if fetchErr != nil {
+			if errors.Is(fetchErr, stravaadapter.ErrActivityNotFound) {
+				// Activity was deleted before we could fetch it - publish without activity data
+				h.logger.Warn("Activity not found in Strava, publishing without activity data",
+					"object_id", webhook.ObjectId)
+			} else {
+				// Other Strava errors - return 500 so Strava retries the webhook
+				apiErr := gcplog.NewAPIErrorWithLog(
+					http.StatusInternalServerError,
+					"Failed to fetch activity from Strava",
+					fmt.Sprintf("Strava fetch failed: %v", fetchErr),
+				)
+				apiErr.Code = ErrCodeStravaFetchFailed
+				gcplog.WriteError(w, r, apiErr, h.logger)
+				return
+			}
+		} else {
+			enriched.RawActivity = rawActivity
+		}
+	}
+
+	correlationID := chiMiddleware.GetReqID(r.Context())
+	if publishErr := h.publisher.Publish(r.Context(), enriched, correlationID); publishErr != nil {
 		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to publish event",

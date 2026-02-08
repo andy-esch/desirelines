@@ -3,18 +3,20 @@
 ## Current Architecture
 
 ```
-Strava Webhook → Dispatcher (Cloud Run) → PubSub Topic
-                                              ↓
-                              ┌───────────────┴───────────────┐
-                              ↓                               ↓
-                        Eventarc Trigger                Eventarc Trigger
-                              ↓                               ↓
-                        bq-inserter                    postgres-writer
-                        (Cloud Run)                     (Cloud Run)
-                              ↓                               ↓
-                          BigQuery                       PostgreSQL
-                        (analytics)                    (primary backend)
+Strava Webhook → Dispatcher (Cloud Run) → [enrich via Strava API] → PubSub Topic
+                                                                         ↓
+                                                         ┌───────────────┴───────────────┐
+                                                         ↓                               ↓
+                                                   Eventarc Trigger                Eventarc Trigger
+                                                         ↓                               ↓
+                                                   bq-inserter                    postgres-writer
+                                                   (Cloud Run)                     (Cloud Run)
+                                                         ↓                               ↓
+                                                     BigQuery                       PostgreSQL
+                                                   (analytics)                    (primary backend)
 ```
+
+The dispatcher enriches CREATE events with full activity data from the Strava API before publishing. Downstream consumers receive `EnrichedEvent` messages with activity data inline and do not call the Strava API.
 
 ## Event Delivery Pattern
 

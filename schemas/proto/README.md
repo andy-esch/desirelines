@@ -59,12 +59,13 @@ Defines the canonical Strava webhook event structure shared between Go and Pytho
 
 **Key types:**
 - `WebhookEvent` - Strava webhook notification (create/update/delete)
+- `EnrichedEvent` - Wraps `WebhookEvent` with optional `raw_activity` bytes (Strava API JSON). The dispatcher enriches CREATE events with the full activity payload so downstream consumers don't need Strava API credentials.
 - `AspectType` - Enum: CREATE, UPDATE, DELETE
 - `ObjectType` - Enum: ACTIVITY, ATHLETE
+- `ActivityUpdates` - Fields that can change on UPDATE (title, type, private)
 - `WebhookVerificationRequest/Response` - Subscription verification
 
-**Producer:** Strava API sends webhooks to dispatcher
-**Consumer:** dispatcher (Go) receives and publishes to PubSub, stravapipe (Python) processes
+**Flow:** Strava webhook → dispatcher (Go) enriches with activity data → publishes `EnrichedEvent` to PubSub → bq-inserter and postgres-writer (Python) consume
 
 **Adapter locations:**
 - Go: `packages/dispatcher/adapters/proto/` - JSON ↔ proto conversion

@@ -13,6 +13,7 @@ import (
 	envadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/env"
 	httpadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/http"
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/pubsub"
+	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
@@ -47,8 +48,14 @@ func main() {
 
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 
+	stravaClient, err := strava.NewClient(log)
+	if err != nil {
+		log.Error("Failed to initialize Strava client", "error", err)
+		os.Exit(1)
+	}
+
 	// Create handler with injected dependencies
-	handler := httpadapter.NewHandler(publisher, secretProvider, log, &httpadapter.HandlerConfig{
+	handler := httpadapter.NewHandler(publisher, secretProvider, stravaClient, log, &httpadapter.HandlerConfig{
 		MaxRequestBodySize: cfg.MaxRequestBodySize,
 	})
 

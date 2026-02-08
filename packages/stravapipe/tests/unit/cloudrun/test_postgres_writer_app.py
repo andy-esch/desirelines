@@ -2,6 +2,9 @@
 
 Tests the HTTP interface layer using FastAPI's TestClient, with mocked service
 layer to isolate endpoint logic from business logic and external dependencies.
+
+Activity data is now provided inline in the enriched event (raw_activity field)
+rather than fetched from the Strava API.
 """
 
 import base64
@@ -28,9 +31,9 @@ def client(mock_postgres_config):
     from stravapipe.cloudrun.postgres_writer_app import app
 
     with patch(
-        "stravapipe.cloudrun.postgres_writer_app.make_session_factory"
-    ) as mock_make_session_factory:
-        mock_make_session_factory.return_value = MagicMock()
+        "stravapipe.cloudrun.postgres_writer_app.create_session_factory"
+    ) as mock_factory:
+        mock_factory.return_value = MagicMock()
         with TestClient(app) as client:
             yield client
 
@@ -68,9 +71,10 @@ def make_webhook_payload(
     object_id: int = 12345678,
     owner_id: int = 98765,
     event_time: int = 1704067200,
+    raw_activity: dict | None = None,
 ) -> dict:
-    """Create a valid Strava webhook payload."""
-    return {
+    """Create a valid enriched event payload."""
+    payload = {
         "aspect_type": aspect_type,
         "event_time": event_time,
         "object_id": object_id,
@@ -79,6 +83,23 @@ def make_webhook_payload(
         "subscription_id": 123456,
         "updates": {},
     }
+    if raw_activity is not None:
+        payload["raw_activity"] = raw_activity
+    return payload
+
+
+# Sample raw activity data for testing
+SAMPLE_RAW_ACTIVITY = {
+    "id": 12345678,
+    "name": "Morning Run",
+    "type": "Run",
+    "sport_type": "Run",
+    "distance": 5000.0,
+    "moving_time": 1800,
+    "elapsed_time": 2000,
+    "start_date_local": "2024-01-01T08:00:00Z",
+    "athlete": {"id": 98765},
+}
 
 
 class TestHealthEndpoint:
@@ -168,39 +189,59 @@ class TestCreateEventHandling:
     """Tests for CREATE aspect_type handling."""
 
     def test_create_event_success(self, client):
-        """CREATE event successfully creates activity."""
-        with patch(
-            "stravapipe.cloudrun.postgres_writer_app.make_postgres_write_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.create_activity.return_value = True
-            mock_factory.return_value = mock_service
+        """CREATE event with raw_activity writes to PostgreSQL."""
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+        mock_activity = MagicMock()
 
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=mock_activity,
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
-                json=make_pubsub_body(make_webhook_payload(aspect_type="create")),
+                json=make_pubsub_body(webhook),
             )
 
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "created"
             assert data["activity_id"] == 12345678
-            mock_service.create_activity.assert_called_once_with(12345678)
+            mock_uow.activities.insert.assert_called_once_with(mock_activity)
 
     def test_create_event_already_exists(self, client):
         """CREATE event for existing activity returns skipped."""
-        with patch(
-            "stravapipe.cloudrun.postgres_writer_app.make_postgres_write_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.create_activity.return_value = False  # Already exists
-            mock_factory.return_value = mock_service
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = False  # Already exists
+        mock_activity = MagicMock()
 
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=mock_activity,
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
-                json=make_pubsub_body(make_webhook_payload(aspect_type="create")),
+                json=make_pubsub_body(webhook),
             )
 
             assert response.status_code == 200
@@ -208,29 +249,21 @@ class TestCreateEventHandling:
             assert data["status"] == "skipped"
             assert data["reason"] == "already_exists"
 
-    def test_create_event_activity_not_found(self, client):
-        """CREATE event when activity not found in Strava returns skipped."""
-        from stravapipe.exceptions import ActivityNotFoundError
+    def test_create_event_missing_raw_activity(self, client):
+        """CREATE event without raw_activity returns skipped."""
+        webhook = make_webhook_payload(aspect_type="create")
+        # No raw_activity field
 
-        with patch(
-            "stravapipe.cloudrun.postgres_writer_app.make_postgres_write_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.create_activity.side_effect = ActivityNotFoundError(
-                "Not found"
-            )
-            mock_factory.return_value = mock_service
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(webhook),
+        )
 
-            response = client.post(
-                "/",
-                headers=make_cloudevent_headers(),
-                json=make_pubsub_body(make_webhook_payload(aspect_type="create")),
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "skipped"
-            assert data["reason"] == "activity_not_found"
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        assert data["reason"] == "activity_not_found"
 
 
 class TestUpdateEventHandling:
@@ -257,14 +290,14 @@ class TestUpdateEventHandling:
         webhook = make_webhook_payload(aspect_type="update")
         webhook["updates"] = {"title": "New Title"}
 
-        with patch(
-            "stravapipe.cloudrun.postgres_writer_app.make_postgres_write_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.activity_exists.return_value = True
-            mock_service.update_activity_metadata.return_value = True
-            mock_factory.return_value = mock_service
+        mock_uow = MagicMock()
+        mock_uow.activities.exists.return_value = True
+        mock_uow.activities.update_metadata.return_value = True
 
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
@@ -274,23 +307,19 @@ class TestUpdateEventHandling:
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "updated"
-            mock_service.update_activity_metadata.assert_called_once_with(
-                12345678, {"title": "New Title"}
-            )
 
-    def test_update_event_backfills_missing_activity(self, client):
-        """UPDATE event backfills activity not in PostgreSQL."""
+    def test_update_event_skips_missing_activity(self, client):
+        """UPDATE event skips activity not in PostgreSQL (no backfill)."""
         webhook = make_webhook_payload(aspect_type="update")
         webhook["updates"] = {"type": "Run"}
 
-        with patch(
-            "stravapipe.cloudrun.postgres_writer_app.make_postgres_write_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.activity_exists.return_value = False  # Not in DB
-            mock_service.create_activity.return_value = True  # Backfill succeeds
-            mock_factory.return_value = mock_service
+        mock_uow = MagicMock()
+        mock_uow.activities.exists.return_value = False  # Not in DB
 
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
@@ -299,8 +328,8 @@ class TestUpdateEventHandling:
 
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "created"  # Backfilled
-            mock_service.create_activity.assert_called_once_with(12345678)
+            assert data["status"] == "skipped"
+            assert data["reason"] == "not_found"
 
 
 class TestDeleteEventHandling:
@@ -308,13 +337,13 @@ class TestDeleteEventHandling:
 
     def test_delete_event_success(self, client):
         """DELETE event successfully removes activity."""
-        with patch(
-            "stravapipe.cloudrun.postgres_writer_app.make_postgres_write_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.delete_activity.return_value = True
-            mock_factory.return_value = mock_service
+        mock_uow = MagicMock()
+        mock_uow.activities.delete.return_value = True
 
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
@@ -328,13 +357,13 @@ class TestDeleteEventHandling:
 
     def test_delete_event_not_found(self, client):
         """DELETE event for non-existent activity returns skipped."""
-        with patch(
-            "stravapipe.cloudrun.postgres_writer_app.make_postgres_write_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.delete_activity.return_value = False  # Not found
-            mock_factory.return_value = mock_service
+        mock_uow = MagicMock()
+        mock_uow.activities.delete.return_value = False  # Not found
 
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
@@ -352,17 +381,26 @@ class TestErrorHandling:
 
     def test_unexpected_error_returns_500(self, client):
         """Unexpected errors return 500 to trigger Pub/Sub retry."""
-        with patch(
-            "stravapipe.cloudrun.postgres_writer_app.make_postgres_write_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.create_activity.side_effect = RuntimeError("Database error")
-            mock_factory.return_value = mock_service
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.side_effect = RuntimeError("Database error")
 
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=MagicMock(),
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
-                json=make_pubsub_body(make_webhook_payload(aspect_type="create")),
+                json=make_pubsub_body(webhook),
             )
 
             assert response.status_code == 500
