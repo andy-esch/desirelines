@@ -45,19 +45,23 @@ func TestHandler_HandleConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	t.Cleanup(func() {
+		if cleanupErr := os.Remove(tmpFile.Name()); cleanupErr != nil {
+			t.Logf("Failed to remove temp file %s: %v", tmpFile.Name(), cleanupErr)
+		}
+	})
 
-	if _, err := tmpFile.Write([]byte(validConfigJSON)); err != nil {
-		t.Fatalf("Failed to write config: %v", err)
+	if _, writeErr := tmpFile.Write([]byte(validConfigJSON)); writeErr != nil {
+		t.Fatalf("Failed to write config: %v", writeErr)
 	}
-	if err := tmpFile.Close(); err != nil {
-		t.Fatalf("Failed to close temp file: %v", err)
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
 	}
 
 	// Load the config
-	sportConfig, err := config.NewSportConfig(tmpFile.Name())
-	if err != nil {
-		t.Fatalf("Failed to load sport config: %v", err)
+	sportConfig, loadErr := config.NewSportConfig(tmpFile.Name())
+	if loadErr != nil {
+		t.Fatalf("Failed to load sport config: %v", loadErr)
 	}
 
 	h := NewHandler(logger, sportConfig)
@@ -86,8 +90,8 @@ func TestHandler_HandleConfig(t *testing.T) {
 	var respConfig struct {
 		Version string `json:"version"`
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &respConfig); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
+	if unmarshalErr := json.Unmarshal(w.Body.Bytes(), &respConfig); unmarshalErr != nil {
+		t.Fatalf("failed to unmarshal response: %v", unmarshalErr)
 	}
 	if respConfig.Version != "1.0" {
 		t.Errorf("version = %q, want %q", respConfig.Version, "1.0")

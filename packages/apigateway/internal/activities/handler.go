@@ -230,9 +230,10 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	} else if params.useDateRange {
 		// Check if 'to' date is in a past year
 		if len(params.to) >= 4 {
-			toYear, _ := strconv.Atoi(params.to[:4])
-			if toYear < currentYear {
-				w.Header().Set("Cache-Control", "public, max-age=3600")
+			if toYear, parseErr := strconv.Atoi(params.to[:4]); parseErr == nil {
+				if toYear < currentYear {
+					w.Header().Set("Cache-Control", "public, max-age=3600")
+				}
 			}
 		}
 	}
@@ -273,9 +274,10 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	} else if params.useDateRange {
 		// Check if 'to' date is in a past year
 		if len(params.to) >= 4 {
-			toYear, _ := strconv.Atoi(params.to[:4])
-			if toYear < currentYear {
-				w.Header().Set("Cache-Control", "public, max-age=3600")
+			if toYear, parseErr := strconv.Atoi(params.to[:4]); parseErr == nil {
+				if toYear < currentYear {
+					w.Header().Set("Cache-Control", "public, max-age=3600")
+				}
 			}
 		}
 	}
