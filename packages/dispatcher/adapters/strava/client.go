@@ -28,13 +28,6 @@ var (
 )
 
 const (
-	// SecretPathClientID is the path to the Strava client ID secret.
-	SecretPathClientID = "/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value" //nolint:gosec // Path, not credential
-	// SecretPathClientSecret is the path to the Strava client secret.
-	SecretPathClientSecret = "/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value" //nolint:gosec // Path, not credential
-	// SecretPathRefreshToken is the path to the Strava refresh token secret.
-	SecretPathRefreshToken = "/etc/secrets/INFISICAL_STRAVA_REFRESH_TOKEN/value" //nolint:gosec // Path, not credential
-
 	//nolint:gosec // URL, not credential
 	defaultTokenURL = "https://www.strava.com/oauth/token"
 	defaultAPIBase  = "https://www.strava.com/api/v3"
@@ -78,17 +71,17 @@ var _ ports.StravaClient = (*Client)(nil)
 // NewClient creates a new Strava API client.
 // Credentials are loaded from secret files or environment variables.
 func NewClient(logger *slog.Logger) (*Client, error) {
-	clientID := loadSecret(SecretPathClientID, "STRAVA_CLIENT_ID")
+	clientID := loadSecret(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
 	if clientID == "" {
 		return nil, errors.New("strava client_id not found in file or environment")
 	}
 
-	clientSecret := loadSecret(SecretPathClientSecret, "STRAVA_CLIENT_SECRET")
+	clientSecret := loadSecret(config.SecretPathStravaClientSecret, "STRAVA_CLIENT_SECRET")
 	if clientSecret == "" {
 		return nil, errors.New("strava client_secret not found in file or environment")
 	}
 
-	refreshToken := loadSecret(SecretPathRefreshToken, "STRAVA_REFRESH_TOKEN")
+	refreshToken := loadSecret(config.SecretPathStravaRefreshToken, "STRAVA_REFRESH_TOKEN")
 	if refreshToken == "" {
 		return nil, errors.New("strava refresh_token not found in file or environment")
 	}

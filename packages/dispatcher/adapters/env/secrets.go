@@ -130,8 +130,9 @@ func (c *SecretCache) addFileToHash(h io.Writer, path string) error {
 		if os.IsNotExist(err) {
 			// If file doesn't exist, write a placeholder to the hash
 			// so that if it appears later, the hash changes.
+			// Null-byte prefix ensures no collision with valid file content.
 			// Hash.Write never returns an error for in-memory hashes.
-			_, _ = h.Write([]byte("not-found")) //nolint:errcheck
+			_, _ = h.Write([]byte("\x00MISSING\x00")) //nolint:errcheck
 			return nil
 		}
 		return err
