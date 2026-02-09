@@ -1,14 +1,13 @@
 package httpadapter
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
-	"strings"
 
 	stravaadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 
@@ -33,7 +32,12 @@ const (
 	ErrCodeInvalidSubscriptionID = "INVALID_SUBSCRIPTION_ID"
 	ErrCodePublishFailed         = "PUBLISH_FAILED"
 	ErrCodeStravaFetchFailed     = "STRAVA_FETCH_FAILED"
+	ErrCodeInvalidChallenge      = "INVALID_CHALLENGE"
 )
+
+// maxChallengeLength is the maximum allowed length for hub.challenge.
+// Strava sends short random strings; 256 bytes is generous.
+const maxChallengeLength = 256
 
 // Handler orchestrates the webhook processing.
 type Handler struct {
@@ -108,6 +112,13 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(challenge) == 0 || len(challenge) > maxChallengeLength {
+		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid hub.challenge")
+		apiErr.Code = ErrCodeInvalidChallenge
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return
+	}
+
 	// Get current verify token from secret provider
 	verifyToken, _, err := h.secretProvider.GetSecrets()
 	if err != nil {
@@ -136,8 +147,8 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// Validate Content-Type header
-	contentType := r.Header.Get("Content-Type")
-	if contentType == "" || !strings.Contains(contentType, "application/json") {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
 		apiErr := gcplog.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		apiErr.Code = ErrCodeInvalidContentType
 		gcplog.WriteError(w, r, apiErr, h.logger)
@@ -252,16 +263,17 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	h.writeSuccess(w)
 }
 
-// successResponse is the JSON response for successful webhook processing.
-type successResponse struct {
-	Success bool `json:"success"`
+// webhookResponse is the JSON response for successful webhook processing.
+type webhookResponse struct {
+	Success bool   `json:"success"`
+	Action  string `json:"action"`
 }
 
 // writeSuccess returns 201 Created when a message is published to Pub/Sub.
 func (h *Handler) writeSuccess(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(successResponse{Success: true}); err != nil {
+	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: "published"}); err != nil {
 		h.logger.Error("Failed to encode success response", "error", err)
 	}
 }
@@ -271,13 +283,7 @@ func (h *Handler) writeSuccess(w http.ResponseWriter) {
 func (h *Handler) writeAcknowledged(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(successResponse{Success: true}); err != nil {
+	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: "acknowledged"}); err != nil {
 		h.logger.Error("Failed to encode acknowledged response", "error", err)
 	}
-}
-
-// Close releases resources held by the handler (PubSub client, etc.).
-// The context can be used to set a deadline for graceful shutdown.
-func (h *Handler) Close(ctx context.Context) error {
-	return h.publisher.Close(ctx)
 }

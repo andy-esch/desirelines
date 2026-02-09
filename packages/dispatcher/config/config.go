@@ -2,17 +2,13 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"time"
 )
 
 const (
-	// SecretPathVerifyToken is the path to the webhook verify token secret file.
-	SecretPathVerifyToken = "/etc/secrets/INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN/value" //nolint:gosec // Path, not credential
-	// SecretPathSubscriptionID is the path to the subscription ID secret file.
-	SecretPathSubscriptionID = "/etc/secrets/INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID/value" //nolint:gosec // Path, not credential
-
 	// DefaultReadTimeout is the default read timeout for HTTP requests.
 	DefaultReadTimeout = 30 * time.Second
 	// DefaultWriteTimeout is the default write timeout for HTTP requests.
@@ -30,7 +26,6 @@ const (
 type Config struct {
 	GCPProjectID       string
 	GCPPubSubTopicID   string
-	LogLevel           string
 	ReadTimeout        time.Duration
 	WriteTimeout       time.Duration
 	ReadHeaderTimeout  time.Duration
@@ -75,7 +70,6 @@ func LoadConfig() (*Config, error) {
 	return &Config{
 		GCPProjectID:       gcpProjectID,
 		GCPPubSubTopicID:   gcpPubSubTopicID,
-		LogLevel:           GetEnvOrDefault("LOG_LEVEL", "INFO"),
 		ReadTimeout:        readTimeout,
 		WriteTimeout:       writeTimeout,
 		ReadHeaderTimeout:  readHeaderTimeout,
@@ -114,6 +108,16 @@ func parseInt64Env(key string, defaultValue int64) (int64, error) {
 		return 0, fmt.Errorf("%s must be positive", key)
 	}
 	return n, nil
+}
+
+// ParseLogLevel reads LOG_LEVEL from the environment and returns the corresponding slog.Level.
+// Accepts "DEBUG", "INFO", "WARN", "ERROR" (case-insensitive). Defaults to INFO.
+func ParseLogLevel() slog.Level {
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(GetEnvOrDefault("LOG_LEVEL", "INFO"))); err != nil {
+		return slog.LevelInfo
+	}
+	return level
 }
 
 // GetEnvOrDefault returns the value of an environment variable or a default value.

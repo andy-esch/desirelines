@@ -1,7 +1,6 @@
 package httpadapter
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -95,6 +94,30 @@ func TestHandler_HandleVerification(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 			expectedCode:   "CONFIG_ERROR",
 		},
+		{
+			name:   "Empty challenge",
+			method: "GET",
+			queryParams: map[string]string{
+				"hub.mode":         "subscribe",
+				"hub.challenge":    "",
+				"hub.verify_token": "valid-token",
+			},
+			mockVerify:     "valid-token",
+			expectedStatus: http.StatusBadRequest,
+			expectedCode:   "INVALID_CHALLENGE",
+		},
+		{
+			name:   "Oversized challenge",
+			method: "GET",
+			queryParams: map[string]string{
+				"hub.mode":         "subscribe",
+				"hub.challenge":    strings.Repeat("x", 257),
+				"hub.verify_token": "valid-token",
+			},
+			mockVerify:     "valid-token",
+			expectedStatus: http.StatusBadRequest,
+			expectedCode:   "INVALID_CHALLENGE",
+		},
 	}
 
 	for _, tt := range tests {
@@ -163,7 +186,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			mockSubID:      testSubscriptionID,
 			stravaResult:   []byte(`{"id":12345,"name":"Morning Run"}`),
 			expectedStatus: http.StatusCreated,
-			expectedBody:   "success",
+			expectedBody:   "published",
 		},
 		{
 			name:        "Valid update event (no Strava fetch)",
@@ -180,7 +203,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			},
 			mockSubID:      testSubscriptionID,
 			expectedStatus: http.StatusCreated,
-			expectedBody:   "success",
+			expectedBody:   "published",
 		},
 		{
 			name:        "Valid delete event (no Strava fetch)",
@@ -196,7 +219,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			},
 			mockSubID:      testSubscriptionID,
 			expectedStatus: http.StatusCreated,
-			expectedBody:   "success",
+			expectedBody:   "published",
 		},
 		{
 			name:           "Invalid method",
@@ -262,7 +285,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			},
 			mockSubID:      testSubscriptionID,
 			expectedStatus: http.StatusOK, // 200 OK for acknowledged but ignored events
-			expectedBody:   "success",
+			expectedBody:   "acknowledged",
 		},
 		{
 			name:           "Publish error",
@@ -293,7 +316,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			mockSubID:      testSubscriptionID,
 			stravaErr:      stravaadapter.ErrActivityNotFound,
 			expectedStatus: http.StatusCreated,
-			expectedBody:   "success",
+			expectedBody:   "published",
 		},
 	}
 
@@ -554,16 +577,5 @@ func TestHandler_Health(t *testing.T) {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
 			}
 		})
-	}
-}
-
-// Test Close
-func TestHandler_Close(t *testing.T) {
-	mockPublisher := &portstest.MockPublisher{}
-	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{}, &portstest.MockStravaClient{}, gcplog.NewNoOpLogger(), nil)
-
-	err := handler.Close(context.Background())
-	if err != nil {
-		t.Errorf("Close returned error: %v", err)
 	}
 }

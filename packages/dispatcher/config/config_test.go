@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -25,7 +26,6 @@ func unsetEnv(t *testing.T, key string) {
 func TestLoadConfig_EnvVars(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
-	t.Setenv("LOG_LEVEL", "DEBUG")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -37,9 +37,6 @@ func TestLoadConfig_EnvVars(t *testing.T) {
 	}
 	if cfg.GCPPubSubTopicID != "test-topic" {
 		t.Errorf("Expected GCP topic 'test-topic', got '%s'", cfg.GCPPubSubTopicID)
-	}
-	if cfg.LogLevel != "DEBUG" {
-		t.Errorf("Expected log level 'DEBUG', got '%s'", cfg.LogLevel)
 	}
 }
 
@@ -58,11 +55,6 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	cfg, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
-	}
-
-	// LogLevel should have default value
-	if cfg.LogLevel != "INFO" {
-		t.Errorf("Expected default log level 'INFO', got '%s'", cfg.LogLevel)
 	}
 
 	// Timeouts should have default values
@@ -223,6 +215,37 @@ func TestGetEnvOrDefault(t *testing.T) {
 			result := GetEnvOrDefault(tt.key, tt.defaultValue)
 			if result != tt.expected {
 				t.Errorf("GetEnvOrDefault() = '%s', expected '%s'", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseLogLevel(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		setEnv   bool
+		expected slog.Level
+	}{
+		{"DEBUG", "DEBUG", true, slog.LevelDebug},
+		{"INFO", "INFO", true, slog.LevelInfo},
+		{"WARN", "WARN", true, slog.LevelWarn},
+		{"ERROR", "ERROR", true, slog.LevelError},
+		{"lowercase", "debug", true, slog.LevelDebug},
+		{"invalid falls back to INFO", "INVALID", true, slog.LevelInfo},
+		{"unset falls back to INFO", "", false, slog.LevelInfo},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			unsetEnv(t, "LOG_LEVEL")
+			if tt.setEnv {
+				t.Setenv("LOG_LEVEL", tt.envValue)
+			}
+
+			level := ParseLogLevel()
+			if level != tt.expected {
+				t.Errorf("ParseLogLevel() = %v, expected %v", level, tt.expected)
 			}
 		})
 	}

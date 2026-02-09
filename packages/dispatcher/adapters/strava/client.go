@@ -28,13 +28,6 @@ var (
 )
 
 const (
-	// SecretPathClientID is the path to the Strava client ID secret.
-	SecretPathClientID = "/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value" //nolint:gosec // Path, not credential
-	// SecretPathClientSecret is the path to the Strava client secret.
-	SecretPathClientSecret = "/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value" //nolint:gosec // Path, not credential
-	// SecretPathRefreshToken is the path to the Strava refresh token secret.
-	SecretPathRefreshToken = "/etc/secrets/INFISICAL_STRAVA_REFRESH_TOKEN/value" //nolint:gosec // Path, not credential
-
 	//nolint:gosec // URL, not credential
 	defaultTokenURL = "https://www.strava.com/oauth/token"
 	defaultAPIBase  = "https://www.strava.com/api/v3"
@@ -46,6 +39,12 @@ const (
 	// Retry settings for activity fetch.
 	activityRetryAttempts = 3
 	activityRetryBackoff  = 1 * time.Second
+
+	// Response size limits to prevent memory exhaustion.
+	// Activity JSON is typically 5-50KB; 5MB is a generous safety cap.
+	// Token responses are a few hundred bytes; 64KB is more than enough.
+	maxActivityResponseBytes = 5 << 20  // 5 MB
+	maxTokenResponseBytes    = 64 << 10 // 64 KB
 )
 
 // tokenResponse represents the JSON response from Strava's OAuth token endpoint.
@@ -72,17 +71,17 @@ var _ ports.StravaClient = (*Client)(nil)
 // NewClient creates a new Strava API client.
 // Credentials are loaded from secret files or environment variables.
 func NewClient(logger *slog.Logger) (*Client, error) {
-	clientID := loadSecret(SecretPathClientID, "STRAVA_CLIENT_ID")
+	clientID := loadSecret(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
 	if clientID == "" {
 		return nil, errors.New("strava client_id not found in file or environment")
 	}
 
-	clientSecret := loadSecret(SecretPathClientSecret, "STRAVA_CLIENT_SECRET")
+	clientSecret := loadSecret(config.SecretPathStravaClientSecret, "STRAVA_CLIENT_SECRET")
 	if clientSecret == "" {
 		return nil, errors.New("strava client_secret not found in file or environment")
 	}
 
-	refreshToken := loadSecret(SecretPathRefreshToken, "STRAVA_REFRESH_TOKEN")
+	refreshToken := loadSecret(config.SecretPathStravaRefreshToken, "STRAVA_REFRESH_TOKEN")
 	if refreshToken == "" {
 		return nil, errors.New("strava refresh_token not found in file or environment")
 	}
@@ -184,7 +183,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64) ([]byte,
 		}
 	}()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxActivityResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
@@ -264,17 +263,18 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 		}
 	}()
 
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
+	if err != nil {
+		return fmt.Errorf("failed to read token response body: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			return fmt.Errorf("token refresh returned %d, failed to read body: %w", resp.StatusCode, readErr)
-		}
 		return fmt.Errorf("token refresh returned %d: %s", resp.StatusCode, string(body))
 	}
 
 	var tokenResp tokenResponse
-	if decodeErr := json.NewDecoder(resp.Body).Decode(&tokenResp); decodeErr != nil {
-		return fmt.Errorf("decode token response: %w", decodeErr)
+	if unmarshalErr := json.Unmarshal(body, &tokenResp); unmarshalErr != nil {
+		return fmt.Errorf("decode token response: %w", unmarshalErr)
 	}
 
 	if tokenResp.AccessToken == "" {
