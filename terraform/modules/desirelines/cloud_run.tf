@@ -17,6 +17,9 @@ locals {
     "INFISICAL_STRAVA_CLIENT_SECRET" = google_secret_manager_secret.strava_client_secret.secret_id
     "INFISICAL_STRAVA_REFRESH_TOKEN" = google_secret_manager_secret.strava_refresh_token.secret_id
   }
+
+  # Combined secrets for dispatcher service
+  dispatcher_secrets = merge(local.strava_webhook_secrets, local.strava_api_secrets)
 }
 
 # ==============================================================================
@@ -72,7 +75,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
 
       # Mount Strava Webhook secrets as atomic volumes
       dynamic "volume_mounts" {
-        for_each = local.strava_webhook_secrets
+        for_each = local.dispatcher_secrets
         content {
           name       = lower(replace(volume_mounts.key, "_", "-"))
           mount_path = "/etc/secrets/${volume_mounts.key}"
@@ -81,7 +84,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     }
 
     dynamic "volumes" {
-      for_each = local.strava_webhook_secrets
+      for_each = local.dispatcher_secrets
       content {
         name = lower(replace(volumes.key, "_", "-"))
         secret {
@@ -105,7 +108,8 @@ resource "google_cloud_run_v2_service" "dispatcher" {
   }
 
   depends_on = [
-    google_secret_manager_secret_iam_member.dispatcher_webhook_tokens
+    google_secret_manager_secret_iam_member.dispatcher_webhook_tokens,
+    google_secret_manager_secret_iam_member.dispatcher_api_tokens
   ]
 }
 
