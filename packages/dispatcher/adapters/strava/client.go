@@ -46,6 +46,12 @@ const (
 	// Retry settings for activity fetch.
 	activityRetryAttempts = 3
 	activityRetryBackoff  = 1 * time.Second
+
+	// Response size limits to prevent memory exhaustion.
+	// Activity JSON is typically 5-50KB; 5MB is a generous safety cap.
+	// Token responses are a few hundred bytes; 64KB is more than enough.
+	maxActivityResponseBytes = 5 << 20  // 5 MB
+	maxTokenResponseBytes    = 64 << 10 // 64 KB
 )
 
 // tokenResponse represents the JSON response from Strava's OAuth token endpoint.
@@ -184,7 +190,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64) ([]byte,
 		}
 	}()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxActivityResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
@@ -264,8 +270,10 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 		}
 	}()
 
+	limitedBody := io.LimitReader(resp.Body, maxTokenResponseBytes)
+
 	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(limitedBody)
 		if readErr != nil {
 			return fmt.Errorf("token refresh returned %d, failed to read body: %w", resp.StatusCode, readErr)
 		}
@@ -273,7 +281,7 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 	}
 
 	var tokenResp tokenResponse
-	if decodeErr := json.NewDecoder(resp.Body).Decode(&tokenResp); decodeErr != nil {
+	if decodeErr := json.NewDecoder(limitedBody).Decode(&tokenResp); decodeErr != nil {
 		return fmt.Errorf("decode token response: %w", decodeErr)
 	}
 

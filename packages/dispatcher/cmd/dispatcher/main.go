@@ -20,7 +20,7 @@ import (
 
 func main() {
 	// Logger configured for GCP Cloud Logging. See packages/shared/gcplog/README.md
-	log := gcplog.New()
+	log := gcplog.NewWithLevel(config.ParseLogLevel())
 	log.Info("Starting dispatcher service")
 
 	ctx := context.Background()

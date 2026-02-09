@@ -8,7 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
+	"mime"
 
 	stravaadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 
@@ -136,8 +136,8 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// Validate Content-Type header
-	contentType := r.Header.Get("Content-Type")
-	if contentType == "" || !strings.Contains(contentType, "application/json") {
+	mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if mediaType != "application/json" {
 		apiErr := gcplog.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		apiErr.Code = ErrCodeInvalidContentType
 		gcplog.WriteError(w, r, apiErr, h.logger)
