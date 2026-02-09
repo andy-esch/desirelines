@@ -273,8 +273,8 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 	}
 
 	var tokenResp tokenResponse
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return fmt.Errorf("decode token response: %w", err)
+	if unmarshalErr := json.Unmarshal(body, &tokenResp); unmarshalErr != nil {
+		return fmt.Errorf("decode token response: %w", unmarshalErr)
 	}
 
 	if tokenResp.AccessToken == "" {
