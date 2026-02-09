@@ -17,6 +17,9 @@ locals {
     "INFISICAL_STRAVA_CLIENT_SECRET" = google_secret_manager_secret.strava_client_secret.secret_id
     "INFISICAL_STRAVA_REFRESH_TOKEN" = google_secret_manager_secret.strava_refresh_token.secret_id
   }
+
+  # Combined secrets for dispatcher service
+  dispatcher_secrets = merge(local.strava_webhook_secrets, local.strava_api_secrets)
 }
 
 # ==============================================================================
@@ -72,7 +75,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
 
       # Mount Strava Webhook secrets as atomic volumes
       dynamic "volume_mounts" {
-        for_each = local.strava_webhook_secrets
+        for_each = local.dispatcher_secrets
         content {
           name       = lower(replace(volume_mounts.key, "_", "-"))
           mount_path = "/etc/secrets/${volume_mounts.key}"
@@ -81,7 +84,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     }
 
     dynamic "volumes" {
-      for_each = local.strava_webhook_secrets
+      for_each = local.dispatcher_secrets
       content {
         name = lower(replace(volumes.key, "_", "-"))
         secret {
@@ -105,7 +108,8 @@ resource "google_cloud_run_v2_service" "dispatcher" {
   }
 
   depends_on = [
-    google_secret_manager_secret_iam_member.dispatcher_webhook_tokens
+    google_secret_manager_secret_iam_member.dispatcher_webhook_tokens,
+    google_secret_manager_secret_iam_member.dispatcher_api_tokens
   ]
 }
 
@@ -278,31 +282,6 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
         name  = "ENABLE_CLOUD_LOGGING"
         value = "true"
       }
-
-      # Mount Strava API secrets as atomic volumes
-      dynamic "volume_mounts" {
-        for_each = local.strava_api_secrets
-        content {
-          name       = lower(replace(volume_mounts.key, "_", "-"))
-          mount_path = "/etc/secrets/${volume_mounts.key}"
-        }
-      }
-    }
-
-    dynamic "volumes" {
-      for_each = local.strava_api_secrets
-      content {
-        name = lower(replace(volumes.key, "_", "-"))
-        secret {
-          secret       = volumes.value
-          default_mode = 292
-          items {
-            version = "latest"
-            path    = "value"
-            mode    = 292
-          }
-        }
-      }
     }
 
     timeout = "60s"
@@ -312,10 +291,6 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
     percent = 100
   }
-
-  depends_on = [
-    google_secret_manager_secret_iam_member.bq_inserter_api_tokens
-  ]
 }
 
 # ==============================================================================
@@ -371,35 +346,10 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
         value = "true"
       }
 
-      # Mount Strava API secrets as atomic volumes
-      dynamic "volume_mounts" {
-        for_each = local.strava_api_secrets
-        content {
-          name       = lower(replace(volume_mounts.key, "_", "-"))
-          mount_path = "/etc/secrets/${volume_mounts.key}"
-        }
-      }
-
       # Mount PostgreSQL secrets as volume (read/write writer role)
       volume_mounts {
         name       = "infisical-postgres-conn-writer"
         mount_path = "/etc/secrets/INFISICAL_POSTGRES_CONN_WRITER"
-      }
-    }
-
-    dynamic "volumes" {
-      for_each = local.strava_api_secrets
-      content {
-        name = lower(replace(volumes.key, "_", "-"))
-        secret {
-          secret       = volumes.value
-          default_mode = 292
-          items {
-            version = "latest"
-            path    = "value"
-            mode    = 292
-          }
-        }
       }
     }
 
@@ -425,7 +375,6 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
   }
 
   depends_on = [
-    google_secret_manager_secret_iam_member.postgres_writer_api_tokens,
     google_secret_manager_secret_iam_member.postgres_writer_postgres_access,
   ]
 }

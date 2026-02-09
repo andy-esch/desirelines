@@ -437,8 +437,8 @@ resource "google_secret_manager_secret_iam_member" "dispatcher_webhook_tokens" {
   member    = "serviceAccount:${google_service_account.dispatcher.email}"
 }
 
-# BQ Inserter needs API tokens
-resource "google_secret_manager_secret_iam_member" "bq_inserter_api_tokens" {
+# Dispatcher needs API tokens (to fetch activity data)
+resource "google_secret_manager_secret_iam_member" "dispatcher_api_tokens" {
   for_each = toset([
     google_secret_manager_secret.strava_client_id.secret_id,
     google_secret_manager_secret.strava_client_secret.secret_id,
@@ -446,19 +446,7 @@ resource "google_secret_manager_secret_iam_member" "bq_inserter_api_tokens" {
   ])
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.bq_inserter.email}"
-}
-
-# Postgres Writer needs API tokens
-resource "google_secret_manager_secret_iam_member" "postgres_writer_api_tokens" {
-  for_each = toset([
-    google_secret_manager_secret.strava_client_id.secret_id,
-    google_secret_manager_secret.strava_client_secret.secret_id,
-    google_secret_manager_secret.strava_refresh_token.secret_id
-  ])
-  secret_id = each.value
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.postgres_writer.email}"
+  member    = "serviceAccount:${google_service_account.dispatcher.email}"
 }
 
 # ==============================================================================
