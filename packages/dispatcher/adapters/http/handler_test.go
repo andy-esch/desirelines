@@ -579,5 +579,3 @@ func TestHandler_Health(t *testing.T) {
 		})
 	}
 }
-
-

@@ -263,19 +263,18 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 		}
 	}()
 
-	limitedBody := io.LimitReader(resp.Body, maxTokenResponseBytes)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
+	if err != nil {
+		return fmt.Errorf("failed to read token response body: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(limitedBody)
-		if readErr != nil {
-			return fmt.Errorf("token refresh returned %d, failed to read body: %w", resp.StatusCode, readErr)
-		}
 		return fmt.Errorf("token refresh returned %d: %s", resp.StatusCode, string(body))
 	}
 
 	var tokenResp tokenResponse
-	if decodeErr := json.NewDecoder(limitedBody).Decode(&tokenResp); decodeErr != nil {
-		return fmt.Errorf("decode token response: %w", decodeErr)
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return fmt.Errorf("decode token response: %w", err)
 	}
 
 	if tokenResp.AccessToken == "" {

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"mime"
+	"net/http"
 
 	stravaadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 
@@ -147,8 +147,8 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// Validate Content-Type header
-	mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if mediaType != "application/json" {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
 		apiErr := gcplog.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		apiErr.Code = ErrCodeInvalidContentType
 		gcplog.WriteError(w, r, apiErr, h.logger)
@@ -287,4 +287,3 @@ func (h *Handler) writeAcknowledged(w http.ResponseWriter) {
 		h.logger.Error("Failed to encode acknowledged response", "error", err)
 	}
 }
-
