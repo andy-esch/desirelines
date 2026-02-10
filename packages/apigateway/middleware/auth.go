@@ -38,11 +38,11 @@ type AuthMiddleware struct {
 // NewFirebaseAuth creates authentication middleware using Firebase Admin SDK.
 // It validates JWT tokens and checks the email against an allowlist provided as configuration.
 func NewFirebaseAuth(ctx context.Context, allowedEmails []string, logger *slog.Logger) (*AuthMiddleware, error) {
-	// Convert slice to map for O(1) lookups
+	// Convert slice to map for O(1) lookups (normalize to lowercase)
 	emailMap := make(map[string]bool)
 	for _, email := range allowedEmails {
 		if email != "" {
-			emailMap[email] = true
+			emailMap[strings.ToLower(email)] = true
 		}
 	}
 
@@ -130,8 +130,8 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Check if email is in allowlist
-		if !m.allowedEmails[email] {
+		// Check if email is in allowlist (case-insensitive)
+		if !m.allowedEmails[strings.ToLower(email)] {
 			m.logger.Warn("Auth: Authorization failed", "reason", "email_not_authorized", "email", email)
 			gcplog.WriteError(w, r, gcplog.ErrForbidden, m.logger)
 			return

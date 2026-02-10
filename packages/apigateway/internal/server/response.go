@@ -9,7 +9,7 @@ import (
 	"net/http"
 )
 
-// RespondJSON writes a JSON response with CORS headers.
+// RespondJSON writes a JSON response.
 // JSON is encoded to a buffer first to detect encoding errors before sending headers.
 // This prevents partial responses with 200 OK status when encoding fails.
 func RespondJSON(w http.ResponseWriter, r *http.Request, status int, data any, logger *slog.Logger) {
@@ -30,7 +30,7 @@ func RespondJSON(w http.ResponseWriter, r *http.Request, status int, data any, l
 	}
 }
 
-// RespondRawJSON writes raw JSON bytes with CORS headers.
+// RespondRawJSON writes raw JSON bytes.
 // Use this for pre-marshaled JSON data to avoid double encoding.
 // Validates that data is non-empty before writing headers to avoid empty responses.
 func RespondRawJSON(w http.ResponseWriter, r *http.Request, status int, data []byte, logger *slog.Logger) {

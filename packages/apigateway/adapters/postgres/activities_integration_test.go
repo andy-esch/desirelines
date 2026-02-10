@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
-	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 )
 
 // TestIntegration_ActivityRepository runs integration tests against a real PostgreSQL database.
@@ -50,12 +50,10 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	insertTestData(t, setupPool)
 
 	// Create the repository using our Pool wrapper
-	pool, err := postgres.NewPool(ctx)
+	pool, err := postgres.NewPool(ctx, connString, slog.Default())
 	if err != nil {
 		t.Fatalf("failed to create pool: %v", err)
 	}
-	defer pool.Close()
-
 	repo := postgres.NewActivityRepository(pool)
 	defer repo.Close()
 
@@ -250,8 +248,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatal("expected activity, got nil")
 		}
 
-		if activity.ID != 1001 {
-			t.Errorf("expected ID 1001, got %d", activity.ID)
+		if activity.Id != 1001 {
+			t.Errorf("expected ID 1001, got %d", activity.Id)
 		}
 
 		if activity.Name != "Morning Ride" {
@@ -301,8 +299,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 		// Should be ordered by start_date_local DESC (newest first)
 		// Jan 16 > Jan 15 (ride at 8am) > Jan 15 (run at 7am) > Jan 15 (yoga at 6am)
-		if response.Activities[0].ID != 1002 {
-			t.Errorf("expected first activity ID 1002 (newest), got %d", response.Activities[0].ID)
+		if response.Activities[0].Id != 1002 {
+			t.Errorf("expected first activity ID 1002 (newest), got %d", response.Activities[0].Id)
 		}
 
 		// No more results
