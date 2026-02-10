@@ -57,10 +57,9 @@ client.interceptors.request.use(async (config) => {
   const authReady = await waitForAuthWithTimeout();
 
   if (!authReady) {
-    console.warn(
-      "Auth initialization timed out after",
-      AUTH_READY_TIMEOUT_MS,
-      "ms. Proceeding without auth token."
+    console.error(
+      `Auth initialization timed out after ${AUTH_READY_TIMEOUT_MS}ms. ` +
+        "Request will proceed without auth token and likely receive 401."
     );
     return config;
   }
