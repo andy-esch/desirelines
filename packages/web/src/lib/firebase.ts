@@ -32,7 +32,7 @@ const databaseId = config.emulators.enabled
   : config.firebase.firestoreDatabase || "desirelines-user-configs";
 export const db: Firestore = getFirestore(app, databaseId);
 
-// Connect to Firebase emulators in development mode
+// Connect to Firebase emulators (config validation prevents this in production)
 if (config.emulators.enabled) {
   /* eslint-disable no-console */
   const { authHost, authPort, firestoreHost, firestorePort } = config.emulators;

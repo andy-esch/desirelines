@@ -112,6 +112,14 @@ export function loadConfig(): AppConfig {
   try {
     const validated = AppConfigSchema.parse(raw);
 
+    // Reject emulator config in production builds
+    if (validated.isProduction && validated.emulators.enabled) {
+      throw new Error(
+        "Firebase emulators cannot be enabled in production builds. " +
+          "Remove VITE_USE_FIREBASE_EMULATORS from your production environment."
+      );
+    }
+
     // Additional validation: Check for placeholder values
     const placeholderPatterns = ["YOUR_PROD", "YOUR-PROD", "XXXXX", "TODO", "REPLACE", "CHANGEME"];
 
