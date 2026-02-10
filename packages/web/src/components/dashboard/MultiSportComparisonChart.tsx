@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
 import { convertDistance, getDistanceLabel, DEFAULT_USER_SETTINGS } from "../../utils/units";
+import { SLATE } from "../../constants/uiColors";
 import TimeRangeSelector from "./TimeRangeSelector";
 import RecentActivitiesList from "./RecentActivitiesList";
 import { SparklineSkeleton, ActivityRowSkeleton } from "../Skeleton";
@@ -279,7 +280,7 @@ export default function MultiSportComparisonChart({
                     dataKey="date"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 9, fill: "#999" }}
+                    tick={{ fontSize: 9, fill: SLATE.LIGHT }}
                     tickFormatter={formatAxisDate}
                     interval="preserveStartEnd"
                     minTickGap={50}
