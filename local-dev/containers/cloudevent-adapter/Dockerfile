@@ -1,7 +1,7 @@
 # CloudEvent Adapter for local development
 # Bridges PubSub emulator (raw push) to Cloud Run services (CloudEvent format)
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
