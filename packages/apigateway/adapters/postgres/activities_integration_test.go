@@ -54,8 +54,6 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create pool: %v", err)
 	}
-	defer pool.Close()
-
 	repo := postgres.NewActivityRepository(pool)
 	defer repo.Close()
 

@@ -101,7 +101,7 @@ func newTestRouter(allowedOrigins []string, logger *slog.Logger) http.Handler {
 // newTestRouterWithDB creates a router with mock database for testing
 func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrigins []string, logger *slog.Logger) http.Handler {
 	// Load sport config for tests (uses embedded config)
-	sportConfig, err := config.LoadSportConfig("")
+	sportConfig, err := config.NewSportConfig("")
 	if err != nil {
 		panic(fmt.Sprintf("failed to load sport config for tests: %v", err))
 	}
