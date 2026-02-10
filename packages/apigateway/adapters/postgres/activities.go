@@ -215,7 +215,7 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 			FROM (
 				SELECT generate_series(
 					make_date($1, 1, 1),
-					make_date($1, 12, 31),
+					LEAST(CURRENT_DATE, make_date($1, 12, 31)),
 					'1 day'::interval
 				)::date as date
 			) all_dates
