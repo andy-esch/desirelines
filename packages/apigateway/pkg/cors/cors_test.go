@@ -14,9 +14,6 @@ func TestNewHandler(t *testing.T) {
 	t.Run("no origins configured", func(t *testing.T) {
 		h := NewHandler([]string{}, logger)
 
-		if h == nil {
-			t.Fatal("NewHandler returned nil")
-		}
 		if len(h.allowedOrigins) != 0 {
 			t.Errorf("expected 0 allowed origins, got %d", len(h.allowedOrigins))
 		}
