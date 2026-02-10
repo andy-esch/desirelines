@@ -47,9 +47,6 @@ func TestNewActivityRepository(t *testing.T) {
 
 		// Verify nil pool handling (defensive - shouldn't happen in practice)
 		repo := constructor(nil)
-		if repo == nil {
-			t.Fatal("NewActivityRepository returned nil")
-		}
 		if repo.pool != nil {
 			t.Error("expected nil pool to be stored as nil")
 		}

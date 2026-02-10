@@ -56,7 +56,7 @@ jobs:
       - name: Set up Pants
         uses: pantsbuild/actions/init-pants@v10
         with:
-          gha-cache-key: v1-go1.25-py3.13-docker
+          gha-cache-key: v1-go1.25-py3.14-docker
           named-caches-hash: ${{ hashFiles('packages/*/go.sum', 'packages/stravapipe/uv.lock', 'go.work.sum', 'pants.toml') }}
           cache-lmdb-store: true
           base-branch: main

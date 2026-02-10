@@ -116,11 +116,11 @@ Distroless provides CA certs, timezone data, and a non-root user (UID 65534) wit
 Multi-stage build with uv for fast dependency installation:
 
 ```dockerfile
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 RUN pip install uv
 # ... install deps with uv ...
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 # ... copy venv, run with uvicorn ...
 ```
 
