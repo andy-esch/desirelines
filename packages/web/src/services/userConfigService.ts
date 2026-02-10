@@ -73,7 +73,7 @@ export class UserConfigService {
 
   /**
    * @param userId - Optional userId to use for operations.
-   *   - If not provided: uses authenticated user's UID (re-evaluated on each operation), or "default" if not authenticated
+   *   - If not provided: uses authenticated user's UID (re-evaluated on each operation); throws if not authenticated
    *   - If provided: uses the specified userId (fixed for the lifetime of this instance)
    *   WARNING: Providing an explicit userId when authenticated will throw an error
    *   unless it matches the authenticated user's UID.
@@ -121,9 +121,15 @@ export class UserConfigService {
       return this.explicitUserId;
     }
 
-    // Dynamic: use current auth user or "default"
+    // Dynamic: use current auth user (reject unauthenticated operations)
     const currentUser = this.authService.getCurrentUser();
-    return currentUser?.uid ?? "default";
+    if (!currentUser) {
+      throw new Error(
+        "UserConfigService: No authenticated user. " +
+          "Firestore operations require authentication. Use localStorage for unauthenticated users."
+      );
+    }
+    return currentUser.uid;
   }
 
   /**
@@ -435,7 +441,7 @@ export class UserConfigService {
 
 // Default instance for convenience.
 // Auth state is re-evaluated on each operation, so this singleton is safe to create at module load.
-// Uses authenticated user's UID if signed in, or "default" if not authenticated.
+// Requires authentication — throws if operations are attempted without a signed-in user.
 export const defaultConfigService = new UserConfigService();
 
 // Re-export protobuf types for convenience

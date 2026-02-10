@@ -171,7 +171,7 @@ export function useUserConfig(
   const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
-  const effectiveUserId = userId ?? user?.uid ?? "default";
+  const effectiveUserId = userId ?? user?.uid ?? "anonymous";
   const effectiveVersion = version ?? "v1";
   const isLocalStorageMode = !user;
 
@@ -395,7 +395,7 @@ export function useFullUserConfig(
 
   // Determine if we're in localStorage mode based on auth state
   const isLocalStorageMode = !user;
-  const effectiveUserId = userId ?? user?.uid ?? "default";
+  const effectiveUserId = userId ?? user?.uid ?? "anonymous";
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(() => {
