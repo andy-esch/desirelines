@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"firebase.google.com/go/v4/auth"
@@ -88,6 +89,18 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 		},
+		{
+			name:   "Authorized email with different casing",
+			header: "Bearer valid-token",
+			mockVerifier: &MockTokenVerifier{
+				Token: &auth.Token{
+					Claims: map[string]interface{}{
+						"email": "Allowed@Example.Com",
+					},
+				},
+			},
+			expectedStatus: http.StatusOK,
+		},
 	}
 
 	for _, tt := range tests {
@@ -117,5 +130,30 @@ func TestAuthMiddleware(t *testing.T) {
 				t.Errorf("status = %d, want %d", w.Code, tt.expectedStatus)
 			}
 		})
+	}
+}
+
+func TestNewFirebaseAuth(t *testing.T) {
+	// Set environment variables for Firebase initialization
+	os.Setenv("GCP_PROJECT_ID", "test-project")
+	defer os.Unsetenv("GCP_PROJECT_ID")
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	allowedEmails := []string{"Allowed@Example.Com", "UPPER@EXAMPLE.COM", ""}
+
+	am, err := NewFirebaseAuth(context.Background(), allowedEmails, logger)
+	if err != nil {
+		t.Fatalf("NewFirebaseAuth() error = %v", err)
+	}
+
+	expected := []string{"allowed@example.com", "upper@example.com"}
+	for _, email := range expected {
+		if !am.allowedEmails[email] {
+			t.Errorf("expected email %q to be allowed", email)
+		}
+	}
+
+	if len(am.allowedEmails) != 2 {
+		t.Errorf("expected 2 allowed emails, got %d", len(am.allowedEmails))
 	}
 }
