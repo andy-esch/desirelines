@@ -1,6 +1,6 @@
 # Firebase Emulator Suite for local development
 # Runs Auth + Firestore emulators for fully offline development
-FROM node:20-slim
+FROM node:24-slim
 
 # Pin firebase-tools version for reproducibility
 ARG FIREBASE_TOOLS_VERSION=13.29.1
