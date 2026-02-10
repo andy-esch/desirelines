@@ -98,10 +98,12 @@ export const fetchSportMetrics = async (
     options = yearOrOptions;
   }
 
-  let url = `/activities/${options.year}/metrics?sport=${options.sport}`;
+  const params = new URLSearchParams({ sport: options.sport });
   if (options.from && options.to) {
-    url += `&from=${options.from}&to=${options.to}`;
+    params.set("from", options.from);
+    params.set("to", options.to);
   }
+  const url = `/activities/${options.year}/metrics?${params.toString()}`;
 
   try {
     const { data } = await client.get<SportMetricsProto>(url, {
@@ -191,10 +193,12 @@ export interface FetchDailySummaryOptions {
 export const fetchDailySummary = async (
   options: FetchDailySummaryOptions
 ): Promise<Record<string, DailyActivity>> => {
-  let url = `/activities/${options.year}/source?sport=${options.sport}`;
+  const params = new URLSearchParams({ sport: options.sport });
   if (options.from && options.to) {
-    url += `&from=${options.from}&to=${options.to}`;
+    params.set("from", options.from);
+    params.set("to", options.to);
   }
+  const url = `/activities/${options.year}/source?${params.toString()}`;
 
   try {
     const { data } = await client.get<DailySummaryResponse>(url, {
