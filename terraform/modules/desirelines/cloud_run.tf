@@ -89,11 +89,11 @@ resource "google_cloud_run_v2_service" "dispatcher" {
         name = lower(replace(volumes.key, "_", "-"))
         secret {
           secret       = volumes.value
-          default_mode = 292 # 0444
+          default_mode = 256 # 0400 owner-read-only
           items {
             version = "latest"
             path    = "value"
-            mode    = 292
+            mode    = 256 # 0400
           }
         }
       }
@@ -189,11 +189,11 @@ resource "google_cloud_run_v2_service" "api_gateway" {
       name = "infisical-postgres-conn-apigateway"
       secret {
         secret       = google_secret_manager_secret.postgres_conn_apigateway.secret_id
-        default_mode = 292 # 0444 in octal (read-only)
+        default_mode = 256 # 0400 owner-read-only
         items {
           version = "latest"
           path    = "value"
-          mode    = 292 # 0444
+          mode    = 256 # 0400
         }
       }
     }
@@ -357,11 +357,11 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
       name = "infisical-postgres-conn-writer"
       secret {
         secret       = google_secret_manager_secret.postgres_conn_writer.secret_id
-        default_mode = 292 # 0444 in octal (read-only)
+        default_mode = 256 # 0400 owner-read-only
         items {
           version = "latest"
           path    = "value"
-          mode    = 292 # 0444
+          mode    = 256 # 0400
         }
       }
     }
