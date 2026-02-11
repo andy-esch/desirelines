@@ -201,30 +201,20 @@ export default function SportPage({ sport }: SportPageProps) {
 
     const timeSport = isTimeSport(sport, sportConfig);
 
-    if (sportInfo?.has_distance) {
-      // Convert from meters to user's display unit
-      return goalsData.goals.map((g) => ({
-        id: g.id,
-        value: Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit)),
-        label: g.label,
-      }));
-    }
+    return goalsData.goals.map((g) => {
+      let displayValue = g.value;
+      if (sportInfo?.has_distance) {
+        displayValue = Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit));
+      } else if (timeSport) {
+        displayValue = Math.round(minutesToHours(g.value));
+      }
 
-    if (timeSport) {
-      // Convert from minutes to hours for display
-      return goalsData.goals.map((g) => ({
+      return {
         id: g.id,
-        value: Math.round(minutesToHours(g.value)),
+        value: displayValue,
         label: g.label,
-      }));
-    }
-
-    // Sessions and other: no conversion needed
-    return goalsData.goals.map((g) => ({
-      id: g.id,
-      value: g.value,
-      label: g.label,
-    }));
+      };
+    });
   }, [goalsData, sportInfo?.has_distance, userSettings.distanceUnit, sport, sportConfig]);
 
   // Handle goals change: convert from display units back to storage units
