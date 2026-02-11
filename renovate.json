@@ -26,6 +26,16 @@
       "description": "Group all docker-compose image updates into one PR",
       "matchManagers": ["docker-compose"],
       "groupName": "docker-compose images"
+    },
+    {
+      "description": "Pin PostGIS to PostgreSQL v17 - major version bumps require database migration",
+      "matchPackageNames": ["postgis/postgis"],
+      "allowedVersions": "/^17-\\d+\\.\\d+/"
+    },
+    {
+      "description": "Pin Go to 1.25.x - wait for ecosystem tooling to catch up with 1.26",
+      "matchPackageNames": ["golang", "go"],
+      "allowedVersions": "<1.26"
     }
   ]
 }
