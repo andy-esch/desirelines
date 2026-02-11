@@ -1,12 +1,7 @@
-import { useState, useEffect } from "react";
-import {
-  fetchSportMetrics,
-  fetchSportConfig,
-  type SportMetrics,
-  type SportConfig,
-} from "../api/activities";
-import { isCancellationError } from "../api/errors";
+import { useQuery } from "@tanstack/react-query";
+import { fetchSportMetrics, type SportMetrics, type SportConfig } from "../api/activities";
 import { useAuth } from "./useAuth";
+import { useSportConfig } from "./useSportConfig";
 
 export interface SportDataResult {
   metrics: SportMetrics | null;
@@ -36,65 +31,24 @@ export interface SportDataResult {
  */
 export function useSportData(year: number, sport: string): SportDataResult {
   const { loading: authLoading } = useAuth();
+  const { sportConfig, isLoading: configLoading, error: configError } = useSportConfig();
 
-  const [metrics, setMetrics] = useState<SportMetrics | null>(null);
-  const [sportConfig, setSportConfig] = useState<SportConfig | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-
-  // Retry handler for error recovery
-  const retry = () => {
-    setError(null);
-    setRetryCount((prev) => prev + 1);
-  };
-
-  useEffect(() => {
-    // Don't make API calls while auth is still loading
-    if (authLoading) {
-      return;
-    }
-
-    const controller = new AbortController();
-
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const [metricsData, configData] = await Promise.all([
-          fetchSportMetrics(year, sport, controller.signal),
-          fetchSportConfig(controller.signal),
-        ]);
-
-        setMetrics(metricsData);
-        setSportConfig(configData);
-      } catch (err) {
-        // Abort any pending requests when one fails
-        controller.abort();
-
-        // API functions return empty data on cancellation, so this catch
-        // should only trigger for real errors. Still check for edge cases.
-        if (!isCancellationError(err)) {
-          setError(err instanceof Error ? err : new Error(String(err)));
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadData();
-
-    return () => {
-      controller.abort();
-    };
-  }, [year, sport, authLoading, retryCount]);
+  const {
+    data: metrics,
+    isLoading: metricsLoading,
+    error: metricsError,
+    refetch,
+  } = useQuery({
+    queryKey: ["sportMetrics", year, sport],
+    queryFn: ({ signal }) => fetchSportMetrics(year, sport, signal),
+    enabled: !authLoading,
+  });
 
   return {
-    metrics,
+    metrics: metrics ?? null,
     sportConfig,
-    isLoading,
-    error,
-    retry,
+    isLoading: authLoading || metricsLoading || configLoading,
+    error: (metricsError as Error | null) ?? configError,
+    retry: refetch,
   };
 }

@@ -1,12 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import React from "react";
 import { renderHook, waitFor, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useSportData } from "./useSportData";
 import * as useAuthModule from "./useAuth";
+import * as useSportConfigModule from "./useSportConfig";
 import * as activitiesApi from "../api/activities";
 
 // Mock dependencies
 vi.mock("./useAuth");
+vi.mock("./useSportConfig");
 vi.mock("../api/activities");
+
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+  return ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client: queryClient }, children);
+};
 
 describe("useSportData", () => {
   const mockConfig = {
@@ -26,6 +42,13 @@ describe("useSportData", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: sport config loaded
+    vi.spyOn(useSportConfigModule, "useSportConfig").mockReturnValue({
+      sportConfig: mockConfig,
+      isLoading: false,
+      error: null,
+      retry: vi.fn(),
+    });
   });
 
   it("starts in loading state", () => {
@@ -37,11 +60,13 @@ describe("useSportData", () => {
       error: null,
     });
 
-    const { result } = renderHook(() => useSportData(2025, "cycling"));
+    const { result } = renderHook(() => useSportData(2025, "cycling"), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.metrics).toBeNull();
-    expect(result.current.sportConfig).toBeNull();
+    expect(result.current.sportConfig).toEqual(mockConfig);
   });
 
   it("fetches from API when auth is ready (unauthenticated)", async () => {
@@ -56,9 +81,10 @@ describe("useSportData", () => {
     });
 
     vi.spyOn(activitiesApi, "fetchSportMetrics").mockResolvedValue(mockMetrics);
-    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
 
-    const { result } = renderHook(() => useSportData(2025, "cycling"));
+    const { result } = renderHook(() => useSportData(2025, "cycling"), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -85,9 +111,10 @@ describe("useSportData", () => {
     });
 
     vi.spyOn(activitiesApi, "fetchSportMetrics").mockResolvedValue(mockMetrics);
-    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
 
-    const { result } = renderHook(() => useSportData(2025, "cycling"));
+    const { result } = renderHook(() => useSportData(2025, "cycling"), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -115,36 +142,15 @@ describe("useSportData", () => {
 
     vi.spyOn(activitiesApi, "fetchSportMetrics").mockRejectedValue(error);
 
-    const { result } = renderHook(() => useSportData(2025, "cycling"));
+    const { result } = renderHook(() => useSportData(2025, "cycling"), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
     expect(result.current.error).toEqual(error);
-  });
-
-  it("ignores cancelled request errors", async () => {
-    const cancelError = new Error("Request cancelled");
-
-    vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
-      user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
-      loading: false,
-      signIn: vi.fn(),
-      signOut: vi.fn(),
-      error: null,
-    });
-
-    vi.spyOn(activitiesApi, "fetchSportMetrics").mockRejectedValue(cancelError);
-
-    const { result } = renderHook(() => useSportData(2025, "cycling"));
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    // Should not set error for cancelled requests
-    expect(result.current.error).toBeNull();
   });
 
   it("provides retry functionality", async () => {
@@ -163,9 +169,9 @@ describe("useSportData", () => {
       .mockRejectedValueOnce(error)
       .mockResolvedValueOnce([{ date: "2025-01-01", distance: 100 }]);
 
-    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
-
-    const { result } = renderHook(() => useSportData(2025, "cycling"));
+    const { result } = renderHook(() => useSportData(2025, "cycling"), {
+      wrapper: createWrapper(),
+    });
 
     // Wait for first error
     await waitFor(() => {
@@ -198,7 +204,6 @@ describe("useSportData", () => {
       error: null,
     });
 
-    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
     const fetchMetricsSpy = vi
       .spyOn(activitiesApi, "fetchSportMetrics")
       .mockResolvedValueOnce(mockMetrics2025)
@@ -206,6 +211,7 @@ describe("useSportData", () => {
 
     const { result, rerender } = renderHook(({ year, sport }) => useSportData(year, sport), {
       initialProps: { year: 2025, sport: "cycling" },
+      wrapper: createWrapper(),
     });
 
     await waitFor(() => {
@@ -236,7 +242,6 @@ describe("useSportData", () => {
       error: null,
     });
 
-    vi.spyOn(activitiesApi, "fetchSportConfig").mockResolvedValue(mockConfig);
     const fetchMetricsSpy = vi
       .spyOn(activitiesApi, "fetchSportMetrics")
       .mockResolvedValueOnce(mockCyclingMetrics)
@@ -244,6 +249,7 @@ describe("useSportData", () => {
 
     const { result, rerender } = renderHook(({ year, sport }) => useSportData(year, sport), {
       initialProps: { year: 2025, sport: "cycling" },
+      wrapper: createWrapper(),
     });
 
     await waitFor(() => {
