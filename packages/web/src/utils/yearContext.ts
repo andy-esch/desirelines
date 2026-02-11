@@ -73,10 +73,10 @@ export function createYearContext(year: number): YearContext {
     const endOfYearUTC = Date.UTC(year, 11, 31);
 
     // Days elapsed = days from Jan 1 to today (inclusive of both endpoints)
-    daysElapsed = Math.round((todayUTC - startOfYearUTC) / (1000 * 60 * 60 * 24)) + 1;
+    daysElapsed = Math.floor((todayUTC - startOfYearUTC) / (1000 * 60 * 60 * 24)) + 1;
 
     // Days remaining = days from today to Dec 31 (inclusive of both endpoints)
-    daysRemaining = Math.max(0, Math.round((endOfYearUTC - todayUTC) / (1000 * 60 * 60 * 24)) + 1);
+    daysRemaining = Math.max(0, Math.floor((endOfYearUTC - todayUTC) / (1000 * 60 * 60 * 24)) + 1);
   } else if (isPastYear) {
     // Past year: year is complete
     daysElapsed = daysInYear;

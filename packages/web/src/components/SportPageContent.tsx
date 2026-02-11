@@ -105,7 +105,7 @@ export default function SportPageContent({
   const [showFullYear, setShowFullYear] = useState(true);
   const [showAchievements, setShowAchievements] = useState(true);
 
-  const isCurrentYear = currentYear === new Date().getFullYear();
+  const isCurrentYear = yearContext.isCurrentYear;
   // Note: error state is shown in the chart area (which receives `error` separately).
   // Other components receive `isLoading` only so they show default values on error,
   // not misleading loading spinners.

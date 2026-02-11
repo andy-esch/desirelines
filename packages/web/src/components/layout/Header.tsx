@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Logo from "../Logo";
 import { useAuth } from "../../hooks/useAuth";
@@ -26,6 +27,15 @@ const GearIcon = () => (
 export default function Header() {
   const location = useLocation();
   const { user, loading, signIn, signOut } = useAuth();
+
+  // Close mobile nav drawer on route change
+  useEffect(() => {
+    const el = document.getElementById("mobileNavMenu");
+    if (el?.classList.contains("show")) {
+      const closeBtn = el.querySelector<HTMLButtonElement>('[data-bs-dismiss="offcanvas"]');
+      closeBtn?.click();
+    }
+  }, [location.pathname]);
 
   // Show controls toggle on sport detail pages (any sport, authenticated or demo)
   const segments = location.pathname.split("/").filter(Boolean);

@@ -39,7 +39,6 @@
     "emulators": "firebase emulators:start --only firestore,auth"
   },
   "devDependencies": {
-    "@eslint/compat": "^1.4.0",
     "@eslint/js": "^9.37.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
