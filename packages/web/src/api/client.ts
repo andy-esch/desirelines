@@ -54,7 +54,12 @@ export function configureClientAuth(authService: AuthService): void {
     }
 
     const user = authService.getCurrentUser();
-    if (user) {
+    // Only attach token for requests to our own API gateway.
+    // Absolute URLs to other domains must not receive the auth token.
+    const isInternalRequest =
+      !config.url?.startsWith("http") || config.url?.startsWith(config.baseURL || "");
+
+    if (user && isInternalRequest) {
       try {
         // getIdToken() auto-refreshes if expired or close to expiry (5 min buffer).
         const token = await authService.getIdToken();
