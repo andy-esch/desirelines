@@ -1,41 +1,20 @@
 /**
- * Authentication hook using AuthService
+ * Authentication hook
  *
- * Provides authentication state and handles sign in/out.
- * Uses the AuthService from ServiceContext for Firebase abstraction.
+ * Consumes auth state from AuthContext (single shared subscription).
+ * All components using this hook share the same auth state — no per-component
+ * Firebase listeners.
  *
  * - No user (null) → Unauthenticated mode (localStorage for config)
  * - With user → Authenticated mode (Firestore for config, API with auth token)
  */
 
-import { useState, useEffect } from "react";
-import { useAuthService } from "../contexts/ServiceContext";
+import { useContext } from "react";
+import { AuthContext } from "../contexts/AuthContext";
+import type { AuthState } from "../contexts/AuthContext";
 import type { User } from "../services/auth/AuthService";
 
-export type { User };
-
-/**
- * Shallow compare two User objects to avoid unnecessary re-renders
- * Returns true if users are equal (same values or both null)
- */
-function usersEqual(a: User | null, b: User | null): boolean {
-  if (a === b) return true;
-  if (a === null || b === null) return false;
-  return (
-    a.uid === b.uid &&
-    a.email === b.email &&
-    a.displayName === b.displayName &&
-    a.photoURL === b.photoURL
-  );
-}
-
-export interface AuthState {
-  user: User | null;
-  loading: boolean;
-  error: Error | null;
-  signIn: () => Promise<void>;
-  signOut: () => Promise<void>;
-}
+export type { User, AuthState };
 
 /**
  * Hook for accessing authentication state and actions
@@ -55,54 +34,9 @@ export interface AuthState {
  * ```
  */
 export function useAuth(): AuthState {
-  const authService = useAuthService();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    // Subscribe to auth state changes
-    const unsubscribe = authService.onAuthStateChanged((newUser) => {
-      // Only update state if user data actually changed (prevents unnecessary re-renders)
-      setUser((prevUser) => (usersEqual(prevUser, newUser) ? prevUser : newUser));
-      setLoading(false);
-    });
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, [authService]);
-
-  const signIn = async () => {
-    try {
-      setError(null);
-      await authService.signIn();
-      // User state will be updated by onAuthStateChanged
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error("Sign in failed");
-      console.error("Sign in error:", error);
-      setError(error);
-      throw error;
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      setError(null);
-      await authService.signOut();
-      // User state will be updated by onAuthStateChanged
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error("Sign out failed");
-      console.error("Sign out error:", error);
-      setError(error);
-      throw error;
-    }
-  };
-
-  return {
-    user,
-    loading,
-    error,
-    signIn,
-    signOut,
-  };
+  const auth = useContext(AuthContext);
+  if (!auth) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return auth;
 }

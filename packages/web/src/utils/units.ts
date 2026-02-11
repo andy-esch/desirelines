@@ -145,6 +145,21 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
 };
 
 /**
+ * Time conversion helpers
+ *
+ * API returns time in minutes. We display in hours.
+ * Goals are stored in minutes (matching API units) and displayed in hours.
+ */
+
+export function minutesToHours(minutes: number): number {
+  return minutes / 60;
+}
+
+export function hoursToMinutes(hours: number): number {
+  return hours * 60;
+}
+
+/**
  * Goal unit conversion helpers
  *
  * Goals are stored in METERS (canonical unit) and converted to display units

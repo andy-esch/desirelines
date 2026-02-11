@@ -180,13 +180,3 @@ export class FirestoreService implements DatabaseService {
     };
   }
 }
-
-// Singleton instance for the application
-let instance: FirestoreService | null = null;
-
-export function getFirestoreService(): FirestoreService {
-  if (!instance) {
-    instance = new FirestoreService();
-  }
-  return instance;
-}

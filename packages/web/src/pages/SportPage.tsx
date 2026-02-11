@@ -6,6 +6,8 @@ import {
   getUserSettings,
   goalMetersToDisplay,
   goalDisplayToMeters,
+  minutesToHours,
+  hoursToMinutes,
 } from "../utils/units";
 import {
   generateDefaultGoals,
@@ -21,7 +23,7 @@ import { useGoalStats } from "../hooks/useGoalStats";
 import { useSportData } from "../hooks/useSportData";
 import { useSidebarSportData } from "../hooks/useSidebarSportData";
 import { getMetricConfig, getMetricFieldName } from "../config/metricConfig";
-import { getSportMetrics, getPrimaryMetric } from "../utils/sportConfig";
+import { getSportMetrics, getPrimaryMetric, isTimeSport } from "../utils/sportConfig";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
@@ -73,7 +75,7 @@ export default function SportPage({ sport }: SportPageProps) {
       case "elevation_meters":
         return userSettings.elevationUnit;
       case "time_minutes":
-        return "minutes" as const;
+        return "hours" as const;
       case "activities":
         return "sessions" as const;
       default:
@@ -103,6 +105,8 @@ export default function SportPage({ sport }: SportPageProps) {
             convertedValue = convertElevation(rawValue, userSettings.elevationUnit);
             break;
           case "time_minutes":
+            convertedValue = minutesToHours(rawValue);
+            break;
           case "activities":
           default:
             convertedValue = rawValue;
@@ -145,20 +149,32 @@ export default function SportPage({ sport }: SportPageProps) {
     // This ensures goals are always meaningful even when no data exists
     const generatedGoals = generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue);
 
+    const timeSport = isTimeSport(sport, sportConfig);
+
     return {
       goals: generatedGoals.map((goal) => ({
         id: goal.id,
         // For distance sports, convert from display units to meters for storage
-        // Non-distance sports (yoga) store values as-is
+        // For time sports, convert from hours to minutes for storage
+        // Other sports store values as-is
         value: sportInfo?.has_distance
           ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
-          : goal.value,
+          : timeSport
+            ? Math.round(hoursToMinutes(goal.value))
+            : goal.value,
         label: goal.label || "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })),
     };
-  }, [estimatedYearEnd, primaryMetricConfig, sportInfo?.has_distance, userSettings.distanceUnit]);
+  }, [
+    estimatedYearEnd,
+    primaryMetricConfig,
+    sportInfo?.has_distance,
+    userSettings.distanceUnit,
+    sport,
+    sportConfig,
+  ]);
 
   const {
     data: goalsData,
@@ -178,37 +194,41 @@ export default function SportPage({ sport }: SportPageProps) {
     updateGoals
   );
 
-  // Convert goals from meters (storage) to display units (miles/km) for UI
-  // Non-distance sports (yoga) don't need conversion
+  // Convert goals from storage units to display units for UI
+  // Distance: meters → miles/km, Time: minutes → hours, Other: as-is
   const goals: Goals = useMemo(() => {
     if (!goalsData?.goals) return [];
 
-    // Only convert for distance-based sports
-    if (!sportInfo?.has_distance) {
-      return goalsData.goals.map((g) => ({
+    const timeSport = isTimeSport(sport, sportConfig);
+
+    return goalsData.goals.map((g) => {
+      let displayValue = g.value;
+      if (sportInfo?.has_distance) {
+        displayValue = Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit));
+      } else if (timeSport) {
+        displayValue = Math.round(minutesToHours(g.value));
+      }
+
+      return {
         id: g.id,
-        value: g.value,
+        value: displayValue,
         label: g.label,
-      }));
-    }
+      };
+    });
+  }, [goalsData, sportInfo?.has_distance, userSettings.distanceUnit, sport, sportConfig]);
 
-    // Convert from meters to user's display unit
-    return goalsData.goals.map((g) => ({
-      id: g.id,
-      value: Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit)),
-      label: g.label,
-    }));
-  }, [goalsData, sportInfo?.has_distance, userSettings.distanceUnit]);
-
-  // Handle goals change: convert from display units back to meters for storage
+  // Handle goals change: convert from display units back to storage units
   const handleGoalsChange = async (newGoals: Goals) => {
+    const timeSport = isTimeSport(sport, sportConfig);
     const updatedGoalsForYear: GoalsForYear = {
       goals: newGoals.map((goal) => ({
         id: goal.id,
-        // Convert from display units to meters for storage (distance sports only)
+        // Distance: display units → meters, Time: hours → minutes, Other: as-is
         value: sportInfo?.has_distance
           ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
-          : goal.value,
+          : timeSport
+            ? Math.round(hoursToMinutes(goal.value))
+            : goal.value,
         label: goal.label || "",
         updatedAt: new Date().toISOString(),
         createdAt:

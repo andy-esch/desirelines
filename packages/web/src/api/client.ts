@@ -1,15 +1,13 @@
 import axios from "axios";
 import { getConfig } from "../lib/config";
-import { getFirebaseAuthService } from "../services/auth/FirebaseAuthService";
+import type { AuthService } from "../services/auth/AuthService";
 
 /**
  * Centralized API client with automatic authentication.
  *
- * This client:
- * 1. Sets the correct Base URL.
- * 2. Automatically injects the Firebase ID Token if the user is signed in.
- * 3. Handles token refreshing automatically (via getIdToken()).
- * 4. Waits for initial auth state to be resolved before making requests.
+ * Auth is configured once by AuthProvider via configureClientAuth(),
+ * which registers a request interceptor that injects Firebase ID tokens.
+ * The auth service is captured in the interceptor closure — no global mutable refs.
  */
 const config = getConfig();
 if (!config.apiGatewayUrl) {
@@ -21,73 +19,63 @@ const client = axios.create({
   baseURL: config.apiGatewayUrl,
 });
 
-// Get auth service singleton
-const authService = getFirebaseAuthService();
-
-// Timeout for waiting on auth initialization (5 seconds)
 const AUTH_READY_TIMEOUT_MS = 5000;
 
-// Cache flag to skip auth wait after first successful initialization
-let authInitialized = false;
-
 /**
- * Wait for auth to be ready with a timeout to prevent hanging requests.
- * After first successful initialization, returns immediately.
+ * Configure the API client with an auth service.
+ * Registers a request interceptor that waits for auth readiness and injects tokens.
+ * Called once by AuthProvider — the auth service is captured in the interceptor closure.
  */
-async function waitForAuthWithTimeout(): Promise<boolean> {
-  // Skip waiting if we've already initialized successfully
-  if (authInitialized) {
-    return true;
-  }
+let configured = false;
 
-  const timeoutPromise = new Promise<false>((resolve) => {
-    setTimeout(() => resolve(false), AUTH_READY_TIMEOUT_MS);
-  });
+export function configureClientAuth(authService: AuthService): void {
+  if (configured) return;
+  configured = true;
 
-  const authPromise = authService.waitForAuthReady().then(() => true as const);
+  let authInitialized = false;
 
-  const result = await Promise.race([authPromise, timeoutPromise]);
+  client.interceptors.request.use(async (config) => {
+    // Wait for initial auth state with timeout (only on first request)
+    if (!authInitialized) {
+      const timeoutPromise = new Promise<false>((resolve) => {
+        setTimeout(() => resolve(false), AUTH_READY_TIMEOUT_MS);
+      });
+      const authPromise = authService.waitForAuthReady().then(() => true as const);
+      const ready = await Promise.race([authPromise, timeoutPromise]);
 
-  // Cache successful initialization
-  if (result) {
-    authInitialized = true;
-  }
-
-  return result;
-}
-
-client.interceptors.request.use(async (config) => {
-  // Ensure auth state is known before proceeding (with timeout)
-  // This prevents race conditions where a request fires before we know if the user is logged in
-  const authReady = await waitForAuthWithTimeout();
-
-  if (!authReady) {
-    console.error(
-      `Auth initialization timed out after ${AUTH_READY_TIMEOUT_MS}ms. ` +
-        "Request will proceed without auth token and likely receive 401."
-    );
-    return config;
-  }
-
-  const user = authService.getCurrentUser();
-  if (user) {
-    try {
-      // getIdToken() auto-refreshes the token if it is expired or close to expiry (5 min buffer).
-      // We avoid forceRefresh: true here to prevent unnecessary network calls to Firebase Auth on every request.
-      const token = await authService.getIdToken();
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      if (!ready) {
+        console.error(
+          `Auth initialization timed out after ${AUTH_READY_TIMEOUT_MS}ms. ` +
+            "Request will proceed without auth token and likely receive 401."
+        );
+        return config;
       }
-    } catch (error) {
-      console.error(
-        "Failed to get ID token for request:",
-        error instanceof Error ? error.message : "unknown error"
-      );
-      // We don't block the request, it will likely fail with 401/403, which the caller should handle
+      authInitialized = true;
     }
-  }
 
-  return config;
-});
+    const user = authService.getCurrentUser();
+    // Only attach token for requests to our own API gateway.
+    // Absolute URLs to other domains must not receive the auth token.
+    const isInternalRequest =
+      !config.url?.startsWith("http") || config.url?.startsWith(config.baseURL || "");
+
+    if (user && isInternalRequest) {
+      try {
+        // getIdToken() auto-refreshes if expired or close to expiry (5 min buffer).
+        const token = await authService.getIdToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.error(
+          "Failed to get ID token for request:",
+          error instanceof Error ? error.message : "unknown error"
+        );
+      }
+    }
+
+    return config;
+  });
+}
 
 export default client;

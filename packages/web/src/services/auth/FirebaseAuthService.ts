@@ -63,13 +63,3 @@ export class FirebaseAuthService implements AuthService {
     await firebaseWaitForAuthReady();
   }
 }
-
-// Singleton instance for the application
-let instance: FirebaseAuthService | null = null;
-
-export function getFirebaseAuthService(): FirebaseAuthService {
-  if (!instance) {
-    instance = new FirebaseAuthService();
-  }
-  return instance;
-}

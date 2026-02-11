@@ -65,9 +65,10 @@ function formatMetricValue(rawValue: number, isDistance: boolean, isTime: boolea
   }
 
   if (isTime) {
-    // Time-based: show minutes with 0 or 1 decimal
-    const decimals = rawValue >= 10 ? 0 : 1;
-    return `${rawValue.toFixed(decimals)} min`;
+    // Time-based: convert minutes from API to hours for display
+    const hours = rawValue / 60;
+    const decimals = hours >= 10 ? 0 : 1;
+    return `${hours.toFixed(decimals)} hrs`;
   }
 
   // Session-based: show as integer

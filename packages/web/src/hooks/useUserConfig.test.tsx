@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useUserConfig, useFullUserConfig } from "./useUserConfig";
 import { UserConfigService } from "../services/userConfigService";
 import type { GoalsForYear } from "../services/userConfigService";
+import { TestServiceProvider } from "../contexts/ServiceContext";
 
 // Mock UserConfigService
 vi.mock("../services/userConfigService", () => {
@@ -56,7 +57,9 @@ const createWrapper = () => {
     },
   });
   return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <TestServiceProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </TestServiceProvider>
   );
 };
 

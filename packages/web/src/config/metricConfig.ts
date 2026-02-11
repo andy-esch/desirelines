@@ -103,18 +103,18 @@ const BASE_METRIC_CONFIGS: Record<string, MetricConfig> = {
   time: {
     id: "time",
     displayName: "Time",
-    unit: "minutes",
-    chartLabel: "min",
-    chartAxisLabel: "min",
-    perDayLabel: "min / day",
-    goalIncrement: 30,
-    roundingFactor: 30,
-    defaultGoalValue: 1000,
+    unit: "hours",
+    chartLabel: "hrs",
+    chartAxisLabel: "hrs",
+    perDayLabel: "hrs / day",
+    goalIncrement: 5,
+    roundingFactor: 5,
+    defaultGoalValue: 100,
     chartIntervalThresholds: [
-      { max: 500, interval: 100 },
-      { max: 2000, interval: 250 },
-      { max: 5000, interval: 500 },
-      { max: Infinity, interval: 1000 },
+      { max: 50, interval: 10 },
+      { max: 200, interval: 25 },
+      { max: 500, interval: 50 },
+      { max: Infinity, interval: 100 },
     ],
   },
   elevation: {
@@ -167,8 +167,8 @@ const SPORT_METRIC_OVERRIDES: Record<string, SportMetricOverride> = {
     },
   },
   yoga: {
-    metricType: "sessions",
-    // Yoga uses default sessions config
+    metricType: "time",
+    // Yoga uses default time config (5 hr increment, 100 hr default)
   },
   hiking: {
     metricType: "distance",
@@ -199,9 +199,9 @@ const SPORT_METRIC_OVERRIDES: Record<string, SportMetricOverride> = {
     },
   },
   workout: {
-    metricType: "sessions",
+    metricType: "time",
     overrides: {
-      defaultGoalValue: 150,
+      defaultGoalValue: 25, // ~25 hours
     },
   },
   walking: {
@@ -211,6 +211,33 @@ const SPORT_METRIC_OVERRIDES: Record<string, SportMetricOverride> = {
       roundingFactor: 10,
       defaultGoalValue: 500,
     },
+  },
+  golf: {
+    metricType: "time",
+  },
+  racket_sports: {
+    metricType: "time",
+  },
+  team_sports: {
+    metricType: "time",
+  },
+  climbing: {
+    metricType: "time",
+  },
+  ebike: {
+    metricType: "distance",
+  },
+  watersports: {
+    metricType: "distance",
+  },
+  winter_sports: {
+    metricType: "distance",
+  },
+  skating: {
+    metricType: "distance",
+  },
+  wheelchair: {
+    metricType: "distance",
   },
 };
 
@@ -333,6 +360,17 @@ export function isDistanceMetricSport(sport: string): boolean {
 export function isSessionsMetricSport(sport: string): boolean {
   const config = getMetricConfig(sport);
   return config.id === "sessions";
+}
+
+/**
+ * Check if a sport uses time as its primary metric.
+ *
+ * @param sport - Sport key
+ * @returns true if the sport tracks time
+ */
+export function isTimeMetricSport(sport: string): boolean {
+  const config = getMetricConfig(sport);
+  return config.id === "time";
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   generateYAxisTicks,
   isDistanceMetricSport,
   isSessionsMetricSport,
+  isTimeMetricSport,
 } from "./metricConfig";
 
 describe("metricConfig", () => {
@@ -67,27 +68,27 @@ describe("metricConfig", () => {
       });
     });
 
-    describe("yoga (sessions sport)", () => {
-      it("returns sessions-based config", () => {
+    describe("yoga (time sport)", () => {
+      it("returns time-based config", () => {
         const config = getMetricConfig("yoga");
-        expect(config.id).toBe("sessions");
-        expect(config.displayName).toBe("Sessions");
+        expect(config.id).toBe("time");
+        expect(config.displayName).toBe("Time");
       });
 
-      it("has correct goal increment (10)", () => {
+      it("has correct goal increment (5 hrs)", () => {
         const config = getMetricConfig("yoga");
-        expect(config.goalIncrement).toBe(10);
+        expect(config.goalIncrement).toBe(5);
       });
 
-      it("has correct default goal value (100)", () => {
+      it("has correct default goal value (100 hrs)", () => {
         const config = getMetricConfig("yoga");
         expect(config.defaultGoalValue).toBe(100);
       });
 
       it("has correct chart label", () => {
         const config = getMetricConfig("yoga");
-        expect(config.chartLabel).toBe("sessions");
-        expect(config.chartAxisLabel).toBe("# Sessions");
+        expect(config.chartLabel).toBe("hrs");
+        expect(config.chartAxisLabel).toBe("hrs");
       });
     });
 
@@ -115,10 +116,10 @@ describe("metricConfig", () => {
         expect(config.defaultGoalValue).toBe(200);
       });
 
-      it("workout has sessions config", () => {
+      it("workout has time config", () => {
         const config = getMetricConfig("workout");
-        expect(config.id).toBe("sessions");
-        expect(config.defaultGoalValue).toBe(150);
+        expect(config.id).toBe("time");
+        expect(config.defaultGoalValue).toBe(25);
       });
     });
   });
@@ -164,7 +165,7 @@ describe("metricConfig", () => {
       });
     });
 
-    describe("yoga thresholds", () => {
+    describe("yoga thresholds (time)", () => {
       const yogaConfig = getMetricConfig("yoga");
 
       it("returns 10 for values under 50", () => {
@@ -197,11 +198,11 @@ describe("metricConfig", () => {
       expect(ticks).toContain(500); // Beyond max
     });
 
-    it("uses correct interval for yoga", () => {
+    it("uses correct interval for yoga (time)", () => {
       const config = getMetricConfig("yoga");
       const ticks = generateYAxisTicks(35, config);
 
-      // Interval should be 10 for values under 50
+      // Interval should be 10 for values under 50 (hours)
       expect(ticks).toEqual([0, 10, 20, 30, 40]);
     });
 
@@ -250,12 +251,12 @@ describe("metricConfig", () => {
   });
 
   describe("isSessionsMetricSport", () => {
-    it("returns true for yoga", () => {
-      expect(isSessionsMetricSport("yoga")).toBe(true);
+    it("returns false for yoga (now time)", () => {
+      expect(isSessionsMetricSport("yoga")).toBe(false);
     });
 
-    it("returns true for workout", () => {
-      expect(isSessionsMetricSport("workout")).toBe(true);
+    it("returns false for workout (now time)", () => {
+      expect(isSessionsMetricSport("workout")).toBe(false);
     });
 
     it("returns false for cycling", () => {
@@ -267,8 +268,47 @@ describe("metricConfig", () => {
     });
   });
 
+  describe("isTimeMetricSport", () => {
+    it("returns true for yoga", () => {
+      expect(isTimeMetricSport("yoga")).toBe(true);
+    });
+
+    it("returns true for workout", () => {
+      expect(isTimeMetricSport("workout")).toBe(true);
+    });
+
+    it("returns true for golf", () => {
+      expect(isTimeMetricSport("golf")).toBe(true);
+    });
+
+    it("returns false for cycling", () => {
+      expect(isTimeMetricSport("cycling")).toBe(false);
+    });
+
+    it("returns false for running", () => {
+      expect(isTimeMetricSport("running")).toBe(false);
+    });
+  });
+
   describe("config completeness", () => {
-    const sports = ["cycling", "running", "yoga", "hiking", "swimming", "workout", "walking"];
+    const sports = [
+      "cycling",
+      "running",
+      "yoga",
+      "hiking",
+      "swimming",
+      "workout",
+      "walking",
+      "golf",
+      "racket_sports",
+      "team_sports",
+      "climbing",
+      "ebike",
+      "watersports",
+      "winter_sports",
+      "skating",
+      "wheelchair",
+    ];
 
     it.each(sports)("%s config has all required properties", (sport) => {
       const config = getMetricConfig(sport);

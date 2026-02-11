@@ -1,20 +1,21 @@
 import { useMemo } from "react";
 import { useAuth } from "./useAuth";
+import { useServices } from "../contexts/ServiceContext";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
 import { useUserConfig } from "./useUserConfig";
 import { useDailySportData } from "./useDailySportData";
 import { getSpectrumColor } from "./useMultiSportChartData";
 import { generateDemoGoals } from "../utils/demoDataGenerator";
-import { filterValidSports, getSportDisplayName } from "../utils/sportConfig";
-import { isDistanceMetricSport, getMetricConfig } from "../config/metricConfig";
+import { filterValidSports, getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
+import { getMetricConfig, getMetricConfigByMetricId } from "../config/metricConfig";
 import { getTargetGoalValue } from "../utils/goalCalculations";
 import { createYearContext } from "../utils/yearContext";
 import {
   convertDistance,
-  getDistanceLabel,
   goalMetersToDisplay,
   getUserSettings,
+  minutesToHours,
 } from "../utils/units";
 import { toLocalDateString } from "../utils/dateUtils";
 import { useQueries } from "@tanstack/react-query";
@@ -64,6 +65,7 @@ export function useWeeklySummary(): {
   error: Error | null;
 } {
   const { user, loading: authLoading } = useAuth();
+  const { authService, databaseService } = useServices();
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
   const { data: prefs } = useUserConfig("preferences");
@@ -113,8 +115,8 @@ export function useWeeklySummary(): {
   const effectiveUserId = user?.uid ?? "default";
   const configService = useMemo(() => {
     if (!user) return null;
-    return new UserConfigService(undefined, "v1");
-  }, [user]);
+    return new UserConfigService(undefined, "v1", { authService, databaseService });
+  }, [user, authService, databaseService]);
 
   const goalsQueries = useQueries({
     queries: validSports.map((sport) => ({
@@ -136,24 +138,34 @@ export function useWeeklySummary(): {
   const sportTotals = useMemo(() => {
     const total = validSports.length;
     return validSports.map((sport, index) => {
-      const isDistance = isDistanceMetricSport(sport);
       const metricConfig = getMetricConfig(sport);
+      const primaryMetric = getPrimaryMetric(sport, sportConfig);
+      const metricCfg = getMetricConfigByMetricId(primaryMetric, userSettings);
+      const isDistance = primaryMetric === "distance_meters";
+      const isTime = primaryMetric === "time_minutes";
       const sportData = dailyData[sport] ?? {};
 
-      // Sum daily values for this week
+      // Sum daily values for this week based on primary metric
       let weeklyTotalRaw = 0;
       for (const day of Object.values(sportData)) {
         if (isDistance) {
           weeklyTotalRaw += day.distanceMeters ?? 0;
+        } else if (isTime) {
+          weeklyTotalRaw += day.timeMinutes ?? 0;
         } else {
           weeklyTotalRaw += day.activities ?? 0;
         }
       }
 
-      // Convert distance to display units
-      const weeklyTotal = isDistance
-        ? convertDistance(weeklyTotalRaw, userSettings.distanceUnit)
-        : weeklyTotalRaw;
+      // Convert to display units
+      let weeklyTotal: number;
+      if (isDistance) {
+        weeklyTotal = convertDistance(weeklyTotalRaw, userSettings.distanceUnit);
+      } else if (isTime) {
+        weeklyTotal = minutesToHours(weeklyTotalRaw);
+      } else {
+        weeklyTotal = weeklyTotalRaw;
+      }
 
       // Get yearly goal to prorate
       let yearlyGoal = metricConfig.defaultGoalValue;
@@ -162,9 +174,13 @@ export function useWeeklySummary(): {
         if (goalsData?.goals?.length) {
           const goalValue = getTargetGoalValue(goalsData.goals);
           if (goalValue !== null) {
-            yearlyGoal = isDistance
-              ? goalMetersToDisplay(goalValue, userSettings.distanceUnit)
-              : goalValue;
+            if (isDistance) {
+              yearlyGoal = goalMetersToDisplay(goalValue, userSettings.distanceUnit);
+            } else if (isTime) {
+              yearlyGoal = minutesToHours(goalValue);
+            } else {
+              yearlyGoal = goalValue;
+            }
           }
         }
       } else if (demoGoals?.[sport]) {
@@ -182,7 +198,7 @@ export function useWeeklySummary(): {
         weeklyTotal,
         weeklyGoal,
         achievementPct,
-        metricUnit: isDistance ? getDistanceLabel(userSettings.distanceUnit) : "sessions",
+        metricUnit: metricCfg.chartLabel,
         isDistanceSport: isDistance,
       };
     });

@@ -10,6 +10,7 @@ import * as useUserConfigModule from "./useUserConfig";
 import * as useDailySportDataModule from "./useDailySportData";
 import type { SportConfig } from "../api/activities";
 import type React from "react";
+import { TestServiceProvider } from "../contexts/ServiceContext";
 
 // Mock dependencies
 vi.mock("./useAuth");
@@ -71,7 +72,11 @@ describe("useWeeklySummary", () => {
   let queryClient: QueryClient;
 
   function wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <TestServiceProvider>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </TestServiceProvider>
+    );
   }
 
   beforeEach(() => {
@@ -205,7 +210,7 @@ describe("useWeeklySummary", () => {
       expect(cycling?.isDistanceSport).toBe(true);
     });
 
-    it("sums activities for session sports", async () => {
+    it("sums time for time sports (converted to hours)", async () => {
       const { result } = renderHook(() => useWeeklySummary(), { wrapper });
 
       await waitFor(() => {
@@ -213,8 +218,8 @@ describe("useWeeklySummary", () => {
       });
 
       const yoga = result.current.sportTotals.find((s) => s.sport === "yoga");
-      // 1 + 1 + 2 = 4 sessions
-      expect(yoga?.weeklyTotal).toBe(4);
+      // 45 + 30 + 60 = 135 minutes = 2.25 hours
+      expect(yoga?.weeklyTotal).toBeCloseTo(2.25, 1);
       expect(yoga?.isDistanceSport).toBe(false);
     });
 
@@ -229,7 +234,7 @@ describe("useWeeklySummary", () => {
       const yoga = result.current.sportTotals.find((s) => s.sport === "yoga");
 
       expect(cycling?.metricUnit).toBe("mi");
-      expect(yoga?.metricUnit).toBe("sessions");
+      expect(yoga?.metricUnit).toBe("hrs"); // time sport shows hours
     });
   });
 

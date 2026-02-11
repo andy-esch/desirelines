@@ -1,7 +1,7 @@
 import type { AuthService } from "./auth/AuthService";
 import type { DatabaseService } from "./database/DatabaseService";
-import { getFirebaseAuthService } from "./auth/FirebaseAuthService";
-import { getFirestoreService } from "./database/FirestoreService";
+import { FirebaseAuthService } from "./auth/FirebaseAuthService";
+import { FirestoreService } from "./database/FirestoreService";
 import { isDatabaseError } from "./database/DatabaseService";
 import type {
   UserConfig,
@@ -82,8 +82,8 @@ export class UserConfigService {
    */
   constructor(userId?: string, version: string = "v1", options?: UserConfigServiceOptions) {
     // Use provided services or default to Firebase implementations
-    this.authService = options?.authService ?? getFirebaseAuthService();
-    this.databaseService = options?.databaseService ?? getFirestoreService();
+    this.authService = options?.authService ?? new FirebaseAuthService();
+    this.databaseService = options?.databaseService ?? new FirestoreService();
 
     this.explicitUserId = userId;
     this.version = version;
@@ -437,11 +437,6 @@ export class UserConfigService {
     });
   }
 }
-
-// Default instance for convenience.
-// Auth state is re-evaluated on each operation, so this singleton is safe to create at module load.
-// Requires authentication — throws if operations are attempted without a signed-in user.
-export const defaultConfigService = new UserConfigService();
 
 // Re-export protobuf types for convenience
 export type {
