@@ -193,7 +193,7 @@ describe("useDashboardGoalData", () => {
       });
     });
 
-    it("correctly identifies distance vs session sports", async () => {
+    it("correctly identifies distance vs time sports", async () => {
       const { result } = renderHook(() => useDashboardGoalData(), { wrapper });
 
       await waitFor(() => {
@@ -206,7 +206,7 @@ describe("useDashboardGoalData", () => {
       expect(cycling?.isDistanceSport).toBe(true);
       expect(cycling?.metricUnit).toBe("mi"); // default US units
       expect(yoga?.isDistanceSport).toBe(false);
-      expect(yoga?.metricUnit).toBe("sessions");
+      expect(yoga?.metricUnit).toBe("hrs"); // time sport shows hours
     });
 
     it("uses demo goals for target values", async () => {

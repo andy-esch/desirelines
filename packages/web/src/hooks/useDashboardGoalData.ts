@@ -11,14 +11,18 @@ import {
   generateDemoGoals,
   getSessionFillLevels,
 } from "../utils/demoDataGenerator";
-import { filterValidSports, getSportDisplayName } from "../utils/sportConfig";
-import { isDistanceMetricSport, getMetricConfig } from "../config/metricConfig";
+import { filterValidSports, getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
+import {
+  getMetricConfig,
+  getMetricConfigByMetricId,
+  getMetricFieldName,
+} from "../config/metricConfig";
 import { getTargetGoalValue } from "../utils/goalCalculations";
 import {
   convertDistance,
-  getDistanceLabel,
   goalMetersToDisplay,
   getUserSettings,
+  minutesToHours,
 } from "../utils/units";
 import { createYearContext, type YearContext } from "../utils/yearContext";
 import { UserConfigService } from "../services/userConfigService";
@@ -128,8 +132,12 @@ export function useDashboardGoalData(): {
   const sportData = useMemo(() => {
     const total = validSports.length;
     return validSports.map((sport, index) => {
-      const isDistance = isDistanceMetricSport(sport);
       const metricConfig = getMetricConfig(sport);
+      const primaryMetric = getPrimaryMetric(sport, sportConfig);
+      const metricCfg = getMetricConfigByMetricId(primaryMetric, userSettings);
+      const fieldName = getMetricFieldName(primaryMetric);
+      const isDistance = primaryMetric === "distance_meters";
+      const isTime = primaryMetric === "time_minutes";
 
       // Get YTD value (in display units)
       let currentValue = 0;
@@ -137,9 +145,14 @@ export function useDashboardGoalData(): {
 
       if (metrics && metrics.length > 0) {
         const lastEntry = metrics[metrics.length - 1];
-        currentValue = isDistance
-          ? convertDistance(lastEntry.distance ?? 0, userSettings.distanceUnit)
-          : (lastEntry.activities ?? 0);
+        const rawValue = lastEntry[fieldName] ?? 0;
+        if (isDistance) {
+          currentValue = convertDistance(rawValue, userSettings.distanceUnit);
+        } else if (isTime) {
+          currentValue = minutesToHours(rawValue);
+        } else {
+          currentValue = rawValue;
+        }
       }
 
       // Get target goal (in display units)
@@ -151,15 +164,23 @@ export function useDashboardGoalData(): {
         if (goalsData?.goals?.length) {
           const goalValue = getTargetGoalValue(goalsData.goals);
           if (goalValue !== null) {
-            targetGoal = isDistance
-              ? goalMetersToDisplay(goalValue, userSettings.distanceUnit)
-              : goalValue;
+            if (isDistance) {
+              targetGoal = goalMetersToDisplay(goalValue, userSettings.distanceUnit);
+            } else if (isTime) {
+              targetGoal = minutesToHours(goalValue);
+            } else {
+              targetGoal = goalValue;
+            }
           }
           // Find the smallest goal for impact calculations
           const minGoal = goalsData.goals.reduce((min, g) => (g.value < min.value ? g : min));
-          impactGoal = isDistance
-            ? goalMetersToDisplay(minGoal.value, userSettings.distanceUnit)
-            : minGoal.value;
+          if (isDistance) {
+            impactGoal = goalMetersToDisplay(minGoal.value, userSettings.distanceUnit);
+          } else if (isTime) {
+            impactGoal = minutesToHours(minGoal.value);
+          } else {
+            impactGoal = minGoal.value;
+          }
           impactGoalLabel = minGoal.label ?? "";
         }
       } else if (demoGoals?.[sport]) {
@@ -174,7 +195,7 @@ export function useDashboardGoalData(): {
         color: getSpectrumColor(index, total),
         currentValue,
         targetGoal,
-        metricUnit: isDistance ? getDistanceLabel(userSettings.distanceUnit) : "sessions",
+        metricUnit: metricCfg.chartLabel,
         isDistanceSport: isDistance,
         impactGoal,
         impactGoalLabel,
