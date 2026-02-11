@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Navigation from "./Navigation";
 import { TestServiceProvider } from "../../contexts/ServiceContext";
+import { TestAuthProvider } from "../../contexts/AuthContext";
 
 const renderWithRouter = (ui: React.ReactElement, { route = "/" } = {}) => {
   const queryClient = new QueryClient({
@@ -11,9 +12,11 @@ const renderWithRouter = (ui: React.ReactElement, { route = "/" } = {}) => {
   });
   return render(
     <TestServiceProvider>
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
-      </QueryClientProvider>
+      <TestAuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+        </QueryClientProvider>
+      </TestAuthProvider>
     </TestServiceProvider>
   );
 };

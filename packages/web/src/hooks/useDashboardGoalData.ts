@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
+import { useServices } from "../contexts/ServiceContext";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
 import { useUserConfig } from "./useUserConfig";
@@ -56,6 +57,7 @@ export function useDashboardGoalData(): {
   error: Error | null;
 } {
   const { user, loading: authLoading } = useAuth();
+  const { authService, databaseService } = useServices();
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
   const { data: prefs } = useUserConfig("preferences");
@@ -112,8 +114,8 @@ export function useDashboardGoalData(): {
   const effectiveUserId = user?.uid ?? "default";
   const configService = useMemo(() => {
     if (!user) return null;
-    return new UserConfigService(undefined, "v1");
-  }, [user]);
+    return new UserConfigService(undefined, "v1", { authService, databaseService });
+  }, [user, authService, databaseService]);
 
   const goalsQueries = useQueries({
     queries: validSports.map((sport) => ({

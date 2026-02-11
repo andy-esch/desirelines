@@ -8,6 +8,7 @@ import {
   type Preferences,
 } from "../services/userConfigService";
 import { useAuth } from "./useAuth";
+import { useServices } from "../contexts/ServiceContext";
 import { logApiError } from "../api/errors";
 
 // Union type for all supported configuration sections
@@ -169,6 +170,7 @@ export function useUserConfig(
   clearSaveError: () => void;
 } {
   const { user, loading: authLoading } = useAuth();
+  const { authService, databaseService } = useServices();
   const queryClient = useQueryClient();
 
   const effectiveUserId = userId ?? user?.uid ?? "anonymous";
@@ -178,8 +180,8 @@ export function useUserConfig(
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(() => {
     if (isLocalStorageMode) return null;
-    return new UserConfigService(userId, effectiveVersion);
-  }, [userId, effectiveVersion, isLocalStorageMode]);
+    return new UserConfigService(userId, effectiveVersion, { authService, databaseService });
+  }, [userId, effectiveVersion, isLocalStorageMode, authService, databaseService]);
 
   // Query Key includes all dependencies
   const queryKey = useMemo(
@@ -391,6 +393,7 @@ export function useFullUserConfig(
   ) => Promise<void>;
 } {
   const { user, loading: authLoading } = useAuth();
+  const { authService, databaseService } = useServices();
   const queryClient = useQueryClient();
 
   // Determine if we're in localStorage mode based on auth state
@@ -402,8 +405,8 @@ export function useFullUserConfig(
     if (isLocalStorageMode) {
       return null;
     }
-    return new UserConfigService(userId, version);
-  }, [userId, version, isLocalStorageMode]);
+    return new UserConfigService(userId, version, { authService, databaseService });
+  }, [userId, version, isLocalStorageMode, authService, databaseService]);
 
   const queryKey = useMemo(
     () => ["fullUserConfig", effectiveUserId, version],

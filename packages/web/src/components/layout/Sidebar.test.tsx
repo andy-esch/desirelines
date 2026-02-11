@@ -3,6 +3,7 @@ import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect } from "vitest";
 import Sidebar from "./Sidebar";
 import { TestServiceProvider } from "../../contexts/ServiceContext";
+import { TestAuthProvider } from "../../contexts/AuthContext";
 
 describe("Sidebar", () => {
   const defaultProps = {
@@ -16,9 +17,11 @@ describe("Sidebar", () => {
   const renderSidebar = (props = defaultProps) => {
     return render(
       <TestServiceProvider>
-        <BrowserRouter>
-          <Sidebar {...props} />
-        </BrowserRouter>
+        <TestAuthProvider>
+          <BrowserRouter>
+            <Sidebar {...props} />
+          </BrowserRouter>
+        </TestAuthProvider>
       </TestServiceProvider>
     );
   };

@@ -10,6 +10,7 @@ import * as useUserConfigModule from "./useUserConfig";
 import * as demoDataModule from "../utils/demoDataGenerator";
 import type { SportConfig } from "../api/activities";
 import type React from "react";
+import { TestServiceProvider } from "../contexts/ServiceContext";
 
 // Mock dependencies
 vi.mock("./useAuth");
@@ -54,7 +55,11 @@ describe("useDashboardGoalData", () => {
   let queryClient: QueryClient;
 
   function wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <TestServiceProvider>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </TestServiceProvider>
+    );
   }
 
   beforeEach(() => {

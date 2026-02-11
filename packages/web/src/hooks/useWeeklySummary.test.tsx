@@ -10,6 +10,7 @@ import * as useUserConfigModule from "./useUserConfig";
 import * as useDailySportDataModule from "./useDailySportData";
 import type { SportConfig } from "../api/activities";
 import type React from "react";
+import { TestServiceProvider } from "../contexts/ServiceContext";
 
 // Mock dependencies
 vi.mock("./useAuth");
@@ -71,7 +72,11 @@ describe("useWeeklySummary", () => {
   let queryClient: QueryClient;
 
   function wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <TestServiceProvider>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </TestServiceProvider>
+    );
   }
 
   beforeEach(() => {
