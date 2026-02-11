@@ -22,12 +22,14 @@ function getDescription(level: MomentumLevel, momentum: number | null): string {
   const sign = momentum >= 0 ? "+" : "";
   const percentage = `${sign}${momentum.toFixed(1)}%`;
 
-  let trend = "";
-  if (level === "significantly-up") trend = "Significantly ramping up";
-  else if (level === "up") trend = "Ramping up";
-  else if (level === "steady") trend = "Steady pace";
-  else if (level === "down") trend = "Slightly declining";
-  else if (level === "significantly-down") trend = "Declining";
+  const trendMap: Record<string, string> = {
+    "significantly-up": "Significantly ramping up",
+    up: "Ramping up",
+    steady: "Steady pace",
+    down: "Slightly declining",
+    "significantly-down": "Declining",
+  };
+  const trend = (level && trendMap[level]) ?? "";
 
   return `Training Momentum: ${trend}\n${percentage} per week (14-day trend)\n\nShows whether your daily pace is accelerating, steady, or slowing down over the last 2 weeks.`;
 }
