@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useTrainingMomentum } from "./useTrainingMomentum";
@@ -24,7 +23,6 @@ describe("useTrainingMomentum", () => {
     expect(result.current.trainingMomentum).toBeGreaterThan(0);
     expect(result.current.isDataStale).toBe(false);
     expect(result.current.momentumLevel).toBe("significantly-up");
-    expect(result.current.momentumIndicator).not.toBeNull();
   });
 
   it("calculates negative momentum for decreasing pace", () => {
@@ -115,67 +113,5 @@ describe("useTrainingMomentum", () => {
     const { result } = renderHook(() => useTrainingMomentum([], 10));
 
     expect(result.current.trainingMomentum).toBeNull();
-  });
-
-  it("renders correct symbol for each momentum level", () => {
-    // Create recent dates
-    const today = new Date();
-    const steadyData: DistanceEntry[] = [];
-    for (let i = 4; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      steadyData.push({ x: date.toISOString().split("T")[0], y: 100 + (4 - i) * 10 });
-    }
-
-    const { result } = renderHook(() => useTrainingMomentum(steadyData, 10));
-    const indicator = result.current.momentumIndicator;
-
-    expect(indicator).not.toBeNull();
-    // Verify it's a valid React element
-    expect(indicator?.type).toBe("span");
-  });
-
-  it("includes helpful tooltip description", () => {
-    // Create recent dates
-    const today = new Date();
-    const data: DistanceEntry[] = [];
-    for (let i = 4; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0], y: 100 + (4 - i) * 10 });
-    }
-
-    const { result } = renderHook(() => useTrainingMomentum(data, 10));
-    const indicator = result.current.momentumIndicator;
-
-    expect((indicator as any)?.props.title).toContain("Training Momentum");
-    expect((indicator as any)?.props.title).toContain("14-day trend");
-  });
-
-  it("shows stale activity message when data is stale", () => {
-    // Create stale data (last activity was 8+ days ago)
-    const data: DistanceEntry[] = [];
-    for (let i = 15; i >= 8; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0], y: 100 + (15 - i) * 10 });
-    }
-    // Add extended flat-line data for the last 8 days
-    const lastDistance = data[data.length - 1].y;
-    for (let i = 7; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0], y: lastDistance });
-    }
-
-    const { result } = renderHook(() => useTrainingMomentum(data, 10));
-    const indicator = result.current.momentumIndicator as any;
-
-    expect(indicator).not.toBeNull();
-    expect(indicator?.props?.title).toBeDefined();
-    if (indicator?.props?.title) {
-      expect(indicator.props.title).toContain("No recent activity");
-    }
-    expect(indicator?.props?.children).toBe("✕");
   });
 });

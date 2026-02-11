@@ -9,8 +9,8 @@ export default defineConfig(({ mode }) => {
 
   // Validate critical environment variables at build time
   // This catches missing config before deployment
-  // Skip validation in CI environments (set SKIP_ENV_VALIDATION=true)
-  const skipValidation = env.SKIP_ENV_VALIDATION === 'true' || env.CI === 'true';
+  // Skip validation explicitly (set SKIP_ENV_VALIDATION=true)
+  const skipValidation = env.SKIP_ENV_VALIDATION === 'true';
 
   if (mode === 'production' && !skipValidation) {
     const requiredVars = [
@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => {
 
     console.log('✓ Production build configuration validated');
   } else if (mode === 'production' && skipValidation) {
-    console.log('⚠ Production build validation skipped (CI mode)');
+    console.log('⚠ Production build validation skipped (SKIP_ENV_VALIDATION=true)');
   }
 
   return {
@@ -61,7 +61,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    envPrefix: ["VITE_", "REACT_APP_"], // Support both Vite and React env var prefixes
+    envPrefix: "VITE_",
     test: {
       globals: true,
       environment: "jsdom", // DOM environment for React component testing

@@ -18,6 +18,7 @@ import {
   type FillLevel,
 } from "../constants/demoConfig";
 import { generateActivityName } from "./activityNameGenerator";
+import { toLocalDateString } from "./dateUtils";
 import { logNormal, poisson } from "./distributions";
 
 // Re-export types for consumers
@@ -392,16 +393,6 @@ function getDayOfYear(date: Date): number {
 }
 
 /**
- * Format a date as YYYY-MM-DD (using local date, not UTC)
- */
-function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-/**
  * Format a date as ISO timestamp
  */
 function formatTimestamp(date: Date): string {
@@ -608,7 +599,7 @@ export function generateDemoMetrics(
 
     // Add entry for this day (cumulative values)
     const entry: MetricsEntry = {
-      date: formatDate(currentDate),
+      date: toLocalDateString(currentDate),
       distance: Math.round(cumulativeDistance),
       time: Math.round(cumulativeTime / 60), // Convert to minutes
       activities: cumulativeActivities,
@@ -904,7 +895,7 @@ export function generateDemoDailyData(
         }
       }
 
-      const dateStr = formatDate(currentDate);
+      const dateStr = toLocalDateString(currentDate);
       const entry: DemoDailyActivity = {
         timeMinutes: Math.round(totalTime / 60),
         activities: numActivities,

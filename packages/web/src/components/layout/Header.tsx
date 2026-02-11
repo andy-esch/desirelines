@@ -1,10 +1,12 @@
+import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Logo from "../Logo";
 import { useAuth } from "../../hooks/useAuth";
 import { AccountDropdown } from "./AccountDropdown";
 import Navigation from "./Navigation";
 
-const SPORT_ROUTES = ["/cycling", "/running", "/yoga"];
+/** Non-sport first-level routes — anything else is a sport detail page */
+const PAGE_ROUTES = new Set(["", "dashboard", "activities", "origins", "settings"]);
 
 const HamburgerIcon = () => (
   <svg width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
@@ -26,8 +28,21 @@ export default function Header() {
   const location = useLocation();
   const { user, loading, signIn, signOut } = useAuth();
 
-  // Show controls toggle only on sport detail pages
-  const showControlsToggle = SPORT_ROUTES.some((route) => location.pathname.startsWith(route));
+  // Close mobile nav drawer on route change
+  useEffect(() => {
+    const el = document.getElementById("mobileNavMenu");
+    if (el?.classList.contains("show")) {
+      const closeBtn = el.querySelector<HTMLButtonElement>('[data-bs-dismiss="offcanvas"]');
+      closeBtn?.click();
+    }
+  }, [location.pathname]);
+
+  // Show controls toggle on sport detail pages (any sport, authenticated or demo)
+  const segments = location.pathname.split("/").filter(Boolean);
+  const firstSegment = segments[0] || "";
+  const showControlsToggle =
+    !PAGE_ROUTES.has(firstSegment) || // /:sport or /:sport/:year
+    (firstSegment === "demo" && segments.length >= 2); // /demo/:sport/...
 
   const currentDate = new Date().toLocaleDateString("en-US", {
     month: "short",

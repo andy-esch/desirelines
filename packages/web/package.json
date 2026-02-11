@@ -39,7 +39,6 @@
     "emulators": "firebase emulators:start --only firestore,auth"
   },
   "devDependencies": {
-    "@eslint/compat": "^1.4.0",
     "@eslint/js": "^9.37.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -55,7 +54,6 @@
     "eslint-plugin-react-hooks": "^7.0.0",
     "jsdom": "^27.0.1",
     "prettier": "^3.6.2",
-    "protoc-gen-ts": "^0.8.7",
     "ts-proto": "^2.7.7",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",

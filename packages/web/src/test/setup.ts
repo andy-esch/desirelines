@@ -58,13 +58,12 @@ afterEach(() => {
 });
 
 // Mock the config module to return test values
-// Note: apiGatewayUrl is undefined by default to match test expectations
 // Individual tests can override this mock if they need a specific URL
 const mockConfig = {
   isDevelopment: false,
   isProduction: false,
   useFixtures: true,
-  apiGatewayUrl: undefined, // No URL by default - tests expect localhost fallback
+  apiGatewayUrl: "https://test-api-gateway.example.com",
   firebase: {
     apiKey: "test-api-key-for-vitest",
     authDomain: "test-project.firebaseapp.com",

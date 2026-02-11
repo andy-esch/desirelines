@@ -16,6 +16,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useGoalMigration } from "../hooks/useGoalMigration";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
+import MomentumIndicator from "../components/MomentumIndicator";
 import { useGoalStats } from "../hooks/useGoalStats";
 import { useSportData } from "../hooks/useSportData";
 import { useSidebarSportData } from "../hooks/useSidebarSportData";
@@ -35,7 +36,8 @@ export default function SportPage({ sport }: SportPageProps) {
   const { year } = useParams<{ year?: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const currentYear = year ? parseInt(year) : new Date().getFullYear();
+  const parsedYear = year ? parseInt(year, 10) : NaN;
+  const currentYear = Number.isFinite(parsedYear) ? parsedYear : new Date().getFullYear();
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
 
   // Fetch sport metrics and config
@@ -228,7 +230,7 @@ export default function SportPage({ sport }: SportPageProps) {
     daysRemaining
   );
 
-  const { momentumIndicator } = useTrainingMomentum(chartData, averagePace);
+  const { momentumLevel, trainingMomentum } = useTrainingMomentum(chartData, averagePace);
 
   return (
     <SportPageContent
@@ -253,7 +255,9 @@ export default function SportPage({ sport }: SportPageProps) {
       nextGoalGap={nextGoalGap}
       paceNeededForNextGoal={paceNeededForNextGoal}
       averagePace={averagePace}
-      momentumIndicator={momentumIndicator}
+      momentumIndicator={
+        <MomentumIndicator momentumLevel={momentumLevel} trainingMomentum={trainingMomentum} />
+      }
       availableSports={availableSports}
       sportCounts={sportCounts}
       showAuthButton={true}

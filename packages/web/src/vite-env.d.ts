@@ -29,9 +29,6 @@ interface ImportMetaEnv {
   readonly VITE_AUTH_EMULATOR_PORT?: string;
   readonly VITE_FIRESTORE_EMULATOR_HOST?: string;
   readonly VITE_FIRESTORE_EMULATOR_PORT?: string;
-
-  // Legacy variable (deprecated, use VITE_API_GATEWAY_URL)
-  readonly REACT_APP_API_URL?: string;
 }
 
 interface ImportMeta {

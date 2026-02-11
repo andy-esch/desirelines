@@ -38,42 +38,19 @@ export function useGoalStats(
   currentDistance: number,
   daysRemaining: number
 ): GoalStats {
-  // Smart "Next Goal" logic: first goal above current, or highest goal if all passed
-  const nextGoal = useMemo(() => {
-    if (goals.length === 0) return null;
-
-    // Find first goal above current distance
-    const goalsAbove = goals.filter((g) => g.value > currentDistance);
-    if (goalsAbove.length > 0) {
-      return goalsAbove[0];
+  return useMemo(() => {
+    // Smart "Next Goal" logic: first goal above current, or highest goal if all passed
+    let nextGoal: Goal | null = null;
+    if (goals.length > 0) {
+      const goalsAbove = goals.filter((g) => g.value > currentDistance);
+      nextGoal = goalsAbove.length > 0 ? goalsAbove[0] : goals[goals.length - 1];
     }
 
-    // All goals passed - return the most recently passed (highest goal)
-    return goals[goals.length - 1];
-  }, [goals, currentDistance]);
+    const nextGoalProgress = nextGoal ? (currentDistance / nextGoal.value) * 100 : 0;
+    const nextGoalGap = nextGoal ? Math.max(0, nextGoal.value - currentDistance) : 0;
+    const paceNeededForNextGoal =
+      daysRemaining > 0 && nextGoalGap > 0 ? nextGoalGap / daysRemaining : 0;
 
-  // Progress as percentage
-  const nextGoalProgress = useMemo(
-    () => (nextGoal ? (currentDistance / nextGoal.value) * 100 : 0),
-    [nextGoal, currentDistance]
-  );
-
-  // Distance remaining (0 if goal already reached)
-  const nextGoalGap = useMemo(
-    () => (nextGoal ? Math.max(0, nextGoal.value - currentDistance) : 0),
-    [nextGoal, currentDistance]
-  );
-
-  // Daily pace needed to reach next goal by year end
-  const paceNeededForNextGoal = useMemo(
-    () => (daysRemaining > 0 && nextGoalGap > 0 ? nextGoalGap / daysRemaining : 0),
-    [daysRemaining, nextGoalGap]
-  );
-
-  return {
-    nextGoal,
-    nextGoalProgress,
-    nextGoalGap,
-    paceNeededForNextGoal,
-  };
+    return { nextGoal, nextGoalProgress, nextGoalGap, paceNeededForNextGoal };
+  }, [goals, currentDistance, daysRemaining]);
 }

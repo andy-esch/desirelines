@@ -1,4 +1,5 @@
 import type { DistanceEntry, PacingEntry } from "../types/activity";
+import { toLocalDateString } from "./dateUtils";
 
 export type DistanceTimeseries = DistanceEntry[];
 export type PacingTimeseries = PacingEntry[];
@@ -14,14 +15,6 @@ function getDaysInYear(year: number): number {
   const endOfYearUTC = Date.UTC(year, 11, 31);
   // Math.floor for consistency, +1 for inclusive counting (Jan 1 to Dec 31)
   return Math.floor((endOfYearUTC - startOfYearUTC) / (1000 * 60 * 60 * 24)) + 1;
-}
-
-/**
- * Convert a Date to YYYY-MM-DD string using UTC to avoid timezone shifts
- * This ensures consistent date strings regardless of user's timezone
- */
-function toDateString(date: Date): string {
-  return date.toISOString().split("T")[0];
 }
 
 /**
@@ -67,7 +60,7 @@ export function getTargetGoalValue(
  */
 export interface Goal {
   id: string; // Unique identifier
-  value: number; // Distance in miles
+  value: number; // Display-unit value (miles/km for distance sports, raw count for session sports)
   label?: string; // Optional user label
 }
 
@@ -95,7 +88,7 @@ export function calculateDesireLine(
   const daysInYear = getDaysInYear(year);
   const line: DistanceTimeseries = [];
 
-  const maxDateStr = toDateString(maxDate);
+  const maxDateStr = toLocalDateString(maxDate);
 
   for (let dayOfYear = 1; dayOfYear <= daysInYear; dayOfYear++) {
     const dateStr = dayOfYearToDateString(year, dayOfYear);
@@ -283,7 +276,7 @@ export function calculateActualPacing(
   maxDate: Date
 ): PacingTimeseries {
   const pacing: PacingTimeseries = [];
-  const maxDateStr = toDateString(maxDate);
+  const maxDateStr = toLocalDateString(maxDate);
 
   for (let i = 0; i < distanceTraveled.length; i++) {
     const entry = distanceTraveled[i];
@@ -323,7 +316,7 @@ export function calculateDynamicPacingGoal(
 ): PacingTimeseries {
   const daysInYear = getDaysInYear(year);
   const pacing: PacingTimeseries = [];
-  const maxDateStr = toDateString(maxDate);
+  const maxDateStr = toLocalDateString(maxDate);
 
   for (let i = 0; i < distanceTraveled.length; i++) {
     const entry = distanceTraveled[i];

@@ -48,7 +48,7 @@ export default function Sidebar({
     <div className="sidebar glass-panel-flush col-md-3 col-lg-2">
       <div
         className="offcanvas-md offcanvas-start"
-        data-tabindex="-1"
+        tabIndex={-1}
         id="sidebarMenu"
         aria-labelledby="sidebarMenuLabel"
       >

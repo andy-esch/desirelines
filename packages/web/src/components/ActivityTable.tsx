@@ -213,6 +213,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                         height="14"
                         fill="currentColor"
                         viewBox="0 0 16 16"
+                        aria-hidden="true"
                       >
                         <path
                           fillRule="evenodd"

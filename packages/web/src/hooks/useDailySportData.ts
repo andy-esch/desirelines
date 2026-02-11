@@ -86,8 +86,10 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
   // unnecessary re-renders or query churn. We avoid internal memoization hacks here.
   const sports = options.sports ?? DEFAULT_SPORTS;
 
-  // Generate demo data using useMemo for stability
+  // Generate demo data only for unauthenticated users (skip when signed in)
   const demoData = useMemo(() => {
+    if (user) return {};
+
     // Get coordinated fill levels for all requested sports
     const fillLevels = getSessionFillLevels(sports);
     const result: MultiSportData = {};
@@ -102,7 +104,7 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
     }
 
     return result;
-  }, [sports, from, to, tuningParams]);
+  }, [user, sports, from, to, tuningParams]);
 
   const queries = useQueries({
     queries: sports.map((sport) => ({
