@@ -45,23 +45,36 @@ type Publisher struct {
 	closed bool
 }
 
+// ValidateProjectID checks that a GCP project ID matches the required format.
+func ValidateProjectID(projectID string) error {
+	if projectID == "" {
+		return errors.New("projectID is required")
+	}
+	if !projectIDRegex.MatchString(projectID) {
+		return fmt.Errorf("invalid projectID format: %q (must be 6-30 lowercase alphanumeric characters with hyphens)", projectID)
+	}
+	return nil
+}
+
+// ValidateTopicID checks that a Pub/Sub topic ID matches the required format.
+func ValidateTopicID(topicID string) error {
+	if topicID == "" {
+		return errors.New("topicID is required")
+	}
+	if !topicIDRegex.MatchString(topicID) {
+		return fmt.Errorf("invalid topicID format: %q (must be 3-255 alphanumeric characters starting with a letter)", topicID)
+	}
+	return nil
+}
+
 // NewPublisher creates a new Pub/Sub publisher adapter.
 // Returns an error if projectID or topicID have invalid format.
 func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.Logger) (*Publisher, error) {
-	// Validate project ID format
-	if projectID == "" {
-		return nil, errors.New("projectID is required")
+	if err := ValidateProjectID(projectID); err != nil {
+		return nil, err
 	}
-	if !projectIDRegex.MatchString(projectID) {
-		return nil, fmt.Errorf("invalid projectID format: %q (must be 6-30 lowercase alphanumeric characters with hyphens)", projectID)
-	}
-
-	// Validate topic ID format
-	if topicID == "" {
-		return nil, errors.New("topicID is required")
-	}
-	if !topicIDRegex.MatchString(topicID) {
-		return nil, fmt.Errorf("invalid topicID format: %q (must be 3-255 alphanumeric characters starting with a letter)", topicID)
+	if err := ValidateTopicID(topicID); err != nil {
+		return nil, err
 	}
 
 	client, err := pubsub.NewClient(ctx, projectID)

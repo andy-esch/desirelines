@@ -22,7 +22,9 @@ import (
 
 // Sentinel errors for Strava API failures.
 var (
-	ErrActivityNotFound = errors.New("strava: activity not found")
+	// ErrActivityNotFound is an alias for ports.ErrActivityNotFound for
+	// backward compatibility within this package's tests.
+	ErrActivityNotFound = ports.ErrActivityNotFound
 	ErrStravaAuth       = errors.New("strava: authentication failed after retry")
 	ErrStravaAPI        = errors.New("strava: API error")
 )
@@ -40,6 +42,9 @@ const (
 	activityRetryAttempts = 3
 	activityRetryBackoff  = 1 * time.Second
 
+	// httpClientTimeout is the timeout for individual HTTP requests to the Strava API.
+	httpClientTimeout = 10 * time.Second
+
 	// Response size limits to prevent memory exhaustion.
 	// Activity JSON is typically 5-50KB; 5MB is a generous safety cap.
 	// Token responses are a few hundred bytes; 64KB is more than enough.
@@ -49,7 +54,8 @@ const (
 
 // tokenResponse represents the JSON response from Strava's OAuth token endpoint.
 type tokenResponse struct {
-	AccessToken string `json:"access_token"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 // Client implements ports.StravaClient by calling the Strava REST API.
@@ -89,7 +95,7 @@ func NewClient(logger *slog.Logger) (*Client, error) {
 	logger.Info("Strava client initialized")
 
 	return &Client{
-		httpClient:   &http.Client{Timeout: 10 * time.Second},
+		httpClient:   &http.Client{Timeout: httpClientTimeout},
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		refreshToken: refreshToken,
@@ -283,6 +289,9 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 
 	c.mu.Lock()
 	c.accessToken = tokenResp.AccessToken
+	if tokenResp.RefreshToken != "" {
+		c.refreshToken = tokenResp.RefreshToken
+	}
 	c.mu.Unlock()
 
 	c.logger.Info("Strava access token refreshed")

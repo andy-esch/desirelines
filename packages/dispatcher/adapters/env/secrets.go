@@ -204,7 +204,10 @@ func (c *SecretCache) loadSecrets() (string, int32, error) {
 func (c *SecretCache) loadSecretsFromEnv() error {
 	c.verifyToken = config.GetEnvOrDefault("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
 
-	subIDStr := config.GetEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "0")
+	subIDStr := config.GetEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
+	if subIDStr == "" {
+		return fmt.Errorf("subscription id not found in environment")
+	}
 	parsed, parseErr := strconv.Atoi(subIDStr)
 	if parseErr != nil {
 		return fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID: %w", parseErr)

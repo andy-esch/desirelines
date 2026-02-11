@@ -1,6 +1,7 @@
 package httpadapter
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,8 +9,6 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
-
-	stravaadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
@@ -132,7 +131,7 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if token != verifyToken {
+	if subtle.ConstantTimeCompare([]byte(token), []byte(verifyToken)) != 1 {
 		apiErr := gcplog.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
 		apiErr.Code = ErrCodeInvalidVerifyToken
 		gcplog.WriteError(w, r, apiErr, h.logger)
@@ -228,7 +227,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	if webhook.AspectType == generated.AspectType_ASPECT_TYPE_CREATE {
 		rawActivity, fetchErr := h.stravaClient.FetchActivity(r.Context(), webhook.ObjectId)
 		if fetchErr != nil {
-			if errors.Is(fetchErr, stravaadapter.ErrActivityNotFound) {
+			if errors.Is(fetchErr, ports.ErrActivityNotFound) {
 				// Activity was deleted before we could fetch it - publish without activity data
 				h.logger.Warn("Activity not found in Strava, publishing without activity data",
 					"object_id", webhook.ObjectId)
