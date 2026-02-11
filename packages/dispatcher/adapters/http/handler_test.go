@@ -1,6 +1,7 @@
 package httpadapter
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,9 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	stravaadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
-
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
+	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
@@ -314,7 +314,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			contentType:    "application/json",
 			payload:        validPayload,
 			mockSubID:      testSubscriptionID,
-			stravaErr:      stravaadapter.ErrActivityNotFound,
+			stravaErr:      ports.ErrActivityNotFound,
 			expectedStatus: http.StatusCreated,
 			expectedBody:   "published",
 		},
@@ -370,7 +370,7 @@ func runHandleEventTest(t *testing.T, tt handleEventTestCase) {
 		}
 	}
 
-	req := httptest.NewRequest(tt.method, "/webhook", strings.NewReader(string(body)))
+	req := httptest.NewRequest(tt.method, "/webhook", bytes.NewReader(body))
 	if tt.contentType != "" {
 		req.Header.Set("Content-Type", tt.contentType)
 	}
@@ -434,7 +434,7 @@ func TestHandler_EnrichmentBehavior_Create(t *testing.T) {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", strings.NewReader(string(payload)))
+	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -482,7 +482,7 @@ func TestHandler_EnrichmentBehavior_Update(t *testing.T) {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", strings.NewReader(string(payload)))
+	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -522,7 +522,7 @@ func TestHandler_EnrichmentBehavior_Delete(t *testing.T) {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", strings.NewReader(string(payload)))
+	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

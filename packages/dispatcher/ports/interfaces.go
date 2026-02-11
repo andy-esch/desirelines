@@ -2,8 +2,15 @@ package ports
 
 import (
 	"context"
+	"errors"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+)
+
+// Sentinel errors for port operations.
+var (
+	// ErrActivityNotFound is returned when a Strava activity does not exist.
+	ErrActivityNotFound = errors.New("activity not found")
 )
 
 // Publisher defines the outbound port for publishing enriched webhook events.
