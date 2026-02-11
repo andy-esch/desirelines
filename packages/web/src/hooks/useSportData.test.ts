@@ -37,6 +37,15 @@ describe("useSportData", () => {
         has_distance: true,
         has_elevation: true,
       },
+      running: {
+        display_name: "Running",
+        strava_types: ["Run"],
+        excluded_types: [],
+        primary_metric: "distanceMeters",
+        metrics: ["distanceMeters"],
+        has_distance: true,
+        has_elevation: true,
+      },
     },
   };
 

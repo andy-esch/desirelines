@@ -31,7 +31,9 @@ export interface SportDataResult {
  */
 export function useSportData(year: number, sport: string): SportDataResult {
   const { loading: authLoading } = useAuth();
-  const { sportConfig, isLoading: configLoading, error: configError } = useSportConfig();
+  const { sportConfig, isLoading: configLoading, error: configError, retry: configRetry } = useSportConfig();
+
+  const isValidSport = !!sportConfig && sport in sportConfig.sport_categories;
 
   const {
     data: metrics,
@@ -41,7 +43,7 @@ export function useSportData(year: number, sport: string): SportDataResult {
   } = useQuery({
     queryKey: ["sportMetrics", year, sport],
     queryFn: ({ signal }) => fetchSportMetrics(year, sport, signal),
-    enabled: !authLoading,
+    enabled: !authLoading && isValidSport,
   });
 
   return {
@@ -49,6 +51,11 @@ export function useSportData(year: number, sport: string): SportDataResult {
     sportConfig,
     isLoading: authLoading || metricsLoading || configLoading,
     error: (metricsError as Error | null) ?? configError,
-    retry: refetch,
+    retry: () => {
+      if (configError) {
+        configRetry();
+      }
+      refetch();
+    },
   };
 }

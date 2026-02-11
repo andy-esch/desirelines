@@ -25,12 +25,12 @@ export interface SidebarSportData {
 export function useSidebarSportData(currentYear: number): SidebarSportData {
   const { loading: authLoading } = useAuth();
   const { visibleSports, isLoading: visibleLoading } = useVisibleSports();
-  const { sportConfig } = useSportConfig();
+  const { sportConfig, isLoading: configLoading, error: configError } = useSportConfig();
 
   const {
     data: metadata,
     isLoading: metadataLoading,
-    error,
+    error: metadataError,
   } = useQuery({
     queryKey: ["yearMetadata", currentYear],
     queryFn: ({ signal }) => fetchYearMetadata(currentYear, signal),
@@ -63,8 +63,8 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
   return {
     availableSports,
     sportCounts,
-    isLoading: authLoading || visibleLoading || metadataLoading,
-    error: error as Error | null,
+    isLoading: authLoading || visibleLoading || configLoading || metadataLoading,
+    error: (configError || metadataError) as Error | null,
   };
 }
 

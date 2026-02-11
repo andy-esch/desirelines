@@ -53,6 +53,7 @@ export interface SportGoalData {
 export function useDashboardGoalData(): {
   sportData: SportGoalData[];
   yearContext: YearContext;
+  distanceUnit: import("../utils/units").DistanceUnit;
   isLoading: boolean;
   error: Error | null;
 } {
@@ -225,6 +226,7 @@ export function useDashboardGoalData(): {
   return {
     sportData,
     yearContext,
+    distanceUnit: userSettings.distanceUnit,
     isLoading,
     error: queryError as Error | null,
   };
