@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import ActivityTable from "../components/ActivityTable";
 import { useActivities } from "../hooks/useActivities";
-import { DEFAULT_USER_SETTINGS, type DistanceUnit, type ElevationUnit } from "../utils/units";
+import { getUserSettings } from "../utils/units";
+import { useUserConfig } from "../hooks/useUserConfig";
 import { pageBackgrounds } from "../styles/pageBackgrounds";
 
 type TimeRange = "2w" | "4w" | "2m" | "6m" | "ytd" | "all";
@@ -63,16 +64,16 @@ const VALID_RANGES: TimeRange[] = ["2w", "4w", "2m", "6m", "ytd", "all"];
 const ActivitiesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Get filter values from URL or defaults
+  // Load user preferences for unit settings
+  const { data: preferences } = useUserConfig("preferences");
+  const userSettings = getUserSettings(preferences);
+
+  // Derive filter values from URL (single source of truth)
   const rangeParam = searchParams.get("range");
-  const timeRange: TimeRange = VALID_RANGES.includes(rangeParam as TimeRange)
+  const selectedRange: TimeRange = VALID_RANGES.includes(rangeParam as TimeRange)
     ? (rangeParam as TimeRange)
     : "4w";
-  const sport = searchParams.get("sport") || "";
-
-  // Local state for filter controls
-  const [selectedRange, setSelectedRange] = useState<TimeRange>(timeRange);
-  const [selectedSport, setSelectedSport] = useState(sport);
+  const selectedSport = searchParams.get("sport") || "";
 
   // Calculate date range based on selection
   const dateRange = useMemo(() => calculateDateRange(selectedRange), [selectedRange]);
@@ -90,16 +91,14 @@ const ActivitiesPage = () => {
 
   const { activities, isLoading, error, hasMore, loadMore, retry } = useActivities(filter);
 
-  // Update URL when filters change
+  // Update URL when filters change (URL is the single source of truth)
   const handleRangeChange = (range: TimeRange) => {
-    setSelectedRange(range);
     const params = new URLSearchParams(searchParams);
     params.set("range", range);
     setSearchParams(params);
   };
 
   const handleSportChange = (newSport: string) => {
-    setSelectedSport(newSport);
     const params = new URLSearchParams(searchParams);
     if (newSport) {
       params.set("sport", newSport);
@@ -168,8 +167,8 @@ const ActivitiesPage = () => {
           hasMore={hasMore}
           onLoadMore={loadMore}
           onRetry={retry}
-          distanceUnit={DEFAULT_USER_SETTINGS.distanceUnit as DistanceUnit}
-          elevationUnit={DEFAULT_USER_SETTINGS.elevationUnit as ElevationUnit}
+          distanceUnit={userSettings.distanceUnit}
+          elevationUnit={userSettings.elevationUnit}
         />
       </div>
     </div>

@@ -101,10 +101,9 @@ export class UserConfigService {
     const currentUser = this.authService.getCurrentUser();
     if (currentUser && currentUser.uid !== userId) {
       throw new Error(
-        `UserConfigService: userId mismatch! ` +
-          `Attempted to access config for userId="${userId}" ` +
-          `but authenticated user is "${currentUser.uid}". ` +
-          `This likely indicates a bug in how userId is being passed to UserConfigService.`
+        "UserConfigService: userId mismatch! " +
+          "The provided userId does not match the authenticated user. " +
+          "This likely indicates a bug in how userId is being passed to UserConfigService."
       );
     }
   }

@@ -1,6 +1,9 @@
 import { lazy, Suspense } from "react";
 import "bootstrap/dist/css/bootstrap.css";
-import "bootstrap/dist/js/bootstrap.bundle.min.js";
+// Bootstrap JS loaded async — only needed for interactive widgets (offcanvas, dropdowns),
+// not for initial render. Saves ~60KB from the critical path.
+// @ts-expect-error no type declarations for Bootstrap JS bundle
+void import("bootstrap/dist/js/bootstrap.bundle.min.js");
 import "./css/variables.css";
 import "./css/dashboard.css";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";

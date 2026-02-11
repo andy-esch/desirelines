@@ -8,6 +8,9 @@ import * as useActivitiesModule from "../hooks/useActivities";
 // Mock dependencies - useActivities is mocked; useAuth is called internally
 // by useActivities but that's fully mocked so useAuth never runs.
 vi.mock("../hooks/useActivities");
+vi.mock("../hooks/useUserConfig", () => ({
+  useUserConfig: () => ({ data: null, isLoading: false }),
+}));
 
 const renderWithRouter = (initialRoute = "/activities") => {
   return render(

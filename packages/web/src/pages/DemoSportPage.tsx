@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { convertDistance, getUserSettings } from "../utils/units";
 import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
+import MomentumIndicator from "../components/MomentumIndicator";
 import { useGoalStats } from "../hooks/useGoalStats";
 import { useDemoData, getDemoGoalsForSport } from "../hooks/useDemoData";
 import { useDemoSidebarSportData } from "../hooks/useSidebarSportData";
@@ -23,7 +24,8 @@ interface DemoSportPageProps {
 export default function DemoSportPage({ sport }: DemoSportPageProps) {
   const { year } = useParams<{ year?: string }>();
   const navigate = useNavigate();
-  const currentYear = year ? parseInt(year) : new Date().getFullYear();
+  const parsedYear = year ? parseInt(year, 10) : NaN;
+  const currentYear = Number.isFinite(parsedYear) ? parsedYear : new Date().getFullYear();
 
   // Fetch generated demo data (uses config defaults from demoConfig.ts)
   const { metrics, sportConfig, isLoading, error } = useDemoData(currentYear, sport);
@@ -126,7 +128,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
     daysRemaining
   );
 
-  const { momentumIndicator } = useTrainingMomentum(chartData, averagePace);
+  const { momentumLevel, trainingMomentum } = useTrainingMomentum(chartData, averagePace);
 
   return (
     <>
@@ -158,7 +160,9 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
         nextGoalGap={nextGoalGap}
         paceNeededForNextGoal={paceNeededForNextGoal}
         averagePace={averagePace}
-        momentumIndicator={momentumIndicator}
+        momentumIndicator={
+          <MomentumIndicator momentumLevel={momentumLevel} trainingMomentum={trainingMomentum} />
+        }
         availableSports={availableSports}
         sportCounts={sportCounts}
         showAuthButton={false}

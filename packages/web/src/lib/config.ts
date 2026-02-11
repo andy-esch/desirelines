@@ -121,7 +121,7 @@ export function loadConfig(): AppConfig {
     }
 
     // Additional validation: Check for placeholder values
-    const placeholderPatterns = ["YOUR_PROD", "YOUR-PROD", "XXXXX", "TODO", "REPLACE", "CHANGEME"];
+    const placeholderPatterns = ["YOUR_", "YOUR-", "XXXXX", "TODO", "REPLACE", "CHANGEME"];
 
     for (const [key, value] of Object.entries(validated.firebase)) {
       if (typeof value === "string") {

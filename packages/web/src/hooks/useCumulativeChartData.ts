@@ -187,17 +187,17 @@ export function useCumulativeChartData({
   const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
 
   const yAxisTicks = useMemo(() => {
-    const maxValue = Math.max(
-      ...mergedData.flatMap((d) =>
-        [
-          d.actual,
-          ...Object.keys(d)
-            .filter((k) => k.startsWith("goal"))
-            .map((k) => d[k as keyof CumulativeChartDataPoint] as number),
-          d.average,
-        ].filter((v): v is number => v !== undefined)
-      )
+    const allValues = mergedData.flatMap((d) =>
+      [
+        d.actual,
+        ...Object.keys(d)
+          .filter((k) => k.startsWith("goal"))
+          .map((k) => d[k as keyof CumulativeChartDataPoint] as number),
+        d.average,
+      ].filter((v): v is number => v !== undefined)
     );
+
+    const maxValue = allValues.length > 0 ? Math.max(...allValues) : 0;
 
     return generateYAxisTicks(maxValue, metricConfig);
   }, [mergedData, metricConfig]);

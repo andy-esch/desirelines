@@ -12,8 +12,13 @@ import { getFirebaseAuthService } from "../services/auth/FirebaseAuthService";
  * 4. Waits for initial auth state to be resolved before making requests.
  */
 const config = getConfig();
+if (!config.apiGatewayUrl) {
+  throw new Error(
+    "API Gateway URL is not configured. Set VITE_API_GATEWAY_URL in your environment."
+  );
+}
 const client = axios.create({
-  baseURL: config.apiGatewayUrl || "http://localhost:8084",
+  baseURL: config.apiGatewayUrl,
 });
 
 // Get auth service singleton
@@ -74,7 +79,10 @@ client.interceptors.request.use(async (config) => {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (error) {
-      console.error("Failed to get ID token for request:", error);
+      console.error(
+        "Failed to get ID token for request:",
+        error instanceof Error ? error.message : "unknown error"
+      );
       // We don't block the request, it will likely fail with 401/403, which the caller should handle
     }
   }

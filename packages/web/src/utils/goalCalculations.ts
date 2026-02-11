@@ -60,7 +60,7 @@ export function getTargetGoalValue(
  */
 export interface Goal {
   id: string; // Unique identifier
-  value: number; // Distance in miles
+  value: number; // Display-unit value (miles/km for distance sports, raw count for session sports)
   label?: string; // Optional user label
 }
 

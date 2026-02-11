@@ -227,6 +227,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: 'true'
 
   # ===========================================================================
   # Terraform: Format, Init, Validate

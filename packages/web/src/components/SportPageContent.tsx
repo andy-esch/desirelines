@@ -106,7 +106,9 @@ export default function SportPageContent({
   const [showAchievements, setShowAchievements] = useState(true);
 
   const isCurrentYear = currentYear === new Date().getFullYear();
-  const loadingOrError = isLoading || !!error;
+  // Note: error state is shown in the chart area (which receives `error` separately).
+  // Other components receive `isLoading` only so they show default values on error,
+  // not misleading loading spinners.
 
   return (
     <div className="container-fluid">
@@ -118,7 +120,7 @@ export default function SportPageContent({
           estimatedYearEnd={estimatedYearEnd}
           currentValue={currentValue}
           unit={unit}
-          isLoading={loadingOrError}
+          isLoading={isLoading}
           showAuthButton={showAuthButton}
           filtersSlot={
             <FilterControls
@@ -184,7 +186,7 @@ export default function SportPageContent({
             momentumIndicator={momentumIndicator}
             yearContext={yearContext}
             unit={unit}
-            isLoading={loadingOrError}
+            isLoading={isLoading}
           />
 
           {!isLoading && !error && chartData.length === 0 ? (
@@ -202,7 +204,7 @@ export default function SportPageContent({
               yearContext={yearContext}
               unit={unit}
               sport={sport}
-              isLoading={loadingOrError}
+              isLoading={isLoading}
             />
           )}
 
