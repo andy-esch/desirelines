@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
@@ -20,6 +22,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
+	"github.com/go-chi/chi/v5"
+	"gopkg.in/yaml.v3"
 )
 
 // Health status constants imported from health package for test assertions
@@ -917,6 +921,67 @@ func TestValidateDate(t *testing.T) {
 			t.Error("expected empty string to be invalid")
 		}
 	})
+}
+
+// =============================================================================
+// OpenAPI Spec Drift Detection
+// =============================================================================
+
+func TestRoutesMatchOpenAPISpec(t *testing.T) {
+	logger := slog.Default()
+	mockRepo := &mockActivityRepository{}
+	router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+	// Type assert to chi.Routes so we can walk the route tree
+	chiRouter, ok := router.(chi.Routes)
+	if !ok {
+		t.Fatal("router does not implement chi.Routes")
+	}
+
+	// Collect all registered GET routes
+	registeredRoutes := make(map[string]bool)
+	err := chi.Walk(chiRouter, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		if method == "GET" {
+			route = strings.TrimSuffix(route, "/*")
+			registeredRoutes[route] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk routes: %v", err)
+	}
+
+	// Parse openapi.yaml to extract path keys
+	specData, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("failed to read openapi.yaml: %v", err)
+	}
+
+	var spec struct {
+		Paths map[string]interface{} `yaml:"paths"`
+	}
+	if err := yaml.Unmarshal(specData, &spec); err != nil {
+		t.Fatalf("failed to parse openapi.yaml: %v", err)
+	}
+
+	specPaths := make(map[string]bool)
+	for path := range spec.Paths {
+		specPaths[path] = true
+	}
+
+	// Every registered route must appear in the OpenAPI spec
+	for route := range registeredRoutes {
+		if !specPaths[route] {
+			t.Errorf("route registered in router but missing from openapi.yaml: %s", route)
+		}
+	}
+
+	// Every OpenAPI spec path must be registered in the router
+	for path := range specPaths {
+		if !registeredRoutes[path] {
+			t.Errorf("path defined in openapi.yaml but not registered in router: %s", path)
+		}
+	}
 }
 
 func TestValidateDateRange(t *testing.T) {
