@@ -45,7 +45,7 @@ jobs:
           config: '.github/markdownlint-cli2.yaml'
 
       - name: Check Markdown links
-        uses: tcort/github-action-markdown-link-check@v2
+        uses: tcort/github-action-markdown-link-check@v1
         with:
           config-file: '.github/mlc_config.json'
           folder-path: '.'
