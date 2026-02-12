@@ -58,7 +58,7 @@ After OAuth2 authorization, create the webhook subscription:
 
 ```bash
 # Using our just command
-just create-webhook dev  # or prod
+just webhook create dev  # or prod
 ```
 
 ## Environment-Specific Setup
@@ -83,7 +83,7 @@ See [secrets.md](./secrets.md) for details on secrets management.
 
 If webhooks aren't working, verify:
 
-1. ✅ **Webhook subscription exists**: `just view-subscription dev`
+1. ✅ **Webhook subscription exists**: `just webhook view dev`
 2. ✅ **Function is reachable**: `curl https://your-function-url`
 3. ✅ **OAuth2 authorization completed**: Check if you can access Strava API with your tokens
 4. ✅ **Activity account matches**: Activities must be on the authorized account

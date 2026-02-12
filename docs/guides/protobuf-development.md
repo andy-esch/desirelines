@@ -369,8 +369,7 @@ protobuf_sources(
 ### Generated code out of sync
 
 ```bash
-# Clean and regenerate
-just proto-clean
+# Regenerate
 just proto-gen
 
 # Verify changes

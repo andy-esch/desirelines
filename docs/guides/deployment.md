@@ -93,8 +93,8 @@ just deploy-web prod
 PostgreSQL migrations managed by Flyway.
 
 ```bash
-just db-migrate-dev-info  # Check status
-just db-migrate-dev       # Run migrations
+just db-migrate dev info  # Check status
+just db-migrate dev       # Run migrations
 ```
 
 See `schemas/database/README.md` for details.
@@ -104,8 +104,8 @@ See `schemas/database/README.md` for details.
 ## Strava Webhook
 
 ```bash
-just view-webhook dev      # View current subscription
-just create-webhook dev    # Create subscription
+just webhook view dev      # View current subscription
+just webhook create dev    # Create subscription
 ```
 
 See [strava-webhook.md](./strava-webhook.md) for OAuth2 setup.

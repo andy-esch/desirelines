@@ -109,13 +109,13 @@ See [secrets.md](./secrets.md) for details on secrets management.
 
 ```bash
 # Check status first
-just db-migrate-dev-info
+just db-migrate dev info
 
 # Run migrations
-just db-migrate-dev
+just db-migrate dev
 
 # Verify tables created
-just db-connect-dev
+just db-connect dev
 \dt desirelines.*
 ```
 
@@ -143,10 +143,10 @@ psql "postgres://writer:PASSWORD@HOST-pooler/desirelines?sslmode=require" \
 
 | Just Recipe            | Description              |
 | ---------------------- | ------------------------ |
-| `db-migrate-dev`       | Run migrations (dev)     |
-| `db-migrate-dev-info`  | Check migration status   |
-| `db-connect-dev`       | Connect psql (read-only) |
-| `db-connect-dev-admin` | Connect psql (admin)     |
+| `db-migrate dev`       | Run migrations (dev)     |
+| `db-migrate dev info`  | Check migration status   |
+| `db-connect dev`       | Connect psql (read-only) |
+| `db-connect dev admin` | Connect psql (admin)     |
 
 ## Connection Pooling
 

@@ -86,7 +86,6 @@ just proto-gen-web
 # Maintenance
 just proto-fmt    # Format proto files
 just proto-lint   # Lint proto files
-just proto-clean  # Remove generated code
 ```
 
 **Generated code locations:**
@@ -97,7 +96,7 @@ just proto-clean  # Remove generated code
 
 ## Related
 
-- [API Gateway handler](../../packages/apigateway/handler.go)
+- [API Gateway handlers](../../packages/apigateway/internal/)
 - [Dispatcher proto adapter](../../packages/dispatcher/adapters/proto/)
 - [Stravapipe proto adapter](../../packages/stravapipe/src/stravapipe/adapters/proto/)
 - [Frontend API client](../../packages/web/src/api/activities.ts)

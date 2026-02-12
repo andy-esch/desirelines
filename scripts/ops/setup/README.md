@@ -1,1 +1,7 @@
-# Setup Scripts\n\nScripts for bootstrapping the environment.\n\n- `bootstrap-environment.sh`: Complete environment bootstrap (Cloud).\n- `bootstrap-terraform-sa.sh`: Setup Terraform service account.\n- `setup-local.sh`: Local development setup (Legacy).
+# Setup Scripts
+
+Scripts for bootstrapping the environment.
+
+- `bootstrap-environment.sh`: Complete environment bootstrap (Cloud).
+- `bootstrap-terraform-sa.sh`: Setup Terraform service account.
+- `setup-local.sh`: Local development setup (Legacy).

@@ -51,7 +51,7 @@ just go-test --pants
 For full environment orchestration (Docker):
 
 ```bash
-just start           # Backend pipeline with PubSub emulator
+just start-backend   # Backend pipeline with PubSub emulator
 just start-frontend  # Frontend + API gateway + Postgres
 ```
 

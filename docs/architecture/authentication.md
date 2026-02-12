@@ -45,7 +45,7 @@ User → Firebase Auth (Google OAuth) → JWT Token → API Gateway → Email Al
 
 User settings (goals, annotations) stored in Firestore at `users/{userId}/config/v1`.
 
-**Security Rules** (`packages/web/firestore.rules`):
+**Security Rules** (`firestore.rules` at repo root):
 ```javascript
 match /users/{userId}/config/{document=**} {
   allow read, write: if request.auth != null && request.auth.uid == userId;

@@ -226,7 +226,7 @@ pants tailor ::
 ### CI Passes Locally But Fails in GitHub Actions
 **Common causes:**
 1. **Cache differences** - Try clearing local Pants cache: `rm -rf ~/.cache/pants`
-2. **Environment variables** - Check `.github/workflows/ci-pants.yml` env vars
+2. **Environment variables** - Check `.github/workflows/ci.yml` env vars
 3. **Python version** - Check CI workflow and local version match (see `.python-version`)
 4. **Go version** - Check CI workflow and local version match (see `go.mod`)
 
