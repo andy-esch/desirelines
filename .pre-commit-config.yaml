@@ -4,26 +4,40 @@ repos:
   hooks:
   - id: check-yaml
   - id: check-json
+    exclude: ^local-dev/templates/.*\.tmpl\.json$
   - id: check-merge-conflict
   - id: end-of-file-fixer
   - id: trailing-whitespace
+
 - repo: https://github.com/astral-sh/ruff-pre-commit
   rev: v0.12.9
   hooks:
   - id: ruff
     args: [--fix]
   - id: ruff-format
-- repo: https://github.com/pre-commit/mirrors-prettier
-  rev: v3.0.3
+
+# Local hooks for Web (React) to ensure version alignment with package.json
+- repo: local
   hooks:
-  - id: prettier
-    files: \.(js|ts|jsx|tsx|json|css|html)$
-- repo: https://github.com/pre-commit/mirrors-eslint
-  rev: v9.0.0
-  hooks:
-  - id: eslint
-    files: \.(js|ts|jsx|tsx)$
-    args: [--fix]
+  - id: web-eslint
+    name: Web ESLint
+    # Run eslint from the project root, pointing to the local config.
+    # We use 'npm exec' to use the locally installed eslint binary.
+    entry: npm exec --prefix packages/web -- eslint --config packages/web/eslint.config.js --fix
+    language: system
+    files: ^packages/web/.*\.(js|ts|jsx|tsx)$
+    exclude: /generated/
+    types: [file]
+
+  - id: web-prettier
+    name: Web Prettier
+    # Run prettier from the project root, pointing to local config and ignore file.
+    entry: npm exec --prefix packages/web -- prettier --config packages/web/.prettierrc.json --ignore-path packages/web/.prettierignore --write
+    language: system
+    files: ^packages/web/.*\.(js|ts|jsx|tsx|json|css|html)$
+    exclude: /generated/
+    types: [file]
+
 # Terraform validation and formatting
 - repo: https://github.com/antonbabenko/pre-commit-terraform
   rev: v1.96.3
