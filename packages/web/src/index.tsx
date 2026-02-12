@@ -14,8 +14,7 @@ console.log(
 );
 
 // Expose version on window for easy checking in browser console
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(window as any).DESIRELINES_VERSION = __COMMIT_HASH__;
+window.DESIRELINES_VERSION = __COMMIT_HASH__;
 
 // Validate configuration before rendering the app
 // This catches config errors early with clear messages
