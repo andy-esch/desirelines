@@ -5,6 +5,7 @@ Set up Workload Identity Federation for GitHub Actions using Terraform (infrastr
 ## Overview
 
 Workload Identity Federation allows GitHub Actions to authenticate to GCP using OIDC tokens instead of long-lived service account keys. This is more secure because:
+
 - ✅ No credentials stored in GitHub secrets
 - ✅ Tokens are short-lived and automatically rotated
 - ✅ Fine-grained access control based on repo/branch/environment
@@ -34,6 +35,7 @@ infisical run --env=dev --path=/ci/secrets -- terraform apply
 ```
 
 This creates:
+
 - Workload Identity Pool (`github-actions`)
 - Workload Identity Provider (`github-oidc`)
 - Service Account (`github-actions-deploy@desirelines-dev.iam.gserviceaccount.com`)
@@ -160,6 +162,7 @@ gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
 ### Authentication Fails in GitHub Actions
 
 **Check Terraform outputs** (from `desirelines-deploy` repo):
+
 ```bash
 cd desirelines-deploy/environments/dev
 infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_provider
@@ -167,6 +170,7 @@ infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_servic
 ```
 
 **Verify resources exist:**
+
 ```bash
 # List workload identity pools
 gcloud iam workload-identity-pools list --location=global
@@ -177,6 +181,7 @@ gcloud iam service-accounts describe \
 ```
 
 **Verify IAM binding:**
+
 ```bash
 gcloud iam service-accounts get-iam-policy \
   github-actions-deploy@desirelines-dev.iam.gserviceaccount.com
@@ -185,6 +190,7 @@ gcloud iam service-accounts get-iam-policy \
 ### Permission Denied Errors
 
 Check service account permissions:
+
 ```bash
 gcloud projects get-iam-policy desirelines-dev \
   --flatten="bindings[].members" \
@@ -215,6 +221,7 @@ infisical run --env=dev --path=/ci/secrets -- terraform apply
 ## Module Documentation
 
 See `terraform/modules/github-actions-wif/README.md` for:
+
 - Module variables and outputs
 - Permissions granted
 - Security considerations

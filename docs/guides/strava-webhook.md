@@ -5,13 +5,14 @@ This document covers the complete process for setting up Strava webhook subscrip
 ## Overview
 
 Strava webhooks require three main steps:
+
 1. **Create Strava API Application** - Register your app with Strava
 2. **Authorize User Access** - OAuth2 flow to grant permissions ⭐ **CRITICAL STEP**
 3. **Create Webhook Subscription** - Register callback URL for events
 
 ## Step 1: Create Strava API Application
 
-1. Go to https://www.strava.com/settings/api
+1. Go to <https://www.strava.com/settings/api>
 2. Create a new application
 3. Note your **Client ID** and **Client Secret**
 4. Set appropriate callback URLs for your application
@@ -23,6 +24,7 @@ Strava webhooks require three main steps:
 ### Manual Authorization Process
 
 1. **Generate authorization URL** ⚠️ **CRITICAL: Must include `activity:read_all` scope**:
+
    ```
    https://www.strava.com/oauth/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=YOUR_REDIRECT_URI&approval_prompt=force&scope=activity:read_all
    ```
@@ -34,6 +36,7 @@ Strava webhooks require three main steps:
    - ❌ **If missing**: Webhooks will be created but NO events will be delivered
 
 4. **Exchange code for tokens** (if you need refresh tokens):
+
    ```bash
    curl -X POST https://www.strava.com/oauth/token \
      -F client_id=YOUR_CLIENT_ID \
@@ -64,12 +67,14 @@ just webhook create dev  # or prod
 ## Environment-Specific Setup
 
 ### Development Environment
+
 1. **Separate Strava account** - Use dedicated dev account
 2. **OAuth2 authorization** - Authorize dev account for dev application
 3. **Webhook subscription** - Point to dev dispatcher endpoint
 4. **Secret storage** - Store credentials in Infisical `/backend/secrets` (dev environment)
 
 ### Production Environment
+
 1. **Main Strava account** - Use your primary account
 2. **OAuth2 authorization** - Authorize main account for prod application
 3. **Webhook subscription** - Point to prod dispatcher endpoint

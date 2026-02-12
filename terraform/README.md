@@ -41,6 +41,7 @@ module "desirelines" {
 ```
 
 When making module changes:
+
 1. Make changes to `terraform/modules/`
 2. Merge to main
 3. Tag with next `tf-N` integer (e.g., `git tag tf-2 && git push origin tf-2`)

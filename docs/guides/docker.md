@@ -43,6 +43,7 @@ just build-publish
 ```
 
 This:
+
 - Builds all Docker images
 - Tags with git SHA and `latest`
 - Pushes to Artifact Registry

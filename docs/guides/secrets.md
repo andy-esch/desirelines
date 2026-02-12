@@ -119,6 +119,7 @@ infisical export --env=local --path=/backend/secrets
 ### Terraform can't read config
 
 Ensure Infisical provider credentials are set:
+
 ```bash
 export INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=...
 export INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET=...

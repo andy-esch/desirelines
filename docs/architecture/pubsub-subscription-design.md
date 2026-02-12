@@ -21,6 +21,7 @@ The dispatcher enriches CREATE events with full activity data from the Strava AP
 ## Event Delivery Pattern
 
 Eventarc delivers PubSub messages to Cloud Run/Functions as **CloudEvents** with:
+
 - Headers: `ce-type`, `ce-id`, `ce-source`, `ce-time`
 - Body: PubSub message envelope with base64-encoded data
 
@@ -59,6 +60,7 @@ resource "google_pubsub_subscription" "bq_inserter" {
 ### Why Manual Subscriptions?
 
 Manual subscriptions provide:
+
 - Stable, predictable naming
 - DLQ configured from the start
 - Full lifecycle management by Terraform

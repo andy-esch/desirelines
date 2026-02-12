@@ -23,6 +23,7 @@ docker compose logs flyway
 **Volume behavior**: The database uses an anonymous volume that resets on every `docker compose down`. This ensures a clean slate and prevents stale migration issues. Each startup runs init scripts and migrations fresh.
 
 **Troubleshooting**:
+
 - If migrations fail with "role does not exist", the Flyway `beforeMigrate` callback should self-heal by creating missing role groups.
 - If Flyway fails to connect, it will retry for up to 30 seconds (`FLYWAY_CONNECT_RETRIES=30`).
 - For a full reset: `just restart-frontend` or `just restart-backend`

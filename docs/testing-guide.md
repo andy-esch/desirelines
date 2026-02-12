@@ -28,6 +28,7 @@ pants test ::
 ```
 
 **Performance:**
+
 - First run: ~60s (building cache)
 - Subsequent runs: ~1.7s (90% faster with caching!)
 
@@ -58,11 +59,13 @@ pants --changed-since=abc123 test
 ```
 
 **How it works:**
+
 - Pants analyzes file changes and dependency graph
 - Only runs tests that could be affected by your changes
 - Includes cross-language dependencies (e.g., proto changes → Python + Go tests)
 
 **Example:**
+
 ```bash
 # You changed packages/stravapipe/src/stravapipe/utils.py
 pants --changed-since=HEAD test
@@ -119,6 +122,7 @@ pants test --loop packages/stravapipe::
 | Changed only | Manual | N/A | ~5-30s | **Massive** |
 
 **Key benefits:**
+
 - ✅ Caching makes repeat runs **2-6x faster**
 - ✅ Changed detection only tests affected code
 - ✅ Cross-language dependency tracking (proto → Python + Go)
@@ -158,6 +162,7 @@ output_dir = "{distdir}/coverage/python"  # Coverage output directory
 ### Tests not discovered
 
 **Check:**
+
 1. BUILD files exist for test directories
 2. Test file naming matches patterns:
    - Python: `test_*.py` or `*_test.py`
@@ -166,8 +171,10 @@ output_dir = "{distdir}/coverage/python"  # Coverage output directory
 ### Coverage not generating
 
 **Ensure:**
+
 1. Using `--use-coverage` flag (not `--coverage-py`)
 2. Coverage configuration exists in `pants.toml`:
+
    ```toml
    [coverage-py]
    report = ["console", "xml"]
@@ -176,6 +183,7 @@ output_dir = "{distdir}/coverage/python"  # Coverage output directory
 ### Changed detection not working
 
 **Verify:**
+
 1. You're in a git repository
 2. Comparing to valid ref: `pants --changed-since=origin/main test`
 3. Changes are uncommitted (or comparing to earlier commit)
@@ -261,6 +269,7 @@ pants test --tag=integration ::
 ## Summary
 
 **Key Commands:**
+
 ```bash
 pants test ::                          # All tests
 pants test packages/stravapipe::       # Specific package
@@ -270,6 +279,7 @@ pants test --loop packages/stravapipe::  # Watch mode
 ```
 
 **Why Pants?**
+
 - 🚀 **90% faster** on repeat runs (caching)
 - 🎯 **Smart test selection** (changed detection)
 - 🔗 **Cross-language aware** (proto changes → all tests)

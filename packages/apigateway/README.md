@@ -51,6 +51,7 @@ All authenticated endpoints require `Authorization: Bearer <firebase-token>` hea
 ### Query Parameters
 
 **`/activities` (list)**:
+
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `from` | date | - | Start date (YYYY-MM-DD), inclusive |
@@ -158,26 +159,31 @@ packages/apigateway/
 ### Key Directories
 
 **`cmd/apigateway/main.go`** - Composition root
+
 - Creates all dependencies (config, auth, database pool)
 - Wires handlers with their dependencies
 - Builds and starts the HTTP server
 - Single place where all wiring happens
 
 **`internal/`** - Feature-based HTTP handlers
+
 - Each feature (health, sports, activities) has its own package
 - Handlers receive dependencies via constructor injection
 - `server/` contains shared HTTP utilities (router, middleware, response helpers)
 
 **`pkg/validate/`** - Shared validation
+
 - Reusable validation functions (year, date, date range)
 - Can be imported by any package
 
 **`repository/`** - Domain interfaces (ports)
+
 - `activities.go` - Interface defining all data operations
 - `types.go` - Domain types (Activity, SportMetrics, etc.)
 - Add new query methods here first
 
 **`adapters/postgres/`** - PostgreSQL implementation (adapter)
+
 - Implements `repository.ActivityRepository`
 - All SQL queries live here
 

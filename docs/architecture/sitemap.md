@@ -22,6 +22,7 @@
 ## Route Details
 
 ### Dashboard
+
 - **Path**: `/` or `/dashboard`
 - **Component**: `Dashboard`
 - **Purpose**: Landing page showing all sports overview
@@ -36,6 +37,7 @@
   - Navigation to sport detail pages
 
 ### Sport Detail Pages
+
 - **Path**: `/:sport` or `/:sport/:year`
 - **Component**: `SportPage`
 - **Valid sports**: `cycling`, `running`, `yoga`
@@ -51,6 +53,7 @@
   - Year navigation
 
 ### Settings (Future)
+
 - **Path**: `/settings`
 - **Component**: `Settings`
 - **Purpose**: User preferences, goal management

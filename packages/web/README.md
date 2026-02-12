@@ -23,6 +23,7 @@ npm run dev  # http://localhost:3000
 | `test` | `.env.test` | None (uses mocks) | `npm test` |
 
 **Setup**:
+
 ```bash
 # Local dev
 cp .env.development.local.example .env.development.local
@@ -78,10 +79,12 @@ User → Components → API Layer → API Gateway (Go) → Cloud Storage (JSON)
 **Bundle Optimization**: Pages are lazy-loaded via `React.lazy()` with vendor chunks (React, Firebase, Recharts) split for better caching. Initial bundle ~400KB, with heavy dependencies loaded on-demand.
 
 **Modes**:
+
 - **Demo mode**: Client-side generated data, no API calls (anonymous users)
 - **Authenticated mode**: Real data via API Gateway (signed-in users)
 
 **User Data**:
+
 - User configuration (goals, annotations, preferences) stored in Firestore
 - Document path: `users/{userId}/config/v1`
 - Firestore Security Rules enforce per-user isolation
