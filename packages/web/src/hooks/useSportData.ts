@@ -31,7 +31,12 @@ export interface SportDataResult {
  */
 export function useSportData(year: number, sport: string): SportDataResult {
   const { loading: authLoading } = useAuth();
-  const { sportConfig, isLoading: configLoading, error: configError, retry: configRetry } = useSportConfig();
+  const {
+    sportConfig,
+    isLoading: configLoading,
+    error: configError,
+    retry: configRetry,
+  } = useSportConfig();
 
   const isValidSport = !!sportConfig && sport in sportConfig.sport_categories;
 

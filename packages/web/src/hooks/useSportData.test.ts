@@ -78,6 +78,56 @@ describe("useSportData", () => {
     expect(result.current.sportConfig).toEqual(mockConfig);
   });
 
+  it("surfaces error from useSportConfig", () => {
+    const configError = new Error("Failed to load config");
+    vi.spyOn(useSportConfigModule, "useSportConfig").mockReturnValue({
+      sportConfig: null,
+      isLoading: false,
+      error: configError,
+      retry: vi.fn(),
+    });
+
+    vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
+      user: null,
+      loading: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      error: null,
+    });
+
+    const { result } = renderHook(() => useSportData(2025, "cycling"), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.error).toBe(configError);
+    expect(result.current.metrics).toBeNull();
+    expect(result.current.sportConfig).toBeNull();
+  });
+
+  it("reports loading when sportConfig is loading", () => {
+    vi.spyOn(useSportConfigModule, "useSportConfig").mockReturnValue({
+      sportConfig: null,
+      isLoading: true,
+      error: null,
+      retry: vi.fn(),
+    });
+
+    vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
+      user: null,
+      loading: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      error: null,
+    });
+
+    const { result } = renderHook(() => useSportData(2025, "cycling"), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.sportConfig).toBeNull();
+  });
+
   it("fetches from API when auth is ready (unauthenticated)", async () => {
     const mockMetrics = [{ date: "2025-01-01", distance: 50 }];
 
