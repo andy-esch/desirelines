@@ -1,5 +1,14 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { execSync } from "child_process";
+
+// Get git commit hash for versioning
+let commitHash = "unknown";
+try {
+  commitHash = execSync("git rev-parse --short HEAD").toString().trim();
+} catch {
+  console.warn("Could not determine git commit hash");
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -42,7 +51,13 @@ export default defineConfig(({ mode }) => {
     console.log('⚠ Production build validation skipped (SKIP_ENV_VALIDATION=true)');
   }
 
+  // Allow overriding via env var (useful for CI)
+  const version = env.VITE_GIT_COMMIT || commitHash;
+
   return {
+    define: {
+      __COMMIT_HASH__: JSON.stringify(version),
+    },
     plugins: [react()],
     server: {
       port: 3000,

@@ -6,6 +6,17 @@ import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { loadConfig } from "./lib/config";
 
+// Log version for debugging
+console.log(
+  `%c Desirelines %c ${__COMMIT_HASH__} `,
+  "background: #35495e; color: #fff; border-radius: 3px 0 0 3px; padding: 2px 5px;",
+  "background: #41b883; color: #fff; border-radius: 0 3px 3px 0; padding: 2px 5px;"
+);
+
+// Expose version on window for easy checking in browser console
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(window as any).DESIRELINES_VERSION = __COMMIT_HASH__;
+
 // Validate configuration before rendering the app
 // This catches config errors early with clear messages
 try {
