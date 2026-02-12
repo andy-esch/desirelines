@@ -93,20 +93,12 @@ vi.mock("../hooks/useWeeklySummary", () => ({
   })),
 }));
 
-// Mock useDashboardGoalData hook (used by GoalProgressCard)
+// Mock useDashboardGoalData hook (used by GoalProgressCard + RecentActivitiesList)
 vi.mock("../hooks/useDashboardGoalData", () => ({
   useDashboardGoalData: vi.fn(() => ({
     sportData: [],
     yearContext: { year: 2026, daysElapsed: 36, daysRemaining: 329, isPastYear: false },
-    isLoading: false,
-    error: null,
-  })),
-}));
-
-// Mock useUserConfig hook (used by RecentActivitiesList for distance unit)
-vi.mock("../hooks/useUserConfig", () => ({
-  useUserConfig: vi.fn(() => ({
-    data: null,
+    distanceUnit: "miles",
     isLoading: false,
     error: null,
   })),

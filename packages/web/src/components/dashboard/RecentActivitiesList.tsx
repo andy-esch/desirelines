@@ -3,15 +3,9 @@ import { useActivities } from "../../hooks/useActivities";
 import { useAuth } from "../../hooks/useAuth";
 import { useDashboardGoalData } from "../../hooks/useDashboardGoalData";
 import type { SportGoalData } from "../../hooks/useDashboardGoalData";
-import { useUserConfig } from "../../hooks/useUserConfig";
 import NeonSpinner from "../NeonSpinner";
 import type { TimeRange } from "../../utils/dataNormalization";
-import {
-  convertDistance,
-  formatDistance,
-  formatImpactPct,
-  getUserSettings,
-} from "../../utils/units";
+import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
 
 import { SLATE, ACCENT } from "../../constants/uiColors";
 import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
@@ -125,12 +119,8 @@ export default function RecentActivitiesList({
       ? Math.max(MIN_ROWS, Math.floor((containerHeight - HEADER_HEIGHT) / ROW_HEIGHT))
       : fallbackPageSize;
 
-  // User preferences for distance unit
-  const { data: prefs } = useUserConfig("preferences");
-  const distanceUnit = useMemo(() => getUserSettings(prefs).distanceUnit, [prefs]);
-
-  // Goal data for impact % column
-  const { sportData } = useDashboardGoalData();
+  // Goal data for impact % column + distance unit preference
+  const { sportData, distanceUnit } = useDashboardGoalData();
   const goalLookup = useMemo(() => {
     const lookup: Record<string, SportGoalData> = {};
     for (const g of sportData) {

@@ -37,20 +37,12 @@ vi.mock("../../hooks/useSportConfig", () => ({
   useSportConfig: vi.fn(),
 }));
 
-// Mock useDashboardGoalData hook (used by RecentActivitiesList for impact % column)
+// Mock useDashboardGoalData hook (used by RecentActivitiesList for impact % column + distance unit)
 vi.mock("../../hooks/useDashboardGoalData", () => ({
   useDashboardGoalData: vi.fn(() => ({
     sportData: [],
     yearContext: { year: 2025, dayOfYear: 1, daysInYear: 365, fractionElapsed: 0 },
-    isLoading: false,
-    error: null,
-  })),
-}));
-
-// Mock useUserConfig hook (used by RecentActivitiesList for distance unit)
-vi.mock("../../hooks/useUserConfig", () => ({
-  useUserConfig: vi.fn(() => ({
-    data: null,
+    distanceUnit: "miles",
     isLoading: false,
     error: null,
   })),

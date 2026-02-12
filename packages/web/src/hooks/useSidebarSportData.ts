@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
-import { fetchYearMetadata, fetchSportConfig } from "../api/activities";
-import { isCancellationError } from "../api/errors";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchYearMetadata } from "../api/activities";
 import { useAuth } from "./useAuth";
 import { useVisibleSports } from "./useVisibleSports";
+import { useSportConfig } from "./useSportConfig";
 import { usePublicSportConfig } from "./usePublicSportConfig";
 import { getDemoActivityCounts } from "../utils/demoDataGenerator";
 
@@ -24,64 +25,46 @@ export interface SidebarSportData {
 export function useSidebarSportData(currentYear: number): SidebarSportData {
   const { loading: authLoading } = useAuth();
   const { visibleSports, isLoading: visibleLoading } = useVisibleSports();
-  const [sportCounts, setSportCounts] = useState<Record<string, number>>({});
-  const [countsLoading, setCountsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const { sportConfig, isLoading: configLoading, error: configError } = useSportConfig();
 
-  // Fetch activity counts per sport category
-  useEffect(() => {
-    if (authLoading) return;
+  const {
+    data: metadata,
+    isLoading: metadataLoading,
+    error: metadataError,
+  } = useQuery({
+    queryKey: ["yearMetadata", currentYear],
+    queryFn: ({ signal }) => fetchYearMetadata(currentYear, signal),
+    enabled: !authLoading,
+  });
 
-    const controller = new AbortController();
-    setCountsLoading(true);
-    setError(null);
-
-    async function loadCounts() {
-      try {
-        const [metadata, sportConfig] = await Promise.all([
-          fetchYearMetadata(currentYear, controller.signal),
-          fetchSportConfig(controller.signal),
-        ]);
-
-        // Aggregate activity counts by sport category
-        const categoryCounts: Record<string, number> = {};
-
-        for (const [category, config] of Object.entries(sportConfig.sport_categories)) {
-          let totalActivities = 0;
-          for (const stravaType of config.strava_types) {
-            const totals = metadata.totals[stravaType];
-            if (totals?.activities) {
-              totalActivities += totals.activities;
-            }
-          }
-          categoryCounts[category] = totalActivities;
+  // Aggregate counts by sport category from year metadata
+  const sportCounts = useMemo(() => {
+    if (!metadata || !sportConfig) return {};
+    const counts: Record<string, number> = {};
+    for (const [category, config] of Object.entries(sportConfig.sport_categories)) {
+      let total = 0;
+      for (const stravaType of config.strava_types) {
+        const totals = metadata.totals[stravaType];
+        if (totals?.activities) {
+          total += totals.activities;
         }
-
-        setSportCounts(categoryCounts);
-      } catch (err) {
-        if (!isCancellationError(err)) {
-          console.warn("Failed to fetch sport counts:", err);
-          setError(err instanceof Error ? err : new Error("Failed to fetch sport counts"));
-        }
-      } finally {
-        setCountsLoading(false);
       }
+      counts[category] = total;
     }
-
-    loadCounts();
-    return () => controller.abort();
-  }, [currentYear, authLoading]);
+    return counts;
+  }, [metadata, sportConfig]);
 
   // Sort visible sports by activity count (descending)
-  const availableSports = useMemo(() => {
-    return [...visibleSports].sort((a, b) => (sportCounts[b] ?? 0) - (sportCounts[a] ?? 0));
-  }, [visibleSports, sportCounts]);
+  const availableSports = useMemo(
+    () => [...visibleSports].sort((a, b) => (sportCounts[b] ?? 0) - (sportCounts[a] ?? 0)),
+    [visibleSports, sportCounts]
+  );
 
   return {
     availableSports,
     sportCounts,
-    isLoading: authLoading || visibleLoading || countsLoading,
-    error,
+    isLoading: authLoading || visibleLoading || configLoading || metadataLoading,
+    error: (configError || metadataError) as Error | null,
   };
 }
 
