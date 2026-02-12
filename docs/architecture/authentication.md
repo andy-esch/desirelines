@@ -82,5 +82,5 @@ See `docs/guides/frontend-local-dev.md` for detailed setup instructions.
 | Auth context | `packages/web/src/contexts/AuthContext.tsx` |
 | API client | `packages/web/src/api/activities.ts` |
 | User config | `packages/web/src/services/userConfigService.ts` |
-| Firestore rules | `packages/web/firestore.rules` |
-| Terraform config | `terraform/modules/desirelines/cloud_run.tf`
+| Firestore rules | `firestore.rules` |
+| Terraform config | `terraform/modules/desirelines/cloud_run.tf` |
