@@ -960,7 +960,8 @@ func TestRoutesMatchOpenAPISpec(t *testing.T) {
 	var spec struct {
 		Paths map[string]interface{} `yaml:"paths"`
 	}
-	if err := yaml.Unmarshal(specData, &spec); err != nil {
+	err = yaml.Unmarshal(specData, &spec)
+	if err != nil {
 		t.Fatalf("failed to parse openapi.yaml: %v", err)
 	}
 
