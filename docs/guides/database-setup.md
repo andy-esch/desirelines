@@ -99,6 +99,7 @@ Connection strings are stored in Infisical and synced to GCP Secret Manager.
    | `POSTGRES_CONN_ADMIN` | `postgres://admin:PASSWORD@HOST-pooler/desirelines?sslmode=require&channel_binding=require&application_name=admin` |
 
 2. **Verify sync to GCP Secret Manager**:
+
    ```bash
    gcloud secrets list --project=desirelines-dev --filter="name:INFISICAL_POSTGRES"
    ```
@@ -109,13 +110,13 @@ See [secrets.md](./secrets.md) for details on secrets management.
 
 ```bash
 # Check status first
-just db-migrate-dev-info
+just db-migrate dev info
 
 # Run migrations
-just db-migrate-dev
+just db-migrate dev
 
 # Verify tables created
-just db-connect-dev
+just db-connect dev
 \dt desirelines.*
 ```
 
@@ -143,20 +144,22 @@ psql "postgres://writer:PASSWORD@HOST-pooler/desirelines?sslmode=require" \
 
 | Just Recipe            | Description              |
 | ---------------------- | ------------------------ |
-| `db-migrate-dev`       | Run migrations (dev)     |
-| `db-migrate-dev-info`  | Check migration status   |
-| `db-connect-dev`       | Connect psql (read-only) |
-| `db-connect-dev-admin` | Connect psql (admin)     |
+| `db-migrate dev`       | Run migrations (dev)     |
+| `db-migrate dev info`  | Check migration status   |
+| `db-connect dev`       | Connect psql (read-only) |
+| `db-connect dev admin` | Connect psql (admin)     |
 
 ## Connection Pooling
 
 Neon's `-pooler` endpoints have built-in PgBouncer. The `postgres-writer` service auto-detects this and disables client-side pooling to avoid the "pool on pool" anti-pattern.
 
 **How it works:**
+
 - Hostname contains `-pooler` → uses `NullPool` (Neon handles pooling)
 - No `-pooler` in hostname → uses `QueuePool` (client-side pooling)
 
 **Migrating to another provider?** Set `POSTGRES_POOL_STRATEGY`:
+
 - `external` - You have PgBouncer or similar (uses NullPool)
 - `internal` - Direct connection without external pooler (uses QueuePool)
 - `auto` - Detect from hostname (default)

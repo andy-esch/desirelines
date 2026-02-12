@@ -14,7 +14,7 @@ This repo contains **modules** and the **artifacts** environment only. Deploymen
 
 ## Prerequisites
 
-- **Terraform** 1.14.3 (pinned in `.terraform-version`)
+- **Terraform** (version pinned in `.terraform-version`)
 - **Google Cloud SDK** authenticated
 - **pre-commit** installed (for validation hooks)
 
@@ -22,7 +22,7 @@ This repo contains **modules** and the **artifacts** environment only. Deploymen
 
 ```
 terraform/
-├── .terraform-version     # Pinned version (1.14.3)
+├── .terraform-version     # Pinned version
 ├── environments/
 │   └── artifacts/         # Shared artifact registry (desirelines-artifacts project)
 └── modules/
@@ -41,6 +41,7 @@ module "desirelines" {
 ```
 
 When making module changes:
+
 1. Make changes to `terraform/modules/`
 2. Merge to main
 3. Tag with next `tf-N` integer (e.g., `git tag tf-2 && git push origin tf-2`)

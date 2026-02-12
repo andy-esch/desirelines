@@ -12,19 +12,19 @@ JSON schema definitions for BigQuery tables used by `bq-inserter`.
 
 ## Usage
 
-Tables are created via Terraform (`terraform/modules/desirelines/bigquery.tf`), which references these schemas.
+These schemas are used by the `bq-inserter` service to define BigQuery table structure.
 
 To output schema in BigQuery CLI format:
 
 ```bash
 # Full schema (default)
-uv run scripts/schema/schema_to_bq.py activities
+uv run schemas/bigquery/scripts/schema_to_bq.py activities
 
 # Minimal schema
-uv run scripts/schema/schema_to_bq.py activities --minimal
+uv run schemas/bigquery/scripts/schema_to_bq.py activities --minimal
 
 # JSON format (for tooling)
-uv run scripts/schema/schema_to_bq.py activities --json
+uv run schemas/bigquery/scripts/schema_to_bq.py activities --json
 ```
 
 ## Schema Format

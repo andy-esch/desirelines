@@ -19,17 +19,20 @@ This directory contains infrastructure components and scripts specifically for t
 ### Containers
 
 #### CloudEvent Adapter
-*   **Path**: `local-dev/containers/cloudevent-adapter/`
-*   **Purpose**: Bridges the gap between the PubSub Emulator (which sends raw push messages) and Cloud Run services (which expect Eventarc-formatted CloudEvents).
-*   **Usage**: Automatically built and started by `docker-compose.yml`.
+
+* **Path**: `local-dev/containers/cloudevent-adapter/`
+* **Purpose**: Bridges the gap between the PubSub Emulator (which sends raw push messages) and Cloud Run services (which expect Eventarc-formatted CloudEvents).
+* **Usage**: Automatically built and started by `docker-compose.yml`.
 
 #### Firebase Emulators
-*   **Path**: `local-dev/containers/firebase-emulators/`
-*   **Purpose**: Provides local Authentication and Firestore services.
-*   **Usage**: Accessed via port 9099 (Auth) and 8089 (Firestore).
+
+* **Path**: `local-dev/containers/firebase-emulators/`
+* **Purpose**: Provides local Authentication and Firestore services.
+* **Usage**: Accessed via port 9099 (Auth) and 8089 (Firestore).
 
 ### Bootstrap Scripts
 
 #### PubSub Emulator Setup
-*   **Path**: `local-dev/bootstrap/pubsub-emulator.sh`
-*   **Purpose**: Waits for the emulator to start, then creates the `desirelines_activity_events` topic and necessary push subscriptions.
+
+* **Path**: `local-dev/bootstrap/pubsub-emulator.sh`
+* **Purpose**: Waits for the emulator to start, then creates the `desirelines_activity_events` topic and necessary push subscriptions.

@@ -35,6 +35,7 @@ schemas/proto/
 Defines the `/activities/{year}/metrics?sport={sport}` API response.
 
 **Key types:**
+
 - `SportMetrics` - Timeseries array returned by API
 - `CumulativeMetricsEntry` - Single data point (date, distance, elevation, time, activities)
 - `YearMetadata` - Year summary with per-sport totals
@@ -47,6 +48,7 @@ Defines the `/activities/{year}/metrics?sport={sport}` API response.
 Defines user configuration stored in Firestore.
 
 **Key types:**
+
 - `UserConfig` - Root document with goals, preferences, annotations
 - `Goal` - Year-specific distance goals
 - `Annotation` - Chart annotations
@@ -58,6 +60,7 @@ Defines user configuration stored in Firestore.
 Defines the canonical Strava webhook event structure shared between Go and Python.
 
 **Key types:**
+
 - `WebhookEvent` - Strava webhook notification (create/update/delete)
 - `EnrichedEvent` - Wraps `WebhookEvent` with optional `raw_activity` bytes (Strava API JSON). The dispatcher enriches CREATE events with the full activity payload so downstream consumers don't need Strava API credentials.
 - `AspectType` - Enum: CREATE, UPDATE, DELETE
@@ -68,6 +71,7 @@ Defines the canonical Strava webhook event structure shared between Go and Pytho
 **Flow:** Strava webhook → dispatcher (Go) enriches with activity data → publishes `EnrichedEvent` to PubSub → bq-inserter and postgres-writer (Python) consume
 
 **Adapter locations:**
+
 - Go: `packages/dispatcher/adapters/proto/` - JSON ↔ proto conversion
 - Python: `packages/stravapipe/src/stravapipe/adapters/proto/` - dict/Pydantic ↔ proto conversion
 
@@ -86,10 +90,10 @@ just proto-gen-web
 # Maintenance
 just proto-fmt    # Format proto files
 just proto-lint   # Lint proto files
-just proto-clean  # Remove generated code
 ```
 
 **Generated code locations:**
+
 - Go (apigateway): `packages/apigateway/types/generated/`
 - Go (dispatcher): `packages/dispatcher/types/generated/`
 - Python: `packages/stravapipe/src/stravapipe/types/generated/`
@@ -97,7 +101,7 @@ just proto-clean  # Remove generated code
 
 ## Related
 
-- [API Gateway handler](../../packages/apigateway/handler.go)
+- [API Gateway handlers](../../packages/apigateway/internal/)
 - [Dispatcher proto adapter](../../packages/dispatcher/adapters/proto/)
 - [Stravapipe proto adapter](../../packages/stravapipe/src/stravapipe/adapters/proto/)
 - [Frontend API client](../../packages/web/src/api/activities.ts)

@@ -28,6 +28,7 @@ just start-backend
 ```
 
 **Services started:**
+
 | Service | Port | Description |
 |---------|------|-------------|
 | Dispatcher | 8081 | Webhook receiver |
@@ -37,6 +38,7 @@ just start-backend
 | CloudEvent Adapter | 8087 | Converts PubSub → CloudEvents |
 
 **Test webhook delivery:**
+
 ```bash
 # Create event
 curl -X POST http://localhost:8081/webhook \
@@ -56,6 +58,7 @@ just start-frontend
 ```
 
 **Services started:**
+
 | Service | Port | Description |
 |---------|------|-------------|
 | API Gateway | 8084 | REST API |
@@ -64,6 +67,7 @@ just start-frontend
 | Firebase UI | 4000 | Emulator dashboard |
 
 **Test API:**
+
 ```bash
 # Health check
 curl http://localhost:8084/health
@@ -199,6 +203,7 @@ just start-frontend
 ### Strava API Issues (Real Data Testing)
 
 For testing with real Strava data, you need:
+
 1. Strava API credentials configured
 2. OAuth2 authorization completed
 

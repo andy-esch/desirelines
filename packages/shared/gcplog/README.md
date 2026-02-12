@@ -51,6 +51,7 @@ When requests include trace headers (`X-Cloud-Trace-Context` or `traceparent`), 
 ### Severity-Based Log Levels
 
 The middleware automatically selects severity based on response status:
+
 - `5xx` responses → ERROR
 - `4xx` responses → WARNING
 - All others → INFO

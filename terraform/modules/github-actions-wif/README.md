@@ -126,6 +126,7 @@ When `grant_default_roles = false`, **no project-level roles** are granted. Use 
 ### Authentication fails in GitHub Actions
 
 **Check Workload Identity Pool exists:**
+
 ```bash
 gcloud iam workload-identity-pools describe github-actions \
   --location=global \
@@ -133,18 +134,21 @@ gcloud iam workload-identity-pools describe github-actions \
 ```
 
 **Verify service account IAM binding:**
+
 ```bash
 gcloud iam service-accounts get-iam-policy \
   github-actions-deploy@YOUR_PROJECT_ID.iam.gserviceaccount.com
 ```
 
 **Ensure GitHub secrets are correct:**
+
 - `WIF_PROVIDER` should start with `projects/`
 - `WIF_SERVICE_ACCOUNT` should end with `.iam.gserviceaccount.com`
 
 ### Permission denied errors
 
 Check the service account has required project roles:
+
 ```bash
 gcloud projects get-iam-policy YOUR_PROJECT_ID \
   --flatten="bindings[].members" \

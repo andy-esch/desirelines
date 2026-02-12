@@ -112,5 +112,6 @@ POSTGRES_MAX_OVERFLOW=3     # Burst capacity (5 total max)
 ```
 
 **When to override:**
+
 - Switching from Neon to Cloud SQL? Set `POSTGRES_POOL_STRATEGY=internal`
 - Using PgBouncer in front of self-hosted? Set `POSTGRES_POOL_STRATEGY=external`

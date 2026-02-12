@@ -5,6 +5,7 @@ How to work with Protocol Buffer schemas in Desirelines.
 ## Overview
 
 Protobufs define cross-language type contracts shared between:
+
 - **Go** (apigateway, dispatcher)
 - **Python** (stravapipe)
 - **TypeScript** (web)
@@ -67,6 +68,7 @@ packages/
 ```
 
 **After modifying any schema:**
+
 ```bash
 just sync-schemas   # Regenerates code + copies config
 git add schemas/ packages/*/types/generated/ packages/*/config/
@@ -153,6 +155,7 @@ just proto-gen-backend
 ### 4. Use Generated Types
 
 **Go (apigateway):**
+
 ```go
 import (
     activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
@@ -170,6 +173,7 @@ func handleActivities(w http.ResponseWriter, r *http.Request) {
 ```
 
 **TypeScript (web):**
+
 ```typescript
 import type { ActivitySummary, ListActivitiesResponse } from '../types/generated/activities';
 
@@ -180,6 +184,7 @@ response.activities.forEach((a: ActivitySummary) => {
 ```
 
 **Python (stravapipe):**
+
 ```python
 from stravapipe.types.generated import activities_pb2
 
@@ -207,6 +212,7 @@ message Activity {
 ```
 
 Then regenerate:
+
 ```bash
 just proto-gen
 git add schemas/proto/ packages/*/types/generated/
@@ -218,6 +224,7 @@ git commit -m "feat: add description and tags to Activity proto"
 Avoid breaking changes when possible. If required:
 
 1. **Create new version:**
+
    ```bash
    mkdir -p schemas/proto/desirelines/activities/v2
    cp schemas/proto/desirelines/activities/v1/activities.proto \
@@ -225,6 +232,7 @@ Avoid breaking changes when possible. If required:
    ```
 
 2. **Update package name:**
+
    ```protobuf
    package desirelines.activities.v2;
    ```
@@ -339,6 +347,7 @@ just proto-lint
 ### "Package not found" in Go
 
 Ensure `go_mod_address` points to correct module:
+
 ```python
 protobuf_sources(
     name="my_proto",
@@ -350,6 +359,7 @@ protobuf_sources(
 ### TypeScript imports broken
 
 Check that proto files are included in `proto-gen-web` target:
+
 ```bash
 # In Justfile, verify files are listed
 grep proto-gen-web Justfile
@@ -358,6 +368,7 @@ grep proto-gen-web Justfile
 ### Python import errors
 
 Ensure `python_resolve` matches your package:
+
 ```python
 protobuf_sources(
     name="my_proto",
@@ -369,8 +380,7 @@ protobuf_sources(
 ### Generated code out of sync
 
 ```bash
-# Clean and regenerate
-just proto-clean
+# Regenerate
 just proto-gen
 
 # Verify changes

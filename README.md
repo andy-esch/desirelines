@@ -28,7 +28,7 @@ just setup-secrets
 ### Prerequisites
 
 - [`uv`](https://docs.astral.sh/uv/) - Python package manager
-- [Go 1.25+](https://go.dev/)
+- [Go](https://go.dev/) (version in `go.mod`)
 - [Pants](https://www.pantsbuild.org/) - Build system
 - [just](https://github.com/casey/just) - Task runner
 - Docker, Terraform, Google Cloud SDK
@@ -51,7 +51,7 @@ just go-test --pants
 For full environment orchestration (Docker):
 
 ```bash
-just start           # Backend pipeline with PubSub emulator
+just start-backend   # Backend pipeline with PubSub emulator
 just start-frontend  # Frontend + API gateway + Postgres
 ```
 

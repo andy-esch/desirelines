@@ -38,6 +38,19 @@ jobs:
 
       # --- Fast checks first (fail fast) ---
 
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v22
+        with:
+          globs: '**/*.md'
+          config: '.github/.markdownlint-cli2.yaml'
+
+      - name: Check Markdown links
+        uses: tcort/github-action-markdown-link-check@v1
+        with:
+          config-file: '.github/mlc_config.json'
+          folder-path: '.'
+          use-quiet-mode: 'yes'
+
       - name: Set up Just
         uses: extractions/setup-just@v3
 
@@ -244,7 +257,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.14.3"
+          terraform_version: "1.14.5"
 
       - name: Validate all environments
         run: |

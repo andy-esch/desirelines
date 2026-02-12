@@ -5,12 +5,13 @@ This guide shows how to bootstrap a complete desirelines environment (dev or pro
 ## Prerequisites
 
 1. **Create GCP project** (manual):
+
    ```bash
    gcloud projects create desirelines-dev  # or desirelines-prod
    ```
 
 2. **Enable billing** (manual):
-   - Go to https://console.cloud.google.com/billing
+   - Go to <https://console.cloud.google.com/billing>
    - Link the project to your billing account
 
 3. **Set up Infisical** (manual):
@@ -28,6 +29,7 @@ This guide shows how to bootstrap a complete desirelines environment (dev or pro
 ```
 
 The script will:
+
 1. Validate prerequisites (project exists, billing enabled)
 2. Create terraform service account with required permissions
 3. Set up authentication and impersonation
@@ -39,6 +41,7 @@ The script will:
 ## What Gets Created
 
 ### Infrastructure
+
 - **BigQuery datasets**: Raw activities (analytics/archival)
 - **PubSub topics**: Activity processing pipeline with dead letter queues
 - **Cloud Run services**: dispatcher, api-gateway, bq-inserter, postgres-writer
@@ -49,6 +52,7 @@ The script will:
 - **Monitoring**: Dashboard and alert policies for DLQ, errors, latency
 
 ### Service Accounts
+
 - **terraform-desirelines**: For infrastructure management
 - **Dedicated service account per Cloud Run service** (dispatcher, bq-inserter, api-gateway, postgres-writer)
 - **infisical-sync**: For Infisical to sync secrets to GCP
@@ -74,7 +78,7 @@ infisical run --env=dev --path=/ci/secrets -- terraform apply
    - Check you have access: `gcloud projects describe desirelines-dev`
 
 2. **"Billing not enabled"**
-   - Enable billing in console: https://console.cloud.google.com/billing
+   - Enable billing in console: <https://console.cloud.google.com/billing>
 
 3. **Secrets not found**
    - Verify Infisical sync is configured and working
@@ -113,6 +117,7 @@ infisical run --env=dev --path=/ci/secrets -- terraform destroy
 ```
 
 This removes all infrastructure but preserves:
+
 - The terraform state bucket (for safety)
 - The terraform service account
 - Secrets in Secret Manager (managed by Infisical)
