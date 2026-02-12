@@ -22,71 +22,7 @@ go build ./cmd/apigateway
 
 ## API Endpoints
 
-### Public Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check (includes database status) |
-| GET | `/sports/config` | Sport configuration (cycling, running, yoga mappings) |
-
-### Authenticated Endpoints
-
-All authenticated endpoints require `Authorization: Bearer <firebase-token>` header.
-
-#### Aggregated Data (by year)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/activities/{year}/metadata` | Year totals for all sports |
-| GET | `/activities/{year}/metrics?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]` | Cumulative timeseries for one sport (optional date range can span years) |
-| GET | `/activities/{year}/source?sport=X` | Daily summaries for one sport |
-
-#### Individual Activities
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/activities` | List activities (paginated) |
-| GET | `/activities/{id}` | Get single activity by Strava ID |
-
-### Query Parameters
-
-**`/activities` (list)**:
-
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| `from` | date | - | Start date (YYYY-MM-DD), inclusive |
-| `to` | date | - | End date (YYYY-MM-DD), inclusive |
-| `sport` | string | - | Filter by sport category |
-| `limit` | int | 20 | Results per page (1-100) |
-| `cursor` | string | - | Pagination cursor (from `next_cursor`) |
-
-**Valid sport values**: `cycling`, `running`, `yoga`
-
-### Pagination
-
-The `/activities` endpoint uses cursor-based pagination:
-
-```json
-{
-  "activities": [...],
-  "next_cursor": "MjAyNS0xMi0yOFQwODozMDowMFp8MTIzNDU2Nzg5MDE=",
-  "has_more": true
-}
-```
-
-To fetch the next page, pass `cursor=<next_cursor>` as a query parameter.
-
-### Response Codes
-
-| Code | Meaning |
-|------|---------|
-| 200 | Success (empty data returns `[]`, not 404) |
-| 400 | Invalid request (bad year, sport, date format) |
-| 401 | Missing or invalid auth token |
-| 403 | User not authorized |
-| 404 | Activity not found (for `/activities/{id}` only) |
-| 500 | Server error |
-| 503 | Database unavailable |
+See [`openapi.yaml`](./openapi.yaml) for the full API specification — endpoints, query parameters, request/response schemas, and status codes. This is the canonical contract, validated in CI.
 
 ## Architecture
 
@@ -196,7 +132,7 @@ packages/apigateway/
 5. **Register route** in `internal/server/router.go`
 6. **Wire in main.go** if new handler package
 7. **Add tests** in `handler_test.go`
-8. **Update this README**
+8. **Update `openapi.yaml`** with the new endpoint
 
 ## Environment Variables
 
