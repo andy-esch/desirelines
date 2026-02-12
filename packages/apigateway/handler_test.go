@@ -938,49 +938,83 @@ func TestRoutesMatchOpenAPISpec(t *testing.T) {
 		t.Fatal("router does not implement chi.Routes")
 	}
 
-	// Collect all registered GET routes
-	registeredRoutes := make(map[string]bool)
-	err := chi.Walk(chiRouter, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		if method == "GET" {
-			route = strings.TrimSuffix(route, "/*")
-			registeredRoutes[route] = true
+	registeredRoutes := collectRegisteredRoutes(t, chiRouter)
+	specPaths := parseOpenAPISpec(t)
+
+	verifyRegisteredRoutesInSpec(t, registeredRoutes, specPaths)
+	verifySpecPathsInRouter(t, specPaths, registeredRoutes)
+}
+
+func collectRegisteredRoutes(t *testing.T, router chi.Routes) map[string]map[string]bool {
+	registeredRoutes := make(map[string]map[string]bool)
+	err := chi.Walk(router, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		// Ignore HEAD and OPTIONS methods automatically added by chi
+		if method == http.MethodHead || method == http.MethodOptions {
+			return nil
 		}
+		route = strings.TrimSuffix(route, "/*")
+		if registeredRoutes[route] == nil {
+			registeredRoutes[route] = make(map[string]bool)
+		}
+		registeredRoutes[route][method] = true
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("failed to walk routes: %v", err)
 	}
+	return registeredRoutes
+}
 
-	// Parse openapi.yaml to extract path keys
+func parseOpenAPISpec(t *testing.T) map[string]map[string]bool {
 	specData, err := os.ReadFile("openapi.yaml")
 	if err != nil {
 		t.Fatalf("failed to read openapi.yaml: %v", err)
 	}
 
 	var spec struct {
-		Paths map[string]interface{} `yaml:"paths"`
+		Paths map[string]map[string]interface{} `yaml:"paths"`
 	}
 	err = yaml.Unmarshal(specData, &spec)
 	if err != nil {
 		t.Fatalf("failed to parse openapi.yaml: %v", err)
 	}
 
-	specPaths := make(map[string]bool)
-	for path := range spec.Paths {
-		specPaths[path] = true
-	}
-
-	// Every registered route must appear in the OpenAPI spec
-	for route := range registeredRoutes {
-		if !specPaths[route] {
-			t.Errorf("route registered in router but missing from openapi.yaml: %s", route)
+	specPaths := make(map[string]map[string]bool)
+	for path, methods := range spec.Paths {
+		specPaths[path] = make(map[string]bool)
+		for method := range methods {
+			specPaths[path][strings.ToUpper(method)] = true
 		}
 	}
+	return specPaths
+}
 
-	// Every OpenAPI spec path must be registered in the router
-	for path := range specPaths {
-		if !registeredRoutes[path] {
+func verifyRegisteredRoutesInSpec(t *testing.T, registeredRoutes, specPaths map[string]map[string]bool) {
+	for route, methods := range registeredRoutes {
+		specMethods, ok := specPaths[route]
+		if !ok {
+			t.Errorf("route registered in router but missing from openapi.yaml: %s", route)
+			continue
+		}
+		for method := range methods {
+			if !specMethods[method] {
+				t.Errorf("method %s for route %s registered in router but missing from openapi.yaml", method, route)
+			}
+		}
+	}
+}
+
+func verifySpecPathsInRouter(t *testing.T, specPaths, registeredRoutes map[string]map[string]bool) {
+	for path, methods := range specPaths {
+		registeredMethods, ok := registeredRoutes[path]
+		if !ok {
 			t.Errorf("path defined in openapi.yaml but not registered in router: %s", path)
+			continue
+		}
+		for method := range methods {
+			if !registeredMethods[method] {
+				t.Errorf("method %s for path %s defined in openapi.yaml but not registered in router", method, path)
+			}
 		}
 	}
 }
