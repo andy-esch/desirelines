@@ -65,7 +65,7 @@ Deploy script checks for required `.env.*.local` files and fails with helpful er
 
 ## Tech Stack
 
-React 18 • TypeScript • Vite • Firebase Auth • Firestore • Recharts • Bootstrap 5 • Vitest
+React • TypeScript • Vite • Firebase Auth • Firestore • Recharts • Bootstrap • Vitest
 
 ## Architecture
 
