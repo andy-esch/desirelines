@@ -1017,4 +1017,3 @@ INSERT INTO desirelines.activities (
 ON CONFLICT (id) DO NOTHING;
 
 DO $$ BEGIN RAISE NOTICE 'Seed data insertion complete (1000 activities, conflicts ignored)'; END $$;
-

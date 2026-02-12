@@ -33,7 +33,7 @@ cp .env.development.local.example .env.development.local
 cp .env.staging.local.example .env.staging.local
 # Edit with staging credentials
 
-# Production deployment  
+# Production deployment
 cp .env.production.local.example .env.production.local
 # Edit with production credentials
 ```
