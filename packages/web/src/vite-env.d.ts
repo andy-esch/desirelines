@@ -1,5 +1,11 @@
 /// <reference types="vite/client" />
 
+declare const __COMMIT_HASH__: string;
+
+interface Window {
+  DESIRELINES_VERSION: string;
+}
+
 /**
  * Type definitions for environment variables.
  * These are loaded from .env files and accessed via import.meta.env
