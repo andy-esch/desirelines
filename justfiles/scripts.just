@@ -39,10 +39,10 @@ md-format:
     #!/usr/bin/env bash
     if command -v markdownlint-cli2 >/dev/null 2>&1; then
         echo "Formatting markdown files..."
-        markdownlint-cli2 --fix --config .github/.markdownlint-cli2.yaml '**/*.md' '#node_modules' '#packages/web/node_modules'
+        markdownlint-cli2 --fix --config .github/.markdownlint-cli2.yaml '**/*.md' '#node_modules' '#packages/web/node_modules' '#.venv'
     elif npx --yes markdownlint-cli2 --help >/dev/null 2>&1; then
         echo "Formatting markdown files (via npx)..."
-        npx markdownlint-cli2 --fix --config .github/.markdownlint-cli2.yaml '**/*.md' '#node_modules' '#packages/web/node_modules'
+        npx markdownlint-cli2 --fix --config .github/.markdownlint-cli2.yaml '**/*.md' '#node_modules' '#packages/web/node_modules' '#.venv'
     else
         echo "markdownlint-cli2 not found. Install with: npm install -g markdownlint-cli2"
         exit 1

@@ -1,7 +1,11 @@
 config:
-  line-length: false
-  no-duplicate-heading: false
-  no-inline-html: false
+  line-length: false          # MD013 - not useful for docs
+  no-duplicate-heading: false # MD024 - common in changelogs, READMEs
+  no-inline-html: false       # MD033 - needed for badges, details tags
+  fenced-code-language: false  # MD040 - too strict for quick examples
+  first-line-heading: false    # MD041 - README uses HTML header
+  table-column-style: false    # MD060 - cosmetic, not worth enforcing
 ignores:
   - "node_modules/**"
   - "packages/web/node_modules/**"
+  - ".venv/**"
