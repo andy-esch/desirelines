@@ -42,7 +42,7 @@ jobs:
         uses: DavidAnson/markdownlint-cli2-action@v22
         with:
           globs: '**/*.md'
-          config: '.github/markdownlint-cli2.yaml'
+          config: '.github/.markdownlint-cli2.yaml'
 
       - name: Check Markdown links
         uses: tcort/github-action-markdown-link-check@v1
