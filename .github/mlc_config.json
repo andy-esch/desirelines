@@ -1,0 +1,9 @@
+{
+  "ignorePatterns": [
+    { "pattern": "^https://console\\." },
+    { "pattern": "^https://github\\.com/.*/blob/" }
+  ],
+  "retryOn429": true,
+  "retryCount": 3,
+  "aliveStatusCodes": [200, 206]
+}
