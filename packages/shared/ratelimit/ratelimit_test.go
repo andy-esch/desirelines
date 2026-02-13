@@ -76,9 +76,14 @@ func TestOverLimit(t *testing.T) {
 		t.Fatalf("got %d, want 429", w.Code)
 	}
 
-	// Verify Retry-After header
-	if ra := w.Header().Get("Retry-After"); ra != "1" {
-		t.Errorf("Retry-After = %q, want %q", ra, "1")
+	// Verify Retry-After header is present and reflects actual delay
+	// With rate=0.001 req/s, next token is ~1000s away
+	ra := w.Header().Get("Retry-After")
+	if ra == "" {
+		t.Error("expected Retry-After header to be set")
+	}
+	if ra != "1000" {
+		t.Errorf("Retry-After = %q, want %q", ra, "1000")
 	}
 
 	// Verify JSON error body
@@ -221,9 +226,56 @@ func TestStripPort(t *testing.T) {
 	}
 }
 
+func TestMaxClients(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	l := New(ctx, Config{
+		Rate:            10,
+		Burst:           10,
+		MaxClients:      2,
+		CleanupInterval: time.Hour,
+		TTL:             time.Hour,
+	}, gcplog.NewNoOpLogger())
+
+	handler := l.Middleware(okHandler())
+
+	// Fill the map with 2 IPs
+	for _, ip := range []string{"10.0.0.1:1000", "10.0.0.2:1000"} {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = ip
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("IP %s: got %d, want 200", ip, w.Code)
+		}
+	}
+
+	// A third unique IP should be rejected (map full)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.3:1000"
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("new IP at capacity: got %d, want 429", w.Code)
+	}
+
+	// An existing IP should still be allowed
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.1:2000"
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("existing IP at capacity: got %d, want 200", w.Code)
+	}
+}
+
 func TestConfigDefaults(t *testing.T) {
 	cfg := Config{Rate: 10, Burst: 20}
 
+	if got := cfg.maxClients(); got != defaultMaxClients {
+		t.Errorf("maxClients = %d, want %d", got, defaultMaxClients)
+	}
 	if got := cfg.cleanupInterval(); got != time.Minute {
 		t.Errorf("cleanupInterval = %v, want %v", got, time.Minute)
 	}

@@ -2,7 +2,9 @@ package ratelimit
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"sync"
@@ -12,16 +14,30 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// defaultMaxClients is the maximum number of per-IP limiters tracked concurrently.
+// This bounds memory usage to prevent OOM from IP-spoofing attacks.
+const defaultMaxClients = 10000
+
 // Config holds rate limiter settings.
 type Config struct {
 	// Rate is the number of requests allowed per second.
 	Rate float64
 	// Burst is the maximum burst size (token bucket capacity).
 	Burst int
+	// MaxClients is the maximum number of distinct IPs tracked. When full, new IPs
+	// are rejected with 429 until stale entries are cleaned up. Defaults to 10,000.
+	MaxClients int
 	// CleanupInterval is how often stale limiters are removed. Defaults to 1 minute.
 	CleanupInterval time.Duration
 	// TTL is how long an idle limiter is kept before removal. Defaults to 5 minutes.
 	TTL time.Duration
+}
+
+func (c Config) maxClients() int {
+	if c.MaxClients > 0 {
+		return c.MaxClients
+	}
+	return defaultMaxClients
 }
 
 func (c Config) cleanupInterval() time.Duration {
@@ -45,24 +61,27 @@ type entry struct {
 }
 
 // Limiter manages per-IP rate limiters with automatic stale cleanup.
+// The number of tracked IPs is bounded by MaxClients to prevent memory exhaustion.
 type Limiter struct {
-	mu      sync.Mutex
-	clients map[string]*entry
-	rate    rate.Limit
-	burst   int
-	ttl     time.Duration
-	logger  *slog.Logger
+	mu         sync.Mutex
+	clients    map[string]*entry
+	rate       rate.Limit
+	burst      int
+	maxClients int
+	ttl        time.Duration
+	logger     *slog.Logger
 }
 
 // New creates a Limiter and starts a background goroutine that removes stale entries.
 // The cleanup goroutine stops when ctx is canceled.
 func New(ctx context.Context, cfg Config, logger *slog.Logger) *Limiter {
 	l := &Limiter{
-		clients: make(map[string]*entry),
-		rate:    rate.Limit(cfg.Rate),
-		burst:   cfg.Burst,
-		ttl:     cfg.ttl(),
-		logger:  logger,
+		clients:    make(map[string]*entry),
+		rate:       rate.Limit(cfg.Rate),
+		burst:      cfg.Burst,
+		maxClients: cfg.maxClients(),
+		ttl:        cfg.ttl(),
+		logger:     logger,
 	}
 
 	go l.cleanup(ctx, cfg.cleanupInterval())
@@ -70,29 +89,57 @@ func New(ctx context.Context, cfg Config, logger *slog.Logger) *Limiter {
 }
 
 // Middleware returns chi-compatible middleware that rejects requests exceeding the rate limit.
-// It expects chiMiddleware.RealIP to have already run so that r.RemoteAddr contains the real client IP.
+// It expects gcplog.CloudRunRealIP to have already run so that r.RemoteAddr contains the real client IP.
 func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := stripPort(r.RemoteAddr)
 
 		limiter := l.getLimiter(ip)
-		if !limiter.Allow() {
-			w.Header().Set("Retry-After", "1")
+		if limiter == nil {
+			w.Header().Set("Retry-After", "60")
 			gcplog.WriteError(w, r, gcplog.ErrRateLimited, l.logger)
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		reservation := limiter.Reserve()
+		delay := reservation.Delay()
+		if delay == 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Rate limited — cancel the reservation to return the token.
+		reservation.Cancel()
+
+		var retryAfter string
+		if delay == rate.InfDuration {
+			retryAfter = "3600"
+		} else {
+			seconds := math.Ceil(delay.Seconds())
+			if seconds < 1 {
+				seconds = 1
+			}
+			retryAfter = fmt.Sprintf("%.0f", seconds)
+		}
+
+		w.Header().Set("Retry-After", retryAfter)
+		gcplog.WriteError(w, r, gcplog.ErrRateLimited, l.logger)
 	})
 }
 
 // getLimiter returns the rate limiter for the given IP, creating one if needed.
+// Returns nil if the IP is unknown and the client map is at capacity.
 func (l *Limiter) getLimiter(ip string) *rate.Limiter {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	e, ok := l.clients[ip]
 	if !ok {
+		if len(l.clients) >= l.maxClients {
+			l.logger.Warn("Rate limiter client map full, rejecting new IP",
+				"ip", ip, "max_clients", l.maxClients)
+			return nil
+		}
 		e = &entry{limiter: rate.NewLimiter(l.rate, l.burst)}
 		l.clients[ip] = e
 	}

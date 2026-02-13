@@ -49,7 +49,7 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 
 	// Essential middleware
 	r.Use(chiMiddleware.RequestID)
-	r.Use(chiMiddleware.RealIP)
+	r.Use(gcplog.CloudRunRealIP)
 	if cfg.RateLimiter != nil {
 		r.Use(cfg.RateLimiter.Middleware)
 	}

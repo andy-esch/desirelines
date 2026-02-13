@@ -80,7 +80,7 @@ func (h *Handler) RegisterRoutes() http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(chiMiddleware.RequestID)
-	r.Use(chiMiddleware.RealIP)
+	r.Use(gcplog.CloudRunRealIP)
 	if h.rateLimiter != nil {
 		r.Use(h.rateLimiter.Middleware)
 	}
