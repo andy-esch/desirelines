@@ -51,6 +51,9 @@ jobs:
           folder-path: '.'
           use-quiet-mode: 'yes'
 
+      - name: Validate OpenAPI spec
+        run: npx --yes @redocly/cli lint packages/apigateway/openapi.yaml --format=github-actions
+
       - name: Set up Just
         uses: extractions/setup-just@v3
 

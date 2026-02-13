@@ -31,3 +31,25 @@ The database stores Strava's `sport_type` as-is without validation. Filtering to
   }
 }
 ```
+
+## Consumers
+
+This file is synced to three packages via `just sync-schemas`. Each consumer depends on different fields — don't remove a field without checking all three.
+
+| Field | apigateway (Go) | stravapipe (Python) | web (TypeScript) |
+|-------|-----------------|---------------------|-------------------|
+| `strava_types` | Builds reverse lookup map for categorization | Matches incoming activities via `matches()` | — |
+| `excluded_types` | Loaded | Used in `matches()` filtering | — |
+| `display_name` | Loaded | Loaded | Sport labels in UI |
+| `primary_metric` | Returned via `GetCategory()` | Loaded | Metric selection |
+| `metrics` | Loaded | Loaded | Chart configuration |
+| `has_distance` | Returned via `GetCategory()` | Loaded | — |
+| `has_elevation` | Returned via `GetCategory()` | Loaded | — |
+
+**Note:** The apigateway also serves the entire config as raw JSON via `/sports/config`, so the web frontend receives all fields even if it only actively uses a subset.
+
+### Source files
+
+- **apigateway**: `config/sport_config.go`, `internal/config/handler.go`
+- **stravapipe**: `stravapipe/config/sport_config.py`
+- **web**: `api/activities.ts` (type definition), `utils/sportConfig.ts` (field access)

@@ -19,6 +19,10 @@ info:
 servers:
   - url: https://api-gateway-{hash}-uc.a.run.app
     description: Production (Cloud Run)
+    variables:
+      hash:
+        default: unknown
+        description: Cloud Run revision hash
   - url: http://localhost:8080
     description: Local development
 
@@ -39,6 +43,7 @@ paths:
       summary: Health check
       description: Returns service health status including database connectivity
       operationId: getHealth
+      security: []
       responses:
         '200':
           description: Service is healthy
@@ -53,6 +58,7 @@ paths:
       summary: Get sport configuration
       description: Returns sport category definitions and Strava type mappings
       operationId: getSportsConfig
+      security: []
       responses:
         '200':
           description: Sport configuration

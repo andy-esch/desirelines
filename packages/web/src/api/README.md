@@ -18,7 +18,7 @@ TypeScript API client for the Desirelines API Gateway.
 
 ### API Contract
 
-The API Gateway follows a consistent pattern (see [apigateway README](../../../packages/apigateway/README.md#response-codes)):
+The API Gateway follows a consistent pattern (see [`openapi.yaml`](../../../packages/apigateway/openapi.yaml)):
 
 - **200**: Success - empty data returns `[]` or `{}`, not 404
 - **400**: Invalid request (bad parameters)
@@ -168,4 +168,4 @@ See `activities.test.ts` for examples.
 ## Related Documentation
 
 - [API Gateway README](../../../packages/apigateway/README.md) - Backend API documentation
-- [API Gateway Response Codes](../../../packages/apigateway/README.md#response-codes) - HTTP status code contract
+- [OpenAPI Specification](../../../packages/apigateway/openapi.yaml) - Canonical API contract (endpoints, parameters, schemas)
