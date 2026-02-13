@@ -55,7 +55,7 @@ type Limiter struct {
 }
 
 // New creates a Limiter and starts a background goroutine that removes stale entries.
-// The cleanup goroutine stops when ctx is cancelled.
+// The cleanup goroutine stops when ctx is canceled.
 func New(ctx context.Context, cfg Config, logger *slog.Logger) *Limiter {
 	l := &Limiter{
 		clients: make(map[string]*entry),

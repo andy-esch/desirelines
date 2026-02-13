@@ -11,6 +11,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
+const testRemoteAddr = "1.2.3.4:1234"
+
 func newTestLimiter(ctx context.Context, rate float64, burst int) *Limiter {
 	return New(ctx, Config{
 		Rate:            rate,
@@ -35,7 +37,7 @@ func TestWithinLimit(t *testing.T) {
 
 	for i := range 10 {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.RemoteAddr = "1.2.3.4:1234"
+		req.RemoteAddr = testRemoteAddr
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -56,7 +58,7 @@ func TestOverLimit(t *testing.T) {
 	// Exhaust the burst
 	for range 2 {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.RemoteAddr = "1.2.3.4:1234"
+		req.RemoteAddr = testRemoteAddr
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -66,7 +68,7 @@ func TestOverLimit(t *testing.T) {
 
 	// This request should be rejected
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.RemoteAddr = "1.2.3.4:1234"
+	req.RemoteAddr = testRemoteAddr
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
