@@ -103,8 +103,8 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	if mode != "subscribe" {
 		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusBadRequest,
-			fmt.Sprintf("invalid hub.mode: %s", mode),
-			"Invalid hub.mode provided in verification request",
+			"invalid hub.mode",
+			fmt.Sprintf("Invalid hub.mode provided in verification request: %s", mode),
 		)
 		apiErr.Code = ErrCodeInvalidHubMode
 		gcplog.WriteError(w, r, apiErr, h.logger)

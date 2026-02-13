@@ -380,7 +380,7 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 		}
 		stravaTypes := h.sportConfig.GetStravaTypes(sport)
 		if stravaTypes == nil {
-			return nil, gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
+			return nil, gcplog.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport: %s", sport))
 		}
 		filter.SportTypes = stravaTypes
 	}
@@ -442,7 +442,7 @@ func (h *Handler) validateAndGetSportTypes(w http.ResponseWriter, r *http.Reques
 
 	stravaTypes := h.sportConfig.GetStravaTypes(sport)
 	if stravaTypes == nil {
-		err := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid sport: %s", sport))
+		err := gcplog.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport: %s", sport))
 		gcplog.WriteError(w, r, err, h.logger)
 		return nil, false
 	}
