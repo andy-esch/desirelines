@@ -356,7 +356,7 @@ export default function ActivityCalendarHeatmap({
         </div>
       </div>
 
-      <div className="glass-panel overflow-auto d-flex flex-column align-items-center">
+      <div className="glass-panel overflow-auto d-flex flex-column">
         <div
           style={{
             display: "inline-block",

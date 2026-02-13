@@ -274,7 +274,7 @@ export default function MultiSportComparisonChart({
               <ResponsiveContainer width="100%" height="100%" minWidth={50}>
                 <LineChart
                   data={unifiedChartData}
-                  margin={{ top: 8, right: 8, bottom: 4, left: 8 }}
+                  margin={{ top: 4, right: 8, bottom: 0, left: 8 }}
                 >
                   <XAxis
                     dataKey="date"
