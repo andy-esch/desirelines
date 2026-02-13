@@ -30,7 +30,7 @@ func (m *MockPublisher) Close(_ context.Context) error {
 // PublishedRawActivities returns the raw_activity JSON from each published event,
 // parsed as a map for easy assertion. Returns nil entries for events without raw_activity.
 func (m *MockPublisher) PublishedRawActivities() []map[string]any {
-	var result []map[string]any
+	result := make([]map[string]any, 0, len(m.Published))
 	for _, e := range m.Published {
 		if e.RawActivity == nil {
 			result = append(result, nil)

@@ -20,6 +20,11 @@ linters:
     - nilerr          # Find code returning nil even if it checks err != nil
     - errorlint       # Find code that will cause problems with Go 1.13+ error wrapping
     - copyloopvar     # Check for pointers to loop variables
+    - gocritic        # The most extensive checks for bugs, performance, and style
+    - staticcheck     # Catch bugs and performance issues
+    - prealloc        # Finds slice declarations that could be pre-allocated
+    - nolintlint      # clean up stale //nolint directives
+    - whitespace      # Tool for detection of leading and trailing whitespace
 
   settings:
     errcheck:
@@ -58,6 +63,16 @@ linters:
         - name: time-naming
         - name: indent-error-flow
         - name: superfluous-else
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - ifElseChain
+        - unnamedResult
+        - httpNoBody
+
 formatters:
   enable:
     - gofmt           # Check code is gofmt-ed

@@ -132,7 +132,7 @@ func (c *SecretCache) addFileToHash(h io.Writer, path string) error {
 			// so that if it appears later, the hash changes.
 			// Null-byte prefix ensures no collision with valid file content.
 			// Hash.Write never returns an error for in-memory hashes.
-			_, _ = h.Write([]byte("\x00MISSING\x00")) //nolint:errcheck
+			_, _ = h.Write([]byte("\x00MISSING\x00")) //nolint:errcheck // Hash.Write never returns error
 			return nil
 		}
 		return err

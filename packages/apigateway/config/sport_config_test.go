@@ -150,7 +150,7 @@ func TestUnsupportedVersionFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to marshal test config: %v", err)
 	}
-	err = os.WriteFile(configPath, data, 0600)
+	err = os.WriteFile(configPath, data, 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestInvalidSchemaFails(t *testing.T) {
 
 	// Missing required field: StravaTypes
 	invalidJSON := `{"version": "1.0", "sport_categories": {"cycling": {"display_name": "Cycling"}}}`
-	err := os.WriteFile(configPath, []byte(invalidJSON), 0600)
+	err := os.WriteFile(configPath, []byte(invalidJSON), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestEmptyStravaTypesFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to marshal test config: %v", err)
 	}
-	err = os.WriteFile(configPath, data, 0600)
+	err = os.WriteFile(configPath, data, 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}

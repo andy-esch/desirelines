@@ -198,7 +198,7 @@ func parseTraceparent(header, projectID string) *TraceContext {
 	flags := parts[3]
 
 	// Check if sampled (last bit of flags)
-	traceSampled := len(flags) > 0 && (flags[len(flags)-1] == '1')
+	traceSampled := flags != "" && (flags[len(flags)-1] == '1')
 
 	// Format trace ID as resource name if project ID is available
 	fullTraceID := traceID

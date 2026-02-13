@@ -44,18 +44,23 @@ func main() {
 	log := gcplog.NewWithLevel(config.ParseLogLevel())
 	log.Info("Starting dispatcher service")
 
+	if err := run(log); err != nil {
+		log.Error("Application failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run(log *slog.Logger) error {
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Error("Failed to load config", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	// Initialize all dependencies
 	deps, err := initDependencies(cfg, log)
 	if err != nil {
-		log.Error("Failed to initialize dependencies", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to initialize dependencies: %w", err)
 	}
 	defer deps.Close()
 
@@ -75,32 +80,35 @@ func main() {
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 	}
 
-	// Setup graceful shutdown
-	done := make(chan struct{})
+	// Error channel to capture server errors
+	serverErrors := make(chan error, 1)
+	// Signal channel for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
 	go func() {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-		<-sigChan
-
-		log.Info("Shutting down gracefully...")
-
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-
-		if shutdownErr := server.Shutdown(shutdownCtx); shutdownErr != nil {
-			log.Error("Server shutdown error", "error", shutdownErr)
+		if serverErr := server.ListenAndServe(); serverErr != nil && serverErr != http.ErrServerClosed {
+			serverErrors <- fmt.Errorf("server error: %w", serverErr)
 		}
-
-		log.Info("Shutdown complete")
-		close(done)
 	}()
 
-	if serverErr := server.ListenAndServe(); serverErr != nil && serverErr != http.ErrServerClosed {
-		log.Error("Server error", "error", serverErr)
-		os.Exit(1)
+	// Block until signal or error
+	select {
+	case srvErr := <-serverErrors:
+		return srvErr
+	case <-sigChan:
+		log.Info("Shutting down gracefully...")
 	}
 
-	<-done
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	if shutdownErr := server.Shutdown(shutdownCtx); shutdownErr != nil {
+		return fmt.Errorf("server shutdown error: %w", shutdownErr)
+	}
+
+	log.Info("Shutdown complete")
+	return nil
 }
 
 // Dependencies holds all initialized dependencies for the dispatcher.

@@ -711,12 +711,12 @@ func TestHandlerListActivities(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		activities, ok := response["activities"].([]interface{})
+		activityList, ok := response["activities"].([]interface{})
 		if !ok {
 			t.Fatal("expected activities to be an array")
 		}
-		if len(activities) != 1 {
-			t.Errorf("expected 1 activity, got %d", len(activities))
+		if len(activityList) != 1 {
+			t.Errorf("expected 1 activity, got %d", len(activityList))
 		}
 	})
 

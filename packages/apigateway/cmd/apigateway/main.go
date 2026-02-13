@@ -45,13 +45,20 @@ func main() {
 	log := gcplog.New()
 	log.Info("Starting API Gateway")
 
+	if err := run(log); err != nil {
+		log.Error("Application failed", "error", err)
+		os.Exit(1)
+	}
+	log.Info("Server exited gracefully")
+}
+
+func run(log *slog.Logger) error {
 	ctx := context.Background()
 
 	// Initialize all dependencies
 	deps, err := initDependencies(ctx, log)
 	if err != nil {
-		log.Error("Failed to initialize dependencies", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to initialize dependencies: %w", err)
 	}
 	defer deps.Close()
 
@@ -72,18 +79,24 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
+	// Error channel to capture server errors
+	serverErrors := make(chan error, 1)
+
 	// Start server in goroutine to allow graceful shutdown
 	go func() {
 		log.Info("Server listening", "port", port)
 		if serverErr := srv.ListenAndServe(); serverErr != nil && serverErr != http.ErrServerClosed {
-			log.Error("Server failed", "error", serverErr)
-			quit <- syscall.SIGTERM
+			serverErrors <- fmt.Errorf("server failed: %w", serverErr)
 		}
 	}()
 
-	<-quit
-
-	log.Info("Shutting down server...")
+	// Block until signal or error
+	select {
+	case srvErr := <-serverErrors:
+		return srvErr
+	case <-quit:
+		log.Info("Shutting down server...")
+	}
 
 	// Give server time to finish in-flight requests
 	shutdownTimeout := getDurationEnv("SERVER_SHUTDOWN_TIMEOUT", defaultShutdownTimeout)
@@ -91,11 +104,10 @@ func main() {
 	defer cancel()
 
 	if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
-		log.Error("Server forced to shutdown", "error", shutdownErr)
-		os.Exit(1)
+		return fmt.Errorf("server forced to shutdown: %w", shutdownErr)
 	}
 
-	log.Info("Server exited gracefully")
+	return nil
 }
 
 // Dependencies holds all initialized dependencies for the application.
