@@ -198,140 +198,142 @@ export default function RecentActivitiesList({
 
   return (
     <div ref={containerRef} className="d-flex h-100">
-      {/* Activities table */}
-      <table
-        className="table table-sm table-borderless table-dark-transparent mb-0 flex-grow-1"
-        style={{ fontSize: "0.8rem", lineHeight: 1.2, tableLayout: "fixed" }}
-      >
-        <colgroup>
-          <col />
-          <col style={{ width: 70 }} />
-          <col style={{ width: 80 }} />
-          <col style={{ width: 70 }} />
-          <col style={{ width: 55 }} />
-          <col style={{ width: 58 }} />
-        </colgroup>
-        <thead>
-          <tr style={{ height: HEADER_HEIGHT }}>
-            <th
-              className="text-start ps-0 pe-2 py-0 text-muted fw-normal align-middle"
-              style={{ fontSize: "0.7rem" }}
-            >
-              Name
-            </th>
-            <th
-              className="text-start px-1 py-0 text-muted fw-normal align-middle"
-              style={{ fontSize: "0.7rem" }}
-            >
-              Sport
-            </th>
-            <th
-              className="text-end px-1 py-0 text-muted fw-normal align-middle"
-              style={{ fontSize: "0.7rem" }}
-            >
-              Goal Impact
-            </th>
-            <th
-              className="text-end px-1 py-0 text-muted fw-normal align-middle"
-              style={{ fontSize: "0.7rem" }}
-            >
-              Distance
-            </th>
-            <th
-              className="text-end px-1 py-0 text-muted fw-normal align-middle"
-              style={{ fontSize: "0.7rem" }}
-            >
-              Time
-            </th>
-            <th
-              className="text-end ps-1 pe-0 py-0 text-muted fw-normal align-middle"
-              style={{ fontSize: "0.7rem" }}
-            >
-              Date
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {visibleActivities.map((activity) => {
-            const goal = goalLookup[activity.sport];
-            let impactPct: number | null = null;
-            let impactTooltip = "";
-            if (goal?.impactGoal) {
-              if (goal.isDistanceSport) {
-                const displayDist = convertDistance(activity.distanceMeters, distanceUnit);
-                impactPct = (displayDist / goal.impactGoal) * 100;
-              } else {
-                impactPct = (1 / goal.impactGoal) * 100;
+      {/* Activities table — horizontally scrollable on narrow viewports */}
+      <div className="flex-grow-1" style={{ overflowX: "auto", minWidth: 0 }}>
+        <table
+          className="table table-sm table-borderless table-dark-transparent mb-0"
+          style={{ fontSize: "0.8rem", lineHeight: 1.2, tableLayout: "fixed", minWidth: 420 }}
+        >
+          <colgroup>
+            <col />
+            <col style={{ width: 70 }} />
+            <col style={{ width: 80 }} />
+            <col style={{ width: 70 }} />
+            <col style={{ width: 55 }} />
+            <col style={{ width: 58 }} />
+          </colgroup>
+          <thead>
+            <tr style={{ height: HEADER_HEIGHT }}>
+              <th
+                className="text-start ps-0 pe-2 py-0 text-muted fw-normal align-middle"
+                style={{ fontSize: "0.7rem" }}
+              >
+                Name
+              </th>
+              <th
+                className="text-start px-1 py-0 text-muted fw-normal align-middle"
+                style={{ fontSize: "0.7rem" }}
+              >
+                Sport
+              </th>
+              <th
+                className="text-end px-1 py-0 text-muted fw-normal align-middle"
+                style={{ fontSize: "0.7rem" }}
+              >
+                Goal Impact
+              </th>
+              <th
+                className="text-end px-1 py-0 text-muted fw-normal align-middle"
+                style={{ fontSize: "0.7rem" }}
+              >
+                Distance
+              </th>
+              <th
+                className="text-end px-1 py-0 text-muted fw-normal align-middle"
+                style={{ fontSize: "0.7rem" }}
+              >
+                Time
+              </th>
+              <th
+                className="text-end ps-1 pe-0 py-0 text-muted fw-normal align-middle"
+                style={{ fontSize: "0.7rem" }}
+              >
+                Date
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleActivities.map((activity) => {
+              const goal = goalLookup[activity.sport];
+              let impactPct: number | null = null;
+              let impactTooltip = "";
+              if (goal?.impactGoal) {
+                if (goal.isDistanceSport) {
+                  const displayDist = convertDistance(activity.distanceMeters, distanceUnit);
+                  impactPct = (displayDist / goal.impactGoal) * 100;
+                } else {
+                  impactPct = (1 / goal.impactGoal) * 100;
+                }
+                const goalLabel = goal.impactGoalLabel ? `${goal.impactGoalLabel} goal` : "goal";
+                impactTooltip = `vs. ${Math.round(goal.impactGoal).toLocaleString()} ${goal.metricUnit} ${goalLabel}`;
               }
-              const goalLabel = goal.impactGoalLabel ? `${goal.impactGoalLabel} goal` : "goal";
-              impactTooltip = `vs. ${Math.round(goal.impactGoal).toLocaleString()} ${goal.metricUnit} ${goalLabel}`;
-            }
-            return (
-              <tr key={activity.id} style={{ height: ROW_HEIGHT }}>
-                <td
-                  className="text-start ps-0 pe-2 py-0 align-middle"
-                  style={{
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: 140,
-                  }}
-                >
-                  {user ? (
-                    <a
-                      href={`https://www.strava.com/activities/${activity.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-decoration-none"
-                    >
-                      {activity.name}
-                    </a>
-                  ) : (
-                    <span title="Links disabled in demo mode">{activity.name}</span>
-                  )}
-                </td>
-                <td
-                  className="text-muted text-start px-1 py-0 align-middle"
-                  style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}
-                >
-                  {activity.sport}
-                </td>
-                <td
-                  className={`${impactPct == null ? "text-muted " : ""}text-end px-1 py-0 align-middle`}
-                  style={{
-                    whiteSpace: "nowrap",
-                    fontSize: "0.75rem",
-                    ...getImpactStyle(impactPct),
-                  }}
-                  title={impactTooltip}
-                >
-                  {formatImpactPct(impactPct)}
-                </td>
-                <td
-                  className="text-muted text-end px-1 py-0 align-middle"
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  {activity.distanceMeters
-                    ? formatDistance(activity.distanceMeters, distanceUnit)
-                    : ""}
-                </td>
-                <td
-                  className="text-muted text-end px-1 py-0 align-middle"
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  {formatDuration(activity.movingTimeSeconds)}
-                </td>
-                <td
-                  className="text-muted text-end ps-1 pe-0 py-0 align-middle"
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  {formatActivityDate(activity.startDateLocal)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+              return (
+                <tr key={activity.id} style={{ height: ROW_HEIGHT }}>
+                  <td
+                    className="text-start ps-0 pe-2 py-0 align-middle"
+                    style={{
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: 140,
+                    }}
+                  >
+                    {user ? (
+                      <a
+                        href={`https://www.strava.com/activities/${activity.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-decoration-none"
+                      >
+                        {activity.name}
+                      </a>
+                    ) : (
+                      <span title="Links disabled in demo mode">{activity.name}</span>
+                    )}
+                  </td>
+                  <td
+                    className="text-muted text-start px-1 py-0 align-middle"
+                    style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}
+                  >
+                    {activity.sport}
+                  </td>
+                  <td
+                    className={`${impactPct == null ? "text-muted " : ""}text-end px-1 py-0 align-middle`}
+                    style={{
+                      whiteSpace: "nowrap",
+                      fontSize: "0.75rem",
+                      ...getImpactStyle(impactPct),
+                    }}
+                    title={impactTooltip}
+                  >
+                    {formatImpactPct(impactPct)}
+                  </td>
+                  <td
+                    className="text-muted text-end px-1 py-0 align-middle"
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    {activity.distanceMeters
+                      ? formatDistance(activity.distanceMeters, distanceUnit)
+                      : ""}
+                  </td>
+                  <td
+                    className="text-muted text-end px-1 py-0 align-middle"
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    {formatDuration(activity.movingTimeSeconds)}
+                  </td>
+                  <td
+                    className="text-muted text-end ps-1 pe-0 py-0 align-middle"
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    {formatActivityDate(activity.startDateLocal)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {/* Pagination controls - vertically centered */}
       <div

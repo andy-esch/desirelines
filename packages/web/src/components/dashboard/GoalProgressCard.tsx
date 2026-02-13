@@ -92,12 +92,12 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
     yearContext
   );
 
-  // Format delta text: "+123 mi Ahead" or "-45 mi Behind"
+  // Natural phrasing: "43.3 mi ahead" / "On track" / "10.8 mi behind"
   let statusDisplay = status;
-  if (delta !== null) {
-    const sign = delta >= 0 ? "+" : "";
+  if (delta !== null && status !== "On Track") {
     const formatted = formatMetricDisplayValue(Math.abs(delta), sport.isDistanceSport);
-    statusDisplay = `${sign}${formatted} ${sport.metricUnit} ${status}`;
+    const direction = delta >= 0 ? "ahead" : "behind";
+    statusDisplay = `${formatted} ${sport.metricUnit} ${direction}`;
   }
 
   return (
