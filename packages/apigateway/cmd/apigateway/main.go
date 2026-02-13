@@ -29,6 +29,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 )
 
 // Server timeout defaults (can be overridden via environment variables).
@@ -103,6 +104,7 @@ type Dependencies struct {
 	authMiddleware server.AuthMiddleware
 	corsHandler    *cors.Handler
 	sportConfig    *config.SportConfig
+	rateLimiter    *ratelimit.Limiter
 	logger         *slog.Logger
 }
 
@@ -142,7 +144,13 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	}
 	deps.authMiddleware = authMiddleware
 
-	// 4. Initialize PostgreSQL repository (required dependency)
+	// 4. Initialize rate limiter (10 req/s, burst 20 — generous for normal browsing)
+	deps.rateLimiter = ratelimit.New(ctx, ratelimit.Config{
+		Rate:  10,
+		Burst: 20,
+	}, log)
+
+	// 5. Initialize PostgreSQL repository (required dependency)
 	connString, err := getConnectionString()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection string: %w", err)
@@ -169,6 +177,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 	routerCfg := server.RouterConfig{
 		CORSHandler:    deps.corsHandler,
 		AuthMiddleware: deps.authMiddleware,
+		RateLimiter:    deps.rateLimiter,
 	}
 
 	publicRoutes := server.PublicRoutes{

@@ -15,6 +15,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -44,12 +45,14 @@ type Handler struct {
 	publisher          ports.Publisher
 	stravaClient       ports.StravaClient
 	logger             *slog.Logger
+	rateLimiter        *ratelimit.Limiter
 	maxRequestBodySize int64
 }
 
 // HandlerConfig holds configuration for the HTTP handler.
 type HandlerConfig struct {
 	MaxRequestBodySize int64
+	RateLimiter        *ratelimit.Limiter
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
@@ -58,11 +61,16 @@ func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, 
 	if cfg != nil && cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
 	}
+	var rateLimiter *ratelimit.Limiter
+	if cfg != nil {
+		rateLimiter = cfg.RateLimiter
+	}
 	return &Handler{
 		secretProvider:     secretProvider,
 		publisher:          publisher,
 		stravaClient:       stravaClient,
 		logger:             logger,
+		rateLimiter:        rateLimiter,
 		maxRequestBodySize: maxBodySize,
 	}
 }
@@ -73,6 +81,9 @@ func (h *Handler) RegisterRoutes() http.Handler {
 
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
+	if h.rateLimiter != nil {
+		r.Use(h.rateLimiter.Middleware)
+	}
 	r.Use(gcplog.WithCloudTraceContext)
 	r.Use(gcplog.HTTPRequestLogger(h.logger))
 	r.Use(chiMiddleware.Recoverer)

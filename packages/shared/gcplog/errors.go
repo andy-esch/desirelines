@@ -80,6 +80,12 @@ var (
 		Message: "Access denied",
 		Code:    "FORBIDDEN",
 	}
+
+	ErrRateLimited = APIError{
+		Status:  http.StatusTooManyRequests,
+		Message: "Rate limit exceeded",
+		Code:    "RATE_LIMITED",
+	}
 )
 
 // NewAPIError creates a new API error with custom message.
