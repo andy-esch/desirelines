@@ -488,6 +488,22 @@ resource "google_secret_manager_secret" "postgres_conn_flyway" {
   }
 }
 
+# Allowed emails for API Gateway authentication
+resource "google_secret_manager_secret" "allowed_emails" {
+  secret_id = "INFISICAL_ALLOWED_EMAILS"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    environment = var.environment
+    purpose     = "allowed-emails"
+    managed_by  = "infisical"
+  }
+}
+
 # API Gateway connection (read-only access)
 resource "google_secret_manager_secret" "postgres_conn_apigateway" {
   secret_id = "INFISICAL_POSTGRES_CONN_APIGATEWAY"
@@ -540,6 +556,14 @@ resource "google_secret_manager_secret" "postgres_conn_reader" {
 # PostgreSQL Secret IAM Permissions
 # ==============================================================================
 # Each service has its own secret with least-privilege database role
+
+# API Gateway access to allowed emails secret
+resource "google_secret_manager_secret_iam_member" "api_gateway_allowed_emails_access" {
+  project   = var.gcp_project_id
+  secret_id = google_secret_manager_secret.allowed_emails.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.api_gateway.email}"
+}
 
 # API Gateway access to its read-only PostgreSQL connection string
 resource "google_secret_manager_secret_iam_member" "api_gateway_postgres_access" {

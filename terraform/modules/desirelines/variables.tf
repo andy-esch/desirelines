@@ -101,11 +101,9 @@ variable "infisical_project_id" {
 variable "app_config" {
   description = "Application configuration values from Infisical"
   type = object({
-    log_level      = string
-    allowed_emails = string
+    log_level = string
   })
   default = {
-    log_level      = "INFO"
-    allowed_emails = ""
+    log_level = "INFO"
   }
 }

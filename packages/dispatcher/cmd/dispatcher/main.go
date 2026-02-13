@@ -23,6 +23,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 )
 
 const (
@@ -136,8 +137,17 @@ func initDependencies(cfg *config.Config, log *slog.Logger) (*Dependencies, erro
 		return nil, fmt.Errorf("strava client: %w", err)
 	}
 
+	// Rate limiter: 5 req/s, burst 10 (Strava sends a few events/day normally)
+	// Uses Background context (not startupCtx) because the cleanup goroutine must
+	// run for the lifetime of the process — startupCtx is canceled after 10s.
+	rateLimiter := ratelimit.New(context.Background(), ratelimit.Config{
+		Rate:  5,
+		Burst: 10,
+	}, log)
+
 	handler := httpadapter.NewHandler(publisher, secretProvider, stravaClient, log, &httpadapter.HandlerConfig{
 		MaxRequestBodySize: cfg.MaxRequestBodySize,
+		RateLimiter:        rateLimiter,
 	})
 
 	return &Dependencies{

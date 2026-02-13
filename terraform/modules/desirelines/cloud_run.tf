@@ -169,19 +169,33 @@ resource "google_cloud_run_v2_service" "api_gateway" {
       }
 
       env {
-        name  = "ALLOWED_EMAILS"
-        value = var.app_config.allowed_emails
-      }
-
-      env {
         name  = "DATA_SOURCE"
         value = "cloud-storage"
+      }
+
+      # Mount allowed emails as secret volume (PII - not exposed as env var)
+      volume_mounts {
+        name       = "infisical-allowed-emails"
+        mount_path = "/etc/secrets/INFISICAL_ALLOWED_EMAILS"
       }
 
       # Mount PostgreSQL secrets as volume (read-only apigateway role)
       volume_mounts {
         name       = "infisical-postgres-conn-apigateway"
         mount_path = "/etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY"
+      }
+    }
+
+    volumes {
+      name = "infisical-allowed-emails"
+      secret {
+        secret       = google_secret_manager_secret.allowed_emails.secret_id
+        default_mode = 292 # 0444 in octal (read-only)
+        items {
+          version = "latest"
+          path    = "value"
+          mode    = 292 # 0444
+        }
       }
     }
 
@@ -207,6 +221,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
   }
 
   depends_on = [
+    google_secret_manager_secret_iam_member.api_gateway_allowed_emails_access,
     google_secret_manager_secret_iam_member.api_gateway_postgres_access
   ]
 }

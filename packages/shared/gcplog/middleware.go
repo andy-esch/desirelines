@@ -213,6 +213,28 @@ func parseTraceparent(header, projectID string) *TraceContext {
 	}
 }
 
+// CloudRunRealIP is middleware that sets r.RemoteAddr to the real client IP.
+//
+// On Cloud Run (behind Google Front End / GCLB), Google's infrastructure appends the
+// real client IP to the end of X-Forwarded-For. An attacker can prepend arbitrary IPs,
+// so we must use the rightmost (last) entry — the one added by trusted infrastructure.
+//
+// This replaces chiMiddleware.RealIP which trusts the leftmost IP and is therefore
+// vulnerable to spoofing behind reverse proxies that append.
+func CloudRunRealIP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// X-Forwarded-For: <client-supplied>, ..., <real-client-ip>
+			// Take the rightmost entry (added by Google's infrastructure).
+			parts := strings.Split(xff, ",")
+			if ip := strings.TrimSpace(parts[len(parts)-1]); ip != "" {
+				r.RemoteAddr = ip
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // formatLatency formats a duration as a string suitable for GCP's latency field.
 // GCP expects format like "0.123s" or "1.5s".
 func formatLatency(d time.Duration) string {

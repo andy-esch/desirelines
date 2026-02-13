@@ -29,6 +29,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 )
 
 // Server timeout defaults (can be overridden via environment variables).
@@ -103,6 +104,7 @@ type Dependencies struct {
 	authMiddleware server.AuthMiddleware
 	corsHandler    *cors.Handler
 	sportConfig    *config.SportConfig
+	rateLimiter    *ratelimit.Limiter
 	logger         *slog.Logger
 }
 
@@ -142,7 +144,13 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	}
 	deps.authMiddleware = authMiddleware
 
-	// 4. Initialize PostgreSQL repository (required dependency)
+	// 4. Initialize rate limiter (10 req/s, burst 20 — generous for normal browsing)
+	deps.rateLimiter = ratelimit.New(ctx, ratelimit.Config{
+		Rate:  10,
+		Burst: 20,
+	}, log)
+
+	// 5. Initialize PostgreSQL repository (required dependency)
 	connString, err := getConnectionString()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection string: %w", err)
@@ -169,6 +177,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 	routerCfg := server.RouterConfig{
 		CORSHandler:    deps.corsHandler,
 		AuthMiddleware: deps.authMiddleware,
+		RateLimiter:    deps.rateLimiter,
 	}
 
 	publicRoutes := server.PublicRoutes{
@@ -211,8 +220,15 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 	return defaultValue
 }
 
-// getAllowedEmails reads allowed emails from environment variable.
+// getAllowedEmails reads allowed emails from secret mount (Cloud Run) or environment variable (local dev).
 func getAllowedEmails() []string {
+	// Try secret mount first (Cloud Run) - Infisical-managed secrets use INFISICAL_ prefix
+	const secretPath = "/etc/secrets/INFISICAL_ALLOWED_EMAILS/value" //nolint:gosec // G101: Not credentials, just a file path
+	if data, err := os.ReadFile(secretPath); err == nil {
+		return parseCommaSeparated(strings.TrimSpace(string(data)))
+	}
+
+	// Fallback to env var (local dev)
 	return parseCommaSeparatedEnv("ALLOWED_EMAILS")
 }
 
@@ -223,7 +239,11 @@ func parseCommaSeparatedEnv(key string) []string {
 	if value == "" {
 		return nil
 	}
+	return parseCommaSeparated(value)
+}
 
+// parseCommaSeparated splits a comma-separated string, trimming whitespace and filtering empty values.
+func parseCommaSeparated(value string) []string {
 	var result []string
 	for _, item := range strings.Split(value, ",") {
 		if trimmed := strings.TrimSpace(item); trimmed != "" {
@@ -233,18 +253,20 @@ func parseCommaSeparatedEnv(key string) []string {
 	return result
 }
 
-// getConnectionString reads PostgreSQL connection string from secret mount or environment variable.
+// getConnectionString reads PostgreSQL connection string from secret mount.
+// In local development (no ENVIRONMENT set), falls back to POSTGRES_CONNECTION_STRING env var.
 func getConnectionString() (string, error) {
-	// Try secret mount first (Cloud Run) - Infisical-managed secrets use INFISICAL_ prefix
 	const secretPath = "/etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY/value" //nolint:gosec // G101: Not credentials, just a file path
 	if data, err := os.ReadFile(secretPath); err == nil {
 		return strings.TrimSpace(string(data)), nil
 	}
 
-	// Fallback to env var (local dev)
-	if connStr := os.Getenv("POSTGRES_CONNECTION_STRING"); connStr != "" {
-		return connStr, nil
+	// Only allow env var fallback in local development (ENVIRONMENT is always set in Cloud Run)
+	if os.Getenv("ENVIRONMENT") == "" {
+		if connStr := os.Getenv("POSTGRES_CONNECTION_STRING"); connStr != "" {
+			return connStr, nil
+		}
 	}
 
-	return "", fmt.Errorf("no connection string found (checked %s and POSTGRES_CONNECTION_STRING)", secretPath)
+	return "", fmt.Errorf("failed to read connection string from %s", secretPath)
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -24,6 +25,7 @@ type AuthMiddleware interface {
 type RouterConfig struct {
 	CORSHandler    *cors.Handler
 	AuthMiddleware AuthMiddleware
+	RateLimiter    *ratelimit.Limiter
 }
 
 // PublicRoutes are registered without authentication.
@@ -47,7 +49,10 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 
 	// Essential middleware
 	r.Use(chiMiddleware.RequestID)
-	r.Use(chiMiddleware.RealIP)
+	r.Use(gcplog.CloudRunRealIP)
+	if cfg.RateLimiter != nil {
+		r.Use(cfg.RateLimiter.Middleware)
+	}
 	r.Use(gcplog.WithCloudTraceContext)
 	r.Use(gcplog.HTTPRequestLogger(logger))
 	r.Use(chiMiddleware.Recoverer)

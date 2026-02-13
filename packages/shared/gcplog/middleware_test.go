@@ -357,6 +357,68 @@ func TestGetTraceContext_NilContext(t *testing.T) {
 	}
 }
 
+func TestCloudRunRealIP(t *testing.T) {
+	tests := []struct {
+		name         string
+		xff          string
+		initialAddr  string
+		expectedAddr string
+	}{
+		{
+			name:         "single IP in XFF",
+			xff:          "203.0.113.50",
+			initialAddr:  "10.0.0.1:1234",
+			expectedAddr: "203.0.113.50",
+		},
+		{
+			name:         "attacker-prepended IP uses rightmost",
+			xff:          "1.1.1.1, 203.0.113.50",
+			initialAddr:  "10.0.0.1:1234",
+			expectedAddr: "203.0.113.50",
+		},
+		{
+			name:         "multiple spoofed IPs uses rightmost",
+			xff:          "9.9.9.9, 8.8.8.8, 203.0.113.50",
+			initialAddr:  "10.0.0.1:1234",
+			expectedAddr: "203.0.113.50",
+		},
+		{
+			name:         "no XFF preserves RemoteAddr",
+			xff:          "",
+			initialAddr:  "10.0.0.1:1234",
+			expectedAddr: "10.0.0.1:1234",
+		},
+		{
+			name:         "whitespace is trimmed",
+			xff:          "1.1.1.1,  203.0.113.50 ",
+			initialAddr:  "10.0.0.1:1234",
+			expectedAddr: "203.0.113.50",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedAddr string
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedAddr = r.RemoteAddr
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.RemoteAddr = tt.initialAddr
+			if tt.xff != "" {
+				req.Header.Set("X-Forwarded-For", tt.xff)
+			}
+			w := httptest.NewRecorder()
+
+			CloudRunRealIP(next).ServeHTTP(w, req)
+
+			if capturedAddr != tt.expectedAddr {
+				t.Errorf("RemoteAddr = %q, want %q", capturedAddr, tt.expectedAddr)
+			}
+		})
+	}
+}
+
 func TestHTTPRequestLogger_IncludesTraceContext(t *testing.T) {
 	logger, handler := NewCaptureLogger()
 
