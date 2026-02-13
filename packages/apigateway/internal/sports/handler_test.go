@@ -51,7 +51,7 @@ func TestHandler_HandleConfig(t *testing.T) {
 		}
 	})
 
-	if _, writeErr := tmpFile.Write([]byte(validConfigJSON)); writeErr != nil {
+	if _, writeErr := tmpFile.WriteString(validConfigJSON); writeErr != nil {
 		t.Fatalf("Failed to write config: %v", writeErr)
 	}
 	if closeErr := tmpFile.Close(); closeErr != nil {

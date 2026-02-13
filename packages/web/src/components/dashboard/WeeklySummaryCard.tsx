@@ -28,10 +28,16 @@ export default function WeeklySummaryCard() {
 
   // Aggregate totals by type for footer
   const distanceSports = sportTotals.filter((s) => s.isDistanceSport && s.weeklyTotal > 0);
-  const sessionsSports = sportTotals.filter((s) => !s.isDistanceSport && s.weeklyTotal > 0);
+  const timeSports = sportTotals.filter(
+    (s) => !s.isDistanceSport && s.metricUnit === "hrs" && s.weeklyTotal > 0
+  );
+  const sessionSports = sportTotals.filter(
+    (s) => !s.isDistanceSport && s.metricUnit !== "hrs" && s.weeklyTotal > 0
+  );
 
   const totalDistance = distanceSports.reduce((sum, s) => sum + s.weeklyTotal, 0);
-  const totalSessions = sessionsSports.reduce((sum, s) => sum + s.weeklyTotal, 0);
+  const totalTime = timeSports.reduce((sum, s) => sum + s.weeklyTotal, 0);
+  const totalSessions = sessionSports.reduce((sum, s) => sum + s.weeklyTotal, 0);
   const distanceUnit = distanceSports[0]?.metricUnit ?? "mi";
 
   return (
@@ -117,10 +123,12 @@ export default function WeeklySummaryCard() {
                   {formatMetricDisplayValue(totalDistance, true)} {distanceUnit}
                 </span>
               )}
-              {totalDistance > 0 && totalSessions > 0 && ", "}
+              {totalDistance > 0 && (totalTime > 0 || totalSessions > 0) && ", "}
+              {totalTime > 0 && <span>{totalTime.toFixed(1)} hrs</span>}
+              {totalTime > 0 && totalSessions > 0 && ", "}
               {totalSessions > 0 && (
                 <span>
-                  {totalSessions} session{totalSessions !== 1 ? "s" : ""}
+                  {Math.round(totalSessions)} session{Math.round(totalSessions) !== 1 ? "s" : ""}
                 </span>
               )}
             </small>

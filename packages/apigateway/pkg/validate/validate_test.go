@@ -169,8 +169,8 @@ func TestDateRangeErrorMessages(t *testing.T) {
 
 // contains checks if s contains substr (simple substring check)
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && len(substr) > 0 && searchSubstring(s, substr)))
+	return len(s) >= len(substr) && (s == substr || substr == "" ||
+		(s != "" && substr != "" && searchSubstring(s, substr)))
 }
 
 func searchSubstring(s, substr string) bool {

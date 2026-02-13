@@ -322,7 +322,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runHandleEventTest(t, tt)
+			runHandleEventTest(t, &tt)
 		})
 	}
 }
@@ -342,7 +342,7 @@ type handleEventTestCase struct {
 	expectedBody   string
 }
 
-func runHandleEventTest(t *testing.T, tt handleEventTestCase) {
+func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 	log := gcplog.NewNoOpLogger()
 	mockSecrets := &portstest.MockSecretProvider{
 		SubscriptionID: tt.mockSubID,
@@ -451,7 +451,7 @@ func TestHandler_EnrichmentBehavior_Create(t *testing.T) {
 	if enriched.RawActivity == nil {
 		t.Fatal("expected raw_activity to be set for CREATE event")
 	}
-	if string(enriched.RawActivity) != string(rawActivity) {
+	if !bytes.Equal(enriched.RawActivity, rawActivity) {
 		t.Errorf("raw_activity = %s, want %s", string(enriched.RawActivity), string(rawActivity))
 	}
 

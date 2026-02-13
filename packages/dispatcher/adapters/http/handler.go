@@ -122,7 +122,7 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(challenge) == 0 || len(challenge) > maxChallengeLength {
+	if challenge == "" || len(challenge) > maxChallengeLength {
 		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid hub.challenge")
 		apiErr.Code = ErrCodeInvalidChallenge
 		gcplog.WriteError(w, r, apiErr, h.logger)
