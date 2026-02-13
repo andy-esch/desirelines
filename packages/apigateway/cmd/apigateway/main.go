@@ -211,8 +211,15 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 	return defaultValue
 }
 
-// getAllowedEmails reads allowed emails from environment variable.
+// getAllowedEmails reads allowed emails from secret mount (Cloud Run) or environment variable (local dev).
 func getAllowedEmails() []string {
+	// Try secret mount first (Cloud Run) - Infisical-managed secrets use INFISICAL_ prefix
+	const secretPath = "/etc/secrets/INFISICAL_ALLOWED_EMAILS/value" //nolint:gosec // G101: Not credentials, just a file path
+	if data, err := os.ReadFile(secretPath); err == nil {
+		return parseCommaSeparated(strings.TrimSpace(string(data)))
+	}
+
+	// Fallback to env var (local dev)
 	return parseCommaSeparatedEnv("ALLOWED_EMAILS")
 }
 
@@ -223,7 +230,11 @@ func parseCommaSeparatedEnv(key string) []string {
 	if value == "" {
 		return nil
 	}
+	return parseCommaSeparated(value)
+}
 
+// parseCommaSeparated splits a comma-separated string, trimming whitespace and filtering empty values.
+func parseCommaSeparated(value string) []string {
 	var result []string
 	for _, item := range strings.Split(value, ",") {
 		if trimmed := strings.TrimSpace(item); trimmed != "" {
