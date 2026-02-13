@@ -33,7 +33,7 @@ func (h *LogCaptureHandler) Enabled(_ context.Context, _ slog.Level) bool {
 }
 
 // Handle stores the log record.
-func (h *LogCaptureHandler) Handle(_ context.Context, r slog.Record) error {
+func (h *LogCaptureHandler) Handle(_ context.Context, r slog.Record) error { //nolint:gocritic // hugeParam: slog.Handler interface requires value receiver
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
