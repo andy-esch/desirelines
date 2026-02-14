@@ -8,6 +8,11 @@ vi.mock("../hooks/useAuth", () => ({
   useAuth: vi.fn(),
 }));
 
+// Mock useUserConfig hook (used by useMultiSportChartData for distance unit preference)
+vi.mock("../hooks/useUserConfig", () => ({
+  useUserConfig: vi.fn(() => ({ data: null, isLoading: false, error: null })),
+}));
+
 // Mock useDailySportData hook (used by MultiSportComparisonChart and ActivityCalendarHeatmap)
 vi.mock("../hooks/useDailySportData", () => ({
   useDailySportData: vi.fn(() => ({

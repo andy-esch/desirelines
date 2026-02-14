@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useDailySportData } from "../hooks/useDailySportData";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useSportConfig } from "../hooks/useSportConfig";
+import { useUserConfig } from "../hooks/useUserConfig";
 import type { TimeRange } from "../utils/dataNormalization";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import {
@@ -12,12 +13,15 @@ import {
 } from "../utils/sportConfig";
 import { toDailyArray, normalizeToRange, getTimeRangeCutoff } from "../utils/chartUtils";
 import { toLocalDateString } from "../utils/dateUtils";
+import { getUserSettings } from "../utils/units";
 
 const SPARKLINE_ROW_HEIGHT = 36;
 const SPARKLINE_XAXIS_HEIGHT = 12;
 const SPARKLINE_PADDING = 16;
 const MIN_SPORTS_FOR_HEIGHT = 3;
 const MAX_SPORTS_DISPLAY = 8;
+/** Midpoint value used for days with no activity in normalized (0-1) sparkline display */
+const NORMALIZED_BASELINE = 0.5;
 
 /**
  * NEON spectrum colors for sparklines (top to bottom).
@@ -48,56 +52,42 @@ function interpolateColor(
 }
 
 /**
- * Generate a NEON spectrum color based on position.
- * Interpolates through: Magenta -> Cyan -> Green -> Yellow -> Orange (top to bottom)
- *
- * @param index - Position in the list (0 = top)
- * @param total - Total number of items
- * @returns RGB color string
+ * Get the interpolated RGB color at a position in the NEON spectrum.
  */
-export function getSpectrumColor(index: number, total: number): string {
-  if (total <= 1) {
-    const c = SPARKLINE_SPECTRUM[0];
-    return `rgb(${c.r}, ${c.g}, ${c.b})`;
-  }
+function getInterpolatedSpectrumColor(
+  index: number,
+  total: number
+): { r: number; g: number; b: number } {
+  if (total <= 1) return { ...SPARKLINE_SPECTRUM[0] };
 
-  // Map index to position in the spectrum (0 to 1)
   const t = index / (total - 1);
-
-  // Find which segment of the spectrum we're in
   const numSegments = SPARKLINE_SPECTRUM.length - 1;
   const segmentIndex = Math.min(Math.floor(t * numSegments), numSegments - 1);
   const segmentT = t * numSegments - segmentIndex;
 
-  const c1 = SPARKLINE_SPECTRUM[segmentIndex];
-  const c2 = SPARKLINE_SPECTRUM[segmentIndex + 1];
-  const color = interpolateColor(c1, c2, segmentT);
+  return interpolateColor(
+    SPARKLINE_SPECTRUM[segmentIndex],
+    SPARKLINE_SPECTRUM[segmentIndex + 1],
+    segmentT
+  );
+}
 
-  return `rgb(${color.r}, ${color.g}, ${color.b})`;
+/**
+ * Generate a NEON spectrum color based on position.
+ * Interpolates through: Magenta -> Cyan -> Green -> Yellow -> Orange (top to bottom)
+ */
+export function getSpectrumColor(index: number, total: number): string {
+  const c = getInterpolatedSpectrumColor(index, total);
+  return `rgb(${c.r}, ${c.g}, ${c.b})`;
 }
 
 /**
  * Get a darker version of a spectrum color for text labels.
- * Reduces brightness while maintaining the hue.
+ * Reduces brightness by 50% while maintaining the hue.
  */
 function getSpectrumTextColor(index: number, total: number): string {
-  if (total <= 1) {
-    const c = SPARKLINE_SPECTRUM[0];
-    // Darken by reducing each channel by ~50%
-    return `rgb(${Math.round(c.r * 0.5)}, ${Math.round(c.g * 0.5)}, ${Math.round(c.b * 0.5)})`;
-  }
-
-  const t = index / (total - 1);
-  const numSegments = SPARKLINE_SPECTRUM.length - 1;
-  const segmentIndex = Math.min(Math.floor(t * numSegments), numSegments - 1);
-  const segmentT = t * numSegments - segmentIndex;
-
-  const c1 = SPARKLINE_SPECTRUM[segmentIndex];
-  const c2 = SPARKLINE_SPECTRUM[segmentIndex + 1];
-  const color = interpolateColor(c1, c2, segmentT);
-
-  // Darken for text readability (reduce by ~50%)
-  return `rgb(${Math.round(color.r * 0.5)}, ${Math.round(color.g * 0.5)}, ${Math.round(color.b * 0.5)})`;
+  const c = getInterpolatedSpectrumColor(index, total);
+  return `rgb(${Math.round(c.r * 0.5)}, ${Math.round(c.g * 0.5)}, ${Math.round(c.b * 0.5)})`;
 }
 
 function getDateRangeFromTimeRange(timeRange: TimeRange): { from: string; to: string } {
@@ -129,9 +119,11 @@ export function useMultiSportChartData(tuningParams?: TuningParams) {
   const currentYear = new Date().getFullYear();
   const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
 
-  // Get visible sports and sport config
+  // Get visible sports, sport config, and user preferences
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
+  const { data: prefs } = useUserConfig("preferences");
+  const userSettings = useMemo(() => getUserSettings(prefs), [prefs]);
 
   // Filter visible sports to only those in config (handles edge case of stale prefs)
   const validSports = useMemo(
@@ -203,7 +195,7 @@ export function useMultiSportChartData(tuningParams?: TuningParams) {
     return dates.map((date, dateIndex) => {
       const entry: Record<string, string | number> = { date };
       sparklineData.forEach((sportData, sportIndex) => {
-        const normalizedValue = sportData.data[dateIndex]?.value ?? 0.5;
+        const normalizedValue = sportData.data[dateIndex]?.value ?? NORMALIZED_BASELINE;
         const rawValue = sportData.rawData[dateIndex]?.value ?? 0;
         // Stack from top to bottom: first sport at top, last at bottom
         const baseOffset = (numSports - 1 - sportIndex) * laneHeight + padding;
@@ -263,6 +255,7 @@ export function useMultiSportChartData(tuningParams?: TuningParams) {
     unifiedChartData,
     sportMeta,
     validSports,
+    distanceUnit: userSettings.distanceUnit,
     isLoading,
     error,
     activityPageSize,

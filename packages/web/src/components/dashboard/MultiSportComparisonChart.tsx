@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
-import { convertDistance, getDistanceLabel, DEFAULT_USER_SETTINGS } from "../../utils/units";
+import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import TimeRangeSelector from "./TimeRangeSelector";
 import RecentActivitiesList from "./RecentActivitiesList";
 import { SparklineSkeleton, ActivityRowSkeleton } from "../Skeleton";
@@ -43,6 +43,7 @@ interface UnifiedSparklineTooltipProps {
   payload?: TooltipPayloadItem[];
   label?: string;
   sportMeta: SportMetaItem[];
+  distanceUnit: DistanceUnit;
 }
 
 /**
@@ -51,14 +52,17 @@ interface UnifiedSparklineTooltipProps {
  * Time sports show minutes (e.g., "45 min").
  * Session-based sports show just the count.
  */
-function formatMetricValue(rawValue: number, isDistance: boolean, isTime: boolean): string {
+function formatMetricValue(
+  rawValue: number,
+  isDistance: boolean,
+  isTime: boolean,
+  distanceUnit: DistanceUnit
+): string {
   if (rawValue === 0) return "-";
 
   if (isDistance) {
-    // Convert meters to user's preferred unit
-    const unit = DEFAULT_USER_SETTINGS.distanceUnit;
-    const converted = convertDistance(rawValue, unit);
-    const label = getDistanceLabel(unit);
+    const converted = convertDistance(rawValue, distanceUnit);
+    const label = getDistanceLabel(distanceUnit);
     // Show 1 decimal for values >= 10, otherwise show more precision
     const decimals = converted >= 10 ? 1 : 2;
     return `${converted.toFixed(decimals)} ${label}`;
@@ -85,6 +89,7 @@ function UnifiedSparklineTooltip({
   payload,
   label,
   sportMeta,
+  distanceUnit,
 }: UnifiedSparklineTooltipProps) {
   if (!active || !payload || payload.length === 0 || !label) return null;
 
@@ -102,14 +107,14 @@ function UnifiedSparklineTooltip({
     <div
       className="rounded shadow-sm p-2"
       style={{
-        background: "rgba(255, 255, 255, 0.92)",
-        border: "1px solid rgba(0, 0, 0, 0.15)",
+        background: "var(--tooltip-bg, rgba(255, 255, 255, 0.92))",
+        border: "1px solid var(--tooltip-border, rgba(0, 0, 0, 0.15))",
         fontSize: "0.75rem",
         minWidth: 110,
         backdropFilter: "blur(4px)",
       }}
     >
-      <div className="mb-1" style={{ color: "#666", fontWeight: 500 }}>
+      <div className="mb-1" style={{ color: "var(--tooltip-label, #666)", fontWeight: 500 }}>
         {formattedDate}
       </div>
       {sportMeta.map((meta) => {
@@ -131,15 +136,15 @@ function UnifiedSparklineTooltip({
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: "#444" }}>{meta.displayName}</span>
+            <span style={{ color: "var(--tooltip-text, #444)" }}>{meta.displayName}</span>
             <span
               style={{
-                color: hasActivity ? "#000" : "#999",
+                color: hasActivity ? "var(--tooltip-value, #000)" : "var(--tooltip-muted, #999)",
                 marginLeft: "auto",
                 fontWeight: hasActivity ? 500 : 400,
               }}
             >
-              {formatMetricValue(rawValue, meta.isDistanceSport, meta.isTimeSport)}
+              {formatMetricValue(rawValue, meta.isDistanceSport, meta.isTimeSport, distanceUnit)}
             </span>
           </div>
         );
@@ -187,6 +192,7 @@ export default function MultiSportComparisonChart({
     unifiedChartData,
     sportMeta,
     validSports,
+    distanceUnit,
     isLoading,
     error,
     activityPageSize,
@@ -293,6 +299,7 @@ export default function MultiSportComparisonChart({
                         payload={payload as TooltipPayloadItem[] | undefined}
                         label={label as string | undefined}
                         sportMeta={sportMeta}
+                        distanceUnit={distanceUnit}
                       />
                     )}
                     cursor={{
