@@ -4,6 +4,7 @@ import "bootstrap/dist/css/bootstrap.css";
 // not for initial render. Saves ~60KB from the critical path.
 // @ts-expect-error no type declarations for Bootstrap JS bundle
 void import("bootstrap/dist/js/bootstrap.bundle.min.js");
+import "./css/tailwind.css";
 import "./css/variables.css";
 import "./css/dashboard.css";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";

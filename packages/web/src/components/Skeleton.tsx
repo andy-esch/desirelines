@@ -81,7 +81,7 @@ export default function Skeleton({
  */
 export function SparklineSkeleton({ rowHeight = 36 }: { rowHeight?: number }) {
   return (
-    <div className="d-flex gap-2 align-items-center">
+    <div className="flex gap-2 items-center">
       {/* Label placeholder */}
       <Skeleton width={70} height={14} />
       {/* Sparkline placeholder */}
@@ -98,7 +98,7 @@ export function SparklineSkeleton({ rowHeight = 36 }: { rowHeight?: number }) {
  */
 export function ActivityRowSkeleton() {
   return (
-    <div className="d-flex gap-2 py-1">
+    <div className="flex gap-2 py-1">
       {/* Activity name */}
       <Skeleton width={140} height={14} />
       {/* Distance */}

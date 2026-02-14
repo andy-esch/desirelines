@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { execSync } from "child_process";
 
 // Get git commit hash for versioning
@@ -57,7 +58,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __COMMIT_HASH__: JSON.stringify(version),
     },
-    plugins: [react()],
+    plugins: [tailwindcss(), react()],
     server: {
       port: 3000,
       host: true, // Needed for Docker

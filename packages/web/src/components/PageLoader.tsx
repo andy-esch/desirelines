@@ -6,10 +6,7 @@ import NeonSpinner from "./NeonSpinner";
  */
 export default function PageLoader() {
   return (
-    <div
-      className="d-flex justify-content-center align-items-center flex-grow-1"
-      style={{ minHeight: "50vh" }}
-    >
+    <div className="flex justify-center items-center grow" style={{ minHeight: "50vh" }}>
       <NeonSpinner />
     </div>
   );
