@@ -121,7 +121,7 @@ export const DANGER_ZONE_CONFIG = {
     fontSize: 12,
     fontWeight: 600,
     fontStyle: "italic" as const,
-    position: "insideTopLeft" as const,
+    position: "insideTopRight" as const,
     offset: 5,
   },
 } as const;

@@ -241,6 +241,7 @@ export function PacingChartPresenter({
             value={goal.value}
             label={goal.label || "Goal"}
             color={goal.color}
+            position="right"
           />
         ))}
 

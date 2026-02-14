@@ -23,6 +23,8 @@ interface YAxisMarkerProps {
   fontWeight?: string | number;
   /** Radius of the marker dot (defaults to 4) */
   radius?: number;
+  /** Position of the marker: "left" (Y-axis) or "right" (end of chart) */
+  position?: "left" | "right";
 }
 
 /**
@@ -36,21 +38,28 @@ function MarkerLabel({
   fontSize,
   fontWeight,
   radius,
+  position,
 }: {
-  viewBox: { x: number; y: number };
+  viewBox: { x: number; y: number; width: number };
   label: string;
   color: string;
   fontSize: number;
   fontWeight: string | number;
   radius: number;
+  position: "left" | "right";
 }) {
+  const isRight = position === "right";
+  const dotX = isRight ? viewBox.x + viewBox.width : viewBox.x;
+  const textX = isRight ? dotX - 10 : dotX + 10;
+  const anchor = isRight ? "end" : "start";
+
   return (
     <g>
-      <circle cx={viewBox.x} cy={viewBox.y} r={radius} fill={color} />
+      <circle cx={dotX} cy={viewBox.y} r={radius} fill={color} />
       <text
-        x={viewBox.x + 10}
+        x={textX}
         y={viewBox.y}
-        textAnchor="start"
+        textAnchor={anchor}
         fill={color}
         fontSize={fontSize}
         fontWeight={fontWeight}
@@ -82,12 +91,13 @@ export function YAxisMarker({
   fontSize = DEFAULT_FONT_SIZE,
   fontWeight = "normal",
   radius = DEFAULT_MARKER_RADIUS,
+  position = "left",
 }: YAxisMarkerProps) {
   return (
     <ReferenceLine
       y={value}
       stroke="transparent"
-      label={(props: { viewBox: { x: number; y: number } }) => (
+      label={(props: { viewBox: { x: number; y: number; width: number } }) => (
         <MarkerLabel
           viewBox={props.viewBox}
           label={label}
@@ -95,6 +105,7 @@ export function YAxisMarker({
           fontSize={fontSize}
           fontWeight={fontWeight}
           radius={radius}
+          position={position}
         />
       )}
     />

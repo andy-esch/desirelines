@@ -200,6 +200,7 @@ a.logo-link:hover {
 
 .card {
   border-color: var(--slate-light);
+  border-radius: 0.625rem;
   transition: border-color 0.2s ease;
 }
 .card:hover {
@@ -223,7 +224,7 @@ a.logo-link:hover {
 .glass-panel-kpi {
   background: transparent;
   border: 1px solid var(--slate-light);
-  border-radius: 0.375rem;
+  border-radius: 0.625rem;
   padding: 0.5rem;
 }
 
@@ -275,7 +276,7 @@ a.logo-link:hover {
 }
 @media (max-width: 767.98px) {
   .glass-panel-flush .offcanvas-md {
-    background-color: var(--bs-body-bg);
+    background-color: var(--bg-body);
   }
 }
 
@@ -310,7 +311,7 @@ a.logo-link:hover {
   color: var(--slate-light, #718096);
 }
 .alert-demo strong {
-  color: var(--slate-dark, #2d3748);
+  color: var(--slate-lighter, #a0aec0);
 }
 .alert-demo .text-muted {
   color: var(--slate, #4a5568) !important;
@@ -343,4 +344,15 @@ a.logo-link:hover {
 
 [id] {
   scroll-margin-top: 70px;
+}
+
+/* ==========================================================================
+   Tabular Numbers — aligned digits for data-heavy elements
+   ========================================================================== */
+
+.glass-panel-kpi h2,
+.glass-panel-kpi .h2,
+.table td,
+.table th {
+  font-variant-numeric: tabular-nums;
 }
