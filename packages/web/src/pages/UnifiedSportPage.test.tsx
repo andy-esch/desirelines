@@ -25,18 +25,23 @@ const mockSignIn = vi.fn();
 const mockSignOut = vi.fn();
 
 describe("UnifiedSportPage", () => {
+  const setupMockAuth = (overrides: Partial<ReturnType<typeof useAuth>> = {}) => {
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: false,
+      error: null,
+      signIn: mockSignIn,
+      signOut: mockSignOut,
+      ...overrides,
+    });
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("shows spinner while auth is loading", () => {
-    mockUseAuth.mockReturnValue({
-      user: null,
-      loading: true,
-      error: null,
-      signIn: mockSignIn,
-      signOut: mockSignOut,
-    });
+    setupMockAuth({ loading: true });
 
     render(<UnifiedSportPage sport="cycling" />);
 
@@ -46,12 +51,8 @@ describe("UnifiedSportPage", () => {
   });
 
   it("renders SportPage for authenticated users", () => {
-    mockUseAuth.mockReturnValue({
+    setupMockAuth({
       user: { displayName: "Jane", uid: "123", email: "jane@example.com" },
-      loading: false,
-      error: null,
-      signIn: mockSignIn,
-      signOut: mockSignOut,
     });
 
     render(<UnifiedSportPage sport="running" />);
@@ -62,13 +63,7 @@ describe("UnifiedSportPage", () => {
   });
 
   it("renders DemoSportPage for unauthenticated users", () => {
-    mockUseAuth.mockReturnValue({
-      user: null,
-      loading: false,
-      error: null,
-      signIn: mockSignIn,
-      signOut: mockSignOut,
-    });
+    setupMockAuth();
 
     render(<UnifiedSportPage sport="yoga" />);
 

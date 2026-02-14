@@ -37,6 +37,11 @@ vi.mock("../../hooks/useSportConfig", () => ({
   useSportConfig: vi.fn(),
 }));
 
+// Mock useUserConfig hook (used by useMultiSportChartData for distance unit preference)
+vi.mock("../../hooks/useUserConfig", () => ({
+  useUserConfig: vi.fn(() => ({ data: null, isLoading: false, error: null })),
+}));
+
 // Mock useDashboardGoalData hook (used by RecentActivitiesList for impact % column + distance unit)
 vi.mock("../../hooks/useDashboardGoalData", () => ({
   useDashboardGoalData: vi.fn(() => ({
