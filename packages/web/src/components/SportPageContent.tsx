@@ -146,7 +146,7 @@ export default function SportPageContent({
           }
         />
 
-        <main className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+        <div className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
           <div className="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3">
             <h1 className="h2">
               {sport.charAt(0).toUpperCase() + sport.slice(1)} {currentYear}
@@ -257,7 +257,7 @@ export default function SportPageContent({
               </div>
             </div>
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );

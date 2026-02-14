@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
+import { useCurrentYear } from "../../hooks/useCurrentYear";
 
 interface NavigationProps {
   className?: string;
@@ -13,7 +14,7 @@ interface NavigationProps {
  * Used in Header for desktop horizontal nav and mobile offcanvas menu.
  */
 export default function Navigation({ className = "", vertical = false }: NavigationProps) {
-  const currentYear = new Date().getFullYear();
+  const currentYear = useCurrentYear();
   const location = useLocation();
   const { visibleSports } = useVisibleSports();
   const { sportConfig } = useSportConfig();

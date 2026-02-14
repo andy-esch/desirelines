@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useCurrentYear } from "../../hooks/useCurrentYear";
 import { useFullUserConfig } from "../../hooks/useUserConfig";
 import { DEMO_SPORT_LABELS, type DemoSport } from "../../constants/demoConfig";
 import NeonSpinner from "../NeonSpinner";
@@ -63,6 +64,8 @@ export function GoalManagementTable() {
     });
   }, [config?.goals]);
 
+  const currentYear = useCurrentYear();
+
   if (loading) {
     return (
       <div className="d-flex justify-content-center py-4">
@@ -82,8 +85,6 @@ export function GoalManagementTable() {
       </div>
     );
   }
-
-  const currentYear = new Date().getFullYear();
 
   return (
     <div>

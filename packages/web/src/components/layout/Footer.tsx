@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useCurrentYear } from "../../hooks/useCurrentYear";
 
 const GitHubIcon = () => (
   <svg
@@ -16,7 +17,7 @@ const GitHubIcon = () => (
  * Site footer with copyright, Origins link, and GitHub link
  */
 export function Footer() {
-  const currentYear = new Date().getFullYear();
+  const currentYear = useCurrentYear();
   const startYear = 2024;
   const yearRange = currentYear > startYear ? `${startYear}-${currentYear}` : `${startYear}`;
 

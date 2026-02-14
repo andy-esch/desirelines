@@ -11,6 +11,9 @@ vi.mock("../hooks/useActivities");
 vi.mock("../hooks/useUserConfig", () => ({
   useUserConfig: () => ({ data: null, isLoading: false }),
 }));
+vi.mock("../hooks/useSportConfig", () => ({
+  useSportConfig: () => ({ sportConfig: null, isLoading: false }),
+}));
 
 const renderWithRouter = (initialRoute = "/activities") => {
   return render(

@@ -9,7 +9,7 @@ import { SportVisibilitySettings } from "../components/settings/SportVisibilityS
 import { CheckIcon } from "../components/icons";
 import NeonSpinner from "../components/NeonSpinner";
 import { InlineAlert } from "../components/InlineAlert";
-import { pageBackgrounds } from "../styles/pageBackgrounds";
+import { NarrowPageLayout } from "../components/layout/PageLayout";
 import {
   COMMON_TIMEZONES,
   DEFAULT_PREFERENCES,
@@ -74,12 +74,14 @@ export default function SettingsPage() {
   // Show loading state
   if (authLoading || prefsLoading) {
     return (
-      <div
-        className="flex-grow-1 d-flex justify-content-center align-items-center"
-        style={{ background: pageBackgrounds.settings }}
-      >
-        <NeonSpinner />
-      </div>
+      <NarrowPageLayout background="settings">
+        <div
+          className="d-flex justify-content-center align-items-center"
+          style={{ minHeight: "60vh" }}
+        >
+          <NeonSpinner />
+        </div>
+      </NarrowPageLayout>
     );
   }
 
@@ -89,116 +91,114 @@ export default function SettingsPage() {
   const currentPrefs = preferences ?? DEFAULT_PREFERENCES;
 
   return (
-    <div className="flex-grow-1" style={{ background: pageBackgrounds.settings }}>
-      <div className="container py-4" style={{ maxWidth: "800px" }}>
-        <h1 className="h2 mb-4">Settings</h1>
+    <NarrowPageLayout background="settings">
+      <h1 className="h2 mb-4">Settings</h1>
 
-        {saveError && (
-          <InlineAlert className="mb-4" onDismiss={clearSaveError}>
-            {saveError.message}
-          </InlineAlert>
-        )}
+      {saveError && (
+        <InlineAlert className="mb-4" onDismiss={clearSaveError}>
+          {saveError.message}
+        </InlineAlert>
+      )}
 
-        <SettingsSection
-          title="Display"
-          description="Customize how data is displayed throughout the app"
-        >
-          <SettingRow label="Distance Unit" description="Used for all distance measurements">
-            <select
-              className="form-select form-select-sm"
-              value={currentPrefs.distanceUnit || "miles"}
-              onChange={(e) => handlePreferenceChange("distanceUnit", e.target.value)}
-              disabled={isSaving}
-              style={{ width: "150px" }}
-            >
-              {DISTANCE_UNIT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+      <SettingsSection
+        title="Display"
+        description="Customize how data is displayed throughout the app"
+      >
+        <SettingRow label="Distance Unit" description="Used for all distance measurements">
+          <select
+            className="form-select form-select-sm"
+            value={currentPrefs.distanceUnit || "miles"}
+            onChange={(e) => handlePreferenceChange("distanceUnit", e.target.value)}
+            disabled={isSaving}
+            style={{ width: "150px" }}
+          >
+            {DISTANCE_UNIT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
+
+        <SettingRow label="Elevation Unit" description="Used for elevation gain measurements">
+          <select
+            className="form-select form-select-sm"
+            value={currentPrefs.elevationUnit || "feet"}
+            onChange={(e) => handlePreferenceChange("elevationUnit", e.target.value)}
+            disabled={isSaving}
+            style={{ width: "150px" }}
+          >
+            {ELEVATION_UNIT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
+
+        <SettingRow label="Timezone" description={`Browser timezone: ${browserTimezone}`}>
+          <select
+            className="form-select form-select-sm"
+            value={currentPrefs.timezone || ""}
+            onChange={(e) => handlePreferenceChange("timezone", e.target.value)}
+            disabled={isSaving}
+            style={{ width: "200px" }}
+          >
+            {COMMON_TIMEZONES.map((tz) => (
+              <option key={tz.value} value={tz.value}>
+                {tz.label}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Visible Sports"
+        description="Choose which sports appear in your dashboard and navigation"
+        id="sport-visibility"
+      >
+        <SportVisibilitySettings />
+      </SettingsSection>
+
+      {user && (
+        <SettingsSection title="Account">
+          <SettingRow label="Email" readOnly>
+            <span className="text-muted">{user.email || "—"}</span>
           </SettingRow>
 
-          <SettingRow label="Elevation Unit" description="Used for elevation gain measurements">
-            <select
-              className="form-select form-select-sm"
-              value={currentPrefs.elevationUnit || "feet"}
-              onChange={(e) => handlePreferenceChange("elevationUnit", e.target.value)}
-              disabled={isSaving}
-              style={{ width: "150px" }}
-            >
-              {ELEVATION_UNIT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+          <SettingRow label="Name" readOnly>
+            <span className="text-muted">{user.displayName || "—"}</span>
           </SettingRow>
 
-          <SettingRow label="Timezone" description={`Browser timezone: ${browserTimezone}`}>
-            <select
-              className="form-select form-select-sm"
-              value={currentPrefs.timezone || ""}
-              onChange={(e) => handlePreferenceChange("timezone", e.target.value)}
-              disabled={isSaving}
-              style={{ width: "200px" }}
+          <SettingRow label="Connected Account" readOnly>
+            <span
+              className="d-flex align-items-center gap-1"
+              style={{ color: "var(--bs-success, #68d391)" }}
             >
-              {COMMON_TIMEZONES.map((tz) => (
-                <option key={tz.value} value={tz.value}>
-                  {tz.label}
-                </option>
-              ))}
-            </select>
+              <CheckIcon />
+              Strava
+            </span>
           </SettingRow>
+
+          <div className="pt-3">
+            <button
+              type="button"
+              className="btn btn-outline-danger btn-sm"
+              onClick={handleSignOut}
+              disabled={signingOut}
+            >
+              {signingOut ? "Signing out..." : "Sign Out"}
+            </button>
+          </div>
         </SettingsSection>
+      )}
 
-        <SettingsSection
-          title="Visible Sports"
-          description="Choose which sports appear in your dashboard and navigation"
-          id="sport-visibility"
-        >
-          <SportVisibilitySettings />
-        </SettingsSection>
+      <SettingsSection title="Goals" description="Manage your goals across all sports and years">
+        <GoalManagementTable />
+      </SettingsSection>
 
-        {user && (
-          <SettingsSection title="Account">
-            <SettingRow label="Email" readOnly>
-              <span className="text-muted">{user.email || "—"}</span>
-            </SettingRow>
-
-            <SettingRow label="Name" readOnly>
-              <span className="text-muted">{user.displayName || "—"}</span>
-            </SettingRow>
-
-            <SettingRow label="Connected Account" readOnly>
-              <span
-                className="d-flex align-items-center gap-1"
-                style={{ color: "var(--bs-success, #68d391)" }}
-              >
-                <CheckIcon />
-                Strava
-              </span>
-            </SettingRow>
-
-            <div className="pt-3">
-              <button
-                type="button"
-                className="btn btn-outline-danger btn-sm"
-                onClick={handleSignOut}
-                disabled={signingOut}
-              >
-                {signingOut ? "Signing out..." : "Sign Out"}
-              </button>
-            </div>
-          </SettingsSection>
-        )}
-
-        <SettingsSection title="Goals" description="Manage your goals across all sports and years">
-          <GoalManagementTable />
-        </SettingsSection>
-
-        {isSaving && <div className="text-muted small text-end">Saving...</div>}
-      </div>
-    </div>
+      {isSaving && <div className="text-muted small text-end">Saving...</div>}
+    </NarrowPageLayout>
   );
 }

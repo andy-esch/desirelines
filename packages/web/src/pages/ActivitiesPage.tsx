@@ -4,7 +4,8 @@ import ActivityTable from "../components/ActivityTable";
 import { useActivities } from "../hooks/useActivities";
 import { getUserSettings } from "../utils/units";
 import { useUserConfig } from "../hooks/useUserConfig";
-import { pageBackgrounds } from "../styles/pageBackgrounds";
+import { useSportConfig } from "../hooks/useSportConfig";
+import { PageLayout } from "../components/layout/PageLayout";
 
 type TimeRange = "2w" | "4w" | "2m" | "6m" | "ytd" | "all";
 
@@ -17,7 +18,7 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "all", label: "All Time" },
 ];
 
-const SPORT_OPTIONS = [
+const FALLBACK_SPORT_OPTIONS = [
   { value: "", label: "All Sports" },
   { value: "cycling", label: "Cycling" },
   { value: "running", label: "Running" },
@@ -68,6 +69,17 @@ const ActivitiesPage = () => {
   const { data: preferences } = useUserConfig("preferences");
   const userSettings = getUserSettings(preferences);
 
+  // Derive sport filter options from config (fallback while loading)
+  const { sportConfig } = useSportConfig();
+  const sportOptions = useMemo(() => {
+    if (!sportConfig) return FALLBACK_SPORT_OPTIONS;
+    const options = Object.entries(sportConfig.sport_categories).map(([key, cat]) => ({
+      value: key,
+      label: cat.display_name,
+    }));
+    return [{ value: "", label: "All Sports" }, ...options];
+  }, [sportConfig]);
+
   // Derive filter values from URL (single source of truth)
   const rangeParam = searchParams.get("range");
   const selectedRange: TimeRange = VALID_RANGES.includes(rangeParam as TimeRange)
@@ -109,7 +121,7 @@ const ActivitiesPage = () => {
   };
 
   return (
-    <div className="flex-grow-1" style={{ background: pageBackgrounds.activities }}>
+    <PageLayout background="activities">
       <div className="container-fluid py-4">
         {/* Header */}
         <div className="row mb-3">
@@ -150,7 +162,7 @@ const ActivitiesPage = () => {
               onChange={(e) => handleSportChange(e.target.value)}
               style={{ width: "auto" }}
             >
-              {SPORT_OPTIONS.map((option) => (
+              {sportOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -171,7 +183,7 @@ const ActivitiesPage = () => {
           elevationUnit={userSettings.elevationUnit}
         />
       </div>
-    </div>
+    </PageLayout>
   );
 };
 

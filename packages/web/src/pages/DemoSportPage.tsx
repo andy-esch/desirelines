@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useCurrentYear } from "../hooks/useCurrentYear";
 import { convertDistance, getUserSettings } from "../utils/units";
 import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
@@ -25,7 +26,8 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   const { year } = useParams<{ year?: string }>();
   const navigate = useNavigate();
   const parsedYear = year ? parseInt(year, 10) : NaN;
-  const currentYear = Number.isFinite(parsedYear) ? parsedYear : new Date().getFullYear();
+  const fallbackYear = useCurrentYear();
+  const currentYear = Number.isFinite(parsedYear) ? parsedYear : fallbackYear;
 
   // Fetch generated demo data (uses config defaults from demoConfig.ts)
   const { metrics, sportConfig, isLoading, error } = useDemoData(currentYear, sport);
