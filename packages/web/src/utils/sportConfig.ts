@@ -203,8 +203,12 @@ export function isTimeSport(sport: string, sportConfig: SportConfig | null): boo
  * @param sportConfig - Sport configuration from API
  * @returns Array of metric keys, or empty array if sport not found
  */
+/** Metrics that are internal/non-displayable and should be excluded from the UI */
+const INTERNAL_METRICS = new Set(["activity_ids"]);
+
 export function getSportMetrics(sport: string, sportConfig: SportConfig | null): string[] {
-  return sportConfig?.sport_categories[sport]?.metrics ?? [];
+  const metrics = sportConfig?.sport_categories[sport]?.metrics ?? [];
+  return metrics.filter((m) => !INTERNAL_METRICS.has(m));
 }
 
 /**

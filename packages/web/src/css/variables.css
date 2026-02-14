@@ -11,6 +11,12 @@
  */
 
 :root {
+  /* Typography */
+  --font-display: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Background */
+  --bg-body: #0f1724;
+
   /* Slate palette - neutrals derived from header background */
   --slate-dark: #2d3748;
   --slate: #4a5568;
