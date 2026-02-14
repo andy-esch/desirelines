@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchActivities, type ActivitySummary, type ActivityListFilter } from "../api/activities";
 import { useAuth } from "./useAuth";
+import { getCurrentYear } from "./useCurrentYear";
 import {
   generateDemoActivities,
   generateCoordinatedFillLevels,
@@ -14,7 +15,7 @@ const DEMO_ACTIVITIES_CACHE_KEY = "demo-activities";
  * Get or generate demo activities, cached in sessionStorage for cross-page consistency.
  */
 function getSessionDemoActivities(): ActivitySummary[] {
-  const currentYear = new Date().getFullYear();
+  const currentYear = getCurrentYear();
 
   try {
     const stored = sessionStorage.getItem(DEMO_ACTIVITIES_CACHE_KEY);

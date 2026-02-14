@@ -4,7 +4,7 @@ import WeeklySummaryCard from "../components/dashboard/WeeklySummaryCard";
 import GoalProgressCard from "../components/dashboard/GoalProgressCard";
 import ActivityCalendarHeatmap from "../components/dashboard/ActivityCalendarHeatmap";
 import NeonSpinner from "../components/NeonSpinner";
-import { pageBackgrounds } from "../styles/pageBackgrounds";
+import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
 
 /**
@@ -37,21 +37,21 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex-grow-1" style={{ background: pageBackgrounds.dashboard }}>
+      <PageLayout background="dashboard">
         <div
           className="container d-flex justify-content-center align-items-center"
           style={{ minHeight: "60vh" }}
         >
           <NeonSpinner />
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   const tuningParams = !user ? DASHBOARD_DEMO_TUNING : undefined;
 
   return (
-    <div className="flex-grow-1" style={{ background: pageBackgrounds.dashboard }}>
+    <PageLayout background="dashboard">
       {/* Demo mode banner for unauthenticated users */}
       {!user && (
         <div className="alert alert-demo mb-0 rounded-0" role="alert">
@@ -106,6 +106,6 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

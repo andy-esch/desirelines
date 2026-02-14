@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useCurrentYear } from "../../hooks/useCurrentYear";
 import { useDailySportData } from "../../hooks/useDailySportData";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
@@ -183,8 +184,7 @@ function getDateRange(option: TimeRangeOption): {
  * Get available year options for the dropdown.
  * Returns current year back to 2020 (or earlier if needed).
  */
-function getYearOptions(): number[] {
-  const currentYear = new Date().getFullYear();
+function getYearOptions(currentYear: number): number[] {
   const years: number[] = [];
   for (let year = currentYear; year >= 2020; year--) {
     years.push(year);
@@ -203,8 +203,8 @@ export default function ActivityCalendarHeatmap({
 }: ActivityCalendarHeatmapProps) {
   const [timeRange, setTimeRange] = useState<TimeRangeOption>("trailing12");
   const [sportFilter, setSportFilter] = useState<SportFilterMode>("all");
-  const currentYear = new Date().getFullYear();
-  const yearOptions = useMemo(() => getYearOptions(), []);
+  const currentYear = useCurrentYear();
+  const yearOptions = useMemo(() => getYearOptions(currentYear), [currentYear]);
 
   // Get user's visible sports and sport config
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();

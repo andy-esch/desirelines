@@ -24,7 +24,7 @@ export default function OriginsPage() {
   };
 
   return (
-    <main
+    <div
       className="py-5"
       style={{
         color: textColor,
@@ -141,6 +141,6 @@ export default function OriginsPage() {
           </p>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

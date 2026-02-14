@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useCurrentYear } from "../hooks/useCurrentYear";
 import { useDailySportData } from "../hooks/useDailySportData";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useSportConfig } from "../hooks/useSportConfig";
@@ -116,7 +117,7 @@ function getActivityPageSize(sportCount: number): number {
  * - Coordinating layout calculations (height, page size)
  */
 export function useMultiSportChartData(tuningParams?: TuningParams) {
-  const currentYear = new Date().getFullYear();
+  const currentYear = useCurrentYear();
   const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
 
   // Get visible sports, sport config, and user preferences
@@ -163,7 +164,7 @@ export function useMultiSportChartData(tuningParams?: TuningParams) {
         activityDates.length > 0 ? activityDates[activityDates.length - 1] : null;
       const lastActivityYear = lastActivityDate
         ? parseInt(lastActivityDate.split("-")[0], 10)
-        : new Date().getFullYear();
+        : currentYear;
 
       return {
         sport,

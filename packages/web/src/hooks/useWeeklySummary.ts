@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useAuth } from "./useAuth";
+import { useCurrentYear } from "./useCurrentYear";
 import { useServices } from "../contexts/ServiceContext";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
@@ -70,7 +71,7 @@ export function useWeeklySummary(): {
   const { sportConfig, isLoading: configLoading } = useSportConfig();
   const { data: prefs } = useUserConfig("preferences");
 
-  const currentYear = new Date().getFullYear();
+  const currentYear = useCurrentYear();
   const userSettings = useMemo(() => getUserSettings(prefs), [prefs]);
 
   const validSports = useMemo(

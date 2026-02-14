@@ -14,6 +14,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { PageErrorFallback } from "./components/PageErrorFallback";
 import { ServiceProvider } from "./contexts/ServiceContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { useCurrentYear } from "./hooks/useCurrentYear";
+import { getDemoSports } from "./utils/demoDataGenerator";
 
 // Lazy load pages for code splitting
 // Each page becomes a separate chunk, loaded on-demand
@@ -24,8 +26,8 @@ const ActivitiesPage = lazy(() => import("./pages/ActivitiesPage"));
 const OriginsPage = lazy(() => import("./pages/OriginsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
-/** Sports with demo data generators (unauthenticated experience) */
-const DEMO_SPORTS = ["cycling", "running", "yoga"] as const;
+/** Sports with demo data generators (derived from demo config) */
+const DEMO_SPORTS = getDemoSports();
 
 /** Wrapper that adds an error boundary with PageErrorFallback */
 function WithErrorBoundary({
@@ -48,7 +50,7 @@ function WithErrorBoundary({
 }
 
 function App() {
-  const currentYear = new Date().getFullYear();
+  const currentYear = useCurrentYear();
 
   return (
     <ServiceProvider>
