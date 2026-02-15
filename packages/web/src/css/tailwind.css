@@ -382,6 +382,18 @@
     color: #000;
     background-color: #ffc107;
   }
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.5rem;
+    background: transparent;
+    border: 0;
+    color: #fff;
+  }
+
   .btn-close {
     background: transparent;
     border: none;
@@ -494,6 +506,11 @@
     border-radius: 0.25rem;
     color: #000;
     white-space: nowrap;
+  }
+  .badge-sport {
+    color: var(--sport-color);
+    background-color: color-mix(in srgb, var(--sport-color) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sport-color) 30%, transparent);
   }
 
   /* --- Alerts --- */

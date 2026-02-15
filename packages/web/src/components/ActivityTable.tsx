@@ -48,16 +48,6 @@ function formatDate(dateStr: string): string {
   });
 }
 
-/** Get sport badge inline style using the sport's neon chart color */
-function getSportBadgeStyle(sport: string): React.CSSProperties {
-  const color = SPORT_COLORS[sport] || "rgb(160, 174, 192)";
-  return {
-    color,
-    backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
-    border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`,
-  };
-}
-
 /** Calculate and format pace (running) or speed (cycling) */
 function formatPaceOrSpeed(
   distanceMeters: number,
@@ -158,7 +148,14 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                     </a>
                   </td>
                   <td>
-                    <span className="badge" style={getSportBadgeStyle(activity.sport)}>
+                    <span
+                      className="badge badge-sport"
+                      style={
+                        {
+                          "--sport-color": SPORT_COLORS[activity.sport] || "rgb(160, 174, 192)",
+                        } as React.CSSProperties
+                      }
+                    >
                       {activity.sport}
                     </span>
                   </td>

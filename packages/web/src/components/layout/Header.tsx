@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Dialog, DialogPanel, Transition, TransitionChild } from "@headlessui/react";
 import Logo from "../Logo";
 import { useAuth } from "../../hooks/useAuth";
 import { AccountDropdown } from "./AccountDropdown";
 import Navigation from "./Navigation";
+import { useUIState } from "../../contexts/UIStateContext";
 
 /** Non-sport first-level routes — anything else is a sport detail page */
 const PAGE_ROUTES = new Set(["", "dashboard", "activities", "origins", "settings"]);
@@ -35,16 +36,12 @@ export default function Header() {
   const location = useLocation();
   const { user, loading, signIn, signOut } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
+  const { toggleMobileSidebar } = useUIState();
 
   // Close mobile nav drawer on route change
   useEffect(() => {
     setNavOpen(false);
   }, [location.pathname]);
-
-  const openSidebar = useCallback(() => {
-    // Dispatch custom event for Sidebar to listen to
-    window.dispatchEvent(new CustomEvent("toggle-sidebar"));
-  }, []);
 
   // Show controls toggle on sport detail pages (any sport, authenticated or demo)
   const segments = location.pathname.split("/").filter(Boolean);
@@ -79,7 +76,7 @@ export default function Header() {
       {/* Mobile/tablet: hamburger, controls gear, and account dropdown on right */}
       <div className="lg:hidden ms-auto flex items-center">
         <button
-          className="border-0 bg-transparent text-white p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
+          className="btn-icon"
           type="button"
           onClick={() => setNavOpen(true)}
           aria-label="Toggle navigation"
@@ -88,9 +85,9 @@ export default function Header() {
         </button>
         {showControlsToggle && (
           <button
-            className="border-0 bg-transparent text-white p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
+            className="btn-icon"
             type="button"
-            onClick={openSidebar}
+            onClick={toggleMobileSidebar}
             aria-label="Toggle controls"
           >
             <GearIcon />

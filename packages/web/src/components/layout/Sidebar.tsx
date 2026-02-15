@@ -1,10 +1,11 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Dialog, DialogPanel, Transition, TransitionChild } from "@headlessui/react";
 import AuthButton from "../AuthButton";
 import ProgressSummary from "./ProgressSummary";
 import SidebarSection from "./SidebarSection";
 import type { MetricUnit } from "../../utils/units";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
+import { useUIState } from "../../contexts/UIStateContext";
 
 interface SidebarProps {
   estimatedYearEnd: number;
@@ -43,14 +44,7 @@ export default function Sidebar({
     "sidebar-sections",
     { filters: true, goals: true }
   );
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  // Listen for toggle-sidebar event from Header's gear button
-  useEffect(() => {
-    const handler = () => setMobileOpen((prev) => !prev);
-    window.addEventListener("toggle-sidebar", handler);
-    return () => window.removeEventListener("toggle-sidebar", handler);
-  }, []);
+  const { mobileSidebarOpen: mobileOpen, closeMobileSidebar } = useUIState();
 
   const toggleSection = (section: keyof SidebarSections) => {
     setExpandedSections({
@@ -108,7 +102,7 @@ export default function Sidebar({
       {/* Mobile: slide-out drawer */}
       <Transition show={mobileOpen}>
         <Dialog
-          onClose={() => setMobileOpen(false)}
+          onClose={() => closeMobileSidebar()}
           className="relative md:hidden"
           style={{ zIndex: 50 }}
         >
@@ -144,7 +138,7 @@ export default function Sidebar({
                 <button
                   type="button"
                   className="bg-transparent border-0 text-white p-1"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => closeMobileSidebar()}
                   aria-label="Close"
                 >
                   <CloseIcon />
