@@ -111,7 +111,10 @@ export default function SportPageContent({
   // not misleading loading spinners.
 
   return (
-    <div className="px-4 md:pl-0 md:pr-6" style={{ background: getSportGradient(sport) }}>
+    <div
+      className="overflow-x-hidden px-4 md:pl-0 md:pr-6"
+      style={{ background: getSportGradient(sport) }}
+    >
       <div className="flex">
         <Sidebar
           estimatedYearEnd={estimatedYearEnd}
@@ -143,7 +146,7 @@ export default function SportPageContent({
           }
         />
 
-        <div className="grow md:pl-4">
+        <div className="grow min-w-0 md:pl-4">
           <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
             <h1 className="h2 font-display">
               {sport.charAt(0).toUpperCase() + sport.slice(1)} {currentYear}

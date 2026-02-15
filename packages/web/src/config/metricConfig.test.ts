@@ -219,8 +219,10 @@ describe("metricConfig", () => {
       const config = getMetricConfig("cycling");
       const ticks = generateYAxisTicks(7500, config);
 
-      // Interval should be 1000 for values over 5000
-      expect(ticks.every((t, i) => i === 0 || t - ticks[i - 1] === 1000)).toBe(true);
+      // Base interval is 1000, but doubles to 2000 to stay within MAX_Y_TICKS (5)
+      expect(ticks.every((t, i) => i === 0 || t - ticks[i - 1] === 2000)).toBe(true);
+      // Should have at most 5 non-zero ticks
+      expect(ticks.filter((t) => t > 0).length).toBeLessThanOrEqual(5);
     });
   });
 

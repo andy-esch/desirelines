@@ -68,18 +68,16 @@ export default function Header() {
         <Logo fontSize="1.25rem" />
       </Link>
 
-      {/* Desktop navigation */}
-      <Navigation className="hidden md:flex ms-4" />
+      {/* Desktop navigation — only at lg+ where there's room */}
+      <Navigation className="hidden lg:flex ms-4" />
 
-      <div className="hidden md:flex items-center gap-3 ms-auto pe-2">
-        <span className="text-white/50 text-xs hidden lg:block whitespace-nowrap">
-          {currentDate}
-        </span>
+      <div className="hidden lg:flex items-center gap-3 ms-auto pe-2">
+        <span className="text-white/50 text-xs whitespace-nowrap">{currentDate}</span>
         <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>
 
-      {/* Mobile: hamburger, controls gear, and account dropdown on right */}
-      <div className="md:hidden ms-auto flex items-center">
+      {/* Mobile/tablet: hamburger, controls gear, and account dropdown on right */}
+      <div className="lg:hidden ms-auto flex items-center">
         <button
           className="border-0 bg-transparent text-white p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
           type="button"

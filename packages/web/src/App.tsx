@@ -50,7 +50,7 @@ function App() {
     <ServiceProvider>
       <AuthProvider>
         <BrowserRouter>
-          <div className="App flex flex-col" style={{ minHeight: "100vh" }}>
+          <div className="App flex flex-col overflow-x-hidden" style={{ minHeight: "100vh" }}>
             <Header />
             <main className="grow flex flex-col">
               <Suspense fallback={<PageLoader />}>

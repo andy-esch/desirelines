@@ -22,7 +22,7 @@ interface PageLayoutProps {
  * Wraps content in a flex-grow container with the page's background gradient.
  */
 export function PageLayout({ background, children }: PageLayoutProps) {
-  return <div className={`grow ${bgClasses[background]}`}>{children}</div>;
+  return <div className={`grow overflow-x-hidden ${bgClasses[background]}`}>{children}</div>;
 }
 
 interface NarrowPageLayoutProps {
@@ -44,7 +44,7 @@ export function NarrowPageLayout({
   children,
 }: NarrowPageLayoutProps) {
   return (
-    <div className={`grow ${bgClasses[background]}`}>
+    <div className={`grow overflow-x-hidden ${bgClasses[background]}`}>
       <div className="container py-6" style={{ maxWidth }}>
         {children}
       </div>
