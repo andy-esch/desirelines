@@ -16,7 +16,11 @@ export function PageErrorFallback({ error, onReset }: PageErrorFallbackProps) {
           <strong>Error:</strong> {error.message}
         </p>
         <div className="flex gap-2">
-          <button className="btn btn-outline-danger" onClick={onReset}>
+          <button
+            className="btn btn-outline-danger"
+            onClick={onReset}
+            aria-label="Retry loading this page"
+          >
             Try Again
           </button>
           <Link to="/" className="btn btn-outline-secondary">
