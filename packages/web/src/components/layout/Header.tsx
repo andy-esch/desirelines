@@ -6,6 +6,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { AccountDropdown } from "./AccountDropdown";
 import Navigation from "./Navigation";
 import { useUIState } from "../../contexts/UIStateContext";
+import { useScrolled } from "../../hooks/useScrolled";
 
 /** Non-sport first-level routes — anything else is a sport detail page */
 const PAGE_ROUTES = new Set(["", "dashboard", "activities", "origins", "settings"]);
@@ -37,6 +38,7 @@ export default function Header() {
   const { user, loading, signIn, signOut } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
   const { toggleMobileSidebar } = useUIState();
+  const scrolled = useScrolled();
 
   // Close mobile nav drawer on route change
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function Header() {
 
   return (
     <header
-      className="sticky top-0 flex items-center flex-nowrap px-2 py-2 shadow"
+      className={`sticky top-0 flex items-center flex-nowrap px-2 py-2 transition-shadow duration-200 ${scrolled ? "shadow-lg" : ""}`}
       style={{ backgroundColor: "var(--color-slate-dark, #2d3748)", zIndex: 40 }}
     >
       <Link to="/" className="logo-link px-2 flex items-center shrink-0">

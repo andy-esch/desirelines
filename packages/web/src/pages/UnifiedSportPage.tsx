@@ -1,7 +1,7 @@
 import { useAuth } from "../hooks/useAuth";
 import SportPage from "./SportPage";
 import DemoSportPage from "./DemoSportPage";
-import NeonSpinner from "../components/NeonSpinner";
+import SportPageSkeleton from "../components/skeletons/SportPageSkeleton";
 
 interface UnifiedSportPageProps {
   sport: string;
@@ -18,11 +18,7 @@ export default function UnifiedSportPage({ sport }: UnifiedSportPageProps) {
 
   // Show loading while auth state is being determined
   if (loading) {
-    return (
-      <div className="container flex justify-center items-center" style={{ minHeight: "60vh" }}>
-        <NeonSpinner />
-      </div>
-    );
+    return <SportPageSkeleton />;
   }
 
   // Render appropriate page based on auth state

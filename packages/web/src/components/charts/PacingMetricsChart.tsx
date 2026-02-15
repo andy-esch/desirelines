@@ -10,7 +10,7 @@
  * - Container (this file): Data, state, callbacks
  * - Presenter (PacingChartPresenter): Pure rendering
  */
-import { memo } from "react";
+import { memo, useRef, useEffect } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
 import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
@@ -83,6 +83,12 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     onRetry,
   } = props;
 
+  // Only animate chart lines on first mount — suppress re-animation on prop changes
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    isFirstRender.current = false;
+  }, []);
+
   // Derive display values
   const isSessionsMode = unit === "sessions";
   const unitLabel = getMetricUnitLabel(unit);
@@ -129,6 +135,7 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
         year={year}
         unitLabel={unitLabel}
         isSessionsMode={isSessionsMode}
+        isAnimationActive={isFirstRender.current}
         dangerZone={{
           show: shouldShowDangerZone,
           threshold: dangerThreshold,

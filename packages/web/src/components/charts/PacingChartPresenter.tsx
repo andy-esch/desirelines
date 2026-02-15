@@ -79,6 +79,10 @@ export interface PacingChartPresenterProps {
   /** Whether to use "sessions" terminology */
   isSessionsMode: boolean;
 
+  // --- Feature Toggles ---
+  /** Whether line draw-in animation should play (false suppresses re-animation on prop changes) */
+  isAnimationActive?: boolean;
+
   // --- Danger Zone ---
   /** Configuration for the danger zone display */
   dangerZone: DangerZoneConfig;
@@ -175,6 +179,7 @@ export function PacingChartPresenter({
   year,
   unitLabel,
   isSessionsMode,
+  isAnimationActive = true,
   dangerZone,
 }: PacingChartPresenterProps) {
   const yAxisLabel = isSessionsMode ? "# Sessions / Day" : `${unitLabel} / Day`;
@@ -252,7 +257,9 @@ export function PacingChartPresenter({
           strokeWidth={CHART_CONFIG.strokeWidth.actual}
           dot={false}
           name={`${year} Pacing Data`}
+          isAnimationActive={isAnimationActive}
           animationDuration={CHART_CONFIG.animation.duration}
+          animationEasing={CHART_CONFIG.animation.easing}
         />
 
         {/* Pacing goal lines */}
@@ -265,7 +272,9 @@ export function PacingChartPresenter({
             strokeWidth={CHART_CONFIG.strokeWidth.goal}
             dot={false}
             name={`${pg.goal.label || "Goal"} Pacing: ${pg.goal.value} ${unitLabel}`}
+            isAnimationActive={isAnimationActive}
             animationDuration={CHART_CONFIG.animation.duration}
+            animationEasing={CHART_CONFIG.animation.easing}
           />
         ))}
       </LineChart>

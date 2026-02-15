@@ -80,6 +80,8 @@ export interface CumulativeChartPresenterProps {
   // --- Feature Toggles ---
   /** Whether to show achievement markers and legend */
   showAchievements?: boolean;
+  /** Whether line draw-in animation should play (false suppresses re-animation on prop changes) */
+  isAnimationActive?: boolean;
 
   // --- Zoom ---
   /** Whether chart is currently zoomed */
@@ -231,6 +233,7 @@ export function CumulativeChartPresenter({
   estimatedYearEnd,
   isSessionsMode,
   showAchievements = true,
+  isAnimationActive = true,
   isZoomed = false,
   selectionLeft,
   selectionRight,
@@ -308,7 +311,9 @@ export function CumulativeChartPresenter({
             strokeWidth={CHART_CONFIG.strokeWidth.actual}
             dot={false}
             name={`${year} Data: ${totalDistanceTraveled.toFixed(1)} ${unitLabel}`}
+            isAnimationActive={isAnimationActive}
             animationDuration={CHART_CONFIG.animation.duration}
+            animationEasing={CHART_CONFIG.animation.easing}
           />
 
           {/* Goal lines */}
@@ -321,7 +326,9 @@ export function CumulativeChartPresenter({
               strokeWidth={CHART_CONFIG.strokeWidth.goal}
               dot={false}
               name={`${gl.goal.label || "Goal"}: ${gl.goal.value} ${unitLabel}`}
+              isAnimationActive={isAnimationActive}
               animationDuration={CHART_CONFIG.animation.duration}
+              animationEasing={CHART_CONFIG.animation.easing}
             />
           ))}
 
@@ -334,7 +341,9 @@ export function CumulativeChartPresenter({
             strokeDasharray="5 5"
             dot={false}
             name={`Current Average (Est: ${estimatedYearEnd.toFixed(0)} ${unitLabel})`}
+            isAnimationActive={isAnimationActive}
             animationDuration={CHART_CONFIG.animation.duration}
+            animationEasing={CHART_CONFIG.animation.easing}
           />
 
           {/* Achievement markers */}

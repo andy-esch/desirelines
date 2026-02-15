@@ -40,12 +40,13 @@ describe("UnifiedSportPage", () => {
     vi.clearAllMocks();
   });
 
-  it("shows spinner while auth is loading", () => {
+  it("shows skeleton loading screen while auth is loading", () => {
     setupMockAuth({ loading: true });
 
-    render(<UnifiedSportPage sport="cycling" />);
+    const { container } = render(<UnifiedSportPage sport="cycling" />);
 
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    // SportPageSkeleton renders react-loading-skeleton elements
+    expect(container.querySelectorAll(".react-loading-skeleton").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("sport-page")).not.toBeInTheDocument();
     expect(screen.queryByTestId("demo-sport-page")).not.toBeInTheDocument();
   });

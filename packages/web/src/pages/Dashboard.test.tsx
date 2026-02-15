@@ -139,7 +139,7 @@ describe("Dashboard", () => {
   });
 
   describe("loading state", () => {
-    it("shows loading spinner when auth is loading", () => {
+    it("shows skeleton loading screen when auth is loading", () => {
       mockUseAuth.mockReturnValue({
         user: null,
         loading: true,
@@ -147,10 +147,12 @@ describe("Dashboard", () => {
         signIn: mockSignIn,
         signOut: mockSignOut,
       });
-      renderWithRouter(<Dashboard />);
+      const { container } = renderWithRouter(<Dashboard />);
 
-      expect(screen.getByRole("status")).toBeInTheDocument();
-      expect(screen.getByText("Loading...")).toBeInTheDocument();
+      // DashboardSkeleton renders react-loading-skeleton elements
+      expect(container.querySelectorAll(".react-loading-skeleton").length).toBeGreaterThan(0);
+      // Should not render the actual dashboard content
+      expect(screen.queryByRole("heading", { name: /Welcome/i })).not.toBeInTheDocument();
     });
   });
 

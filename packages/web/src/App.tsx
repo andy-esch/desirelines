@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-
 import Header from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import PageLoader from "./components/PageLoader";
+import PageTransition from "./components/PageTransition";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { PageErrorFallback } from "./components/PageErrorFallback";
 import { ServiceProvider } from "./contexts/ServiceContext";
@@ -56,90 +57,92 @@ function App() {
               <Header />
               <main className="grow flex flex-col">
                 <Suspense fallback={<PageLoader />}>
-                  <Routes>
-                    {/* Dashboard - landing page for all users */}
-                    <Route
-                      path="/"
-                      element={
-                        <WithErrorBoundary>
-                          <Dashboard />
-                        </WithErrorBoundary>
-                      }
-                    />
-                    <Route
-                      path="/dashboard"
-                      element={
-                        <WithErrorBoundary>
-                          <Dashboard />
-                        </WithErrorBoundary>
-                      }
-                    />
-
-                    {/* Activities list page */}
-                    <Route
-                      path="/activities"
-                      element={
-                        <WithErrorBoundary>
-                          <ActivitiesPage />
-                        </WithErrorBoundary>
-                      }
-                    />
-
-                    {/* Origins/About page */}
-                    <Route
-                      path="/origins"
-                      element={
-                        <WithErrorBoundary>
-                          <OriginsPage />
-                        </WithErrorBoundary>
-                      }
-                    />
-
-                    {/* Settings page (authenticated users only) */}
-                    <Route
-                      path="/settings"
-                      element={
-                        <WithErrorBoundary>
-                          <SettingsPage />
-                        </WithErrorBoundary>
-                      }
-                    />
-
-                    {/* Sport detail pages - dynamic routing for any sport */}
-                    <Route path="/:sport" element={<SportRedirect currentYear={currentYear} />} />
-                    <Route path="/:sport/:year" element={<DynamicSportPage />} />
-
-                    {/* Demo routes - dedicated demo experience (only for sports with demo data) */}
-                    <Route
-                      path="/demo"
-                      element={
-                        <WithErrorBoundary>
-                          <Dashboard />
-                        </WithErrorBoundary>
-                      }
-                    />
-                    {DEMO_SPORTS.map((sport) => (
+                  <PageTransition>
+                    <Routes>
+                      {/* Dashboard - landing page for all users */}
                       <Route
-                        key={`demo-${sport}`}
-                        path={`/demo/${sport}`}
-                        element={<Navigate to={`/demo/${sport}/${currentYear}`} replace />}
-                      />
-                    ))}
-                    {DEMO_SPORTS.map((sport) => (
-                      <Route
-                        key={`demo-${sport}-year`}
-                        path={`/demo/${sport}/:year`}
+                        path="/"
                         element={
-                          <WithErrorBoundary resetKeys={[sport]}>
-                            <DemoSportPage sport={sport} />
+                          <WithErrorBoundary>
+                            <Dashboard />
                           </WithErrorBoundary>
                         }
                       />
-                    ))}
+                      <Route
+                        path="/dashboard"
+                        element={
+                          <WithErrorBoundary>
+                            <Dashboard />
+                          </WithErrorBoundary>
+                        }
+                      />
 
-                    {/* 404 - redirect unknown paths to dashboard */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
+                      {/* Activities list page */}
+                      <Route
+                        path="/activities"
+                        element={
+                          <WithErrorBoundary>
+                            <ActivitiesPage />
+                          </WithErrorBoundary>
+                        }
+                      />
+
+                      {/* Origins/About page */}
+                      <Route
+                        path="/origins"
+                        element={
+                          <WithErrorBoundary>
+                            <OriginsPage />
+                          </WithErrorBoundary>
+                        }
+                      />
+
+                      {/* Settings page (authenticated users only) */}
+                      <Route
+                        path="/settings"
+                        element={
+                          <WithErrorBoundary>
+                            <SettingsPage />
+                          </WithErrorBoundary>
+                        }
+                      />
+
+                      {/* Sport detail pages - dynamic routing for any sport */}
+                      <Route path="/:sport" element={<SportRedirect currentYear={currentYear} />} />
+                      <Route path="/:sport/:year" element={<DynamicSportPage />} />
+
+                      {/* Demo routes - dedicated demo experience (only for sports with demo data) */}
+                      <Route
+                        path="/demo"
+                        element={
+                          <WithErrorBoundary>
+                            <Dashboard />
+                          </WithErrorBoundary>
+                        }
+                      />
+                      {DEMO_SPORTS.map((sport) => (
+                        <Route
+                          key={`demo-${sport}`}
+                          path={`/demo/${sport}`}
+                          element={<Navigate to={`/demo/${sport}/${currentYear}`} replace />}
+                        />
+                      ))}
+                      {DEMO_SPORTS.map((sport) => (
+                        <Route
+                          key={`demo-${sport}-year`}
+                          path={`/demo/${sport}/:year`}
+                          element={
+                            <WithErrorBoundary resetKeys={[sport]}>
+                              <DemoSportPage sport={sport} />
+                            </WithErrorBoundary>
+                          }
+                        />
+                      ))}
+
+                      {/* 404 - redirect unknown paths to dashboard */}
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                  </PageTransition>
                 </Suspense>
               </main>
               <Footer />
