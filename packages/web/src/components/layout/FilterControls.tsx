@@ -41,7 +41,7 @@ export default function FilterControls({
       <div className="flex items-center mb-1">
         <label
           className="form-label text-sm text-slate-light mb-0 text-left"
-          style={{ minWidth: "65px" }}
+          style={{ minWidth: "50px" }}
         >
           Sport
         </label>
@@ -70,13 +70,13 @@ export default function FilterControls({
           </select>
         )}
       </div>
-      <SportVisibilityHint className="mb-2" style={{ paddingLeft: "65px" }} />
+      <SportVisibilityHint className="mb-2" style={{ paddingLeft: "50px" }} />
 
       {/* Year Selector */}
       <div className="flex items-center">
         <label
           className="form-label text-sm text-slate-light mb-0 text-left"
-          style={{ minWidth: "65px" }}
+          style={{ minWidth: "50px" }}
         >
           Year
         </label>

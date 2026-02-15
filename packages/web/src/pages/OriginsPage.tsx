@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { NarrowPageLayout } from "../components/layout/PageLayout";
 
 const GitHubIcon = () => (
   <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
@@ -24,20 +25,8 @@ export default function OriginsPage() {
   };
 
   return (
-    <div
-      className="py-12"
-      style={{
-        color: textColor,
-        background: `linear-gradient(
-          135deg,
-          rgba(255, 0, 255, 0.06),
-          rgba(0, 255, 255, 0.06),
-          rgba(0, 255, 128, 0.06)
-        )`,
-        minHeight: "100%",
-      }}
-    >
-      <div className="container" style={{ maxWidth: "720px" }}>
+    <NarrowPageLayout background="origins" maxWidth="720px">
+      <div style={{ color: textColor }}>
         <h1
           className="mb-3"
           style={{
@@ -141,6 +130,6 @@ export default function OriginsPage() {
           </p>
         </section>
       </div>
-    </div>
+    </NarrowPageLayout>
   );
 }

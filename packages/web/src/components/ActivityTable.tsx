@@ -8,6 +8,7 @@ import {
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
+import { SPORT_COLORS } from "../utils/sportConfig";
 import NeonSpinner from "./NeonSpinner";
 
 interface ActivityTableProps {
@@ -47,18 +48,14 @@ function formatDate(dateStr: string): string {
   });
 }
 
-/** Get sport badge color */
-function getSportBadgeClass(sport: string): string {
-  switch (sport) {
-    case "cycling":
-      return "bg-primary";
-    case "running":
-      return "bg-success";
-    case "yoga":
-      return "bg-info";
-    default:
-      return "bg-secondary";
-  }
+/** Get sport badge inline style using the sport's neon chart color */
+function getSportBadgeStyle(sport: string): React.CSSProperties {
+  const color = SPORT_COLORS[sport] || "rgb(160, 174, 192)";
+  return {
+    color,
+    backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
+    border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`,
+  };
 }
 
 /** Calculate and format pace (running) or speed (cycling) */
@@ -130,7 +127,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   return (
     <div className="card glass-panel">
       <div className="card-body p-0">
-        <div className="table-responsive">
+        <div className="overflow-x-auto">
           <table className="table table-hover table-sm table-dark-transparent mb-0">
             <thead>
               <tr>
@@ -161,7 +158,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                     </a>
                   </td>
                   <td>
-                    <span className={`badge ${getSportBadgeClass(activity.sport)}`}>
+                    <span className="badge" style={getSportBadgeStyle(activity.sport)}>
                       {activity.sport}
                     </span>
                   </td>

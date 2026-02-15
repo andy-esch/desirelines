@@ -206,7 +206,7 @@ export default function MultiSportComparisonChart({
   if (isLoading) {
     return (
       <div className={className}>
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-3">
           <h2 className="h5 mb-0">Recent Activity</h2>
           {/* Placeholder for TimeRangeSelector to prevent layout shift */}
           <div style={{ width: 120, height: 31 }} />
@@ -263,14 +263,14 @@ export default function MultiSportComparisonChart({
   return (
     <div className={className}>
       {/* Header with time range selector */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-3">
         <h2 className="h5 mb-0">Recent Activity</h2>
         <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Left: Unified Sparkline Chart */}
-        <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
+        <div style={{ minWidth: 0, overflow: "hidden" }}>
           <div className="glass-panel h-full flex flex-col" style={{ minWidth: 0 }}>
             {/* Legend with sport links */}
             <SparklineLegend sportMeta={sportMeta} />
@@ -326,7 +326,7 @@ export default function MultiSportComparisonChart({
         </div>
 
         {/* Right: Recent Activities */}
-        <div className="col-md-6">
+        <div>
           <div className="glass-panel h-full overflow-hidden">
             <RecentActivitiesList timeRange={timeRange} pageSize={activityPageSize} />
           </div>

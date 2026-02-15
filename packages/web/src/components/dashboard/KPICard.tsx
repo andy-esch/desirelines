@@ -4,7 +4,7 @@ export interface KPICardProps {
   /** Card title displayed at the top */
   title: string;
   /** Main value displayed prominently */
-  value: string | number;
+  value: React.ReactNode;
   /** Additional context displayed below the value */
   subtitle: string | React.ReactNode;
   /** Optional indicator (e.g., momentum arrow) shown after subtitle */

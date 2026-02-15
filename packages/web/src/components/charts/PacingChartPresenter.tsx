@@ -183,12 +183,8 @@ export function PacingChartPresenter({
   return (
     <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
       <LineChart data={mergedData} margin={CHART_CONFIG.margin} accessibilityLayer>
-        {/* Grid */}
-        <CartesianGrid
-          strokeDasharray={CHART_CONFIG.grid.strokeDasharray}
-          stroke={CHART_CONFIG.grid.stroke}
-          opacity={CHART_CONFIG.grid.opacity}
-        />
+        {/* Horizontal gridlines at Y-axis tick values */}
+        <CartesianGrid stroke={CHART_CONFIG.grid.stroke} vertical={CHART_CONFIG.grid.vertical} />
 
         {/* X-Axis: Time */}
         <XAxis

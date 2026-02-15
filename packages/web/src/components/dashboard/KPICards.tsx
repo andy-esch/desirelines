@@ -69,7 +69,11 @@ function KPICards({
   // Helper functions for cleaner rendering
   const getCurrentDistanceValue = () => {
     if (isLoading || currentDistance === 0) return "--";
-    return `${currentDistance.toFixed(0)} ${unit}`;
+    return (
+      <>
+        {currentDistance.toFixed(0)} <span className="text-lg">{unit}</span>
+      </>
+    );
   };
 
   const getCurrentDistanceSubtitle = () => {

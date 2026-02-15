@@ -312,11 +312,15 @@ export function getChartInterval(maxValue: number, config: MetricConfig): number
   return config.chartIntervalThresholds[config.chartIntervalThresholds.length - 1].interval;
 }
 
+/** Maximum number of non-zero Y-axis ticks (keeps gridlines clean) */
+const MAX_Y_TICKS = 5;
+
 /**
  * Generate Y-axis tick values for a chart.
  *
  * Creates an array of evenly-spaced tick values from 0 to beyond maxValue,
- * using the sport-appropriate interval.
+ * using the sport-appropriate interval. Doubles the interval as needed to
+ * keep the total to at most MAX_Y_TICKS non-zero ticks (3-5 gridlines).
  *
  * @param maxValue - Maximum value in the chart data
  * @param config - MetricConfig for the sport
@@ -330,9 +334,14 @@ export function getChartInterval(maxValue: number, config: MetricConfig): number
  * ```
  */
 export function generateYAxisTicks(maxValue: number, config: MetricConfig): number[] {
-  const interval = getChartInterval(maxValue, config);
-  const ticks: number[] = [];
+  let interval = getChartInterval(maxValue, config);
 
+  // Double interval until we have at most MAX_Y_TICKS non-zero ticks
+  while (maxValue > 0 && Math.ceil(maxValue / interval) > MAX_Y_TICKS) {
+    interval *= 2;
+  }
+
+  const ticks: number[] = [];
   for (let i = 0; i <= maxValue + interval; i += interval) {
     ticks.push(i);
   }

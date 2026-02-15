@@ -91,7 +91,7 @@ export default function Sidebar({
       </SidebarSection>
 
       {showAuthButton && (
-        <div className="md:hidden mt-auto px-6 py-6 border-t">
+        <div className="md:hidden mt-auto px-4 py-4 border-t">
           <AuthButton signOutVariant="outline-secondary" />
         </div>
       )}
@@ -101,7 +101,7 @@ export default function Sidebar({
   return (
     <>
       {/* Desktop: sticky sidebar */}
-      <div className="sidebar glass-panel-flush hidden md:block md:w-1/4 lg:w-1/6">
+      <div className="sidebar glass-panel-flush hidden md:block md:w-60 shrink-0">
         <div className="flex flex-col p-0 pt-4 overflow-y-auto h-full">{sidebarContent}</div>
       </div>
 

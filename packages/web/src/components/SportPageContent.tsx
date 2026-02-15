@@ -14,6 +14,7 @@ import type { Goal } from "../utils/goalCalculations";
 import type { MetricUnit } from "../utils/units";
 import type { YearContext } from "../utils/yearContext";
 import type { DistanceEntry } from "../types/activity";
+import { getSportGradient } from "../constants/sportGradients";
 
 export interface SportPageContentProps {
   // Core
@@ -110,8 +111,8 @@ export default function SportPageContent({
   // not misleading loading spinners.
 
   return (
-    <div className="px-3">
-      <div className="flex page-bg-sport">
+    <div className="px-4 md:pl-0 md:pr-6" style={{ background: getSportGradient(sport) }}>
+      <div className="flex">
         <Sidebar
           estimatedYearEnd={estimatedYearEnd}
           currentValue={currentValue}

@@ -52,7 +52,7 @@ export default function Dashboard() {
       {/* Demo mode banner for unauthenticated users */}
       {!user && (
         <div className="alert alert-demo mb-0 rounded-none py-3" role="alert">
-          <div className="px-6">
+          <div className="px-4 md:px-6">
             <strong className="text-accent-cyan">Demo Mode</strong>
             <span className="mx-2">—</span>
             Viewing generated sample data.{" "}
@@ -61,7 +61,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="px-3 py-6">
+      <div className="px-4 md:px-6 py-6">
         {/* Header Section */}
         <div className="dashboard-header mb-3">
           <h1 className="h2 font-display">

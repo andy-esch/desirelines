@@ -27,7 +27,7 @@ export default function SidebarSection({
   return (
     <>
       <button
-        className="sidebar-heading px-6 py-3 mb-0 text-slate-light uppercase flex items-center justify-between w-full bg-transparent border-0 min-h-[44px]"
+        className="sidebar-heading px-4 py-3 mb-0 text-slate-light uppercase flex items-center justify-between w-full bg-transparent border-0 min-h-[44px]"
         onClick={onToggle}
         aria-expanded={isExpanded}
         aria-controls={`${id}-collapse`}
@@ -42,7 +42,7 @@ export default function SidebarSection({
       </button>
 
       <div id={`${id}-collapse`} className={isExpanded ? "block" : "hidden"}>
-        <div className="px-6 py-6">{children}</div>
+        <div className="px-4 py-3">{children}</div>
       </div>
     </>
   );

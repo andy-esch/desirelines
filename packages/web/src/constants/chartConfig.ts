@@ -28,11 +28,10 @@ export const CHART_CONFIG = {
     goal: 2,
   },
 
-  /** Grid styling — subtle dotted "laser grid" */
+  /** Grid styling — horizontal-only lines at major Y-axis values */
   grid: {
-    strokeDasharray: "2 6",
-    stroke: "rgba(255, 255, 255, 0.06)",
-    opacity: 1,
+    stroke: "rgba(255, 255, 255, 0.12)",
+    vertical: false,
   },
 
   /** Axis styling */

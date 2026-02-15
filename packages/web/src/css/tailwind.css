@@ -274,43 +274,24 @@
    ========================================================================== */
 
 @utility page-bg-dashboard {
-  background: linear-gradient(
-    135deg,
-    rgba(0, 255, 255, 0.12) 0%,
-    rgba(0, 255, 128, 0.1) 50%,
-    rgba(255, 0, 255, 0.08) 100%
-  );
+  background: linear-gradient(120deg, rgba(0, 255, 255, 0.18) 0%, rgba(255, 0, 255, 0.12) 100%);
 }
 
 @utility page-bg-activities {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 0, 255, 0.1) 0%,
-    rgba(0, 255, 255, 0.08) 50%,
-    rgba(0, 255, 128, 0.06) 100%
-  );
-}
-
-@utility page-bg-sport {
-  background: linear-gradient(
-    135deg,
-    rgba(0, 255, 128, 0.1) 0%,
-    rgba(0, 255, 255, 0.08) 50%,
-    rgba(255, 0, 255, 0.06) 100%
-  );
+  background: linear-gradient(140deg, rgba(255, 0, 255, 0.15) 0%, rgba(0, 212, 255, 0.12) 100%);
 }
 
 @utility page-bg-origins {
   background: linear-gradient(
     135deg,
-    rgba(255, 0, 255, 0.12),
-    rgba(0, 255, 255, 0.12),
-    rgba(0, 255, 128, 0.12)
+    rgba(255, 0, 255, 0.18) 0%,
+    rgba(0, 255, 255, 0.15) 50%,
+    rgba(0, 255, 128, 0.1) 100%
   );
 }
 
 @utility page-bg-settings {
-  background: linear-gradient(135deg, rgba(0, 255, 255, 0.08) 0%, rgba(0, 255, 128, 0.06) 100%);
+  background: linear-gradient(110deg, rgba(0, 212, 255, 0.14) 0%, rgba(180, 0, 255, 0.1) 100%);
 }
 
 /* ==========================================================================

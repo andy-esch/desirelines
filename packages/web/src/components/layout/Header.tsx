@@ -61,7 +61,7 @@ export default function Header() {
 
   return (
     <header
-      className="sticky top-0 relative flex items-center flex-nowrap px-2 py-2 shadow"
+      className="sticky top-0 flex items-center flex-nowrap px-2 py-2 shadow"
       style={{ backgroundColor: "var(--color-slate-dark, #2d3748)", zIndex: 40 }}
     >
       <Link to="/" className="logo-link px-2 flex items-center shrink-0">
