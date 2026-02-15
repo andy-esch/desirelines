@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./index.css";
 import App from "./App";
-import ErrorBoundary from "./components/ErrorBoundary";
+import { ErrorBoundary } from "react-error-boundary";
 import { loadConfig } from "./lib/config";
 
 // Log version for debugging
@@ -83,7 +83,33 @@ const queryClient = new QueryClient({
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
 root.render(
   <React.StrictMode>
-    <ErrorBoundary>
+    <ErrorBoundary
+      fallbackRender={({ error, resetErrorBoundary }) => (
+        <div
+          style={{ padding: "40px", fontFamily: "monospace", maxWidth: "800px", margin: "0 auto" }}
+        >
+          <h1 style={{ color: "#d32f2f" }}>Something went wrong</h1>
+          <p>The application encountered an unexpected error.</p>
+          <pre
+            style={{
+              background: "#1a202c",
+              color: "#e2e8f0",
+              padding: "20px",
+              borderRadius: "4px",
+              overflow: "auto",
+            }}
+          >
+            {error instanceof Error ? error.message : String(error)}
+          </pre>
+          <button
+            onClick={resetErrorBoundary}
+            style={{ marginTop: "16px", padding: "8px 16px", cursor: "pointer" }}
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+    >
       <QueryClientProvider client={queryClient}>
         <App />
         {import.meta.env.DEV && <DevtoolsLazy />}

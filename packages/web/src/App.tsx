@@ -1,11 +1,18 @@
 import { lazy, Suspense, useRef, useEffect } from "react";
 import "./css/tailwind.css";
-import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
+import {
+  createBrowserRouter,
+  Navigate,
+  Outlet,
+  RouterProvider,
+  useLocation,
+  useParams,
+  useRouteError,
+} from "react-router-dom";
 import Header from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import PageLoader from "./components/PageLoader";
 import PageTransition from "./components/PageTransition";
-import ErrorBoundary from "./components/ErrorBoundary";
 import { PageErrorFallback } from "./components/PageErrorFallback";
 import { ServiceProvider } from "./contexts/ServiceContext";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -25,25 +32,23 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 /** Sports with demo data generators (derived from demo config) */
 const DEMO_SPORTS = getDemoSports();
 
-/** Wrapper that adds an error boundary with PageErrorFallback */
-function WithErrorBoundary({
-  children,
-  resetKeys,
-}: {
-  children: React.ReactNode;
-  resetKeys?: unknown[];
-}) {
-  return (
-    <ErrorBoundary
-      resetKeys={resetKeys}
-      fallbackRender={({ error, resetErrorBoundary }) => (
-        <PageErrorFallback error={error} onReset={resetErrorBoundary} />
-      )}
-    >
-      {children}
-    </ErrorBoundary>
-  );
+// ---------------------------------------------------------------------------
+// Error handling
+// ---------------------------------------------------------------------------
+
+/** Route-level error fallback — uses React Router's useRouteError hook */
+function RouteErrorFallback() {
+  const error = useRouteError();
+  const errorObj = error instanceof Error ? error : new Error(String(error));
+  return <PageErrorFallback error={errorObj} onReset={() => window.location.reload()} />;
 }
+
+/** Shared errorElement for all routes */
+const routeErrorElement = <RouteErrorFallback />;
+
+// ---------------------------------------------------------------------------
+// Layout
+// ---------------------------------------------------------------------------
 
 /** Moves focus to the main content area on route changes for screen reader users */
 function FocusOnNavigate({ mainRef }: { mainRef: React.RefObject<HTMLElement | null> }) {
@@ -62,133 +67,106 @@ function FocusOnNavigate({ mainRef }: { mainRef: React.RefObject<HTMLElement | n
   return null;
 }
 
-function App() {
-  const currentYear = useCurrentYear();
+/** Root layout — Header, main content area (with Suspense), and Footer */
+function RootLayout() {
   const mainRef = useRef<HTMLElement>(null);
 
+  return (
+    <>
+      <FocusOnNavigate mainRef={mainRef} />
+      <div className="App flex flex-col overflow-x-hidden" style={{ minHeight: "100vh" }}>
+        <Header />
+        <main ref={mainRef} tabIndex={-1} className="grow flex flex-col outline-none">
+          <Suspense fallback={<PageLoader />}>
+            <PageTransition>
+              <Outlet />
+            </PageTransition>
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Route helper components
+// ---------------------------------------------------------------------------
+
+/** Redirect /:sport to /:sport/:currentYear */
+function SportRedirect() {
+  const { sport } = useParams<{ sport: string }>();
+  const currentYear = useCurrentYear();
+  return <Navigate to={`/${sport}/${currentYear}`} replace />;
+}
+
+/** Redirect /demo/:sport to /demo/:sport/:currentYear */
+function DemoSportRedirect({ sport }: { sport: string }) {
+  const currentYear = useCurrentYear();
+  return <Navigate to={`/demo/${sport}/${currentYear}`} replace />;
+}
+
+/** Dynamic sport page — extracts sport from URL params */
+function DynamicSportPage() {
+  const { sport } = useParams<{ sport: string }>();
+  if (!sport) {
+    return <Navigate to="/" replace />;
+  }
+  return <UnifiedSportPage sport={sport} />;
+}
+
+// ---------------------------------------------------------------------------
+// Router
+// ---------------------------------------------------------------------------
+
+const router = createBrowserRouter([
+  {
+    element: <RootLayout />,
+    children: [
+      // Dashboard — landing page for all users
+      { path: "/", element: <Dashboard />, errorElement: routeErrorElement },
+      { path: "/dashboard", element: <Dashboard />, errorElement: routeErrorElement },
+
+      // Activities list page
+      { path: "/activities", element: <ActivitiesPage />, errorElement: routeErrorElement },
+
+      // Origins/About page
+      { path: "/origins", element: <OriginsPage />, errorElement: routeErrorElement },
+
+      // Settings page
+      { path: "/settings", element: <SettingsPage />, errorElement: routeErrorElement },
+
+      // Sport detail pages — dynamic routing for any sport
+      { path: "/:sport", element: <SportRedirect />, errorElement: routeErrorElement },
+      { path: "/:sport/:year", element: <DynamicSportPage />, errorElement: routeErrorElement },
+
+      // Demo routes — dedicated demo experience (only for sports with demo data)
+      { path: "/demo", element: <Dashboard />, errorElement: routeErrorElement },
+      ...DEMO_SPORTS.map((sport) => ({
+        path: `/demo/${sport}`,
+        element: <DemoSportRedirect sport={sport} />,
+      })),
+      ...DEMO_SPORTS.map((sport) => ({
+        path: `/demo/${sport}/:year`,
+        element: <DemoSportPage sport={sport} />,
+        errorElement: routeErrorElement,
+      })),
+
+      // 404 — redirect unknown paths to dashboard
+      { path: "*", element: <Navigate to="/" replace /> },
+    ],
+  },
+]);
+
+function App() {
   return (
     <ServiceProvider>
       <AuthProvider>
         <UIStateProvider>
-          <BrowserRouter>
-            <FocusOnNavigate mainRef={mainRef} />
-            <div className="App flex flex-col overflow-x-hidden" style={{ minHeight: "100vh" }}>
-              <Header />
-              <main ref={mainRef} tabIndex={-1} className="grow flex flex-col outline-none">
-                <Suspense fallback={<PageLoader />}>
-                  <PageTransition>
-                    <Routes>
-                      {/* Dashboard - landing page for all users */}
-                      <Route
-                        path="/"
-                        element={
-                          <WithErrorBoundary>
-                            <Dashboard />
-                          </WithErrorBoundary>
-                        }
-                      />
-                      <Route
-                        path="/dashboard"
-                        element={
-                          <WithErrorBoundary>
-                            <Dashboard />
-                          </WithErrorBoundary>
-                        }
-                      />
-
-                      {/* Activities list page */}
-                      <Route
-                        path="/activities"
-                        element={
-                          <WithErrorBoundary>
-                            <ActivitiesPage />
-                          </WithErrorBoundary>
-                        }
-                      />
-
-                      {/* Origins/About page */}
-                      <Route
-                        path="/origins"
-                        element={
-                          <WithErrorBoundary>
-                            <OriginsPage />
-                          </WithErrorBoundary>
-                        }
-                      />
-
-                      {/* Settings page (authenticated users only) */}
-                      <Route
-                        path="/settings"
-                        element={
-                          <WithErrorBoundary>
-                            <SettingsPage />
-                          </WithErrorBoundary>
-                        }
-                      />
-
-                      {/* Sport detail pages - dynamic routing for any sport */}
-                      <Route path="/:sport" element={<SportRedirect currentYear={currentYear} />} />
-                      <Route path="/:sport/:year" element={<DynamicSportPage />} />
-
-                      {/* Demo routes - dedicated demo experience (only for sports with demo data) */}
-                      <Route
-                        path="/demo"
-                        element={
-                          <WithErrorBoundary>
-                            <Dashboard />
-                          </WithErrorBoundary>
-                        }
-                      />
-                      {DEMO_SPORTS.map((sport) => (
-                        <Route
-                          key={`demo-${sport}`}
-                          path={`/demo/${sport}`}
-                          element={<Navigate to={`/demo/${sport}/${currentYear}`} replace />}
-                        />
-                      ))}
-                      {DEMO_SPORTS.map((sport) => (
-                        <Route
-                          key={`demo-${sport}-year`}
-                          path={`/demo/${sport}/:year`}
-                          element={
-                            <WithErrorBoundary resetKeys={[sport]}>
-                              <DemoSportPage sport={sport} />
-                            </WithErrorBoundary>
-                          }
-                        />
-                      ))}
-
-                      {/* 404 - redirect unknown paths to dashboard */}
-                      <Route path="*" element={<Navigate to="/" replace />} />
-                    </Routes>
-                  </PageTransition>
-                </Suspense>
-              </main>
-              <Footer />
-            </div>
-          </BrowserRouter>
+          <RouterProvider router={router} />
         </UIStateProvider>
       </AuthProvider>
     </ServiceProvider>
-  );
-}
-
-/** Redirect /:sport to /:sport/:currentYear */
-function SportRedirect({ currentYear }: { currentYear: number }) {
-  const { sport } = useParams<{ sport: string }>();
-  return <Navigate to={`/${sport}/${currentYear}`} replace />;
-}
-
-/** Dynamic sport page that extracts sport from URL params and wraps in error boundary */
-function DynamicSportPage() {
-  const { sport, year } = useParams<{ sport: string; year: string }>();
-  if (!sport) {
-    return <Navigate to="/" replace />;
-  }
-  return (
-    <WithErrorBoundary resetKeys={[sport, year]}>
-      <UnifiedSportPage sport={sport} />
-    </WithErrorBoundary>
   );
 }
 
