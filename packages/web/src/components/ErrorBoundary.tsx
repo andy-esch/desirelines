@@ -81,7 +81,11 @@ class ErrorBoundary extends Component<Props, State> {
               <strong>Error details:</strong> {this.state.error.message}
             </p>
             <hr />
-            <button className="btn btn-outline-danger" onClick={this.handleReset}>
+            <button
+              className="btn btn-outline-danger"
+              onClick={this.handleReset}
+              aria-label="Retry loading this page"
+            >
               Try Again
             </button>
           </div>

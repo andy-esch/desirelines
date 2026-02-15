@@ -1,6 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useRef, useEffect } from "react";
 import "./css/tailwind.css";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import Header from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import PageLoader from "./components/PageLoader";
@@ -45,17 +45,36 @@ function WithErrorBoundary({
   );
 }
 
+/** Moves focus to the main content area on route changes for screen reader users */
+function FocusOnNavigate({ mainRef }: { mainRef: React.RefObject<HTMLElement | null> }) {
+  const location = useLocation();
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    // Skip initial mount — only focus on subsequent navigations
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    mainRef.current?.focus();
+  }, [location.pathname, mainRef]);
+
+  return null;
+}
+
 function App() {
   const currentYear = useCurrentYear();
+  const mainRef = useRef<HTMLElement>(null);
 
   return (
     <ServiceProvider>
       <AuthProvider>
         <UIStateProvider>
           <BrowserRouter>
+            <FocusOnNavigate mainRef={mainRef} />
             <div className="App flex flex-col overflow-x-hidden" style={{ minHeight: "100vh" }}>
               <Header />
-              <main className="grow flex flex-col">
+              <main ref={mainRef} tabIndex={-1} className="grow flex flex-col outline-none">
                 <Suspense fallback={<PageLoader />}>
                   <PageTransition>
                     <Routes>

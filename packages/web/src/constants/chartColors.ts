@@ -6,8 +6,8 @@
  */
 
 export const CHART_COLORS = {
-  /** Actual data line (black with transparency) */
-  ACTUAL_DATA_LINE: "rgb(0, 0, 0, 0.8)",
+  /** Actual data line (white — visible on dark background) */
+  ACTUAL_DATA_LINE: "#ffffff",
 
   /** Average pacing line (orange, used in CumulativeMetricsChart) */
   AVERAGE_LINE: "rgb(255, 95, 31)",
