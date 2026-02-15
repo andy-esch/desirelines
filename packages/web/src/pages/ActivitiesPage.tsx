@@ -122,18 +122,16 @@ const ActivitiesPage = () => {
 
   return (
     <PageLayout background="activities">
-      <div className="container-fluid py-4">
+      <div className="px-4 md:px-6 py-6 max-w-6xl mx-auto">
         {/* Header */}
-        <div className="row mb-3">
-          <div className="col">
-            <h1 className="h3 mb-0">Activities</h1>
-          </div>
+        <div className="mb-3">
+          <h1 className="h3 mb-0 font-display">Activities</h1>
         </div>
 
         {/* Filters */}
-        <div className="d-flex align-items-center gap-3 mb-4">
-          <div className="d-flex align-items-center gap-2">
-            <label htmlFor="timeRange" className="text-muted small mb-0">
+        <div className="flex items-center gap-6 mb-6">
+          <div className="flex items-center gap-2">
+            <label htmlFor="timeRange" className="text-slate-light text-sm mb-0">
               Time:
             </label>
             <select
@@ -151,8 +149,8 @@ const ActivitiesPage = () => {
             </select>
           </div>
 
-          <div className="d-flex align-items-center gap-2">
-            <label htmlFor="sportFilter" className="text-muted small mb-0">
+          <div className="flex items-center gap-2">
+            <label htmlFor="sportFilter" className="text-slate-light text-sm mb-0">
               Sport:
             </label>
             <select

@@ -21,16 +21,16 @@ describe("LoadingChart", () => {
 
     const loadingText = screen.getByText("Loading...");
     expect(loadingText).toBeInTheDocument();
-    expect(loadingText).toHaveClass("visually-hidden");
+    expect(loadingText).toHaveClass("sr-only");
   });
 
-  it("applies Bootstrap styling classes", () => {
+  it("applies Tailwind styling classes", () => {
     const { container } = render(<LoadingChart />);
 
     const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper).toHaveClass("d-flex");
-    expect(wrapper).toHaveClass("justify-content-center");
-    expect(wrapper).toHaveClass("align-items-center");
+    expect(wrapper).toHaveClass("flex");
+    expect(wrapper).toHaveClass("justify-center");
+    expect(wrapper).toHaveClass("items-center");
   });
 
   it("has minimum height for visual consistency", () => {

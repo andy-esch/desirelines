@@ -32,7 +32,7 @@ describe("InlineAlert", () => {
     render(<InlineAlert size="sm">Small alert</InlineAlert>);
 
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveClass("py-1", "px-2", "small");
+    expect(alert).toHaveClass("py-1", "px-2", "text-sm");
   });
 
   it("does not apply small size classes by default", () => {

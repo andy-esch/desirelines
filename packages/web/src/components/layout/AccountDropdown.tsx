@@ -14,7 +14,7 @@ interface AccountDropdownProps {
  * Custom 80s-style avatar icon (not shared - unique to this component)
  */
 const UserIcon = () => (
-  <svg width="32" height="32" viewBox="0 0 20 20">
+  <svg width="28" height="28" viewBox="0 0 20 20">
     <circle cx="10" cy="10" r="9.5" fill="#e2e8f0" />
     <path
       d="M6 7.5 A4 4 0 1 0 14 7.5"
@@ -176,32 +176,27 @@ export function AccountDropdown({
     width: "100%",
     padding: "0.625rem 1rem",
     border: "none",
-    background: "transparent",
     color: "#e2e8f0",
     textAlign: "left",
     cursor: "pointer",
     textDecoration: "none",
     fontSize: "0.875rem",
-    transition: "background-color 0.15s ease",
   };
 
-  const menuItemHoverStyle = "rgba(255, 255, 255, 0.08)";
-
   return (
-    <div ref={dropdownRef} className="position-relative" onKeyDown={handleKeyDown}>
+    <div ref={dropdownRef} className="relative" onKeyDown={handleKeyDown}>
       {/* Trigger Button */}
       <button
         ref={triggerRef}
         type="button"
-        className="btn btn-link text-white d-flex align-items-center gap-1 p-1"
+        className="bg-transparent border-0 text-white flex items-center gap-0.5 p-1 cursor-pointer"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={user ? `Account menu for ${user.email}` : "Account menu"}
-        style={{ textDecoration: "none" }}
       >
         <UserIcon />
-        <ChevronDownIcon />
+        <ChevronDownIcon size={10} className="opacity-60" />
       </button>
 
       {/* Dropdown Menu */}
@@ -218,7 +213,7 @@ export function AccountDropdown({
             {user ? (
               <>
                 <div
-                  className="text-white small fw-medium"
+                  className="text-white text-sm font-medium"
                   style={{
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -231,7 +226,7 @@ export function AccountDropdown({
                 </div>
                 {user.displayName && user.email && (
                   <div
-                    className="text-white-50"
+                    className="text-white/50"
                     style={{
                       fontSize: "0.7rem",
                       overflow: "hidden",
@@ -245,7 +240,7 @@ export function AccountDropdown({
                   </div>
                 )}
                 <div
-                  className="d-flex align-items-center gap-1 mt-1"
+                  className="flex items-center gap-1 mt-1"
                   style={{ color: "#68d391", fontSize: "0.75rem" }}
                 >
                   <CheckIcon />
@@ -254,8 +249,8 @@ export function AccountDropdown({
               </>
             ) : (
               <>
-                <div className="text-white small fw-medium">Not logged in</div>
-                <div className="text-white-50" style={{ fontSize: "0.75rem" }}>
+                <div className="text-white text-sm font-medium">Not logged in</div>
+                <div className="text-white/50" style={{ fontSize: "0.75rem" }}>
                   Demo version
                 </div>
               </>
@@ -266,10 +261,9 @@ export function AccountDropdown({
           <Link
             to="/settings"
             role="menuitem"
+            className="transition-colors hover:bg-white/[0.08]"
             style={menuItemStyle}
             onClick={handleSettingsClick}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = menuItemHoverStyle)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
           >
             <SettingsIcon />
             <span>Settings</span>
@@ -280,11 +274,10 @@ export function AccountDropdown({
               <button
                 type="button"
                 role="menuitem"
+                className="transition-colors hover:bg-white/[0.08]"
                 style={menuItemStyle}
                 onClick={handleSignOut}
                 disabled={actionLoading}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = menuItemHoverStyle)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 <SignOutIcon />
                 <span>{actionLoading ? "Signing out..." : "Sign Out"}</span>
@@ -293,14 +286,13 @@ export function AccountDropdown({
               <button
                 type="button"
                 role="menuitem"
+                className="transition-colors hover:bg-white/[0.08]"
                 style={{
                   ...menuItemStyle,
                   color: "var(--accent-cyan, #00d4ff)",
                 }}
                 onClick={handleSignIn}
                 disabled={actionLoading}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = menuItemHoverStyle)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 <SignInIcon />
                 <span>{actionLoading ? "Signing in..." : "Sign In"}</span>

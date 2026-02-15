@@ -42,7 +42,10 @@ describe("KPICards", () => {
   it("displays current distance with average pace", () => {
     render(<KPICards {...getDefaultProps()} />);
 
-    expect(screen.getByText("2450 miles")).toBeInTheDocument();
+    // Value and unit are in separate elements for visual styling
+    const currentCard = screen.getByText("Current Distance").closest(".glass-panel-kpi");
+    expect(currentCard?.textContent).toContain("2450");
+    expect(currentCard?.textContent).toContain("miles");
     expect(screen.getByText(/8.3 miles \/ day avg/)).toBeInTheDocument();
     expect(screen.getByText(/295 days elapsed/)).toBeInTheDocument();
   });
@@ -160,7 +163,9 @@ describe("KPICards", () => {
       render(<KPICards {...getDefaultProps()} unit="sessions" currentDistance={100} />);
 
       expect(screen.getByText("Current # Sessions")).toBeInTheDocument();
-      expect(screen.getByText("100 sessions")).toBeInTheDocument();
+      const sessionsCard = screen.getByText("Current # Sessions").closest(".glass-panel-kpi");
+      expect(sessionsCard?.textContent).toContain("100");
+      expect(sessionsCard?.textContent).toContain("sessions");
       expect(screen.getByText(/sessions \/ day avg/)).toBeInTheDocument();
     });
   });

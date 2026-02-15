@@ -87,16 +87,17 @@ export const ChartTooltip = ({
     return (
       <div
         style={{
-          backgroundColor: "rgba(20, 20, 20, 0.85)",
-          border: "1px solid #444",
-          borderRadius: "6px",
+          backgroundColor: "rgba(45, 55, 72, 0.95)",
+          border: "1px solid rgba(0, 212, 255, 0.4)",
+          borderRadius: "0.625rem",
           padding: "8px 12px",
           boxShadow: "0 2px 8px rgba(0, 0, 0, 0.4)",
           fontSize: "12px",
+          fontFamily: '"Space Grotesk", sans-serif',
           minWidth: "140px",
         }}
       >
-        <div style={{ color: "#999", marginBottom: "4px" }}>{formattedDate}</div>
+        <div style={{ color: "#a0aec0", marginBottom: "4px" }}>{formattedDate}</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
           <span style={{ color: "#fff", fontWeight: "600", fontSize: "14px" }}>
             {actualValue.toFixed(decimals)} {unit}
@@ -119,11 +120,12 @@ export const ChartTooltip = ({
   return (
     <div
       style={{
-        backgroundColor: "rgba(20, 20, 20, 0.9)",
-        border: "1px solid #444",
-        borderRadius: "6px",
+        backgroundColor: "rgba(45, 55, 72, 0.95)",
+        border: "1px solid rgba(0, 212, 255, 0.4)",
+        borderRadius: "0.625rem",
         padding: "10px 12px",
         boxShadow: "0 2px 12px rgba(0, 0, 0, 0.5)",
+        fontFamily: '"Space Grotesk", sans-serif',
       }}
     >
       {/* Header with date */}
@@ -134,7 +136,7 @@ export const ChartTooltip = ({
           color: "#fff",
           marginBottom: "8px",
           paddingBottom: "6px",
-          borderBottom: "1px solid #333",
+          borderBottom: "1px solid rgba(0, 212, 255, 0.2)",
         }}
       >
         {formattedDate}

@@ -216,15 +216,15 @@ export function RaceTrackLegend({
   className,
 }: RaceTrackLegendProps) {
   return (
-    <div className={`d-flex gap-3 ${className ?? ""}`}>
-      <span className="d-flex align-items-center gap-1">
+    <div className={`flex gap-6 ${className ?? ""}`}>
+      <span className="flex items-center gap-1">
         <span style={{ fontSize: "0.9rem" }}>{primaryMarker}</span>
-        <small className="text-muted">{primaryLabel}</small>
+        <small className="text-slate-light">{primaryLabel}</small>
       </span>
       {showPace && (
-        <span className="d-flex align-items-center gap-1">
+        <span className="flex items-center gap-1">
           <span style={{ fontSize: "0.9rem", opacity: 0.5 }}>{paceMarker}</span>
-          <small className="text-muted">{paceLabel}</small>
+          <small className="text-slate-light">{paceLabel}</small>
         </span>
       )}
     </div>

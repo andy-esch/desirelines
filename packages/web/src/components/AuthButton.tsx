@@ -60,7 +60,7 @@ export default function AuthButton({
           {actionLoading ? "Signing out..." : "Sign Out"}
         </button>
         {error && (
-          <div className="text-danger small mt-1" role="alert">
+          <div className="text-danger text-sm mt-1" role="alert">
             {error.message}
           </div>
         )}
@@ -79,7 +79,7 @@ export default function AuthButton({
         {actionLoading ? "Signing in..." : "Sign In"}
       </button>
       {error && (
-        <div className="text-danger small mt-1" role="alert">
+        <div className="text-danger text-sm mt-1" role="alert">
           {error.message}
         </div>
       )}

@@ -4,7 +4,7 @@ export interface KPICardProps {
   /** Card title displayed at the top */
   title: string;
   /** Main value displayed prominently */
-  value: string | number;
+  value: React.ReactNode;
   /** Additional context displayed below the value */
   subtitle: string | React.ReactNode;
   /** Optional indicator (e.g., momentum arrow) shown after subtitle */
@@ -27,17 +27,15 @@ export interface KPICardProps {
  */
 const KPICard = React.memo(({ title, value, subtitle, indicator }: KPICardProps) => {
   return (
-    <div className="col-md-4">
-      <div className="glass-panel-kpi h-100">
-        <div className="d-flex flex-column justify-content-between p-2">
-          <h6 className="mb-2 text-muted small">{title}</h6>
-          <div>
-            <h2 className="mb-1">{value}</h2>
-            <small className="text-muted">
-              {subtitle}
-              {indicator}
-            </small>
-          </div>
+    <div className="glass-panel-kpi h-full">
+      <div className="flex flex-col justify-between p-3 md:p-4">
+        <h6 className="mb-1 text-slate-light text-sm">{title}</h6>
+        <div>
+          <div className="kpi-value mb-1">{value}</div>
+          <small className="text-slate-light">
+            {subtitle}
+            {indicator}
+          </small>
         </div>
       </div>
     </div>

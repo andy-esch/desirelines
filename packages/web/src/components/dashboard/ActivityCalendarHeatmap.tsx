@@ -285,13 +285,10 @@ export default function ActivityCalendarHeatmap({
   if (isLoading) {
     return (
       <div className={className}>
-        <div className="d-flex justify-content-between align-items-center mb-2">
-          <h2 className="h6 mb-0 text-muted">Activity Calendar</h2>
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="h6 mb-0 text-slate-light">Activity Calendar</h2>
         </div>
-        <div
-          className="glass-panel d-flex align-items-center justify-content-center"
-          style={{ height: 120 }}
-        >
+        <div className="glass-panel flex items-center justify-center" style={{ height: 120 }}>
           <NeonSpinner size="sm" />
         </div>
       </div>
@@ -300,22 +297,22 @@ export default function ActivityCalendarHeatmap({
 
   if (error) {
     return (
-      <div className={`${className} text-center p-4`}>
-        <p className="text-danger mb-0 small">Failed to load calendar data</p>
+      <div className={`${className} text-center p-6`}>
+        <p className="text-danger mb-0 text-sm">Failed to load calendar data</p>
       </div>
     );
   }
 
   return (
     <div className={className}>
-      <div className="d-flex justify-content-between align-items-center mb-2">
-        <h2 className="h6 mb-0 text-muted">
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="h6 mb-0 text-slate-light">
           Activity Calendar
-          <span className="ms-2 small fw-normal">
+          <span className="ms-2 text-sm font-normal">
             {totalActivities} activities in {rangeLabel}
           </span>
         </h2>
-        <div className="d-flex align-items-center gap-2">
+        <div className="flex items-center gap-2">
           {/* Sport filter toggle */}
           <div className="btn-group btn-group-sm" role="group" aria-label="Sport filter">
             <button
@@ -356,7 +353,7 @@ export default function ActivityCalendarHeatmap({
         </div>
       </div>
 
-      <div className="glass-panel overflow-auto d-flex flex-column">
+      <div className="glass-panel overflow-auto flex flex-col">
         <div
           style={{
             display: "inline-block",
@@ -472,7 +469,7 @@ export default function ActivityCalendarHeatmap({
 
         {/* Legend */}
         <div
-          className="d-flex align-items-center justify-content-end gap-1 mt-2"
+          className="flex items-center justify-end gap-1 mt-2"
           style={{ fontSize: "9px", color: "var(--bs-gray-600)" }}
         >
           <span>Less</span>

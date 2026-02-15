@@ -12,7 +12,7 @@ interface SportVisibilityHintProps {
  */
 export function SportVisibilityHint({ className = "", style }: SportVisibilityHintProps) {
   return (
-    <div className={`text-muted ${className}`} style={{ fontSize: "0.7rem", ...style }}>
+    <div className={`text-slate-light ${className}`} style={{ fontSize: "0.7rem", ...style }}>
       Don't see your sport? <Link to="/settings#sport-visibility">Manage visible sports</Link>
     </div>
   );

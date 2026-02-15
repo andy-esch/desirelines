@@ -68,7 +68,7 @@ export function GoalManagementTable() {
 
   if (loading) {
     return (
-      <div className="d-flex justify-content-center py-4">
+      <div className="flex justify-center py-6">
         <NeonSpinner />
       </div>
     );
@@ -80,7 +80,7 @@ export function GoalManagementTable() {
 
   if (goalRows.length === 0) {
     return (
-      <div className="text-muted py-3">
+      <div className="text-slate-light py-6">
         No goals found. Create goals on individual sport pages to see them here.
       </div>
     );
@@ -107,7 +107,7 @@ export function GoalManagementTable() {
                   style={{ opacity: isPastYear ? 0.7 : 1 }}
                 >
                   <td>
-                    <span className={isPastYear ? "text-muted" : ""}>{row.year}</span>
+                    <span className={isPastYear ? "text-slate-light" : ""}>{row.year}</span>
                   </td>
                   <td>{row.sportLabel}</td>
                   <td>{row.label}</td>
@@ -119,7 +119,7 @@ export function GoalManagementTable() {
         </table>
       </div>
 
-      <p className="text-muted small mt-3 mb-0">Edit goals directly on each sport page.</p>
+      <p className="text-slate-light text-sm mt-6 mb-0">Edit goals directly on each sport page.</p>
     </div>
   );
 }

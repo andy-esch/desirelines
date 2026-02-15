@@ -1,11 +1,5 @@
 import { lazy, Suspense } from "react";
-import "bootstrap/dist/css/bootstrap.css";
-// Bootstrap JS loaded async — only needed for interactive widgets (offcanvas, dropdowns),
-// not for initial render. Saves ~60KB from the critical path.
-// @ts-expect-error no type declarations for Bootstrap JS bundle
-void import("bootstrap/dist/js/bootstrap.bundle.min.js");
-import "./css/variables.css";
-import "./css/dashboard.css";
+import "./css/tailwind.css";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import Header from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
@@ -14,6 +8,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { PageErrorFallback } from "./components/PageErrorFallback";
 import { ServiceProvider } from "./contexts/ServiceContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { UIStateProvider } from "./contexts/UIStateContext";
 import { useCurrentYear } from "./hooks/useCurrentYear";
 import { getDemoSports } from "./utils/demoDataGenerator";
 
@@ -55,100 +50,102 @@ function App() {
   return (
     <ServiceProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <div className="App d-flex flex-column" style={{ minHeight: "100vh" }}>
-            <Header />
-            <main className="flex-grow-1 d-flex flex-column">
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  {/* Dashboard - landing page for all users */}
-                  <Route
-                    path="/"
-                    element={
-                      <WithErrorBoundary>
-                        <Dashboard />
-                      </WithErrorBoundary>
-                    }
-                  />
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <WithErrorBoundary>
-                        <Dashboard />
-                      </WithErrorBoundary>
-                    }
-                  />
-
-                  {/* Activities list page */}
-                  <Route
-                    path="/activities"
-                    element={
-                      <WithErrorBoundary>
-                        <ActivitiesPage />
-                      </WithErrorBoundary>
-                    }
-                  />
-
-                  {/* Origins/About page */}
-                  <Route
-                    path="/origins"
-                    element={
-                      <WithErrorBoundary>
-                        <OriginsPage />
-                      </WithErrorBoundary>
-                    }
-                  />
-
-                  {/* Settings page (authenticated users only) */}
-                  <Route
-                    path="/settings"
-                    element={
-                      <WithErrorBoundary>
-                        <SettingsPage />
-                      </WithErrorBoundary>
-                    }
-                  />
-
-                  {/* Sport detail pages - dynamic routing for any sport */}
-                  <Route path="/:sport" element={<SportRedirect currentYear={currentYear} />} />
-                  <Route path="/:sport/:year" element={<DynamicSportPage />} />
-
-                  {/* Demo routes - dedicated demo experience (only for sports with demo data) */}
-                  <Route
-                    path="/demo"
-                    element={
-                      <WithErrorBoundary>
-                        <Dashboard />
-                      </WithErrorBoundary>
-                    }
-                  />
-                  {DEMO_SPORTS.map((sport) => (
+        <UIStateProvider>
+          <BrowserRouter>
+            <div className="App flex flex-col overflow-x-hidden" style={{ minHeight: "100vh" }}>
+              <Header />
+              <main className="grow flex flex-col">
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
+                    {/* Dashboard - landing page for all users */}
                     <Route
-                      key={`demo-${sport}`}
-                      path={`/demo/${sport}`}
-                      element={<Navigate to={`/demo/${sport}/${currentYear}`} replace />}
-                    />
-                  ))}
-                  {DEMO_SPORTS.map((sport) => (
-                    <Route
-                      key={`demo-${sport}-year`}
-                      path={`/demo/${sport}/:year`}
+                      path="/"
                       element={
-                        <WithErrorBoundary resetKeys={[sport]}>
-                          <DemoSportPage sport={sport} />
+                        <WithErrorBoundary>
+                          <Dashboard />
                         </WithErrorBoundary>
                       }
                     />
-                  ))}
+                    <Route
+                      path="/dashboard"
+                      element={
+                        <WithErrorBoundary>
+                          <Dashboard />
+                        </WithErrorBoundary>
+                      }
+                    />
 
-                  {/* 404 - redirect unknown paths to dashboard */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </Suspense>
-            </main>
-            <Footer />
-          </div>
-        </BrowserRouter>
+                    {/* Activities list page */}
+                    <Route
+                      path="/activities"
+                      element={
+                        <WithErrorBoundary>
+                          <ActivitiesPage />
+                        </WithErrorBoundary>
+                      }
+                    />
+
+                    {/* Origins/About page */}
+                    <Route
+                      path="/origins"
+                      element={
+                        <WithErrorBoundary>
+                          <OriginsPage />
+                        </WithErrorBoundary>
+                      }
+                    />
+
+                    {/* Settings page (authenticated users only) */}
+                    <Route
+                      path="/settings"
+                      element={
+                        <WithErrorBoundary>
+                          <SettingsPage />
+                        </WithErrorBoundary>
+                      }
+                    />
+
+                    {/* Sport detail pages - dynamic routing for any sport */}
+                    <Route path="/:sport" element={<SportRedirect currentYear={currentYear} />} />
+                    <Route path="/:sport/:year" element={<DynamicSportPage />} />
+
+                    {/* Demo routes - dedicated demo experience (only for sports with demo data) */}
+                    <Route
+                      path="/demo"
+                      element={
+                        <WithErrorBoundary>
+                          <Dashboard />
+                        </WithErrorBoundary>
+                      }
+                    />
+                    {DEMO_SPORTS.map((sport) => (
+                      <Route
+                        key={`demo-${sport}`}
+                        path={`/demo/${sport}`}
+                        element={<Navigate to={`/demo/${sport}/${currentYear}`} replace />}
+                      />
+                    ))}
+                    {DEMO_SPORTS.map((sport) => (
+                      <Route
+                        key={`demo-${sport}-year`}
+                        path={`/demo/${sport}/:year`}
+                        element={
+                          <WithErrorBoundary resetKeys={[sport]}>
+                            <DemoSportPage sport={sport} />
+                          </WithErrorBoundary>
+                        }
+                      />
+                    ))}
+
+                    {/* 404 - redirect unknown paths to dashboard */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Suspense>
+              </main>
+              <Footer />
+            </div>
+          </BrowserRouter>
+        </UIStateProvider>
       </AuthProvider>
     </ServiceProvider>
   );

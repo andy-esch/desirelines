@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { NarrowPageLayout } from "../components/layout/PageLayout";
 
 const GitHubIcon = () => (
   <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
@@ -24,22 +25,10 @@ export default function OriginsPage() {
   };
 
   return (
-    <div
-      className="py-5"
-      style={{
-        color: textColor,
-        background: `linear-gradient(
-          135deg,
-          rgba(255, 0, 255, 0.06),
-          rgba(0, 255, 255, 0.06),
-          rgba(0, 255, 128, 0.06)
-        )`,
-        minHeight: "100%",
-      }}
-    >
-      <div className="container" style={{ maxWidth: "720px" }}>
+    <NarrowPageLayout background="origins" maxWidth="720px">
+      <div style={{ color: textColor }}>
         <h1
-          className="mb-4"
+          className="mb-3"
           style={{
             ...neonGradientText,
             fontWeight: 300,
@@ -49,7 +38,7 @@ export default function OriginsPage() {
           Origins
         </h1>
 
-        <section className="mb-5">
+        <section className="mb-12">
           <h2
             className="mb-3"
             style={{
@@ -67,7 +56,7 @@ export default function OriginsPage() {
           </p>
         </section>
 
-        <section className="mb-5">
+        <section className="mb-12">
           <h2
             className="mb-3"
             style={{
@@ -94,7 +83,7 @@ export default function OriginsPage() {
           </p>
         </section>
 
-        <section className="mb-5">
+        <section className="mb-12">
           <h2
             className="mb-3"
             style={{
@@ -127,7 +116,7 @@ export default function OriginsPage() {
           </a>
         </section>
 
-        <section className="mt-5 pt-4" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
+        <section className="mt-12 pt-6" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
           <p className="text-center mb-0">
             <Link
               to="/"
@@ -141,6 +130,6 @@ export default function OriginsPage() {
           </p>
         </section>
       </div>
-    </div>
+    </NarrowPageLayout>
   );
 }

@@ -19,10 +19,7 @@ export default function UnifiedSportPage({ sport }: UnifiedSportPageProps) {
   // Show loading while auth state is being determined
   if (loading) {
     return (
-      <div
-        className="container d-flex justify-content-center align-items-center"
-        style={{ minHeight: "60vh" }}
-      >
+      <div className="container flex justify-center items-center" style={{ minHeight: "60vh" }}>
         <NeonSpinner />
       </div>
     );

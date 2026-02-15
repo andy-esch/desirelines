@@ -38,17 +38,20 @@ export default function FilterControls({
   return (
     <>
       {/* Sport Selector */}
-      <div className="d-flex align-items-center mb-1">
-        <label className="form-label small text-muted mb-0 text-start" style={{ minWidth: "65px" }}>
+      <div className="flex items-center mb-1">
+        <label
+          className="form-label text-sm text-slate-light mb-0 text-left"
+          style={{ minWidth: "50px" }}
+        >
           Sport
         </label>
         {sportsToShow.length === 0 ? (
-          <select className="form-select form-select-sm flex-grow-1" disabled>
+          <select className="form-select form-select-sm grow" disabled>
             <option>No sports available</option>
           </select>
         ) : (
           <select
-            className="form-select form-select-sm flex-grow-1"
+            className="form-select form-select-sm grow"
             value={sport}
             onChange={(e) => onSportChange(e.target.value)}
           >
@@ -67,15 +70,18 @@ export default function FilterControls({
           </select>
         )}
       </div>
-      <SportVisibilityHint className="mb-2" style={{ paddingLeft: "65px" }} />
+      <SportVisibilityHint className="mb-2" style={{ paddingLeft: "50px" }} />
 
       {/* Year Selector */}
-      <div className="d-flex align-items-center">
-        <label className="form-label small text-muted mb-0 text-start" style={{ minWidth: "65px" }}>
+      <div className="flex items-center">
+        <label
+          className="form-label text-sm text-slate-light mb-0 text-left"
+          style={{ minWidth: "50px" }}
+        >
           Year
         </label>
         <select
-          className="form-select form-select-sm flex-grow-1"
+          className="form-select form-select-sm grow"
           value={currentYear}
           onChange={(e) => onYearChange(Number(e.target.value))}
         >

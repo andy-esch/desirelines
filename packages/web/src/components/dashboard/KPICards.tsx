@@ -69,7 +69,11 @@ function KPICards({
   // Helper functions for cleaner rendering
   const getCurrentDistanceValue = () => {
     if (isLoading || currentDistance === 0) return "--";
-    return `${currentDistance.toFixed(0)} ${unit}`;
+    return (
+      <>
+        {currentDistance.toFixed(0)} <span className="text-lg">{unit}</span>
+      </>
+    );
   };
 
   const getCurrentDistanceSubtitle = () => {
@@ -137,7 +141,7 @@ function KPICards({
   };
 
   return (
-    <div className="row g-3 mb-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-8">
       {/* Current Distance/Sessions Card */}
       <KPICard
         title={metricTitle}
@@ -152,12 +156,14 @@ function KPICards({
         subtitle={getNextGoalSubtitle()}
       />
 
-      {/* Pace to Goal Card */}
-      <KPICard
-        title={`Pace to ${nextGoal?.label || "Goal"}`}
-        value={getPaceToGoalValue()}
-        subtitle={getPaceToGoalSubtitle()}
-      />
+      {/* Pace to Goal Card — full width on mobile */}
+      <div className="col-span-2 md:col-span-1">
+        <KPICard
+          title={`Pace to ${nextGoal?.label || "Goal"}`}
+          value={getPaceToGoalValue()}
+          subtitle={getPaceToGoalSubtitle()}
+        />
+      </div>
     </div>
   );
 }
