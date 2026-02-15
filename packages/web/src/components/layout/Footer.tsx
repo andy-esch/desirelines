@@ -21,16 +21,9 @@ export function Footer() {
   const startYear = 2024;
   const yearRange = currentYear > startYear ? `${startYear}-${currentYear}` : `${startYear}`;
 
-  const textColor = "var(--slate-light, #718096)";
-
-  const linkStyle: React.CSSProperties = {
-    color: textColor,
-    textDecoration: "none",
-  };
-
   return (
     <footer
-      className="py-2 text-center"
+      className="py-2 text-center text-slate-light"
       style={{
         background: `linear-gradient(
           135deg,
@@ -39,17 +32,11 @@ export function Footer() {
           rgba(0, 255, 128, 0.12)
         )`,
         borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-        color: textColor,
         fontSize: "0.85rem",
       }}
     >
-      <div className="container d-flex justify-content-center align-items-center gap-2 flex-wrap">
-        <Link
-          to="/origins"
-          style={linkStyle}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-cyan, #00d4ff)")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = textColor)}
-        >
+      <div className="container flex justify-center items-center gap-2 flex-wrap">
+        <Link to="/origins" className="text-slate-light no-underline hover:text-accent-cyan">
           Origins
         </Link>
         <span style={{ opacity: 0.5 }}>&bull;</span>
@@ -57,14 +44,8 @@ export function Footer() {
           href="https://github.com/andy-esch/desirelines/"
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            ...linkStyle,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.35rem",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-cyan, #00d4ff)")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = textColor)}
+          className="text-slate-light no-underline hover:text-accent-cyan inline-flex items-center"
+          style={{ gap: "0.35rem" }}
         >
           <GitHubIcon />
           GitHub

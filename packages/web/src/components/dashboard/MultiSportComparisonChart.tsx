@@ -124,7 +124,7 @@ function UnifiedSparklineTooltip({
         return (
           <div
             key={meta.sport}
-            className="d-flex align-items-center gap-2"
+            className="flex items-center gap-2"
             style={{ opacity: hasActivity ? 1 : 0.4 }}
           >
             <span
@@ -158,12 +158,12 @@ function UnifiedSparklineTooltip({
  */
 function SparklineLegend({ sportMeta }: { sportMeta: SportMetaItem[] }) {
   return (
-    <div className="d-flex flex-wrap gap-2 mb-2" style={{ fontSize: "0.75rem" }}>
+    <div className="flex flex-wrap gap-2 mb-2" style={{ fontSize: "0.75rem" }}>
       {sportMeta.map(({ sport, displayName, color, textColor, lastActivityYear }) => (
         <Link
           key={sport}
           to={`/${sport}/${lastActivityYear}`}
-          className="d-flex align-items-center gap-1 text-decoration-none"
+          className="flex items-center gap-1 no-underline"
           style={{ color: textColor }}
           title={displayName}
         >
@@ -206,7 +206,7 @@ export default function MultiSportComparisonChart({
   if (isLoading) {
     return (
       <div className={className}>
-        <div className="d-flex justify-content-between align-items-center mb-3">
+        <div className="flex justify-between items-center mb-6">
           <h2 className="h5 mb-0">Recent Activity</h2>
           {/* Placeholder for TimeRangeSelector to prevent layout shift */}
           <div style={{ width: 120, height: 31 }} />
@@ -214,14 +214,14 @@ export default function MultiSportComparisonChart({
 
         {/* Two-column skeleton layout - matches loaded state structure */}
         <div
-          className="row g-3 justify-content-center"
+          className="grid grid-cols-1 md:grid-cols-2 gap-6"
           role="status"
           aria-label="Loading activity data"
         >
           {/* Left: Sparkline skeletons */}
-          <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
+          <div style={{ minWidth: 0, overflow: "hidden" }}>
             <div
-              className="glass-panel h-100 d-flex flex-column justify-content-center gap-2"
+              className="glass-panel h-full flex flex-col justify-center gap-2"
               style={{ minHeight: sparklineContainerHeight }}
             >
               {/* Show 4 skeleton rows to approximate typical sport count */}
@@ -233,12 +233,12 @@ export default function MultiSportComparisonChart({
           </div>
 
           {/* Right: Activity list skeletons */}
-          <div className="col-md-6">
+          <div>
             <div
-              className="glass-panel h-100 overflow-hidden"
+              className="glass-panel h-full overflow-hidden"
               style={{ minHeight: sparklineContainerHeight }}
             >
-              <div className="d-flex flex-column gap-1">
+              <div className="flex flex-col gap-1">
                 <ActivityRowSkeleton />
                 <ActivityRowSkeleton />
                 <ActivityRowSkeleton />
@@ -254,7 +254,7 @@ export default function MultiSportComparisonChart({
 
   if (error) {
     return (
-      <div className={`${className} text-center p-4`}>
+      <div className={`${className} text-center p-6`}>
         <p className="text-danger mb-0">Failed to load activity data</p>
       </div>
     );
@@ -263,20 +263,20 @@ export default function MultiSportComparisonChart({
   return (
     <div className={className}>
       {/* Header with time range selector */}
-      <div className="d-flex justify-content-between align-items-center mb-3">
+      <div className="flex justify-between items-center mb-6">
         <h2 className="h5 mb-0">Recent Activity</h2>
         <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
       </div>
 
-      <div className="row g-3 justify-content-center">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Left: Unified Sparkline Chart */}
         <div className="col-md-6" style={{ minWidth: 0, overflow: "hidden" }}>
-          <div className="glass-panel h-100 d-flex flex-column" style={{ minWidth: 0 }}>
+          <div className="glass-panel h-full flex flex-col" style={{ minWidth: 0 }}>
             {/* Legend with sport links */}
             <SparklineLegend sportMeta={sportMeta} />
 
             {/* Unified chart — grows to fill available height */}
-            <div className="flex-grow-1" style={{ minHeight: chartHeight }}>
+            <div className="grow" style={{ minHeight: chartHeight }}>
               <ResponsiveContainer width="100%" height="100%" minWidth={50}>
                 <LineChart
                   data={unifiedChartData}
@@ -327,7 +327,7 @@ export default function MultiSportComparisonChart({
 
         {/* Right: Recent Activities */}
         <div className="col-md-6">
-          <div className="glass-panel h-100 overflow-hidden">
+          <div className="glass-panel h-full overflow-hidden">
             <RecentActivitiesList timeRange={timeRange} pageSize={activityPageSize} />
           </div>
         </div>

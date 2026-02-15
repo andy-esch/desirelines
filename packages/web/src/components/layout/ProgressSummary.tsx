@@ -24,14 +24,14 @@ export default function ProgressSummary({
   };
 
   return (
-    <div className="px-3 pt-3 pb-2">
-      <div className="d-flex justify-content-between small">
-        <span className="text-muted">Current</span>
-        <span className="fw-semibold">{formatValue(currentValue)}</span>
+    <div className="px-6 pt-6 pb-2">
+      <div className="flex justify-between text-sm">
+        <span className="text-slate-light">Current</span>
+        <span className="font-semibold">{formatValue(currentValue)}</span>
       </div>
-      <div className="d-flex justify-content-between small">
-        <span className="text-muted">Est. Year-End</span>
-        <span className="fw-semibold">{formatValue(estimatedYearEnd)}</span>
+      <div className="flex justify-between text-sm">
+        <span className="text-slate-light">Est. Year-End</span>
+        <span className="font-semibold">{formatValue(estimatedYearEnd)}</span>
       </div>
     </div>
   );

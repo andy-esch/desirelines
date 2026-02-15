@@ -38,10 +38,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <PageLayout background="dashboard">
-        <div
-          className="container d-flex justify-content-center align-items-center"
-          style={{ minHeight: "60vh" }}
-        >
+        <div className="container flex justify-center items-center" style={{ minHeight: "60vh" }}>
           <NeonSpinner />
         </div>
       </PageLayout>
@@ -54,21 +51,21 @@ export default function Dashboard() {
     <PageLayout background="dashboard">
       {/* Demo mode banner for unauthenticated users */}
       {!user && (
-        <div className="alert alert-demo mb-0 rounded-0" role="alert">
-          <div className="container-fluid">
+        <div className="alert alert-demo mb-0 rounded-none" role="alert">
+          <div className="px-3">
             <strong>Demo Mode</strong> - Viewing generated sample data.{" "}
-            <span className="text-muted small">Sign-in is invite-only.</span>
+            <span className="text-slate-light text-sm">Sign-in is invite-only.</span>
           </div>
         </div>
       )}
 
-      <div className="container-fluid py-4">
+      <div className="px-3 py-6">
         {/* Header Section */}
-        <div className="dashboard-header mb-4">
+        <div className="dashboard-header mb-6">
           <h1 className="h2">
             {user ? `Welcome back, ${user.displayName?.split(" ")[0] || "there"}!` : "Welcome!"}
           </h1>
-          <p className="text-muted">
+          <p className="text-slate-light">
             {user
               ? "Your multi-sport activity dashboard"
               : "Explore the dashboard with demo data, then sign in to see your own activities."}
@@ -76,29 +73,25 @@ export default function Dashboard() {
         </div>
 
         {/* Multi-Sport Comparison Chart */}
-        <MultiSportComparisonChart className="mb-4" tuningParams={tuningParams} />
+        <MultiSportComparisonChart className="mb-6" tuningParams={tuningParams} />
 
         {/* Weekly Summary + Goal Progress row */}
-        <div className="row g-3 mb-4">
-          <div className="col-md-6">
-            <WeeklySummaryCard />
-          </div>
-          <div className="col-md-6">
-            <GoalProgressCard />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <WeeklySummaryCard />
+          <GoalProgressCard />
         </div>
 
         {/* Activity Calendar Heatmap */}
-        <ActivityCalendarHeatmap className="mb-4" tuningParams={tuningParams} />
+        <ActivityCalendarHeatmap className="mb-6" tuningParams={tuningParams} />
 
         {/* Sign-in prompt for unauthenticated users */}
         {!user && (
-          <div className="mt-5 text-center">
-            <hr className="my-4" />
-            <p className="text-muted">
+          <div className="mt-12 text-center">
+            <hr className="my-6" />
+            <p className="text-slate-light">
               <strong>Interested in using Desire Lines?</strong>
             </p>
-            <p className="text-muted small">
+            <p className="text-slate-light text-sm">
               Sign-in is currently invite-only.
               <br />
               Check back soon or reach out if you'd like early access.

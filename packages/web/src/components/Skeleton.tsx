@@ -1,7 +1,19 @@
 import { useMemo } from "react";
 import ReactSkeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { SKELETON_THEMES, SKELETON_DUAL_THEMES } from "../constants/uiColors";
+/** Skeleton loader color themes using subtle neon tints */
+const SKELETON_THEMES = [
+  { baseColor: "rgba(0, 255, 255, 0.12)", highlightColor: "rgba(0, 255, 255, 0.22)" }, // Cyan
+  { baseColor: "rgba(255, 0, 255, 0.12)", highlightColor: "rgba(255, 0, 255, 0.22)" }, // Magenta
+  { baseColor: "rgba(180, 0, 255, 0.12)", highlightColor: "rgba(180, 0, 255, 0.22)" }, // Purple
+] as const;
+
+/** Dual-color skeleton themes — base and highlight are different neon colors */
+const SKELETON_DUAL_THEMES = [
+  { baseColor: "rgba(0, 255, 255, 0.12)", highlightColor: "rgba(255, 0, 255, 0.22)" }, // Cyan → Magenta
+  { baseColor: "rgba(0, 255, 128, 0.12)", highlightColor: "rgba(255, 200, 0, 0.22)" }, // Green → Yellow
+  { baseColor: "rgba(180, 0, 255, 0.12)", highlightColor: "rgba(0, 255, 255, 0.22)" }, // Purple → Cyan
+] as const;
 
 interface SkeletonProps {
   /** Number of skeleton lines to render */

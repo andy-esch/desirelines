@@ -65,7 +65,7 @@ function ChartHeader({
   // Simple header for loading/error/empty states
   if (simple) {
     return (
-      <h3 className="text-muted mb-3" style={{ fontSize: "1rem", fontWeight: "500" }}>
+      <h3 className="text-slate-light mb-6" style={{ fontSize: "1rem", fontWeight: "500" }}>
         {title}
       </h3>
     );
@@ -73,9 +73,9 @@ function ChartHeader({
 
   // Full header with optional controls and tooltip
   return (
-    <div className="d-flex justify-content-between align-items-center mb-3">
-      <div className="d-flex align-items-center gap-2">
-        <h3 className="text-muted mb-0" style={{ fontSize: "1rem", fontWeight: "500" }}>
+    <div className="flex justify-between items-center mb-6">
+      <div className="flex items-center gap-2">
+        <h3 className="text-slate-light mb-0" style={{ fontSize: "1rem", fontWeight: "500" }}>
           {title}
         </h3>
         {infoTooltip && (
@@ -98,7 +98,7 @@ function ChartHeader({
           </span>
         )}
       </div>
-      {controls && <div className="d-flex gap-2">{controls}</div>}
+      {controls && <div className="flex gap-2">{controls}</div>}
     </div>
   );
 }

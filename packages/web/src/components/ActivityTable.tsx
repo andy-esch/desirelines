@@ -112,7 +112,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
     return (
       <div className="alert alert-danger" role="alert">
         <strong>Error loading activities:</strong> {error.message}
-        <button className="btn btn-outline-danger btn-sm ms-3" onClick={onRetry}>
+        <button className="btn btn-outline-danger btn-sm ms-6" onClick={onRetry}>
           Retry
         </button>
       </div>
@@ -137,24 +137,24 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                 <th>Date</th>
                 <th>Name</th>
                 <th>Sport</th>
-                <th className="text-end">Distance</th>
-                <th className="text-end">Time</th>
-                <th className="text-end">Elevation</th>
-                <th className="text-end">Pace/Speed</th>
-                {showImpact && <th className="text-end">Impact</th>}
+                <th className="text-right">Distance</th>
+                <th className="text-right">Time</th>
+                <th className="text-right">Elevation</th>
+                <th className="text-right">Pace/Speed</th>
+                {showImpact && <th className="text-right">Impact</th>}
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {activities.map((activity) => (
                 <tr key={activity.id}>
-                  <td className="text-nowrap">{formatDate(activity.startDateLocal)}</td>
+                  <td className="whitespace-nowrap">{formatDate(activity.startDateLocal)}</td>
                   <td>
                     <a
                       href={`https://www.strava.com/activities/${activity.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-truncate d-inline-block text-decoration-none"
+                      className="text-truncate inline-block no-underline"
                       style={{ maxWidth: "200px" }}
                     >
                       {activity.name}
@@ -165,20 +165,20 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                       {activity.sport}
                     </span>
                   </td>
-                  <td className="text-end text-nowrap">
+                  <td className="text-right whitespace-nowrap">
                     {activity.distanceMeters > 0
                       ? formatDistance(activity.distanceMeters, distanceUnit)
                       : "-"}
                   </td>
-                  <td className="text-end text-nowrap">
+                  <td className="text-right whitespace-nowrap">
                     {formatDuration(activity.movingTimeSeconds)}
                   </td>
-                  <td className="text-end text-nowrap">
+                  <td className="text-right whitespace-nowrap">
                     {activity.elevationMeters
                       ? formatElevation(activity.elevationMeters, elevationUnit)
                       : "-"}
                   </td>
-                  <td className="text-end text-nowrap">
+                  <td className="text-right whitespace-nowrap">
                     {formatPaceOrSpeed(
                       activity.distanceMeters,
                       activity.movingTimeSeconds,
@@ -187,7 +187,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                     )}
                   </td>
                   {showImpact && goalTarget > 0 && (
-                    <td className="text-end text-nowrap text-muted">
+                    <td className="text-right whitespace-nowrap text-slate-light">
                       {formatImpactPct(
                         isSessionSport
                           ? (1 / goalTarget) * 100
@@ -199,12 +199,12 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                       )}
                     </td>
                   )}
-                  <td className="text-end pe-3">
+                  <td className="text-right pe-6">
                     <a
                       href={`https://www.strava.com/activities/${activity.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-muted"
+                      className="text-slate-light"
                       title="View on Strava"
                     >
                       <svg
@@ -234,14 +234,14 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
 
         {/* Loading indicator */}
         {isLoading && (
-          <div className="text-center py-4">
+          <div className="text-center py-6">
             <NeonSpinner />
           </div>
         )}
 
         {/* Load more button */}
         {!isLoading && hasMore && (
-          <div className="text-center py-3 border-top">
+          <div className="text-center py-6 border-t">
             <button className="btn btn-ghost-slate" onClick={onLoadMore}>
               Load More
             </button>
@@ -250,7 +250,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
 
         {/* End of results indicator */}
         {!isLoading && !hasMore && activities.length > 0 && (
-          <div className="text-center text-muted py-3 border-top">
+          <div className="text-center text-slate-light py-6 border-t">
             <small>Showing all {activities.length} activities</small>
           </div>
         )}

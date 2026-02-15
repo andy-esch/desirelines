@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
+import { Dialog, DialogPanel, Transition, TransitionChild } from "@headlessui/react";
 import AuthButton from "../AuthButton";
 import ProgressSummary from "./ProgressSummary";
 import SidebarSection from "./SidebarSection";
@@ -23,6 +24,12 @@ interface SidebarSections {
   goals: boolean;
 }
 
+const CloseIcon = () => (
+  <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+    <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z" />
+  </svg>
+);
+
 export default function Sidebar({
   estimatedYearEnd,
   currentValue,
@@ -36,6 +43,14 @@ export default function Sidebar({
     "sidebar-sections",
     { filters: true, goals: true }
   );
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Listen for toggle-sidebar event from Header's gear button
+  useEffect(() => {
+    const handler = () => setMobileOpen((prev) => !prev);
+    window.addEventListener("toggle-sidebar", handler);
+    return () => window.removeEventListener("toggle-sidebar", handler);
+  }, []);
 
   const toggleSection = (section: keyof SidebarSections) => {
     setExpandedSections({
@@ -44,65 +59,102 @@ export default function Sidebar({
     });
   };
 
-  return (
-    <div className="sidebar glass-panel-flush col-md-3 col-lg-2">
-      <div
-        className="offcanvas-md offcanvas-start"
-        tabIndex={-1}
-        id="sidebarMenu"
-        aria-labelledby="sidebarMenuLabel"
+  const sidebarContent = (
+    <>
+      <ProgressSummary
+        currentValue={currentValue}
+        estimatedYearEnd={estimatedYearEnd}
+        unit={unit}
+        isLoading={isLoading}
+      />
+
+      <hr className="my-2" />
+
+      <SidebarSection
+        title="Filters"
+        id="filters"
+        isExpanded={expandedSections.filters}
+        onToggle={() => toggleSection("filters")}
       >
-        <div className="offcanvas-header">
-          <h5 className="offcanvas-title" id="sidebarMenuLabel">
-            Desire Lines
-          </h5>
-          <button
-            type="button"
-            className="btn-close"
-            data-bs-dismiss="offcanvas"
-            data-bs-target="#sidebarMenu"
-            aria-label="Close"
-          ></button>
+        {filtersSlot}
+      </SidebarSection>
+
+      <hr className="my-2" />
+
+      <SidebarSection
+        title="Goals"
+        id="goals"
+        isExpanded={expandedSections.goals}
+        onToggle={() => toggleSection("goals")}
+      >
+        {goalsSlot}
+      </SidebarSection>
+
+      {showAuthButton && (
+        <div className="md:hidden mt-auto px-6 py-6 border-t">
+          <AuthButton signOutVariant="outline-secondary" />
         </div>
+      )}
+    </>
+  );
 
-        <div className="offcanvas-body d-flex flex-column p-0 pt-lg-3 overflow-y-auto">
-          <ProgressSummary
-            currentValue={currentValue}
-            estimatedYearEnd={estimatedYearEnd}
-            unit={unit}
-            isLoading={isLoading}
-          />
-
-          <hr className="my-2" />
-
-          <SidebarSection
-            title="Filters"
-            id="filters"
-            isExpanded={expandedSections.filters}
-            onToggle={() => toggleSection("filters")}
-          >
-            {filtersSlot}
-          </SidebarSection>
-
-          <hr className="my-2" />
-
-          <SidebarSection
-            title="Goals"
-            id="goals"
-            isExpanded={expandedSections.goals}
-            onToggle={() => toggleSection("goals")}
-          >
-            {goalsSlot}
-          </SidebarSection>
-
-          {/* Login/Logout - mobile only, hidden in demo mode */}
-          {showAuthButton && (
-            <div className="d-md-none mt-auto px-3 py-3 border-top">
-              <AuthButton signOutVariant="outline-secondary" />
-            </div>
-          )}
-        </div>
+  return (
+    <>
+      {/* Desktop: sticky sidebar */}
+      <div className="sidebar glass-panel-flush hidden md:block md:w-1/4 lg:w-1/6">
+        <div className="flex flex-col p-0 pt-4 overflow-y-auto h-full">{sidebarContent}</div>
       </div>
-    </div>
+
+      {/* Mobile: slide-out drawer */}
+      <Transition show={mobileOpen}>
+        <Dialog
+          onClose={() => setMobileOpen(false)}
+          className="relative md:hidden"
+          style={{ zIndex: 50 }}
+        >
+          <TransitionChild
+            enter="transition-opacity duration-200"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="transition-opacity duration-150"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
+          </TransitionChild>
+
+          <TransitionChild
+            enter="transition-transform duration-200"
+            enterFrom="-translate-x-full"
+            enterTo="translate-x-0"
+            leave="transition-transform duration-150"
+            leaveFrom="translate-x-0"
+            leaveTo="-translate-x-full"
+          >
+            <DialogPanel
+              className="fixed inset-y-0 left-0 flex flex-col overflow-y-auto"
+              style={{
+                backgroundColor: "var(--color-bg-body)",
+                maxWidth: "300px",
+                width: "85vw",
+              }}
+            >
+              <div className="flex items-center justify-between p-4">
+                <h5 className="text-white m-0">Controls</h5>
+                <button
+                  type="button"
+                  className="bg-transparent border-0 text-white p-1"
+                  onClick={() => setMobileOpen(false)}
+                  aria-label="Close"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <div className="flex flex-col grow p-4 overflow-y-auto">{sidebarContent}</div>
+            </DialogPanel>
+          </TransitionChild>
+        </Dialog>
+      </Transition>
+    </>
   );
 }

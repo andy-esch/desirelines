@@ -75,10 +75,7 @@ export default function SettingsPage() {
   if (authLoading || prefsLoading) {
     return (
       <NarrowPageLayout background="settings">
-        <div
-          className="d-flex justify-content-center align-items-center"
-          style={{ minHeight: "60vh" }}
-        >
+        <div className="flex justify-center items-center" style={{ minHeight: "60vh" }}>
           <NeonSpinner />
         </div>
       </NarrowPageLayout>
@@ -92,10 +89,10 @@ export default function SettingsPage() {
 
   return (
     <NarrowPageLayout background="settings">
-      <h1 className="h2 mb-4">Settings</h1>
+      <h1 className="h2 mb-6">Settings</h1>
 
       {saveError && (
-        <InlineAlert className="mb-4" onDismiss={clearSaveError}>
+        <InlineAlert className="mb-6" onDismiss={clearSaveError}>
           {saveError.message}
         </InlineAlert>
       )}
@@ -164,16 +161,16 @@ export default function SettingsPage() {
       {user && (
         <SettingsSection title="Account">
           <SettingRow label="Email" readOnly>
-            <span className="text-muted">{user.email || "—"}</span>
+            <span className="text-slate-light">{user.email || "—"}</span>
           </SettingRow>
 
           <SettingRow label="Name" readOnly>
-            <span className="text-muted">{user.displayName || "—"}</span>
+            <span className="text-slate-light">{user.displayName || "—"}</span>
           </SettingRow>
 
           <SettingRow label="Connected Account" readOnly>
             <span
-              className="d-flex align-items-center gap-1"
+              className="flex items-center gap-1"
               style={{ color: "var(--bs-success, #68d391)" }}
             >
               <CheckIcon />
@@ -181,7 +178,7 @@ export default function SettingsPage() {
             </span>
           </SettingRow>
 
-          <div className="pt-3">
+          <div className="pt-6">
             <button
               type="button"
               className="btn btn-outline-danger btn-sm"
@@ -198,7 +195,7 @@ export default function SettingsPage() {
         <GoalManagementTable />
       </SettingsSection>
 
-      {isSaving && <div className="text-muted small text-end">Saving...</div>}
+      {isSaving && <div className="text-slate-light text-sm text-right">Saving...</div>}
     </NarrowPageLayout>
   );
 }

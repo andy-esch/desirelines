@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { Dialog, DialogPanel, Transition, TransitionChild } from "@headlessui/react";
 import Logo from "../Logo";
 import { useAuth } from "../../hooks/useAuth";
 import { AccountDropdown } from "./AccountDropdown";
@@ -24,18 +25,26 @@ const GearIcon = () => (
   </svg>
 );
 
+const CloseIcon = () => (
+  <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+    <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z" />
+  </svg>
+);
+
 export default function Header() {
   const location = useLocation();
   const { user, loading, signIn, signOut } = useAuth();
+  const [navOpen, setNavOpen] = useState(false);
 
   // Close mobile nav drawer on route change
   useEffect(() => {
-    const el = document.getElementById("mobileNavMenu");
-    if (el?.classList.contains("show")) {
-      const closeBtn = el.querySelector<HTMLButtonElement>('[data-bs-dismiss="offcanvas"]');
-      closeBtn?.click();
-    }
+    setNavOpen(false);
   }, [location.pathname]);
+
+  const openSidebar = useCallback(() => {
+    // Dispatch custom event for Sidebar to listen to
+    window.dispatchEvent(new CustomEvent("toggle-sidebar"));
+  }, []);
 
   // Show controls toggle on sport detail pages (any sport, authenticated or demo)
   const segments = location.pathname.split("/").filter(Boolean);
@@ -52,44 +61,38 @@ export default function Header() {
 
   return (
     <header
-      className="navbar sticky-top flex-md-nowrap p-2 shadow"
-      style={{ backgroundColor: "var(--slate-dark, #2d3748)" }}
+      className="sticky top-0 flex items-center flex-nowrap px-2 py-1.5 shadow"
+      style={{ backgroundColor: "var(--color-slate-dark, #2d3748)", zIndex: 40 }}
     >
-      <Link to="/" className="logo-link me-0 px-2 d-flex align-items-center">
-        <div style={{ transform: "translateY(-1px)" }}>
-          <Logo />
-        </div>
+      <Link to="/" className="logo-link px-2 flex items-center shrink-0">
+        <Logo fontSize="1.25rem" />
       </Link>
 
       {/* Desktop navigation */}
-      <Navigation className="d-none d-md-flex ms-3" />
+      <Navigation className="hidden md:flex ms-4" />
 
-      <div className="d-none d-md-flex align-items-center gap-3 px-3 ms-auto">
-        <div className="navbar-text text-white-50 small d-none d-lg-block">{currentDate}</div>
+      <div className="hidden md:flex items-center gap-3 ms-auto pe-2">
+        <span className="text-white/50 text-xs hidden lg:block whitespace-nowrap">
+          {currentDate}
+        </span>
         <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>
 
       {/* Mobile: hamburger, controls gear, and account dropdown on right */}
-      <div className="d-md-none ms-auto d-flex align-items-center gap-1">
+      <div className="md:hidden ms-auto flex items-center">
         <button
-          className="navbar-toggler border-0 text-white"
+          className="border-0 bg-transparent text-white p-2"
           type="button"
-          data-bs-toggle="offcanvas"
-          data-bs-target="#mobileNavMenu"
-          aria-controls="mobileNavMenu"
-          aria-expanded="false"
+          onClick={() => setNavOpen(true)}
           aria-label="Toggle navigation"
         >
           <HamburgerIcon />
         </button>
         {showControlsToggle && (
           <button
-            className="navbar-toggler border-0 text-white"
+            className="border-0 bg-transparent text-white p-2"
             type="button"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#sidebarMenu"
-            aria-controls="sidebarMenu"
-            aria-expanded="false"
+            onClick={openSidebar}
             aria-label="Toggle controls"
           >
             <GearIcon />
@@ -98,29 +101,56 @@ export default function Header() {
         <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>
 
-      {/* Mobile Navigation Drawer (slides from left) */}
-      <div
-        className="offcanvas offcanvas-start d-md-none"
-        tabIndex={-1}
-        id="mobileNavMenu"
-        aria-labelledby="mobileNavMenuLabel"
-        style={{ backgroundColor: "#2d3748", maxWidth: "280px" }}
-      >
-        <div className="offcanvas-header">
-          <h5 className="offcanvas-title text-white" id="mobileNavMenuLabel">
-            Navigation
-          </h5>
-          <button
-            type="button"
-            className="btn-close btn-close-white"
-            data-bs-dismiss="offcanvas"
-            aria-label="Close"
-          ></button>
-        </div>
-        <div className="offcanvas-body">
-          <Navigation vertical className="mb-4" />
-        </div>
-      </div>
+      {/* Mobile Navigation Drawer */}
+      <Transition show={navOpen}>
+        <Dialog onClose={() => setNavOpen(false)} className="relative" style={{ zIndex: 50 }}>
+          {/* Backdrop */}
+          <TransitionChild
+            enter="transition-opacity duration-200"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="transition-opacity duration-150"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
+          </TransitionChild>
+
+          {/* Slide-in panel */}
+          <TransitionChild
+            enter="transition-transform duration-200"
+            enterFrom="-translate-x-full"
+            enterTo="translate-x-0"
+            leave="transition-transform duration-150"
+            leaveFrom="translate-x-0"
+            leaveTo="-translate-x-full"
+          >
+            <DialogPanel
+              className="fixed inset-y-0 left-0 flex flex-col overflow-y-auto"
+              style={{
+                backgroundColor: "var(--color-slate-dark, #2d3748)",
+                maxWidth: "280px",
+                width: "80vw",
+              }}
+            >
+              <div className="flex items-center justify-between p-4">
+                <h5 className="text-white m-0">Navigation</h5>
+                <button
+                  type="button"
+                  className="bg-transparent border-0 text-white p-1"
+                  onClick={() => setNavOpen(false)}
+                  aria-label="Close"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <div className="p-4">
+                <Navigation vertical className="mb-6" />
+              </div>
+            </DialogPanel>
+          </TransitionChild>
+        </Dialog>
+      </Transition>
     </header>
   );
 }

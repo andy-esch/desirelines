@@ -25,7 +25,7 @@ export default function OriginsPage() {
 
   return (
     <div
-      className="py-5"
+      className="py-12"
       style={{
         color: textColor,
         background: `linear-gradient(
@@ -39,7 +39,7 @@ export default function OriginsPage() {
     >
       <div className="container" style={{ maxWidth: "720px" }}>
         <h1
-          className="mb-4"
+          className="mb-6"
           style={{
             ...neonGradientText,
             fontWeight: 300,
@@ -49,9 +49,9 @@ export default function OriginsPage() {
           Origins
         </h1>
 
-        <section className="mb-5">
+        <section className="mb-12">
           <h2
-            className="mb-3"
+            className="mb-6"
             style={{
               color: "var(--accent-cyan, #00d4ff)",
               fontWeight: 400,
@@ -67,9 +67,9 @@ export default function OriginsPage() {
           </p>
         </section>
 
-        <section className="mb-5">
+        <section className="mb-12">
           <h2
-            className="mb-3"
+            className="mb-6"
             style={{
               color: "var(--accent-cyan, #00d4ff)",
               fontWeight: 400,
@@ -94,9 +94,9 @@ export default function OriginsPage() {
           </p>
         </section>
 
-        <section className="mb-5">
+        <section className="mb-12">
           <h2
-            className="mb-3"
+            className="mb-6"
             style={{
               color: "var(--accent-cyan, #00d4ff)",
               fontWeight: 400,
@@ -127,7 +127,7 @@ export default function OriginsPage() {
           </a>
         </section>
 
-        <section className="mt-5 pt-4" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
+        <section className="mt-12 pt-6" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
           <p className="text-center mb-0">
             <Link
               to="/"

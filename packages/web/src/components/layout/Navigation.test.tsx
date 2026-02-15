@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Navigation from "./Navigation";
@@ -35,14 +36,15 @@ describe("Navigation", () => {
 
     it("renders Goals dropdown button", () => {
       renderWithRouter(<Navigation />);
-      expect(screen.getByRole("button", { name: "Goals" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Goals/ })).toBeInTheDocument();
     });
 
-    it("renders sport links in Goals dropdown", () => {
+    it("renders sport links in Goals dropdown", async () => {
       renderWithRouter(<Navigation />);
-      expect(screen.getByRole("link", { name: /Cycling/ })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Running/ })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Yoga/ })).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /Goals/ }));
+      expect(screen.getByRole("menuitem", { name: /Cycling/ })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: /Running/ })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: /Yoga/ })).toBeInTheDocument();
     });
 
     it("highlights Dashboard when on root route", () => {
@@ -54,7 +56,7 @@ describe("Navigation", () => {
     it("highlights Goals dropdown when on sport route", () => {
       const currentYear = new Date().getFullYear();
       renderWithRouter(<Navigation />, { route: `/cycling/${currentYear}` });
-      const goalsButton = screen.getByRole("button", { name: "Goals" });
+      const goalsButton = screen.getByRole("button", { name: /Goals/ });
       expect(goalsButton).toHaveClass("active");
     });
 
@@ -66,7 +68,7 @@ describe("Navigation", () => {
 
     it("does not highlight Goals dropdown when on dashboard", () => {
       renderWithRouter(<Navigation />, { route: "/" });
-      const goalsButton = screen.getByRole("button", { name: "Goals" });
+      const goalsButton = screen.getByRole("button", { name: /Goals/ });
       expect(goalsButton).not.toHaveClass("active");
     });
   });
@@ -108,19 +110,20 @@ describe("Navigation", () => {
   });
 
   describe("sport links", () => {
-    it("links to current year for each sport", () => {
+    it("links to current year for each sport", async () => {
       const currentYear = new Date().getFullYear();
       renderWithRouter(<Navigation />);
+      await userEvent.click(screen.getByRole("button", { name: /Goals/ }));
 
-      expect(screen.getByRole("link", { name: /Cycling/ })).toHaveAttribute(
+      expect(screen.getByRole("menuitem", { name: /Cycling/ })).toHaveAttribute(
         "href",
         `/cycling/${currentYear}`
       );
-      expect(screen.getByRole("link", { name: /Running/ })).toHaveAttribute(
+      expect(screen.getByRole("menuitem", { name: /Running/ })).toHaveAttribute(
         "href",
         `/running/${currentYear}`
       );
-      expect(screen.getByRole("link", { name: /Yoga/ })).toHaveAttribute(
+      expect(screen.getByRole("menuitem", { name: /Yoga/ })).toHaveAttribute(
         "href",
         `/yoga/${currentYear}`
       );

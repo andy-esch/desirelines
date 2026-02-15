@@ -27,8 +27,8 @@ export default function GoalProgressCard() {
 
   if (error) {
     return (
-      <div className="glass-panel h-100">
-        <div className="text-center text-muted py-3">
+      <div className="glass-panel h-full">
+        <div className="text-center text-slate-light py-6">
           <small>Unable to load goal progress</small>
         </div>
       </div>
@@ -36,15 +36,15 @@ export default function GoalProgressCard() {
   }
 
   return (
-    <div className="glass-panel h-100">
+    <div className="glass-panel h-full">
       <div className="mb-2">
-        <h6 className="h6 mb-0 text-muted">{yearContext.year} Goals</h6>
+        <h6 className="h6 mb-0 text-slate-light">{yearContext.year} Goals</h6>
       </div>
       {isLoading ? (
         <div role="status" aria-label="Loading goal progress">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="mb-2">
-              <div className="d-flex justify-content-between align-items-center mb-1">
+              <div className="flex justify-between items-center mb-1">
                 <Skeleton width={70} height={14} dualTheme={1} />
                 <Skeleton width={90} height={14} dualTheme={1} />
               </div>
@@ -56,7 +56,7 @@ export default function GoalProgressCard() {
           ))}
         </div>
       ) : sportData.length === 0 ? (
-        <div className="text-center text-muted py-3">
+        <div className="text-center text-slate-light py-6">
           <small>No sports configured</small>
         </div>
       ) : (
@@ -102,15 +102,15 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
 
   return (
     <div className="mb-2">
-      <div className="d-flex justify-content-between align-items-center mb-1">
+      <div className="flex justify-between items-center mb-1">
         <Link
           to={`/${sport.sport}/${yearContext.year}`}
-          className="small text-decoration-none"
+          className="text-sm no-underline"
           style={{ color: sport.color }}
         >
           {sport.displayName}
         </Link>
-        <span className="small text-muted">{statusDisplay}</span>
+        <span className="text-sm text-slate-light">{statusDisplay}</span>
       </div>
 
       <RaceTrack
@@ -121,7 +121,7 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
         height={28}
       />
 
-      <div className="small text-muted" style={{ fontSize: "0.7rem" }}>
+      <div className="text-sm text-slate-light" style={{ fontSize: "0.7rem" }}>
         {formatMetricDisplayValue(sport.currentValue, sport.isDistanceSport)} /{" "}
         {formatMetricDisplayValue(sport.targetGoal, sport.isDistanceSport)} {sport.metricUnit}
       </div>

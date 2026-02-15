@@ -15,15 +15,15 @@ interface SettingRowProps {
 export function SettingRow({ label, description, children, readOnly }: SettingRowProps) {
   return (
     <div
-      className="d-flex justify-content-between align-items-start py-3"
+      className="flex justify-between items-start py-6"
       style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}
     >
-      <div className="me-3" style={{ flex: 1 }}>
-        <div className="fw-medium">{label}</div>
-        {description && <div className="text-muted small mt-1">{description}</div>}
+      <div className="me-6" style={{ flex: 1 }}>
+        <div className="font-medium">{label}</div>
+        {description && <div className="text-slate-light text-sm mt-1">{description}</div>}
       </div>
       <div
-        className="d-flex align-items-center"
+        className="flex items-center"
         style={{ minWidth: readOnly ? "auto" : "200px", justifyContent: "flex-end" }}
       >
         {children}

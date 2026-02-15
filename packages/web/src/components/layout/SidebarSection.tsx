@@ -27,13 +27,13 @@ export default function SidebarSection({
   return (
     <>
       <button
-        className="sidebar-heading px-3 mb-0 text-body-secondary text-uppercase d-flex align-items-center justify-content-between w-100 bg-transparent border-0"
+        className="sidebar-heading px-6 mb-0 text-slate-light uppercase flex items-center justify-between w-full bg-transparent border-0"
         onClick={onToggle}
         aria-expanded={isExpanded}
         aria-controls={`${id}-collapse`}
         style={{ cursor: "pointer" }}
       >
-        <span className="fw-semibold" style={{ fontSize: "0.75rem", letterSpacing: "0.05em" }}>
+        <span className="font-semibold" style={{ fontSize: "0.75rem", letterSpacing: "0.05em" }}>
           {title}
         </span>
         <span style={{ fontSize: "0.65rem", transition: "transform 0.2s" }}>
@@ -41,8 +41,8 @@ export default function SidebarSection({
         </span>
       </button>
 
-      <div id={`${id}-collapse`} className={`collapse ${isExpanded ? "show" : ""}`}>
-        <div className="px-3 py-3">{children}</div>
+      <div id={`${id}-collapse`} className={isExpanded ? "block" : "hidden"}>
+        <div className="px-6 py-6">{children}</div>
       </div>
     </>
   );

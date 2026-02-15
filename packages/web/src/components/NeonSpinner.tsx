@@ -1,13 +1,15 @@
 import { useMemo } from "react";
-import { NEON } from "../constants/uiColors";
 
-/**
- * Neon colors for the spinner - uses centralized NEON palette
- */
-const NEON_COLORS = [NEON.CYAN, NEON.MAGENTA, NEON.GREEN, NEON.PURPLE] as const;
+/** Neon colors for random spinner selection */
+const NEON_COLORS = [
+  "rgb(0, 255, 255)",
+  "rgb(255, 0, 255)",
+  "rgb(0, 255, 128)",
+  "rgb(180, 0, 255)",
+] as const;
 
 interface NeonSpinnerProps {
-  /** Size variant: default or small */
+  /** Size variant: default or text-sm */
   size?: "default" | "sm";
   /** Additional CSS classes */
   className?: string;
@@ -41,7 +43,7 @@ export default function NeonSpinner({ size = "default", className = "" }: NeonSp
       role="status"
       style={{ color }}
     >
-      <span className="visually-hidden">Loading...</span>
+      <span className="sr-only">Loading...</span>
     </div>
   );
 }

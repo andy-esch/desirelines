@@ -1,6 +1,15 @@
 import type { ReactNode } from "react";
-import type { PageBackgroundKey } from "../../styles/pageBackgrounds";
-import { pageBackgrounds } from "../../styles/pageBackgrounds";
+
+/** Page background keys matching @utility page-bg-* classes in tailwind.css */
+export type PageBackgroundKey = "dashboard" | "activities" | "sport" | "origins" | "settings";
+
+const bgClasses: Record<PageBackgroundKey, string> = {
+  dashboard: "page-bg-dashboard",
+  activities: "page-bg-activities",
+  sport: "page-bg-sport",
+  origins: "page-bg-origins",
+  settings: "page-bg-settings",
+};
 
 interface PageLayoutProps {
   /** Page background gradient key */
@@ -12,20 +21,9 @@ interface PageLayoutProps {
 /**
  * Full-width page layout with gradient background.
  * Wraps content in a flex-grow container with the page's background gradient.
- *
- * @example
- * ```tsx
- * <PageLayout background="dashboard">
- *   <div className="container-fluid py-4">...</div>
- * </PageLayout>
- * ```
  */
 export function PageLayout({ background, children }: PageLayoutProps) {
-  return (
-    <div className="flex-grow-1" style={{ background: pageBackgrounds[background] }}>
-      {children}
-    </div>
-  );
+  return <div className={`grow ${bgClasses[background]}`}>{children}</div>;
 }
 
 interface NarrowPageLayoutProps {
@@ -40,14 +38,6 @@ interface NarrowPageLayoutProps {
 /**
  * Narrow centered page layout with gradient background.
  * Used for settings, forms, and focused content pages.
- *
- * @example
- * ```tsx
- * <NarrowPageLayout background="settings">
- *   <h1>Settings</h1>
- *   ...
- * </NarrowPageLayout>
- * ```
  */
 export function NarrowPageLayout({
   background,
@@ -55,8 +45,8 @@ export function NarrowPageLayout({
   children,
 }: NarrowPageLayoutProps) {
   return (
-    <div className="flex-grow-1" style={{ background: pageBackgrounds[background] }}>
-      <div className="container py-4" style={{ maxWidth }}>
+    <div className={`grow ${bgClasses[background]}`}>
+      <div className="container py-6" style={{ maxWidth }}>
         {children}
       </div>
     </div>

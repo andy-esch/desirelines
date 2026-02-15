@@ -57,7 +57,7 @@ function SportTable({
   emptyMessage: string;
 }) {
   if (sports.length === 0) {
-    return <div className="text-muted py-2 small">{emptyMessage}</div>;
+    return <div className="text-slate-light py-2 text-sm">{emptyMessage}</div>;
   }
 
   // Use eye icons: EyeIcon for "show" (make visible), EyeSlashIcon for "hide"
@@ -80,19 +80,19 @@ function SportTable({
             const isDisabled = disabled?.(sport.key) ?? false;
             return (
               <tr key={sport.key}>
-                <td className="align-middle fw-medium">{sport.displayName}</td>
+                <td className="align-middle font-medium">{sport.displayName}</td>
                 <td className="align-middle">
-                  <span className="text-muted small" style={{ lineHeight: 1.4 }}>
+                  <span className="text-slate-light text-sm" style={{ lineHeight: 1.4 }}>
                     {sport.stravaTypes.join(", ")}
                   </span>
                 </td>
                 <td className="align-middle">
-                  <span className="small">{sport.metrics.map(formatMetricLabel).join(", ")}</span>
+                  <span className="text-sm">{sport.metrics.map(formatMetricLabel).join(", ")}</span>
                 </td>
-                <td className="align-middle text-end">
+                <td className="align-middle text-right">
                   {isDisabled ? (
                     <span
-                      className="d-inline-block"
+                      className="inline-block"
                       tabIndex={0}
                       title="At least one sport must be visible"
                       style={{ cursor: "not-allowed" }}
@@ -314,7 +314,7 @@ export function SportVisibilitySettings() {
   // Loading state
   if (configLoading || prefsLoading) {
     return (
-      <div className="d-flex justify-content-center py-4">
+      <div className="flex justify-center py-6">
         <NeonSpinner />
       </div>
     );
@@ -330,7 +330,7 @@ export function SportVisibilitySettings() {
   }
 
   if (!sportConfig || sportEntries.length === 0) {
-    return <div className="text-muted py-3">No sport configuration available.</div>;
+    return <div className="text-slate-light py-6">No sport configuration available.</div>;
   }
 
   const noFilterResults = filterText && visibleFiltered.length === 0 && hiddenFiltered.length === 0;
@@ -338,10 +338,10 @@ export function SportVisibilitySettings() {
   return (
     <div>
       {/* Filter input */}
-      <div className="mb-3 position-relative" style={{ maxWidth: "300px" }}>
+      <div className="mb-6 relative" style={{ maxWidth: "300px" }}>
         <input
           type="text"
-          className="form-control form-control-sm pe-4"
+          className="form-control form-control-sm pe-6"
           placeholder="Filter sports..."
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
@@ -349,7 +349,7 @@ export function SportVisibilitySettings() {
         {filterText && (
           <button
             type="button"
-            className="btn btn-link btn-sm position-absolute top-50 end-0 translate-middle-y text-muted p-0 pe-2"
+            className="btn btn-link btn-sm absolute top-50 end-0 translate-middle-y text-slate-light p-0 pe-2"
             onClick={() => setFilterText("")}
             aria-label="Clear filter"
             style={{ lineHeight: 1 }}
@@ -360,15 +360,15 @@ export function SportVisibilitySettings() {
       </div>
 
       {noFilterResults ? (
-        <div className="text-muted py-3 text-center">No sports match "{filterText}"</div>
+        <div className="text-slate-light py-6 text-center">No sports match "{filterText}"</div>
       ) : (
         <>
           {/* Visible Sports Box */}
           <div
-            className="border rounded p-3 mb-3"
+            className="border rounded p-6 mb-6"
             style={{ backgroundColor: "rgba(0, 128, 0, 0.03)" }}
           >
-            <h6 className="mb-2 d-flex align-items-center gap-2">
+            <h6 className="mb-2 flex items-center gap-2">
               <span style={{ color: "var(--bs-success, #198754)" }}>Visible</span>
               <span className="badge bg-success">{localSelection.size}</span>
             </h6>
@@ -382,9 +382,9 @@ export function SportVisibilitySettings() {
           </div>
 
           {/* Hidden Sports Box */}
-          <div className="border rounded p-3" style={{ backgroundColor: "rgba(0, 0, 0, 0.02)" }}>
-            <h6 className="mb-2 d-flex align-items-center gap-2">
-              <span className="text-muted">Hidden</span>
+          <div className="border rounded p-6" style={{ backgroundColor: "rgba(0, 0, 0, 0.02)" }}>
+            <h6 className="mb-2 flex items-center gap-2">
+              <span className="text-slate-light">Hidden</span>
               <span className="badge bg-secondary">
                 {sportEntries.length - localSelection.size}
               </span>
@@ -400,19 +400,19 @@ export function SportVisibilitySettings() {
       )}
 
       {/* Summary and save status */}
-      <div className="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+      <div className="flex justify-between items-center mt-6 pt-6 border-t">
         {!noFilterResults && (
-          <span className="text-muted small">
+          <span className="text-slate-light text-sm">
             {localSelection.size} of {sportEntries.length} sports visible
           </span>
         )}
         {noFilterResults && <span />}
 
         {/* Auto-save status indicator */}
-        <span className="small d-flex align-items-center gap-1">
-          {isSaving && <span className="text-muted">Saving...</span>}
+        <span className="text-sm flex items-center gap-1">
+          {isSaving && <span className="text-slate-light">Saving...</span>}
           {showSaveSuccess && (
-            <span className="text-success d-flex align-items-center gap-1">
+            <span className="text-success flex items-center gap-1">
               <CheckIcon />
               Saved
             </span>
@@ -422,7 +422,7 @@ export function SportVisibilitySettings() {
 
       {/* Save error */}
       {saveError && (
-        <InlineAlert className="mt-3 mb-0" onDismiss={clearSaveError}>
+        <InlineAlert className="mt-6 mb-0" onDismiss={clearSaveError}>
           Failed to save: {saveError.message}
         </InlineAlert>
       )}

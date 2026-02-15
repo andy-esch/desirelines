@@ -17,7 +17,7 @@ export function InlineAlert({
   className = "",
   children,
 }: InlineAlertProps) {
-  const sizeClasses = size === "sm" ? "py-1 px-2 small" : "";
+  const sizeClasses = size === "sm" ? "py-1 px-2 text-sm" : "";
 
   return (
     <div className={`alert alert-${variant} ${sizeClasses} ${className}`.trim()} role="alert">
@@ -25,7 +25,7 @@ export function InlineAlert({
       {onDismiss && (
         <button
           type="button"
-          className="btn-close btn-sm float-end"
+          className="btn-close btn-sm float-right"
           aria-label="Dismiss"
           onClick={onDismiss}
         />

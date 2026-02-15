@@ -16,8 +16,8 @@ export default function WeeklySummaryCard() {
 
   if (error) {
     return (
-      <div className="glass-panel h-100">
-        <div className="text-center text-muted py-3">
+      <div className="glass-panel h-full">
+        <div className="text-center text-slate-light py-6">
           <small>Unable to load weekly summary</small>
         </div>
       </div>
@@ -41,24 +41,24 @@ export default function WeeklySummaryCard() {
   const distanceUnit = distanceSports[0]?.metricUnit ?? "mi";
 
   return (
-    <div className="glass-panel h-100">
-      <div className="d-flex justify-content-between align-items-center mb-2">
-        <h6 className="h6 mb-0 text-muted">This Week</h6>
-        <small className="text-muted">{weekLabel}</small>
+    <div className="glass-panel h-full">
+      <div className="flex justify-between items-center mb-2">
+        <h6 className="h6 mb-0 text-slate-light">This Week</h6>
+        <small className="text-slate-light">{weekLabel}</small>
       </div>
       {isLoading ? (
         <div role="status" aria-label="Loading weekly summary">
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className="d-flex align-items-center justify-content-between py-1"
+              className="flex items-center justify-between py-1"
               style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}
             >
-              <div className="d-flex align-items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Skeleton circle height={8} width={8} dualTheme={0} />
                 <Skeleton width={60} height={14} dualTheme={0} />
               </div>
-              <div className="d-flex align-items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Skeleton width={50} height={14} dualTheme={0} />
                 <Skeleton width={36} height={16} borderRadius={10} dualTheme={0} />
               </div>
@@ -66,7 +66,7 @@ export default function WeeklySummaryCard() {
           ))}
         </div>
       ) : !hasAnyActivity ? (
-        <div className="text-center text-muted py-3">
+        <div className="text-center text-slate-light py-6">
           <small>No activity yet this week</small>
         </div>
       ) : (
@@ -74,10 +74,10 @@ export default function WeeklySummaryCard() {
           {sportTotals.map((sport) => (
             <div
               key={sport.sport}
-              className="d-flex align-items-center justify-content-between py-1"
+              className="flex items-center justify-between py-1"
               style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}
             >
-              <div className="d-flex align-items-center">
+              <div className="flex items-center">
                 <span
                   style={{
                     display: "inline-block",
@@ -90,10 +90,10 @@ export default function WeeklySummaryCard() {
                     flexShrink: 0,
                   }}
                 />
-                <span className="small">{sport.displayName}</span>
+                <span className="text-sm">{sport.displayName}</span>
               </div>
-              <div className="d-flex align-items-center gap-2">
-                <span className="small fw-medium">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">
                   {sport.weeklyTotal > 0
                     ? `${formatMetricDisplayValue(sport.weeklyTotal, sport.isDistanceSport)} ${sport.metricUnit}`
                     : "—"}
@@ -116,7 +116,7 @@ export default function WeeklySummaryCard() {
 
           {/* Footer totals */}
           <div className="pt-2 mt-1">
-            <small className="text-muted">
+            <small className="text-slate-light">
               Total:{" "}
               {totalDistance > 0 && (
                 <span>

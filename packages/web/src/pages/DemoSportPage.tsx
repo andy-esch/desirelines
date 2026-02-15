@@ -135,10 +135,10 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   return (
     <>
       {/* Demo mode banner - outside container for full width */}
-      <div className="alert alert-demo mb-0 rounded-0" role="alert">
+      <div className="alert alert-demo mb-0 rounded-none" role="alert">
         <div className="container-fluid">
           <strong>Demo Mode</strong> - Viewing sample data.{" "}
-          <span className="text-muted small">Sign-in is invite-only.</span>
+          <span className="text-slate-light text-sm">Sign-in is invite-only.</span>
         </div>
       </div>
 

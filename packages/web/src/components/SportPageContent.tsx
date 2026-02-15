@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { pageBackgrounds } from "../styles/pageBackgrounds";
 import CumulativeMetricsChart from "./charts/CumulativeMetricsChart";
 import PacingMetricsChart from "./charts/PacingMetricsChart";
 import MetricSelector from "./charts/MetricSelector";
@@ -111,11 +110,8 @@ export default function SportPageContent({
   // not misleading loading spinners.
 
   return (
-    <div className="container-fluid">
-      <div
-        className="row page-background"
-        style={{ "--page-background": pageBackgrounds.sport } as React.CSSProperties}
-      >
+    <div className="px-3">
+      <div className="flex page-bg-sport">
         <Sidebar
           estimatedYearEnd={estimatedYearEnd}
           currentValue={currentValue}
@@ -146,8 +142,8 @@ export default function SportPageContent({
           }
         />
 
-        <div className="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-          <div className="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3">
+        <div className="grow md:pl-4">
+          <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-6">
             <h1 className="h2">
               {sport.charAt(0).toUpperCase() + sport.slice(1)} {currentYear}
             </h1>
@@ -156,7 +152,7 @@ export default function SportPageContent({
           {/* No data banner - show when viewing current year with no activities */}
           {!isLoading && currentValue === 0 && isCurrentYear && (
             <div
-              className="alert d-flex align-items-center mb-3"
+              className="alert flex items-center mb-6"
               role="alert"
               style={{
                 backgroundColor: "rgba(0, 212, 255, 0.1)",
@@ -210,7 +206,7 @@ export default function SportPageContent({
 
           {/* Metric Selector - only show when multiple metrics available */}
           {availableMetrics && availableMetrics.length > 1 && activeMetric && onMetricChange && (
-            <div className="d-flex justify-content-end align-items-center mb-3">
+            <div className="flex justify-end items-center mb-6">
               <MetricSelector
                 availableMetrics={availableMetrics}
                 selectedMetric={activeMetric}
@@ -219,42 +215,38 @@ export default function SportPageContent({
             </div>
           )}
 
-          <div className="row">
-            <div className="col-12 mb-4">
-              <div className="glass-panel">
-                <CumulativeMetricsChart
-                  year={currentYear}
-                  goals={chartGoals}
-                  distanceData={chartData}
-                  isLoading={isLoading}
-                  error={error}
-                  showFullYear={showFullYear}
-                  onViewChange={setShowFullYear}
-                  showAchievements={showAchievements}
-                  onAchievementsChange={setShowAchievements}
-                  unit={unit}
-                  sport={sport}
-                  onRetry={onRetry}
-                />
-              </div>
+          <div className="mb-6">
+            <div className="glass-panel">
+              <CumulativeMetricsChart
+                year={currentYear}
+                goals={chartGoals}
+                distanceData={chartData}
+                isLoading={isLoading}
+                error={error}
+                showFullYear={showFullYear}
+                onViewChange={setShowFullYear}
+                showAchievements={showAchievements}
+                onAchievementsChange={setShowAchievements}
+                unit={unit}
+                sport={sport}
+                onRetry={onRetry}
+              />
             </div>
           </div>
 
-          <div className="row">
-            <div className="col-12 mb-4">
-              <div className="glass-panel">
-                <PacingMetricsChart
-                  year={currentYear}
-                  goals={chartGoals}
-                  distanceData={chartData}
-                  isLoading={isLoading}
-                  error={error}
-                  showFullYear={showFullYear}
-                  unit={unit}
-                  sport={sport}
-                  onRetry={onRetry}
-                />
-              </div>
+          <div className="mb-6">
+            <div className="glass-panel">
+              <PacingMetricsChart
+                year={currentYear}
+                goals={chartGoals}
+                distanceData={chartData}
+                isLoading={isLoading}
+                error={error}
+                showFullYear={showFullYear}
+                unit={unit}
+                sport={sport}
+                onRetry={onRetry}
+              />
             </div>
           </div>
         </div>

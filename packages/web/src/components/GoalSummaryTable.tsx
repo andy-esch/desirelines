@@ -88,7 +88,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   const sortedGoals = [...goals].sort((a, b) => a.value - b.value);
 
   return (
-    <div className="card glass-panel mb-4">
+    <div className="card glass-panel mb-6">
       <div className="card-header">
         <h5>Goal Achievability Summary</h5>
       </div>
@@ -173,7 +173,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                         {isLoading ? (
                           "--"
                         ) : (
-                          <span className={isDangerous ? "fw-bold text-danger" : ""}>
+                          <span className={isDangerous ? "font-bold text-danger" : ""}>
                             {paceNeeded.toFixed(1)} {unit}/day
                             {isDangerous && (
                               <span
@@ -203,7 +203,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
         {/* Warning banner - only if dangerous goals exist and data is loaded */}
         {!isLoading &&
           sortedGoals.some((g) => isPaceDangerous(calculateDailyPaceNeeded(g.value))) && (
-            <div className="alert alert-warning mt-3 mb-0" role="alert">
+            <div className="alert alert-warning mt-6 mb-0" role="alert">
               <small>
                 <strong>⚠️ Warning:</strong> Goals marked with ⚠️ require a pace exceeding{" "}
                 <strong>
@@ -215,19 +215,19 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
           )}
 
         {yearContext.shouldShowPacing && (
-          <p className="text-muted mt-2 mb-0">
+          <p className="text-slate-light mt-2 mb-0">
             <small>
               {yearContext.daysRemaining} days remaining in {year}
             </small>
           </p>
         )}
         {isPastYear && (
-          <p className="text-muted mt-2 mb-0">
+          <p className="text-slate-light mt-2 mb-0">
             <small>Historical year - {year} complete</small>
           </p>
         )}
         {yearContext.isFutureYear && (
-          <p className="text-muted mt-2 mb-0">
+          <p className="text-slate-light mt-2 mb-0">
             <small>Future year - planning mode</small>
           </p>
         )}

@@ -7,7 +7,6 @@ import NeonSpinner from "../NeonSpinner";
 import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
 
-import { SLATE, ACCENT } from "../../constants/uiColors";
 import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
 import { toLocalDateString as toLocal } from "../../utils/dateUtils";
 
@@ -52,9 +51,9 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
 }
 
-/** Impact glow color endpoints (derived from site color library) */
-const IMPACT_COLOR_START = hexToRgb(SLATE.LIGHT);
-const IMPACT_COLOR_END = hexToRgb(ACCENT.MAGENTA);
+/** Impact glow color endpoints */
+const IMPACT_COLOR_START = hexToRgb("#718096"); // slate-light
+const IMPACT_COLOR_END = hexToRgb("#ff00ff"); // accent-magenta
 /** Impact percentage at which glow reaches full intensity */
 const IMPACT_FULL_PCT = 2;
 /** Maximum glow radius in px */
@@ -164,7 +163,7 @@ export default function RecentActivitiesList({
 
   if (isLoading && activities.length === 0) {
     return (
-      <div ref={containerRef} className="d-flex align-items-center justify-content-center h-100">
+      <div ref={containerRef} className="flex items-center justify-center h-full">
         <NeonSpinner size="sm" />
       </div>
     );
@@ -174,7 +173,7 @@ export default function RecentActivitiesList({
     return (
       <div
         ref={containerRef}
-        className="d-flex align-items-center justify-content-center h-100 text-danger"
+        className="flex items-center justify-center h-full text-danger"
         style={{ fontSize: "0.8rem" }}
       >
         Failed to load activities
@@ -186,7 +185,7 @@ export default function RecentActivitiesList({
     return (
       <div
         ref={containerRef}
-        className="d-flex align-items-center justify-content-center h-100 text-muted"
+        className="flex items-center justify-center h-full text-slate-light"
         style={{ fontSize: "0.8rem" }}
       >
         No activities in this time range
@@ -197,9 +196,9 @@ export default function RecentActivitiesList({
   const showPagination = totalPages > 1 || hasMore;
 
   return (
-    <div ref={containerRef} className="d-flex h-100">
+    <div ref={containerRef} className="flex h-full">
       {/* Activities table — horizontally scrollable on narrow viewports */}
-      <div className="flex-grow-1" style={{ overflowX: "auto", minWidth: 0 }}>
+      <div className="grow" style={{ overflowX: "auto", minWidth: 0 }}>
         <table
           className="table table-sm table-borderless table-dark-transparent mb-0"
           style={{ fontSize: "0.8rem", lineHeight: 1.2, tableLayout: "fixed", minWidth: 420 }}
@@ -215,37 +214,37 @@ export default function RecentActivitiesList({
           <thead>
             <tr style={{ height: HEADER_HEIGHT }}>
               <th
-                className="text-start ps-0 pe-2 py-0 text-muted fw-normal align-middle"
+                className="text-left ps-0 pe-2 py-0 text-slate-light font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Name
               </th>
               <th
-                className="text-start px-1 py-0 text-muted fw-normal align-middle"
+                className="text-left px-1 py-0 text-slate-light font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Sport
               </th>
               <th
-                className="text-end px-1 py-0 text-muted fw-normal align-middle"
+                className="text-right px-1 py-0 text-slate-light font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Goal Impact
               </th>
               <th
-                className="text-end px-1 py-0 text-muted fw-normal align-middle"
+                className="text-right px-1 py-0 text-slate-light font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Distance
               </th>
               <th
-                className="text-end px-1 py-0 text-muted fw-normal align-middle"
+                className="text-right px-1 py-0 text-slate-light font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Time
               </th>
               <th
-                className="text-end ps-1 pe-0 py-0 text-muted fw-normal align-middle"
+                className="text-right ps-1 pe-0 py-0 text-slate-light font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Date
@@ -270,7 +269,7 @@ export default function RecentActivitiesList({
               return (
                 <tr key={activity.id} style={{ height: ROW_HEIGHT }}>
                   <td
-                    className="text-start ps-0 pe-2 py-0 align-middle"
+                    className="text-left ps-0 pe-2 py-0 align-middle"
                     style={{
                       whiteSpace: "nowrap",
                       overflow: "hidden",
@@ -283,7 +282,7 @@ export default function RecentActivitiesList({
                         href={`https://www.strava.com/activities/${activity.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-decoration-none"
+                        className="no-underline"
                       >
                         {activity.name}
                       </a>
@@ -292,13 +291,13 @@ export default function RecentActivitiesList({
                     )}
                   </td>
                   <td
-                    className="text-muted text-start px-1 py-0 align-middle"
+                    className="text-slate-light text-left px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}
                   >
                     {activity.sport}
                   </td>
                   <td
-                    className={`${impactPct == null ? "text-muted " : ""}text-end px-1 py-0 align-middle`}
+                    className={`${impactPct == null ? "text-slate-light " : ""}text-end px-1 py-0 align-middle`}
                     style={{
                       whiteSpace: "nowrap",
                       fontSize: "0.75rem",
@@ -309,7 +308,7 @@ export default function RecentActivitiesList({
                     {formatImpactPct(impactPct)}
                   </td>
                   <td
-                    className="text-muted text-end px-1 py-0 align-middle"
+                    className="text-slate-light text-right px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap" }}
                   >
                     {activity.distanceMeters
@@ -317,13 +316,13 @@ export default function RecentActivitiesList({
                       : ""}
                   </td>
                   <td
-                    className="text-muted text-end px-1 py-0 align-middle"
+                    className="text-slate-light text-right px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap" }}
                   >
                     {formatDuration(activity.movingTimeSeconds)}
                   </td>
                   <td
-                    className="text-muted text-end ps-1 pe-0 py-0 align-middle"
+                    className="text-slate-light text-right ps-1 pe-0 py-0 align-middle"
                     style={{ whiteSpace: "nowrap" }}
                   >
                     {formatActivityDate(activity.startDateLocal)}
@@ -337,11 +336,11 @@ export default function RecentActivitiesList({
 
       {/* Pagination controls - vertically centered */}
       <div
-        className="d-flex flex-column justify-content-center ms-2"
+        className="flex flex-col justify-center ms-2"
         style={{ minWidth: 32, visibility: showPagination ? "visible" : "hidden" }}
       >
         <button
-          className="btn btn-sm btn-link p-0 text-muted"
+          className="btn btn-sm btn-link p-0 text-slate-light"
           onClick={() => setPage((p) => p - 1)}
           disabled={!canGoUp}
           style={{ opacity: canGoUp ? 1 : 0.3 }}
@@ -351,11 +350,14 @@ export default function RecentActivitiesList({
             <path d="M8 4l5 6H3l5-6z" />
           </svg>
         </button>
-        <span className="text-muted text-center" style={{ fontSize: "0.7rem", lineHeight: 1.3 }}>
+        <span
+          className="text-slate-light text-center"
+          style={{ fontSize: "0.7rem", lineHeight: 1.3 }}
+        >
           {page + 1}/{hasMore ? "+" : totalPages}
         </span>
         <button
-          className="btn btn-sm btn-link p-0 text-muted"
+          className="btn btn-sm btn-link p-0 text-slate-light"
           onClick={handleNextPage}
           disabled={!canGoDown}
           style={{ opacity: canGoDown ? 1 : 0.3 }}

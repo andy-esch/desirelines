@@ -62,11 +62,11 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   };
 
   return (
-    <div className="mb-3">
-      <h6 className="text-muted">
+    <div className="mb-6">
+      <h6 className="text-slate-light">
         Desirelines ({goals.length}/5)
         {isSaving && (
-          <span className="ms-2 text-muted small" aria-live="polite">
+          <span className="ms-2 text-slate-light text-sm" aria-live="polite">
             Saving...
           </span>
         )}
@@ -88,7 +88,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
             className="list-group-item px-2 py-2"
             style={{ borderLeft: `4px solid ${GOAL_COLORS[index % GOAL_COLORS.length]}` }}
           >
-            <div className="d-flex justify-content-between align-items-center mb-1">
+            <div className="flex justify-between items-center mb-1">
               <input
                 type="text"
                 className="form-control form-control-sm"
@@ -167,7 +167,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
             {editingId === goal.id && editValidationError && (
               <div
                 id={`goal-error-${goal.id}`}
-                className="alert alert-danger py-1 px-2 small mt-1"
+                className="alert alert-danger py-1 px-2 text-sm mt-1"
                 role="alert"
               >
                 {editValidationError}
@@ -177,7 +177,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
         ))}
       </div>
 
-      <div className="d-grid gap-1">
+      <div className="grid gap-1">
         <button
           className="btn btn-sm btn-outline-slate"
           onClick={handleAddGoal}
@@ -186,7 +186,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
           + Add Goal
         </button>
         <button
-          className="btn btn-sm btn-ghost-slate d-inline-flex align-items-center justify-content-center gap-1"
+          className="btn btn-sm btn-ghost-slate inline-flex items-center justify-center gap-1"
           onClick={() => saveGoals(generateDefaultGoals(estimatedYearEnd))}
           disabled={isSaving}
         >

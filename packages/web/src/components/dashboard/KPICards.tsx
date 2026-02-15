@@ -137,7 +137,7 @@ function KPICards({
   };
 
   return (
-    <div className="row g-3 mb-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
       {/* Current Distance/Sessions Card */}
       <KPICard
         title={metricTitle}

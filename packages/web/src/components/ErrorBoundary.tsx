@@ -72,7 +72,7 @@ class ErrorBoundary extends Component<Props, State> {
 
       // Default fallback (backward-compatible with original)
       return (
-        <div className="container mt-5">
+        <div className="container mt-12">
           <div className="alert alert-danger" role="alert">
             <h1 className="alert-heading">Something went wrong</h1>
             <p>The application encountered an unexpected error. Please try refreshing the page.</p>

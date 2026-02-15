@@ -7,15 +7,15 @@ interface PageErrorFallbackProps {
 
 export function PageErrorFallback({ error, onReset }: PageErrorFallbackProps) {
   return (
-    <div className="container py-5" style={{ maxWidth: "600px" }}>
+    <div className="container py-12" style={{ maxWidth: "600px" }}>
       <div className="alert alert-danger" role="alert">
         <h4 className="alert-heading">Something went wrong</h4>
         <p>This page encountered an unexpected error.</p>
         <hr />
-        <p className="mb-3">
+        <p className="mb-6">
           <strong>Error:</strong> {error.message}
         </p>
-        <div className="d-flex gap-2">
+        <div className="flex gap-2">
           <button className="btn btn-outline-danger" onClick={onReset}>
             Try Again
           </button>
