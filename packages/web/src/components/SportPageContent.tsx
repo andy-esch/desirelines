@@ -143,8 +143,8 @@ export default function SportPageContent({
         />
 
         <div className="grow md:pl-4">
-          <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-6">
-            <h1 className="h2">
+          <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
+            <h1 className="h2 font-display">
               {sport.charAt(0).toUpperCase() + sport.slice(1)} {currentYear}
             </h1>
           </div>
@@ -206,7 +206,7 @@ export default function SportPageContent({
 
           {/* Metric Selector - only show when multiple metrics available */}
           {availableMetrics && availableMetrics.length > 1 && activeMetric && onMetricChange && (
-            <div className="flex justify-end items-center mb-6">
+            <div className="flex justify-end items-center mb-4">
               <MetricSelector
                 availableMetrics={availableMetrics}
                 selectedMetric={activeMetric}
@@ -215,7 +215,7 @@ export default function SportPageContent({
             </div>
           )}
 
-          <div className="mb-6">
+          <div className="mb-10">
             <div className="glass-panel">
               <CumulativeMetricsChart
                 year={currentYear}
@@ -234,7 +234,7 @@ export default function SportPageContent({
             </div>
           </div>
 
-          <div className="mb-6">
+          <div className="mb-12">
             <div className="glass-panel">
               <PacingMetricsChart
                 year={currentYear}

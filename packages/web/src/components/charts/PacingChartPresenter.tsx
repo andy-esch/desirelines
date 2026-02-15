@@ -198,7 +198,7 @@ export function PacingChartPresenter({
           scale="time"
           tickFormatter={formatChartAxisDate}
           stroke={CHART_CONFIG.axis.stroke}
-          tick={{ fontSize: 11 }}
+          tick={CHART_CONFIG.tick}
           interval="preserveStartEnd"
         />
 
@@ -208,10 +208,13 @@ export function PacingChartPresenter({
             value: yAxisLabel,
             angle: -90,
             position: "insideLeft",
+            fill: CHART_CONFIG.tick.fill,
+            style: { fontFamily: CHART_CONFIG.tick.fontFamily, fontSize: 12 },
           }}
           domain={[0, naturalYMax]}
           allowDataOverflow={true}
           stroke={CHART_CONFIG.axis.stroke}
+          tick={CHART_CONFIG.tick}
           tickFormatter={(value: number) => value.toFixed(1)}
         />
 

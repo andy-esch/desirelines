@@ -142,7 +142,6 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   }}
                   autoFocus
                   disabled={isSaving}
-                  style={{ maxWidth: "130px" }}
                   aria-describedby={editValidationError ? `goal-error-${goal.id}` : undefined}
                 />
               ) : (
@@ -153,7 +152,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   onFocus={() => handleStartEdit(goal.id, goal.value)}
                   readOnly
                   disabled={isSaving}
-                  style={{ maxWidth: "130px", cursor: isSaving ? "not-allowed" : "pointer" }}
+                  style={{ cursor: isSaving ? "not-allowed" : "pointer" }}
                 />
               )}
               <button

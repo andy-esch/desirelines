@@ -25,13 +25,18 @@ export default function ProgressSummary({
 
   return (
     <div className="px-6 pt-6 pb-2">
-      <div className="flex justify-between text-sm">
+      <div className="flex justify-between text-sm mb-1">
         <span className="text-slate-light">Current</span>
         <span className="font-semibold">{formatValue(currentValue)}</span>
       </div>
       <div className="flex justify-between text-sm">
         <span className="text-slate-light">Est. Year-End</span>
-        <span className="font-semibold">{formatValue(estimatedYearEnd)}</span>
+        <span
+          className="font-semibold font-display"
+          style={{ textShadow: "0 0 12px rgba(0, 212, 255, 0.2)" }}
+        >
+          {formatValue(estimatedYearEnd)}
+        </span>
       </div>
     </div>
   );

@@ -39,7 +39,7 @@ export default function OriginsPage() {
     >
       <div className="container" style={{ maxWidth: "720px" }}>
         <h1
-          className="mb-6"
+          className="mb-3"
           style={{
             ...neonGradientText,
             fontWeight: 300,
@@ -51,7 +51,7 @@ export default function OriginsPage() {
 
         <section className="mb-12">
           <h2
-            className="mb-6"
+            className="mb-3"
             style={{
               color: "var(--accent-cyan, #00d4ff)",
               fontWeight: 400,
@@ -69,7 +69,7 @@ export default function OriginsPage() {
 
         <section className="mb-12">
           <h2
-            className="mb-6"
+            className="mb-3"
             style={{
               color: "var(--accent-cyan, #00d4ff)",
               fontWeight: 400,
@@ -96,7 +96,7 @@ export default function OriginsPage() {
 
         <section className="mb-12">
           <h2
-            className="mb-6"
+            className="mb-3"
             style={{
               color: "var(--accent-cyan, #00d4ff)",
               fontWeight: 400,

@@ -124,8 +124,8 @@ const ActivitiesPage = () => {
     <PageLayout background="activities">
       <div className="px-3 py-6">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="h3 mb-0">Activities</h1>
+        <div className="mb-3">
+          <h1 className="h3 mb-0 font-display">Activities</h1>
         </div>
 
         {/* Filters */}

@@ -88,12 +88,12 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   const sortedGoals = [...goals].sort((a, b) => a.value - b.value);
 
   return (
-    <div className="card glass-panel mb-6">
+    <div className="card glass-panel mb-8">
       <div className="card-header">
         <h5>Goal Achievability Summary</h5>
       </div>
       <div className="card-body">
-        <div className="table-responsive">
+        <div className="overflow-x-auto">
           <table className="table table-hover table-sm table-dark-transparent">
             <thead>
               <tr>
@@ -159,8 +159,8 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                             transform: "translate(-50%, -50%)",
                             fontSize: "0.75rem",
                             fontWeight: 500,
-                            color: progress > 50 ? "#fff" : "#333",
-                            textShadow: progress > 50 ? "0 0 2px rgba(0,0,0,0.5)" : "none",
+                            color: "#fff",
+                            textShadow: "0 0 3px rgba(0,0,0,0.7)",
                           }}
                         >
                           {isLoading ? "--" : `${progress.toFixed(0)}%`}

@@ -27,7 +27,7 @@ export default function SidebarSection({
   return (
     <>
       <button
-        className="sidebar-heading px-6 mb-0 text-slate-light uppercase flex items-center justify-between w-full bg-transparent border-0"
+        className="sidebar-heading px-6 py-3 mb-0 text-slate-light uppercase flex items-center justify-between w-full bg-transparent border-0 min-h-[44px]"
         onClick={onToggle}
         aria-expanded={isExpanded}
         aria-controls={`${id}-collapse`}

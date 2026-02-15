@@ -89,7 +89,7 @@ export default function SettingsPage() {
 
   return (
     <NarrowPageLayout background="settings">
-      <h1 className="h2 mb-6">Settings</h1>
+      <h1 className="h2 mb-3 font-display">Settings</h1>
 
       {saveError && (
         <InlineAlert className="mb-6" onDismiss={clearSaveError}>

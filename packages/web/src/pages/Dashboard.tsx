@@ -51,9 +51,11 @@ export default function Dashboard() {
     <PageLayout background="dashboard">
       {/* Demo mode banner for unauthenticated users */}
       {!user && (
-        <div className="alert alert-demo mb-0 rounded-none" role="alert">
-          <div className="px-3">
-            <strong>Demo Mode</strong> - Viewing generated sample data.{" "}
+        <div className="alert alert-demo mb-0 rounded-none py-3" role="alert">
+          <div className="px-6">
+            <strong className="text-accent-cyan">Demo Mode</strong>
+            <span className="mx-2">—</span>
+            Viewing generated sample data.{" "}
             <span className="text-slate-light text-sm">Sign-in is invite-only.</span>
           </div>
         </div>
@@ -61,8 +63,8 @@ export default function Dashboard() {
 
       <div className="px-3 py-6">
         {/* Header Section */}
-        <div className="dashboard-header mb-6">
-          <h1 className="h2">
+        <div className="dashboard-header mb-3">
+          <h1 className="h2 font-display">
             {user ? `Welcome back, ${user.displayName?.split(" ")[0] || "there"}!` : "Welcome!"}
           </h1>
           <p className="text-slate-light">
@@ -73,16 +75,16 @@ export default function Dashboard() {
         </div>
 
         {/* Multi-Sport Comparison Chart */}
-        <MultiSportComparisonChart className="mb-6" tuningParams={tuningParams} />
+        <MultiSportComparisonChart className="mb-8" tuningParams={tuningParams} />
 
         {/* Weekly Summary + Goal Progress row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <WeeklySummaryCard />
           <GoalProgressCard />
         </div>
 
         {/* Activity Calendar Heatmap */}
-        <ActivityCalendarHeatmap className="mb-6" tuningParams={tuningParams} />
+        <ActivityCalendarHeatmap className="mb-10" tuningParams={tuningParams} />
 
         {/* Sign-in prompt for unauthenticated users */}
         {!user && (

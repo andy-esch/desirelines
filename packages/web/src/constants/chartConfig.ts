@@ -28,16 +28,23 @@ export const CHART_CONFIG = {
     goal: 2,
   },
 
-  /** Grid styling */
+  /** Grid styling — subtle dotted "laser grid" */
   grid: {
-    strokeDasharray: "3 3",
-    stroke: "#2a2a2a",
-    opacity: 0.3,
+    strokeDasharray: "2 6",
+    stroke: "rgba(255, 255, 255, 0.06)",
+    opacity: 1,
   },
 
   /** Axis styling */
   axis: {
-    stroke: "#666",
+    stroke: "#718096",
+  },
+
+  /** Axis tick styling */
+  tick: {
+    fontSize: 11,
+    fill: "#718096",
+    fontFamily: '"Space Grotesk", sans-serif',
   },
 
   /** Y-axis marker styling (only fontSize used; radius/fontWeight use component defaults) */

@@ -61,7 +61,7 @@ export default function Header() {
 
   return (
     <header
-      className="sticky top-0 flex items-center flex-nowrap px-2 py-1.5 shadow"
+      className="sticky top-0 relative flex items-center flex-nowrap px-2 py-2 shadow"
       style={{ backgroundColor: "var(--color-slate-dark, #2d3748)", zIndex: 40 }}
     >
       <Link to="/" className="logo-link px-2 flex items-center shrink-0">
@@ -81,7 +81,7 @@ export default function Header() {
       {/* Mobile: hamburger, controls gear, and account dropdown on right */}
       <div className="md:hidden ms-auto flex items-center">
         <button
-          className="border-0 bg-transparent text-white p-2"
+          className="border-0 bg-transparent text-white p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
           type="button"
           onClick={() => setNavOpen(true)}
           aria-label="Toggle navigation"
@@ -90,7 +90,7 @@ export default function Header() {
         </button>
         {showControlsToggle && (
           <button
-            className="border-0 bg-transparent text-white p-2"
+            className="border-0 bg-transparent text-white p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
             type="button"
             onClick={openSidebar}
             aria-label="Toggle controls"

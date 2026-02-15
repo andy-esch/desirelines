@@ -264,7 +264,7 @@ export function CumulativeChartPresenter({
             allowDataOverflow
             tickFormatter={formatChartAxisDate}
             stroke={CHART_CONFIG.axis.stroke}
-            tick={{ fontSize: 11 }}
+            tick={CHART_CONFIG.tick}
             interval="preserveStartEnd"
           />
 
@@ -274,8 +274,11 @@ export function CumulativeChartPresenter({
               value: isSessionsMode ? "# Sessions" : unitLabel,
               angle: -90,
               position: "insideLeft",
+              fill: CHART_CONFIG.tick.fill,
+              style: { fontFamily: CHART_CONFIG.tick.fontFamily, fontSize: 12 },
             }}
             stroke={CHART_CONFIG.axis.stroke}
+            tick={CHART_CONFIG.tick}
             allowDataOverflow
             domain={isZoomed ? [0, "auto"] : [0, calculateCumulativeYAxisMax]}
             ticks={isZoomed ? undefined : yAxisTicks}

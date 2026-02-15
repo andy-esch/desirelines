@@ -340,7 +340,7 @@ export default function RecentActivitiesList({
         style={{ minWidth: 32, visibility: showPagination ? "visible" : "hidden" }}
       >
         <button
-          className="btn btn-sm btn-link p-0 text-slate-light"
+          className="btn btn-sm btn-link p-0 text-slate-light min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
           onClick={() => setPage((p) => p - 1)}
           disabled={!canGoUp}
           style={{ opacity: canGoUp ? 1 : 0.3 }}
@@ -357,7 +357,7 @@ export default function RecentActivitiesList({
           {page + 1}/{hasMore ? "+" : totalPages}
         </span>
         <button
-          className="btn btn-sm btn-link p-0 text-slate-light"
+          className="btn btn-sm btn-link p-0 text-slate-light min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
           onClick={handleNextPage}
           disabled={!canGoDown}
           style={{ opacity: canGoDown ? 1 : 0.3 }}
