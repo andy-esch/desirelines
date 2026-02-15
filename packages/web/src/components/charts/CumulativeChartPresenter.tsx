@@ -13,7 +13,6 @@
  * - Pure rendering of the chart visualization
  * - SVG elements for lines, markers, and achievements
  */
-import { useRef, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -81,6 +80,8 @@ export interface CumulativeChartPresenterProps {
   // --- Feature Toggles ---
   /** Whether to show achievement markers and legend */
   showAchievements?: boolean;
+  /** Whether line draw-in animation should play (false suppresses re-animation on prop changes) */
+  isAnimationActive?: boolean;
 
   // --- Zoom ---
   /** Whether chart is currently zoomed */
@@ -232,6 +233,7 @@ export function CumulativeChartPresenter({
   estimatedYearEnd,
   isSessionsMode,
   showAchievements = true,
+  isAnimationActive = true,
   isZoomed = false,
   selectionLeft,
   selectionRight,
@@ -239,12 +241,6 @@ export function CumulativeChartPresenter({
   onChartMouseMove,
   onChartMouseUp,
 }: CumulativeChartPresenterProps) {
-  // Only animate on first render — suppress re-animation on goal/range changes
-  const isFirstRender = useRef(true);
-  useEffect(() => {
-    isFirstRender.current = false;
-  }, []);
-
   return (
     <div style={{ position: "relative", userSelect: "none" }}>
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
@@ -315,7 +311,7 @@ export function CumulativeChartPresenter({
             strokeWidth={CHART_CONFIG.strokeWidth.actual}
             dot={false}
             name={`${year} Data: ${totalDistanceTraveled.toFixed(1)} ${unitLabel}`}
-            isAnimationActive={isFirstRender.current}
+            isAnimationActive={isAnimationActive}
             animationDuration={CHART_CONFIG.animation.duration}
             animationEasing={CHART_CONFIG.animation.easing}
           />
@@ -330,7 +326,7 @@ export function CumulativeChartPresenter({
               strokeWidth={CHART_CONFIG.strokeWidth.goal}
               dot={false}
               name={`${gl.goal.label || "Goal"}: ${gl.goal.value} ${unitLabel}`}
-              isAnimationActive={isFirstRender.current}
+              isAnimationActive={isAnimationActive}
               animationDuration={CHART_CONFIG.animation.duration}
               animationEasing={CHART_CONFIG.animation.easing}
             />
@@ -345,7 +341,7 @@ export function CumulativeChartPresenter({
             strokeDasharray="5 5"
             dot={false}
             name={`Current Average (Est: ${estimatedYearEnd.toFixed(0)} ${unitLabel})`}
-            isAnimationActive={isFirstRender.current}
+            isAnimationActive={isAnimationActive}
             animationDuration={CHART_CONFIG.animation.duration}
             animationEasing={CHART_CONFIG.animation.easing}
           />

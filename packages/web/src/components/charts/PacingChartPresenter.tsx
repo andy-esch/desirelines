@@ -12,7 +12,6 @@
  * - Pure rendering of the chart visualization
  * - Danger zone display (zone of unachievability)
  */
-import { useRef, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -79,6 +78,10 @@ export interface PacingChartPresenterProps {
   unitLabel: string;
   /** Whether to use "sessions" terminology */
   isSessionsMode: boolean;
+
+  // --- Feature Toggles ---
+  /** Whether line draw-in animation should play (false suppresses re-animation on prop changes) */
+  isAnimationActive?: boolean;
 
   // --- Danger Zone ---
   /** Configuration for the danger zone display */
@@ -176,14 +179,9 @@ export function PacingChartPresenter({
   year,
   unitLabel,
   isSessionsMode,
+  isAnimationActive = true,
   dangerZone,
 }: PacingChartPresenterProps) {
-  // Only animate on first render — suppress re-animation on prop changes
-  const isFirstRender = useRef(true);
-  useEffect(() => {
-    isFirstRender.current = false;
-  }, []);
-
   const yAxisLabel = isSessionsMode ? "# Sessions / Day" : `${unitLabel} / Day`;
   const tooltipUnit = `${unitLabel}/day`;
 
@@ -259,7 +257,7 @@ export function PacingChartPresenter({
           strokeWidth={CHART_CONFIG.strokeWidth.actual}
           dot={false}
           name={`${year} Pacing Data`}
-          isAnimationActive={isFirstRender.current}
+          isAnimationActive={isAnimationActive}
           animationDuration={CHART_CONFIG.animation.duration}
           animationEasing={CHART_CONFIG.animation.easing}
         />
@@ -274,7 +272,7 @@ export function PacingChartPresenter({
             strokeWidth={CHART_CONFIG.strokeWidth.goal}
             dot={false}
             name={`${pg.goal.label || "Goal"} Pacing: ${pg.goal.value} ${unitLabel}`}
-            isAnimationActive={isFirstRender.current}
+            isAnimationActive={isAnimationActive}
             animationDuration={CHART_CONFIG.animation.duration}
             animationEasing={CHART_CONFIG.animation.easing}
           />
