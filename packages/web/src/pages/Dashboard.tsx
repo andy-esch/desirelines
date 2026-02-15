@@ -3,7 +3,7 @@ import MultiSportComparisonChart from "../components/dashboard/MultiSportCompari
 import WeeklySummaryCard from "../components/dashboard/WeeklySummaryCard";
 import GoalProgressCard from "../components/dashboard/GoalProgressCard";
 import ActivityCalendarHeatmap from "../components/dashboard/ActivityCalendarHeatmap";
-import NeonSpinner from "../components/NeonSpinner";
+import DashboardSkeleton from "../components/skeletons/DashboardSkeleton";
 import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
 
@@ -38,9 +38,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <PageLayout background="dashboard">
-        <div className="container flex justify-center items-center" style={{ minHeight: "60vh" }}>
-          <NeonSpinner />
-        </div>
+        <DashboardSkeleton />
       </PageLayout>
     );
   }

@@ -13,6 +13,7 @@
  * - Pure rendering of the chart visualization
  * - SVG elements for lines, markers, and achievements
  */
+import { useRef, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -238,6 +239,12 @@ export function CumulativeChartPresenter({
   onChartMouseMove,
   onChartMouseUp,
 }: CumulativeChartPresenterProps) {
+  // Only animate on first render — suppress re-animation on goal/range changes
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    isFirstRender.current = false;
+  }, []);
+
   return (
     <div style={{ position: "relative", userSelect: "none" }}>
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
@@ -308,7 +315,9 @@ export function CumulativeChartPresenter({
             strokeWidth={CHART_CONFIG.strokeWidth.actual}
             dot={false}
             name={`${year} Data: ${totalDistanceTraveled.toFixed(1)} ${unitLabel}`}
+            isAnimationActive={isFirstRender.current}
             animationDuration={CHART_CONFIG.animation.duration}
+            animationEasing={CHART_CONFIG.animation.easing}
           />
 
           {/* Goal lines */}
@@ -321,7 +330,9 @@ export function CumulativeChartPresenter({
               strokeWidth={CHART_CONFIG.strokeWidth.goal}
               dot={false}
               name={`${gl.goal.label || "Goal"}: ${gl.goal.value} ${unitLabel}`}
+              isAnimationActive={isFirstRender.current}
               animationDuration={CHART_CONFIG.animation.duration}
+              animationEasing={CHART_CONFIG.animation.easing}
             />
           ))}
 
@@ -334,7 +345,9 @@ export function CumulativeChartPresenter({
             strokeDasharray="5 5"
             dot={false}
             name={`Current Average (Est: ${estimatedYearEnd.toFixed(0)} ${unitLabel})`}
+            isAnimationActive={isFirstRender.current}
             animationDuration={CHART_CONFIG.animation.duration}
+            animationEasing={CHART_CONFIG.animation.easing}
           />
 
           {/* Achievement markers */}

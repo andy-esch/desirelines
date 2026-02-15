@@ -77,7 +77,8 @@ export const CHART_CONFIG = {
 
   /** Animation settings */
   animation: {
-    duration: 50,
+    duration: 400,
+    easing: "ease-out" as const,
   },
 
   /** Drag-to-zoom selection overlay */

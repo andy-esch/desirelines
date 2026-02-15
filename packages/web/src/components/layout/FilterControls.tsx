@@ -1,6 +1,8 @@
 import { AVAILABLE_YEARS } from "../../constants/sidebar";
 import { capitalizeFirst } from "../../utils/format";
+import { SPORT_COLORS } from "../../utils/sportConfig";
 import SportVisibilityHint from "../SportVisibilityHint";
+import StyledSelect from "../StyledSelect";
 
 interface FilterControlsProps {
   /** Currently selected sport */
@@ -19,7 +21,7 @@ interface FilterControlsProps {
 
 /**
  * Sport and Year filter controls for the sidebar.
- * Used in both authenticated and demo modes.
+ * Uses styled Listbox dropdowns with sport-colored dots.
  */
 export default function FilterControls({
   sport,
@@ -35,6 +37,22 @@ export default function FilterControls({
       ? [sport, ...availableSports]
       : availableSports;
 
+  const sportOptions = sportsToShow.map((sportId) => {
+    const count = sportCounts?.[sportId];
+    const label =
+      count !== undefined ? `${capitalizeFirst(sportId)} (${count})` : capitalizeFirst(sportId);
+    return {
+      value: sportId,
+      label,
+      dotColor: SPORT_COLORS[sportId],
+    };
+  });
+
+  const yearOptions = AVAILABLE_YEARS.map((year) => ({
+    value: String(year),
+    label: String(year),
+  }));
+
   return (
     <>
       {/* Sport Selector */}
@@ -45,30 +63,13 @@ export default function FilterControls({
         >
           Sport
         </label>
-        {sportsToShow.length === 0 ? (
-          <select className="form-select form-select-sm grow" disabled>
-            <option>No sports available</option>
-          </select>
-        ) : (
-          <select
-            className="form-select form-select-sm grow"
-            value={sport}
-            onChange={(e) => onSportChange(e.target.value)}
-          >
-            {sportsToShow.map((sportId) => {
-              const count = sportCounts?.[sportId];
-              const label =
-                count !== undefined
-                  ? `${capitalizeFirst(sportId)} (${count})`
-                  : capitalizeFirst(sportId);
-              return (
-                <option key={sportId} value={sportId}>
-                  {label}
-                </option>
-              );
-            })}
-          </select>
-        )}
+        <StyledSelect
+          value={sport}
+          onChange={onSportChange}
+          options={sportOptions}
+          disabled={sportsToShow.length === 0}
+          className="grow"
+        />
       </div>
       <SportVisibilityHint className="mb-2" style={{ paddingLeft: "50px" }} />
 
@@ -80,17 +81,12 @@ export default function FilterControls({
         >
           Year
         </label>
-        <select
-          className="form-select form-select-sm grow"
-          value={currentYear}
-          onChange={(e) => onYearChange(Number(e.target.value))}
-        >
-          {AVAILABLE_YEARS.map((year) => (
-            <option key={year} value={year}>
-              {year}
-            </option>
-          ))}
-        </select>
+        <StyledSelect
+          value={String(currentYear)}
+          onChange={(val) => onYearChange(Number(val))}
+          options={yearOptions}
+          className="grow"
+        />
       </div>
     </>
   );
