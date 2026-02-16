@@ -57,7 +57,8 @@ export function configureClientAuth(authService: AuthService): void {
     // Only attach token for requests to our own API gateway.
     // Absolute URLs to other domains must not receive the auth token.
     const isInternalRequest =
-      !config.url?.startsWith("http") || config.url?.startsWith(config.baseURL || "");
+      !config.url?.startsWith("http") ||
+      (!!config.baseURL && config.url?.startsWith(config.baseURL));
 
     if (user && isInternalRequest) {
       try {

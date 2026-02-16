@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { ErrorBoundary } from "react-error-boundary";
 import MultiSportSparklineChart from "../components/dashboard/MultiSportSparklineChart";
 import RecentActivitiesListCard from "../components/dashboard/RecentActivitiesListCard";
 import TimeRangeSelector from "../components/dashboard/TimeRangeSelector";
@@ -7,6 +8,7 @@ import WeeklySummaryCard from "../components/dashboard/WeeklySummaryCard";
 import GoalProgressCard from "../components/dashboard/GoalProgressCard";
 import ActivityCalendarHeatmap from "../components/dashboard/ActivityCalendarHeatmap";
 import DashboardSkeleton from "../components/skeletons/DashboardSkeleton";
+import ErrorChart from "../components/charts/ErrorChart";
 import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import type { TimeRange } from "../utils/dataNormalization";
@@ -80,18 +82,26 @@ export default function Dashboard() {
 
         {/* Main Activity Row: Chart + List */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <MultiSportSparklineChart timeRange={timeRange} tuningParams={tuningParams} />
-          <RecentActivitiesListCard timeRange={timeRange} />
+          <ErrorBoundary fallbackRender={({ error }) => <ErrorChart error={error as Error} />}>
+            <MultiSportSparklineChart timeRange={timeRange} tuningParams={tuningParams} />
+          </ErrorBoundary>
+          <ErrorBoundary fallbackRender={({ error }) => <ErrorChart error={error as Error} />}>
+            <RecentActivitiesListCard timeRange={timeRange} />
+          </ErrorBoundary>
         </div>
 
         {/* Weekly Summary + Goal Progress row */}
         <div className="grid grid-cols-1 @md:grid-cols-2 gap-6 mb-8">
           <WeeklySummaryCard />
-          <GoalProgressCard />
+          <ErrorBoundary fallbackRender={({ error }) => <ErrorChart error={error as Error} />}>
+            <GoalProgressCard />
+          </ErrorBoundary>
         </div>
 
         {/* Activity Calendar Heatmap */}
-        <ActivityCalendarHeatmap className="mb-10" tuningParams={tuningParams} />
+        <ErrorBoundary fallbackRender={({ error }) => <ErrorChart error={error as Error} />}>
+          <ActivityCalendarHeatmap className="mb-10" tuningParams={tuningParams} />
+        </ErrorBoundary>
 
         {/* Sign-in prompt for unauthenticated users */}
         {!user && (
