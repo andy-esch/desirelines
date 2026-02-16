@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useEffect } from "react";
+import { lazy, Suspense } from "react";
 import "./css/tailwind.css";
 import {
   createBrowserRouter,
@@ -6,7 +6,6 @@ import {
   Outlet,
   RouterProvider,
   ScrollRestoration,
-  useLocation,
   useParams,
   useRouteError,
 } from "react-router-dom";
