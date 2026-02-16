@@ -28,15 +28,15 @@ describe("getDangerThreshold", () => {
     expect(getDangerThreshold("yoga")).toBe(120);
   });
 
-  it("returns default threshold (20) for unknown sport", () => {
-    expect(getDangerThreshold("swimming")).toBe(20);
-    expect(getDangerThreshold("hiking")).toBe(20);
-    expect(getDangerThreshold("")).toBe(20);
+  it("returns Infinity for unknown sport (disables danger zone)", () => {
+    expect(getDangerThreshold("swimming")).toBe(Infinity);
+    expect(getDangerThreshold("hiking")).toBe(Infinity);
+    expect(getDangerThreshold("")).toBe(Infinity);
   });
 
   it("handles case-sensitive sport names", () => {
-    // Should only match exact case
-    expect(getDangerThreshold("Cycling")).toBe(20); // default, not matched
-    expect(getDangerThreshold("RUNNING")).toBe(20); // default, not matched
+    // Should only match exact case — wrong case returns Infinity (no threshold)
+    expect(getDangerThreshold("Cycling")).toBe(Infinity);
+    expect(getDangerThreshold("RUNNING")).toBe(Infinity);
   });
 });

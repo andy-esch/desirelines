@@ -178,7 +178,9 @@ export function ChartContainer({
       {!hideHeader && (
         <ChartHeader title={title} controls={headerControls} infoTooltip={infoTooltip} />
       )}
-      <ErrorBoundary fallbackRender={({ error }) => <ErrorChart error={error as Error} onRetry={onRetry} />}>
+      <ErrorBoundary
+        fallbackRender={({ error }) => <ErrorChart error={error as Error} onRetry={onRetry} />}
+      >
         {children}
       </ErrorBoundary>
     </div>

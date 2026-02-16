@@ -38,7 +38,7 @@
 }
 
 .empty-state-subtitle {
-  color: var(--bs-secondary);
+  color: var(--color-slate-light);
   font-size: 1rem;
   text-align: center;
   margin: 0;

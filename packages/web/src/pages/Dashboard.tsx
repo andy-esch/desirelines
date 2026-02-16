@@ -56,7 +56,7 @@ export default function Dashboard() {
             <strong className="text-accent-cyan">Demo Mode</strong>
             <span className="mx-2">—</span>
             Viewing generated sample data.{" "}
-            <span className="text-slate-light text-sm">Sign-in is invite-only.</span>
+            <span className="text-slate text-sm">Sign-in is invite-only.</span>
           </div>
         </div>
       )}
