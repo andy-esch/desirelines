@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import type { MetricUnit } from "../utils/units";
-import styles from "./EmptyState.module.css";
 
 interface EmptyStateProps {
   sport?: string;
@@ -38,19 +37,18 @@ export function EmptyState({
       : "No data available";
 
   return (
-    <div className={styles["empty-state-container"]}>
-      <div className={styles["neon-text"]}>
-        <span className={styles["neon-pink"]}>No</span>{" "}
-        <span className={styles["neon-cyan"]}>data</span>{" "}
-        <span className={styles["neon-green"]}>available</span>
+    <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[200px] p-8 sm:p-4 neon-backdrop">
+      <div className="text-[2.5rem] md:text-[2rem] sm:text-2xl font-bold mb-4 text-center">
+        <span className="neon-glow-pink">No</span>{" "}
+        <span className="neon-glow-cyan">data</span>{" "}
+        <span className="neon-glow-green">available</span>
       </div>
-      <p className={styles["empty-state-subtitle"]}>{message || defaultMessage}</p>
+      <p className="text-slate-light text-base sm:text-sm text-center m-0">
+        {message || defaultMessage}
+      </p>
       {suggestedYear && sport && (
-        <p className={styles["empty-state-subtitle"]} style={{ marginTop: "0.5rem" }}>
-          <Link
-            to={`${linkPrefix}/${sport}/${suggestedYear}`}
-            style={{ color: "var(--color-accent-cyan)" }}
-          >
+        <p className="text-slate-light text-base sm:text-sm text-center m-0 mt-2">
+          <Link to={`${linkPrefix}/${sport}/${suggestedYear}`} className="text-accent-cyan">
             View {suggestedYear} instead →
           </Link>
         </p>
