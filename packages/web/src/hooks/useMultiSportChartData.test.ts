@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { useMultiSportChartData } from "./useMultiSportChartData";
 import * as useDailySportDataModule from "./useDailySportData";
 import * as useVisibleSportsModule from "./useVisibleSports";
@@ -117,7 +117,7 @@ describe("useMultiSportChartData", () => {
         error: null,
       });
 
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.isLoading).toBe(true);
     });
 
@@ -129,7 +129,7 @@ describe("useMultiSportChartData", () => {
         retry: vi.fn(),
       });
 
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.isLoading).toBe(true);
     });
 
@@ -140,12 +140,12 @@ describe("useMultiSportChartData", () => {
         error: null,
       } as any);
 
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.isLoading).toBe(true);
     });
 
     it("returns isLoading false when all dependencies are loaded", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.isLoading).toBe(false);
     });
   });
@@ -162,21 +162,21 @@ describe("useMultiSportChartData", () => {
         error: null,
       });
 
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.validSports).toEqual(["cycling", "yoga"]);
     });
   });
 
   describe("sportMeta", () => {
     it("includes correct display names from config", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       const names = result.current.sportMeta.map((m) => m.displayName);
       expect(names).toEqual(["Cycling", "Running", "Yoga"]);
     });
 
     it("includes isDistanceSport flag based on primary metric", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       const cycling = result.current.sportMeta.find((m) => m.sport === "cycling");
       const yoga = result.current.sportMeta.find((m) => m.sport === "yoga");
@@ -186,7 +186,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("includes isTimeSport flag based on primary metric", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       const cycling = result.current.sportMeta.find((m) => m.sport === "cycling");
       const yoga = result.current.sportMeta.find((m) => m.sport === "yoga");
@@ -196,7 +196,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("assigns spectrum colors that are valid RGB strings", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       result.current.sportMeta.forEach((meta) => {
         expect(meta.color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
@@ -205,7 +205,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("assigns different colors to different sports", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       const colors = result.current.sportMeta.map((m) => m.color);
       const uniqueColors = new Set(colors);
@@ -213,7 +213,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("text colors are darker than main colors", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       result.current.sportMeta.forEach((meta) => {
         // Parse RGB values
@@ -242,7 +242,7 @@ describe("useMultiSportChartData", () => {
         error: null,
       });
 
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       expect(result.current.sportMeta.length).toBe(1);
       expect(result.current.sportMeta[0].color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
@@ -265,7 +265,7 @@ describe("useMultiSportChartData", () => {
         error: null,
       } as any);
 
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       expect(result.current.sportMeta.length).toBe(4);
       // First should be magenta-ish, last should be orange-ish
@@ -277,7 +277,7 @@ describe("useMultiSportChartData", () => {
 
   describe("unifiedChartData", () => {
     it("includes all dates in the range (dense array)", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       // Should have entries for each day in the 2-week range
       expect(result.current.unifiedChartData.length).toBeGreaterThan(0);
@@ -288,7 +288,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("includes normalized values for each sport", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       if (result.current.unifiedChartData.length > 0) {
         const entry = result.current.unifiedChartData[0];
@@ -300,7 +300,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("includes raw values with _raw suffix for tooltip", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       if (result.current.unifiedChartData.length > 0) {
         const entry = result.current.unifiedChartData[0];
@@ -312,7 +312,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("normalized values are between 0 and 1", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       result.current.unifiedChartData.forEach((entry) => {
         ["cycling", "running", "yoga"].forEach((sport) => {
@@ -324,7 +324,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("stacks sports in vertical lanes (values don't overlap)", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       if (result.current.unifiedChartData.length > 0) {
         // With 3 sports, each lane is ~0.33 height
@@ -347,7 +347,7 @@ describe("useMultiSportChartData", () => {
 
   describe("sparklineData", () => {
     it("includes rawData for each sport", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       result.current.sparklineData.forEach((sportData) => {
         expect(sportData.rawData).toBeDefined();
@@ -356,7 +356,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("rawData contains actual metric values (not normalized)", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       const cyclingData = result.current.sparklineData.find((s) => s.sport === "cycling");
       // Find the entry for 2026-01-20 which has 50000 meters
@@ -368,7 +368,7 @@ describe("useMultiSportChartData", () => {
     });
 
     it("normalized data maps to 0-1 range", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       result.current.sparklineData.forEach((sportData) => {
         sportData.data.forEach((entry) => {
@@ -381,7 +381,7 @@ describe("useMultiSportChartData", () => {
 
   describe("hasAnyData", () => {
     it("returns true when there is activity data", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.hasAnyData).toBe(true);
     });
 
@@ -392,43 +392,26 @@ describe("useMultiSportChartData", () => {
         error: null,
       } as any);
 
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.hasAnyData).toBe(false);
-    });
-  });
-
-  describe("timeRange state", () => {
-    it("defaults to 2weeks", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
-      expect(result.current.timeRange).toBe("2weeks");
-    });
-
-    it("can be changed via setTimeRange", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
-
-      act(() => {
-        result.current.setTimeRange("4weeks");
-      });
-
-      expect(result.current.timeRange).toBe("4weeks");
     });
   });
 
   describe("layout calculations", () => {
     it("returns sparklineContainerHeight based on sport count", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       // With 3 sports, should be at least MIN_SPORTS_FOR_HEIGHT * ROW_HEIGHT
       expect(result.current.sparklineContainerHeight).toBeGreaterThan(100);
     });
 
     it("returns activityPageSize based on sport count", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.activityPageSize).toBeGreaterThanOrEqual(4);
       expect(result.current.activityPageSize).toBeLessThanOrEqual(7);
     });
 
     it("exports layout constants", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.MAX_SPORTS_DISPLAY).toBe(8);
       expect(result.current.SPARKLINE_ROW_HEIGHT).toBe(36);
       expect(result.current.SPARKLINE_XAXIS_HEIGHT).toBe(12);
@@ -437,7 +420,7 @@ describe("useMultiSportChartData", () => {
 
   describe("lastActivityYear", () => {
     it("determines year from most recent activity date", () => {
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       const cyclingMeta = result.current.sportMeta.find((m) => m.sport === "cycling");
       // Mock data has activities in 2026
@@ -451,7 +434,7 @@ describe("useMultiSportChartData", () => {
         error: null,
       } as any);
 
-      const { result } = renderHook(() => useMultiSportChartData());
+      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       const currentYear = new Date().getFullYear();
 
       result.current.sportMeta.forEach((meta) => {

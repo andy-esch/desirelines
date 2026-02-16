@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useCurrentYear } from "../hooks/useCurrentYear";
 import { useDailySportData } from "../hooks/useDailySportData";
 import { useVisibleSports } from "../hooks/useVisibleSports";
@@ -111,14 +111,12 @@ function getActivityPageSize(sportCount: number): number {
  * Hook for managing multi-sport comparison chart data.
  *
  * Handles:
- * - Time range state
  * - Fetching data for multiple visible sports
  * - Normalizing data for sparklines (0-1 scale)
  * - Coordinating layout calculations (height, page size)
  */
-export function useMultiSportChartData(tuningParams?: TuningParams) {
+export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: TuningParams) {
   const currentYear = useCurrentYear();
-  const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
 
   // Get visible sports, sport config, and user preferences
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
@@ -176,7 +174,7 @@ export function useMultiSportChartData(tuningParams?: TuningParams) {
         lastActivityYear,
       };
     });
-  }, [validSports, data, sportConfig, from, to]);
+  }, [validSports, data, sportConfig, from, to, currentYear]);
 
   // Merged data for unified chart: [{date, sport1: value, sport2: value, sport1_raw: rawValue, ...}]
   // Each sport gets a vertical offset to create stacked "lanes"
@@ -250,8 +248,6 @@ export function useMultiSportChartData(tuningParams?: TuningParams) {
   });
 
   return {
-    timeRange,
-    setTimeRange,
     sparklineData,
     unifiedChartData,
     sportMeta,
