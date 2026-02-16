@@ -19,7 +19,7 @@ export function PageErrorFallback({ error, onReset }: PageErrorFallbackProps) {
           <button
             className="btn btn-outline-danger"
             onClick={onReset}
-            aria-label="Retry loading this page"
+            aria-label="Try Again: Retry loading this page"
           >
             Try Again
           </button>

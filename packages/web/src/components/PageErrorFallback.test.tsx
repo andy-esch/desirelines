@@ -28,7 +28,7 @@ describe("PageErrorFallback", () => {
       </MemoryRouter>
     );
 
-    const tryAgainBtn = screen.getByRole("button", { name: /retry loading this page/i });
+    const tryAgainBtn = screen.getByRole("button", { name: /try again: retry loading this page/i });
     await user.click(tryAgainBtn);
 
     expect(onReset).toHaveBeenCalledTimes(1);

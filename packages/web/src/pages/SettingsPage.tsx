@@ -102,8 +102,9 @@ export default function SettingsPage() {
         description="Customize how data is displayed throughout the app"
       >
         <SettingRow label="Distance Unit" description="Used for all distance measurements">
-          {(descriptionId) => (
+          {(descriptionId, inputId) => (
             <select
+              id={inputId}
               className="form-select form-select-sm"
               value={currentPrefs.distanceUnit || "miles"}
               onChange={(e) => handlePreferenceChange("distanceUnit", e.target.value)}
@@ -121,8 +122,9 @@ export default function SettingsPage() {
         </SettingRow>
 
         <SettingRow label="Elevation Unit" description="Used for elevation gain measurements">
-          {(descriptionId) => (
+          {(descriptionId, inputId) => (
             <select
+              id={inputId}
               className="form-select form-select-sm"
               value={currentPrefs.elevationUnit || "feet"}
               onChange={(e) => handlePreferenceChange("elevationUnit", e.target.value)}
@@ -140,8 +142,9 @@ export default function SettingsPage() {
         </SettingRow>
 
         <SettingRow label="Timezone" description={`Browser timezone: ${browserTimezone}`}>
-          {(descriptionId) => (
+          {(descriptionId, inputId) => (
             <select
+              id={inputId}
               className="form-select form-select-sm"
               value={currentPrefs.timezone || ""}
               onChange={(e) => handlePreferenceChange("timezone", e.target.value)}

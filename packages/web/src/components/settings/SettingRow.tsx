@@ -4,7 +4,7 @@ interface SettingRowProps {
   label: string;
   description?: string;
   /** Pass a render function to receive the descriptionId for aria-describedby */
-  children: ReactNode | ((descriptionId?: string) => ReactNode);
+  children: ReactNode | ((descriptionId?: string, inputId?: string) => ReactNode);
   /** If true, value is read-only (no edit control) */
   readOnly?: boolean;
 }
@@ -19,7 +19,9 @@ interface SettingRowProps {
  */
 export function SettingRow({ label, description, children, readOnly }: SettingRowProps) {
   const id = useId();
+  const inputId = `${id}-input`;
   const descriptionId = description && !readOnly ? `${id}-desc` : undefined;
+  const LabelTag = readOnly ? "div" : "label";
 
   return (
     <div
@@ -27,7 +29,9 @@ export function SettingRow({ label, description, children, readOnly }: SettingRo
       style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}
     >
       <div className="me-6" style={{ flex: 1 }}>
-        <div className="font-medium">{label}</div>
+        <LabelTag htmlFor={readOnly ? undefined : inputId} className="font-medium block">
+          {label}
+        </LabelTag>
         {description && (
           <div id={descriptionId} className="text-slate-light text-sm mt-1">
             {description}
@@ -38,7 +42,7 @@ export function SettingRow({ label, description, children, readOnly }: SettingRo
         className="flex items-center"
         style={{ minWidth: readOnly ? "auto" : "200px", justifyContent: "flex-end" }}
       >
-        {typeof children === "function" ? children(descriptionId) : children}
+        {typeof children === "function" ? children(descriptionId, inputId) : children}
       </div>
     </div>
   );
