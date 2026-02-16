@@ -14,42 +14,14 @@ const GitHubIcon = () => (
  * is planned for the future (see about-origins-page.md task).
  */
 export default function OriginsPage() {
-  const textColor = "var(--color-slate-light)";
-
-  // Neon gradient text for main heading
-  const neonGradientText: React.CSSProperties = {
-    background: "linear-gradient(135deg, #ff00ff, #00ffff, #00ff80)",
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    backgroundClip: "text",
-  };
-
   return (
     <NarrowPageLayout background="origins" maxWidth="720px">
-      <div style={{ color: textColor }}>
-        <h1
-          className="mb-3"
-          style={{
-            ...neonGradientText,
-            fontWeight: 300,
-            fontSize: "2.5rem",
-          }}
-        >
-          Origins
-        </h1>
+      <div className="text-slate-light">
+        <h1 className="mb-3 font-light text-[2.5rem] neon-gradient-text">Origins</h1>
 
         <section className="mb-12">
-          <h2
-            className="mb-3"
-            style={{
-              color: "var(--color-accent-cyan)",
-              fontWeight: 400,
-              fontSize: "1.5rem",
-            }}
-          >
-            What is Desirelines?
-          </h2>
-          <p className="lead" style={{ lineHeight: 1.7 }}>
+          <h2 className="mb-3 text-accent-cyan font-normal text-2xl">What is Desirelines?</h2>
+          <p className="lead leading-[1.7]">
             Desirelines is a personal fitness tracking application that helps you set and track
             progress toward your annual goals. Connect your Strava account and visualize your
             journey throughout the year.
@@ -57,26 +29,17 @@ export default function OriginsPage() {
         </section>
 
         <section className="mb-12">
-          <h2
-            className="mb-3"
-            style={{
-              color: "var(--color-accent-cyan)",
-              fontWeight: 400,
-              fontSize: "1.5rem",
-            }}
-          >
-            The Name
-          </h2>
-          <p style={{ lineHeight: 1.7 }}>
+          <h2 className="mb-3 text-accent-cyan font-normal text-2xl">The Name</h2>
+          <p className="leading-[1.7]">
             In urban planning and landscape architecture, a "desire line" (or desire path) is a path
             created by foot traffic—the natural route people take when walking between two points,
             often cutting across lawns or ignoring paved walkways.
           </p>
-          <p style={{ lineHeight: 1.7 }}>
+          <p className="leading-[1.7]">
             These paths represent how people actually move, rather than how designers intended them
             to move. They're honest, efficient, and emerge organically from real behavior.
           </p>
-          <p style={{ lineHeight: 1.7 }}>
+          <p className="leading-[1.7]">
             Desirelines (the app) embraces this philosophy: track your actual progress, see where
             you're naturally headed, and use that insight to guide your goals. Your fitness journey
             isn't a perfectly paved path—it's the line you create through consistent movement.
@@ -84,17 +47,8 @@ export default function OriginsPage() {
         </section>
 
         <section className="mb-12">
-          <h2
-            className="mb-3"
-            style={{
-              color: "var(--color-accent-cyan)",
-              fontWeight: 400,
-              fontSize: "1.5rem",
-            }}
-          >
-            Open Source
-          </h2>
-          <p style={{ lineHeight: 1.7 }}>
+          <h2 className="mb-3 text-accent-cyan font-normal text-2xl">Open Source</h2>
+          <p className="leading-[1.7]">
             Desirelines is open source software. View the code, report issues, or contribute on
             GitHub.
           </p>
@@ -102,29 +56,16 @@ export default function OriginsPage() {
             href="https://github.com/andy-esch/desirelines/"
             target="_blank"
             rel="noopener noreferrer"
-            className="btn mt-2"
-            style={{
-              backgroundColor: "var(--color-slate-DEFAULT)",
-              color: "#fff",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
+            className="btn mt-2 bg-slate text-white inline-flex items-center gap-2"
           >
             <GitHubIcon />
             View on GitHub
           </a>
         </section>
 
-        <section className="mt-12 pt-6" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
+        <section className="mt-12 pt-6 border-t border-white/10">
           <p className="text-center mb-0">
-            <Link
-              to="/"
-              style={{
-                color: "var(--color-accent-cyan)",
-                textDecoration: "none",
-              }}
-            >
+            <Link to="/" className="text-accent-cyan no-underline">
               &larr; Back to Dashboard
             </Link>
           </p>

@@ -293,6 +293,16 @@
   background: linear-gradient(110deg, rgba(0, 212, 255, 0.14) 0%, rgba(180, 0, 255, 0.1) 100%);
 }
 
+/* Neon gradient text — clip a background gradient to text.
+   Override --neon-gradient to customise the gradient per-page. */
+@utility neon-gradient-text {
+  --neon-gradient: linear-gradient(135deg, #ff00ff, #00ffff, #00ff80);
+  background: var(--neon-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 /* ==========================================================================
    Standalone Component Base Styles — replaces Bootstrap component CSS
 
