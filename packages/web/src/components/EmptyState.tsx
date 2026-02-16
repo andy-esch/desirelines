@@ -39,8 +39,7 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[200px] p-8 sm:p-4 neon-backdrop">
       <div className="text-[2.5rem] md:text-[2rem] sm:text-2xl font-bold mb-4 text-center">
-        <span className="neon-glow-pink">No</span>{" "}
-        <span className="neon-glow-cyan">data</span>{" "}
+        <span className="neon-glow-pink">No</span> <span className="neon-glow-cyan">data</span>{" "}
         <span className="neon-glow-green">available</span>
       </div>
       <p className="text-slate-light text-base sm:text-sm text-center m-0">
