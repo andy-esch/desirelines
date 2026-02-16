@@ -1,0 +1,76 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { isInternalRequest } from "./url";
+
+describe("isInternalRequest", () => {
+  const originOnlyBase = "https://api.example.com";
+  const subpathBase = "https://api.example.com/v1";
+
+  beforeEach(() => {
+    if (typeof window !== "undefined") {
+      vi.stubGlobal("window", {
+        location: {
+          origin: "https://app.example.com",
+        },
+      });
+    }
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("should return true for relative URLs resolved against origin-only baseURL", () => {
+    expect(isInternalRequest("/users", originOnlyBase)).toBe(true);
+    expect(isInternalRequest("users", originOnlyBase)).toBe(true);
+    expect(isInternalRequest("", originOnlyBase)).toBe(true);
+    expect(isInternalRequest(undefined, originOnlyBase)).toBe(true);
+  });
+
+  it("should return true for relative URLs resolved correctly against subpath baseURL", () => {
+    // "users" relative to "https://api.example.com/v1" resolves to "https://api.example.com/v1/users"
+    // IF we treat "v1" as a directory. Our implementation normalizes this.
+    expect(isInternalRequest("users", subpathBase)).toBe(true);
+
+    // "/v1/users" is explicitly under the subpath
+    expect(isInternalRequest("/v1/users", subpathBase)).toBe(true);
+  });
+
+  it("should return false for relative URLs that escape the subpath baseURL", () => {
+    // "/users" resolves to "https://api.example.com/users", which is OUTSIDE "/v1"
+    expect(isInternalRequest("/users", subpathBase)).toBe(false);
+  });
+
+  it("should return true for absolute URLs matching the baseURL", () => {
+    expect(isInternalRequest("https://api.example.com/v1", subpathBase)).toBe(true);
+    expect(isInternalRequest("https://api.example.com/v1/", subpathBase)).toBe(true);
+    expect(isInternalRequest("https://api.example.com/v1/users", subpathBase)).toBe(true);
+  });
+
+  it("should return false for different origins", () => {
+    expect(isInternalRequest("https://google.com", subpathBase)).toBe(false);
+    expect(isInternalRequest("https://api.example.com.attacker.com/v1", subpathBase)).toBe(false);
+    expect(isInternalRequest("//attacker.com/v1", subpathBase)).toBe(false);
+  });
+
+  it("should prevent bypasses using casing or whitespace", () => {
+    expect(isInternalRequest("HTTP://attacker.com", subpathBase)).toBe(false);
+    expect(isInternalRequest("  https://attacker.com", subpathBase)).toBe(false);
+    expect(isInternalRequest("https://attacker.com  ", subpathBase)).toBe(false);
+  });
+
+  it("should handle missing baseURL correctly using window.location", () => {
+    // Relative URL should be true (same origin as app)
+    expect(isInternalRequest("/users", undefined)).toBe(true);
+    // Absolute URL to same origin should be true
+    expect(isInternalRequest("https://app.example.com/users", undefined)).toBe(true);
+    // Absolute URL to different origin should be false
+    expect(isInternalRequest("https://api.example.com/users", undefined)).toBe(false);
+  });
+
+  it("should handle trailing slashes in baseURL correctly", () => {
+    const baseURLWithSlash = "https://api.example.com/v1/";
+    expect(isInternalRequest("https://api.example.com/v1", baseURLWithSlash)).toBe(true);
+    expect(isInternalRequest("https://api.example.com/v1/", baseURLWithSlash)).toBe(true);
+    expect(isInternalRequest("https://api.example.com/v1/users", baseURLWithSlash)).toBe(true);
+  });
+});

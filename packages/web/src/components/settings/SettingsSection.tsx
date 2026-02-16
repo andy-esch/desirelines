@@ -16,7 +16,7 @@ export function SettingsSection({ title, description, children, id }: SettingsSe
   return (
     <div className="card mb-6" id={id}>
       <div className="card-header">
-        <h5 className="mb-0" style={{ color: "var(--slate-dark, #2d3748)" }}>
+        <h5 className="mb-0" style={{ color: "var(--color-slate-dark)" }}>
           {title}
         </h5>
         {description && <p className="text-slate-light text-sm mb-0 mt-1">{description}</p>}

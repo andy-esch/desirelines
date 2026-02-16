@@ -161,14 +161,14 @@ export default function SportPageContent({
               style={{
                 backgroundColor: "rgba(0, 212, 255, 0.1)",
                 border: "1px solid rgba(0, 212, 255, 0.3)",
-                color: "var(--slate-light, #94a3b8)",
+                color: "var(--color-slate-light)",
               }}
             >
               <span>
                 No {sport} activities recorded for {currentYear}.{" "}
                 <Link
                   to={`${routePrefix}/${sport}/${currentYear - 1}`}
-                  style={{ color: "var(--accent-cyan, #00d4ff)" }}
+                  style={{ color: "var(--color-accent-cyan)" }}
                 >
                   View {currentYear - 1} instead →
                 </Link>

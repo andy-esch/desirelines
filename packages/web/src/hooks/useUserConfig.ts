@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   UserConfigService,
@@ -263,9 +263,10 @@ export function useUserConfig(
 
   // MIGRATION: LocalStorage -> Firestore
   // When a user signs in, migrate their demo data if no remote data exists
+  const migrating = useRef(false);
   useEffect(() => {
     // Only run if authenticated (not LS mode), finished loading, and no remote data exists
-    if (isLocalStorageMode || isLoading || data || !configService) return;
+    if (isLocalStorageMode || isLoading || data || !configService || migrating.current) return;
 
     const key = getStorageKey("default", configType, year, sport);
     const localDataRaw = localStorage.getItem(key);
@@ -274,6 +275,7 @@ export function useUserConfig(
       try {
         const localData = JSON.parse(localDataRaw);
         if (localData && typeof localData === "object") {
+          migrating.current = true;
           mutation
             .mutateAsync(localData)
             .then(() => {
@@ -281,6 +283,9 @@ export function useUserConfig(
             })
             .catch((err) => {
               logApiError(err, `[useUserConfig] Migration failed for ${key}`);
+            })
+            .finally(() => {
+              migrating.current = false;
             });
         } else {
           logApiError(

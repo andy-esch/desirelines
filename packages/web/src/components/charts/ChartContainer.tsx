@@ -8,6 +8,7 @@
  * - Optional header with title and controls
  */
 import type { ReactNode } from "react";
+import { ErrorBoundary } from "react-error-boundary";
 import type { MetricUnit } from "../../utils/units";
 import LoadingChart from "./LoadingChart";
 import ErrorChart from "./ErrorChart";
@@ -177,7 +178,11 @@ export function ChartContainer({
       {!hideHeader && (
         <ChartHeader title={title} controls={headerControls} infoTooltip={infoTooltip} />
       )}
-      {children}
+      <ErrorBoundary
+        fallbackRender={({ error }) => <ErrorChart error={error as Error} onRetry={onRetry} />}
+      >
+        {children}
+      </ErrorBoundary>
     </div>
   );
 }

@@ -163,7 +163,7 @@ function SparklineLegend({ sportMeta }: { sportMeta: SportMetaItem[] }) {
         <Link
           key={sport}
           to={`/${sport}/${lastActivityYear}`}
-          className="flex items-center gap-1 no-underline"
+          className="flex items-center gap-1"
           style={{ color: textColor }}
           title={displayName}
         >

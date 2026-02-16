@@ -1,7 +1,6 @@
 import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import "./index.css";
 import App from "./App";
 import { ErrorBoundary } from "react-error-boundary";
 import { loadConfig } from "./lib/config";

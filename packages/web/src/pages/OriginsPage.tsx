@@ -14,7 +14,7 @@ const GitHubIcon = () => (
  * is planned for the future (see about-origins-page.md task).
  */
 export default function OriginsPage() {
-  const textColor = "var(--slate-light, #718096)";
+  const textColor = "var(--color-slate-light)";
 
   // Neon gradient text for main heading
   const neonGradientText: React.CSSProperties = {
@@ -42,7 +42,7 @@ export default function OriginsPage() {
           <h2
             className="mb-3"
             style={{
-              color: "var(--accent-cyan, #00d4ff)",
+              color: "var(--color-accent-cyan)",
               fontWeight: 400,
               fontSize: "1.5rem",
             }}
@@ -60,7 +60,7 @@ export default function OriginsPage() {
           <h2
             className="mb-3"
             style={{
-              color: "var(--accent-cyan, #00d4ff)",
+              color: "var(--color-accent-cyan)",
               fontWeight: 400,
               fontSize: "1.5rem",
             }}
@@ -87,7 +87,7 @@ export default function OriginsPage() {
           <h2
             className="mb-3"
             style={{
-              color: "var(--accent-cyan, #00d4ff)",
+              color: "var(--color-accent-cyan)",
               fontWeight: 400,
               fontSize: "1.5rem",
             }}
@@ -104,7 +104,7 @@ export default function OriginsPage() {
             rel="noopener noreferrer"
             className="btn mt-2"
             style={{
-              backgroundColor: "var(--slate, #4a5568)",
+              backgroundColor: "var(--color-slate-DEFAULT)",
               color: "#fff",
               display: "inline-flex",
               alignItems: "center",
@@ -121,7 +121,7 @@ export default function OriginsPage() {
             <Link
               to="/"
               style={{
-                color: "var(--accent-cyan, #00d4ff)",
+                color: "var(--color-accent-cyan)",
                 textDecoration: "none",
               }}
             >

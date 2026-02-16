@@ -1,10 +1,11 @@
-import { lazy, Suspense, useRef, useEffect } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import "./css/tailwind.css";
 import {
   createBrowserRouter,
   Navigate,
   Outlet,
   RouterProvider,
+  ScrollRestoration,
   useLocation,
   useParams,
   useRouteError,
@@ -19,6 +20,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { UIStateProvider } from "./contexts/UIStateContext";
 import { useCurrentYear } from "./hooks/useCurrentYear";
 import { getDemoSports } from "./utils/demoDataGenerator";
+import { useScrolled } from "./hooks/useScrolled";
 
 // Lazy load pages for code splitting
 // Each page becomes a separate chunk, loaded on-demand
@@ -50,9 +52,11 @@ const routeErrorElement = <RouteErrorFallback />;
 // Layout
 // ---------------------------------------------------------------------------
 
-/** Moves focus to the main content area on route changes for screen reader users */
-function FocusOnNavigate({ mainRef }: { mainRef: React.RefObject<HTMLElement | null> }) {
+/** Root layout — Header, main content area (with Suspense), and Footer */
+function RootLayout() {
+  const scrolled = useScrolled(4);
   const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
   const isFirstRender = useRef(true);
 
   useEffect(() => {
@@ -62,30 +66,21 @@ function FocusOnNavigate({ mainRef }: { mainRef: React.RefObject<HTMLElement | n
       return;
     }
     mainRef.current?.focus();
-  }, [location.pathname, mainRef]);
-
-  return null;
-}
-
-/** Root layout — Header, main content area (with Suspense), and Footer */
-function RootLayout() {
-  const mainRef = useRef<HTMLElement>(null);
+  }, [location.pathname]);
 
   return (
-    <>
-      <FocusOnNavigate mainRef={mainRef} />
-      <div className="App flex flex-col overflow-x-hidden" style={{ minHeight: "100vh" }}>
-        <Header />
-        <main ref={mainRef} tabIndex={-1} className="grow flex flex-col outline-none">
-          <Suspense fallback={<PageLoader />}>
-            <PageTransition>
-              <Outlet />
-            </PageTransition>
-          </Suspense>
-        </main>
-        <Footer />
-      </div>
-    </>
+    <div className="App flex flex-col min-h-screen bg-bg-body">
+      <ScrollRestoration />
+      <Header scrolled={scrolled} />
+      <main ref={mainRef} tabIndex={-1} className="grow flex flex-col outline-none">
+        <Suspense fallback={<PageLoader />}>
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
+        </Suspense>
+      </main>
+      <Footer />
+    </div>
   );
 }
 

@@ -25,8 +25,9 @@ export const DANGER_ZONE_THRESHOLDS: DangerZoneThresholds = {
 
 /**
  * Get the danger threshold for a given sport
- * Returns a default value if sport not configured
+ * Returns Infinity if sport not configured (disables danger zone rather than
+ * applying an inappropriate distance-based default to unknown sports).
  */
 export function getDangerThreshold(sport: string): number {
-  return DANGER_ZONE_THRESHOLDS[sport] || 20; // Default to 20 if sport not found
+  return DANGER_ZONE_THRESHOLDS[sport] ?? Infinity;
 }

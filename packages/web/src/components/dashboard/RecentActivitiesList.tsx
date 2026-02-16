@@ -282,7 +282,7 @@ export default function RecentActivitiesList({
                         href={`https://www.strava.com/activities/${activity.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="no-underline"
+                        className=""
                       >
                         {activity.name}
                       </a>

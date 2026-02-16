@@ -49,7 +49,7 @@ export function EmptyState({
         <p className={styles["empty-state-subtitle"]} style={{ marginTop: "0.5rem" }}>
           <Link
             to={`${linkPrefix}/${sport}/${suggestedYear}`}
-            style={{ color: "var(--accent-cyan, #00d4ff)" }}
+            style={{ color: "var(--color-accent-cyan)" }}
           >
             View {suggestedYear} instead →
           </Link>

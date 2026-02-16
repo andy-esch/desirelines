@@ -5,8 +5,8 @@ import Logo from "../Logo";
 import { useAuth } from "../../hooks/useAuth";
 import { AccountDropdown } from "./AccountDropdown";
 import Navigation from "./Navigation";
+import { CloseIconLg } from "../icons";
 import { useUIState } from "../../contexts/UIStateContext";
-import { useScrolled } from "../../hooks/useScrolled";
 
 /** Non-sport first-level routes — anything else is a sport detail page */
 const PAGE_ROUTES = new Set(["", "dashboard", "activities", "origins", "settings"]);
@@ -27,18 +27,15 @@ const GearIcon = () => (
   </svg>
 );
 
-const CloseIcon = () => (
-  <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-    <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z" />
-  </svg>
-);
+interface HeaderProps {
+  scrolled?: boolean;
+}
 
-export default function Header() {
+export default function Header({ scrolled = false }: HeaderProps) {
   const location = useLocation();
   const { user, loading, signIn, signOut } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
   const { toggleMobileSidebar } = useUIState();
-  const scrolled = useScrolled();
 
   // Close mobile nav drawer on route change
   useEffect(() => {
@@ -61,9 +58,12 @@ export default function Header() {
   return (
     <header
       className={`sticky top-0 flex items-center flex-nowrap px-2 py-2 transition-shadow duration-200 ${scrolled ? "shadow-lg" : ""}`}
-      style={{ backgroundColor: "var(--color-slate-dark, #2d3748)", zIndex: 40 }}
+      style={{
+        backgroundColor: "var(--color-slate-dark, #2d3748)",
+        zIndex: 40,
+      }}
     >
-      <Link to="/" className="logo-link px-2 flex items-center shrink-0">
+      <Link to="/" className="logo-link px-2 flex items-center shrink-0 no-underline">
         <Logo fontSize="1.25rem" />
       </Link>
 
@@ -138,7 +138,7 @@ export default function Header() {
                   onClick={() => setNavOpen(false)}
                   aria-label="Close"
                 >
-                  <CloseIcon />
+                  <CloseIconLg />
                 </button>
               </div>
               <div className="p-4">

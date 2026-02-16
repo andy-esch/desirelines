@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getConfig } from "../lib/config";
 import type { AuthService } from "../services/auth/AuthService";
+import { isInternalRequest } from "./url";
 
 /**
  * Centralized API client with automatic authentication.
@@ -56,10 +57,9 @@ export function configureClientAuth(authService: AuthService): void {
     const user = authService.getCurrentUser();
     // Only attach token for requests to our own API gateway.
     // Absolute URLs to other domains must not receive the auth token.
-    const isInternalRequest =
-      !config.url?.startsWith("http") || config.url?.startsWith(config.baseURL || "");
+    const isInternal = isInternalRequest(config.url, config.baseURL);
 
-    if (user && isInternalRequest) {
+    if (user && isInternal) {
       try {
         // getIdToken() auto-refreshes if expired or close to expiry (5 min buffer).
         const token = await authService.getIdToken();

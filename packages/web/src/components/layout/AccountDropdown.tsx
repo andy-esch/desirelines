@@ -156,8 +156,8 @@ export function AccountDropdown({
     right: 0,
     marginTop: "0.5rem",
     minWidth: "220px",
-    backgroundColor: "var(--slate-dark, #2d3748)",
-    border: "1px solid var(--slate, #4a5568)",
+    backgroundColor: "var(--color-slate-dark)",
+    border: "1px solid var(--color-slate-DEFAULT)",
     borderRadius: "0.5rem",
     boxShadow: "0 10px 25px rgba(0, 0, 0, 0.3)",
     zIndex: 1050,
@@ -166,7 +166,7 @@ export function AccountDropdown({
 
   const menuHeaderStyle: React.CSSProperties = {
     padding: "0.75rem 1rem",
-    borderBottom: "1px solid var(--slate, #4a5568)",
+    borderBottom: "1px solid var(--color-slate-DEFAULT)",
   };
 
   const menuItemStyle: React.CSSProperties = {
@@ -269,7 +269,7 @@ export function AccountDropdown({
             <span>Settings</span>
           </Link>
 
-          <div style={{ borderTop: "1px solid var(--slate, #4a5568)" }}>
+          <div style={{ borderTop: "1px solid var(--color-slate-DEFAULT)" }}>
             {user ? (
               <button
                 type="button"
@@ -289,7 +289,7 @@ export function AccountDropdown({
                 className="transition-colors hover:bg-white/[0.08]"
                 style={{
                   ...menuItemStyle,
-                  color: "var(--accent-cyan, #00d4ff)",
+                  color: "var(--color-accent-cyan)",
                 }}
                 onClick={handleSignIn}
                 disabled={actionLoading}
