@@ -23,7 +23,7 @@ export const CHART_COLORS = {
 export const GOAL_COLORS = [
   "rgb(0, 255, 255)", // Electric Cyan (conservative)
   "rgb(0, 255, 128)", // Neon Green-Cyan (moderate)
-  "rgb(255, 0, 255)", // ✨ BRIGHT MAGENTA ✨ (target)
+  "rgb(255, 0, 255)", // Bright Magenta (target)
   "rgb(255, 200, 0)", // Neon Yellow-Orange (ambitious)
   "rgb(255, 0, 128)", // Neon Pink-Red (stretch)
 ] as const;
