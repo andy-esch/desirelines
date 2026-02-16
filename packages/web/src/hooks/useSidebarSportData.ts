@@ -40,12 +40,12 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
   // Aggregate counts by sport category from year metadata
   const sportCounts = useMemo(() => {
     if (!metadata || !sportConfig) return {};
-    const counts: Record<string, number> = {};
-    for (const category of Object.keys(sportConfig.sport_categories)) {
-      const totals = metadata.totals[category];
-      counts[category] = totals?.activities ?? 0;
-    }
-    return counts;
+    return Object.fromEntries(
+      Object.keys(sportConfig.sport_categories).map((category) => [
+        category,
+        metadata.totals[category]?.activities ?? 0,
+      ])
+    );
   }, [metadata, sportConfig]);
 
   // Sort visible sports by activity count (descending)

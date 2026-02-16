@@ -95,14 +95,9 @@ describe("401 response interceptor", () => {
   });
 
   it("should reject if token refresh fails", async () => {
-    let callCount = 0;
-    const adapter = vi.fn().mockImplementation((config: InternalAxiosRequestConfig) => {
-      callCount++;
-      if (callCount === 1) {
-        return Promise.reject(createAxiosError(401, config));
-      }
-      return Promise.resolve({ status: 200, statusText: "OK", headers: {}, config, data: {} });
-    });
+    const adapter = vi.fn().mockImplementation((config: InternalAxiosRequestConfig) =>
+      Promise.reject(createAxiosError(401, config))
+    );
     client.defaults.adapter = adapter;
 
     // First call is from the request interceptor (attaching initial token),
