@@ -84,7 +84,12 @@ export function configureClientAuth(authService: AuthService): void {
    * interceptor force-refreshes the Firebase ID token and retries the request
    * exactly once. A `_retried` flag on the request config prevents infinite
    * retry loops. External (non-internal) requests are never retried.
+   *
+   * A shared `refreshPromise` ensures that concurrent 401s coalesce into a
+   * single token refresh rather than firing N independent refreshes.
    */
+  let refreshPromise: Promise<string | undefined> | null = null;
+
   client.interceptors.response.use(undefined, async (error: AxiosError) => {
     const originalRequest = error.config;
 
@@ -97,7 +102,13 @@ export function configureClientAuth(authService: AuthService): void {
       originalRequest._retried = true;
 
       try {
-        const token = await authService.getIdToken(true);
+        // Coalesce concurrent refreshes — if one is already in flight, reuse it.
+        if (!refreshPromise) {
+          refreshPromise = authService.getIdToken(true).finally(() => {
+            refreshPromise = null;
+          });
+        }
+        const token = await refreshPromise;
         if (token) {
           originalRequest.headers.Authorization = `Bearer ${token}`;
           return client(originalRequest);

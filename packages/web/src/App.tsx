@@ -44,13 +44,14 @@ const DEMO_SPORTS = getDemoSports();
 function RouteErrorFallback() {
   const error = useRouteError();
 
-  // Auto-reload for stale chunk errors (after a deploy). If this isn't a chunk
-  // error, or a reload was already attempted this session, fall through to the
-  // normal error UI.
+  // Auto-reload for stale chunk errors (after a deploy). handleChunkLoadError
+  // returns true if a reload was triggered (page is navigating away) — render
+  // nothing while that happens. If it throws, the error is not a chunk error
+  // (or reload was already attempted), so fall through to the normal error UI.
   try {
-    handleChunkLoadError(error);
+    if (handleChunkLoadError(error)) return null;
   } catch {
-    // Not a chunk error or reload already attempted — show fallback UI
+    // Not a chunk error or reload already attempted — show fallback UI below
   }
 
   const errorObj = error instanceof Error ? error : new Error(String(error));

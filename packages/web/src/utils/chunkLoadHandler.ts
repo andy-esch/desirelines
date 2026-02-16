@@ -20,10 +20,11 @@ const RELOAD_KEY = "chunk-load-reload";
  * boundary can display it normally.
  *
  * @param error - The error caught by the route error boundary.
- * @throws Always re-throws the original error if it is not a chunk load error
+ * @returns `true` if a reload was triggered (page is navigating away).
+ * @throws Re-throws the original error if it is not a chunk load error
  *   or if a reload was already attempted.
  */
-export function handleChunkLoadError(error: unknown): never {
+export function handleChunkLoadError(error: unknown): true {
   const isChunkError =
     error instanceof Error &&
     (error.message.includes("Failed to fetch dynamically imported module") ||
@@ -37,9 +38,7 @@ export function handleChunkLoadError(error: unknown): never {
       // clearing the guard) before the page actually reloads.
       sessionStorage.setItem(RELOAD_KEY, "1");
       window.location.reload();
-      // The return type is `never` — in practice the reload navigates away,
-      // but we need to halt execution in case the browser continues briefly.
-      return undefined as never;
+      return true;
     }
     // Reload was already attempted and the error persists — clear the guard
     // so a future deploy can trigger a fresh reload, then fall through to

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import type { AuthService } from "../services/auth/AuthService";
 
@@ -31,8 +31,14 @@ import client, { configureClientAuth } from "./client";
 configureClientAuth(mockAuthService);
 
 describe("401 response interceptor", () => {
+  const originalAdapter = client.defaults.adapter;
+
   beforeEach(() => {
     vi.mocked(mockAuthService.getIdToken).mockReset().mockResolvedValue("original-token");
+  });
+
+  afterEach(() => {
+    client.defaults.adapter = originalAdapter;
   });
 
   it("should retry a 401 response once with a force-refreshed token", async () => {
