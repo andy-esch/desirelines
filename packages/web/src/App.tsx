@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import "./css/tailwind.css";
 import {
   createBrowserRouter,
@@ -6,6 +6,7 @@ import {
   Outlet,
   RouterProvider,
   ScrollRestoration,
+  useLocation,
   useParams,
   useRouteError,
 } from "react-router-dom";
@@ -54,12 +55,24 @@ const routeErrorElement = <RouteErrorFallback />;
 /** Root layout — Header, main content area (with Suspense), and Footer */
 function RootLayout() {
   const scrolled = useScrolled(4);
+  const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    // Skip initial mount — only focus on subsequent navigations
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    mainRef.current?.focus();
+  }, [location.pathname]);
 
   return (
     <div className="App flex flex-col min-h-screen bg-bg-body">
       <ScrollRestoration />
       <Header scrolled={scrolled} />
-      <main tabIndex={-1} className="grow flex flex-col outline-none">
+      <main ref={mainRef} tabIndex={-1} className="grow flex flex-col outline-none">
         <Suspense fallback={<PageLoader />}>
           <PageTransition>
             <Outlet />
