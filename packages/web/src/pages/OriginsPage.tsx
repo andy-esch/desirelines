@@ -56,7 +56,7 @@ export default function OriginsPage() {
             href="https://github.com/andy-esch/desirelines/"
             target="_blank"
             rel="noopener noreferrer"
-            className="btn mt-2 bg-slate text-white inline-flex items-center gap-2"
+            className="btn btn-secondary mt-2 inline-flex items-center gap-2"
           >
             <GitHubIcon />
             View on GitHub
