@@ -102,51 +102,63 @@ export default function SettingsPage() {
         description="Customize how data is displayed throughout the app"
       >
         <SettingRow label="Distance Unit" description="Used for all distance measurements">
-          <select
-            className="form-select form-select-sm"
-            value={currentPrefs.distanceUnit || "miles"}
-            onChange={(e) => handlePreferenceChange("distanceUnit", e.target.value)}
-            disabled={isSaving}
-            style={{ width: "150px" }}
-          >
-            {DISTANCE_UNIT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          {(descriptionId, inputId) => (
+            <select
+              id={inputId}
+              className="form-select form-select-sm"
+              value={currentPrefs.distanceUnit || "miles"}
+              onChange={(e) => handlePreferenceChange("distanceUnit", e.target.value)}
+              disabled={isSaving}
+              aria-describedby={descriptionId}
+              style={{ width: "150px" }}
+            >
+              {DISTANCE_UNIT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          )}
         </SettingRow>
 
         <SettingRow label="Elevation Unit" description="Used for elevation gain measurements">
-          <select
-            className="form-select form-select-sm"
-            value={currentPrefs.elevationUnit || "feet"}
-            onChange={(e) => handlePreferenceChange("elevationUnit", e.target.value)}
-            disabled={isSaving}
-            style={{ width: "150px" }}
-          >
-            {ELEVATION_UNIT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          {(descriptionId, inputId) => (
+            <select
+              id={inputId}
+              className="form-select form-select-sm"
+              value={currentPrefs.elevationUnit || "feet"}
+              onChange={(e) => handlePreferenceChange("elevationUnit", e.target.value)}
+              disabled={isSaving}
+              aria-describedby={descriptionId}
+              style={{ width: "150px" }}
+            >
+              {ELEVATION_UNIT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          )}
         </SettingRow>
 
         <SettingRow label="Timezone" description={`Browser timezone: ${browserTimezone}`}>
-          <select
-            className="form-select form-select-sm"
-            value={currentPrefs.timezone || ""}
-            onChange={(e) => handlePreferenceChange("timezone", e.target.value)}
-            disabled={isSaving}
-            style={{ width: "200px" }}
-          >
-            {COMMON_TIMEZONES.map((tz) => (
-              <option key={tz.value} value={tz.value}>
-                {tz.label}
-              </option>
-            ))}
-          </select>
+          {(descriptionId, inputId) => (
+            <select
+              id={inputId}
+              className="form-select form-select-sm"
+              value={currentPrefs.timezone || ""}
+              onChange={(e) => handlePreferenceChange("timezone", e.target.value)}
+              disabled={isSaving}
+              aria-describedby={descriptionId}
+              style={{ width: "200px" }}
+            >
+              {COMMON_TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
+          )}
         </SettingRow>
       </SettingsSection>
 

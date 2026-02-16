@@ -6,8 +6,8 @@
  */
 
 export const CHART_COLORS = {
-  /** Actual data line (black with transparency) */
-  ACTUAL_DATA_LINE: "rgb(0, 0, 0, 0.8)",
+  /** Actual data line (white — visible on dark background) */
+  ACTUAL_DATA_LINE: "#ffffff",
 
   /** Average pacing line (orange, used in CumulativeMetricsChart) */
   AVERAGE_LINE: "rgb(255, 95, 31)",
@@ -23,7 +23,7 @@ export const CHART_COLORS = {
 export const GOAL_COLORS = [
   "rgb(0, 255, 255)", // Electric Cyan (conservative)
   "rgb(0, 255, 128)", // Neon Green-Cyan (moderate)
-  "rgb(255, 0, 255)", // ✨ BRIGHT MAGENTA ✨ (target)
+  "rgb(255, 0, 255)", // Bright Magenta (target)
   "rgb(255, 200, 0)", // Neon Yellow-Orange (ambitious)
   "rgb(255, 0, 128)", // Neon Pink-Red (stretch)
 ] as const;
