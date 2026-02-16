@@ -231,7 +231,7 @@ describe("Dashboard", () => {
 
     it("renders time range selector", () => {
       renderWithRouter(<Dashboard />);
-      // Time range selector is part of the MultiSportComparisonChart
+      // Time range selector is now part of the Dashboard
       expect(screen.getByRole("button", { name: "2W" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "YTD" })).toBeInTheDocument();
     });

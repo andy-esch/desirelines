@@ -1,11 +1,15 @@
+import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
-import MultiSportComparisonChart from "../components/dashboard/MultiSportComparisonChart";
+import MultiSportSparklineChart from "../components/dashboard/MultiSportSparklineChart";
+import RecentActivitiesListCard from "../components/dashboard/RecentActivitiesListCard";
+import TimeRangeSelector from "../components/dashboard/TimeRangeSelector";
 import WeeklySummaryCard from "../components/dashboard/WeeklySummaryCard";
 import GoalProgressCard from "../components/dashboard/GoalProgressCard";
 import ActivityCalendarHeatmap from "../components/dashboard/ActivityCalendarHeatmap";
 import DashboardSkeleton from "../components/skeletons/DashboardSkeleton";
 import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
+import type { TimeRange } from "../utils/dataNormalization";
 
 /**
  * Dashboard landing page showing multi-sport overview.
@@ -13,11 +17,6 @@ import type { TuningParams } from "../utils/demoDataGenerator";
  * Works for both authenticated and unauthenticated users:
  * - Authenticated: Shows real data from API
  * - Unauthenticated: Shows demo data
- *
- * Layout:
- * - Header with welcome message
- * - MultiSportComparisonChart with sparklines and recent activities
- * - Sign-in prompt for unauthenticated users
  */
 
 /**
@@ -34,6 +33,7 @@ const DASHBOARD_DEMO_TUNING: TuningParams = {
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
+  const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
 
   if (loading) {
     return (
@@ -59,7 +59,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="px-4 md:px-6 py-6">
+      <div className="px-4 md:px-6 py-6 @container">
         {/* Header Section */}
         <div className="dashboard-header mb-3">
           <h1 className="h2 font-display">
@@ -72,11 +72,20 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Multi-Sport Comparison Chart */}
-        <MultiSportComparisonChart className="mb-8" tuningParams={tuningParams} />
+        {/* Recent Activity Header with Time Selector */}
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="h5 mb-0">Recent Activity</h2>
+          <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
+        </div>
+
+        {/* Main Activity Row: Chart + List */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <MultiSportSparklineChart timeRange={timeRange} tuningParams={tuningParams} />
+          <RecentActivitiesListCard timeRange={timeRange} />
+        </div>
 
         {/* Weekly Summary + Goal Progress row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 @md:grid-cols-2 gap-6 mb-8">
           <WeeklySummaryCard />
           <GoalProgressCard />
         </div>
