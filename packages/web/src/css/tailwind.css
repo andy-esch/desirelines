@@ -73,6 +73,15 @@
   a {
     color: var(--color-accent-cyan);
     text-decoration: none;
+    transition: text-decoration 0.2s ease;
+  }
+
+  /* Standard text link hover effect: magenta underline */
+  a:hover:not(.no-underline) {
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent-magenta);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
   }
 
   /* Anchor scroll offset for fixed header */
@@ -86,18 +95,6 @@
    ========================================================================== */
 
 @layer components {
-  /* --- Link hover decoration ---
-     Lives in @layer components (not base) so it beats the Tailwind preflight
-     reset without needing !important.  Exceptions:
-       - .logo-link / .nav-link: excluded via :not()
-       - .no-underline: Tailwind utility in @layer utilities naturally wins */
-  a:hover:not(.logo-link):not(.nav-link) {
-    text-decoration: underline;
-    text-decoration-color: var(--color-accent-magenta);
-    text-decoration-thickness: 2px;
-    text-underline-offset: 3px;
-  }
-
   /* --- Glass Panels: transparent container system --- */
 
   .glass-panel,

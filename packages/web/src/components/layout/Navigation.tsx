@@ -32,7 +32,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
   const isOnSportPage = sports.some((s) => location.pathname.startsWith(`/${s.id}`));
 
   const linkClasses = ({ isActive }: { isActive: boolean }) =>
-    `nav-link ${isActive ? "active" : "text-white/50"}`;
+    `nav-link no-underline ${isActive ? "active" : "text-white/50"}`;
 
   // Vertical layout for mobile drawer
   if (vertical) {
@@ -61,7 +61,9 @@ export default function Navigation({ className = "", vertical = false }: Navigat
         ))}
         <NavLink
           to="/activities"
-          className={({ isActive }) => `nav-link mt-2 ${isActive ? "active" : "text-white/50"}`}
+          className={({ isActive }) =>
+            `nav-link no-underline mt-2 ${isActive ? "active" : "text-white/50"}`
+          }
         >
           Activities
         </NavLink>

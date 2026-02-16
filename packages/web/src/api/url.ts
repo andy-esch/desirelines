@@ -6,11 +6,7 @@ export function isInternalRequest(url?: string, baseURL?: string): boolean {
   if (!url) return true;
 
   // Relative URLs are always internal
-  if (
-    !url.startsWith("http://") &&
-    !url.startsWith("https://") &&
-    !url.startsWith("//")
-  ) {
+  if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("//")) {
     return true;
   }
 

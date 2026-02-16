@@ -38,7 +38,7 @@ export function Footer() {
       <div className="container flex justify-center items-center gap-2 flex-wrap">
         <Link
           to="/origins"
-          className="text-slate-light no-underline hover:text-accent-cyan min-h-[44px] inline-flex items-center"
+          className="text-slate-light hover:text-accent-cyan min-h-[44px] inline-flex items-center"
         >
           Origins
         </Link>
@@ -47,7 +47,7 @@ export function Footer() {
           href="https://github.com/andy-esch/desirelines/"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-slate-light no-underline hover:text-accent-cyan min-h-[44px] inline-flex items-center"
+          className="text-slate-light hover:text-accent-cyan min-h-[44px] inline-flex items-center"
           style={{ gap: "0.35rem" }}
         >
           <GitHubIcon />

@@ -105,7 +105,7 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
       <div className="flex justify-between items-center mb-1">
         <Link
           to={`/${sport.sport}/${yearContext.year}`}
-          className="text-sm no-underline"
+          className="text-sm"
           style={{ color: sport.color }}
         >
           {sport.displayName}
