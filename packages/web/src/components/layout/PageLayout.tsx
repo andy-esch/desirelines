@@ -45,7 +45,7 @@ export function NarrowPageLayout({
 }: NarrowPageLayoutProps) {
   return (
     <div className={`grow overflow-x-hidden ${bgClasses[background]}`}>
-      <div className="container py-6" style={{ maxWidth }}>
+      <div className="container mx-auto py-6" style={{ maxWidth }}>
         {children}
       </div>
     </div>

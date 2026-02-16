@@ -293,6 +293,56 @@
   background: linear-gradient(110deg, rgba(0, 212, 255, 0.14) 0%, rgba(180, 0, 255, 0.1) 100%);
 }
 
+/* Neon gradient text — clip a background gradient to text.
+   Override --neon-gradient to customise the gradient per-page. */
+@utility neon-gradient-text {
+  --neon-gradient: linear-gradient(135deg, #ff00ff, #00ffff, #00ff80);
+  background: var(--neon-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Neon glow text — solid color + text-shadow glow */
+@utility neon-glow-pink {
+  color: rgb(255, 0, 255);
+  text-shadow:
+    0 0 10px rgb(255, 0, 255),
+    0 0 20px rgba(255, 0, 255, 0.5);
+}
+
+@utility neon-glow-cyan {
+  color: rgb(0, 255, 255);
+  text-shadow:
+    0 0 10px rgb(0, 255, 255),
+    0 0 20px rgba(0, 255, 255, 0.5);
+}
+
+@utility neon-glow-green {
+  color: rgb(0, 255, 128);
+  text-shadow:
+    0 0 10px rgb(0, 255, 128),
+    0 0 20px rgba(0, 255, 128, 0.5);
+}
+
+/* Subtle neon gradient backdrop via ::before pseudo-element */
+@utility neon-backdrop {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 0, 255, 0.05),
+      rgba(0, 255, 255, 0.05),
+      rgba(0, 255, 128, 0.05)
+    );
+    border-radius: 0.5rem;
+    z-index: -1;
+  }
+}
+
 /* ==========================================================================
    Standalone Component Base Styles — replaces Bootstrap component CSS
 
