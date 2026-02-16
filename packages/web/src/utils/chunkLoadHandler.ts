@@ -30,13 +30,22 @@ export function handleChunkLoadError(error: unknown): never {
       error.message.includes("is not a valid JavaScript MIME type") ||
       error.message.includes("Importing a module script failed"));
 
-  if (isChunkError && !sessionStorage.getItem(RELOAD_KEY)) {
-    sessionStorage.setItem(RELOAD_KEY, "1");
-    window.location.reload();
+  if (isChunkError) {
+    if (!sessionStorage.getItem(RELOAD_KEY)) {
+      // Set the guard *before* reloading. Because reload() is non-blocking,
+      // we return immediately to prevent any further execution (including
+      // clearing the guard) before the page actually reloads.
+      sessionStorage.setItem(RELOAD_KEY, "1");
+      window.location.reload();
+      // The return type is `never` — in practice the reload navigates away,
+      // but we need to halt execution in case the browser continues briefly.
+      return undefined as never;
+    }
+    // Reload was already attempted and the error persists — clear the guard
+    // so a future deploy can trigger a fresh reload, then fall through to
+    // throw the error for the error boundary to display.
+    sessionStorage.removeItem(RELOAD_KEY);
   }
-
-  // Clear the guard so future deploys can trigger a reload again
-  sessionStorage.removeItem(RELOAD_KEY);
 
   throw error;
 }

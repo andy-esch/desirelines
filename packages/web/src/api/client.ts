@@ -1,4 +1,4 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import axios, { type AxiosError } from "axios";
 import { getConfig } from "../lib/config";
 import type { AuthService } from "../services/auth/AuthService";
 import { isInternalRequest } from "./url";
@@ -86,9 +86,7 @@ export function configureClientAuth(authService: AuthService): void {
    * retry loops. External (non-internal) requests are never retried.
    */
   client.interceptors.response.use(undefined, async (error: AxiosError) => {
-    const originalRequest = error.config as
-      | (InternalAxiosRequestConfig & { _retried?: boolean })
-      | undefined;
+    const originalRequest = error.config;
 
     if (
       error.response?.status === 401 &&
