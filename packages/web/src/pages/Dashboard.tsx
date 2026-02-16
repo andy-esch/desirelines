@@ -59,7 +59,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="px-4 md:px-6 py-6">
+      <div className="px-4 md:px-6 py-6 @container">
         {/* Header Section */}
         <div className="dashboard-header mb-3">
           <h1 className="h2 font-display">
@@ -76,7 +76,7 @@ export default function Dashboard() {
         <MultiSportComparisonChart className="mb-8" tuningParams={tuningParams} />
 
         {/* Weekly Summary + Goal Progress row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 @md:grid-cols-2 gap-6 mb-8">
           <WeeklySummaryCard />
           <GoalProgressCard />
         </div>
