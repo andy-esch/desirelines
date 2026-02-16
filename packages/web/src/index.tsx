@@ -85,26 +85,13 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary
       fallbackRender={({ error, resetErrorBoundary }) => (
-        <div
-          style={{ padding: "40px", fontFamily: "monospace", maxWidth: "800px", margin: "0 auto" }}
-        >
-          <h1 style={{ color: "#d32f2f" }}>Something went wrong</h1>
+        <div className="p-10 font-mono max-w-3xl mx-auto">
+          <h1 className="text-red-500">Something went wrong</h1>
           <p>The application encountered an unexpected error.</p>
-          <pre
-            style={{
-              background: "#1a202c",
-              color: "#e2e8f0",
-              padding: "20px",
-              borderRadius: "4px",
-              overflow: "auto",
-            }}
-          >
+          <pre className="bg-slate-dark text-body-text p-5 rounded overflow-auto">
             {error instanceof Error ? error.message : String(error)}
           </pre>
-          <button
-            onClick={resetErrorBoundary}
-            style={{ marginTop: "16px", padding: "8px 16px", cursor: "pointer" }}
-          >
+          <button onClick={resetErrorBoundary} className="mt-4 py-2 px-4 cursor-pointer">
             Try Again
           </button>
         </div>
