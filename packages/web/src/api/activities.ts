@@ -243,12 +243,9 @@ export const fetchMultiSportDailySummary = async (
     const { data } = await client.get<AllSportsDailySummaryProto>(url, {
       signal: options.signal,
     });
-    // Unwrap: bySport map values contain { daily: {...} }, flatten to just the daily map
-    const result: Record<string, Record<string, DailyActivity>> = {};
-    for (const [sport, summary] of Object.entries(data.bySport ?? {})) {
-      result[sport] = summary?.daily ?? {};
-    }
-    return result;
+    return Object.fromEntries(
+      Object.entries(data.bySport ?? {}).map(([sport, summary]) => [sport, summary?.daily ?? {}])
+    );
   } catch (err: unknown) {
     throwApiError(err, "fetchMultiSportDailySummary");
   }
@@ -272,12 +269,12 @@ export const fetchMultiSportMetrics = async (
     const { data } = await client.get<AllSportsMetricsProto>(url, {
       signal: options.signal,
     });
-    // Unwrap: bySport map values contain { timeseries: [...] }, flatten to just the array
-    const result: Record<string, SportMetrics> = {};
-    for (const [sport, metrics] of Object.entries(data.bySport ?? {})) {
-      result[sport] = metrics?.timeseries ?? [];
-    }
-    return result;
+    return Object.fromEntries(
+      Object.entries(data.bySport ?? {}).map(([sport, metrics]) => [
+        sport,
+        metrics?.timeseries ?? [],
+      ])
+    );
   } catch (err: unknown) {
     throwApiError(err, "fetchMultiSportMetrics");
   }
