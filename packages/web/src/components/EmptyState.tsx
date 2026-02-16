@@ -37,16 +37,16 @@ export function EmptyState({
       : "No data available";
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[200px] p-8 sm:p-4 neon-backdrop">
-      <div className="text-[2.5rem] md:text-[2rem] sm:text-2xl font-bold mb-4 text-center">
+    <div className="flex flex-col items-center justify-center min-h-[200px] md:min-h-[300px] p-4 md:p-8 neon-backdrop">
+      <div className="text-2xl sm:text-[2rem] md:text-[2.5rem] font-bold mb-4 text-center">
         <span className="neon-glow-pink">No</span> <span className="neon-glow-cyan">data</span>{" "}
         <span className="neon-glow-green">available</span>
       </div>
-      <p className="text-slate-light text-base sm:text-sm text-center m-0">
+      <p className="text-slate-light text-sm md:text-base text-center m-0">
         {message || defaultMessage}
       </p>
       {suggestedYear && sport && (
-        <p className="text-slate-light text-base sm:text-sm text-center m-0 mt-2">
+        <p className="text-slate-light text-sm md:text-base text-center m-0 mt-2">
           <Link to={`${linkPrefix}/${sport}/${suggestedYear}`} className="text-accent-cyan">
             View {suggestedYear} instead →
           </Link>
