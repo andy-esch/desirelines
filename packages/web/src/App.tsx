@@ -21,6 +21,7 @@ import { UIStateProvider } from "./contexts/UIStateContext";
 import { useCurrentYear } from "./hooks/useCurrentYear";
 import { getDemoSports } from "./utils/demoDataGenerator";
 import { useScrolled } from "./hooks/useScrolled";
+import { handleChunkLoadError } from "./utils/chunkLoadHandler";
 
 // Lazy load pages for code splitting
 // Each page becomes a separate chunk, loaded on-demand
@@ -38,9 +39,20 @@ const DEMO_SPORTS = getDemoSports();
 // Error handling
 // ---------------------------------------------------------------------------
 
-/** Route-level error fallback — uses React Router's useRouteError hook */
+/** Route-level error fallback — uses React Router's useRouteError hook.
+ *  Also handles stale chunk load errors by triggering a one-time reload. */
 function RouteErrorFallback() {
   const error = useRouteError();
+
+  // Auto-reload for stale chunk errors (after a deploy). If this isn't a chunk
+  // error, or a reload was already attempted this session, fall through to the
+  // normal error UI.
+  try {
+    handleChunkLoadError(error);
+  } catch {
+    // Not a chunk error or reload already attempted — show fallback UI
+  }
+
   const errorObj = error instanceof Error ? error : new Error(String(error));
   return <PageErrorFallback error={errorObj} onReset={() => window.location.reload()} />;
 }

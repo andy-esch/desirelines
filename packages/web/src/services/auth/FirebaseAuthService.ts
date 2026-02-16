@@ -53,10 +53,11 @@ export class FirebaseAuthService implements AuthService {
     });
   }
 
-  async getIdToken(): Promise<string | undefined> {
+  /** {@inheritDoc AuthService.getIdToken} */
+  async getIdToken(forceRefresh?: boolean): Promise<string | undefined> {
     const user = auth.currentUser;
     if (!user) return undefined;
-    return await user.getIdToken();
+    return await user.getIdToken(forceRefresh);
   }
 
   async waitForAuthReady(): Promise<void> {

@@ -45,7 +45,7 @@ export class MockAuthService implements AuthService {
     };
   }
 
-  async getIdToken(): Promise<string | undefined> {
+  async getIdToken(_forceRefresh?: boolean): Promise<string | undefined> {
     if (!this.currentUser) return undefined;
     return `mock-token-${this.currentUser.uid}`;
   }

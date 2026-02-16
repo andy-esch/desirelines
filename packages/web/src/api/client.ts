@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { getConfig } from "../lib/config";
 import type { AuthService } from "../services/auth/AuthService";
 import { isInternalRequest } from "./url";
@@ -75,6 +75,44 @@ export function configureClientAuth(authService: AuthService): void {
     }
 
     return config;
+  });
+
+  /**
+   * Response interceptor — automatic 401 recovery.
+   *
+   * When an internal API request receives a 401 Unauthorized response, this
+   * interceptor force-refreshes the Firebase ID token and retries the request
+   * exactly once. A `_retried` flag on the request config prevents infinite
+   * retry loops. External (non-internal) requests are never retried.
+   */
+  client.interceptors.response.use(undefined, async (error: AxiosError) => {
+    const originalRequest = error.config as
+      | (InternalAxiosRequestConfig & { _retried?: boolean })
+      | undefined;
+
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retried &&
+      isInternalRequest(originalRequest.url, originalRequest.baseURL)
+    ) {
+      originalRequest._retried = true;
+
+      try {
+        const token = await authService.getIdToken(true);
+        if (token) {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return client(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error(
+          "Token refresh failed during 401 retry:",
+          refreshError instanceof Error ? refreshError.message : "unknown error"
+        );
+      }
+    }
+
+    return Promise.reject(error);
   });
 }
 

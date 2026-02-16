@@ -41,15 +41,9 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
   const sportCounts = useMemo(() => {
     if (!metadata || !sportConfig) return {};
     const counts: Record<string, number> = {};
-    for (const [category, config] of Object.entries(sportConfig.sport_categories)) {
-      let total = 0;
-      for (const stravaType of config.strava_types) {
-        const totals = metadata.totals[stravaType];
-        if (totals?.activities) {
-          total += totals.activities;
-        }
-      }
-      counts[category] = total;
+    for (const category of Object.keys(sportConfig.sport_categories)) {
+      const totals = metadata.totals[category];
+      counts[category] = totals?.activities ?? 0;
     }
     return counts;
   }, [metadata, sportConfig]);
