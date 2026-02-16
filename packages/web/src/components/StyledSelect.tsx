@@ -1,4 +1,5 @@
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
+import { CheckIcon, ChevronDownIcon } from "./icons";
 
 interface SelectOption {
   value: string;
@@ -14,24 +15,6 @@ interface StyledSelectProps {
   disabled?: boolean;
   className?: string;
 }
-
-const ChevronIcon = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 16 16"
-    fill="currentColor"
-    className="shrink-0 opacity-50"
-  >
-    <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z" />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-  </svg>
-);
 
 /**
  * Styled dropdown select using Headless UI Listbox.
@@ -60,7 +43,7 @@ export default function StyledSelect({
             )}
             <span className="truncate">{selected?.label ?? value}</span>
           </span>
-          <ChevronIcon />
+          <ChevronDownIcon className="shrink-0 opacity-50" />
         </ListboxButton>
 
         <ListboxOptions anchor="bottom start" className="styled-select-options">
