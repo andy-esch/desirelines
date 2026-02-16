@@ -22,7 +22,7 @@ export function useScrolled(
 
     target.addEventListener("scroll", handleScroll, { passive: true });
     return () => target.removeEventListener("scroll", handleScroll);
-  }, [threshold, elementRef]);
+  }, [threshold, elementRef?.current]);
 
   return scrolled;
 }
