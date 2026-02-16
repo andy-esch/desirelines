@@ -341,7 +341,6 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 	mu := &sync.Mutex{}
 
 	for category, sportTypes := range params.sportCategories {
-		category, sportTypes := category, sportTypes
 		g.Go(func() error {
 			var metrics *generated.SportMetrics
 			var err error
@@ -426,7 +425,6 @@ func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request)
 	mu := &sync.Mutex{}
 
 	for category, sportTypes := range params.sportCategories {
-		category, sportTypes := category, sportTypes
 		g.Go(func() error {
 			var summary *generated.DailySummary
 			var err error
@@ -464,11 +462,16 @@ type cacheHintParams interface {
 	isDateRange() bool
 }
 
-func (p *sportQueryParams) getYear() int      { return p.year }
-func (p *sportQueryParams) getToDate() string  { return p.to }
-func (p *sportQueryParams) isDateRange() bool  { return p.useDateRange }
-func (p *multiSportQueryParams) getYear() int  { return p.year }
+func (p *sportQueryParams) getYear() int { return p.year }
+
+func (p *sportQueryParams) getToDate() string { return p.to }
+
+func (p *sportQueryParams) isDateRange() bool { return p.useDateRange }
+
+func (p *multiSportQueryParams) getYear() int { return p.year }
+
 func (p *multiSportQueryParams) getToDate() string { return p.to }
+
 func (p *multiSportQueryParams) isDateRange() bool { return p.useDateRange }
 
 // setCacheHeader sets a private Cache-Control header if the request is for immutable past data.
