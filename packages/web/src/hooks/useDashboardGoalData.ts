@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
 import { useCurrentYear } from "./useCurrentYear";
 import { useServices } from "../contexts/ServiceContext";
@@ -7,7 +7,7 @@ import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
 import { useUserConfig } from "./useUserConfig";
 import { getSpectrumColor } from "./useMultiSportChartData";
-import { fetchSportMetrics, type MetricsEntry } from "../api/activities";
+import { fetchMultiSportMetrics, type MetricsEntry } from "../api/activities";
 import {
   generateDemoMetrics,
   generateDemoGoals,
@@ -89,15 +89,15 @@ export function useDashboardGoalData(): {
     return result;
   }, [user, validSports, currentYear]);
 
-  // Auth: batch fetch cumulative metrics
-  const metricsQueries = useQueries({
-    queries: validSports.map((sport) => ({
-      queryKey: ["sportMetrics", currentYear, sport],
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        fetchSportMetrics({ year: currentYear, sport, signal }),
-      enabled: !authLoading && !!user,
-      staleTime: 5 * 60 * 1000,
-    })),
+  // Auth: single multi-sport metrics fetch (was N per-sport queries)
+  const sortedSports = useMemo(() => [...validSports].sort(), [validSports]);
+
+  const metricsQuery = useQuery({
+    queryKey: ["sportMetrics", currentYear, sortedSports],
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      fetchMultiSportMetrics({ year: currentYear, sports: sortedSports, signal }),
+    enabled: !authLoading && !!user && validSports.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   // --- Goals ---
@@ -145,7 +145,7 @@ export function useDashboardGoalData(): {
 
       // Get YTD value (in display units)
       let currentValue = 0;
-      const metrics = user ? metricsQueries[index]?.data : demoMetrics?.[sport];
+      const metrics = user ? metricsQuery.data?.[sport] : demoMetrics?.[sport];
 
       if (metrics && metrics.length > 0) {
         const lastEntry = metrics[metrics.length - 1];
@@ -210,7 +210,7 @@ export function useDashboardGoalData(): {
     sportConfig,
     user,
     demoMetrics,
-    metricsQueries,
+    metricsQuery.data,
     demoGoals,
     goalsQueries,
     userSettings,
@@ -220,9 +220,8 @@ export function useDashboardGoalData(): {
     prefsLoading ||
     configLoading ||
     authLoading ||
-    (!!user && (metricsQueries.some((q) => q.isLoading) || goalsQueries.some((q) => q.isLoading)));
-  const queryError =
-    metricsQueries.find((q) => q.error)?.error ?? goalsQueries.find((q) => q.error)?.error ?? null;
+    (!!user && (metricsQuery.isLoading || goalsQueries.some((q) => q.isLoading)));
+  const queryError = metricsQuery.error ?? goalsQueries.find((q) => q.error)?.error ?? null;
 
   return {
     sportData,

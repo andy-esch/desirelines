@@ -39,6 +39,8 @@ import type {
 import type {
   CumulativeMetricsEntry as MetricsEntry,
   SportMetrics as SportMetricsProto,
+  AllSportsMetrics as AllSportsMetricsProto,
+  AllSportsDailySummary as AllSportsDailySummaryProto,
   YearMetadata,
   DailyActivity,
   DailySummary as DailySummaryResponse,
@@ -207,6 +209,77 @@ export const fetchDailySummary = async (
     return data.daily ?? {};
   } catch (err: unknown) {
     throwApiError(err, "fetchDailySummary");
+  }
+};
+
+// MULTI-SPORT BATCH API FUNCTIONS
+// These use ?sports=X,Y,Z (plural) to fetch data for multiple sports in a single request,
+// reducing dashboard API calls from ~5N to ~5.
+
+/** Options for multi-sport batch fetches */
+export interface FetchMultiSportOptions {
+  year: number;
+  sports: string[];
+  from?: string;
+  to?: string;
+  signal?: AbortSignal;
+}
+
+/**
+ * Fetch daily summaries for multiple sports in a single request.
+ * Returns a map of sport → daily data (Record<string, DailyActivity>).
+ */
+export const fetchMultiSportDailySummary = async (
+  options: FetchMultiSportOptions
+): Promise<Record<string, Record<string, DailyActivity>>> => {
+  const params = new URLSearchParams({ sports: options.sports.join(",") });
+  if (options.from && options.to) {
+    params.set("from", options.from);
+    params.set("to", options.to);
+  }
+  const url = `/activities/${options.year}/source?${params.toString()}`;
+
+  try {
+    const { data } = await client.get<AllSportsDailySummaryProto>(url, {
+      signal: options.signal,
+    });
+    // Unwrap: bySport map values contain { daily: {...} }, flatten to just the daily map
+    const result: Record<string, Record<string, DailyActivity>> = {};
+    for (const [sport, summary] of Object.entries(data.bySport ?? {})) {
+      result[sport] = summary?.daily ?? {};
+    }
+    return result;
+  } catch (err: unknown) {
+    throwApiError(err, "fetchMultiSportDailySummary");
+  }
+};
+
+/**
+ * Fetch cumulative metrics for multiple sports in a single request.
+ * Returns a map of sport → metrics timeseries (MetricsEntry[]).
+ */
+export const fetchMultiSportMetrics = async (
+  options: FetchMultiSportOptions
+): Promise<Record<string, SportMetrics>> => {
+  const params = new URLSearchParams({ sports: options.sports.join(",") });
+  if (options.from && options.to) {
+    params.set("from", options.from);
+    params.set("to", options.to);
+  }
+  const url = `/activities/${options.year}/metrics?${params.toString()}`;
+
+  try {
+    const { data } = await client.get<AllSportsMetricsProto>(url, {
+      signal: options.signal,
+    });
+    // Unwrap: bySport map values contain { timeseries: [...] }, flatten to just the array
+    const result: Record<string, SportMetrics> = {};
+    for (const [sport, metrics] of Object.entries(data.bySport ?? {})) {
+      result[sport] = metrics?.timeseries ?? [];
+    }
+    return result;
+  } catch (err: unknown) {
+    throwApiError(err, "fetchMultiSportMetrics");
   }
 };
 

@@ -223,9 +223,133 @@ func TestHandler_validateAndGetSportTypes(t *testing.T) {
 	}
 }
 
-// Note: nil repo tests removed - application now fails fast at startup if repo is nil.
-// Handlers no longer need runtime nil checks since initDependencies guarantees
-// a valid repo or returns an error.
+func TestIsMultiSportRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want bool
+	}{
+		{"sports param present", "/activities/2024/metrics?sports=cycling,running", true},
+		{"sport param only", "/activities/2024/metrics?sport=cycling", false},
+		{"both params", "/activities/2024/metrics?sport=cycling&sports=cycling,running", true},
+		{"no sport params", "/activities/2024/metrics", false},
+		{"empty sports param", "/activities/2024/metrics?sports=", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			got := isMultiSportRequest(req)
+			if got != tt.want {
+				t.Errorf("isMultiSportRequest() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHandler_validateMultiSportQuery(t *testing.T) {
+	handler := newTestHandler(t)
+
+	tests := []struct {
+		name       string
+		url        string
+		yearParam  string
+		wantNil    bool
+		wantStatus int // only checked when wantNil is true
+		wantSports int // number of sport categories expected
+	}{
+		{
+			name:       "valid single sport",
+			url:        "/activities/2024/metrics?sports=cycling",
+			yearParam:  "2024",
+			wantNil:    false,
+			wantSports: 1,
+		},
+		{
+			name:       "valid multiple sports",
+			url:        "/activities/2024/metrics?sports=cycling,running,yoga",
+			yearParam:  "2024",
+			wantNil:    false,
+			wantSports: 3,
+		},
+		{
+			name:       "valid with date range",
+			url:        "/activities/2024/metrics?sports=cycling,running&from=2024-01-01&to=2024-06-30",
+			yearParam:  "2024",
+			wantNil:    false,
+			wantSports: 2,
+		},
+		{
+			name:       "missing sports param",
+			url:        "/activities/2024/metrics",
+			yearParam:  "2024",
+			wantNil:    true,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid sport in list",
+			url:        "/activities/2024/metrics?sports=cycling,badminton",
+			yearParam:  "2024",
+			wantNil:    true,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "empty sports value",
+			url:        "/activities/2024/metrics?sports=",
+			yearParam:  "2024",
+			wantNil:    true,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "deduplicates sports",
+			url:        "/activities/2024/metrics?sports=cycling,cycling",
+			yearParam:  "2024",
+			wantNil:    false,
+			wantSports: 1, // map deduplicates
+		},
+		{
+			name:       "trims whitespace",
+			url:        "/activities/2024/metrics?sports=cycling,%20running",
+			yearParam:  "2024",
+			wantNil:    false,
+			wantSports: 2, // TrimSpace makes " running" valid
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("year", tt.yearParam)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			w := httptest.NewRecorder()
+
+			result := handler.validateMultiSportQuery(w, req)
+			if tt.wantNil {
+				if result != nil {
+					t.Error("validateMultiSportQuery() should return nil")
+				}
+				if w.Code != tt.wantStatus {
+					t.Errorf("validateMultiSportQuery() status = %v, want %v", w.Code, tt.wantStatus)
+				}
+			} else {
+				if result == nil {
+					t.Fatal("validateMultiSportQuery() returned nil unexpectedly")
+				}
+				if len(result.sportCategories) != tt.wantSports {
+					t.Errorf("validateMultiSportQuery() got %d categories, want %d", len(result.sportCategories), tt.wantSports)
+				}
+				// Verify each category has strava types
+				for cat, types := range result.sportCategories {
+					if len(types) == 0 {
+						t.Errorf("category %q has no strava types", cat)
+					}
+				}
+			}
+		})
+	}
+}
 
 // Test that the Handler struct implements expected constructor pattern
 func TestNewHandler(t *testing.T) {

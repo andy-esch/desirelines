@@ -2,8 +2,10 @@
 //
 // Endpoints handled:
 //   - GET /activities/{year}/metadata - Year totals for all sports
-//   - GET /activities/{year}/metrics?sport=X - Cumulative timeseries
-//   - GET /activities/{year}/source?sport=X - Daily summaries
+//   - GET /activities/{year}/metrics?sport=X - Cumulative timeseries (single sport)
+//   - GET /activities/{year}/metrics?sports=X,Y,Z - Cumulative timeseries (multi-sport)
+//   - GET /activities/{year}/source?sport=X - Daily summaries (single sport)
+//   - GET /activities/{year}/source?sports=X,Y,Z - Daily summaries (multi-sport)
 //   - GET /activities - Paginated activity list
 //   - GET /activities/{id} - Single activity by ID
 //
@@ -51,6 +53,8 @@ const (
 	errMsgInternalServerError = "Internal server error"
 	// DefaultDBTimeout is the default timeout for database queries.
 	DefaultDBTimeout = 10 * time.Second
+	// MaxMultiSportCount is the maximum number of sports in a ?sports= query.
+	MaxMultiSportCount = 20
 )
 
 // Handler holds dependencies for activity handlers.
@@ -171,6 +175,100 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 	}
 }
 
+// multiSportQueryParams holds validated parameters for multi-sport queries.
+// Each entry in sportCategories maps a category name (e.g. "cycling") to its Strava types.
+type multiSportQueryParams struct {
+	year            int
+	sportCategories map[string][]string // category → Strava types (e.g. "cycling" → ["Ride", "VirtualRide"])
+	from            string
+	to              string
+	useDateRange    bool
+}
+
+// validateMultiSportQuery validates the ?sports=X,Y,Z parameter for multi-sport endpoints.
+// Returns nil and writes error response if validation fails.
+func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request) *multiSportQueryParams {
+	yearStr, ok := h.validateAndGetYear(w, r)
+	if !ok {
+		return nil
+	}
+
+	yearInt, parseErr := strconv.Atoi(yearStr)
+	if parseErr != nil {
+		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return nil
+	}
+
+	sportsStr := r.URL.Query().Get("sports")
+	if sportsStr == "" {
+		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Missing 'sports' query parameter")
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return nil
+	}
+
+	categories := strings.Split(sportsStr, ",")
+	if len(categories) > MaxMultiSportCount {
+		apiErr := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Too many sports (max %d)", MaxMultiSportCount))
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return nil
+	}
+
+	sportCategories := make(map[string][]string, len(categories))
+	for _, cat := range categories {
+		cat = strings.TrimSpace(cat)
+		if cat == "" {
+			continue
+		}
+		if errMsg := validate.Sport(cat); errMsg != "" {
+			apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
+			gcplog.WriteError(w, r, apiErr, h.logger)
+			return nil
+		}
+		stravaTypes := h.sportConfig.GetStravaTypes(cat)
+		if stravaTypes == nil {
+			apiErr := gcplog.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport in sports list: %s", cat))
+			gcplog.WriteError(w, r, apiErr, h.logger)
+			return nil
+		}
+		sportCategories[cat] = stravaTypes
+	}
+
+	if len(sportCategories) == 0 {
+		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "No valid sports provided")
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return nil
+	}
+
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+
+	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
+		apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return nil
+	}
+
+	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, yearInt); errMsg != "" {
+		apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return nil
+	}
+
+	return &multiSportQueryParams{
+		year:            yearInt,
+		sportCategories: sportCategories,
+		from:            fromStr,
+		to:              toStr,
+		useDateRange:    fromStr != "" && toStr != "",
+	}
+}
+
+// isMultiSportRequest returns true if the request uses the ?sports= (plural) parameter.
+func isMultiSportRequest(r *http.Request) bool {
+	return r.URL.Query().Get("sports") != ""
+}
+
 // logAndRespondDBError logs a database error and writes an error response.
 func (h *Handler) logAndRespondDBError(w http.ResponseWriter, r *http.Request, err error, params *sportQueryParams) {
 	if params.useDateRange {
@@ -186,16 +284,18 @@ func (h *Handler) logAndRespondDBError(w http.ResponseWriter, r *http.Request, e
 }
 
 // HandleMetrics serves sport-specific metrics data from PostgreSQL.
+// Supports both single-sport (?sport=X) and multi-sport (?sports=X,Y,Z) queries.
 // Supports optional from/to query params for date-range queries (can span years).
-// Without from/to, falls back to year-based query for backwards compatibility.
 // GET /activities/{year}/metrics?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
-//
-// (SportMetrics vs DailySummary). Abstracting via generics or interfaces would add complexity
-// without meaningful benefit. Shared logic is already extracted (validateSportQuery,
-// logAndRespondDBError, respondProtobuf). Each handler remains clear and self-contained.
+// GET /activities/{year}/metrics?sports=X,Y,Z[&from=YYYY-MM-DD&to=YYYY-MM-DD]
 //
 //nolint:dupl // Intentional: HandleMetrics and HandleSource share structure but differ in types
 func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
+	if isMultiSportRequest(r) {
+		h.handleMultiSportMetrics(w, r)
+		return
+	}
+
 	params := h.validateSportQuery(w, r)
 	if params == nil {
 		return
@@ -216,19 +316,59 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache past years (immutable) for 1 hour
 	h.setCacheHeaderForPastData(w, params)
+	h.respondProtobuf(w, r, result)
+}
 
+// handleMultiSportMetrics handles GET /activities/{year}/metrics?sports=X,Y,Z.
+// Queries metrics per category and returns an AllSportsMetrics response keyed by sport.
+func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request) {
+	params := h.validateMultiSportQuery(w, r)
+	if params == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
+	defer cancel()
+
+	result := &generated.AllSportsMetrics{
+		BySport: make(map[string]*generated.SportMetrics, len(params.sportCategories)),
+	}
+
+	for category, sportTypes := range params.sportCategories {
+		var metrics *generated.SportMetrics
+		var err error
+		if params.useDateRange {
+			metrics, err = h.repo.GetSportMetricsByDateRange(ctx, params.from, params.to, sportTypes)
+		} else {
+			metrics, err = h.repo.GetSportMetrics(ctx, params.year, sportTypes)
+		}
+		if err != nil {
+			h.logger.Error("Database query failed", "error", err, "sport", category)
+			apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+			gcplog.WriteError(w, r, apiErr, h.logger)
+			return
+		}
+		result.BySport[category] = metrics
+	}
+
+	h.setCacheHeaderForMultiSport(w, params)
 	h.respondProtobuf(w, r, result)
 }
 
 // HandleSource serves sport-specific source data from PostgreSQL.
+// Supports both single-sport (?sport=X) and multi-sport (?sports=X,Y,Z) queries.
 // Supports optional from/to query params for date-range queries (can span years).
-// Without from/to, falls back to year-based query for backwards compatibility.
 // GET /activities/{year}/source?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
+// GET /activities/{year}/source?sports=X,Y,Z[&from=YYYY-MM-DD&to=YYYY-MM-DD]
 //
-//nolint:dupl // Intentional duplication - see HandleMetrics comment for rationale.
+//nolint:dupl // Intentional: see HandleMetrics comment.
 func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
+	if isMultiSportRequest(r) {
+		h.handleMultiSportSource(w, r)
+		return
+	}
+
 	params := h.validateSportQuery(w, r)
 	if params == nil {
 		return
@@ -248,9 +388,43 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache past years (immutable) for 1 hour
 	h.setCacheHeaderForPastData(w, params)
+	h.respondProtobuf(w, r, result)
+}
 
+// handleMultiSportSource handles GET /activities/{year}/source?sports=X,Y,Z.
+// Queries daily summaries per category and returns an AllSportsDailySummary response keyed by sport.
+func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request) {
+	params := h.validateMultiSportQuery(w, r)
+	if params == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
+	defer cancel()
+
+	result := &generated.AllSportsDailySummary{
+		BySport: make(map[string]*generated.DailySummary, len(params.sportCategories)),
+	}
+
+	for category, sportTypes := range params.sportCategories {
+		var summary *generated.DailySummary
+		var err error
+		if params.useDateRange {
+			summary, err = h.repo.GetDailySummaryByDateRange(ctx, params.from, params.to, sportTypes)
+		} else {
+			summary, err = h.repo.GetDailySummary(ctx, params.year, sportTypes)
+		}
+		if err != nil {
+			h.logger.Error("Database query failed", "error", err, "sport", category)
+			apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+			gcplog.WriteError(w, r, apiErr, h.logger)
+			return
+		}
+		result.BySport[category] = summary
+	}
+
+	h.setCacheHeaderForMultiSport(w, params)
 	h.respondProtobuf(w, r, result)
 }
 
@@ -266,6 +440,30 @@ func (h *Handler) setCacheHeaderForPastData(w http.ResponseWriter, params *sport
 	} else {
 		// Check if 'to' date is in a past year.
 		// This is safe because date format has been validated.
+		if len(params.to) >= 4 {
+			if toYear, parseErr := strconv.Atoi(params.to[:4]); parseErr == nil {
+				if toYear < currentYear {
+					isPast = true
+				}
+			}
+		}
+	}
+
+	if isPast {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
+}
+
+// setCacheHeaderForMultiSport sets Cache-Control for multi-sport requests.
+func (h *Handler) setCacheHeaderForMultiSport(w http.ResponseWriter, params *multiSportQueryParams) {
+	currentYear := time.Now().Year()
+	isPast := false
+
+	if !params.useDateRange {
+		if params.year < currentYear {
+			isPast = true
+		}
+	} else {
 		if len(params.to) >= 4 {
 			if toYear, parseErr := strconv.Atoi(params.to[:4]); parseErr == nil {
 				if toYear < currentYear {

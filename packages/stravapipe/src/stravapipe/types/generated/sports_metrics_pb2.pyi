@@ -11,6 +11,32 @@ METRIC_TYPE_ELEVATION_METERS: MetricType
 METRIC_TYPE_TIME_MINUTES: MetricType
 METRIC_TYPE_UNSPECIFIED: MetricType
 
+class AllSportsDailySummary(_message.Message):
+    __slots__ = ["by_sport"]
+    class BySportEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: ClassVar[int]
+        VALUE_FIELD_NUMBER: ClassVar[int]
+        key: str
+        value: DailySummary
+        def __init__(self, key: Optional[str] = ..., value: Optional[Union[DailySummary, Mapping]] = ...) -> None: ...
+    BY_SPORT_FIELD_NUMBER: ClassVar[int]
+    by_sport: _containers.MessageMap[str, DailySummary]
+    def __init__(self, by_sport: Optional[Mapping[str, DailySummary]] = ...) -> None: ...
+
+class AllSportsMetrics(_message.Message):
+    __slots__ = ["by_sport"]
+    class BySportEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: ClassVar[int]
+        VALUE_FIELD_NUMBER: ClassVar[int]
+        key: str
+        value: SportMetrics
+        def __init__(self, key: Optional[str] = ..., value: Optional[Union[SportMetrics, Mapping]] = ...) -> None: ...
+    BY_SPORT_FIELD_NUMBER: ClassVar[int]
+    by_sport: _containers.MessageMap[str, SportMetrics]
+    def __init__(self, by_sport: Optional[Mapping[str, SportMetrics]] = ...) -> None: ...
+
 class CumulativeMetricsEntry(_message.Message):
     __slots__ = ["activities", "date", "distance", "elevation", "time"]
     ACTIVITIES_FIELD_NUMBER: ClassVar[int]

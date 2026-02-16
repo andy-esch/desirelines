@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n0proto/desirelines/sports/v1/sports_metrics.proto\x12\x15\x64\x65sirelines.sports.v1\"4\n\x15MetricTimeseriesEntry\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01\"\xcb\x01\n\rDailyActivity\x12\x1c\n\x0f\x64istance_meters\x18\x01 \x01(\x01H\x00\x88\x01\x01\x12\x19\n\x0ctime_minutes\x18\x02 \x01(\x01H\x01\x88\x01\x01\x12\x1d\n\x10\x65levation_meters\x18\x03 \x01(\x01H\x02\x88\x01\x01\x12\x12\n\nactivities\x18\x04 \x01(\x05\x12\x14\n\x0c\x61\x63tivity_ids\x18\x05 \x03(\x03\x42\x12\n\x10_distance_metersB\x0f\n\r_time_minutesB\x13\n\x11_elevation_meters\"\xa1\x01\n\x0c\x44\x61ilySummary\x12=\n\x05\x64\x61ily\x18\x01 \x03(\x0b\x32..desirelines.sports.v1.DailySummary.DailyEntry\x1aR\n\nDailyEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x33\n\x05value\x18\x02 \x01(\x0b\x32$.desirelines.sports.v1.DailyActivity:\x02\x38\x01\"\xb4\x01\n\x16\x43umulativeMetricsEntry\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\x15\n\x08\x64istance\x18\x02 \x01(\x01H\x00\x88\x01\x01\x12\x16\n\televation\x18\x03 \x01(\x01H\x01\x88\x01\x01\x12\x11\n\x04time\x18\x04 \x01(\x01H\x02\x88\x01\x01\x12\x17\n\nactivities\x18\x05 \x01(\x05H\x03\x88\x01\x01\x42\x0b\n\t_distanceB\x0c\n\n_elevationB\x07\n\x05_timeB\r\n\x0b_activities\"Q\n\x0cSportMetrics\x12\x41\n\ntimeseries\x18\x01 \x03(\x0b\x32-.desirelines.sports.v1.CumulativeMetricsEntry\"_\n\rSportMetadata\x12\r\n\x05sport\x18\x01 \x01(\t\x12\x0c\n\x04year\x18\x02 \x01(\x05\x12\x19\n\x11\x61vailable_metrics\x18\x03 \x03(\t\x12\x16\n\x0eprimary_metric\x18\x04 \x01(\t\"\xb3\x01\n\x0bSportTotals\x12\x1c\n\x0f\x64istance_meters\x18\x01 \x01(\x01H\x00\x88\x01\x01\x12\x19\n\x0ctime_minutes\x18\x02 \x01(\x01H\x01\x88\x01\x01\x12\x1d\n\x10\x65levation_meters\x18\x03 \x01(\x01H\x02\x88\x01\x01\x12\x12\n\nactivities\x18\x04 \x01(\x05\x42\x12\n\x10_distance_metersB\x0f\n\r_time_minutesB\x13\n\x11_elevation_meters\"\x89\x02\n\x0cYearMetadata\x12\x0c\n\x04year\x18\x01 \x01(\x05\x12\x0e\n\x06sports\x18\x02 \x03(\t\x12?\n\x06totals\x18\x03 \x03(\x0b\x32/.desirelines.sports.v1.YearMetadata.TotalsEntry\x12\x19\n\x0clast_updated\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x1b\n\x13\x61ggregation_version\x18\x05 \x01(\t\x1aQ\n\x0bTotalsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x31\n\x05value\x18\x02 \x01(\x0b\x32\".desirelines.sports.v1.SportTotals:\x02\x38\x01\x42\x0f\n\r_last_updated*\xa6\x01\n\nMetricType\x12\x1b\n\x17METRIC_TYPE_UNSPECIFIED\x10\x00\x12\x1f\n\x1bMETRIC_TYPE_DISTANCE_METERS\x10\x01\x12\x1c\n\x18METRIC_TYPE_TIME_MINUTES\x10\x02\x12 \n\x1cMETRIC_TYPE_ELEVATION_METERS\x10\x03\x12\x1a\n\x16METRIC_TYPE_ACTIVITIES\x10\x04\x42\x46ZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generatedb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n0proto/desirelines/sports/v1/sports_metrics.proto\x12\x15\x64\x65sirelines.sports.v1\"4\n\x15MetricTimeseriesEntry\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01\"\xcb\x01\n\rDailyActivity\x12\x1c\n\x0f\x64istance_meters\x18\x01 \x01(\x01H\x00\x88\x01\x01\x12\x19\n\x0ctime_minutes\x18\x02 \x01(\x01H\x01\x88\x01\x01\x12\x1d\n\x10\x65levation_meters\x18\x03 \x01(\x01H\x02\x88\x01\x01\x12\x12\n\nactivities\x18\x04 \x01(\x05\x12\x14\n\x0c\x61\x63tivity_ids\x18\x05 \x03(\x03\x42\x12\n\x10_distance_metersB\x0f\n\r_time_minutesB\x13\n\x11_elevation_meters\"\xa1\x01\n\x0c\x44\x61ilySummary\x12=\n\x05\x64\x61ily\x18\x01 \x03(\x0b\x32..desirelines.sports.v1.DailySummary.DailyEntry\x1aR\n\nDailyEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x33\n\x05value\x18\x02 \x01(\x0b\x32$.desirelines.sports.v1.DailyActivity:\x02\x38\x01\"\xb4\x01\n\x16\x43umulativeMetricsEntry\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\x15\n\x08\x64istance\x18\x02 \x01(\x01H\x00\x88\x01\x01\x12\x16\n\televation\x18\x03 \x01(\x01H\x01\x88\x01\x01\x12\x11\n\x04time\x18\x04 \x01(\x01H\x02\x88\x01\x01\x12\x17\n\nactivities\x18\x05 \x01(\x05H\x03\x88\x01\x01\x42\x0b\n\t_distanceB\x0c\n\n_elevationB\x07\n\x05_timeB\r\n\x0b_activities\"Q\n\x0cSportMetrics\x12\x41\n\ntimeseries\x18\x01 \x03(\x0b\x32-.desirelines.sports.v1.CumulativeMetricsEntry\"_\n\rSportMetadata\x12\r\n\x05sport\x18\x01 \x01(\t\x12\x0c\n\x04year\x18\x02 \x01(\x05\x12\x19\n\x11\x61vailable_metrics\x18\x03 \x03(\t\x12\x16\n\x0eprimary_metric\x18\x04 \x01(\t\"\xb3\x01\n\x0bSportTotals\x12\x1c\n\x0f\x64istance_meters\x18\x01 \x01(\x01H\x00\x88\x01\x01\x12\x19\n\x0ctime_minutes\x18\x02 \x01(\x01H\x01\x88\x01\x01\x12\x1d\n\x10\x65levation_meters\x18\x03 \x01(\x01H\x02\x88\x01\x01\x12\x12\n\nactivities\x18\x04 \x01(\x05\x42\x12\n\x10_distance_metersB\x0f\n\r_time_minutesB\x13\n\x11_elevation_meters\"\xb9\x01\n\x15\x41llSportsDailySummary\x12K\n\x08\x62y_sport\x18\x01 \x03(\x0b\x32\x39.desirelines.sports.v1.AllSportsDailySummary.BySportEntry\x1aS\n\x0c\x42ySportEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x32\n\x05value\x18\x02 \x01(\x0b\x32#.desirelines.sports.v1.DailySummary:\x02\x38\x01\"\xaf\x01\n\x10\x41llSportsMetrics\x12\x46\n\x08\x62y_sport\x18\x01 \x03(\x0b\x32\x34.desirelines.sports.v1.AllSportsMetrics.BySportEntry\x1aS\n\x0c\x42ySportEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x32\n\x05value\x18\x02 \x01(\x0b\x32#.desirelines.sports.v1.SportMetrics:\x02\x38\x01\"\x89\x02\n\x0cYearMetadata\x12\x0c\n\x04year\x18\x01 \x01(\x05\x12\x0e\n\x06sports\x18\x02 \x03(\t\x12?\n\x06totals\x18\x03 \x03(\x0b\x32/.desirelines.sports.v1.YearMetadata.TotalsEntry\x12\x19\n\x0clast_updated\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x1b\n\x13\x61ggregation_version\x18\x05 \x01(\t\x1aQ\n\x0bTotalsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x31\n\x05value\x18\x02 \x01(\x0b\x32\".desirelines.sports.v1.SportTotals:\x02\x38\x01\x42\x0f\n\r_last_updated*\xa6\x01\n\nMetricType\x12\x1b\n\x17METRIC_TYPE_UNSPECIFIED\x10\x00\x12\x1f\n\x1bMETRIC_TYPE_DISTANCE_METERS\x10\x01\x12\x1c\n\x18METRIC_TYPE_TIME_MINUTES\x10\x02\x12 \n\x1cMETRIC_TYPE_ELEVATION_METERS\x10\x03\x12\x1a\n\x16METRIC_TYPE_ACTIVITIES\x10\x04\x42\x46ZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generatedb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'proto.desirelines.sports.v1.sports_metrics_pb2', globals())
@@ -23,10 +23,14 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   DESCRIPTOR._serialized_options = b'ZDgithub.com/andy-esch/desirelines/packages/apigateway/types/generated'
   _DAILYSUMMARY_DAILYENTRY._options = None
   _DAILYSUMMARY_DAILYENTRY._serialized_options = b'8\001'
+  _ALLSPORTSDAILYSUMMARY_BYSPORTENTRY._options = None
+  _ALLSPORTSDAILYSUMMARY_BYSPORTENTRY._serialized_options = b'8\001'
+  _ALLSPORTSMETRICS_BYSPORTENTRY._options = None
+  _ALLSPORTSMETRICS_BYSPORTENTRY._serialized_options = b'8\001'
   _YEARMETADATA_TOTALSENTRY._options = None
   _YEARMETADATA_TOTALSENTRY._serialized_options = b'8\001'
-  _METRICTYPE._serialized_start=1313
-  _METRICTYPE._serialized_end=1479
+  _METRICTYPE._serialized_start=1679
+  _METRICTYPE._serialized_end=1845
   _METRICTIMESERIESENTRY._serialized_start=75
   _METRICTIMESERIESENTRY._serialized_end=127
   _DAILYACTIVITY._serialized_start=130
@@ -43,8 +47,16 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _SPORTMETADATA._serialized_end=860
   _SPORTTOTALS._serialized_start=863
   _SPORTTOTALS._serialized_end=1042
-  _YEARMETADATA._serialized_start=1045
-  _YEARMETADATA._serialized_end=1310
-  _YEARMETADATA_TOTALSENTRY._serialized_start=1212
-  _YEARMETADATA_TOTALSENTRY._serialized_end=1293
+  _ALLSPORTSDAILYSUMMARY._serialized_start=1045
+  _ALLSPORTSDAILYSUMMARY._serialized_end=1230
+  _ALLSPORTSDAILYSUMMARY_BYSPORTENTRY._serialized_start=1147
+  _ALLSPORTSDAILYSUMMARY_BYSPORTENTRY._serialized_end=1230
+  _ALLSPORTSMETRICS._serialized_start=1233
+  _ALLSPORTSMETRICS._serialized_end=1408
+  _ALLSPORTSMETRICS_BYSPORTENTRY._serialized_start=1325
+  _ALLSPORTSMETRICS_BYSPORTENTRY._serialized_end=1408
+  _YEARMETADATA._serialized_start=1411
+  _YEARMETADATA._serialized_end=1676
+  _YEARMETADATA_TOTALSENTRY._serialized_start=1578
+  _YEARMETADATA_TOTALSENTRY._serialized_end=1659
 # @@protoc_insertion_point(module_scope)

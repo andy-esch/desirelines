@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
-import { fetchDailySummary, type DailyActivity } from "../api/activities";
+import { fetchMultiSportDailySummary, type DailyActivity } from "../api/activities";
 import {
   generateDemoDailyData,
   getSessionFillLevels,
@@ -106,20 +106,21 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
     return result;
   }, [user, sports, from, to, tuningParams]);
 
-  const queries = useQueries({
-    queries: sports.map((sport) => ({
-      queryKey: ["dailySummary", year, sport, from, to],
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        fetchDailySummary({
-          year,
-          sport,
-          from,
-          to,
-          signal,
-        }),
-      enabled: !authLoading && !!user,
-      staleTime: 5 * 60 * 1000,
-    })),
+  // Sort sports for stable query key (cache invalidates when visibility changes)
+  const sortedSports = useMemo(() => [...sports].sort(), [sports]);
+
+  const query = useQuery({
+    queryKey: ["dailySummary", year, sortedSports, from, to],
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      fetchMultiSportDailySummary({
+        year,
+        sports: sortedSports,
+        from,
+        to,
+        signal,
+      }),
+    enabled: !authLoading && !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   const data = useMemo(() => {
@@ -128,24 +129,14 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
     const result: MultiSportData = {};
     // Initialize all sports with empty objects to prevent undefined access
     for (const sport of sports) {
-      result[sport] = {};
+      result[sport] = query.data?.[sport] ?? {};
     }
-
-    queries.forEach((query, index) => {
-      const sport = sports[index];
-      if (query.data) {
-        result[sport] = query.data;
-      }
-    });
     return result;
-  }, [user, demoData, queries, sports]);
-
-  const isQueriesLoading = queries.some((q) => q.isLoading);
-  const queryError = queries.find((q) => q.error)?.error;
+  }, [user, demoData, query.data, sports]);
 
   return {
     data,
-    isLoading: authLoading || (!!user && isQueriesLoading),
-    error: (queryError as Error) || null,
+    isLoading: authLoading || (!!user && query.isLoading),
+    error: (query.error as Error) || null,
   };
 }

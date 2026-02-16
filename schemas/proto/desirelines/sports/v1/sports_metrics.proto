@@ -87,6 +87,18 @@ message SportTotals {
   int32 activities = 4;
 }
 
+// Multi-sport daily summary — keyed by sport category
+// Used by: GET /activities/{year}/source?sports=cycling,running,...
+message AllSportsDailySummary {
+  map<string, DailySummary> by_sport = 1; // e.g. {"cycling": {...}, "running": {...}}
+}
+
+// Multi-sport cumulative metrics — keyed by sport category
+// Used by: GET /activities/{year}/metrics?sports=cycling,running,...
+message AllSportsMetrics {
+  map<string, SportMetrics> by_sport = 1;
+}
+
 // Year metadata file (activities/{year}/metadata.json)
 message YearMetadata {
   int32 year = 1;
