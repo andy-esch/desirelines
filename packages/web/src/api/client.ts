@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type AxiosError } from "axios";
 import { getConfig } from "../lib/config";
 import type { AuthService } from "../services/auth/AuthService";
 import { isInternalRequest } from "./url";
@@ -75,6 +75,53 @@ export function configureClientAuth(authService: AuthService): void {
     }
 
     return config;
+  });
+
+  /**
+   * Response interceptor — automatic 401 recovery.
+   *
+   * When an internal API request receives a 401 Unauthorized response, this
+   * interceptor force-refreshes the Firebase ID token and retries the request
+   * exactly once. A `_retried` flag on the request config prevents infinite
+   * retry loops. External (non-internal) requests are never retried.
+   *
+   * A shared `refreshPromise` ensures that concurrent 401s coalesce into a
+   * single token refresh rather than firing N independent refreshes.
+   */
+  let refreshPromise: Promise<string | undefined> | null = null;
+
+  client.interceptors.response.use(undefined, async (error: AxiosError) => {
+    const originalRequest = error.config;
+
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retried &&
+      isInternalRequest(originalRequest.url, originalRequest.baseURL)
+    ) {
+      originalRequest._retried = true;
+
+      try {
+        // Coalesce concurrent refreshes — if one is already in flight, reuse it.
+        if (!refreshPromise) {
+          refreshPromise = authService.getIdToken(true).finally(() => {
+            refreshPromise = null;
+          });
+        }
+        const token = await refreshPromise;
+        if (token) {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return client(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error(
+          "Token refresh failed during 401 retry:",
+          refreshError instanceof Error ? refreshError.message : "unknown error"
+        );
+      }
+    }
+
+    return Promise.reject(error);
   });
 }
 

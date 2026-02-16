@@ -1,6 +1,5 @@
 import { AVAILABLE_YEARS } from "../../constants/sidebar";
 import { capitalizeFirst } from "../../utils/format";
-import { SPORT_COLORS } from "../../utils/sportConfig";
 import SportVisibilityHint from "../SportVisibilityHint";
 import StyledSelect from "../StyledSelect";
 
@@ -21,7 +20,7 @@ interface FilterControlsProps {
 
 /**
  * Sport and Year filter controls for the sidebar.
- * Uses styled Listbox dropdowns with sport-colored dots.
+ * Uses styled Listbox dropdowns.
  */
 export default function FilterControls({
   sport,
@@ -41,11 +40,7 @@ export default function FilterControls({
     const count = sportCounts?.[sportId];
     const label =
       count !== undefined ? `${capitalizeFirst(sportId)} (${count})` : capitalizeFirst(sportId);
-    return {
-      value: sportId,
-      label,
-      dotColor: SPORT_COLORS[sportId],
-    };
+    return { value: sportId, label };
   });
 
   const yearOptions = AVAILABLE_YEARS.map((year) => ({

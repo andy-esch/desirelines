@@ -65,13 +65,18 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "build", // Keep same output dir for compatibility
+      sourcemap: mode === "production" ? "hidden" : true,
       rollupOptions: {
         output: {
           manualChunks: {
-            // Vendor chunks - cached separately from app code
+            // Vendor chunks — cached separately from app code.
+            // Each group contains libraries that update on a similar cadence.
             "react-vendor": ["react", "react-dom", "react-router-dom"],
             "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
             "chart-vendor": ["recharts"],
+            "query-vendor": ["@tanstack/react-query"],
+            "headlessui-vendor": ["@headlessui/react"],
+            "zod-vendor": ["zod"],
           },
         },
       },

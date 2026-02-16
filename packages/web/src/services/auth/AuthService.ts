@@ -35,10 +35,14 @@ export interface AuthService {
   onAuthStateChanged(callback: (user: User | null) => void): () => void;
 
   /**
-   * Get ID token for current user (for API authentication)
-   * Returns undefined if not authenticated
+   * Get ID token for current user (for API authentication).
+   * Returns undefined if not authenticated.
+   *
+   * @param forceRefresh - When true, bypasses the token cache and requests a
+   *   new token from the auth provider. Used by the 401 response interceptor
+   *   to recover from stale tokens.
    */
-  getIdToken(): Promise<string | undefined>;
+  getIdToken(forceRefresh?: boolean): Promise<string | undefined>;
 
   /**
    * Wait for auth initialization to complete
