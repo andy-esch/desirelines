@@ -180,7 +180,6 @@ export const clearSportConfigCache = (): void => {
   sportConfigPromise = null;
 };
 
-
 // MULTI-SPORT BATCH API FUNCTIONS
 // These use ?sports=X,Y,Z (plural) to fetch data for multiple sports in a single request,
 // reducing dashboard API calls from ~5N to ~5.
