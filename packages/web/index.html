@@ -18,6 +18,8 @@
     <title>Desire Lines</title>
     <script>
       // FOUC prevention — set theme class before first paint
+      // NOTE: Theme colors below must be kept in sync with `ThemeContext.tsx`
+      // and the `--color-bg-body` variable in `tailwind.css`.
       (function () {
         const t = localStorage.getItem("theme");
         const dark =

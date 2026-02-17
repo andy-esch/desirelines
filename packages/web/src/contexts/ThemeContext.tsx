@@ -28,6 +28,8 @@ function applyTheme(resolved: ResolvedTheme) {
   }
 
   // Update meta theme-color for browser chrome
+  // NOTE: These colors must be kept in sync with the FOUC script in `index.html`
+  // and the `--color-bg-body` variable in `tailwind.css`.
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (meta) {
     meta.content = resolved === "dark" ? "#0f1724" : "#f0f4f8";
