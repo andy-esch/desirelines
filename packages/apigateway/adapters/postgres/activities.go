@@ -191,8 +191,8 @@ func scanSportMetricsRows(rows interface {
 }
 
 // GetMultiSportMetricsByDateRange returns cumulative metrics for multiple sports in a date range.
-// Each sport gets its own dense date series via CROSS JOIN with distinct sports, ensuring
-// correct cumulative sums even for sports with sparse activity data.
+// Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter,
+// ensuring correct cumulative sums even for sports with no activity data in the range.
 func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	query := `
 		SELECT
@@ -214,11 +214,7 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 				SELECT generate_series($1::date, $2::date, '1 day'::interval)::date as date
 			) all_dates
 			CROSS JOIN (
-				SELECT DISTINCT sport
-				FROM desirelines.activities
-				WHERE start_date_local::date >= $1::date
-				  AND start_date_local::date <= $2::date
-				  AND sport = ANY($3)
+				SELECT unnest($3::text[]) AS sport
 			) sports
 			LEFT JOIN (
 				SELECT
@@ -248,7 +244,7 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 }
 
 // GetMultiSportMetrics returns cumulative metrics for multiple sports in a given year.
-// Each sport gets its own dense date series via CROSS JOIN with distinct sports.
+// Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter.
 func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	query := `
 		SELECT
@@ -274,10 +270,7 @@ func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, year int,
 				)::date as date
 			) all_dates
 			CROSS JOIN (
-				SELECT DISTINCT sport
-				FROM desirelines.activities
-				WHERE year = $1
-				  AND sport = ANY($2)
+				SELECT unnest($2::text[]) AS sport
 			) sports
 			LEFT JOIN (
 				SELECT
