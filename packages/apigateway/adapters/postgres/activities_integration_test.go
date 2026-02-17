@@ -13,6 +13,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 )
 
 // TestIntegration_ActivityRepository runs integration tests against a real PostgreSQL database.
@@ -488,30 +489,32 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("expected 2 sports in result, got %d", len(result))
 		}
 
-		// Ride has activities on Jan 15 and Jan 16
+		// Ride: dense series for the full year
 		rideMetrics := result["Ride"]
 		if rideMetrics == nil {
 			t.Fatal("expected Ride metrics in result")
 		}
-		if len(rideMetrics.Timeseries) != 2 {
-			t.Errorf("expected 2 Ride timeseries entries, got %d", len(rideMetrics.Timeseries))
+		if len(rideMetrics.Timeseries) != 366 {
+			t.Errorf("expected 366 Ride timeseries entries, got %d", len(rideMetrics.Timeseries))
 		}
 		// Ride cumulative: Jan 15 = 10000, Jan 16 = 25000
-		if rideMetrics.Timeseries[1].Distance == nil || *rideMetrics.Timeseries[1].Distance != 25000 {
-			t.Errorf("expected Ride cumulative distance 25000, got %v", rideMetrics.Timeseries[1].Distance)
+		rideJan16 := findMetricsEntry(t, rideMetrics.Timeseries, "2024-01-16")
+		if rideJan16.Distance == nil || *rideJan16.Distance != 25000 {
+			t.Errorf("expected Ride cumulative distance 25000 on Jan 16, got %v", rideJan16.Distance)
 		}
 
-		// Run has activity only on Jan 15, but dense series covers Jan 15-16
+		// Run: dense series for the full year
 		runMetrics := result["Run"]
 		if runMetrics == nil {
 			t.Fatal("expected Run metrics in result")
 		}
-		if len(runMetrics.Timeseries) != 2 {
-			t.Errorf("expected 2 Run timeseries entries (dense), got %d", len(runMetrics.Timeseries))
+		if len(runMetrics.Timeseries) != 366 {
+			t.Errorf("expected 366 Run timeseries entries, got %d", len(runMetrics.Timeseries))
 		}
-		// Run cumulative stays flat after Jan 15: both days = 5000
-		if runMetrics.Timeseries[1].Distance == nil || *runMetrics.Timeseries[1].Distance != 5000 {
-			t.Errorf("expected Run cumulative distance 5000 on Jan 16, got %v", runMetrics.Timeseries[1].Distance)
+		// Run cumulative stays flat after Jan 15: Jan 16 onward = 5000
+		runJan16 := findMetricsEntry(t, runMetrics.Timeseries, "2024-01-16")
+		if runJan16.Distance == nil || *runJan16.Distance != 5000 {
+			t.Errorf("expected Run cumulative distance 5000 on Jan 16, got %v", runJan16.Distance)
 		}
 	})
 
@@ -630,6 +633,18 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("expected 1 Run daily entry, got %v", runSummary)
 		}
 	})
+}
+
+// findMetricsEntry finds a timeseries entry by date, failing the test if not found.
+func findMetricsEntry(t *testing.T, entries []*generated.CumulativeMetricsEntry, date string) *generated.CumulativeMetricsEntry {
+	t.Helper()
+	for _, e := range entries {
+		if e.Date == date {
+			return e
+		}
+	}
+	t.Fatalf("no timeseries entry found for date %s", date)
+	return nil
 }
 
 // keysOf returns the keys of a map for diagnostic output.
