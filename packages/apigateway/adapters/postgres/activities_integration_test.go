@@ -444,6 +444,169 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Errorf("expected 4 activities with max limit, got %d", len(response.Activities))
 		}
 	})
+
+	// =========================================================================
+	// Multi-sport query tests
+	// =========================================================================
+
+	t.Run("GetMultiSportMetrics", func(t *testing.T) {
+		// Request Ride and Run together — should get separate timeseries per sport
+		result, err := repo.GetMultiSportMetrics(ctx, 2024, []string{"Ride", "Run"})
+		if err != nil {
+			t.Fatalf("GetMultiSportMetrics failed: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("expected 2 sports in result, got %d", len(result))
+		}
+
+		// Ride has activities on Jan 15 and Jan 16
+		rideMetrics := result["Ride"]
+		if rideMetrics == nil {
+			t.Fatal("expected Ride metrics in result")
+		}
+		if len(rideMetrics.Timeseries) != 2 {
+			t.Errorf("expected 2 Ride timeseries entries, got %d", len(rideMetrics.Timeseries))
+		}
+		// Ride cumulative: Jan 15 = 10000, Jan 16 = 25000
+		if rideMetrics.Timeseries[1].Distance == nil || *rideMetrics.Timeseries[1].Distance != 25000 {
+			t.Errorf("expected Ride cumulative distance 25000, got %v", rideMetrics.Timeseries[1].Distance)
+		}
+
+		// Run has activity only on Jan 15, but dense series covers Jan 15-16
+		runMetrics := result["Run"]
+		if runMetrics == nil {
+			t.Fatal("expected Run metrics in result")
+		}
+		if len(runMetrics.Timeseries) != 2 {
+			t.Errorf("expected 2 Run timeseries entries (dense), got %d", len(runMetrics.Timeseries))
+		}
+		// Run cumulative stays flat after Jan 15: both days = 5000
+		if runMetrics.Timeseries[1].Distance == nil || *runMetrics.Timeseries[1].Distance != 5000 {
+			t.Errorf("expected Run cumulative distance 5000 on Jan 16, got %v", runMetrics.Timeseries[1].Distance)
+		}
+	})
+
+	t.Run("GetMultiSportMetrics_IncludesSportWithNoActivities", func(t *testing.T) {
+		// "NonexistentSport" has no activities — unnest should still include it
+		// in the result with a full zero-filled timeseries
+		result, err := repo.GetMultiSportMetrics(ctx, 2024, []string{"Ride", "NonexistentSport"})
+		if err != nil {
+			t.Fatalf("GetMultiSportMetrics failed: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("expected 2 sports in result (including zero-activity sport), got %d: %v", len(result), keysOf(result))
+		}
+
+		noActivityMetrics := result["NonexistentSport"]
+		if noActivityMetrics == nil {
+			t.Fatal("expected NonexistentSport in result with zero-filled timeseries")
+		}
+
+		// Should have same number of dates as Ride
+		rideMetrics := result["Ride"]
+		if len(noActivityMetrics.Timeseries) != len(rideMetrics.Timeseries) {
+			t.Errorf("expected NonexistentSport to have %d entries (same as Ride), got %d",
+				len(rideMetrics.Timeseries), len(noActivityMetrics.Timeseries))
+		}
+
+		// All cumulative values should be zero
+		for i, entry := range noActivityMetrics.Timeseries {
+			if entry.Distance != nil && *entry.Distance != 0 {
+				t.Errorf("entry %d: expected distance 0, got %f", i, *entry.Distance)
+			}
+			if entry.Activities != nil && *entry.Activities != 0 {
+				t.Errorf("entry %d: expected activities 0, got %d", i, *entry.Activities)
+			}
+		}
+	})
+
+	t.Run("GetMultiSportMetricsByDateRange", func(t *testing.T) {
+		result, err := repo.GetMultiSportMetricsByDateRange(ctx, "2024-01-15", "2024-01-16", []string{"Ride", "Run"})
+		if err != nil {
+			t.Fatalf("GetMultiSportMetricsByDateRange failed: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("expected 2 sports, got %d", len(result))
+		}
+
+		// Same assertions as year-based — cumulative Ride = 25000 on Jan 16
+		rideMetrics := result["Ride"]
+		if rideMetrics == nil || len(rideMetrics.Timeseries) != 2 {
+			t.Fatalf("expected 2 Ride timeseries entries, got %v", rideMetrics)
+		}
+		if rideMetrics.Timeseries[1].Distance == nil || *rideMetrics.Timeseries[1].Distance != 25000 {
+			t.Errorf("expected Ride cumulative distance 25000, got %v", rideMetrics.Timeseries[1].Distance)
+		}
+	})
+
+	t.Run("GetMultiSportDailySummary", func(t *testing.T) {
+		result, err := repo.GetMultiSportDailySummary(ctx, 2024, []string{"Ride", "Run", "Yoga"})
+		if err != nil {
+			t.Fatalf("GetMultiSportDailySummary failed: %v", err)
+		}
+
+		if len(result) != 3 {
+			t.Fatalf("expected 3 sports in result, got %d", len(result))
+		}
+
+		// Ride: 2 days of data
+		rideSummary := result["Ride"]
+		if rideSummary == nil || len(rideSummary.Daily) != 2 {
+			t.Fatalf("expected 2 Ride daily entries, got %v", rideSummary)
+		}
+
+		// Run: 1 day of data
+		runSummary := result["Run"]
+		if runSummary == nil || len(runSummary.Daily) != 1 {
+			t.Fatalf("expected 1 Run daily entry, got %v", runSummary)
+		}
+		runJan15 := runSummary.Daily["2024-01-15"]
+		if runJan15 == nil || runJan15.Activities != 1 {
+			t.Errorf("expected 1 Run activity on Jan 15, got %v", runJan15)
+		}
+
+		// Yoga: 1 day of data
+		yogaSummary := result["Yoga"]
+		if yogaSummary == nil || len(yogaSummary.Daily) != 1 {
+			t.Fatalf("expected 1 Yoga daily entry, got %v", yogaSummary)
+		}
+		if yogaSummary.Daily["2024-01-15"].ActivityIds[0] != 1004 {
+			t.Errorf("expected Yoga activity ID 1004, got %v", yogaSummary.Daily["2024-01-15"].ActivityIds)
+		}
+	})
+
+	t.Run("GetMultiSportDailySummaryByDateRange", func(t *testing.T) {
+		result, err := repo.GetMultiSportDailySummaryByDateRange(ctx, "2024-01-15", "2024-01-16", []string{"Ride", "Run"})
+		if err != nil {
+			t.Fatalf("GetMultiSportDailySummaryByDateRange failed: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("expected 2 sports, got %d", len(result))
+		}
+
+		rideSummary := result["Ride"]
+		if rideSummary == nil || len(rideSummary.Daily) != 2 {
+			t.Fatalf("expected 2 Ride daily entries, got %v", rideSummary)
+		}
+
+		runSummary := result["Run"]
+		if runSummary == nil || len(runSummary.Daily) != 1 {
+			t.Fatalf("expected 1 Run daily entry, got %v", runSummary)
+		}
+	})
+}
+
+// keysOf returns the keys of a map for diagnostic output.
+func keysOf[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // cleanupTestData removes test data from the database
