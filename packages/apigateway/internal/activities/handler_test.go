@@ -41,6 +41,18 @@ func (m *mockRepo) GetDailySummary(ctx context.Context, year int, sportTypes []s
 func (m *mockRepo) GetDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.DailySummary, error) {
 	return nil, m.err
 }
+func (m *mockRepo) GetMultiSportMetrics(ctx context.Context, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+	return nil, m.err
+}
+func (m *mockRepo) GetMultiSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+	return nil, m.err
+}
+func (m *mockRepo) GetMultiSportDailySummary(ctx context.Context, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+	return nil, m.err
+}
+func (m *mockRepo) GetMultiSportDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
+	return nil, m.err
+}
 func (m *mockRepo) GetActivityByID(ctx context.Context, id int64) (*activitiesv1.Activity, error) {
 	return nil, m.err
 }

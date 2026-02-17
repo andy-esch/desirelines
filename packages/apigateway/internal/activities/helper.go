@@ -85,3 +85,65 @@ func (h *Handler) categorizeSports(metadata *generated.YearMetadata) {
 	}
 	metadata.Sports = deduped
 }
+
+// mergeMultiSportMetrics re-keys a map[stravaType]*SportMetrics into map[category]*SportMetrics.
+// Multiple Strava types that map to the same category (e.g., "Ride" + "VirtualRide" → "cycling")
+// have their timeseries entries merged by summing values at matching dates.
+func (h *Handler) mergeMultiSportMetrics(byStravaType map[string]*generated.SportMetrics) map[string]*generated.SportMetrics {
+	result := make(map[string]*generated.SportMetrics, len(byStravaType))
+	for stravaType, metrics := range byStravaType {
+		category := h.sportConfig.GetCategoryForStravaType(stravaType)
+		existing, ok := result[category]
+		if !ok {
+			result[category] = metrics
+			continue
+		}
+		// Merge: both have timeseries ordered by date, merge by index (same dense date range)
+		for i, entry := range metrics.Timeseries {
+			if i < len(existing.Timeseries) {
+				addFloat64Ptr(existing.Timeseries[i].Distance, entry.Distance)
+				addFloat64Ptr(existing.Timeseries[i].Elevation, entry.Elevation)
+				addFloat64Ptr(existing.Timeseries[i].Time, entry.Time)
+				if existing.Timeseries[i].Activities != nil && entry.Activities != nil {
+					sum := *existing.Timeseries[i].Activities + *entry.Activities
+					existing.Timeseries[i].Activities = &sum
+				}
+			}
+		}
+	}
+	return result
+}
+
+// mergeMultiSportDailySummary re-keys a map[stravaType]*DailySummary into map[category]*DailySummary.
+// Multiple Strava types that map to the same category have their daily entries merged.
+func (h *Handler) mergeMultiSportDailySummary(byStravaType map[string]*generated.DailySummary) map[string]*generated.DailySummary {
+	result := make(map[string]*generated.DailySummary, len(byStravaType))
+	for stravaType, summary := range byStravaType {
+		category := h.sportConfig.GetCategoryForStravaType(stravaType)
+		existing, ok := result[category]
+		if !ok {
+			result[category] = summary
+			continue
+		}
+		// Merge daily entries
+		for date, daily := range summary.Daily {
+			if existingDaily, has := existing.Daily[date]; has {
+				addFloat64Ptr(existingDaily.DistanceMeters, daily.DistanceMeters)
+				addFloat64Ptr(existingDaily.ElevationMeters, daily.ElevationMeters)
+				addFloat64Ptr(existingDaily.TimeMinutes, daily.TimeMinutes)
+				existingDaily.Activities += daily.Activities
+				existingDaily.ActivityIds = append(existingDaily.ActivityIds, daily.ActivityIds...)
+			} else {
+				existing.Daily[date] = daily
+			}
+		}
+	}
+	return result
+}
+
+// addFloat64Ptr adds source value into target pointer in place.
+func addFloat64Ptr(target, source *float64) {
+	if target != nil && source != nil {
+		*target += *source
+	}
+}

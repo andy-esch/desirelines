@@ -21,7 +21,7 @@ type SportFilterMode = "all" | "visible";
 
 /** Color scale for activity intensity (NEON purple/magenta theme) */
 const INTENSITY_COLORS = [
-  "var(--bs-gray-200)", // 0 activities - light gray
+  "var(--color-slate-light)", // 0 activities - muted gray
   "rgb(180, 130, 200)", // 1 activity - soft purple
   "rgb(200, 100, 220)", // 2-3 activities - medium purple
   "rgb(220, 60, 255)", // 4-5 activities - bright purple
@@ -370,7 +370,7 @@ export default function ActivityCalendarHeatmap({
               left: DAY_LABEL_WIDTH,
               display: "flex",
               fontSize: "9px",
-              color: "var(--bs-gray-600)",
+              color: "var(--color-slate-light)",
               whiteSpace: "nowrap",
             }}
           >
@@ -396,7 +396,7 @@ export default function ActivityCalendarHeatmap({
               display: "flex",
               flexDirection: "column",
               fontSize: "9px",
-              color: "var(--bs-gray-600)",
+              color: "var(--color-slate-light)",
               gap: CELL_GAP,
             }}
           >
@@ -470,7 +470,7 @@ export default function ActivityCalendarHeatmap({
         {/* Legend */}
         <div
           className="flex items-center justify-end gap-1 mt-2"
-          style={{ fontSize: "9px", color: "var(--bs-gray-600)" }}
+          style={{ fontSize: "9px", color: "var(--color-slate-light)" }}
         >
           <span>Less</span>
           {INTENSITY_COLORS.map((color, i) => (

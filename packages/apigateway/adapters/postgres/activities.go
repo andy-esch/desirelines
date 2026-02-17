@@ -8,7 +8,9 @@
 //
 // The package uses pgx/v5 for PostgreSQL connectivity and provides:
 //   - Cumulative metrics queries (GetSportMetrics, GetSportMetricsByDateRange)
+//   - Multi-sport cumulative metrics (GetMultiSportMetrics, GetMultiSportMetricsByDateRange)
 //   - Daily summary queries (GetDailySummary, GetDailySummaryByDateRange)
+//   - Multi-sport daily summaries (GetMultiSportDailySummary, GetMultiSportDailySummaryByDateRange)
 //   - Activity CRUD operations (GetActivityByID, ListActivities)
 //   - Year metadata aggregation (GetYearMetadata)
 //
@@ -186,6 +188,261 @@ func scanSportMetricsRows(rows interface {
 	}
 
 	return &generated.SportMetrics{Timeseries: timeseries}, nil
+}
+
+// GetMultiSportMetricsByDateRange returns cumulative metrics for multiple sports in a date range.
+// Each sport gets its own dense date series via CROSS JOIN with distinct sports, ensuring
+// correct cumulative sums even for sports with sparse activity data.
+func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+	query := `
+		SELECT
+			sport,
+			date,
+			SUM(distance) OVER (PARTITION BY sport ORDER BY date) as distance,
+			SUM(elevation) OVER (PARTITION BY sport ORDER BY date) as elevation,
+			SUM(time) OVER (PARTITION BY sport ORDER BY date) as time,
+			SUM(activities) OVER (PARTITION BY sport ORDER BY date)::int as activities
+		FROM (
+			SELECT
+				sports.sport,
+				all_dates.date,
+				COALESCE(daily.distance, 0) as distance,
+				COALESCE(daily.elevation, 0) as elevation,
+				COALESCE(daily.time, 0) as time,
+				COALESCE(daily.activities, 0) as activities
+			FROM (
+				SELECT generate_series($1::date, $2::date, '1 day'::interval)::date as date
+			) all_dates
+			CROSS JOIN (
+				SELECT DISTINCT sport
+				FROM desirelines.activities
+				WHERE start_date_local::date >= $1::date
+				  AND start_date_local::date <= $2::date
+				  AND sport = ANY($3)
+			) sports
+			LEFT JOIN (
+				SELECT
+					sport,
+					start_date_local::date as date,
+					SUM(distance) as distance,
+					SUM(total_elevation_gain) as elevation,
+					SUM(moving_time) / 60.0 as time,
+					COUNT(*) as activities
+				FROM desirelines.activities
+				WHERE start_date_local::date >= $1::date
+				  AND start_date_local::date <= $2::date
+				  AND sport = ANY($3)
+				GROUP BY sport, start_date_local::date
+			) daily ON all_dates.date = daily.date AND sports.sport = daily.sport
+		) dense_daily
+		ORDER BY sport, date ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, from, to, sportTypes)
+	if err != nil {
+		return nil, fmt.Errorf("query multi-sport metrics by date range: %w", err)
+	}
+	defer rows.Close()
+
+	return scanMultiSportMetricsRows(rows)
+}
+
+// GetMultiSportMetrics returns cumulative metrics for multiple sports in a given year.
+// Each sport gets its own dense date series via CROSS JOIN with distinct sports.
+func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+	query := `
+		SELECT
+			sport,
+			date,
+			SUM(distance) OVER (PARTITION BY sport ORDER BY date) as distance,
+			SUM(elevation) OVER (PARTITION BY sport ORDER BY date) as elevation,
+			SUM(time) OVER (PARTITION BY sport ORDER BY date) as time,
+			SUM(activities) OVER (PARTITION BY sport ORDER BY date)::int as activities
+		FROM (
+			SELECT
+				sports.sport,
+				all_dates.date,
+				COALESCE(daily.distance, 0) as distance,
+				COALESCE(daily.elevation, 0) as elevation,
+				COALESCE(daily.time, 0) as time,
+				COALESCE(daily.activities, 0) as activities
+			FROM (
+				SELECT generate_series(
+					make_date($1, 1, 1),
+					LEAST(CURRENT_DATE, make_date($1, 12, 31)),
+					'1 day'::interval
+				)::date as date
+			) all_dates
+			CROSS JOIN (
+				SELECT DISTINCT sport
+				FROM desirelines.activities
+				WHERE year = $1
+				  AND sport = ANY($2)
+			) sports
+			LEFT JOIN (
+				SELECT
+					sport,
+					start_date_local::date as date,
+					SUM(distance) as distance,
+					SUM(total_elevation_gain) as elevation,
+					SUM(moving_time) / 60.0 as time,
+					COUNT(*) as activities
+				FROM desirelines.activities
+				WHERE year = $1
+				  AND sport = ANY($2)
+				GROUP BY sport, start_date_local::date
+			) daily ON all_dates.date = daily.date AND sports.sport = daily.sport
+		) dense_daily
+		ORDER BY sport, date ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, year, sportTypes)
+	if err != nil {
+		return nil, fmt.Errorf("query multi-sport metrics: %w", err)
+	}
+	defer rows.Close()
+
+	return scanMultiSportMetricsRows(rows)
+}
+
+// scanMultiSportMetricsRows scans database rows into a map of sport → SportMetrics.
+// Shared by both GetMultiSportMetrics and GetMultiSportMetricsByDateRange.
+func scanMultiSportMetricsRows(rows interface {
+	Next() bool
+	Scan(dest ...interface{}) error
+	Err() error
+}) (map[string]*generated.SportMetrics, error) {
+	result := make(map[string]*generated.SportMetrics)
+	for rows.Next() {
+		var sport string
+		var date time.Time
+		var distance, elevation, timeMinutes float64
+		var activities int32
+
+		if scanErr := rows.Scan(&sport, &date, &distance, &elevation, &timeMinutes, &activities); scanErr != nil {
+			return nil, fmt.Errorf("scan multi-sport metrics row: %w", scanErr)
+		}
+
+		if _, ok := result[sport]; !ok {
+			result[sport] = &generated.SportMetrics{
+				Timeseries: make([]*generated.CumulativeMetricsEntry, 0),
+			}
+		}
+
+		entry := &generated.CumulativeMetricsEntry{
+			Date:       date.Format("2006-01-02"),
+			Distance:   &distance,
+			Elevation:  &elevation,
+			Time:       &timeMinutes,
+			Activities: &activities,
+		}
+		result[sport].Timeseries = append(result[sport].Timeseries, entry)
+	}
+
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate multi-sport metrics rows: %w", rowsErr)
+	}
+
+	return result, nil
+}
+
+// GetMultiSportDailySummary returns daily summaries for multiple sports in a given year.
+// Returns a map keyed by raw Strava sport type.
+func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+	query := `
+		SELECT
+			sport,
+			start_date_local::date as date,
+			SUM(distance) as distance,
+			SUM(total_elevation_gain) as elevation,
+			SUM(moving_time) / 60.0 as time,
+			COUNT(*) as activities,
+			array_agg(id) as activity_ids
+		FROM desirelines.activities
+		WHERE year = $1
+		  AND sport = ANY($2)
+		GROUP BY sport, start_date_local::date
+		ORDER BY sport, start_date_local::date ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, year, sportTypes)
+	if err != nil {
+		return nil, fmt.Errorf("query multi-sport daily summary: %w", err)
+	}
+	defer rows.Close()
+
+	return scanMultiSportDailySummaryRows(rows)
+}
+
+// GetMultiSportDailySummaryByDateRange returns daily summaries for multiple sports in a date range.
+// Returns a map keyed by raw Strava sport type.
+func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
+	query := `
+		SELECT
+			sport,
+			start_date_local::date as date,
+			SUM(distance) as distance,
+			SUM(total_elevation_gain) as elevation,
+			SUM(moving_time) / 60.0 as time,
+			COUNT(*) as activities,
+			array_agg(id) as activity_ids
+		FROM desirelines.activities
+		WHERE start_date_local::date >= $1::date
+		  AND start_date_local::date <= $2::date
+		  AND sport = ANY($3)
+		GROUP BY sport, start_date_local::date
+		ORDER BY sport, start_date_local::date ASC
+	`
+
+	rows, err := r.pool.Query(ctx, query, from, to, sportTypes)
+	if err != nil {
+		return nil, fmt.Errorf("query multi-sport daily summary by date range: %w", err)
+	}
+	defer rows.Close()
+
+	return scanMultiSportDailySummaryRows(rows)
+}
+
+// scanMultiSportDailySummaryRows scans database rows into a map of sport → DailySummary.
+// Shared by both GetMultiSportDailySummary and GetMultiSportDailySummaryByDateRange.
+func scanMultiSportDailySummaryRows(rows interface {
+	Next() bool
+	Scan(dest ...interface{}) error
+	Err() error
+}) (map[string]*generated.DailySummary, error) {
+	result := make(map[string]*generated.DailySummary)
+	for rows.Next() {
+		var sport string
+		var date time.Time
+		var distance, elevation, timeMinutes float64
+		var activities int32
+		var activityIDs []int64
+
+		if scanErr := rows.Scan(&sport, &date, &distance, &elevation, &timeMinutes, &activities, &activityIDs); scanErr != nil {
+			return nil, fmt.Errorf("scan multi-sport daily summary row: %w", scanErr)
+		}
+
+		if _, ok := result[sport]; !ok {
+			result[sport] = &generated.DailySummary{
+				Daily: make(map[string]*generated.DailyActivity),
+			}
+		}
+
+		dateStr := date.Format("2006-01-02")
+		result[sport].Daily[dateStr] = &generated.DailyActivity{
+			DistanceMeters:  &distance,
+			ElevationMeters: &elevation,
+			TimeMinutes:     &timeMinutes,
+			Activities:      activities,
+			ActivityIds:     activityIDs,
+		}
+	}
+
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate multi-sport daily summary rows: %w", rowsErr)
+	}
+
+	return result, nil
 }
 
 // GetSportMetrics returns cumulative metrics timeseries for a sport category in a given year.

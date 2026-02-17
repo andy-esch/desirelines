@@ -181,10 +181,7 @@ export default function SettingsPage() {
           </SettingRow>
 
           <SettingRow label="Connected Account" readOnly>
-            <span
-              className="flex items-center gap-1"
-              style={{ color: "var(--bs-success, #68d391)" }}
-            >
+            <span className="flex items-center gap-1" style={{ color: "#68d391" }}>
               <CheckIcon />
               Strava
             </span>

@@ -369,7 +369,7 @@ export function SportVisibilitySettings() {
             style={{ backgroundColor: "rgba(0, 128, 0, 0.03)" }}
           >
             <h6 className="mb-2 flex items-center gap-2">
-              <span style={{ color: "var(--bs-success, #198754)" }}>Visible</span>
+              <span style={{ color: "var(--color-success)" }}>Visible</span>
               <span className="badge bg-success">{localSelection.size}</span>
             </h6>
             <SportTable
