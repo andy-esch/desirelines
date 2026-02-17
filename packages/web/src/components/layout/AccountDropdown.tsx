@@ -167,8 +167,8 @@ export function AccountDropdown({
     right: 0,
     marginTop: "0.5rem",
     minWidth: "220px",
-    backgroundColor: "#2d3748",
-    border: "1px solid #4a5568",
+    backgroundColor: "var(--color-header-bg)",
+    border: "1px solid var(--color-header-border)",
     borderRadius: "0.5rem",
     boxShadow: "0 10px 25px rgba(0, 0, 0, 0.3)",
     zIndex: 1050,
@@ -177,7 +177,7 @@ export function AccountDropdown({
 
   const menuHeaderStyle: React.CSSProperties = {
     padding: "0.75rem 1rem",
-    borderBottom: "1px solid #4a5568",
+    borderBottom: "1px solid var(--color-header-border)",
   };
 
   const menuItemStyle: React.CSSProperties = {
@@ -187,7 +187,7 @@ export function AccountDropdown({
     width: "100%",
     padding: "0.625rem 1rem",
     border: "none",
-    color: "#e2e8f0",
+    color: "var(--color-header-text)",
     textAlign: "left",
     cursor: "pointer",
     textDecoration: "none",
@@ -283,14 +283,14 @@ export function AccountDropdown({
           {/* Theme Toggle */}
           <div
             style={{
-              borderTop: "1px solid #4a5568",
+              borderTop: "1px solid var(--color-header-border)",
               padding: "0.375rem 1rem",
             }}
           >
             <div
               style={{
                 fontSize: "0.7rem",
-                color: "#778899",
+                color: "var(--color-header-text-muted)",
                 marginBottom: "0.25rem",
                 fontWeight: 500,
               }}
@@ -318,10 +318,14 @@ export function AccountDropdown({
                     padding: "0.25rem 0.5rem",
                     fontSize: "0.75rem",
                     border: "1px solid",
-                    borderColor: theme === mode ? "#00d4ff" : "#4a5568",
+                    borderColor:
+                      theme === mode ? "var(--color-header-accent)" : "var(--color-header-border)",
                     borderRadius: "0.25rem",
                     background: theme === mode ? "rgba(0, 212, 255, 0.15)" : "transparent",
-                    color: theme === mode ? "#00d4ff" : "#778899",
+                    color:
+                      theme === mode
+                        ? "var(--color-header-accent)"
+                        : "var(--color-header-text-muted)",
                     cursor: "pointer",
                   }}
                 >
@@ -332,7 +336,7 @@ export function AccountDropdown({
             </div>
           </div>
 
-          <div style={{ borderTop: "1px solid #4a5568" }}>
+          <div style={{ borderTop: "1px solid var(--color-header-border)" }}>
             {user ? (
               <button
                 type="button"
@@ -352,7 +356,7 @@ export function AccountDropdown({
                 className="transition-colors hover:bg-white/[0.08]"
                 style={{
                   ...menuItemStyle,
-                  color: "#00d4ff",
+                  color: "var(--color-header-accent)",
                 }}
                 onClick={handleSignIn}
                 disabled={actionLoading}

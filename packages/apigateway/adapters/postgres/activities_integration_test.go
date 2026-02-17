@@ -70,21 +70,33 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
 
-		if len(metrics.Timeseries) != 2 {
-			t.Errorf("expected 2 timeseries entries, got %d", len(metrics.Timeseries))
+		// Dense series covers the full year (2024 = 366 days, leap year)
+		if len(metrics.Timeseries) != 366 {
+			t.Fatalf("expected 366 timeseries entries (full year), got %d", len(metrics.Timeseries))
 		}
 
-		// First entry should be Jan 15
-		if metrics.Timeseries[0].Date != "2024-01-15" {
-			t.Errorf("expected first date 2024-01-15, got %s", metrics.Timeseries[0].Date)
+		// First entry should be Jan 1
+		if metrics.Timeseries[0].Date != "2024-01-01" {
+			t.Errorf("expected first date 2024-01-01, got %s", metrics.Timeseries[0].Date)
 		}
 
 		// Values should be cumulative
-		// Jan 15: 10000m distance
-		// Jan 16: 10000 + 15000 = 25000m cumulative
-		// Protobuf optional fields are pointers, need to dereference
-		if metrics.Timeseries[1].Distance == nil || *metrics.Timeseries[1].Distance != 25000 {
-			t.Errorf("expected cumulative distance 25000, got %v", metrics.Timeseries[1].Distance)
+		// Jan 15 (index 14): 10000m distance
+		// Jan 16 (index 15): 10000 + 15000 = 25000m cumulative
+		jan15 := findMetricsEntry(t, metrics.Timeseries, "2024-01-15")
+		if jan15.Distance == nil || *jan15.Distance != 10000 {
+			t.Errorf("expected cumulative distance 10000 on Jan 15, got %v", jan15.Distance)
+		}
+
+		jan16 := findMetricsEntry(t, metrics.Timeseries, "2024-01-16")
+		if jan16.Distance == nil || *jan16.Distance != 25000 {
+			t.Errorf("expected cumulative distance 25000 on Jan 16, got %v", jan16.Distance)
+		}
+
+		// Cumulative value carries forward — last day of year should still be 25000
+		dec31 := metrics.Timeseries[len(metrics.Timeseries)-1]
+		if dec31.Distance == nil || *dec31.Distance != 25000 {
+			t.Errorf("expected cumulative distance 25000 on Dec 31, got %v", dec31.Distance)
 		}
 	})
 
@@ -94,8 +106,15 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
 
-		if len(metrics.Timeseries) != 0 {
-			t.Errorf("expected 0 timeseries entries for nonexistent sport, got %d", len(metrics.Timeseries))
+		// Dense series is still generated for the full year, but all values are zero
+		if len(metrics.Timeseries) != 366 {
+			t.Fatalf("expected 366 timeseries entries (full year), got %d", len(metrics.Timeseries))
+		}
+
+		// All cumulative values should be zero
+		last := metrics.Timeseries[len(metrics.Timeseries)-1]
+		if last.Distance != nil && *last.Distance != 0 {
+			t.Errorf("expected zero cumulative distance for nonexistent sport, got %v", last.Distance)
 		}
 	})
 
@@ -108,12 +127,15 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
 
-		if len(metrics.Timeseries) != 1 {
-			t.Errorf("expected 1 timeseries entry for Yoga, got %d", len(metrics.Timeseries))
+		// Dense series for the full year
+		if len(metrics.Timeseries) != 366 {
+			t.Fatalf("expected 366 timeseries entries, got %d", len(metrics.Timeseries))
 		}
 
-		if len(metrics.Timeseries) > 0 && metrics.Timeseries[0].Date != "2024-01-15" {
-			t.Errorf("expected Yoga entry on 2024-01-15, got %s", metrics.Timeseries[0].Date)
+		// Yoga activity is on Jan 15 — cumulative should be non-zero from that date
+		jan15 := findMetricsEntry(t, metrics.Timeseries, "2024-01-15")
+		if jan15.Activities == nil || *jan15.Activities != 1 {
+			t.Errorf("expected 1 cumulative Yoga activity on Jan 15, got %v", jan15.Activities)
 		}
 	})
 
@@ -125,8 +147,14 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
 
-		if len(metrics.Timeseries) != 0 {
-			t.Errorf("expected 0 timeseries entries for type 'Workout', got %d", len(metrics.Timeseries))
+		// Dense series still generated, but all values zero
+		if len(metrics.Timeseries) != 366 {
+			t.Fatalf("expected 366 timeseries entries, got %d", len(metrics.Timeseries))
+		}
+
+		last := metrics.Timeseries[len(metrics.Timeseries)-1]
+		if last.Activities != nil && *last.Activities != 0 {
+			t.Errorf("expected 0 cumulative activities for type 'Workout', got %v", last.Activities)
 		}
 	})
 

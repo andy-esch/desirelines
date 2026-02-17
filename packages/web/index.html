@@ -19,12 +19,12 @@
     <script>
       // FOUC prevention — set theme class before first paint
       (function () {
-        var t = localStorage.getItem("theme");
-        var dark =
+        const t = localStorage.getItem("theme");
+        const dark =
           t === "dark" ||
           (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
         if (dark) document.documentElement.classList.add("dark");
-        var m = document.querySelector('meta[name="theme-color"]');
+        const m = document.querySelector('meta[name="theme-color"]');
         if (m) m.content = dark ? "#0f1724" : "#f0f4f8";
       })();
     </script>
