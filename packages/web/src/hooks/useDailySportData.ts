@@ -110,7 +110,7 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
   const sortedSports = useMemo(() => [...sports].sort(), [sports]);
 
   const query = useQuery({
-    queryKey: ["dailySummary", year, sortedSports, from, to],
+    queryKey: ["dailySummary", user?.uid, year, sortedSports, from, to],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       fetchMultiSportDailySummary({
         year,

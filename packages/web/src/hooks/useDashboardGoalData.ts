@@ -93,7 +93,7 @@ export function useDashboardGoalData(): {
   const sortedSports = useMemo(() => [...validSports].sort(), [validSports]);
 
   const metricsQuery = useQuery({
-    queryKey: ["sportMetrics", currentYear, sortedSports],
+    queryKey: ["sportMetrics", user?.uid, currentYear, sortedSports],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       fetchMultiSportMetrics({ year: currentYear, sports: sortedSports, signal }),
     enabled: !authLoading && !!user && validSports.length > 0,

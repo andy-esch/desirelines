@@ -115,7 +115,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	// Map raw Strava sport types to category names (e.g., "Ride" → "cycling")
 	h.categorizeSports(metadata)
 
-	// Cache past years (immutable) for 1 hour
+	// Cache past years (immutable) for 1 hour; private prevents CDN/proxy caching
 	if yearInt < time.Now().Year() {
 		w.Header().Set("Cache-Control", "private, max-age=3600")
 	}
@@ -318,7 +318,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setCacheHeader(w, params)
+	setCachePastData(w, params.year, params.to, params.useDateRange)
 	h.respondProtobuf(w, r, result)
 }
 
@@ -366,7 +366,7 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	setCacheHeader(w, params)
+	setCachePastData(w, params.year, params.to, params.useDateRange)
 	h.respondProtobuf(w, r, result)
 }
 
@@ -402,7 +402,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setCacheHeader(w, params)
+	setCachePastData(w, params.year, params.to, params.useDateRange)
 	h.respondProtobuf(w, r, result)
 }
 
@@ -450,49 +450,20 @@ func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	setCacheHeader(w, params)
+	setCachePastData(w, params.year, params.to, params.useDateRange)
 	h.respondProtobuf(w, r, result)
 }
 
-// cacheHintParams is implemented by query param types that carry year/date-range info
-// needed for cache header decisions.
-type cacheHintParams interface {
-	getYear() int
-	getToDate() string
-	isDateRange() bool
-}
-
-func (p *sportQueryParams) getYear() int { return p.year }
-
-func (p *sportQueryParams) getToDate() string { return p.to }
-
-func (p *sportQueryParams) isDateRange() bool { return p.useDateRange }
-
-func (p *multiSportQueryParams) getYear() int { return p.year }
-
-func (p *multiSportQueryParams) getToDate() string { return p.to }
-
-func (p *multiSportQueryParams) isDateRange() bool { return p.useDateRange }
-
-// setCacheHeader sets a private Cache-Control header if the request is for immutable past data.
-func setCacheHeader(w http.ResponseWriter, params cacheHintParams) {
+// setCachePastData sets a private Cache-Control header if the data is from an immutable past year.
+func setCachePastData(w http.ResponseWriter, year int, to string, useDateRange bool) {
 	currentYear := time.Now().Year()
 	isPast := false
 
-	if !params.isDateRange() {
-		if params.getYear() < currentYear {
-			isPast = true
-		}
-	} else {
-		// Check if 'to' date is in a past year.
-		// This is safe because date format has been validated.
-		toStr := params.getToDate()
-		if len(toStr) >= 4 {
-			if toYear, parseErr := strconv.Atoi(toStr[:4]); parseErr == nil {
-				if toYear < currentYear {
-					isPast = true
-				}
-			}
+	if !useDateRange {
+		isPast = year < currentYear
+	} else if len(to) >= 4 {
+		if toYear, err := strconv.Atoi(to[:4]); err == nil {
+			isPast = toYear < currentYear
 		}
 	}
 

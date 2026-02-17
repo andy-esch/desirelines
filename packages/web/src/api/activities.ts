@@ -43,7 +43,6 @@ import type {
   AllSportsDailySummary as AllSportsDailySummaryProto,
   YearMetadata,
   DailyActivity,
-  DailySummary as DailySummaryResponse,
 } from "../types/generated/sports_metrics";
 
 // Re-export generated types for consumers
@@ -181,36 +180,6 @@ export const clearSportConfigCache = (): void => {
   sportConfigPromise = null;
 };
 
-/** Options for fetchDailySummary */
-export interface FetchDailySummaryOptions {
-  year: number;
-  sport: string;
-  signal?: AbortSignal;
-  /** Start date (YYYY-MM-DD) for date-range queries */
-  from?: string;
-  /** End date (YYYY-MM-DD) for date-range queries */
-  to?: string;
-}
-
-export const fetchDailySummary = async (
-  options: FetchDailySummaryOptions
-): Promise<Record<string, DailyActivity>> => {
-  const params = new URLSearchParams({ sport: options.sport });
-  if (options.from && options.to) {
-    params.set("from", options.from);
-    params.set("to", options.to);
-  }
-  const url = `/activities/${options.year}/source?${params.toString()}`;
-
-  try {
-    const { data } = await client.get<DailySummaryResponse>(url, {
-      signal: options.signal,
-    });
-    return data.daily ?? {};
-  } catch (err: unknown) {
-    throwApiError(err, "fetchDailySummary");
-  }
-};
 
 // MULTI-SPORT BATCH API FUNCTIONS
 // These use ?sports=X,Y,Z (plural) to fetch data for multiple sports in a single request,
