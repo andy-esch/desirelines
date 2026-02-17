@@ -26,7 +26,7 @@ export function SettingRow({ label, description, children, readOnly }: SettingRo
   return (
     <div
       className="flex justify-between items-start py-6"
-      style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}
+      style={{ borderBottom: "1px solid var(--color-surface-border)" }}
     >
       <div className="me-6" style={{ flex: 1 }}>
         <LabelTag htmlFor={readOnly ? undefined : inputId} className="font-medium block">

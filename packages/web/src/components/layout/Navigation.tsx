@@ -98,8 +98,8 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           <MenuItems
             className="absolute left-0 mt-1 rounded-lg py-1 shadow-lg"
             style={{
-              backgroundColor: "var(--color-slate-dark, #2d3748)",
-              border: "1px solid var(--color-slate-DEFAULT, #4a5568)",
+              backgroundColor: "var(--color-header-bg)",
+              border: "1px solid var(--color-header-border)",
               minWidth: "160px",
               zIndex: 50,
             }}
@@ -112,10 +112,10 @@ export default function Navigation({ className = "", vertical = false }: Navigat
                     className={({ isActive }) =>
                       `block px-4 py-2 text-sm no-underline ${
                         isActive
-                          ? "bg-accent-cyan text-accent-cyan-text"
+                          ? "bg-white/15 text-white"
                           : focus
                             ? "bg-white/10 text-white"
-                            : "text-slate-lighter"
+                            : "text-header-text"
                       }`
                     }
                   >

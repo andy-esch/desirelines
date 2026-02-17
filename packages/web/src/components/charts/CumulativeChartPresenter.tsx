@@ -168,19 +168,21 @@ function AchievementLegend({ achievements }: { achievements: GoalAchievement[] }
         position: "absolute",
         bottom: 50,
         right: 10,
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        backgroundColor: "var(--color-surface-overlay)",
         borderRadius: 4,
         padding: "6px 10px",
         fontSize: 11,
       }}
     >
-      <div style={{ color: "#888", fontSize: 10, marginBottom: 4 }}>Goals Achieved</div>
+      <div style={{ color: "var(--color-chart-tooltip-label)", fontSize: 10, marginBottom: 4 }}>
+        Goals Achieved
+      </div>
       {achievements.map((achievement, index) => (
         <div key={index} style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ color: achievement.goalColor }}>★</span>
-          <span style={{ color: "#ccc" }}>
+          <span style={{ color: "var(--color-chart-tooltip-muted)" }}>
             {achievement.goalLabel}{" "}
-            <span style={{ color: "#888" }}>
+            <span style={{ color: "var(--color-chart-tooltip-label)" }}>
               {achievement.date.toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",

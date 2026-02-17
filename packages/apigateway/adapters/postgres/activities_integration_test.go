@@ -13,6 +13,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 )
 
 // TestIntegration_ActivityRepository runs integration tests against a real PostgreSQL database.
@@ -70,21 +71,33 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
 
-		if len(metrics.Timeseries) != 2 {
-			t.Errorf("expected 2 timeseries entries, got %d", len(metrics.Timeseries))
+		// Dense series covers the full year (2024 = 366 days, leap year)
+		if len(metrics.Timeseries) != 366 {
+			t.Fatalf("expected 366 timeseries entries (full year), got %d", len(metrics.Timeseries))
 		}
 
-		// First entry should be Jan 15
-		if metrics.Timeseries[0].Date != "2024-01-15" {
-			t.Errorf("expected first date 2024-01-15, got %s", metrics.Timeseries[0].Date)
+		// First entry should be Jan 1
+		if metrics.Timeseries[0].Date != "2024-01-01" {
+			t.Errorf("expected first date 2024-01-01, got %s", metrics.Timeseries[0].Date)
 		}
 
 		// Values should be cumulative
-		// Jan 15: 10000m distance
-		// Jan 16: 10000 + 15000 = 25000m cumulative
-		// Protobuf optional fields are pointers, need to dereference
-		if metrics.Timeseries[1].Distance == nil || *metrics.Timeseries[1].Distance != 25000 {
-			t.Errorf("expected cumulative distance 25000, got %v", metrics.Timeseries[1].Distance)
+		// Jan 15 (index 14): 10000m distance
+		// Jan 16 (index 15): 10000 + 15000 = 25000m cumulative
+		jan15 := findMetricsEntry(t, metrics.Timeseries, "2024-01-15")
+		if jan15.Distance == nil || *jan15.Distance != 10000 {
+			t.Errorf("expected cumulative distance 10000 on Jan 15, got %v", jan15.Distance)
+		}
+
+		jan16 := findMetricsEntry(t, metrics.Timeseries, "2024-01-16")
+		if jan16.Distance == nil || *jan16.Distance != 25000 {
+			t.Errorf("expected cumulative distance 25000 on Jan 16, got %v", jan16.Distance)
+		}
+
+		// Cumulative value carries forward — last day of year should still be 25000
+		dec31 := metrics.Timeseries[len(metrics.Timeseries)-1]
+		if dec31.Distance == nil || *dec31.Distance != 25000 {
+			t.Errorf("expected cumulative distance 25000 on Dec 31, got %v", dec31.Distance)
 		}
 	})
 
@@ -94,8 +107,15 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
 
-		if len(metrics.Timeseries) != 0 {
-			t.Errorf("expected 0 timeseries entries for nonexistent sport, got %d", len(metrics.Timeseries))
+		// Dense series is still generated for the full year, but all values are zero
+		if len(metrics.Timeseries) != 366 {
+			t.Fatalf("expected 366 timeseries entries (full year), got %d", len(metrics.Timeseries))
+		}
+
+		// All cumulative values should be zero
+		last := metrics.Timeseries[len(metrics.Timeseries)-1]
+		if last.Distance != nil && *last.Distance != 0 {
+			t.Errorf("expected zero cumulative distance for nonexistent sport, got %v", last.Distance)
 		}
 	})
 
@@ -108,12 +128,15 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
 
-		if len(metrics.Timeseries) != 1 {
-			t.Errorf("expected 1 timeseries entry for Yoga, got %d", len(metrics.Timeseries))
+		// Dense series for the full year
+		if len(metrics.Timeseries) != 366 {
+			t.Fatalf("expected 366 timeseries entries, got %d", len(metrics.Timeseries))
 		}
 
-		if len(metrics.Timeseries) > 0 && metrics.Timeseries[0].Date != "2024-01-15" {
-			t.Errorf("expected Yoga entry on 2024-01-15, got %s", metrics.Timeseries[0].Date)
+		// Yoga activity is on Jan 15 — cumulative should be non-zero from that date
+		jan15 := findMetricsEntry(t, metrics.Timeseries, "2024-01-15")
+		if jan15.Activities == nil || *jan15.Activities != 1 {
+			t.Errorf("expected 1 cumulative Yoga activity on Jan 15, got %v", jan15.Activities)
 		}
 	})
 
@@ -125,8 +148,14 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Fatalf("GetSportMetrics failed: %v", err)
 		}
 
-		if len(metrics.Timeseries) != 0 {
-			t.Errorf("expected 0 timeseries entries for type 'Workout', got %d", len(metrics.Timeseries))
+		// Dense series still generated, but all values zero
+		if len(metrics.Timeseries) != 366 {
+			t.Fatalf("expected 366 timeseries entries, got %d", len(metrics.Timeseries))
+		}
+
+		last := metrics.Timeseries[len(metrics.Timeseries)-1]
+		if last.Activities != nil && *last.Activities != 0 {
+			t.Errorf("expected 0 cumulative activities for type 'Workout', got %v", last.Activities)
 		}
 	})
 
@@ -444,6 +473,187 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			t.Errorf("expected 4 activities with max limit, got %d", len(response.Activities))
 		}
 	})
+
+	// =========================================================================
+	// Multi-sport query tests
+	// =========================================================================
+
+	t.Run("GetMultiSportMetrics", func(t *testing.T) {
+		// Request Ride and Run together — should get separate timeseries per sport
+		result, err := repo.GetMultiSportMetrics(ctx, 2024, []string{"Ride", "Run"})
+		if err != nil {
+			t.Fatalf("GetMultiSportMetrics failed: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("expected 2 sports in result, got %d", len(result))
+		}
+
+		// Ride: dense series for the full year
+		rideMetrics := result["Ride"]
+		if rideMetrics == nil {
+			t.Fatal("expected Ride metrics in result")
+		}
+		if len(rideMetrics.Timeseries) != 366 {
+			t.Errorf("expected 366 Ride timeseries entries, got %d", len(rideMetrics.Timeseries))
+		}
+		// Ride cumulative: Jan 15 = 10000, Jan 16 = 25000
+		rideJan16 := findMetricsEntry(t, rideMetrics.Timeseries, "2024-01-16")
+		if rideJan16.Distance == nil || *rideJan16.Distance != 25000 {
+			t.Errorf("expected Ride cumulative distance 25000 on Jan 16, got %v", rideJan16.Distance)
+		}
+
+		// Run: dense series for the full year
+		runMetrics := result["Run"]
+		if runMetrics == nil {
+			t.Fatal("expected Run metrics in result")
+		}
+		if len(runMetrics.Timeseries) != 366 {
+			t.Errorf("expected 366 Run timeseries entries, got %d", len(runMetrics.Timeseries))
+		}
+		// Run cumulative stays flat after Jan 15: Jan 16 onward = 5000
+		runJan16 := findMetricsEntry(t, runMetrics.Timeseries, "2024-01-16")
+		if runJan16.Distance == nil || *runJan16.Distance != 5000 {
+			t.Errorf("expected Run cumulative distance 5000 on Jan 16, got %v", runJan16.Distance)
+		}
+	})
+
+	t.Run("GetMultiSportMetrics_IncludesSportWithNoActivities", func(t *testing.T) {
+		// "NonexistentSport" has no activities — unnest should still include it
+		// in the result with a full zero-filled timeseries
+		result, err := repo.GetMultiSportMetrics(ctx, 2024, []string{"Ride", "NonexistentSport"})
+		if err != nil {
+			t.Fatalf("GetMultiSportMetrics failed: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("expected 2 sports in result (including zero-activity sport), got %d: %v", len(result), keysOf(result))
+		}
+
+		noActivityMetrics := result["NonexistentSport"]
+		if noActivityMetrics == nil {
+			t.Fatal("expected NonexistentSport in result with zero-filled timeseries")
+		}
+
+		// Should have same number of dates as Ride
+		rideMetrics := result["Ride"]
+		if len(noActivityMetrics.Timeseries) != len(rideMetrics.Timeseries) {
+			t.Errorf("expected NonexistentSport to have %d entries (same as Ride), got %d",
+				len(rideMetrics.Timeseries), len(noActivityMetrics.Timeseries))
+		}
+
+		// All cumulative values should be zero
+		for i, entry := range noActivityMetrics.Timeseries {
+			if entry.Distance != nil && *entry.Distance != 0 {
+				t.Errorf("entry %d: expected distance 0, got %f", i, *entry.Distance)
+			}
+			if entry.Activities != nil && *entry.Activities != 0 {
+				t.Errorf("entry %d: expected activities 0, got %d", i, *entry.Activities)
+			}
+		}
+	})
+
+	t.Run("GetMultiSportMetricsByDateRange", func(t *testing.T) {
+		result, err := repo.GetMultiSportMetricsByDateRange(ctx, "2024-01-15", "2024-01-16", []string{"Ride", "Run"})
+		if err != nil {
+			t.Fatalf("GetMultiSportMetricsByDateRange failed: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("expected 2 sports, got %d", len(result))
+		}
+
+		// Same assertions as year-based — cumulative Ride = 25000 on Jan 16
+		rideMetrics := result["Ride"]
+		if rideMetrics == nil || len(rideMetrics.Timeseries) != 2 {
+			t.Fatalf("expected 2 Ride timeseries entries, got %v", rideMetrics)
+		}
+		if rideMetrics.Timeseries[1].Distance == nil || *rideMetrics.Timeseries[1].Distance != 25000 {
+			t.Errorf("expected Ride cumulative distance 25000, got %v", rideMetrics.Timeseries[1].Distance)
+		}
+	})
+
+	t.Run("GetMultiSportDailySummary", func(t *testing.T) {
+		result, err := repo.GetMultiSportDailySummary(ctx, 2024, []string{"Ride", "Run", "Yoga"})
+		if err != nil {
+			t.Fatalf("GetMultiSportDailySummary failed: %v", err)
+		}
+
+		if len(result) != 3 {
+			t.Fatalf("expected 3 sports in result, got %d", len(result))
+		}
+
+		// Ride: 2 days of data
+		rideSummary := result["Ride"]
+		if rideSummary == nil || len(rideSummary.Daily) != 2 {
+			t.Fatalf("expected 2 Ride daily entries, got %v", rideSummary)
+		}
+
+		// Run: 1 day of data
+		runSummary := result["Run"]
+		if runSummary == nil || len(runSummary.Daily) != 1 {
+			t.Fatalf("expected 1 Run daily entry, got %v", runSummary)
+		}
+		runJan15 := runSummary.Daily["2024-01-15"]
+		if runJan15 == nil || runJan15.Activities != 1 {
+			t.Errorf("expected 1 Run activity on Jan 15, got %v", runJan15)
+		}
+
+		// Yoga: 1 day of data
+		yogaSummary := result["Yoga"]
+		if yogaSummary == nil || len(yogaSummary.Daily) != 1 {
+			t.Fatalf("expected 1 Yoga daily entry, got %v", yogaSummary)
+		}
+		yogaJan15, ok := yogaSummary.Daily["2024-01-15"]
+		if !ok {
+			t.Fatal("expected Yoga entry for 2024-01-15")
+		}
+		if len(yogaJan15.ActivityIds) == 0 || yogaJan15.ActivityIds[0] != 1004 {
+			t.Errorf("expected Yoga activity ID 1004, got %v", yogaJan15.ActivityIds)
+		}
+	})
+
+	t.Run("GetMultiSportDailySummaryByDateRange", func(t *testing.T) {
+		result, err := repo.GetMultiSportDailySummaryByDateRange(ctx, "2024-01-15", "2024-01-16", []string{"Ride", "Run"})
+		if err != nil {
+			t.Fatalf("GetMultiSportDailySummaryByDateRange failed: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("expected 2 sports, got %d", len(result))
+		}
+
+		rideSummary := result["Ride"]
+		if rideSummary == nil || len(rideSummary.Daily) != 2 {
+			t.Fatalf("expected 2 Ride daily entries, got %v", rideSummary)
+		}
+
+		runSummary := result["Run"]
+		if runSummary == nil || len(runSummary.Daily) != 1 {
+			t.Fatalf("expected 1 Run daily entry, got %v", runSummary)
+		}
+	})
+}
+
+// findMetricsEntry finds a timeseries entry by date, failing the test if not found.
+func findMetricsEntry(t *testing.T, entries []*generated.CumulativeMetricsEntry, date string) *generated.CumulativeMetricsEntry {
+	t.Helper()
+	for _, e := range entries {
+		if e.Date == date {
+			return e
+		}
+	}
+	t.Fatalf("no timeseries entry found for date %s", date)
+	return nil
+}
+
+// keysOf returns the keys of a map for diagnostic output.
+func keysOf[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // cleanupTestData removes test data from the database

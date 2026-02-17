@@ -18,6 +18,7 @@ import { PageErrorFallback } from "./components/PageErrorFallback";
 import { ServiceProvider } from "./contexts/ServiceContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UIStateProvider } from "./contexts/UIStateContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import { useCurrentYear } from "./hooks/useCurrentYear";
 import { getDemoSports } from "./utils/demoDataGenerator";
 import { useScrolled } from "./hooks/useScrolled";
@@ -168,13 +169,15 @@ const router = createBrowserRouter([
 
 function App() {
   return (
-    <ServiceProvider>
-      <AuthProvider>
-        <UIStateProvider>
-          <RouterProvider router={router} />
-        </UIStateProvider>
-      </AuthProvider>
-    </ServiceProvider>
+    <ThemeProvider>
+      <ServiceProvider>
+        <AuthProvider>
+          <UIStateProvider>
+            <RouterProvider router={router} />
+          </UIStateProvider>
+        </AuthProvider>
+      </ServiceProvider>
+    </ThemeProvider>
   );
 }
 

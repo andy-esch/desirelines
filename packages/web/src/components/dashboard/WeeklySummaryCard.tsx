@@ -52,7 +52,7 @@ export default function WeeklySummaryCard() {
             <div
               key={i}
               className="flex items-center justify-between py-1"
-              style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}
+              style={{ borderBottom: "1px solid var(--color-surface-border)" }}
             >
               <div className="flex items-center gap-2">
                 <Skeleton circle height={8} width={8} dualTheme={0} />
@@ -75,7 +75,7 @@ export default function WeeklySummaryCard() {
             <div
               key={sport.sport}
               className="flex items-center justify-between py-1"
-              style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}
+              style={{ borderBottom: "1px solid var(--color-surface-border)" }}
             >
               <div className="flex items-center">
                 <span

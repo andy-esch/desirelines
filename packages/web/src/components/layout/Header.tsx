@@ -52,7 +52,7 @@ export default function Header({ scrolled = false }: HeaderProps) {
     <header
       className={`sticky top-0 flex items-center flex-nowrap px-2 py-2 transition-shadow duration-200 ${scrolled ? "shadow-lg" : ""}`}
       style={{
-        backgroundColor: "var(--color-slate-dark, #2d3748)",
+        backgroundColor: "var(--color-header-bg)",
         zIndex: 40,
       }}
     >
@@ -118,7 +118,7 @@ export default function Header({ scrolled = false }: HeaderProps) {
             <DialogPanel
               className="fixed inset-y-0 left-0 flex flex-col overflow-y-auto"
               style={{
-                backgroundColor: "var(--color-slate-dark, #2d3748)",
+                backgroundColor: "var(--color-header-bg)",
                 maxWidth: "280px",
                 width: "80vw",
               }}

@@ -16,6 +16,20 @@
       rel="stylesheet"
     />
     <title>Desire Lines</title>
+    <script>
+      // FOUC prevention — set theme class before first paint
+      // NOTE: Theme colors below must be kept in sync with `ThemeContext.tsx`
+      // and the `--color-bg-body` variable in `tailwind.css`.
+      (function () {
+        const t = localStorage.getItem("theme");
+        const dark =
+          t === "dark" ||
+          (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) document.documentElement.classList.add("dark");
+        const m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.content = dark ? "#0f1724" : "#f0f4f8";
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -366,7 +366,7 @@ export function SportVisibilitySettings() {
           {/* Visible Sports Box */}
           <div
             className="border rounded p-6 mb-6"
-            style={{ backgroundColor: "rgba(0, 128, 0, 0.03)" }}
+            style={{ backgroundColor: "color-mix(in srgb, var(--color-success) 5%, transparent)" }}
           >
             <h6 className="mb-2 flex items-center gap-2">
               <span style={{ color: "var(--color-success)" }}>Visible</span>
@@ -382,7 +382,10 @@ export function SportVisibilitySettings() {
           </div>
 
           {/* Hidden Sports Box */}
-          <div className="border rounded p-6" style={{ backgroundColor: "rgba(0, 0, 0, 0.02)" }}>
+          <div
+            className="border rounded p-6"
+            style={{ backgroundColor: "var(--color-surface-hover)" }}
+          >
             <h6 className="mb-2 flex items-center gap-2">
               <span className="text-slate-light">Hidden</span>
               <span className="badge bg-secondary">

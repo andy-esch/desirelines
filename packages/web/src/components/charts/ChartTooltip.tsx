@@ -87,19 +87,27 @@ export const ChartTooltip = ({
     return (
       <div
         style={{
-          backgroundColor: "rgba(45, 55, 72, 0.95)",
-          border: "1px solid rgba(0, 212, 255, 0.4)",
+          backgroundColor: "var(--color-chart-tooltip-bg)",
+          border: "1px solid var(--color-chart-tooltip-border)",
           borderRadius: "0.625rem",
           padding: "8px 12px",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.4)",
+          boxShadow: "0 2px 8px var(--color-surface-shadow)",
           fontSize: "12px",
           fontFamily: '"Space Grotesk", sans-serif',
           minWidth: "140px",
         }}
       >
-        <div style={{ color: "#a0aec0", marginBottom: "4px" }}>{formattedDate}</div>
+        <div style={{ color: "var(--color-chart-tooltip-muted)", marginBottom: "4px" }}>
+          {formattedDate}
+        </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-          <span style={{ color: "#fff", fontWeight: "600", fontSize: "14px" }}>
+          <span
+            style={{
+              color: "var(--color-chart-tooltip-text)",
+              fontWeight: "600",
+              fontSize: "14px",
+            }}
+          >
             {actualValue.toFixed(decimals)} {unit}
           </span>
           <span
@@ -120,11 +128,11 @@ export const ChartTooltip = ({
   return (
     <div
       style={{
-        backgroundColor: "rgba(45, 55, 72, 0.95)",
-        border: "1px solid rgba(0, 212, 255, 0.4)",
+        backgroundColor: "var(--color-chart-tooltip-bg)",
+        border: "1px solid var(--color-chart-tooltip-border)",
         borderRadius: "0.625rem",
         padding: "10px 12px",
-        boxShadow: "0 2px 12px rgba(0, 0, 0, 0.5)",
+        boxShadow: "0 2px 12px var(--color-surface-shadow)",
         fontFamily: '"Space Grotesk", sans-serif',
       }}
     >
@@ -133,10 +141,10 @@ export const ChartTooltip = ({
         style={{
           fontSize: "12px",
           fontWeight: "bold",
-          color: "#fff",
+          color: "var(--color-chart-tooltip-text)",
           marginBottom: "8px",
           paddingBottom: "6px",
-          borderBottom: "1px solid rgba(0, 212, 255, 0.2)",
+          borderBottom: "1px solid var(--color-chart-tooltip-divider)",
         }}
       >
         {formattedDate}
@@ -180,8 +188,14 @@ export const ChartTooltip = ({
                     flexShrink: 0,
                   }}
                 />
-                <span style={{ color: "#aaa" }}>{shortName}</span>
-                <span style={{ color: "#fff", fontWeight: "500", marginLeft: "auto" }}>
+                <span style={{ color: "var(--color-chart-tooltip-label)" }}>{shortName}</span>
+                <span
+                  style={{
+                    color: "var(--color-chart-tooltip-text)",
+                    fontWeight: "500",
+                    marginLeft: "auto",
+                  }}
+                >
                   {value}
                 </span>
               </div>

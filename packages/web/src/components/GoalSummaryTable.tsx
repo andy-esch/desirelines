@@ -160,7 +160,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                             fontSize: "0.75rem",
                             fontWeight: 500,
                             color: "#fff",
-                            textShadow: "0 0 3px rgba(0,0,0,0.7)",
+                            textShadow: "0 0 3px rgba(0, 0, 0, 0.7)",
                           }}
                         >
                           {isLoading ? "--" : `${progress.toFixed(0)}%`}
