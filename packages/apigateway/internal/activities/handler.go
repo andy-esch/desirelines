@@ -39,7 +39,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
@@ -48,7 +47,6 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/go-chi/chi/v5"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -182,6 +180,7 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 type multiSportQueryParams struct {
 	year            int
 	sportCategories map[string][]string // category → Strava types (e.g. "cycling" → ["Ride", "VirtualRide"])
+	allSportTypes   []string            // flattened union of all Strava types across categories
 	from            string
 	to              string
 	useDateRange    bool
@@ -257,9 +256,16 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 		return nil
 	}
 
+	// Flatten all Strava types into a single slice for the single-query approach
+	allTypes := make([]string, 0)
+	for _, types := range sportCategories {
+		allTypes = append(allTypes, types...)
+	}
+
 	return &multiSportQueryParams{
 		year:            yearInt,
 		sportCategories: sportCategories,
+		allSportTypes:   allTypes,
 		from:            fromStr,
 		to:              toStr,
 		useDateRange:    fromStr != "" && toStr != "",
@@ -323,7 +329,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleMultiSportMetrics handles GET /activities/{year}/metrics?sports=X,Y,Z.
-// Queries metrics per category concurrently and returns an AllSportsMetrics response keyed by sport.
+// Uses a single DB query for all sports, then re-keys results from Strava types to categories.
 func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request) {
 	params := h.validateMultiSportQuery(w, r)
 	if params == nil {
@@ -333,37 +339,22 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
-	result := &generated.AllSportsMetrics{
-		BySport: make(map[string]*generated.SportMetrics, len(params.sportCategories)),
+	var byStravaType map[string]*generated.SportMetrics
+	var err error
+	if params.useDateRange {
+		byStravaType, err = h.repo.GetMultiSportMetricsByDateRange(ctx, params.from, params.to, params.allSportTypes)
+	} else {
+		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, params.year, params.allSportTypes)
 	}
-
-	g, gCtx := errgroup.WithContext(ctx)
-	mu := &sync.Mutex{}
-
-	for category, sportTypes := range params.sportCategories {
-		g.Go(func() error {
-			var metrics *generated.SportMetrics
-			var err error
-			if params.useDateRange {
-				metrics, err = h.repo.GetSportMetricsByDateRange(gCtx, params.from, params.to, sportTypes)
-			} else {
-				metrics, err = h.repo.GetSportMetrics(gCtx, params.year, sportTypes)
-			}
-			if err != nil {
-				return fmt.Errorf("query for sport %q failed: %w", category, err)
-			}
-			mu.Lock()
-			result.BySport[category] = metrics
-			mu.Unlock()
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
+	if err != nil {
 		h.logger.Error("Database query failed during multi-sport metrics fetch", "error", err)
 		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
+	}
+
+	result := &generated.AllSportsMetrics{
+		BySport: h.mergeMultiSportMetrics(byStravaType),
 	}
 
 	setCachePastData(w, params.year, params.to, params.useDateRange)
@@ -407,7 +398,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleMultiSportSource handles GET /activities/{year}/source?sports=X,Y,Z.
-// Queries daily summaries per category concurrently and returns an AllSportsDailySummary response keyed by sport.
+// Uses a single DB query for all sports, then re-keys results from Strava types to categories.
 func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request) {
 	params := h.validateMultiSportQuery(w, r)
 	if params == nil {
@@ -417,37 +408,22 @@ func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
-	result := &generated.AllSportsDailySummary{
-		BySport: make(map[string]*generated.DailySummary, len(params.sportCategories)),
+	var byStravaType map[string]*generated.DailySummary
+	var err error
+	if params.useDateRange {
+		byStravaType, err = h.repo.GetMultiSportDailySummaryByDateRange(ctx, params.from, params.to, params.allSportTypes)
+	} else {
+		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, params.year, params.allSportTypes)
 	}
-
-	g, gCtx := errgroup.WithContext(ctx)
-	mu := &sync.Mutex{}
-
-	for category, sportTypes := range params.sportCategories {
-		g.Go(func() error {
-			var summary *generated.DailySummary
-			var err error
-			if params.useDateRange {
-				summary, err = h.repo.GetDailySummaryByDateRange(gCtx, params.from, params.to, sportTypes)
-			} else {
-				summary, err = h.repo.GetDailySummary(gCtx, params.year, sportTypes)
-			}
-			if err != nil {
-				return fmt.Errorf("query for sport %q failed: %w", category, err)
-			}
-			mu.Lock()
-			result.BySport[category] = summary
-			mu.Unlock()
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
+	if err != nil {
 		h.logger.Error("Database query failed during multi-sport source fetch", "error", err)
 		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
+	}
+
+	result := &generated.AllSportsDailySummary{
+		BySport: h.mergeMultiSportDailySummary(byStravaType),
 	}
 
 	setCachePastData(w, params.year, params.to, params.useDateRange)
