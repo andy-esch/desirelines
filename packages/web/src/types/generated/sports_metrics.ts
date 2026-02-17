@@ -117,6 +117,33 @@ export interface SportTotals {
   activities: number;
 }
 
+/**
+ * Multi-sport daily summary — keyed by sport category
+ * Used by: GET /activities/{year}/source?sports=cycling,running,...
+ */
+export interface AllSportsDailySummary {
+  /** e.g. {"cycling": {...}, "running": {...}} */
+  bySport: { [key: string]: DailySummary };
+}
+
+export interface AllSportsDailySummary_BySportEntry {
+  key: string;
+  value?: DailySummary | undefined;
+}
+
+/**
+ * Multi-sport cumulative metrics — keyed by sport category
+ * Used by: GET /activities/{year}/metrics?sports=cycling,running,...
+ */
+export interface AllSportsMetrics {
+  bySport: { [key: string]: SportMetrics };
+}
+
+export interface AllSportsMetrics_BySportEntry {
+  key: string;
+  value?: SportMetrics | undefined;
+}
+
 /** Year metadata file (activities/{year}/metadata.json) */
 export interface YearMetadata {
   year: number;
@@ -618,6 +645,182 @@ export const SportTotals: MessageFns<SportTotals> = {
           }
 
           message.activities = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseAllSportsDailySummary(): AllSportsDailySummary {
+  return { bySport: {} };
+}
+
+export const AllSportsDailySummary: MessageFns<AllSportsDailySummary> = {
+  encode(message: AllSportsDailySummary, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    globalThis.Object.entries(message.bySport).forEach(([key, value]: [string, DailySummary]) => {
+      AllSportsDailySummary_BySportEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join();
+    });
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AllSportsDailySummary {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAllSportsDailySummary();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          const entry1 = AllSportsDailySummary_BySportEntry.decode(reader, reader.uint32());
+          if (entry1.value !== undefined) {
+            message.bySport[entry1.key] = entry1.value;
+          }
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseAllSportsDailySummary_BySportEntry(): AllSportsDailySummary_BySportEntry {
+  return { key: "", value: undefined };
+}
+
+export const AllSportsDailySummary_BySportEntry: MessageFns<AllSportsDailySummary_BySportEntry> = {
+  encode(message: AllSportsDailySummary_BySportEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== undefined) {
+      DailySummary.encode(message.value, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AllSportsDailySummary_BySportEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAllSportsDailySummary_BySportEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.value = DailySummary.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseAllSportsMetrics(): AllSportsMetrics {
+  return { bySport: {} };
+}
+
+export const AllSportsMetrics: MessageFns<AllSportsMetrics> = {
+  encode(message: AllSportsMetrics, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    globalThis.Object.entries(message.bySport).forEach(([key, value]: [string, SportMetrics]) => {
+      AllSportsMetrics_BySportEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join();
+    });
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AllSportsMetrics {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAllSportsMetrics();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          const entry1 = AllSportsMetrics_BySportEntry.decode(reader, reader.uint32());
+          if (entry1.value !== undefined) {
+            message.bySport[entry1.key] = entry1.value;
+          }
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseAllSportsMetrics_BySportEntry(): AllSportsMetrics_BySportEntry {
+  return { key: "", value: undefined };
+}
+
+export const AllSportsMetrics_BySportEntry: MessageFns<AllSportsMetrics_BySportEntry> = {
+  encode(message: AllSportsMetrics_BySportEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== undefined) {
+      SportMetrics.encode(message.value, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AllSportsMetrics_BySportEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAllSportsMetrics_BySportEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.value = SportMetrics.decode(reader, reader.uint32());
           continue;
         }
       }

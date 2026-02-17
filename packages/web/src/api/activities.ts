@@ -39,9 +39,10 @@ import type {
 import type {
   CumulativeMetricsEntry as MetricsEntry,
   SportMetrics as SportMetricsProto,
+  AllSportsMetrics as AllSportsMetricsProto,
+  AllSportsDailySummary as AllSportsDailySummaryProto,
   YearMetadata,
   DailyActivity,
-  DailySummary as DailySummaryResponse,
 } from "../types/generated/sports_metrics";
 
 // Re-export generated types for consumers
@@ -179,21 +180,27 @@ export const clearSportConfigCache = (): void => {
   sportConfigPromise = null;
 };
 
-/** Options for fetchDailySummary */
-export interface FetchDailySummaryOptions {
+// MULTI-SPORT BATCH API FUNCTIONS
+// These use ?sports=X,Y,Z (plural) to fetch data for multiple sports in a single request,
+// reducing dashboard API calls from ~5N to ~5.
+
+/** Options for multi-sport batch fetches */
+export interface FetchMultiSportOptions {
   year: number;
-  sport: string;
-  signal?: AbortSignal;
-  /** Start date (YYYY-MM-DD) for date-range queries */
+  sports: string[];
   from?: string;
-  /** End date (YYYY-MM-DD) for date-range queries */
   to?: string;
+  signal?: AbortSignal;
 }
 
-export const fetchDailySummary = async (
-  options: FetchDailySummaryOptions
-): Promise<Record<string, DailyActivity>> => {
-  const params = new URLSearchParams({ sport: options.sport });
+/**
+ * Fetch daily summaries for multiple sports in a single request.
+ * Returns a map of sport → daily data (Record<string, DailyActivity>).
+ */
+export const fetchMultiSportDailySummary = async (
+  options: FetchMultiSportOptions
+): Promise<Record<string, Record<string, DailyActivity>>> => {
+  const params = new URLSearchParams({ sports: options.sports.join(",") });
   if (options.from && options.to) {
     params.set("from", options.from);
     params.set("to", options.to);
@@ -201,12 +208,43 @@ export const fetchDailySummary = async (
   const url = `/activities/${options.year}/source?${params.toString()}`;
 
   try {
-    const { data } = await client.get<DailySummaryResponse>(url, {
+    const { data } = await client.get<AllSportsDailySummaryProto>(url, {
       signal: options.signal,
     });
-    return data.daily ?? {};
+    return Object.fromEntries(
+      Object.entries(data.bySport ?? {}).map(([sport, summary]) => [sport, summary?.daily ?? {}])
+    );
   } catch (err: unknown) {
-    throwApiError(err, "fetchDailySummary");
+    throwApiError(err, "fetchMultiSportDailySummary");
+  }
+};
+
+/**
+ * Fetch cumulative metrics for multiple sports in a single request.
+ * Returns a map of sport → metrics timeseries (MetricsEntry[]).
+ */
+export const fetchMultiSportMetrics = async (
+  options: FetchMultiSportOptions
+): Promise<Record<string, SportMetrics>> => {
+  const params = new URLSearchParams({ sports: options.sports.join(",") });
+  if (options.from && options.to) {
+    params.set("from", options.from);
+    params.set("to", options.to);
+  }
+  const url = `/activities/${options.year}/metrics?${params.toString()}`;
+
+  try {
+    const { data } = await client.get<AllSportsMetricsProto>(url, {
+      signal: options.signal,
+    });
+    return Object.fromEntries(
+      Object.entries(data.bySport ?? {}).map(([sport, metrics]) => [
+        sport,
+        metrics?.timeseries ?? [],
+      ])
+    );
+  } catch (err: unknown) {
+    throwApiError(err, "fetchMultiSportMetrics");
   }
 };
 
