@@ -247,6 +247,87 @@ jobs:
           SKIP_ENV_VALIDATION: 'true'
 
   # ===========================================================================
+  # Integration Tests: Go + Python against real PostgreSQL
+  # Shared ephemeral DB — tmpfs-backed, non-durable for speed
+  # ===========================================================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: packages/stravapipe/uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Start optimized Postgres
+        run: |
+          docker run -d \
+            --name postgres \
+            -p 5432:5432 \
+            --mount type=tmpfs,destination=/var/lib/postgresql/data \
+            -e POSTGRES_DB=desirelines_test \
+            -e POSTGRES_USER=desirelines \
+            -e POSTGRES_PASSWORD=test_password \
+            postgis/postgis:17-3.6-alpine \
+            postgres \
+              -c fsync=off \
+              -c full_page_writes=off \
+              -c synchronous_commit=off
+
+          until docker exec postgres pg_isready -U desirelines; do
+            sleep 0.5
+          done
+
+      - name: Run Flyway migrations
+        run: |
+          docker run --rm \
+            --network host \
+            -v ${{ github.workspace }}/schemas/database/migrations:/flyway/sql \
+            -v ${{ github.workspace }}/schemas/database/callbacks:/flyway/callbacks \
+            flyway/flyway \
+            -url="jdbc:postgresql://localhost:5432/desirelines_test" \
+            -user="desirelines" \
+            -password="test_password" \
+            -defaultSchema="desirelines" \
+            -locations="filesystem:/flyway/sql,filesystem:/flyway/callbacks" \
+            -baselineOnMigrate=true \
+            -baselineVersion=0 \
+            -placeholderReplacement=false \
+            migrate
+
+      - name: Go integration tests
+        working-directory: packages/apigateway
+        env:
+          POSTGRES_CONNECTION_STRING: "postgresql://desirelines:test_password@localhost:5432/desirelines_test?search_path=desirelines"
+        run: go test -tags=integration -v -race ./adapters/postgres/...
+
+      - name: Install Python dependencies
+        working-directory: packages/stravapipe
+        run: uv sync --extra dev
+
+      - name: Python integration tests
+        working-directory: packages/stravapipe
+        run: |
+          uv run pytest tests/integration/ -v \
+            --db-url="postgresql+psycopg://desirelines:test_password@localhost:5432/desirelines_test?options=-csearch_path%3Ddesirelines"
+
+  # ===========================================================================
   # Terraform: Format, Init, Validate
   # ===========================================================================
   terraform-validate:

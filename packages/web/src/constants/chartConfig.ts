@@ -30,19 +30,19 @@ export const CHART_CONFIG = {
 
   /** Grid styling — horizontal-only lines at major Y-axis values */
   grid: {
-    stroke: "rgba(255, 255, 255, 0.12)",
+    stroke: "var(--color-chart-grid)",
     vertical: false,
   },
 
   /** Axis styling */
   axis: {
-    stroke: "#718096",
+    stroke: "var(--color-chart-axis)",
   },
 
   /** Axis tick styling */
   tick: {
     fontSize: 11,
-    fill: "#718096",
+    fill: "var(--color-chart-tick)",
     fontFamily: '"Space Grotesk", sans-serif',
   },
 
@@ -56,20 +56,20 @@ export const CHART_CONFIG = {
   /** Tooltip styling */
   tooltip: {
     contentStyle: {
-      backgroundColor: "#1a1a1a",
-      border: "1px solid #444",
+      backgroundColor: "var(--color-chart-tooltip-bg)",
+      border: "1px solid var(--color-chart-tooltip-border)",
       borderRadius: "6px",
       padding: "12px 16px",
-      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
+      boxShadow: "0 4px 12px var(--color-surface-shadow)",
     },
     labelStyle: {
-      color: "#fff",
+      color: "var(--color-chart-tooltip-text)",
       fontWeight: "bold",
       marginBottom: "8px",
       fontSize: "13px",
     },
     itemStyle: {
-      color: "#ddd",
+      color: "var(--color-chart-tooltip-muted)",
       padding: "4px 0",
       fontSize: "12px",
     },
@@ -83,7 +83,7 @@ export const CHART_CONFIG = {
 
   /** Drag-to-zoom selection overlay */
   selection: {
-    fill: "#8884d8",
+    fill: "var(--color-accent-cyan)",
     fillOpacity: 0.2,
   },
 

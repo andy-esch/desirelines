@@ -159,8 +159,8 @@ export default function SportPageContent({
               className="alert flex items-center mb-6"
               role="alert"
               style={{
-                backgroundColor: "rgba(0, 212, 255, 0.1)",
-                border: "1px solid rgba(0, 212, 255, 0.3)",
+                backgroundColor: "var(--color-accent-cyan-glow)",
+                border: "1px solid var(--color-accent-cyan-glow)",
                 color: "var(--color-slate-light)",
               }}
             >

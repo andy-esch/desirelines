@@ -1,7 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import type { User } from "../../hooks/useAuth";
-import { CheckIcon, ChevronDownIcon, SettingsIcon, SignOutIcon, SignInIcon } from "../icons";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  SettingsIcon,
+  SignOutIcon,
+  SignInIcon,
+  SunIcon,
+  MoonIcon,
+  MonitorIcon,
+} from "../icons";
+import { useTheme } from "../../contexts/ThemeContext";
 
 interface AccountDropdownProps {
   user: User | null;
@@ -54,6 +64,7 @@ export function AccountDropdown({
   onSignIn,
   onSignOut,
 }: AccountDropdownProps) {
+  const { theme, setTheme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -156,8 +167,8 @@ export function AccountDropdown({
     right: 0,
     marginTop: "0.5rem",
     minWidth: "220px",
-    backgroundColor: "var(--color-slate-dark)",
-    border: "1px solid var(--color-slate-DEFAULT)",
+    backgroundColor: "#2d3748",
+    border: "1px solid #4a5568",
     borderRadius: "0.5rem",
     boxShadow: "0 10px 25px rgba(0, 0, 0, 0.3)",
     zIndex: 1050,
@@ -166,7 +177,7 @@ export function AccountDropdown({
 
   const menuHeaderStyle: React.CSSProperties = {
     padding: "0.75rem 1rem",
-    borderBottom: "1px solid var(--color-slate-DEFAULT)",
+    borderBottom: "1px solid #4a5568",
   };
 
   const menuItemStyle: React.CSSProperties = {
@@ -269,7 +280,59 @@ export function AccountDropdown({
             <span>Settings</span>
           </Link>
 
-          <div style={{ borderTop: "1px solid var(--color-slate-DEFAULT)" }}>
+          {/* Theme Toggle */}
+          <div
+            style={{
+              borderTop: "1px solid #4a5568",
+              padding: "0.375rem 1rem",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.7rem",
+                color: "#778899",
+                marginBottom: "0.25rem",
+                fontWeight: 500,
+              }}
+            >
+              Theme
+            </div>
+            <div className="flex gap-0.5">
+              {[
+                { mode: "light" as const, icon: <SunIcon size={13} />, label: "Light" },
+                { mode: "dark" as const, icon: <MoonIcon size={13} />, label: "Dark" },
+                { mode: "system" as const, icon: <MonitorIcon size={13} />, label: "System" },
+              ].map(({ mode, icon, label }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setTheme(mode)}
+                  title={label}
+                  aria-label={`${label} theme`}
+                  className="transition-colors"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    padding: "0.25rem 0.5rem",
+                    fontSize: "0.75rem",
+                    border: "1px solid",
+                    borderColor: theme === mode ? "#00d4ff" : "#4a5568",
+                    borderRadius: "0.25rem",
+                    background: theme === mode ? "rgba(0, 212, 255, 0.15)" : "transparent",
+                    color: theme === mode ? "#00d4ff" : "#778899",
+                    cursor: "pointer",
+                  }}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ borderTop: "1px solid #4a5568" }}>
             {user ? (
               <button
                 type="button"
@@ -289,7 +352,7 @@ export function AccountDropdown({
                 className="transition-colors hover:bg-white/[0.08]"
                 style={{
                   ...menuItemStyle,
-                  color: "var(--color-accent-cyan)",
+                  color: "#00d4ff",
                 }}
                 onClick={handleSignIn}
                 disabled={actionLoading}

@@ -107,14 +107,14 @@ function UnifiedSparklineTooltip({
     <div
       className="rounded shadow-sm p-2"
       style={{
-        background: "var(--tooltip-bg, rgba(255, 255, 255, 0.92))",
-        border: "1px solid var(--tooltip-border, rgba(0, 0, 0, 0.15))",
+        background: "var(--color-chart-tooltip-bg)",
+        border: "1px solid var(--color-chart-tooltip-border)",
         fontSize: "0.75rem",
         minWidth: 110,
         backdropFilter: "blur(4px)",
       }}
     >
-      <div className="mb-1" style={{ color: "var(--tooltip-label, #666)", fontWeight: 500 }}>
+      <div className="mb-1" style={{ color: "var(--color-chart-tooltip-muted)", fontWeight: 500 }}>
         {formattedDate}
       </div>
       {sportMeta.map((meta) => {
@@ -136,10 +136,12 @@ function UnifiedSparklineTooltip({
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: "var(--tooltip-text, #444)" }}>{meta.displayName}</span>
+            <span style={{ color: "var(--color-chart-tooltip-text)" }}>{meta.displayName}</span>
             <span
               style={{
-                color: hasActivity ? "var(--tooltip-value, #000)" : "var(--tooltip-muted, #999)",
+                color: hasActivity
+                  ? "var(--color-chart-tooltip-text)"
+                  : "var(--color-chart-tooltip-label)",
                 marginLeft: "auto",
                 fontWeight: hasActivity ? 500 : 400,
               }}
@@ -242,7 +244,7 @@ export default function MultiSportSparklineChart({
               dataKey="date"
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 9, fill: "#999" }}
+              tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
               tickFormatter={formatAxisDate}
               interval="preserveStartEnd"
               minTickGap={50}

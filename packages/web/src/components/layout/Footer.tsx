@@ -31,7 +31,7 @@ export function Footer() {
           rgba(0, 255, 255, 0.12),
           rgba(0, 255, 128, 0.12)
         )`,
-        borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+        borderTop: "1px solid var(--color-surface-border)",
         fontSize: "0.85rem",
       }}
     >
