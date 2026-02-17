@@ -573,8 +573,12 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		if yogaSummary == nil || len(yogaSummary.Daily) != 1 {
 			t.Fatalf("expected 1 Yoga daily entry, got %v", yogaSummary)
 		}
-		if yogaSummary.Daily["2024-01-15"].ActivityIds[0] != 1004 {
-			t.Errorf("expected Yoga activity ID 1004, got %v", yogaSummary.Daily["2024-01-15"].ActivityIds)
+		yogaJan15, ok := yogaSummary.Daily["2024-01-15"]
+		if !ok {
+			t.Fatal("expected Yoga entry for 2024-01-15")
+		}
+		if len(yogaJan15.ActivityIds) == 0 || yogaJan15.ActivityIds[0] != 1004 {
+			t.Errorf("expected Yoga activity ID 1004, got %v", yogaJan15.ActivityIds)
 		}
 	})
 
