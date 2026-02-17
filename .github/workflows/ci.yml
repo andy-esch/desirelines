@@ -314,7 +314,7 @@ jobs:
       - name: Go integration tests
         working-directory: packages/apigateway
         env:
-          POSTGRES_CONNECTION_STRING: "postgresql://desirelines:test_password@localhost:5432/desirelines_test?search_path=desirelines"
+          POSTGRES_CONNECTION_STRING: "postgresql://desirelines:test_password@localhost:5432/desirelines_test?search_path=desirelines&application_name=integration-test"
         run: go test -tags=integration -v -race ./adapters/postgres/...
 
       - name: Install Python dependencies
