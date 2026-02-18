@@ -27,12 +27,41 @@ import {
 import { getMetricConfig, generateYAxisTicks } from "../config/metricConfig";
 import { GOAL_COLORS } from "../constants/chartColors";
 
+/** Metadata for a prior year ghost line. */
+export interface PriorYearLine {
+  year: number;
+  dataKey: string;
+}
+
 interface UseCumulativeChartDataProps {
   year: number;
   goals: Goals;
   distanceData: DistanceEntry[];
   showFullYear: boolean;
   sport?: string;
+  priorYearData?: Record<number, DistanceEntry[]>;
+}
+
+/**
+ * Align entries from a source year to a target year by mapping month/day.
+ * Feb 29 in a leap year is clamped to Feb 28 when the target is non-leap.
+ */
+function alignToYear(entries: DistanceEntry[], targetYear: number): DistanceEntry[] {
+  return entries.map((entry) => {
+    const d = new Date(entry.x);
+    let month = d.getUTCMonth();
+    let day = d.getUTCDate();
+
+    // Clamp Feb 29 → Feb 28 for non-leap target years
+    if (month === 1 && day === 29) {
+      const feb28 = new Date(Date.UTC(targetYear, 1, 29));
+      if (feb28.getUTCMonth() !== 1) {
+        day = 28;
+      }
+    }
+
+    return { x: new Date(Date.UTC(targetYear, month, day)).toISOString(), y: entry.y };
+  });
 }
 
 /**
@@ -52,6 +81,7 @@ export function useCumulativeChartData({
   distanceData,
   showFullYear,
   sport = "cycling",
+  priorYearData,
 }: UseCumulativeChartDataProps) {
   // 1. Grouped date range calculations
   const { startDate, latestDate, displayEndDate } = useMemo(() => {
@@ -154,9 +184,27 @@ export function useCumulativeChartData({
       });
     });
 
+    // Add prior year data (aligned to current year)
+    if (priorYearData) {
+      for (const [yearStr, entries] of Object.entries(priorYearData)) {
+        const priorYear = Number(yearStr);
+        const dataKey = `prior_${priorYear}` as const;
+        const aligned = alignToYear(entries, year);
+        aligned.forEach((point) => {
+          const date = new Date(point.x);
+          const timestamp = date.getTime();
+          const existing = dataMap.get(timestamp) || { date };
+          dataMap.set(timestamp, {
+            ...existing,
+            [dataKey]: point.y,
+          });
+        });
+      }
+    }
+
     // Convert map to sorted array
     return Array.from(dataMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [distanceData, goalLines, currentAverageLine]);
+  }, [distanceData, goalLines, currentAverageLine, priorYearData, year]);
 
   // 6. Calculate current summary values
   const currentValues: CurrentChartValues = useMemo(() => {
@@ -183,7 +231,16 @@ export function useCumulativeChartData({
     };
   }, [mergedData, distanceData, latestDate, totalDistanceTraveled, goalLines]);
 
-  // 7. Metric-specific UI configuration
+  // 7. Build prior year line metadata (sorted most recent first)
+  const priorYearLines: PriorYearLine[] = useMemo(() => {
+    if (!priorYearData) return [];
+    return Object.keys(priorYearData)
+      .map(Number)
+      .sort((a, b) => b - a)
+      .map((y) => ({ year: y, dataKey: `prior_${y}` }));
+  }, [priorYearData]);
+
+  // 8. Metric-specific UI configuration
   const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
 
   const yAxisTicks = useMemo(() => {
@@ -191,7 +248,7 @@ export function useCumulativeChartData({
       [
         d.actual,
         ...Object.keys(d)
-          .filter((k) => k.startsWith("goal"))
+          .filter((k) => k.startsWith("goal") || k.startsWith("prior_"))
           .map((k) => d[k as keyof CumulativeChartDataPoint] as number),
         d.average,
       ].filter((v): v is number => v !== undefined)
@@ -214,5 +271,6 @@ export function useCumulativeChartData({
     mergedData,
     currentValues,
     yAxisTicks,
+    priorYearLines,
   };
 }

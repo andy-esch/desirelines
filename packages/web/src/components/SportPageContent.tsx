@@ -67,6 +67,11 @@ export interface SportPageContentProps {
   availableMetrics?: string[];
   activeMetric?: string;
   onMetricChange?: (metric: string) => void;
+
+  // Prior years (optional — omit for demo)
+  priorYearData?: Record<number, DistanceEntry[]>;
+  showPriorYears?: boolean;
+  onPriorYearsChange?: (show: boolean) => void;
 }
 
 export default function SportPageContent({
@@ -101,6 +106,9 @@ export default function SportPageContent({
   availableMetrics,
   activeMetric,
   onMetricChange,
+  priorYearData,
+  showPriorYears,
+  onPriorYearsChange,
 }: SportPageContentProps) {
   const [showFullYear, setShowFullYear] = useState(true);
   const [showAchievements, setShowAchievements] = useState(true);
@@ -234,6 +242,9 @@ export default function SportPageContent({
                 unit={unit}
                 sport={sport}
                 onRetry={onRetry}
+                priorYearData={priorYearData}
+                showPriorYears={showPriorYears}
+                onPriorYearsChange={onPriorYearsChange}
               />
             </div>
           </div>

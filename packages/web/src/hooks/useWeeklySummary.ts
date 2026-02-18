@@ -135,6 +135,9 @@ export function useWeeklySummary(): {
   const yearContext = useMemo(() => createYearContext(currentYear), [currentYear]);
   const daysInYear = yearContext.daysElapsed + yearContext.daysRemaining;
 
+  // Extract individual data values for stable memo deps (goalsQueries array is a new ref each render)
+  const goalsDataValues = goalsQueries.map((q) => q.data);
+
   // Combine into WeeklySportTotal array
   const sportTotals = useMemo(() => {
     const total = validSports.length;
@@ -171,7 +174,7 @@ export function useWeeklySummary(): {
       // Get yearly goal to prorate
       let yearlyGoal = metricConfig.defaultGoalValue;
       if (user) {
-        const goalsData = goalsQueries[index]?.data;
+        const goalsData = goalsDataValues[index];
         if (goalsData?.goals?.length) {
           const goalValue = getTargetGoalValue(goalsData.goals);
           if (goalValue !== null) {
@@ -203,13 +206,14 @@ export function useWeeklySummary(): {
         isDistanceSport: isDistance,
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- goalsDataValues items are referentially stable from TanStack Query
   }, [
     validSports,
     sportConfig,
     dailyData,
     user,
     demoGoals,
-    goalsQueries,
+    ...goalsDataValues,
     userSettings,
     daysInYear,
   ]);
