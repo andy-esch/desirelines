@@ -72,7 +72,12 @@ const AggregationVersion = "2.0"
 
 // ActivityRepository implements repository.ActivityRepository for PostgreSQL.
 // This is an adapter in hexagonal architecture - infrastructure layer.
+//
+// The db field satisfies DBQuerier and is used for all query execution.
+// In production, db and pool both point to the connection pool.
+// In tests, db may be a transaction (for rollback isolation) while pool is nil.
 type ActivityRepository struct {
+	db   DBQuerier
 	pool *Pool
 }
 
@@ -81,17 +86,30 @@ var _ repository.ActivityRepository = (*ActivityRepository)(nil)
 
 // NewActivityRepository creates a PostgreSQL activity repository.
 func NewActivityRepository(pool *Pool) *ActivityRepository {
-	return &ActivityRepository{pool: pool}
+	return &ActivityRepository{db: pool, pool: pool}
+}
+
+// newActivityRepository creates a repository backed by any DBQuerier.
+// Used in tests to inject a transaction for rollback isolation.
+func newActivityRepository(db DBQuerier) *ActivityRepository {
+	return &ActivityRepository{db: db}
 }
 
 // Ping verifies database connectivity.
 func (r *ActivityRepository) Ping(ctx context.Context) error {
-	return r.pool.Ping(ctx)
+	if r.pool != nil {
+		return r.pool.Ping(ctx)
+	}
+	_, err := r.db.Exec(ctx, "SELECT 1")
+	return err
 }
 
 // Close releases all database resources.
+// No-op when pool is nil (test mode with transaction).
 func (r *ActivityRepository) Close() error {
-	r.pool.Close()
+	if r.pool != nil {
+		r.pool.Close()
+	}
 	return nil
 }
 
@@ -146,7 +164,7 @@ func (r *ActivityRepository) GetSportMetricsByDateRange(ctx context.Context, fro
 		ORDER BY date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, from, to, sportTypes)
+	rows, err := r.db.Query(ctx, query, from, to, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query sport metrics by date range: %w", err)
 	}
@@ -234,7 +252,7 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 		ORDER BY sport, date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, from, to, sportTypes)
+	rows, err := r.db.Query(ctx, query, from, to, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query multi-sport metrics by date range: %w", err)
 	}
@@ -289,7 +307,7 @@ func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, year int,
 		ORDER BY sport, date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, year, sportTypes)
+	rows, err := r.db.Query(ctx, query, year, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query multi-sport metrics: %w", err)
 	}
@@ -358,7 +376,7 @@ func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, year
 		ORDER BY sport, start_date_local::date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, year, sportTypes)
+	rows, err := r.db.Query(ctx, query, year, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query multi-sport daily summary: %w", err)
 	}
@@ -387,7 +405,7 @@ func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Co
 		ORDER BY sport, start_date_local::date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, from, to, sportTypes)
+	rows, err := r.db.Query(ctx, query, from, to, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query multi-sport daily summary by date range: %w", err)
 	}
@@ -485,7 +503,7 @@ func (r *ActivityRepository) GetSportMetrics(ctx context.Context, year int, spor
 		ORDER BY date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, year, sportTypes)
+	rows, err := r.db.Query(ctx, query, year, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query sport metrics: %w", err)
 	}
@@ -513,7 +531,7 @@ func (r *ActivityRepository) GetDailySummary(ctx context.Context, year int, spor
 		ORDER BY start_date_local::date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, year, sportTypes)
+	rows, err := r.db.Query(ctx, query, year, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query daily summary: %w", err)
 	}
@@ -579,7 +597,7 @@ func (r *ActivityRepository) GetDailySummaryByDateRange(ctx context.Context, fro
 		ORDER BY start_date_local::date ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, from, to, sportTypes)
+	rows, err := r.db.Query(ctx, query, from, to, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query daily summary by date range: %w", err)
 	}
@@ -611,7 +629,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*ge
 		ORDER BY sport ASC
 	`
 
-	rows, err := r.pool.Query(ctx, query, year)
+	rows, err := r.db.Query(ctx, query, year)
 	if err != nil {
 		return nil, fmt.Errorf("query year metadata: %w", err)
 	}
@@ -678,7 +696,7 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*ac
 		WHERE id = $1
 	`
 
-	row := r.pool.QueryRow(ctx, query, id)
+	row := r.db.QueryRow(ctx, query, id)
 
 	var activityID int64
 	var name, activityType, sport string
@@ -822,7 +840,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	}
 	qb.AddCondition(" LIMIT $%d", limit+1)
 
-	rows, err := r.pool.Query(ctx, qb.query, qb.args...)
+	rows, err := r.db.Query(ctx, qb.query, qb.args...)
 	if err != nil {
 		return nil, fmt.Errorf("query activities list: %w", err)
 	}
