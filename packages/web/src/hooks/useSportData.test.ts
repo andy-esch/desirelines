@@ -151,11 +151,11 @@ describe("useSportData", () => {
 
     expect(result.current.metrics).toEqual(mockMetrics);
     expect(result.current.sportConfig).toEqual(mockConfig);
-    expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith(
-      2025,
-      "cycling",
-      expect.any(AbortSignal)
-    );
+    expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith({
+      year: 2025,
+      sport: "cycling",
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it("fetches from API when user is authenticated", async () => {
@@ -181,11 +181,11 @@ describe("useSportData", () => {
 
     expect(result.current.metrics).toEqual(mockMetrics);
     expect(result.current.sportConfig).toEqual(mockConfig);
-    expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith(
-      2025,
-      "cycling",
-      expect.any(AbortSignal)
-    );
+    expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith({
+      year: 2025,
+      sport: "cycling",
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it("handles API errors gracefully", async () => {

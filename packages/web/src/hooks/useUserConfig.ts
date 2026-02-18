@@ -161,9 +161,10 @@ export function useUserConfig(
   userId?: string,
   version?: string
 ): {
-  data: any;
+  data: ConfigData | null;
   loading: boolean;
   error: Error | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- overloads provide type safety to callers
   updateData: (data: any) => Promise<void>;
   isSaving: boolean;
   saveError: Error | null;
@@ -266,7 +267,8 @@ export function useUserConfig(
   const migrating = useRef(false);
   useEffect(() => {
     // Only run if authenticated (not LS mode), finished loading, and no remote data exists
-    if (isLocalStorageMode || isLoading || data || !configService || migrating.current) return;
+    const hasNoData = data === null || data === undefined;
+    if (isLocalStorageMode || isLoading || !hasNoData || !configService || migrating.current) return;
 
     const key = getStorageKey("default", configType, year, sport);
     const localDataRaw = localStorage.getItem(key);
@@ -299,9 +301,7 @@ export function useUserConfig(
         localStorage.removeItem(key);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLocalStorageMode, isLoading, data === null, configType, year, sport, configService]);
-  // Note: relying on data being null to trigger. If data changes to non-null, effect runs but early returns.
+  }, [isLocalStorageMode, isLoading, data, configType, year, sport, configService]);
 
   // WRITE MUTATION
   const mutation = useMutation({

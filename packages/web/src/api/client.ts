@@ -10,15 +10,22 @@ import { isInternalRequest } from "./url";
  * which registers a request interceptor that injects Firebase ID tokens.
  * The auth service is captured in the interceptor closure — no global mutable refs.
  */
-const config = getConfig();
-if (!config.apiGatewayUrl) {
-  throw new Error(
-    "API Gateway URL is not configured. Set VITE_API_GATEWAY_URL in your environment."
-  );
+let client: ReturnType<typeof axios.create> | null = null;
+
+function getClient() {
+  if (!client) {
+    const config = getConfig();
+    if (!config.apiGatewayUrl) {
+      throw new Error(
+        "API Gateway URL is not configured. Set VITE_API_GATEWAY_URL in your environment."
+      );
+    }
+    client = axios.create({
+      baseURL: config.apiGatewayUrl,
+    });
+  }
+  return client;
 }
-const client = axios.create({
-  baseURL: config.apiGatewayUrl,
-});
 
 const AUTH_READY_TIMEOUT_MS = 5000;
 
@@ -33,9 +40,10 @@ export function configureClientAuth(authService: AuthService): void {
   if (configured) return;
   configured = true;
 
+  const instance = getClient();
   let authInitialized = false;
 
-  client.interceptors.request.use(async (config) => {
+  instance.interceptors.request.use(async (config) => {
     // Wait for initial auth state with timeout (only on first request)
     if (!authInitialized) {
       const timeoutPromise = new Promise<false>((resolve) => {
@@ -90,7 +98,7 @@ export function configureClientAuth(authService: AuthService): void {
    */
   let refreshPromise: Promise<string | undefined> | null = null;
 
-  client.interceptors.response.use(undefined, async (error: AxiosError) => {
+  instance.interceptors.response.use(undefined, async (error: AxiosError) => {
     const originalRequest = error.config;
 
     if (
@@ -111,7 +119,7 @@ export function configureClientAuth(authService: AuthService): void {
         const token = await refreshPromise;
         if (token) {
           originalRequest.headers.Authorization = `Bearer ${token}`;
-          return client(originalRequest);
+          return instance(originalRequest);
         }
       } catch (refreshError) {
         console.error(
@@ -125,4 +133,4 @@ export function configureClientAuth(authService: AuthService): void {
   });
 }
 
-export default client;
+export default getClient;

@@ -13,6 +13,7 @@
  * - Pure rendering of the chart visualization
  * - SVG elements for lines, markers, and achievements
  */
+import { memo } from "react";
 import {
   LineChart,
   Line,
@@ -385,4 +386,4 @@ export function CumulativeChartPresenter({
   );
 }
 
-export default CumulativeChartPresenter;
+export default memo(CumulativeChartPresenter);
