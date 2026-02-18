@@ -92,7 +92,12 @@ function RootLayout() {
       </a>
       <ScrollRestoration />
       <Header scrolled={scrolled} />
-      <main id="main-content" ref={mainRef} tabIndex={-1} className="grow flex flex-col outline-none">
+      <main
+        id="main-content"
+        ref={mainRef}
+        tabIndex={-1}
+        className="grow flex flex-col outline-none"
+      >
         <Suspense fallback={<PageLoader />}>
           <PageTransition>
             <Outlet />

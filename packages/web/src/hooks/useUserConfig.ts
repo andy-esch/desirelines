@@ -268,7 +268,8 @@ export function useUserConfig(
   useEffect(() => {
     // Only run if authenticated (not LS mode), finished loading, and no remote data exists
     const hasNoData = data === null || data === undefined;
-    if (isLocalStorageMode || isLoading || !hasNoData || !configService || migrating.current) return;
+    if (isLocalStorageMode || isLoading || !hasNoData || !configService || migrating.current)
+      return;
 
     const key = getStorageKey("default", configType, year, sport);
     const localDataRaw = localStorage.getItem(key);

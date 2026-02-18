@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactPlugin from "eslint-plugin-react";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
+import reactCompilerPlugin from "eslint-plugin-react-compiler";
 
 export default tseslint.config(
   // Base recommended configs
@@ -14,6 +15,7 @@ export default tseslint.config(
     plugins: {
       react: reactPlugin,
       "react-hooks": reactHooksPlugin,
+      "react-compiler": reactCompilerPlugin,
     },
     settings: {
       react: {
@@ -28,6 +30,9 @@ export default tseslint.config(
       // React Hooks rules
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+
+      // React Compiler
+      "react-compiler/react-compiler": "warn",
 
       // TypeScript rules
       "@typescript-eslint/no-explicit-any": "warn",
