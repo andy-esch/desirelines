@@ -47,7 +47,7 @@ export function useSportData(year: number, sport: string): SportDataResult {
     refetch,
   } = useQuery({
     queryKey: ["sportMetrics", year, sport],
-    queryFn: ({ signal }) => fetchSportMetrics(year, sport, signal),
+    queryFn: ({ signal }) => fetchSportMetrics({ year, sport, signal }),
     enabled: !authLoading && isValidSport,
   });
 

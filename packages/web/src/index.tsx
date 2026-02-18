@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { ErrorBoundary } from "react-error-boundary";
+import { PageErrorFallback } from "./components/PageErrorFallback";
 import { loadConfig } from "./lib/config";
 
 // Log version for debugging
@@ -84,16 +85,11 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary
       fallbackRender={({ error, resetErrorBoundary }) => (
-        <div className="p-10 font-mono max-w-3xl mx-auto">
-          <h1 className="text-red-500">Something went wrong</h1>
-          <p>The application encountered an unexpected error.</p>
-          <pre className="bg-slate-dark text-body-text p-5 rounded overflow-auto">
-            {error instanceof Error ? error.message : String(error)}
-          </pre>
-          <button onClick={resetErrorBoundary} className="mt-4 py-2 px-4 cursor-pointer">
-            Try Again
-          </button>
-        </div>
+        <PageErrorFallback
+          error={error instanceof Error ? error : new Error(String(error))}
+          onReset={resetErrorBoundary}
+          variant="full"
+        />
       )}
     >
       <QueryClientProvider client={queryClient}>

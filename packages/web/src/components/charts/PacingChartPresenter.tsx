@@ -12,6 +12,7 @@
  * - Pure rendering of the chart visualization
  * - Danger zone display (zone of unachievability)
  */
+import { memo } from "react";
 import {
   LineChart,
   Line,
@@ -282,4 +283,4 @@ export function PacingChartPresenter({
   );
 }
 
-export default PacingChartPresenter;
+export default memo(PacingChartPresenter);

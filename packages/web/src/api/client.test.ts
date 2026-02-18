@@ -25,7 +25,9 @@ const mockAuthService: AuthService = {
 };
 
 // Import after mocks are set up
-import client, { configureClientAuth } from "./client";
+import getClient, { configureClientAuth } from "./client";
+
+const client = getClient();
 
 // Register interceptors once — mirrors how the app calls this at startup.
 configureClientAuth(mockAuthService);

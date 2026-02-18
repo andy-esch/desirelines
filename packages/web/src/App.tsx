@@ -84,9 +84,20 @@ function RootLayout() {
 
   return (
     <div className="App flex flex-col min-h-screen bg-bg-body">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-bg-body focus:text-accent-cyan focus:rounded focus:outline focus:outline-2 focus:outline-accent-cyan"
+      >
+        Skip to content
+      </a>
       <ScrollRestoration />
       <Header scrolled={scrolled} />
-      <main ref={mainRef} tabIndex={-1} className="grow flex flex-col outline-none">
+      <main
+        id="main-content"
+        ref={mainRef}
+        tabIndex={-1}
+        className="grow flex flex-col outline-none"
+      >
         <Suspense fallback={<PageLoader />}>
           <PageTransition>
             <Outlet />
