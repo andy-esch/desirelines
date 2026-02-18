@@ -11,13 +11,13 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
+	"github.com/andy-esch/desirelines/packages/shared/secrets"
 )
 
 // Sentinel errors for Strava API failures.
@@ -77,19 +77,19 @@ var _ ports.StravaClient = (*Client)(nil)
 // NewClient creates a new Strava API client.
 // Credentials are loaded from secret files or environment variables.
 func NewClient(logger *slog.Logger) (*Client, error) {
-	clientID := loadSecret(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
-	if clientID == "" {
-		return nil, errors.New("strava client_id not found in file or environment")
+	clientID, err := secrets.LoadFromMount(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
+	if err != nil {
+		return nil, fmt.Errorf("strava client_id: %w", err)
 	}
 
-	clientSecret := loadSecret(config.SecretPathStravaClientSecret, "STRAVA_CLIENT_SECRET")
-	if clientSecret == "" {
-		return nil, errors.New("strava client_secret not found in file or environment")
+	clientSecret, err := secrets.LoadFromMount(config.SecretPathStravaClientSecret, "STRAVA_CLIENT_SECRET")
+	if err != nil {
+		return nil, fmt.Errorf("strava client_secret: %w", err)
 	}
 
-	refreshToken := loadSecret(config.SecretPathStravaRefreshToken, "STRAVA_REFRESH_TOKEN")
-	if refreshToken == "" {
-		return nil, errors.New("strava refresh_token not found in file or environment")
+	refreshToken, err := secrets.LoadFromMount(config.SecretPathStravaRefreshToken, "STRAVA_REFRESH_TOKEN")
+	if err != nil {
+		return nil, fmt.Errorf("strava refresh_token: %w", err)
 	}
 
 	logger.Info("Strava client initialized")
@@ -103,15 +103,6 @@ func NewClient(logger *slog.Logger) (*Client, error) {
 		apiBase:      defaultAPIBase,
 		logger:       logger,
 	}, nil
-}
-
-// loadSecret reads a secret from a file path, falling back to an environment variable.
-func loadSecret(filePath, envVar string) string {
-	data, err := os.ReadFile(filePath) //nolint:gosec // Path from trusted config
-	if err == nil {
-		return strings.TrimSpace(string(data))
-	}
-	return config.GetEnvOrDefault(envVar, "")
 }
 
 // FetchActivity retrieves the raw JSON for a Strava activity.
