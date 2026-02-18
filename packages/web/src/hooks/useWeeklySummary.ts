@@ -211,7 +211,7 @@ export function useWeeklySummary(): {
     demoGoals,
     goalsQueries,
     userSettings,
-    yearContext,
+    daysInYear,
   ]);
 
   const isLoading =
