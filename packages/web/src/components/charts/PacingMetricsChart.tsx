@@ -83,9 +83,12 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     onRetry,
   } = props;
 
-  // Only animate chart lines on first mount — suppress re-animation on prop changes
+  // Only animate chart lines on first mount — suppress re-animation on prop changes.
+  // This one-time gate is intentional: the effect sets false after mount to prevent
+  // Recharts from re-animating lines when goals or range presets change.
   const [isFirstRender, setIsFirstRender] = useState(true);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time mount animation gate
     setIsFirstRender(false);
   }, []);
 

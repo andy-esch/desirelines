@@ -147,6 +147,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // Initialize selectedMetric to primary when sport or config changes
   useEffect(() => {
     if (sportConfig) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing derived metric selection when sport config changes
       setSelectedMetric(primaryMetric);
     }
   }, [sport, sportConfig, primaryMetric]);
@@ -174,7 +175,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   const chartData: DistanceEntry[] = useMemo(() => {
     if (!metrics || !sportInfo) return [];
     return convertMetricsToChartData(metrics, activeMetric, userSettings);
-  }, [metrics, sportInfo, activeMetric, userSettings.distanceUnit, userSettings.elevationUnit]);
+  }, [metrics, sportInfo, activeMetric, userSettings]);
 
   // Fetch prior year metrics (only when toggle is on)
   const { priorMetrics } = usePriorYearMetrics({
@@ -194,13 +195,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
       }
     }
     return result;
-  }, [
-    showPriorYears,
-    priorMetrics,
-    activeMetric,
-    userSettings.distanceUnit,
-    userSettings.elevationUnit,
-  ]);
+  }, [showPriorYears, priorMetrics, activeMetric, userSettings]);
 
   // For goals, always use the sport's primary metric config
   const primaryMetricConfig = useMemo(() => getMetricConfig(sport), [sport]);

@@ -49,7 +49,7 @@ interface UseCumulativeChartDataProps {
 function alignToYear(entries: DistanceEntry[], targetYear: number): DistanceEntry[] {
   return entries.map((entry) => {
     const d = new Date(entry.x);
-    let month = d.getUTCMonth();
+    const month = d.getUTCMonth();
     let day = d.getUTCDate();
 
     // Clamp Feb 29 → Feb 28 for non-leap target years

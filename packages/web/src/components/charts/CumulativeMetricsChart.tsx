@@ -186,7 +186,9 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     onPriorYearsChange,
   } = props;
 
-  // Only animate chart lines on first mount — suppress re-animation on goal/range changes
+  // Only animate chart lines on first mount — suppress re-animation on goal/range changes.
+  // This one-time gate is intentional: the effect sets false after mount to prevent
+  // Recharts from re-animating lines when goals or range presets change.
   const [isFirstRender, setIsFirstRender] = useState(true);
   useEffect(() => {
     setIsFirstRender(false);

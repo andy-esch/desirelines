@@ -51,7 +51,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   const chartData: DistanceEntry[] = useMemo(() => {
     if (!metrics || !sportInfo) return [];
     return convertMetricsToChartData(metrics, primaryMetric, userSettings);
-  }, [metrics, sportInfo, primaryMetric, userSettings.distanceUnit, userSettings.elevationUnit]);
+  }, [metrics, sportInfo, primaryMetric, userSettings]);
 
   // Get sport-specific configuration from MetricConfig system
   const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);

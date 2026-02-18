@@ -43,20 +43,18 @@ export function usePriorYearMetrics({
     })),
   });
 
-  // Extract individual data values for stable memo deps (queries array is a new ref each render)
-  const queryDataValues = queries.map((q) => q.data);
-
   const priorMetrics = useMemo(() => {
-    const result: Record<number, SportMetrics> = {};
-    years.forEach((year, index) => {
-      const data = queryDataValues[index];
-      if (data && data.length > 0) {
-        result[year] = data;
-      }
-    });
-    return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- queryDataValues items are referentially stable from TanStack Query
-  }, [years, ...queryDataValues]);
+    return years.reduce(
+      (acc, year, index) => {
+        const data = queries[index]?.data;
+        if (data?.length) {
+          acc[year] = data;
+        }
+        return acc;
+      },
+      {} as Record<number, SportMetrics>
+    );
+  }, [years, queries]);
 
   const isLoading = enabled && queries.some((q) => q.isLoading);
   const error = (queries.find((q) => q.error)?.error as Error | null) ?? null;
