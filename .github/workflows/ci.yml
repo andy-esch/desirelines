@@ -265,7 +265,7 @@ jobs:
           cache-dependency-path: go.work.sum
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: packages/stravapipe/uv.lock
