@@ -1,5 +1,3 @@
-import { memo } from "react";
-
 export interface ChartTooltipProps {
   /** Whether the tooltip is active (hovered) */
   active?: boolean;
@@ -209,4 +207,4 @@ export const ChartTooltip = ({
   );
 };
 
-export default memo(ChartTooltip);
+export default ChartTooltip;

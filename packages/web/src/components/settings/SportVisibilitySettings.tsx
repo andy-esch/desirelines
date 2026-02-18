@@ -163,6 +163,9 @@ export function SportVisibilitySettings() {
   const lastSyncedRef = useRef<string[] | null>(null);
   // Track if we're initialized (to prevent auto-save on initial load)
   const isInitializedRef = useRef(false);
+  // Ref to read localSelection inside effects without adding it as a dependency
+  const localSelectionRef = useRef(localSelection);
+  localSelectionRef.current = localSelection;
   // Debounce timer for auto-save
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Timer for success message dismissal (for cleanup)
@@ -174,6 +177,7 @@ export function SportVisibilitySettings() {
     if (visibleSports.length === 0) return;
 
     const lastSynced = lastSyncedRef.current;
+    const currentSelection = localSelectionRef.current;
 
     // Check if visibleSports actually changed from what we last synced
     // (Use Set for O(1) lookup instead of array.includes which is O(n))
@@ -183,7 +187,7 @@ export function SportVisibilitySettings() {
     if (!visibleSportsChanged) return; // No change, nothing to do
 
     // Check if localSelection already matches visibleSports (avoid unnecessary Set creation)
-    if (setsMatch(localSelection, visibleSports)) {
+    if (setsMatch(currentSelection, visibleSports)) {
       // Just update the ref, no need to create new Set
       lastSyncedRef.current = visibleSports;
       isInitializedRef.current = true;
@@ -191,7 +195,7 @@ export function SportVisibilitySettings() {
     }
 
     // Check if user has unsaved edits (localSelection differs from lastSynced)
-    const hasUnsavedEdits = lastSynced !== null && !setsMatch(localSelection, lastSynced);
+    const hasUnsavedEdits = lastSynced !== null && !setsMatch(currentSelection, lastSynced);
 
     if (!hasUnsavedEdits) {
       // Safe to sync - user hasn't made changes
@@ -200,8 +204,7 @@ export function SportVisibilitySettings() {
       isInitializedRef.current = true;
     }
     // Note: if user has unsaved edits, we don't sync (preserve their work)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleSports]); // Only depend on visibleSports, not localSelection
+  }, [visibleSports]);
 
   // Get sorted sport entries
   const sportEntries = useMemo(() => {

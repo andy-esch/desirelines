@@ -10,7 +10,7 @@
  * - Container (this file): Data, state, callbacks
  * - Presenter (PacingChartPresenter): Pure rendering
  */
-import { memo, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
 import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
@@ -146,4 +146,4 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
   );
 };
 
-export default memo(PacingMetricsChart);
+export default PacingMetricsChart;

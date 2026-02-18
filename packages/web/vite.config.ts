@@ -58,7 +58,14 @@ export default defineConfig(({ mode }) => {
     define: {
       __COMMIT_HASH__: JSON.stringify(version),
     },
-    plugins: [tailwindcss(), react()],
+    plugins: [
+      tailwindcss(),
+      react({
+        babel: {
+          plugins: ["babel-plugin-react-compiler"],
+        },
+      }),
+    ],
     server: {
       port: 3000,
       host: true, // Needed for Docker

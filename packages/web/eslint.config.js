@@ -2,20 +2,20 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactPlugin from "eslint-plugin-react";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
-import reactCompilerPlugin from "eslint-plugin-react-compiler";
 
 export default tseslint.config(
   // Base recommended configs
   js.configs.recommended,
   ...tseslint.configs.recommended,
 
+  // React Hooks + Compiler (merged in eslint-plugin-react-hooks v7)
+  reactHooksPlugin.configs.flat["recommended-latest"],
+
   // React configuration
   {
     files: ["**/*.{ts,tsx}"],
     plugins: {
       react: reactPlugin,
-      "react-hooks": reactHooksPlugin,
-      "react-compiler": reactCompilerPlugin,
     },
     settings: {
       react: {
@@ -27,12 +27,13 @@ export default tseslint.config(
       "react/react-in-jsx-scope": "off", // Not needed with new JSX transform
       "react/prop-types": "off", // Using TypeScript for prop validation
 
-      // React Hooks rules
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
-
-      // React Compiler
-      "react-compiler/react-compiler": "warn",
+      // React Compiler rules — warn for now while codebase is being cleaned up.
+      // rules-of-hooks and exhaustive-deps stay at their preset levels (error/warn).
+      "react-hooks/purity": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/immutability": "warn",
 
       // TypeScript rules
       "@typescript-eslint/no-explicit-any": "warn",
