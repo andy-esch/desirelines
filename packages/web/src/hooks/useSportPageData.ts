@@ -16,6 +16,8 @@ import {
   minutesToHours,
   hoursToMinutes,
   type MetricUnit,
+  type DistanceUnit,
+  type ElevationUnit,
 } from "../utils/units";
 import {
   generateDefaultGoals,
@@ -29,11 +31,13 @@ import { useTrainingMomentum } from "./useTrainingMomentum";
 import { useGoalStats } from "./useGoalStats";
 import { useSportData } from "./useSportData";
 import { useSidebarSportData } from "./useSidebarSportData";
+import { usePriorYearMetrics } from "./usePriorYearMetrics";
 import { getMetricConfig, getMetricFieldName } from "../config/metricConfig";
 import { getSportMetrics, getPrimaryMetric, isTimeSport } from "../utils/sportConfig";
 import type { GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
+import type { SportMetrics } from "../api/activities";
 import { createYearContext, type YearContext } from "../utils/yearContext";
 
 export interface SportPageData {
@@ -79,11 +83,51 @@ export interface SportPageData {
   availableMetrics: string[];
   activeMetric: string;
   onMetricChange: (metric: string) => void;
+
+  // Prior years
+  priorYearData: Record<number, DistanceEntry[]>;
+  showPriorYears: boolean;
+  onPriorYearsChange: (show: boolean) => void;
+}
+
+/** Convert raw sport metrics to chart-ready DistanceEntry[] based on the active metric and user settings. */
+export function convertMetricsToChartData(
+  metrics: SportMetrics,
+  activeMetric: string,
+  userSettings: { distanceUnit: DistanceUnit; elevationUnit: ElevationUnit }
+): DistanceEntry[] {
+  const fieldName = getMetricFieldName(activeMetric);
+
+  return metrics
+    .filter((entry) => entry[fieldName] !== undefined)
+    .map((entry) => {
+      const rawValue = entry[fieldName]!;
+
+      let convertedValue: number;
+      switch (activeMetric) {
+        case "distance_meters":
+          convertedValue = convertDistance(rawValue, userSettings.distanceUnit);
+          break;
+        case "elevation_meters":
+          convertedValue = convertElevation(rawValue, userSettings.elevationUnit);
+          break;
+        case "time_minutes":
+          convertedValue = minutesToHours(rawValue);
+          break;
+        case "activities":
+        default:
+          convertedValue = rawValue;
+          break;
+      }
+
+      return { x: entry.date, y: convertedValue };
+    });
 }
 
 export function useSportPageData(sport: string, year: number): SportPageData {
   const { user } = useAuth();
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+  const [showPriorYears, setShowPriorYears] = useState(false);
 
   // Fetch sport metrics and config
   const { metrics, sportConfig, isLoading, error, retry } = useSportData(year, sport);
@@ -129,34 +173,34 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // Convert metrics to chart data format based on selected metric
   const chartData: DistanceEntry[] = useMemo(() => {
     if (!metrics || !sportInfo) return [];
-
-    const fieldName = getMetricFieldName(activeMetric);
-
-    return metrics
-      .filter((entry) => entry[fieldName] !== undefined)
-      .map((entry) => {
-        const rawValue = entry[fieldName]!;
-
-        let convertedValue: number;
-        switch (activeMetric) {
-          case "distance_meters":
-            convertedValue = convertDistance(rawValue, userSettings.distanceUnit);
-            break;
-          case "elevation_meters":
-            convertedValue = convertElevation(rawValue, userSettings.elevationUnit);
-            break;
-          case "time_minutes":
-            convertedValue = minutesToHours(rawValue);
-            break;
-          case "activities":
-          default:
-            convertedValue = rawValue;
-            break;
-        }
-
-        return { x: entry.date, y: convertedValue };
-      });
+    return convertMetricsToChartData(metrics, activeMetric, userSettings);
   }, [metrics, sportInfo, activeMetric, userSettings.distanceUnit, userSettings.elevationUnit]);
+
+  // Fetch prior year metrics (only when toggle is on)
+  const { priorMetrics } = usePriorYearMetrics({
+    currentYear: year,
+    sport,
+    enabled: showPriorYears,
+  });
+
+  // Convert each prior year's metrics to chart data
+  const priorYearData: Record<number, DistanceEntry[]> = useMemo(() => {
+    if (!showPriorYears) return {};
+    const result: Record<number, DistanceEntry[]> = {};
+    for (const [yearStr, metrics] of Object.entries(priorMetrics)) {
+      const converted = convertMetricsToChartData(metrics, activeMetric, userSettings);
+      if (converted.length > 0) {
+        result[Number(yearStr)] = converted;
+      }
+    }
+    return result;
+  }, [
+    showPriorYears,
+    priorMetrics,
+    activeMetric,
+    userSettings.distanceUnit,
+    userSettings.elevationUnit,
+  ]);
 
   // For goals, always use the sport's primary metric config
   const primaryMetricConfig = useMemo(() => getMetricConfig(sport), [sport]);
@@ -294,5 +338,8 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     availableMetrics,
     activeMetric,
     onMetricChange: setSelectedMetric,
+    priorYearData,
+    showPriorYears,
+    onPriorYearsChange: setShowPriorYears,
   };
 }

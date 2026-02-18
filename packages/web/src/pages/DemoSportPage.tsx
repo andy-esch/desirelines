@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useCurrentYear } from "../hooks/useCurrentYear";
-import { convertDistance, getUserSettings } from "../utils/units";
+import { getUserSettings } from "../utils/units";
 import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import MomentumIndicator from "../components/MomentumIndicator";
@@ -12,6 +12,8 @@ import { getMetricConfig } from "../config/metricConfig";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
 import { createYearContext } from "../utils/yearContext";
+import { getPrimaryMetric } from "../utils/sportConfig";
+import { convertMetricsToChartData } from "../hooks/useSportPageData";
 import SportPageContent from "../components/SportPageContent";
 
 interface DemoSportPageProps {
@@ -40,6 +42,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
 
   // Determine sport type and primary metric
   const sportInfo = sportConfig?.sport_categories[sport] ?? null;
+  const primaryMetric = getPrimaryMetric(sport, sportConfig);
 
   // Determine the unit label based on sport type
   const metricUnit = sportInfo?.has_distance ? userSettings.distanceUnit : "sessions";
@@ -47,23 +50,8 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
   // Convert metrics to chart data format
   const chartData: DistanceEntry[] = useMemo(() => {
     if (!metrics || !sportInfo) return [];
-
-    if (sportInfo.has_distance) {
-      return metrics
-        .filter((entry) => entry.distance !== undefined)
-        .map((entry) => ({
-          x: entry.date,
-          y: convertDistance(entry.distance!, userSettings.distanceUnit),
-        }));
-    }
-
-    return metrics
-      .filter((entry) => entry.activities !== undefined)
-      .map((entry) => ({
-        x: entry.date,
-        y: entry.activities!,
-      }));
-  }, [metrics, sportInfo, userSettings.distanceUnit]);
+    return convertMetricsToChartData(metrics, primaryMetric, userSettings);
+  }, [metrics, sportInfo, primaryMetric, userSettings.distanceUnit, userSettings.elevationUnit]);
 
   // Get sport-specific configuration from MetricConfig system
   const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
@@ -171,6 +159,7 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
         onSportChange={(newSport) => navigate(`/demo/${newSport}/${currentYear}`)}
         onYearChange={(newYear) => navigate(`/demo/${sport}/${newYear}`)}
         routePrefix="/demo"
+        priorYearData={{}}
       />
     </>
   );

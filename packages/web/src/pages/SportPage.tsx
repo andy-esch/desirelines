@@ -55,6 +55,9 @@ export default function SportPage({ sport }: SportPageProps) {
       availableMetrics={data.availableMetrics}
       activeMetric={data.activeMetric}
       onMetricChange={data.onMetricChange}
+      priorYearData={data.priorYearData}
+      showPriorYears={data.showPriorYears}
+      onPriorYearsChange={data.onPriorYearsChange}
     />
   );
 }

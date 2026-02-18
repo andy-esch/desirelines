@@ -27,3 +27,8 @@ export const GOAL_COLORS = [
   "rgb(255, 200, 0)", // Neon Yellow-Orange (ambitious)
   "rgb(255, 0, 128)", // Neon Pink-Red (stretch)
 ] as const;
+
+/** Prior year ghost line styling */
+export const PRIOR_YEAR_BASE_COLOR = "150, 150, 150";
+export const PRIOR_YEAR_OPACITY_START = 0.45;
+export const PRIOR_YEAR_OPACITY_STEP = 0.07;

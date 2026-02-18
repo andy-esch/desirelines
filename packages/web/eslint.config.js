@@ -27,13 +27,14 @@ export default tseslint.config(
       "react/react-in-jsx-scope": "off", // Not needed with new JSX transform
       "react/prop-types": "off", // Using TypeScript for prop validation
 
-      // React Compiler rules — warn for now while codebase is being cleaned up.
-      // rules-of-hooks and exhaustive-deps stay at their preset levels (error/warn).
+      // React Compiler rules — warn while remaining violations are cleaned up.
+      // Remaining: ThemeContext, useSportPageData, useScrolled, GoalManagementTable,
+      // and isFirstRender/localSelectionRef tradeoffs in chart components.
+      // Promote to error once these are resolved.
       "react-hooks/purity": "warn",
       "react-hooks/refs": "warn",
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/preserve-manual-memoization": "warn",
-      "react-hooks/immutability": "warn",
 
       // TypeScript rules
       "@typescript-eslint/no-explicit-any": "warn",
