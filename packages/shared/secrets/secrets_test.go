@@ -3,6 +3,7 @@ package secrets_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/shared/secrets"
@@ -58,7 +59,7 @@ func TestLoadFromMount_FileMissing_EnvEmpty(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if want := "/nonexistent/path"; !contains(err.Error(), want) {
+	if want := "/nonexistent/path"; !strings.Contains(err.Error(), want) {
 		t.Errorf("error %q should contain %q", err.Error(), want)
 	}
 }
@@ -71,17 +72,4 @@ func TestLoadFromMount_FileMissing_EnvKeySetButEmpty(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
