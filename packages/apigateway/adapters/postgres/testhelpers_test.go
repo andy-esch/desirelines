@@ -49,8 +49,8 @@ func seedTestData(t *testing.T, tx pgx.Tx) {
 		startDateLocal time.Time
 		year           int
 		distance       float64
-		movingTime     int
-		elapsedTime    int
+		movingTime     int32
+		elapsedTime    int32
 		elevationGain  float64
 	}{
 		{

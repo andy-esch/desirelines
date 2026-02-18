@@ -30,6 +30,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
+	"github.com/andy-esch/desirelines/packages/shared/secrets"
 )
 
 // Server timeout defaults (can be overridden via environment variables).
@@ -149,7 +150,10 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	deps.corsHandler = cors.NewHandler(allowedOrigins, log)
 
 	// 3. Initialize auth middleware (Firebase JWT + email allowlist)
-	allowedEmails := getAllowedEmails()
+	allowedEmails, err := getAllowedEmails()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get allowed emails: %w", err)
+	}
 	authMiddleware, err := middleware.NewFirebaseAuth(ctx, allowedEmails, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize auth middleware: %w", err)
@@ -233,15 +237,13 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 }
 
 // getAllowedEmails reads allowed emails from secret mount (Cloud Run) or environment variable (local dev).
-func getAllowedEmails() []string {
-	// Try secret mount first (Cloud Run) - Infisical-managed secrets use INFISICAL_ prefix
+func getAllowedEmails() ([]string, error) {
 	const secretPath = "/etc/secrets/INFISICAL_ALLOWED_EMAILS/value" //nolint:gosec // G101: Not credentials, just a file path
-	if data, err := os.ReadFile(secretPath); err == nil {
-		return parseCommaSeparated(strings.TrimSpace(string(data)))
+	value, err := secrets.LoadFromMount(secretPath, "ALLOWED_EMAILS")
+	if err != nil {
+		return nil, err
 	}
-
-	// Fallback to env var (local dev)
-	return parseCommaSeparatedEnv("ALLOWED_EMAILS")
+	return parseCommaSeparated(value), nil
 }
 
 // parseCommaSeparatedEnv reads an environment variable and parses it as a
@@ -269,16 +271,12 @@ func parseCommaSeparated(value string) []string {
 // In local development (no ENVIRONMENT set), falls back to POSTGRES_CONNECTION_STRING env var.
 func getConnectionString() (string, error) {
 	const secretPath = "/etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY/value" //nolint:gosec // G101: Not credentials, just a file path
-	if data, err := os.ReadFile(secretPath); err == nil {
-		return strings.TrimSpace(string(data)), nil
-	}
 
 	// Only allow env var fallback in local development (ENVIRONMENT is always set in Cloud Run)
+	envFallback := ""
 	if os.Getenv("ENVIRONMENT") == "" {
-		if connStr := os.Getenv("POSTGRES_CONNECTION_STRING"); connStr != "" {
-			return connStr, nil
-		}
+		envFallback = "POSTGRES_CONNECTION_STRING"
 	}
 
-	return "", fmt.Errorf("failed to read connection string from %s", secretPath)
+	return secrets.LoadFromMount(secretPath, envFallback)
 }
