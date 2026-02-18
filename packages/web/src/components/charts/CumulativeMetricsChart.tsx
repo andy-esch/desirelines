@@ -11,7 +11,7 @@
  * - Container (this file): Data, state, callbacks
  * - Presenter (CumulativeChartPresenter): Pure rendering
  */
-import { memo, useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
 import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
@@ -349,4 +349,4 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
   );
 };
 
-export default memo(CumulativeMetricsChart);
+export default CumulativeMetricsChart;

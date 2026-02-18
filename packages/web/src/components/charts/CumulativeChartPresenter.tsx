@@ -13,7 +13,6 @@
  * - Pure rendering of the chart visualization
  * - SVG elements for lines, markers, and achievements
  */
-import { memo } from "react";
 import {
   LineChart,
   Line,
@@ -123,7 +122,7 @@ function AchievementStar({
 
   return (
     <g style={{ cursor: "pointer" }}>
-      {config.useSvgStar ? (
+      {config.svgStar ? (
         <path
           d={`M ${cx} ${adjustedCy - config.size}
             L ${cx + config.size * 0.22} ${adjustedCy - config.size * 0.31}
@@ -386,4 +385,4 @@ export function CumulativeChartPresenter({
   );
 }
 
-export default memo(CumulativeChartPresenter);
+export default CumulativeChartPresenter;

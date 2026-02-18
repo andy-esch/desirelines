@@ -89,13 +89,13 @@ export const CHART_CONFIG = {
 
   /** Goal achievement marker styling (visibility controlled by showAchievements prop) */
   achievementMarker: {
-    /** Use SVG path star (true) or unicode character (false) */
-    useSvgStar: true,
+    /** Render SVG path star (true) or unicode character (false) */
+    svgStar: true,
     /** Size of the star marker */
     size: 12,
     /** Vertical offset above the data point (0 = on the line) */
     yOffset: 0,
-    /** Unicode star character (used when useSvgStar is false) */
+    /** Unicode star character (used when svgStar is false) */
     unicodeChar: "★",
     /** Font size for unicode star */
     unicodeFontSize: 18,

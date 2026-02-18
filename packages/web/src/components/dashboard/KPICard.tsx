@@ -1,14 +1,14 @@
-import React from "react";
+import type { ReactNode } from "react";
 
 export interface KPICardProps {
   /** Card title displayed at the top */
   title: string;
   /** Main value displayed prominently */
-  value: React.ReactNode;
+  value: ReactNode;
   /** Additional context displayed below the value */
-  subtitle: string | React.ReactNode;
+  subtitle: string | ReactNode;
   /** Optional indicator (e.g., momentum arrow) shown after subtitle */
-  indicator?: React.ReactNode;
+  indicator?: ReactNode;
 }
 
 /**
@@ -25,7 +25,7 @@ export interface KPICardProps {
  *   indicator={<MomentumIndicator />}
  * />
  */
-const KPICard = React.memo(({ title, value, subtitle, indicator }: KPICardProps) => {
+export default function KPICard({ title, value, subtitle, indicator }: KPICardProps) {
   return (
     <div className="glass-panel-kpi h-full">
       <div className="flex flex-col justify-between p-3 md:p-4">
@@ -40,8 +40,4 @@ const KPICard = React.memo(({ title, value, subtitle, indicator }: KPICardProps)
       </div>
     </div>
   );
-});
-
-KPICard.displayName = "KPICard";
-
-export default KPICard;
+}
