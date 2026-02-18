@@ -1,6 +1,10 @@
-import { useMemo } from "react";
+import { useRef } from "react";
 import ReactSkeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+
+/** Monotonically increasing counter for deterministic theme assignment */
+let themeCounter = 0;
+
 /** Skeleton loader color themes using subtle neon tints */
 const SKELETON_THEMES = [
   { baseColor: "rgba(0, 255, 255, 0.12)", highlightColor: "rgba(0, 255, 255, 0.22)" }, // Cyan
@@ -63,14 +67,14 @@ export default function Skeleton({
   className,
   dualTheme,
 }: SkeletonProps) {
-  // Select a random neon theme once on mount (stable across re-renders)
-  const theme = useMemo(() => {
-    if (dualTheme != null) {
-      return SKELETON_DUAL_THEMES[dualTheme % SKELETON_DUAL_THEMES.length];
-    }
-    const index = Math.floor(Math.random() * SKELETON_THEMES.length);
-    return SKELETON_THEMES[index];
-  }, [dualTheme]);
+  // Assign a theme once per component instance.
+  // Uses a rotating counter (pure/deterministic) instead of Math.random().
+  const themeRef = useRef(
+    dualTheme != null
+      ? SKELETON_DUAL_THEMES[dualTheme % SKELETON_DUAL_THEMES.length]
+      : SKELETON_THEMES[themeCounter++ % SKELETON_THEMES.length]
+  );
+  const theme = themeRef.current;
 
   return (
     <SkeletonTheme baseColor={theme.baseColor} highlightColor={theme.highlightColor}>

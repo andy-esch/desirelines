@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Dialog, DialogPanel, Transition, TransitionChild } from "@headlessui/react";
 import Logo from "../Logo";
@@ -30,10 +30,12 @@ export default function Header({ scrolled = false }: HeaderProps) {
   const [navOpen, setNavOpen] = useState(false);
   const { toggleMobileSidebar } = useUIState();
 
-  // Close mobile nav drawer on route change
-  useEffect(() => {
+  // Close mobile nav drawer on route change (adjust state during render)
+  const [prevPathname, setPrevPathname] = useState(location.pathname);
+  if (location.pathname !== prevPathname) {
+    setPrevPathname(location.pathname);
     setNavOpen(false);
-  }, [location.pathname]);
+  }
 
   // Show controls toggle on sport detail pages (any sport, authenticated or demo)
   const segments = location.pathname.split("/").filter(Boolean);

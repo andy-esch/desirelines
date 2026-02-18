@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useRef } from "react";
 
 /** Neon colors for random spinner selection */
 const NEON_COLORS = [
@@ -7,6 +7,9 @@ const NEON_COLORS = [
   "rgb(0, 255, 128)",
   "rgb(180, 0, 255)",
 ] as const;
+
+/** Monotonically increasing counter for deterministic color assignment */
+let colorCounter = 0;
 
 interface NeonSpinnerProps {
   /** Size variant: default or text-sm */
@@ -29,11 +32,10 @@ interface NeonSpinnerProps {
  * <NeonSpinner size="sm" />
  */
 export default function NeonSpinner({ size = "default", className = "" }: NeonSpinnerProps) {
-  // Select a random color once on mount
-  const color = useMemo(() => {
-    const index = Math.floor(Math.random() * NEON_COLORS.length);
-    return NEON_COLORS[index];
-  }, []);
+  // Assign a color once per component instance using a rotating counter.
+  // A module-level counter is pure (deterministic per render) unlike Math.random().
+  const colorRef = useRef(NEON_COLORS[colorCounter++ % NEON_COLORS.length]);
+  const color = colorRef.current;
 
   const sizeClass = size === "sm" ? "spinner-border-sm" : "";
 

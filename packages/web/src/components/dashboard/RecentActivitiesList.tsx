@@ -128,19 +128,19 @@ export default function RecentActivitiesList({
     return lookup;
   }, [sportData]);
 
-  // Reset page when time range changes
+  // Reset page when time range changes (adjust state during render, not in an effect)
   const { from, to } = useMemo(() => getDateRangeFromTimeRange(timeRange), [timeRange]);
+  const [prevTimeRange, setPrevTimeRange] = useState(timeRange);
+  if (timeRange !== prevTimeRange) {
+    setPrevTimeRange(timeRange);
+    setPage(0);
+  }
 
   const { activities, isLoading, error, hasMore, loadMore } = useActivities({
     from,
     to,
     limit: 20,
   });
-
-  // Reset page when time range changes
-  useEffect(() => {
-    setPage(0);
-  }, [from, to]);
 
   const totalPages = Math.ceil(activities.length / pageSize);
   // Clamp page if pageSize changed (e.g. container resized) and current page is now out of range

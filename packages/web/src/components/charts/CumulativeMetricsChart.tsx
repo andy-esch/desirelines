@@ -162,9 +162,9 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
   } = props;
 
   // Only animate chart lines on first mount — suppress re-animation on goal/range changes
-  const isFirstRender = useRef(true);
+  const [isFirstRender, setIsFirstRender] = useState(true);
   useEffect(() => {
-    isFirstRender.current = false;
+    setIsFirstRender(false);
   }, []);
 
   // Active range preset — drives which button is highlighted and x-axis domain
@@ -337,7 +337,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
         estimatedYearEnd={estimatedYearEnd}
         isSessionsMode={isSessionsMode}
         showAchievements={showAchievements}
-        isAnimationActive={isFirstRender.current}
+        isAnimationActive={isFirstRender}
         isZoomed={isDragZoomed || activeRange !== "full"}
         selectionLeft={selectionLeft}
         selectionRight={selectionRight}
