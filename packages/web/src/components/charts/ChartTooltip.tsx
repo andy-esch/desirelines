@@ -52,7 +52,8 @@ export const ChartTooltip = ({
 
   // Find actual value and goal values from payload
   const actualEntry = payload.find((p) => p.dataKey === "actual" || p.name?.includes("Data"));
-  const actualValue = typeof actualEntry?.value === "number" ? actualEntry.value : 0;
+  const hasActualData = actualEntry !== undefined && typeof actualEntry.value === "number";
+  const actualValue = hasActualData ? (actualEntry.value as number) : 0;
 
   // Find prior year entries (only those with a numeric value at this date)
   const priorYearEntries = payload.filter(
@@ -114,17 +115,19 @@ export const ChartTooltip = ({
               fontSize: "14px",
             }}
           >
-            {actualValue.toFixed(decimals)} {unit}
+            {hasActualData ? `${actualValue.toFixed(decimals)} ${unit}` : "—"}
           </span>
-          <span
-            style={{
-              color: goalColor,
-              fontSize: "11px",
-            }}
-          >
-            {isAhead ? "+" : "−"}
-            {deltaAbs.toFixed(decimals)} vs {goalLabel}
-          </span>
+          {hasActualData && (
+            <span
+              style={{
+                color: goalColor,
+                fontSize: "11px",
+              }}
+            >
+              {isAhead ? "+" : "−"}
+              {deltaAbs.toFixed(decimals)} vs {goalLabel}
+            </span>
+          )}
         </div>
         {priorYearEntries.length > 0 && (
           <div
