@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useId } from "react";
 import ReactSkeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+
 /** Skeleton loader color themes using subtle neon tints */
 const SKELETON_THEMES = [
   { baseColor: "rgba(0, 255, 255, 0.12)", highlightColor: "rgba(0, 255, 255, 0.22)" }, // Cyan
@@ -63,14 +64,16 @@ export default function Skeleton({
   className,
   dualTheme,
 }: SkeletonProps) {
-  // Select a random neon theme once on mount (stable across re-renders)
-  const theme = useMemo(() => {
+  // Derive a stable theme from the component's unique ID.
+  // useId() is SSR-safe, Strict Mode-safe, and pure (no module-level mutation).
+  const id = useId();
+  const theme = (() => {
     if (dualTheme != null) {
       return SKELETON_DUAL_THEMES[dualTheme % SKELETON_DUAL_THEMES.length];
     }
-    const index = Math.floor(Math.random() * SKELETON_THEMES.length);
-    return SKELETON_THEMES[index];
-  }, [dualTheme]);
+    const hash = Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    return SKELETON_THEMES[hash % SKELETON_THEMES.length];
+  })();
 
   return (
     <SkeletonTheme baseColor={theme.baseColor} highlightColor={theme.highlightColor}>

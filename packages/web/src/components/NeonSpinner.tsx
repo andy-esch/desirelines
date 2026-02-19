@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId } from "react";
 
 /** Neon colors for random spinner selection */
 const NEON_COLORS = [
@@ -29,11 +29,11 @@ interface NeonSpinnerProps {
  * <NeonSpinner size="sm" />
  */
 export default function NeonSpinner({ size = "default", className = "" }: NeonSpinnerProps) {
-  // Select a random color once on mount
-  const color = useMemo(() => {
-    const index = Math.floor(Math.random() * NEON_COLORS.length);
-    return NEON_COLORS[index];
-  }, []);
+  // Derive a stable color from the component's unique ID.
+  // useId() is SSR-safe, Strict Mode-safe, and pure (no module-level mutation).
+  const id = useId();
+  const hash = Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const color = NEON_COLORS[hash % NEON_COLORS.length];
 
   const sizeClass = size === "sm" ? "spinner-border-sm" : "";
 

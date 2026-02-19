@@ -10,7 +10,7 @@
  * - Container (this file): Data, state, callbacks
  * - Presenter (PacingChartPresenter): Pure rendering
  */
-import { useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
 import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
@@ -83,10 +83,13 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     onRetry,
   } = props;
 
-  // Only animate chart lines on first mount — suppress re-animation on prop changes
-  const isFirstRender = useRef(true);
+  // Only animate chart lines on first mount — suppress re-animation on prop changes.
+  // This one-time gate is intentional: the effect sets false after mount to prevent
+  // Recharts from re-animating lines when goals or range presets change.
+  const [isFirstRender, setIsFirstRender] = useState(true);
   useEffect(() => {
-    isFirstRender.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time mount animation gate
+    setIsFirstRender(false);
   }, []);
 
   // Derive display values
@@ -135,7 +138,7 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
         year={year}
         unitLabel={unitLabel}
         isSessionsMode={isSessionsMode}
-        isAnimationActive={isFirstRender.current}
+        isAnimationActive={isFirstRender}
         dangerZone={{
           show: shouldShowDangerZone,
           threshold: dangerThreshold,

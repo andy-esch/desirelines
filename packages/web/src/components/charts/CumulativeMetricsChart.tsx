@@ -50,6 +50,12 @@ interface CumulativeMetricsChartProps {
   sport?: string;
   /** Callback for retry on error */
   onRetry?: () => void;
+  /** Prior year chart data keyed by year */
+  priorYearData?: Record<number, DistanceEntry[]>;
+  /** Whether prior year ghost lines are visible */
+  showPriorYears?: boolean;
+  /** Callback when prior years toggle changes */
+  onPriorYearsChange?: (show: boolean) => void;
 }
 
 // ============================================================================
@@ -70,6 +76,8 @@ function HeaderControls({
   achievementCount,
   isZoomed,
   onResetZoom,
+  showPriorYears,
+  onPriorYearsChange,
 }: {
   activeRange: RangePreset;
   onRangeChange: (preset: RangePreset) => void;
@@ -78,6 +86,8 @@ function HeaderControls({
   achievementCount: number;
   isZoomed: boolean;
   onResetZoom: () => void;
+  showPriorYears?: boolean;
+  onPriorYearsChange?: (show: boolean) => void;
 }) {
   const presets: { key: RangePreset; label: string }[] = [
     { key: "7d", label: "7d" },
@@ -117,6 +127,18 @@ function HeaderControls({
           title={showAchievements ? "Hide achievement markers" : "Show achievement markers"}
         >
           {showAchievements ? "★" : "☆"} {achievementCount}
+        </button>
+      )}
+
+      {/* Prior years toggle */}
+      {onPriorYearsChange && (
+        <button
+          type="button"
+          className={`btn btn-sm ${showPriorYears ? "btn-outline-info" : "btn-outline-secondary"}`}
+          onClick={() => onPriorYearsChange(!showPriorYears)}
+          title={showPriorYears ? "Hide prior year lines" : "Show prior year lines"}
+        >
+          Prior Years
         </button>
       )}
     </>
@@ -159,12 +181,17 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     unit = "miles",
     sport,
     onRetry,
+    priorYearData,
+    showPriorYears = false,
+    onPriorYearsChange,
   } = props;
 
-  // Only animate chart lines on first mount — suppress re-animation on goal/range changes
-  const isFirstRender = useRef(true);
+  // Only animate chart lines on first mount — suppress re-animation on goal/range changes.
+  // This one-time gate is intentional: the effect sets false after mount to prevent
+  // Recharts from re-animating lines when goals or range presets change.
+  const [isFirstRender, setIsFirstRender] = useState(true);
   useEffect(() => {
-    isFirstRender.current = false;
+    setIsFirstRender(false);
   }, []);
 
   // Active range preset — drives which button is highlighted and x-axis domain
@@ -193,12 +220,14 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     mergedData,
     currentValues,
     yAxisTicks,
+    priorYearLines,
   } = useCumulativeChartData({
     year,
     goals,
     distanceData,
     showFullYear: true, // Always generate full year data so goal projections extend; x-axis domain handles visual clipping
     sport,
+    priorYearData: showPriorYears ? priorYearData : undefined,
   });
 
   // Drag-to-zoom handlers
@@ -308,6 +337,8 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
       achievementCount={goalAchievements.length}
       isZoomed={isDragZoomed}
       onResetZoom={resetDragZoom}
+      showPriorYears={showPriorYears}
+      onPriorYearsChange={onPriorYearsChange}
     />
   );
 
@@ -337,13 +368,14 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
         estimatedYearEnd={estimatedYearEnd}
         isSessionsMode={isSessionsMode}
         showAchievements={showAchievements}
-        isAnimationActive={isFirstRender.current}
+        isAnimationActive={isFirstRender}
         isZoomed={isDragZoomed || activeRange !== "full"}
         selectionLeft={selectionLeft}
         selectionRight={selectionRight}
         onChartMouseDown={handleChartMouseDown}
         onChartMouseMove={handleChartMouseMove}
         onChartMouseUp={handleChartMouseUp}
+        priorYearLines={priorYearLines}
       />
     </ChartContainer>
   );

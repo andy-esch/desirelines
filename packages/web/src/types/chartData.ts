@@ -17,6 +17,8 @@ export interface ChartDataPoint {
   // Dynamic goal keys: goal0, goal1, goal2, etc.
   // TypeScript index signature for goal properties
   [key: `goal${number}`]: number | undefined;
+  // Prior year keys: prior_2025, prior_2024, etc.
+  [key: `prior_${number}`]: number | undefined;
 }
 
 /**

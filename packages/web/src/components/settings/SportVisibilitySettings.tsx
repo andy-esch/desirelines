@@ -165,14 +165,16 @@ export function SportVisibilitySettings() {
   const isInitializedRef = useRef(false);
   // Ref to read localSelection inside effects without adding it as a dependency
   const localSelectionRef = useRef(localSelection);
-  localSelectionRef.current = localSelection;
+  useEffect(() => {
+    localSelectionRef.current = localSelection;
+  });
   // Debounce timer for auto-save
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Timer for success message dismissal (for cleanup)
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync localSelection with visibleSports when it changes from external source
-  // But only if user hasn't made unsaved edits
+  // Sync localSelection with visibleSports when it changes from external source.
+  // But only if user hasn't made unsaved edits.
   useEffect(() => {
     if (visibleSports.length === 0) return;
 
@@ -199,6 +201,7 @@ export function SportVisibilitySettings() {
 
     if (!hasUnsavedEdits) {
       // Safe to sync - user hasn't made changes
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing external Firestore state into local state
       setLocalSelection(new Set(visibleSports));
       lastSyncedRef.current = visibleSports;
       isInitializedRef.current = true;

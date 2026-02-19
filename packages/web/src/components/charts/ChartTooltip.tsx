@@ -52,13 +52,20 @@ export const ChartTooltip = ({
 
   // Find actual value and goal values from payload
   const actualEntry = payload.find((p) => p.dataKey === "actual" || p.name?.includes("Data"));
-  const actualValue = typeof actualEntry?.value === "number" ? actualEntry.value : 0;
+  const hasActualData = actualEntry !== undefined && typeof actualEntry.value === "number";
+  const actualValue = hasActualData ? (actualEntry.value as number) : 0;
 
-  // Find goal entries (exclude actual and average)
+  // Find prior year entries (only those with a numeric value at this date)
+  const priorYearEntries = payload.filter(
+    (p) => p.dataKey?.startsWith("prior_") && typeof p.value === "number"
+  );
+
+  // Find goal entries (exclude actual, average, and prior year lines)
   const goalEntries = payload.filter(
     (p) =>
-      p.dataKey?.startsWith("goal") ||
-      (p.name && !p.name.includes("Data") && !p.name.includes("Average"))
+      !p.dataKey?.startsWith("prior_") &&
+      (p.dataKey?.startsWith("goal") ||
+        (p.name && !p.name.includes("Data") && !p.name.includes("Average")))
   );
 
   // Find the next unachieved goal (smallest goal value > actual) or closest goal
@@ -80,7 +87,7 @@ export const ChartTooltip = ({
   const goalLabel = targetGoal?.name?.split(":")[0] || "Goal";
 
   if (compact && targetGoal) {
-    // Compact mode: just actual + delta vs nearest goal
+    // Compact mode: actual + delta vs nearest goal, plus prior year values
     // Use goal's color for the delta to create visual connection
     const goalColor = targetGoal.stroke || targetGoal.color || "#888";
 
@@ -108,18 +115,54 @@ export const ChartTooltip = ({
               fontSize: "14px",
             }}
           >
-            {actualValue.toFixed(decimals)} {unit}
+            {hasActualData ? `${actualValue.toFixed(decimals)} ${unit}` : "—"}
           </span>
-          <span
+          {hasActualData && (
+            <span
+              style={{
+                color: goalColor,
+                fontSize: "11px",
+              }}
+            >
+              {isAhead ? "+" : "−"}
+              {deltaAbs.toFixed(decimals)} vs {goalLabel}
+            </span>
+          )}
+        </div>
+        {priorYearEntries.length > 0 && (
+          <div
             style={{
-              color: goalColor,
-              fontSize: "11px",
+              marginTop: "4px",
+              paddingTop: "4px",
+              borderTop: "1px solid var(--color-chart-tooltip-divider)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "2px",
             }}
           >
-            {isAhead ? "+" : "−"}
-            {deltaAbs.toFixed(decimals)} vs {goalLabel}
-          </span>
-        </div>
+            {priorYearEntries.map((entry, index) => {
+              const value = typeof entry.value === "number" ? entry.value.toFixed(decimals) : "—";
+              const color = entry.stroke || entry.color || "#888";
+              return (
+                <div
+                  key={index}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "11px",
+                  }}
+                >
+                  <span style={{ color }}>{entry.name}</span>
+                  <span style={{ color: "var(--color-chart-tooltip-muted)" }}>
+                    {value} {unit}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }

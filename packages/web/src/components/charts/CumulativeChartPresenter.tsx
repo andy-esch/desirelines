@@ -30,7 +30,14 @@ import type {
   GoalLineData,
   GoalAchievement,
 } from "../../types/chartData";
-import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
+import {
+  CHART_COLORS,
+  GOAL_COLORS,
+  PRIOR_YEAR_BASE_COLOR,
+  PRIOR_YEAR_OPACITY_START,
+  PRIOR_YEAR_OPACITY_STEP,
+} from "../../constants/chartColors";
+import type { PriorYearLine } from "../../hooks/useCumulativeChartData";
 import { CHART_CONFIG, calculateCumulativeYAxisMax } from "../../constants/chartConfig";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
@@ -96,6 +103,10 @@ export interface CumulativeChartPresenterProps {
   onChartMouseMove?: (e: { activeLabel?: string | number }) => void;
   /** Mouse up handler for drag-to-zoom */
   onChartMouseUp?: () => void;
+
+  // --- Prior Year Lines ---
+  /** Prior year ghost line metadata (sorted most recent first) */
+  priorYearLines?: PriorYearLine[];
 }
 
 // ============================================================================
@@ -242,6 +253,7 @@ export function CumulativeChartPresenter({
   onChartMouseDown,
   onChartMouseMove,
   onChartMouseUp,
+  priorYearLines,
 }: CumulativeChartPresenterProps) {
   return (
     <div style={{ position: "relative", userSelect: "none" }}>
@@ -302,6 +314,20 @@ export function CumulativeChartPresenter({
               value={goal.value}
               label={goal.label || "Goal"}
               color={goal.color}
+            />
+          ))}
+
+          {/* Prior year ghost lines (rendered first so they layer behind) */}
+          {priorYearLines?.map((pl, index) => (
+            <Line
+              key={pl.dataKey}
+              type="monotone"
+              dataKey={pl.dataKey}
+              stroke={`rgba(${PRIOR_YEAR_BASE_COLOR}, ${PRIOR_YEAR_OPACITY_START - index * PRIOR_YEAR_OPACITY_STEP})`}
+              strokeWidth={1.5}
+              dot={false}
+              name={String(pl.year)}
+              isAnimationActive={false}
             />
           ))}
 

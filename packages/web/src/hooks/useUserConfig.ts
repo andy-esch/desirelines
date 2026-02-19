@@ -262,49 +262,7 @@ export function useUserConfig(
     defaultValue,
   ]);
 
-  // MIGRATION: LocalStorage -> Firestore
-  // When a user signs in, migrate their demo data if no remote data exists
-  const migrating = useRef(false);
-  useEffect(() => {
-    // Only run if authenticated (not LS mode), finished loading, and no remote data exists
-    const hasNoData = data === null || data === undefined;
-    if (isLocalStorageMode || isLoading || !hasNoData || !configService || migrating.current)
-      return;
-
-    const key = getStorageKey("default", configType, year, sport);
-    const localDataRaw = localStorage.getItem(key);
-
-    if (localDataRaw) {
-      try {
-        const localData = JSON.parse(localDataRaw);
-        if (localData && typeof localData === "object") {
-          migrating.current = true;
-          mutation
-            .mutateAsync(localData)
-            .then(() => {
-              localStorage.removeItem(key);
-            })
-            .catch((err) => {
-              logApiError(err, `[useUserConfig] Migration failed for ${key}`);
-            })
-            .finally(() => {
-              migrating.current = false;
-            });
-        } else {
-          logApiError(
-            new Error("Invalid migration data format"),
-            `[useUserConfig] localStorage data for ${key} is not an object`
-          );
-          localStorage.removeItem(key);
-        }
-      } catch (err) {
-        logApiError(err, `[useUserConfig] Invalid localStorage data for ${key}, clearing`);
-        localStorage.removeItem(key);
-      }
-    }
-  }, [isLocalStorageMode, isLoading, data, configType, year, sport, configService]);
-
-  // WRITE MUTATION
+  // WRITE MUTATION (declared before migration effect which references it)
   const mutation = useMutation({
     mutationFn: async (newData: ConfigData) => {
       if (isLocalStorageMode) {
@@ -349,6 +307,48 @@ export function useUserConfig(
   const clearSaveError = useCallback(() => {
     mutation.reset();
   }, [mutation]);
+
+  // MIGRATION: LocalStorage -> Firestore
+  // When a user signs in, migrate their demo data if no remote data exists
+  const migrating = useRef(false);
+  useEffect(() => {
+    // Only run if authenticated (not LS mode), finished loading, and no remote data exists
+    const hasNoData = data === null || data === undefined;
+    if (isLocalStorageMode || isLoading || !hasNoData || !configService || migrating.current)
+      return;
+
+    const key = getStorageKey("default", configType, year, sport);
+    const localDataRaw = localStorage.getItem(key);
+
+    if (localDataRaw) {
+      try {
+        const localData = JSON.parse(localDataRaw);
+        if (localData && typeof localData === "object") {
+          migrating.current = true;
+          mutation
+            .mutateAsync(localData)
+            .then(() => {
+              localStorage.removeItem(key);
+            })
+            .catch((err) => {
+              logApiError(err, `[useUserConfig] Migration failed for ${key}`);
+            })
+            .finally(() => {
+              migrating.current = false;
+            });
+        } else {
+          logApiError(
+            new Error("Invalid migration data format"),
+            `[useUserConfig] localStorage data for ${key} is not an object`
+          );
+          localStorage.removeItem(key);
+        }
+      } catch (err) {
+        logApiError(err, `[useUserConfig] Invalid localStorage data for ${key}, clearing`);
+        localStorage.removeItem(key);
+      }
+    }
+  }, [isLocalStorageMode, isLoading, data, configType, year, sport, configService, mutation]);
 
   return {
     data: data ?? defaultValue ?? null,

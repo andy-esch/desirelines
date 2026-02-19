@@ -24,13 +24,14 @@ export function GoalManagementTable() {
   const { config, loading, error } = useFullUserConfig();
 
   // Flatten goals from nested structure into table rows
+  const goals = config?.goals;
   const goalRows = useMemo<GoalRow[]>(() => {
-    if (!config?.goals) return [];
+    if (!goals) return [];
 
     const rows: GoalRow[] = [];
 
     // Iterate years
-    Object.entries(config.goals).forEach(([yearStr, sportGoalsForYear]) => {
+    Object.entries(goals).forEach(([yearStr, sportGoalsForYear]) => {
       const year = parseInt(yearStr, 10);
       const data = sportGoalsForYear as SportGoalsForYear;
       if (isNaN(year) || !data?.sports) return;
@@ -62,7 +63,7 @@ export function GoalManagementTable() {
       if (a.sport !== b.sport) return a.sport.localeCompare(b.sport);
       return a.value - b.value;
     });
-  }, [config?.goals]);
+  }, [goals]);
 
   const currentYear = useCurrentYear();
 
