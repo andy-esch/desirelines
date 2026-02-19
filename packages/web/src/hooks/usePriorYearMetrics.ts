@@ -43,6 +43,8 @@ export function usePriorYearMetrics({
     })),
   });
 
+  // Create a stable key based on when data was last updated.
+  const dataKey = queries.map((q) => q.dataUpdatedAt).join(",");
   const priorMetrics = useMemo(() => {
     return years.reduce(
       (acc, year, index) => {
@@ -54,7 +56,8 @@ export function usePriorYearMetrics({
       },
       {} as Record<number, SportMetrics>
     );
-  }, [years, queries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dataKey captures query staleness without unstable array ref
+  }, [years, dataKey]);
 
   const isLoading = enabled && queries.some((q) => q.isLoading);
   const error = (queries.find((q) => q.error)?.error as Error | null) ?? null;

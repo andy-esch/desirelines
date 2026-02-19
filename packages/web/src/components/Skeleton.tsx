@@ -1,9 +1,6 @@
-import { useRef } from "react";
+import { useId } from "react";
 import ReactSkeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-
-/** Monotonically increasing counter for deterministic theme assignment */
-let themeCounter = 0;
 
 /** Skeleton loader color themes using subtle neon tints */
 const SKELETON_THEMES = [
@@ -67,14 +64,16 @@ export default function Skeleton({
   className,
   dualTheme,
 }: SkeletonProps) {
-  // Assign a theme once per component instance.
-  // Uses a rotating counter (pure/deterministic) instead of Math.random().
-  const themeRef = useRef(
-    dualTheme != null
-      ? SKELETON_DUAL_THEMES[dualTheme % SKELETON_DUAL_THEMES.length]
-      : SKELETON_THEMES[themeCounter++ % SKELETON_THEMES.length]
-  );
-  const theme = themeRef.current;
+  // Derive a stable theme from the component's unique ID.
+  // useId() is SSR-safe, Strict Mode-safe, and pure (no module-level mutation).
+  const id = useId();
+  const theme = (() => {
+    if (dualTheme != null) {
+      return SKELETON_DUAL_THEMES[dualTheme % SKELETON_DUAL_THEMES.length];
+    }
+    const hash = Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    return SKELETON_THEMES[hash % SKELETON_THEMES.length];
+  })();
 
   return (
     <SkeletonTheme baseColor={theme.baseColor} highlightColor={theme.highlightColor}>
