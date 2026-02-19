@@ -12,6 +12,17 @@ import { cleanup } from "@testing-library/react";
 // Tests should mock Firebase services as needed
 import { vi, beforeEach, afterEach } from "vitest";
 
+// Suppress TanStack Router's internal act() warnings in tests.
+// These are false positives: Transitioner, MatchImpl, and MatchesInner update
+// state asynchronously after router.load(), but tests already await the load.
+const originalConsoleError = console.error;
+console.error = (...args: Parameters<typeof console.error>) => {
+  if (typeof args[0] === "string" && args[0].includes("was not wrapped in act(")) {
+    return;
+  }
+  originalConsoleError(...args);
+};
+
 // Setup localStorage mock for tests
 class LocalStorageMock {
   private store: Record<string, string> = {};
