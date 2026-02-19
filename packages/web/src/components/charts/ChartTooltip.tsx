@@ -55,10 +55,15 @@ export const ChartTooltip = ({
   const hasActualData = actualEntry !== undefined && typeof actualEntry.value === "number";
   const actualValue = hasActualData ? (actualEntry.value as number) : 0;
 
-  // Find prior year entries (only those with a numeric value at this date)
-  const priorYearEntries = payload.filter(
-    (p) => p.dataKey?.startsWith("prior_") && typeof p.value === "number"
-  );
+  // Find prior year entries (only those with a numeric value at this date),
+  // sorted most recent year first (e.g. 2025, 2024, 2023…)
+  const priorYearEntries = payload
+    .filter((p) => p.dataKey?.startsWith("prior_") && typeof p.value === "number")
+    .sort((a, b) => {
+      const yearA = Number(a.dataKey?.replace("prior_", "") ?? 0);
+      const yearB = Number(b.dataKey?.replace("prior_", "") ?? 0);
+      return yearB - yearA;
+    });
 
   // Find goal entries (exclude actual, average, and prior year lines)
   const goalEntries = payload.filter(
