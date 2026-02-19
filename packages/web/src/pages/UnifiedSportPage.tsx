@@ -5,6 +5,7 @@ import SportPageSkeleton from "../components/skeletons/SportPageSkeleton";
 
 interface UnifiedSportPageProps {
   sport: string;
+  year: string;
 }
 
 /**
@@ -13,7 +14,7 @@ interface UnifiedSportPageProps {
  * - Authenticated users: SportPage with real API data
  * - Unauthenticated users: DemoSportPage with demo data
  */
-export default function UnifiedSportPage({ sport }: UnifiedSportPageProps) {
+export default function UnifiedSportPage({ sport, year }: UnifiedSportPageProps) {
   const { user, loading } = useAuth();
 
   // Show loading while auth state is being determined
@@ -22,5 +23,9 @@ export default function UnifiedSportPage({ sport }: UnifiedSportPageProps) {
   }
 
   // Render appropriate page based on auth state
-  return user ? <SportPage sport={sport} /> : <DemoSportPage sport={sport} />;
+  return user ? (
+    <SportPage sport={sport} year={year} />
+  ) : (
+    <DemoSportPage sport={sport} year={year} />
+  );
 }

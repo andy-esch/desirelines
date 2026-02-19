@@ -5,6 +5,7 @@ import App from "./App";
 import { ErrorBoundary } from "react-error-boundary";
 import { PageErrorFallback } from "./components/PageErrorFallback";
 import { loadConfig } from "./lib/config";
+import { createAppRouter } from "./router";
 
 // Log version for debugging
 console.log(
@@ -69,6 +70,21 @@ function DevtoolsLazy() {
   );
 }
 
+// Lazy-load TanStack Router devtools (only loaded in development)
+const TanStackRouterDevtools = lazy(() =>
+  import("@tanstack/react-router-devtools").then((mod) => ({
+    default: mod.TanStackRouterDevtools,
+  }))
+);
+
+function RouterDevtoolsLazy() {
+  return (
+    <Suspense fallback={null}>
+      <TanStackRouterDevtools />
+    </Suspense>
+  );
+}
+
 // Initialize React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +95,9 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Create router instance
+const router = createAppRouter();
 
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
 root.render(
@@ -93,8 +112,9 @@ root.render(
       )}
     >
       <QueryClientProvider client={queryClient}>
-        <App />
+        <App router={router} />
         {import.meta.env.DEV && <DevtoolsLazy />}
+        {import.meta.env.DEV && <RouterDevtoolsLazy />}
       </QueryClientProvider>
     </ErrorBoundary>
   </React.StrictMode>

@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 
 interface SportVisibilityHintProps {
   className?: string;
@@ -13,7 +13,10 @@ interface SportVisibilityHintProps {
 export function SportVisibilityHint({ className = "", style }: SportVisibilityHintProps) {
   return (
     <div className={`text-slate-light ${className}`} style={{ fontSize: "0.7rem", ...style }}>
-      Don't see your sport? <Link to="/settings#sport-visibility">Manage visible sports</Link>
+      Don't see your sport?{" "}
+      <Link to="/settings" hash="sport-visibility">
+        Manage visible sports
+      </Link>
     </div>
   );
 }

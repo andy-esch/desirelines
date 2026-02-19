@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import type { MetricUnit } from "../utils/units";
 
 interface EmptyStateProps {
@@ -36,6 +36,9 @@ export function EmptyState({
       ? `No ${sport} ${unit === "sessions" ? "sessions" : "activities"} recorded for ${year}`
       : "No data available";
 
+  const isDemo = linkPrefix === "/demo";
+  const yearStr = suggestedYear ? String(suggestedYear) : "";
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[200px] md:min-h-[300px] p-4 md:p-8 neon-backdrop">
       <div className="text-2xl sm:text-[2rem] md:text-[2.5rem] font-bold mb-4 text-center">
@@ -47,9 +50,19 @@ export function EmptyState({
       </p>
       {suggestedYear && sport && (
         <p className="text-slate-light text-sm md:text-base text-center m-0 mt-2">
-          <Link to={`${linkPrefix}/${sport}/${suggestedYear}`} className="text-accent-cyan">
-            View {suggestedYear} instead →
-          </Link>
+          {isDemo ? (
+            <Link
+              to="/demo/$sport/$year"
+              params={{ sport, year: yearStr }}
+              className="text-accent-cyan"
+            >
+              View {suggestedYear} instead →
+            </Link>
+          ) : (
+            <Link to="/$sport/$year" params={{ sport, year: yearStr }} className="text-accent-cyan">
+              View {suggestedYear} instead →
+            </Link>
+          )}
         </p>
       )}
     </div>
