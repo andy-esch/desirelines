@@ -898,8 +898,17 @@ html:not(.dark) {
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .page-transition {
+    .page-transition,
+    .spinner-border {
       animation: none;
+    }
+    .react-loading-skeleton::after {
+      animation: none !important;
+    }
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
     }
   }
 

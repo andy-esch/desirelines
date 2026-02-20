@@ -18,26 +18,6 @@ type ActivityRepository interface {
 	// Close releases database resources.
 	io.Closer
 
-	// GetSportMetrics returns cumulative metrics timeseries for a sport category in a given year.
-	// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
-	// Used by: GET /activities/{year}/metrics?sport=X (without from/to params)
-	GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*generated.SportMetrics, error)
-
-	// GetSportMetricsByDateRange returns cumulative metrics for a date range.
-	// Unlike GetSportMetrics, this can span multiple years (e.g., Dec 2025 - Jan 2026).
-	// Used by: GET /activities/{year}/metrics?sport=X&from=YYYY-MM-DD&to=YYYY-MM-DD
-	GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.SportMetrics, error)
-
-	// GetDailySummary returns daily activity summaries for a sport category in a given year.
-	// sportTypes is a list of Strava sport_type values (e.g., ["Ride", "VirtualRide"] for cycling).
-	// Used by: GET /activities/{year}/source?sport=X (without from/to params)
-	GetDailySummary(ctx context.Context, year int, sportTypes []string) (*generated.DailySummary, error)
-
-	// GetDailySummaryByDateRange returns daily activity summaries for a date range.
-	// Unlike GetDailySummary, this can span multiple years (e.g., Dec 2025 - Jan 2026).
-	// Used by: GET /activities/{year}/source?sport=X&from=YYYY-MM-DD&to=YYYY-MM-DD
-	GetDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.DailySummary, error)
-
 	// GetMultiSportMetrics returns cumulative metrics for multiple sports in a single query.
 	// Returns a map keyed by raw Strava sport type (e.g., "Ride", "VirtualRide").
 	// The handler re-keys results by category using sportConfig.GetCategoryForStravaType().

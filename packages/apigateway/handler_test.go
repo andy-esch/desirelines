@@ -60,22 +60,6 @@ func (m *mockActivityRepository) Close() error {
 	return m.closeErr
 }
 
-func (m *mockActivityRepository) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*generated.SportMetrics, error) {
-	return m.sportMetrics, m.sportMetricsErr
-}
-
-func (m *mockActivityRepository) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.SportMetrics, error) {
-	return m.sportMetrics, m.sportMetricsErr
-}
-
-func (m *mockActivityRepository) GetDailySummary(ctx context.Context, year int, sportTypes []string) (*generated.DailySummary, error) {
-	return m.dailySummary, m.dailySummaryErr
-}
-
-func (m *mockActivityRepository) GetDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.DailySummary, error) {
-	return m.dailySummary, m.dailySummaryErr
-}
-
 func (m *mockActivityRepository) GetMultiSportMetrics(ctx context.Context, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	return nil, m.sportMetricsErr
 }

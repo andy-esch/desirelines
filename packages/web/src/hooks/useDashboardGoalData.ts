@@ -6,7 +6,7 @@ import { useServices } from "../contexts/ServiceContext";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
 import { useUserConfig } from "./useUserConfig";
-import { getSpectrumColor } from "./useMultiSportChartData";
+import { getSpectrumColor } from "../utils/chartColors";
 import { fetchMultiSportMetrics, type MetricsEntry } from "../api/activities";
 import {
   generateDemoMetrics,

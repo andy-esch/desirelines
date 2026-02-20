@@ -15,6 +15,7 @@ import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
 import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
 import { usePacingChartData } from "../../hooks/usePacingChartData";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 import ChartContainer from "./ChartContainer";
 import PacingChartPresenter from "./PacingChartPresenter";
 
@@ -83,6 +84,8 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     onRetry,
   } = props;
 
+  const reducedMotion = useReducedMotion();
+
   // Only animate chart lines on first mount — suppress re-animation on prop changes.
   // This one-time gate is intentional: the effect sets false after mount to prevent
   // Recharts from re-animating lines when goals or range presets change.
@@ -138,7 +141,7 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
         year={year}
         unitLabel={unitLabel}
         isSessionsMode={isSessionsMode}
-        isAnimationActive={isFirstRender}
+        isAnimationActive={isFirstRender && !reducedMotion}
         dangerZone={{
           show: shouldShowDangerZone,
           threshold: dangerThreshold,
