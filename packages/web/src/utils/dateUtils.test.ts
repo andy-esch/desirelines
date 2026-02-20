@@ -3,6 +3,7 @@ import {
   toLocalDateString,
   parseLocalDate,
   parseLocalDateStrict,
+  getCurrentLocalDate,
   getTodayString,
   addDays,
   isSameDay,
@@ -113,6 +114,25 @@ describe("parseLocalDateStrict", () => {
 
   it("throws for invalid date like Feb 30", () => {
     expect(() => parseLocalDateStrict("2026-02-30")).toThrow();
+  });
+});
+
+describe("getCurrentLocalDate", () => {
+  it("returns a Date object at local midnight", () => {
+    const result = getCurrentLocalDate();
+    expect(result).toBeInstanceOf(Date);
+    expect(result.getHours()).toBe(0);
+    expect(result.getMinutes()).toBe(0);
+    expect(result.getSeconds()).toBe(0);
+    expect(result.getMilliseconds()).toBe(0);
+  });
+
+  it("matches the current year, month, and day", () => {
+    const now = new Date();
+    const result = getCurrentLocalDate();
+    expect(result.getFullYear()).toBe(now.getFullYear());
+    expect(result.getMonth()).toBe(now.getMonth());
+    expect(result.getDate()).toBe(now.getDate());
   });
 });
 

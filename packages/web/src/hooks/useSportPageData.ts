@@ -5,8 +5,18 @@
  * goal migration, momentum tracking, sidebar data, and year context.
  *
  * Extracted from SportPage.tsx to keep the page component thin (~20 lines).
+ *
+ * Memoization strategy (React Compiler hybrid):
+ *
+ * Most derivations are left unmemoized — the React Compiler handles these.
+ * Exceptions where explicit memoization is retained:
+ *   - handleGoalsChange (useCallback): passed as a prop to child components;
+ *     without stable identity, goal editor would re-render on every parent render.
+ *   - defaultGoalsForYear (useMemo): contains new Date().toISOString() calls that
+ *     produce fresh values each render, making the object perpetually unstable
+ *     and defeating useUserConfig's default-value comparison.
  */
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   convertDistance,
   convertElevation,
@@ -135,7 +145,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // Fetch sidebar sport data (available sports and counts)
   const { availableSports, sportCounts } = useSidebarSportData(year);
 
-  // Load user preferences for unit settings (BEFORE using them in calculations)
+  // Load user preferences for unit settings
   const { data: preferences } = useUserConfig("preferences");
   const userSettings = getUserSettings(preferences);
 
@@ -147,7 +157,6 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // Initialize selectedMetric to primary when sport or config changes
   useEffect(() => {
     if (sportConfig) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing derived metric selection when sport config changes
       setSelectedMetric(primaryMetric);
     }
   }, [sport, sportConfig, primaryMetric]);
@@ -172,10 +181,8 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   })();
 
   // Convert metrics to chart data format based on selected metric
-  const chartData: DistanceEntry[] = useMemo(() => {
-    if (!metrics || !sportInfo) return [];
-    return convertMetricsToChartData(metrics, activeMetric, userSettings);
-  }, [metrics, sportInfo, activeMetric, userSettings]);
+  const chartData: DistanceEntry[] =
+    metrics && sportInfo ? convertMetricsToChartData(metrics, activeMetric, userSettings) : [];
 
   // Fetch prior year metrics (only when toggle is on)
   const { priorMetrics } = usePriorYearMetrics({
@@ -185,49 +192,50 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   });
 
   // Convert each prior year's metrics to chart data
-  const priorYearData: Record<number, DistanceEntry[]> = useMemo(() => {
-    if (!showPriorYears) return {};
-    const result: Record<number, DistanceEntry[]> = {};
+  const priorYearData: Record<number, DistanceEntry[]> = {};
+  if (showPriorYears) {
     for (const [yearStr, metrics] of Object.entries(priorMetrics)) {
       const converted = convertMetricsToChartData(metrics, activeMetric, userSettings);
       if (converted.length > 0) {
-        result[Number(yearStr)] = converted;
+        priorYearData[Number(yearStr)] = converted;
       }
     }
-    return result;
-  }, [showPriorYears, priorMetrics, activeMetric, userSettings]);
+  }
 
   // For goals, always use the sport's primary metric config
-  const primaryMetricConfig = useMemo(() => getMetricConfig(sport), [sport]);
+  const primaryMetricConfig = getMetricConfig(sport);
 
   // Check if we're viewing the primary metric (for goal visibility)
   const isViewingPrimaryMetric = activeMetric === primaryMetric;
 
   // Calculate current values
-  const estimatedYearEnd = useMemo(() => {
-    if (chartData.length === 0) return primaryMetricConfig.defaultGoalValue;
-    return estimateYearEndDistance(chartData, year);
-  }, [chartData, year, primaryMetricConfig.defaultGoalValue]);
+  const estimatedYearEnd =
+    chartData.length === 0
+      ? primaryMetricConfig.defaultGoalValue
+      : estimateYearEndDistance(chartData, year);
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
   // Goals management
+  // Explicit useMemo: contains new Date().toISOString() which would make the object
+  // perpetually unstable, causing useUserConfig to re-trigger on every render.
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
     const { roundingFactor, defaultGoalValue } = primaryMetricConfig;
     const generatedGoals = generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue);
-    const timeSport = isTimeSport(sport, sportConfig);
+    const isTime = isTimeSport(sport, sportConfig);
+    const now = new Date().toISOString();
 
     return {
       goals: generatedGoals.map((goal) => ({
         id: goal.id,
         value: sportInfo?.has_distance
           ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
-          : timeSport
+          : isTime
             ? Math.round(hoursToMinutes(goal.value))
             : goal.value,
         label: goal.label || "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       })),
     };
   }, [
@@ -251,33 +259,30 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   useGoalMigration(goalsData, user?.uid ?? "", year, sport, !!sportInfo?.has_distance, updateGoals);
 
   // Convert goals from storage units to display units for UI
-  const goals: Goals = useMemo(() => {
-    if (!goalsData?.goals) return [];
+  const goals: Goals = goalsData?.goals
+    ? goalsData.goals.map((g) => {
+        let displayValue = g.value;
+        if (sportInfo?.has_distance) {
+          displayValue = Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit));
+        } else if (isTimeSport(sport, sportConfig)) {
+          displayValue = Math.round(minutesToHours(g.value));
+        }
 
-    const timeSport = isTimeSport(sport, sportConfig);
-
-    return goalsData.goals.map((g) => {
-      let displayValue = g.value;
-      if (sportInfo?.has_distance) {
-        displayValue = Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit));
-      } else if (timeSport) {
-        displayValue = Math.round(minutesToHours(g.value));
-      }
-
-      return { id: g.id, value: displayValue, label: g.label };
-    });
-  }, [goalsData, sportInfo?.has_distance, userSettings.distanceUnit, sport, sportConfig]);
+        return { id: g.id, value: displayValue, label: g.label };
+      })
+    : [];
 
   // Handle goals change: convert from display units back to storage units
+  // Explicit useCallback: passed as onGoalsChange prop to child components.
   const handleGoalsChange = useCallback(
     async (newGoals: Goals) => {
-      const timeSport = isTimeSport(sport, sportConfig);
+      const isTime = isTimeSport(sport, sportConfig);
       const updatedGoalsForYear: GoalsForYear = {
         goals: newGoals.map((goal) => ({
           id: goal.id,
           value: sportInfo?.has_distance
             ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
-            : timeSport
+            : isTime
               ? Math.round(hoursToMinutes(goal.value))
               : goal.value,
           label: goal.label || "",

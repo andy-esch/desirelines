@@ -105,6 +105,17 @@ export function parseLocalDateStrict(dateStr: string): Date {
 }
 
 /**
+ * Get the current date at local midnight.
+ *
+ * Use this as the single source of truth for 'today' when calculating
+ * day counts or chart boundaries to ensure consistency across the app.
+ */
+export function getCurrentLocalDate(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/**
  * Get today's date as a YYYY-MM-DD string in local timezone.
  *
  * @returns Today's date in YYYY-MM-DD format
@@ -115,7 +126,7 @@ export function parseLocalDateStrict(dateStr: string): Date {
  * ```
  */
 export function getTodayString(): string {
-  return toLocalDateString(new Date());
+  return toLocalDateString(getCurrentLocalDate());
 }
 
 /**

@@ -2,7 +2,7 @@ import React from "react";
 import { Goals, PACE_THRESHOLDS } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
-import { getDangerThreshold } from "../constants/dangerZoneThresholds";
+import { useDangerThresholds } from "../hooks/useDangerThresholds";
 import type { YearContext } from "../utils/yearContext";
 
 interface GoalSummaryTableProps {
@@ -25,7 +25,8 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   const { year, isPastYear, daysElapsed, daysRemaining } = yearContext;
 
   // Get danger threshold for this sport
-  const dangerThreshold = getDangerThreshold(sport);
+  const { getThreshold } = useDangerThresholds();
+  const dangerThreshold = getThreshold(sport);
 
   const calculateDailyPaceNeeded = (goalValue: number): number => {
     if (daysRemaining <= 0) return 0;

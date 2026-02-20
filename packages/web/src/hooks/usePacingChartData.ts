@@ -6,6 +6,8 @@ import { GOAL_COLORS } from "../constants/chartColors";
 import { calculatePacingYAxisMax } from "../utils/chartScaling";
 import { useDangerThresholds } from "./useDangerThresholds";
 
+import { getCurrentLocalDate } from "../utils/dateUtils";
+
 interface UsePacingChartDataProps {
   year: number;
   goals: Goals;
@@ -39,7 +41,9 @@ export function usePacingChartData({
   const startDate = new Date(Date.UTC(year, 0, 1));
   const endDate = new Date(Date.UTC(year, 11, 31));
   const latestDate =
-    distanceData.length === 0 ? new Date() : new Date(distanceData[distanceData.length - 1].x);
+    distanceData.length === 0
+      ? getCurrentLocalDate()
+      : new Date(distanceData[distanceData.length - 1].x);
   const displayEndDate = showFullYear ? endDate : latestDate;
 
   // 2. Calculate actual pacing data

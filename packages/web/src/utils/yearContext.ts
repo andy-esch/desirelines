@@ -47,12 +47,14 @@ export interface YearContext {
   shouldShowProgress: boolean;
 }
 
+import { getCurrentLocalDate } from "./dateUtils";
+
 /**
  * Create a YearContext for the given year
  * Calculates all year-related flags and time metrics
  */
 export function createYearContext(year: number): YearContext {
-  const today = new Date();
+  const today = getCurrentLocalDate();
   const currentYear = today.getFullYear();
 
   const isCurrentYear = year === currentYear;
