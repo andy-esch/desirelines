@@ -1,191 +1,71 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  notFound,
-  redirect,
-  Outlet,
-  RouterProvider,
-} from "@tanstack/react-router";
+import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { getCurrentYear } from "../hooks/useCurrentYear";
-import { getDemoSports } from "../utils/demoDataGenerator";
 
 // ---------------------------------------------------------------------------
-// Stub components — lightweight replacements for heavy page components.
-// Each renders a marker so we can assert which route matched.
+// Mock page components — replace lazy-loaded pages with lightweight stubs.
+// The real route tree's beforeLoad/redirect/validateSearch logic runs unmodified.
 // ---------------------------------------------------------------------------
-function StubDashboard() {
-  return <div data-testid="page-dashboard">Dashboard</div>;
-}
-function StubActivities() {
-  return <div data-testid="page-activities">Activities</div>;
-}
-function StubSportYear({ sport, year }: { sport: string; year: string }) {
-  return (
+vi.mock("../pages/Dashboard", () => ({
+  default: () => <div data-testid="page-dashboard">Dashboard</div>,
+}));
+vi.mock("../pages/ActivitiesPage", () => ({
+  default: () => <div data-testid="page-activities">Activities</div>,
+}));
+vi.mock("../pages/UnifiedSportPage", () => ({
+  default: ({ sport, year }: { sport: string; year: string }) => (
     <div data-testid="page-sport-year">
       {sport}/{year}
     </div>
-  );
-}
-function StubDemoSportYear({ sport, year }: { sport: string; year: string }) {
-  return (
+  ),
+}));
+vi.mock("../pages/DemoSportPage", () => ({
+  default: ({ sport, year }: { sport: string; year: string }) => (
     <div data-testid="page-demo-sport-year">
       demo/{sport}/{year}
     </div>
-  );
-}
-function StubNotFound() {
-  return <div data-testid="not-found">Not Found</div>;
-}
+  ),
+}));
+vi.mock("../pages/OriginsPage", () => ({
+  default: () => <div data-testid="page-origins">Origins</div>,
+}));
+vi.mock("../pages/SettingsPage", () => ({
+  default: () => <div data-testid="page-settings">Settings</div>,
+}));
+
+// Mock root layout dependencies to avoid pulling in the full component tree
+vi.mock("../components/layout/Header", () => ({
+  default: () => <div data-testid="header">Header</div>,
+}));
+vi.mock("../components/layout/Footer", () => ({
+  Footer: () => <div data-testid="footer">Footer</div>,
+}));
+vi.mock("../components/PageLoader", () => ({
+  default: () => null,
+}));
+vi.mock("../components/PageTransition", () => ({
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+vi.mock("../components/PageErrorFallback", () => ({
+  PageErrorFallback: ({ error }: { error: Error }) => (
+    <div data-testid="error-fallback">{error.message}</div>
+  ),
+}));
+vi.mock("../hooks/useScrolled", () => ({
+  useScrolled: () => false,
+}));
 
 // ---------------------------------------------------------------------------
-// Route tree — mirrors the real route structure with the same beforeLoad logic
-// but uses stub components to keep tests fast and dependency-free.
+// Import the real route tree — all beforeLoad hooks, redirects, and
+// validateSearch functions run exactly as they do in production.
 // ---------------------------------------------------------------------------
-const SPORT_SLUG_PATTERN = /^[a-z][a-z0-9-]*$/;
-const DEMO_SPORTS = getDemoSports();
-const MIN_YEAR = 2000;
-const MAX_YEAR = 2099;
-
-function buildRouteTree() {
-  const rootRoute = createRootRoute({
-    component: Outlet,
-    notFoundComponent: StubNotFound,
-  });
-
-  const indexRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/",
-    component: StubDashboard,
-  });
-
-  const activitiesRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/activities",
-    component: StubActivities,
-    validateSearch: (search: Record<string, unknown>) => ({
-      range: typeof search.range === "string" ? search.range : undefined,
-      sport: typeof search.sport === "string" ? search.sport : undefined,
-    }),
-  });
-
-  // /$sport layout
-  const sportLayout = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "$sport",
-    component: Outlet,
-    beforeLoad: ({ params }) => {
-      if (!SPORT_SLUG_PATTERN.test(params.sport)) {
-        throw notFound();
-      }
-    },
-  });
-
-  // /$sport/ → redirect to /$sport/$year
-  const sportIndex = createRoute({
-    getParentRoute: () => sportLayout,
-    path: "/",
-    beforeLoad: ({ params }) => {
-      throw redirect({
-        to: "/$sport/$year",
-        params: { sport: params.sport, year: String(getCurrentYear()) },
-        replace: true,
-      });
-    },
-  });
-
-  // /$sport/$year
-  const sportYear = createRoute({
-    getParentRoute: () => sportLayout,
-    path: "$year",
-    component: () => {
-      const params = sportYear.useParams();
-      return <StubSportYear sport={params.sport} year={params.year} />;
-    },
-    beforeLoad: ({ params }) => {
-      const parsed = Number(params.year);
-      if (!Number.isInteger(parsed) || parsed < MIN_YEAR || parsed > MAX_YEAR) {
-        throw redirect({
-          to: "/$sport/$year",
-          params: { sport: params.sport, year: String(getCurrentYear()) },
-          replace: true,
-        });
-      }
-    },
-  });
-
-  // /demo
-  const demoIndex = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/demo",
-    component: StubDashboard,
-  });
-
-  // /demo/$sport layout
-  const demoSportLayout = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/demo/$sport",
-    component: Outlet,
-    beforeLoad: ({ params }) => {
-      if (!DEMO_SPORTS.includes(params.sport)) {
-        throw redirect({ to: "/demo", replace: true });
-      }
-    },
-  });
-
-  // /demo/$sport/ → redirect to /demo/$sport/$year
-  const demoSportIndex = createRoute({
-    getParentRoute: () => demoSportLayout,
-    path: "/",
-    beforeLoad: ({ params }) => {
-      if (!DEMO_SPORTS.includes(params.sport)) {
-        throw redirect({ to: "/demo", replace: true });
-      }
-      throw redirect({
-        to: "/demo/$sport/$year",
-        params: { sport: params.sport, year: String(getCurrentYear()) },
-        replace: true,
-      });
-    },
-  });
-
-  // /demo/$sport/$year
-  const demoSportYear = createRoute({
-    getParentRoute: () => demoSportLayout,
-    path: "$year",
-    component: () => {
-      const params = demoSportYear.useParams();
-      return <StubDemoSportYear sport={params.sport} year={params.year} />;
-    },
-    beforeLoad: ({ params }) => {
-      const parsed = Number(params.year);
-      if (!Number.isInteger(parsed) || parsed < MIN_YEAR || parsed > MAX_YEAR) {
-        throw redirect({
-          to: "/demo/$sport/$year",
-          params: { sport: params.sport, year: String(getCurrentYear()) },
-          replace: true,
-        });
-      }
-    },
-  });
-
-  return rootRoute.addChildren([
-    indexRoute,
-    activitiesRoute,
-    sportLayout.addChildren([sportIndex, sportYear]),
-    demoIndex,
-    demoSportLayout.addChildren([demoSportIndex, demoSportYear]),
-  ]);
-}
+import { routeTree } from "../routeTree.gen";
 
 // ---------------------------------------------------------------------------
-// Helper — creates a router, loads it, and renders it
+// Helper — creates a router with the real route tree, loads it, and renders
 // ---------------------------------------------------------------------------
 async function renderRoute(initialUrl: string) {
-  const routeTree = buildRouteTree();
   const history = createMemoryHistory({ initialEntries: [initialUrl] });
   const router = createRouter({ routeTree, history });
   await router.load();
@@ -202,7 +82,9 @@ describe("route tree", () => {
   describe("index route", () => {
     it("renders dashboard at /", async () => {
       await renderRoute("/");
-      expect(screen.getByTestId("page-dashboard")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId("page-dashboard")).toBeInTheDocument();
+      });
     });
   });
 
@@ -212,36 +94,49 @@ describe("route tree", () => {
       await waitFor(() => {
         expect(router.state.location.pathname).toBe(`/cycling/${currentYear}`);
       });
-      expect(screen.getByTestId("page-sport-year")).toHaveTextContent(`cycling/${currentYear}`);
+      await waitFor(() => {
+        expect(screen.getByTestId("page-sport-year")).toHaveTextContent(`cycling/${currentYear}`);
+      });
     });
   });
 
   describe("/$sport/$year rendering", () => {
     it("renders sport page with valid sport and year", async () => {
       await renderRoute("/cycling/2025");
-      expect(screen.getByTestId("page-sport-year")).toHaveTextContent("cycling/2025");
+      await waitFor(() => {
+        expect(screen.getByTestId("page-sport-year")).toHaveTextContent("cycling/2025");
+      });
     });
 
     it("renders sport page for different sports", async () => {
       await renderRoute("/running/2024");
-      expect(screen.getByTestId("page-sport-year")).toHaveTextContent("running/2024");
+      await waitFor(() => {
+        expect(screen.getByTestId("page-sport-year")).toHaveTextContent("running/2024");
+      });
     });
   });
 
   describe("sport param validation", () => {
     it("rejects sport with uppercase letters", async () => {
       await renderRoute("/Cycling/2025");
-      expect(screen.getByTestId("not-found")).toBeInTheDocument();
+      // Invalid slug triggers notFound() → root Navigate to "/"
+      await waitFor(() => {
+        expect(screen.getByTestId("page-dashboard")).toBeInTheDocument();
+      });
     });
 
     it("rejects sport with dots (e.g. favicon.ico)", async () => {
       await renderRoute("/favicon.ico");
-      expect(screen.getByTestId("not-found")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId("page-dashboard")).toBeInTheDocument();
+      });
     });
 
     it("accepts hyphenated sport slugs", async () => {
       await renderRoute("/mountain-bike/2025");
-      expect(screen.getByTestId("page-sport-year")).toHaveTextContent("mountain-bike/2025");
+      await waitFor(() => {
+        expect(screen.getByTestId("page-sport-year")).toHaveTextContent("mountain-bike/2025");
+      });
     });
   });
 
@@ -269,12 +164,16 @@ describe("route tree", () => {
 
     it("accepts year at MIN_YEAR boundary", async () => {
       await renderRoute("/cycling/2000");
-      expect(screen.getByTestId("page-sport-year")).toHaveTextContent("cycling/2000");
+      await waitFor(() => {
+        expect(screen.getByTestId("page-sport-year")).toHaveTextContent("cycling/2000");
+      });
     });
 
     it("accepts year at MAX_YEAR boundary", async () => {
       await renderRoute("/cycling/2099");
-      expect(screen.getByTestId("page-sport-year")).toHaveTextContent("cycling/2099");
+      await waitFor(() => {
+        expect(screen.getByTestId("page-sport-year")).toHaveTextContent("cycling/2099");
+      });
     });
 
     it("redirects decimal year to current year", async () => {
@@ -288,7 +187,9 @@ describe("route tree", () => {
   describe("demo sport validation", () => {
     it("renders demo sport page for valid demo sport", async () => {
       await renderRoute("/demo/cycling/2025");
-      expect(screen.getByTestId("page-demo-sport-year")).toHaveTextContent("demo/cycling/2025");
+      await waitFor(() => {
+        expect(screen.getByTestId("page-demo-sport-year")).toHaveTextContent("demo/cycling/2025");
+      });
     });
 
     it("redirects invalid demo sport to /demo", async () => {
@@ -325,20 +226,25 @@ describe("route tree", () => {
   describe("activities route", () => {
     it("renders activities page", async () => {
       await renderRoute("/activities");
-      expect(screen.getByTestId("page-activities")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId("page-activities")).toBeInTheDocument();
+      });
     });
   });
 
   describe("404 handling", () => {
-    it("shows not-found for paths with invalid sport slugs", async () => {
-      // Uppercase triggers the sport slug validation → notFound()
-      await renderRoute("/NotASport/2025");
-      expect(screen.getByTestId("not-found")).toBeInTheDocument();
+    it("redirects invalid sport slugs to dashboard", async () => {
+      const { router } = await renderRoute("/NotASport/2025");
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe("/");
+      });
     });
 
-    it("shows not-found for paths with dots", async () => {
-      await renderRoute("/robots.txt");
-      expect(screen.getByTestId("not-found")).toBeInTheDocument();
+    it("redirects paths with dots to dashboard", async () => {
+      const { router } = await renderRoute("/robots.txt");
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe("/");
+      });
     });
   });
 });

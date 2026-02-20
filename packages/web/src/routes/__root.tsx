@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef } from "react";
-import { createRootRoute, Outlet, useLocation, useRouter } from "@tanstack/react-router";
+import { createRootRoute, Navigate, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import Header from "../components/layout/Header";
 import { Footer } from "../components/layout/Footer";
 import PageLoader from "../components/PageLoader";
@@ -63,13 +63,7 @@ function RootErrorComponent({ error }: { error: Error }) {
 }
 
 function NotFoundComponent() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.navigate({ to: "/", replace: true });
-  }, [router]);
-
-  return null;
+  return <Navigate to="/" replace />;
 }
 
 export const Route = createRootRoute({

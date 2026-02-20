@@ -1,4 +1,4 @@
-import { Link, useLocation, useMatchRoute } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { Menu, MenuButton, MenuItems, MenuItem, Transition } from "@headlessui/react";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
@@ -17,7 +17,6 @@ interface NavigationProps {
 export default function Navigation({ className = "", vertical = false }: NavigationProps) {
   const currentYear = useCurrentYear();
   const location = useLocation();
-  const matchRoute = useMatchRoute();
   const { visibleSports } = useVisibleSports();
   const { sportConfig } = useSportConfig();
 
@@ -113,32 +112,26 @@ export default function Navigation({ className = "", vertical = false }: Navigat
               zIndex: 50,
             }}
           >
-            {sports.map((sport) => {
-              const isActive = !!matchRoute({
-                to: "/$sport/$year",
-                params: { sport: sport.id, year: String(currentYear) },
-                fuzzy: true,
-              });
-              return (
-                <MenuItem key={sport.id}>
-                  {({ focus }) => (
-                    <Link
-                      to="/$sport/$year"
-                      params={{ sport: sport.id, year: String(currentYear) }}
-                      className={`block px-4 py-2 text-sm no-underline ${
-                        isActive
-                          ? "bg-white/15 text-white"
-                          : focus
-                            ? "bg-white/10 text-white"
-                            : "text-header-text"
-                      }`}
-                    >
-                      {sport.label}
-                    </Link>
-                  )}
-                </MenuItem>
-              );
-            })}
+            {sports.map((sport) => (
+              <MenuItem key={sport.id}>
+                {({ focus }) => (
+                  <Link
+                    to="/$sport/$year"
+                    params={{ sport: sport.id, year: String(currentYear) }}
+                    activeProps={{
+                      className: "block px-4 py-2 text-sm no-underline bg-white/15 text-white",
+                    }}
+                    inactiveProps={{
+                      className: `block px-4 py-2 text-sm no-underline ${
+                        focus ? "bg-white/10 text-white" : "text-header-text"
+                      }`,
+                    }}
+                  >
+                    {sport.label}
+                  </Link>
+                )}
+              </MenuItem>
+            ))}
           </MenuItems>
         </Transition>
       </Menu>
