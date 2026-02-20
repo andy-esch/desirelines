@@ -2,11 +2,7 @@ import type { MetricsEntry } from "../api/activities";
 import type { SportConfig } from "../utils/sportConfig";
 import { toDailyArray, normalizeToRange } from "./chartUtils";
 import { getSpectrumColor, getSpectrumTextColor } from "./chartColors";
-import {
-  getSportDisplayName,
-  isDistanceSport,
-  isTimeSport,
-} from "./sportConfig";
+import { getSportDisplayName, isDistanceSport, isTimeSport } from "./sportConfig";
 
 /** Midpoint value used for days with no activity in normalized (0-1) sparkline display */
 const NORMALIZED_BASELINE = 0.5;

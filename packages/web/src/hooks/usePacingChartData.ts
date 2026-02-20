@@ -125,11 +125,7 @@ export function usePacingChartData({
   const dangerThreshold = useMemo(() => getThreshold(sport), [getThreshold, sport]);
 
   const naturalYMax = useMemo(() => {
-    const maxActualPace = Math.max(
-      ...actualPacing.map((p) => p.y),
-      currentValues.actual,
-      0
-    );
+    const maxActualPace = Math.max(...actualPacing.map((p) => p.y), currentValues.actual, 0);
     const maxGoalPace = Math.max(...currentValues.goals.map((g) => g.value), 0);
 
     return calculatePacingYAxisMax(maxActualPace, maxGoalPace, dangerThreshold);

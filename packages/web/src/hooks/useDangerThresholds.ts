@@ -3,23 +3,23 @@ import { useUserConfig } from "./useUserConfig";
 
 /**
  * Hardcoded default danger thresholds (sustainable pace limits).
- * 
+ *
  * Future Plan: Move these to sport_types.json or a global system config
  * so they don't live in code.
  */
 const DEFAULT_DANGER_THRESHOLDS: Record<string, number> = {
   cycling: 20, // miles/day
   running: 10, // miles/day
-  yoga: 120,   // minutes/day
+  yoga: 120, // minutes/day
 };
 
 /**
  * Hook for accessing danger thresholds for sports.
- * 
+ *
  * Supports:
  * 1. Global defaults from DEFAULT_DANGER_THRESHOLDS
  * 2. (Future) User-specific overrides from UserConfig
- * 
+ *
  * @returns An object with a getThreshold(sport) method
  */
 export function useDangerThresholds() {
@@ -32,7 +32,7 @@ export function useDangerThresholds() {
     // (User overrides not yet implemented in schema)
     return {
       ...DEFAULT_DANGER_THRESHOLDS,
-      // ...prefs?.dangerThresholdOverrides 
+      // ...prefs?.dangerThresholdOverrides
     };
   }, [prefs]);
 
