@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
@@ -55,36 +55,6 @@ try {
   throw error; // Re-throw to prevent app from continuing
 }
 
-// Lazy-load React Query devtools (only loaded in development)
-const ReactQueryDevtools = lazy(() =>
-  import("@tanstack/react-query-devtools").then((mod) => ({
-    default: mod.ReactQueryDevtools,
-  }))
-);
-
-function DevtoolsLazy() {
-  return (
-    <Suspense fallback={null}>
-      <ReactQueryDevtools initialIsOpen={false} />
-    </Suspense>
-  );
-}
-
-// Lazy-load TanStack Router devtools (only loaded in development)
-const TanStackRouterDevtools = lazy(() =>
-  import("@tanstack/react-router-devtools").then((mod) => ({
-    default: mod.TanStackRouterDevtools,
-  }))
-);
-
-function RouterDevtoolsLazy() {
-  return (
-    <Suspense fallback={null}>
-      <TanStackRouterDevtools />
-    </Suspense>
-  );
-}
-
 // Initialize React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -113,8 +83,6 @@ root.render(
     >
       <QueryClientProvider client={queryClient}>
         <App router={router} />
-        {import.meta.env.DEV && <DevtoolsLazy />}
-        {import.meta.env.DEV && <RouterDevtoolsLazy />}
       </QueryClientProvider>
     </ErrorBoundary>
   </React.StrictMode>

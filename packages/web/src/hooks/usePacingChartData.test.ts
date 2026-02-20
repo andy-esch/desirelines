@@ -1,6 +1,19 @@
 import { renderHook } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { usePacingChartData } from "./usePacingChartData";
+
+// Mock dependencies
+vi.mock("./useUserConfig", () => ({
+  useUserConfig: () => ({ data: {} }),
+}));
+
+vi.mock("./useAuth", () => ({
+  useAuth: () => ({ user: { uid: "test-user" }, loading: false }),
+}));
+
+vi.mock("../contexts/ServiceContext", () => ({
+  useServices: () => ({}),
+}));
 
 describe("usePacingChartData", () => {
   // Test fixtures
@@ -184,6 +197,42 @@ describe("usePacingChartData", () => {
       );
 
       expect(result.current.naturalYMax).toBeGreaterThan(0);
+    });
+
+    it("should provide adaptive Y-axis scaling and prevent excessive headroom", () => {
+      // Scenario: User is far behind. Actual pace ~10, but goal requires 100.
+      const { result } = renderHook(() =>
+        usePacingChartData({
+          year: 2024,
+          goals: [{ id: "1", value: 36600, label: "Extreme" }], // Requires 100/day
+          distanceData: [{ x: "2024-01-01T00:00:00Z", y: 10 }],
+          showFullYear: true,
+          sport: "cycling",
+        })
+      );
+
+      // maxActualPace = 10
+      // dangerThreshold = 20
+      // absoluteCap = max(20 * 2, 10 * 1.2) = 40
+      expect(result.current.naturalYMax).toBe(40);
+    });
+
+    it("should provide enough headroom for actual data exceeding danger threshold", () => {
+      // Scenario: User is crushing it. Actual pace 25, danger threshold 20.
+      const { result } = renderHook(() =>
+        usePacingChartData({
+          year: 2024,
+          goals: [{ id: "1", value: 3660, label: "Easy" }], // Requires 10/day
+          distanceData: [{ x: "2024-01-01T00:00:00Z", y: 25 }],
+          showFullYear: true,
+          sport: "cycling",
+        })
+      );
+
+      // maxActualPace = 25
+      // finalMax should be around 28.75 (certainly > 25)
+      expect(result.current.naturalYMax).toBeGreaterThan(25);
+      expect(result.current.naturalYMax).toBeCloseTo(28.75, 1);
     });
 
     it("should determine if danger zone should be shown", () => {

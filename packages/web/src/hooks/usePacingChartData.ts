@@ -4,7 +4,8 @@ import type { PacingChartDataPoint, CurrentChartValues, PacingGoalData } from ".
 import type { Goals } from "../utils/goalCalculations";
 import { calculateActualPacing, calculateDynamicPacingGoal } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
-import { getDangerThreshold } from "../constants/dangerZoneThresholds";
+import { calculatePacingYAxisMax } from "../utils/chartScaling";
+import { useDangerThresholds } from "./useDangerThresholds";
 
 interface UsePacingChartDataProps {
   year: number;
@@ -32,6 +33,8 @@ export function usePacingChartData({
   showFullYear,
   sport = "cycling",
 }: UsePacingChartDataProps) {
+  const { getThreshold } = useDangerThresholds();
+
   // 1. Date range calculations
   const { startDate, endDate, latestDate, displayEndDate } = useMemo(() => {
     const start = new Date(Date.UTC(year, 0, 1));
@@ -119,22 +122,18 @@ export function usePacingChartData({
   }, [mergedData, distanceData, latestDate, pacingGoals]);
 
   // 6. Danger zone calculations
-  const dangerThreshold = useMemo(() => getDangerThreshold(sport), [sport]);
+  const dangerThreshold = useMemo(() => getThreshold(sport), [getThreshold, sport]);
 
   const naturalYMax = useMemo(() => {
-    // Get max from actual pacing data
     const maxActualPace = Math.max(
       ...actualPacing.map((p) => p.y),
       currentValues.actual,
-      0 // Ensure at least 0 if no data
+      0
     );
+    const maxGoalPace = Math.max(...currentValues.goals.map((g) => g.value), 0);
 
-    // Cap the Y-axis at 3x the actual data max
-    // This keeps the chart readable - goal lines above this will be clipped
-    const cap = maxActualPace * 3;
-
-    return cap * 1.1; // 10% padding above cap
-  }, [actualPacing, currentValues.actual]);
+    return calculatePacingYAxisMax(maxActualPace, maxGoalPace, dangerThreshold);
+  }, [actualPacing, currentValues.actual, currentValues.goals, dangerThreshold]);
 
   const shouldShowDangerZone = useMemo(() => {
     return dangerThreshold <= naturalYMax;

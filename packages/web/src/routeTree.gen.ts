@@ -8,124 +8,124 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root";
-import { Route as SettingsRouteImport } from "./routes/settings";
-import { Route as OriginsRouteImport } from "./routes/origins";
-import { Route as DashboardRouteImport } from "./routes/dashboard";
-import { Route as ActivitiesRouteImport } from "./routes/activities";
-import { Route as SportRouteImport } from "./routes/$sport";
-import { Route as IndexRouteImport } from "./routes/index";
-import { Route as DemoIndexRouteImport } from "./routes/demo/index";
-import { Route as SportIndexRouteImport } from "./routes/$sport.index";
-import { Route as DemoSportRouteImport } from "./routes/demo/$sport";
-import { Route as SportYearRouteImport } from "./routes/$sport.$year";
-import { Route as DemoSportIndexRouteImport } from "./routes/demo/$sport.index";
-import { Route as DemoSportYearRouteImport } from "./routes/demo/$sport.$year";
+import { Route as rootRouteImport } from "./routes/__root"
+import { Route as SettingsRouteImport } from "./routes/settings"
+import { Route as OriginsRouteImport } from "./routes/origins"
+import { Route as DashboardRouteImport } from "./routes/dashboard"
+import { Route as ActivitiesRouteImport } from "./routes/activities"
+import { Route as SportRouteImport } from "./routes/$sport"
+import { Route as IndexRouteImport } from "./routes/index"
+import { Route as DemoIndexRouteImport } from "./routes/demo/index"
+import { Route as SportIndexRouteImport } from "./routes/$sport.index"
+import { Route as DemoSportRouteImport } from "./routes/demo/$sport"
+import { Route as SportYearRouteImport } from "./routes/$sport.$year"
+import { Route as DemoSportIndexRouteImport } from "./routes/demo/$sport.index"
+import { Route as DemoSportYearRouteImport } from "./routes/demo/$sport.$year"
 
 const SettingsRoute = SettingsRouteImport.update({
   id: "/settings",
   path: "/settings",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const OriginsRoute = OriginsRouteImport.update({
   id: "/origins",
   path: "/origins",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: "/dashboard",
   path: "/dashboard",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ActivitiesRoute = ActivitiesRouteImport.update({
   id: "/activities",
   path: "/activities",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const SportRoute = SportRouteImport.update({
   id: "/$sport",
   path: "/$sport",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DemoIndexRoute = DemoIndexRouteImport.update({
   id: "/demo/",
   path: "/demo/",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const SportIndexRoute = SportIndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => SportRoute,
-} as any);
+} as any)
 const DemoSportRoute = DemoSportRouteImport.update({
   id: "/demo/$sport",
   path: "/demo/$sport",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const SportYearRoute = SportYearRouteImport.update({
   id: "/$year",
   path: "/$year",
   getParentRoute: () => SportRoute,
-} as any);
+} as any)
 const DemoSportIndexRoute = DemoSportIndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => DemoSportRoute,
-} as any);
+} as any)
 const DemoSportYearRoute = DemoSportYearRouteImport.update({
   id: "/$year",
   path: "/$year",
   getParentRoute: () => DemoSportRoute,
-} as any);
+} as any)
 
 export interface FileRoutesByFullPath {
-  "/": typeof IndexRoute;
-  "/$sport": typeof SportRouteWithChildren;
-  "/activities": typeof ActivitiesRoute;
-  "/dashboard": typeof DashboardRoute;
-  "/origins": typeof OriginsRoute;
-  "/settings": typeof SettingsRoute;
-  "/$sport/$year": typeof SportYearRoute;
-  "/demo/$sport": typeof DemoSportRouteWithChildren;
-  "/$sport/": typeof SportIndexRoute;
-  "/demo/": typeof DemoIndexRoute;
-  "/demo/$sport/$year": typeof DemoSportYearRoute;
-  "/demo/$sport/": typeof DemoSportIndexRoute;
+  "/": typeof IndexRoute
+  "/$sport": typeof SportRouteWithChildren
+  "/activities": typeof ActivitiesRoute
+  "/dashboard": typeof DashboardRoute
+  "/origins": typeof OriginsRoute
+  "/settings": typeof SettingsRoute
+  "/$sport/$year": typeof SportYearRoute
+  "/demo/$sport": typeof DemoSportRouteWithChildren
+  "/$sport/": typeof SportIndexRoute
+  "/demo/": typeof DemoIndexRoute
+  "/demo/$sport/$year": typeof DemoSportYearRoute
+  "/demo/$sport/": typeof DemoSportIndexRoute
 }
 export interface FileRoutesByTo {
-  "/": typeof IndexRoute;
-  "/activities": typeof ActivitiesRoute;
-  "/dashboard": typeof DashboardRoute;
-  "/origins": typeof OriginsRoute;
-  "/settings": typeof SettingsRoute;
-  "/$sport/$year": typeof SportYearRoute;
-  "/$sport": typeof SportIndexRoute;
-  "/demo": typeof DemoIndexRoute;
-  "/demo/$sport/$year": typeof DemoSportYearRoute;
-  "/demo/$sport": typeof DemoSportIndexRoute;
+  "/": typeof IndexRoute
+  "/activities": typeof ActivitiesRoute
+  "/dashboard": typeof DashboardRoute
+  "/origins": typeof OriginsRoute
+  "/settings": typeof SettingsRoute
+  "/$sport/$year": typeof SportYearRoute
+  "/$sport": typeof SportIndexRoute
+  "/demo": typeof DemoIndexRoute
+  "/demo/$sport/$year": typeof DemoSportYearRoute
+  "/demo/$sport": typeof DemoSportIndexRoute
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport;
-  "/": typeof IndexRoute;
-  "/$sport": typeof SportRouteWithChildren;
-  "/activities": typeof ActivitiesRoute;
-  "/dashboard": typeof DashboardRoute;
-  "/origins": typeof OriginsRoute;
-  "/settings": typeof SettingsRoute;
-  "/$sport/$year": typeof SportYearRoute;
-  "/demo/$sport": typeof DemoSportRouteWithChildren;
-  "/$sport/": typeof SportIndexRoute;
-  "/demo/": typeof DemoIndexRoute;
-  "/demo/$sport/$year": typeof DemoSportYearRoute;
-  "/demo/$sport/": typeof DemoSportIndexRoute;
+  __root__: typeof rootRouteImport
+  "/": typeof IndexRoute
+  "/$sport": typeof SportRouteWithChildren
+  "/activities": typeof ActivitiesRoute
+  "/dashboard": typeof DashboardRoute
+  "/origins": typeof OriginsRoute
+  "/settings": typeof SettingsRoute
+  "/$sport/$year": typeof SportYearRoute
+  "/demo/$sport": typeof DemoSportRouteWithChildren
+  "/$sport/": typeof SportIndexRoute
+  "/demo/": typeof DemoIndexRoute
+  "/demo/$sport/$year": typeof DemoSportYearRoute
+  "/demo/$sport/": typeof DemoSportIndexRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath;
+  fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | "/"
     | "/$sport"
@@ -138,8 +138,8 @@ export interface FileRouteTypes {
     | "/$sport/"
     | "/demo/"
     | "/demo/$sport/$year"
-    | "/demo/$sport/";
-  fileRoutesByTo: FileRoutesByTo;
+    | "/demo/$sport/"
+  fileRoutesByTo: FileRoutesByTo
   to:
     | "/"
     | "/activities"
@@ -150,7 +150,7 @@ export interface FileRouteTypes {
     | "/$sport"
     | "/demo"
     | "/demo/$sport/$year"
-    | "/demo/$sport";
+    | "/demo/$sport"
   id:
     | "__root__"
     | "/"
@@ -164,132 +164,134 @@ export interface FileRouteTypes {
     | "/$sport/"
     | "/demo/"
     | "/demo/$sport/$year"
-    | "/demo/$sport/";
-  fileRoutesById: FileRoutesById;
+    | "/demo/$sport/"
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
-  SportRoute: typeof SportRouteWithChildren;
-  ActivitiesRoute: typeof ActivitiesRoute;
-  DashboardRoute: typeof DashboardRoute;
-  OriginsRoute: typeof OriginsRoute;
-  SettingsRoute: typeof SettingsRoute;
-  DemoSportRoute: typeof DemoSportRouteWithChildren;
-  DemoIndexRoute: typeof DemoIndexRoute;
+  IndexRoute: typeof IndexRoute
+  SportRoute: typeof SportRouteWithChildren
+  ActivitiesRoute: typeof ActivitiesRoute
+  DashboardRoute: typeof DashboardRoute
+  OriginsRoute: typeof OriginsRoute
+  SettingsRoute: typeof SettingsRoute
+  DemoSportRoute: typeof DemoSportRouteWithChildren
+  DemoIndexRoute: typeof DemoIndexRoute
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
     "/settings": {
-      id: "/settings";
-      path: "/settings";
-      fullPath: "/settings";
-      preLoaderRoute: typeof SettingsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/settings"
+      path: "/settings"
+      fullPath: "/settings"
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/origins": {
-      id: "/origins";
-      path: "/origins";
-      fullPath: "/origins";
-      preLoaderRoute: typeof OriginsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/origins"
+      path: "/origins"
+      fullPath: "/origins"
+      preLoaderRoute: typeof OriginsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/dashboard": {
-      id: "/dashboard";
-      path: "/dashboard";
-      fullPath: "/dashboard";
-      preLoaderRoute: typeof DashboardRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/dashboard"
+      path: "/dashboard"
+      fullPath: "/dashboard"
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/activities": {
-      id: "/activities";
-      path: "/activities";
-      fullPath: "/activities";
-      preLoaderRoute: typeof ActivitiesRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/activities"
+      path: "/activities"
+      fullPath: "/activities"
+      preLoaderRoute: typeof ActivitiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/$sport": {
-      id: "/$sport";
-      path: "/$sport";
-      fullPath: "/$sport";
-      preLoaderRoute: typeof SportRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/$sport"
+      path: "/$sport"
+      fullPath: "/$sport"
+      preLoaderRoute: typeof SportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/": {
-      id: "/";
-      path: "/";
-      fullPath: "/";
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/"
+      path: "/"
+      fullPath: "/"
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/demo/": {
-      id: "/demo/";
-      path: "/demo";
-      fullPath: "/demo/";
-      preLoaderRoute: typeof DemoIndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/demo/"
+      path: "/demo"
+      fullPath: "/demo/"
+      preLoaderRoute: typeof DemoIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/$sport/": {
-      id: "/$sport/";
-      path: "/";
-      fullPath: "/$sport/";
-      preLoaderRoute: typeof SportIndexRouteImport;
-      parentRoute: typeof SportRoute;
-    };
+      id: "/$sport/"
+      path: "/"
+      fullPath: "/$sport/"
+      preLoaderRoute: typeof SportIndexRouteImport
+      parentRoute: typeof SportRoute
+    }
     "/demo/$sport": {
-      id: "/demo/$sport";
-      path: "/demo/$sport";
-      fullPath: "/demo/$sport";
-      preLoaderRoute: typeof DemoSportRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/demo/$sport"
+      path: "/demo/$sport"
+      fullPath: "/demo/$sport"
+      preLoaderRoute: typeof DemoSportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/$sport/$year": {
-      id: "/$sport/$year";
-      path: "/$year";
-      fullPath: "/$sport/$year";
-      preLoaderRoute: typeof SportYearRouteImport;
-      parentRoute: typeof SportRoute;
-    };
+      id: "/$sport/$year"
+      path: "/$year"
+      fullPath: "/$sport/$year"
+      preLoaderRoute: typeof SportYearRouteImport
+      parentRoute: typeof SportRoute
+    }
     "/demo/$sport/": {
-      id: "/demo/$sport/";
-      path: "/";
-      fullPath: "/demo/$sport/";
-      preLoaderRoute: typeof DemoSportIndexRouteImport;
-      parentRoute: typeof DemoSportRoute;
-    };
+      id: "/demo/$sport/"
+      path: "/"
+      fullPath: "/demo/$sport/"
+      preLoaderRoute: typeof DemoSportIndexRouteImport
+      parentRoute: typeof DemoSportRoute
+    }
     "/demo/$sport/$year": {
-      id: "/demo/$sport/$year";
-      path: "/$year";
-      fullPath: "/demo/$sport/$year";
-      preLoaderRoute: typeof DemoSportYearRouteImport;
-      parentRoute: typeof DemoSportRoute;
-    };
+      id: "/demo/$sport/$year"
+      path: "/$year"
+      fullPath: "/demo/$sport/$year"
+      preLoaderRoute: typeof DemoSportYearRouteImport
+      parentRoute: typeof DemoSportRoute
+    }
   }
 }
 
 interface SportRouteChildren {
-  SportYearRoute: typeof SportYearRoute;
-  SportIndexRoute: typeof SportIndexRoute;
+  SportYearRoute: typeof SportYearRoute
+  SportIndexRoute: typeof SportIndexRoute
 }
 
 const SportRouteChildren: SportRouteChildren = {
   SportYearRoute: SportYearRoute,
   SportIndexRoute: SportIndexRoute,
-};
+}
 
-const SportRouteWithChildren = SportRoute._addFileChildren(SportRouteChildren);
+const SportRouteWithChildren = SportRoute._addFileChildren(SportRouteChildren)
 
 interface DemoSportRouteChildren {
-  DemoSportYearRoute: typeof DemoSportYearRoute;
-  DemoSportIndexRoute: typeof DemoSportIndexRoute;
+  DemoSportYearRoute: typeof DemoSportYearRoute
+  DemoSportIndexRoute: typeof DemoSportIndexRoute
 }
 
 const DemoSportRouteChildren: DemoSportRouteChildren = {
   DemoSportYearRoute: DemoSportYearRoute,
   DemoSportIndexRoute: DemoSportIndexRoute,
-};
+}
 
-const DemoSportRouteWithChildren = DemoSportRoute._addFileChildren(DemoSportRouteChildren);
+const DemoSportRouteWithChildren = DemoSportRoute._addFileChildren(
+  DemoSportRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -300,7 +302,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   DemoSportRoute: DemoSportRouteWithChildren,
   DemoIndexRoute: DemoIndexRoute,
-};
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>();
+  ._addFileTypes<FileRouteTypes>()

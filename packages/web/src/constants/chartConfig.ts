@@ -10,6 +10,8 @@
  * - calculateYAxisDomain: Shared utility for cumulative chart Y-axis scaling
  */
 
+import { roundToCleanMax } from "../utils/chartScaling";
+
 export const CHART_CONFIG = {
   /** Chart dimensions */
   height: 400,
@@ -146,8 +148,5 @@ export const DANGER_ZONE_CONFIG = {
  * @returns Rounded maximum for Y-axis domain
  */
 export function calculateCumulativeYAxisMax(dataMax: number): number {
-  if (dataMax < 500) return Math.ceil(dataMax / 100) * 100;
-  if (dataMax < 2000) return Math.ceil(dataMax / 250) * 250;
-  if (dataMax < 5000) return Math.ceil(dataMax / 500) * 500;
-  return Math.ceil(dataMax / 1000) * 1000;
+  return roundToCleanMax(dataMax);
 }
