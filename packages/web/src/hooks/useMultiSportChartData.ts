@@ -14,6 +14,7 @@ import {
 } from "../utils/sportConfig";
 import { toDailyArray, normalizeToRange, getTimeRangeCutoff } from "../utils/chartUtils";
 import { toLocalDateString } from "../utils/dateUtils";
+import { getSpectrumColor, getSpectrumTextColor } from "../utils/chartColors";
 import { getUserSettings } from "../utils/units";
 
 const SPARKLINE_ROW_HEIGHT = 36;
@@ -23,73 +24,6 @@ const MIN_SPORTS_FOR_HEIGHT = 3;
 const MAX_SPORTS_DISPLAY = 8;
 /** Midpoint value used for days with no activity in normalized (0-1) sparkline display */
 const NORMALIZED_BASELINE = 0.5;
-
-/**
- * NEON spectrum colors for sparklines (top to bottom).
- * Uses the project's NEON color theme from chartColors.ts.
- * Progression: Magenta -> Cyan -> Green -> Yellow -> Orange
- */
-const SPARKLINE_SPECTRUM = [
-  { r: 255, g: 0, b: 255 }, // Magenta (top)
-  { r: 0, g: 255, b: 255 }, // Electric Cyan
-  { r: 0, g: 255, b: 128 }, // Neon Green-Cyan
-  { r: 255, g: 200, b: 0 }, // Neon Yellow-Orange
-  { r: 255, g: 95, b: 31 }, // Orange (bottom)
-] as const;
-
-/**
- * Interpolate between two RGB colors.
- */
-function interpolateColor(
-  c1: { r: number; g: number; b: number },
-  c2: { r: number; g: number; b: number },
-  t: number
-): { r: number; g: number; b: number } {
-  return {
-    r: Math.round(c1.r + (c2.r - c1.r) * t),
-    g: Math.round(c1.g + (c2.g - c1.g) * t),
-    b: Math.round(c1.b + (c2.b - c1.b) * t),
-  };
-}
-
-/**
- * Get the interpolated RGB color at a position in the NEON spectrum.
- */
-function getInterpolatedSpectrumColor(
-  index: number,
-  total: number
-): { r: number; g: number; b: number } {
-  if (total <= 1) return { ...SPARKLINE_SPECTRUM[0] };
-
-  const t = index / (total - 1);
-  const numSegments = SPARKLINE_SPECTRUM.length - 1;
-  const segmentIndex = Math.min(Math.floor(t * numSegments), numSegments - 1);
-  const segmentT = t * numSegments - segmentIndex;
-
-  return interpolateColor(
-    SPARKLINE_SPECTRUM[segmentIndex],
-    SPARKLINE_SPECTRUM[segmentIndex + 1],
-    segmentT
-  );
-}
-
-/**
- * Generate a NEON spectrum color based on position.
- * Interpolates through: Magenta -> Cyan -> Green -> Yellow -> Orange (top to bottom)
- */
-export function getSpectrumColor(index: number, total: number): string {
-  const c = getInterpolatedSpectrumColor(index, total);
-  return `rgb(${c.r}, ${c.g}, ${c.b})`;
-}
-
-/**
- * Get a darker version of a spectrum color for text labels.
- * Reduces brightness by 50% while maintaining the hue.
- */
-function getSpectrumTextColor(index: number, total: number): string {
-  const c = getInterpolatedSpectrumColor(index, total);
-  return `rgb(${Math.round(c.r * 0.5)}, ${Math.round(c.g * 0.5)}, ${Math.round(c.b * 0.5)})`;
-}
 
 function getDateRangeFromTimeRange(timeRange: TimeRange): { from: string; to: string } {
   const now = new Date();

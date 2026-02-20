@@ -16,6 +16,7 @@ import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
 import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
 import { useCumulativeChartData } from "../../hooks/useCumulativeChartData";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 import ChartContainer from "./ChartContainer";
 import CumulativeChartPresenter from "./CumulativeChartPresenter";
 
@@ -194,6 +195,9 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     setIsFirstRender(false);
   }, []);
 
+  // Respect OS-level reduced motion preference
+  const reducedMotion = useReducedMotion();
+
   // Active range preset — drives which button is highlighted and x-axis domain
   const [activeRange, setActiveRange] = useState<RangePreset>(showFullYear ? "full" : "ytd");
   // When user drags to zoom, we set a custom domain and clear the active preset
@@ -368,7 +372,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
         estimatedYearEnd={estimatedYearEnd}
         isSessionsMode={isSessionsMode}
         showAchievements={showAchievements}
-        isAnimationActive={isFirstRender}
+        isAnimationActive={isFirstRender && !reducedMotion}
         isZoomed={isDragZoomed || activeRange !== "full"}
         selectionLeft={selectionLeft}
         selectionRight={selectionRight}

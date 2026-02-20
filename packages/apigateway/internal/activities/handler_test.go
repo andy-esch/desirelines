@@ -20,25 +20,12 @@ import (
 // For handler integration tests with actual repository interactions, see the
 // more complete mockActivityRepository in handler_test.go (root package).
 type mockRepo struct {
-	sportMetrics *generated.SportMetrics
-	err          error
+	err error
 }
 
 func (m *mockRepo) Ping(ctx context.Context) error { return nil }
 func (m *mockRepo) Close() error                   { return nil }
 func (m *mockRepo) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
-	return nil, m.err
-}
-func (m *mockRepo) GetSportMetrics(ctx context.Context, year int, sportTypes []string) (*generated.SportMetrics, error) {
-	return m.sportMetrics, m.err
-}
-func (m *mockRepo) GetSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.SportMetrics, error) {
-	return m.sportMetrics, m.err
-}
-func (m *mockRepo) GetDailySummary(ctx context.Context, year int, sportTypes []string) (*generated.DailySummary, error) {
-	return nil, m.err
-}
-func (m *mockRepo) GetDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (*generated.DailySummary, error) {
 	return nil, m.err
 }
 func (m *mockRepo) GetMultiSportMetrics(ctx context.Context, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {

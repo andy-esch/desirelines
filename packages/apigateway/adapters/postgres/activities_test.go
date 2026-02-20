@@ -66,15 +66,15 @@ func TestActivityRepository_InterfaceCompliance(t *testing.T) {
 	})
 }
 
-func TestActivityRepository_GetSportMetrics_SignatureAndTypes(t *testing.T) {
-	// This test documents the GetSportMetrics method signature and return types
+func TestActivityRepository_GetMultiSportMetrics_SignatureAndTypes(t *testing.T) {
+	// This test documents the GetMultiSportMetrics method signature and return types
 	// Actual database queries are tested via integration tests
 
-	t.Run("returns SportMetrics pointer and error", func(t *testing.T) {
+	t.Run("returns map of SportMetrics and error", func(t *testing.T) {
 		repo := &ActivityRepository{}
 
 		// Verify the method exists and can be called (compile-time check)
-		_ = repo.GetSportMetrics
+		_ = repo.GetMultiSportMetrics
 	})
 
 	t.Run("SportMetrics has Timeseries field", func(t *testing.T) {
@@ -95,15 +95,15 @@ func TestActivityRepository_GetSportMetrics_SignatureAndTypes(t *testing.T) {
 	})
 }
 
-func TestActivityRepository_GetDailySummary_SignatureAndTypes(t *testing.T) {
-	// This test documents the GetDailySummary method signature and return types
+func TestActivityRepository_GetMultiSportDailySummary_SignatureAndTypes(t *testing.T) {
+	// This test documents the GetMultiSportDailySummary method signature and return types
 	// Actual database queries are tested via integration tests
 
-	t.Run("returns DailySummary pointer and error", func(t *testing.T) {
+	t.Run("returns map of DailySummary and error", func(t *testing.T) {
 		repo := &ActivityRepository{}
 
 		// Verify the method exists and can be called (compile-time check)
-		_ = repo.GetDailySummary
+		_ = repo.GetMultiSportDailySummary
 	})
 
 	t.Run("DailySummary has Daily map field", func(t *testing.T) {

@@ -296,8 +296,6 @@ func (h *Handler) logAndRespondDBError(w http.ResponseWriter, r *http.Request, e
 // Supports optional from/to query params for date-range queries (can span years).
 // GET /activities/{year}/metrics?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
 // GET /activities/{year}/metrics?sports=X,Y,Z[&from=YYYY-MM-DD&to=YYYY-MM-DD]
-//
-//nolint:dupl // Intentional: HandleMetrics and HandleSource share structure but differ in types
 func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	if isMultiSportRequest(r) {
 		h.handleMultiSportMetrics(w, r)
@@ -312,16 +310,28 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
-	var result *generated.SportMetrics
+	var byStravaType map[string]*generated.SportMetrics
 	var err error
 	if params.useDateRange {
-		result, err = h.repo.GetSportMetricsByDateRange(ctx, params.from, params.to, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportMetricsByDateRange(ctx, params.from, params.to, params.sportTypes)
 	} else {
-		result, err = h.repo.GetSportMetrics(ctx, params.year, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, params.year, params.sportTypes)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
 		return
+	}
+
+	// Merge all Strava types for this sport category into a single result
+	merged := h.mergeMultiSportMetrics(byStravaType)
+	// Extract the single category's data (there should be exactly one after merging)
+	var result *generated.SportMetrics
+	for _, v := range merged {
+		result = v
+		break
+	}
+	if result == nil {
+		result = &generated.SportMetrics{Timeseries: make([]*generated.CumulativeMetricsEntry, 0)}
 	}
 
 	setCachePastData(w, params.year, params.to, params.useDateRange)
@@ -330,6 +340,8 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 
 // handleMultiSportMetrics handles GET /activities/{year}/metrics?sports=X,Y,Z.
 // Uses a single DB query for all sports, then re-keys results from Strava types to categories.
+//
+//nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request) {
 	params := h.validateMultiSportQuery(w, r)
 	if params == nil {
@@ -366,8 +378,6 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 // Supports optional from/to query params for date-range queries (can span years).
 // GET /activities/{year}/source?sport=X[&from=YYYY-MM-DD&to=YYYY-MM-DD]
 // GET /activities/{year}/source?sports=X,Y,Z[&from=YYYY-MM-DD&to=YYYY-MM-DD]
-//
-//nolint:dupl // Intentional: see HandleMetrics comment.
 func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	if isMultiSportRequest(r) {
 		h.handleMultiSportSource(w, r)
@@ -381,16 +391,28 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
-	var result *generated.DailySummary
+	var byStravaType map[string]*generated.DailySummary
 	var err error
 	if params.useDateRange {
-		result, err = h.repo.GetDailySummaryByDateRange(ctx, params.from, params.to, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportDailySummaryByDateRange(ctx, params.from, params.to, params.sportTypes)
 	} else {
-		result, err = h.repo.GetDailySummary(ctx, params.year, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, params.year, params.sportTypes)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
 		return
+	}
+
+	// Merge all Strava types for this sport category into a single result
+	merged := h.mergeMultiSportDailySummary(byStravaType)
+	// Extract the single category's data (there should be exactly one after merging)
+	var result *generated.DailySummary
+	for _, v := range merged {
+		result = v
+		break
+	}
+	if result == nil {
+		result = &generated.DailySummary{Daily: make(map[string]*generated.DailyActivity)}
 	}
 
 	setCachePastData(w, params.year, params.to, params.useDateRange)
@@ -399,6 +421,8 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 
 // handleMultiSportSource handles GET /activities/{year}/source?sports=X,Y,Z.
 // Uses a single DB query for all sports, then re-keys results from Strava types to categories.
+//
+//nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request) {
 	params := h.validateMultiSportQuery(w, r)
 	if params == nil {

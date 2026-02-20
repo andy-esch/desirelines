@@ -6,7 +6,7 @@ import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
 import { useUserConfig } from "./useUserConfig";
 import { useDailySportData } from "./useDailySportData";
-import { getSpectrumColor } from "./useMultiSportChartData";
+import { getSpectrumColor } from "../utils/chartColors";
 import { generateDemoGoals } from "../utils/demoDataGenerator";
 import { filterValidSports, getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
 import { getMetricConfig, getMetricConfigByMetricId } from "../config/metricConfig";
