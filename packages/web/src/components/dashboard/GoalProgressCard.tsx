@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboardGoalData";
 import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { formatMetricDisplayValue } from "../../utils/units";
@@ -104,7 +104,8 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
     <div className="mb-2">
       <div className="flex justify-between items-center mb-1">
         <Link
-          to={`/${sport.sport}/${yearContext.year}`}
+          to="/$sport/$year"
+          params={{ sport: sport.sport, year: String(yearContext.year) }}
           className="text-sm"
           style={{ color: sport.color }}
         >

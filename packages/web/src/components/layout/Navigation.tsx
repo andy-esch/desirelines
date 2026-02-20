@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, useLocation } from "@tanstack/react-router";
 import { Menu, MenuButton, MenuItems, MenuItem, Transition } from "@headlessui/react";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
@@ -31,16 +31,18 @@ export default function Navigation({ className = "", vertical = false }: Navigat
   // Determine if we're on a sport/goals page
   const isOnSportPage = sports.some((s) => location.pathname.startsWith(`/${s.id}`));
 
-  const linkClasses = ({ isActive }: { isActive: boolean }) =>
-    `nav-link no-underline ${isActive ? "active" : "text-white/50"}`;
-
   // Vertical layout for mobile drawer
   if (vertical) {
     return (
       <nav className={`nav flex-col nav-pills ${className}`}>
-        <NavLink to="/" end className={linkClasses}>
+        <Link
+          to="/"
+          activeOptions={{ exact: true }}
+          activeProps={{ className: "nav-link no-underline active" }}
+          inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+        >
           Dashboard
-        </NavLink>
+        </Link>
         <div className="mt-6 mb-1 ps-2">
           <span
             className="text-white/50 text-sm uppercase font-semibold"
@@ -50,23 +52,24 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           </span>
         </div>
         {sports.map((sport) => (
-          <NavLink
+          <Link
             key={sport.id}
-            to={`/${sport.id}/${currentYear}`}
-            className={linkClasses}
+            to="/$sport/$year"
+            params={{ sport: sport.id, year: String(currentYear) }}
+            activeProps={{ className: "nav-link no-underline active" }}
+            inactiveProps={{ className: "nav-link no-underline text-white/50" }}
             style={{ paddingLeft: "1rem" }}
           >
             {sport.label}
-          </NavLink>
+          </Link>
         ))}
-        <NavLink
+        <Link
           to="/activities"
-          className={({ isActive }) =>
-            `nav-link no-underline mt-2 ${isActive ? "active" : "text-white/50"}`
-          }
+          activeProps={{ className: "nav-link no-underline mt-2 active" }}
+          inactiveProps={{ className: "nav-link no-underline mt-2 text-white/50" }}
         >
           Activities
-        </NavLink>
+        </Link>
       </nav>
     );
   }
@@ -74,9 +77,14 @@ export default function Navigation({ className = "", vertical = false }: Navigat
   // Horizontal layout with dropdown for desktop
   return (
     <nav className={`nav nav-pills ${className}`}>
-      <NavLink to="/" end className={linkClasses}>
+      <Link
+        to="/"
+        activeOptions={{ exact: true }}
+        activeProps={{ className: "nav-link no-underline active" }}
+        inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+      >
         Dashboard
-      </NavLink>
+      </Link>
 
       {/* Goals dropdown — Headless UI Menu */}
       <Menu as="div" className="relative">
@@ -107,20 +115,20 @@ export default function Navigation({ className = "", vertical = false }: Navigat
             {sports.map((sport) => (
               <MenuItem key={sport.id}>
                 {({ focus }) => (
-                  <NavLink
-                    to={`/${sport.id}/${currentYear}`}
-                    className={({ isActive }) =>
-                      `block px-4 py-2 text-sm no-underline ${
-                        isActive
-                          ? "bg-white/15 text-white"
-                          : focus
-                            ? "bg-white/10 text-white"
-                            : "text-header-text"
-                      }`
-                    }
+                  <Link
+                    to="/$sport/$year"
+                    params={{ sport: sport.id, year: String(currentYear) }}
+                    activeProps={{
+                      className: "block px-4 py-2 text-sm no-underline bg-white/15 text-white",
+                    }}
+                    inactiveProps={{
+                      className: `block px-4 py-2 text-sm no-underline ${
+                        focus ? "bg-white/10 text-white" : "text-header-text"
+                      }`,
+                    }}
                   >
                     {sport.label}
-                  </NavLink>
+                  </Link>
                 )}
               </MenuItem>
             ))}
@@ -129,9 +137,13 @@ export default function Navigation({ className = "", vertical = false }: Navigat
       </Menu>
 
       {/* Activities link */}
-      <NavLink to="/activities" className={linkClasses}>
+      <Link
+        to="/activities"
+        activeProps={{ className: "nav-link no-underline active" }}
+        inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+      >
         Activities
-      </NavLink>
+      </Link>
     </nav>
   );
 }

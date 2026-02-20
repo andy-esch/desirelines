@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { execSync } from "child_process";
 
@@ -59,6 +60,7 @@ export default defineConfig(({ mode }) => {
       __COMMIT_HASH__: JSON.stringify(version),
     },
     plugins: [
+      TanStackRouterVite({ quoteStyle: "double" }),
       tailwindcss(),
       react({
         babel: {
@@ -78,7 +80,7 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             // Vendor chunks — cached separately from app code.
             // Each group contains libraries that update on a similar cadence.
-            "react-vendor": ["react", "react-dom", "react-router-dom"],
+            "react-vendor": ["react", "react-dom", "@tanstack/react-router"],
             "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
             "chart-vendor": ["recharts"],
             "query-vendor": ["@tanstack/react-query"],

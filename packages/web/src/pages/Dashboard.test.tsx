@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen, waitFor } from "@testing-library/react";
 import Dashboard from "./Dashboard";
+import { renderWithRouter } from "../test/renderWithRouter";
 
 // Mock useAuth hook
 vi.mock("../hooks/useAuth", () => ({
@@ -129,17 +129,13 @@ const mockUseAuth = vi.mocked(useAuth);
 const mockSignIn = vi.fn();
 const mockSignOut = vi.fn();
 
-const renderWithRouter = (ui: React.ReactElement) => {
-  return render(<MemoryRouter>{ui}</MemoryRouter>);
-};
-
 describe("Dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe("loading state", () => {
-    it("shows skeleton loading screen when auth is loading", () => {
+    it("shows skeleton loading screen when auth is loading", async () => {
       mockUseAuth.mockReturnValue({
         user: null,
         loading: true,
@@ -147,10 +143,13 @@ describe("Dashboard", () => {
         signIn: mockSignIn,
         signOut: mockSignOut,
       });
-      const { container } = renderWithRouter(<Dashboard />);
+      const { container } = await renderWithRouter(<Dashboard />);
 
-      // DashboardSkeleton renders react-loading-skeleton elements
-      expect(container.querySelectorAll(".react-loading-skeleton").length).toBeGreaterThan(0);
+      // Wait for router to finish rendering the component
+      await waitFor(() => {
+        // DashboardSkeleton renders react-loading-skeleton elements
+        expect(container.querySelectorAll(".react-loading-skeleton").length).toBeGreaterThan(0);
+      });
       // Should not render the actual dashboard content
       expect(screen.queryByRole("heading", { name: /Welcome/i })).not.toBeInTheDocument();
     });
@@ -167,19 +166,19 @@ describe("Dashboard", () => {
       });
     });
 
-    it("renders welcome message without user name", () => {
-      renderWithRouter(<Dashboard />);
+    it("renders welcome message without user name", async () => {
+      await renderWithRouter(<Dashboard />);
       expect(screen.getByRole("heading", { name: "Welcome!" })).toBeInTheDocument();
     });
 
-    it("shows sign-in prompt", () => {
-      renderWithRouter(<Dashboard />);
+    it("shows sign-in prompt", async () => {
+      await renderWithRouter(<Dashboard />);
       expect(screen.getByText("Interested in using Desire Lines?")).toBeInTheDocument();
       expect(screen.getByText(/Check back soon/)).toBeInTheDocument();
     });
 
-    it("renders sparkline chart panels even with no data", () => {
-      renderWithRouter(<Dashboard />);
+    it("renders sparkline chart panels even with no data", async () => {
+      await renderWithRouter(<Dashboard />);
 
       // Both panels always render — activity list shows its own empty state
       expect(screen.getByText("No activities in this time range")).toBeInTheDocument();
@@ -197,18 +196,18 @@ describe("Dashboard", () => {
       });
     });
 
-    it("renders personalized welcome message", () => {
-      renderWithRouter(<Dashboard />);
+    it("renders personalized welcome message", async () => {
+      await renderWithRouter(<Dashboard />);
       expect(screen.getByRole("heading", { name: /Welcome back, Jane/i })).toBeInTheDocument();
     });
 
-    it("does not show sign-in prompt", () => {
-      renderWithRouter(<Dashboard />);
+    it("does not show sign-in prompt", async () => {
+      await renderWithRouter(<Dashboard />);
       expect(screen.queryByText("Want to see your own data?")).not.toBeInTheDocument();
     });
 
-    it("shows dashboard description", () => {
-      renderWithRouter(<Dashboard />);
+    it("shows dashboard description", async () => {
+      await renderWithRouter(<Dashboard />);
       expect(screen.getByText("Your multi-sport activity dashboard")).toBeInTheDocument();
     });
   });
@@ -224,13 +223,13 @@ describe("Dashboard", () => {
       });
     });
 
-    it("renders Recent Activity section", () => {
-      renderWithRouter(<Dashboard />);
+    it("renders Recent Activity section", async () => {
+      await renderWithRouter(<Dashboard />);
       expect(screen.getByRole("heading", { name: "Recent Activity" })).toBeInTheDocument();
     });
 
-    it("renders time range selector", () => {
-      renderWithRouter(<Dashboard />);
+    it("renders time range selector", async () => {
+      await renderWithRouter(<Dashboard />);
       // Time range selector is now part of the Dashboard
       expect(screen.getByRole("button", { name: "2W" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "YTD" })).toBeInTheDocument();

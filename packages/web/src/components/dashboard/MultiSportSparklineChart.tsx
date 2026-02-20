@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
@@ -164,7 +164,8 @@ function SparklineLegend({ sportMeta }: { sportMeta: SportMetaItem[] }) {
       {sportMeta.map(({ sport, displayName, color, textColor, lastActivityYear }) => (
         <Link
           key={sport}
-          to={`/${sport}/${lastActivityYear}`}
+          to="/$sport/$year"
+          params={{ sport, year: String(lastActivityYear) }}
           className="flex items-center gap-1"
           style={{ color: textColor }}
           title={displayName}

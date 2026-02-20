@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "@tanstack/react-router";
 import { useCurrentYear } from "../hooks/useCurrentYear";
 import { getUserSettings } from "../utils/units";
 import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
@@ -18,14 +18,14 @@ import SportPageContent from "../components/SportPageContent";
 
 interface DemoSportPageProps {
   sport: string;
+  year: string;
 }
 
 /**
  * Demo version of SportPage that uses generated demo data.
  * Goals are stored in localStorage for demo persistence.
  */
-export default function DemoSportPage({ sport }: DemoSportPageProps) {
-  const { year } = useParams<{ year?: string }>();
+export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   const navigate = useNavigate();
   const parsedYear = year ? parseInt(year, 10) : NaN;
   const fallbackYear = useCurrentYear();
@@ -156,8 +156,15 @@ export default function DemoSportPage({ sport }: DemoSportPageProps) {
         availableSports={availableSports}
         sportCounts={sportCounts}
         showAuthButton={false}
-        onSportChange={(newSport) => navigate(`/demo/${newSport}/${currentYear}`)}
-        onYearChange={(newYear) => navigate(`/demo/${sport}/${newYear}`)}
+        onSportChange={(newSport) =>
+          navigate({
+            to: "/demo/$sport/$year",
+            params: { sport: newSport, year: String(currentYear) },
+          })
+        }
+        onYearChange={(newYear) =>
+          navigate({ to: "/demo/$sport/$year", params: { sport, year: String(newYear) } })
+        }
         routePrefix="/demo"
         priorYearData={{}}
       />

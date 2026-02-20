@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen } from "@testing-library/react";
 import MultiSportSparklineChart from "./MultiSportSparklineChart";
 import {
   mockMinimalSportConfig,
@@ -10,6 +9,7 @@ import {
   mockAuthReturn,
   emptyDailySportData,
 } from "../../test/fixtures/sportConfig";
+import { renderWithRouter } from "../../test/renderWithRouter";
 
 // Mock useDailySportData hook
 vi.mock("../../hooks/useDailySportData", () => ({
@@ -60,11 +60,6 @@ const mockUseAuth = vi.mocked(useAuth);
 const mockUseVisibleSports = vi.mocked(useVisibleSports);
 const mockUseSportConfig = vi.mocked(useSportConfig);
 
-// Helper to render with router
-function renderWithRouter(component: React.ReactElement) {
-  return render(<MemoryRouter>{component}</MemoryRouter>);
-}
-
 describe("MultiSportSparklineChart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -82,12 +77,12 @@ describe("MultiSportSparklineChart", () => {
   });
 
   describe("loading state", () => {
-    it("shows skeleton loaders when data is loading", () => {
+    it("shows skeleton loaders when data is loading", async () => {
       mockUseDailySportData.mockReturnValue(
         mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
       );
 
-      renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
 
       // Skeleton container has role="status" for accessibility
       expect(screen.getByRole("status")).toBeInTheDocument();
@@ -96,12 +91,12 @@ describe("MultiSportSparklineChart", () => {
   });
 
   describe("error state", () => {
-    it("shows error message when data fails to load", () => {
+    it("shows error message when data fails to load", async () => {
       mockUseDailySportData.mockReturnValue(
         mockDailySportDataReturn({ data: emptyDailySportData, error: new Error("Failed to fetch") })
       );
 
-      renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
 
       expect(screen.getByText("Failed to load chart data")).toBeInTheDocument();
     });
@@ -136,15 +131,15 @@ describe("MultiSportSparklineChart", () => {
       });
     });
 
-    it("renders sparklines for each sport", () => {
-      renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+    it("renders sparklines for each sport", async () => {
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
 
       expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
       expect(screen.getAllByTestId("chart-line")).toHaveLength(3);
     });
 
-    it("renders sport labels as links to year with most recent activity", () => {
-      renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+    it("renders sport labels as links to year with most recent activity", async () => {
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
 
       expect(screen.getByRole("link", { name: "Cycling" })).toHaveAttribute(
         "href",

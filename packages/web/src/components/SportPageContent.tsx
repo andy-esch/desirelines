@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import CumulativeMetricsChart from "./charts/CumulativeMetricsChart";
 import PacingMetricsChart from "./charts/PacingMetricsChart";
 import MetricSelector from "./charts/MetricSelector";
@@ -174,12 +174,23 @@ export default function SportPageContent({
             >
               <span>
                 No {sport} activities recorded for {currentYear}.{" "}
-                <Link
-                  to={`${routePrefix}/${sport}/${currentYear - 1}`}
-                  style={{ color: "var(--color-accent-cyan)" }}
-                >
-                  View {currentYear - 1} instead →
-                </Link>
+                {routePrefix === "/demo" ? (
+                  <Link
+                    to="/demo/$sport/$year"
+                    params={{ sport, year: String(currentYear - 1) }}
+                    style={{ color: "var(--color-accent-cyan)" }}
+                  >
+                    View {currentYear - 1} instead →
+                  </Link>
+                ) : (
+                  <Link
+                    to="/$sport/$year"
+                    params={{ sport, year: String(currentYear - 1) }}
+                    style={{ color: "var(--color-accent-cyan)" }}
+                  >
+                    View {currentYear - 1} instead →
+                  </Link>
+                )}
               </span>
             </div>
           )}

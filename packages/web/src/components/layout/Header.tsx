@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "@tanstack/react-router";
 import { Dialog, DialogPanel, Transition, TransitionChild } from "@headlessui/react";
 import Logo from "../Logo";
 import { useAuth } from "../../hooks/useAuth";

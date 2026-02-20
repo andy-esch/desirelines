@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "@tanstack/react-router";
 import { useCurrentYear } from "../hooks/useCurrentYear";
 import { useSportPageData } from "../hooks/useSportPageData";
 import MomentumIndicator from "../components/MomentumIndicator";
@@ -6,10 +6,10 @@ import SportPageContent from "../components/SportPageContent";
 
 interface SportPageProps {
   sport: string;
+  year: string;
 }
 
-export default function SportPage({ sport }: SportPageProps) {
-  const { year } = useParams<{ year?: string }>();
+export default function SportPage({ sport, year }: SportPageProps) {
   const navigate = useNavigate();
   const fallbackYear = useCurrentYear();
   const parsedYear = year ? parseInt(year, 10) : NaN;
@@ -49,8 +49,12 @@ export default function SportPage({ sport }: SportPageProps) {
       availableSports={data.availableSports}
       sportCounts={data.sportCounts}
       showAuthButton={true}
-      onSportChange={(newSport) => navigate(`/${newSport}/${currentYear}`)}
-      onYearChange={(newYear) => navigate(`/${sport}/${newYear}`)}
+      onSportChange={(newSport) =>
+        navigate({ to: "/$sport/$year", params: { sport: newSport, year: String(currentYear) } })
+      }
+      onYearChange={(newYear) =>
+        navigate({ to: "/$sport/$year", params: { sport, year: String(newYear) } })
+      }
       routePrefix=""
       availableMetrics={data.availableMetrics}
       activeMetric={data.activeMetric}

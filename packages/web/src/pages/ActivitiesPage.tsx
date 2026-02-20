@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearch, useNavigate } from "@tanstack/react-router";
 import ActivityTable from "../components/ActivityTable";
 import { useActivities } from "../hooks/useActivities";
 import { getUserSettings } from "../utils/units";
@@ -63,7 +63,8 @@ function calculateDateRange(range: TimeRange): { from?: string; to?: string } {
 const VALID_RANGES: TimeRange[] = ["2w", "4w", "2m", "6m", "ytd", "all"];
 
 const ActivitiesPage = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const search = useSearch({ from: "/activities" });
+  const navigate = useNavigate();
 
   // Load user preferences for unit settings
   const { data: preferences } = useUserConfig("preferences");
@@ -81,11 +82,10 @@ const ActivitiesPage = () => {
   }, [sportConfig]);
 
   // Derive filter values from URL (single source of truth)
-  const rangeParam = searchParams.get("range");
-  const selectedRange: TimeRange = VALID_RANGES.includes(rangeParam as TimeRange)
-    ? (rangeParam as TimeRange)
+  const selectedRange: TimeRange = VALID_RANGES.includes(search.range as TimeRange)
+    ? (search.range as TimeRange)
     : "4w";
-  const selectedSport = searchParams.get("sport") || "";
+  const selectedSport = search.sport || "";
 
   // Calculate date range based on selection
   const dateRange = useMemo(() => calculateDateRange(selectedRange), [selectedRange]);
@@ -105,19 +105,20 @@ const ActivitiesPage = () => {
 
   // Update URL when filters change (URL is the single source of truth)
   const handleRangeChange = (range: TimeRange) => {
-    const params = new URLSearchParams(searchParams);
-    params.set("range", range);
-    setSearchParams(params);
+    navigate({
+      to: "/activities",
+      search: (prev) => ({ ...prev, range }),
+    });
   };
 
   const handleSportChange = (newSport: string) => {
-    const params = new URLSearchParams(searchParams);
-    if (newSport) {
-      params.set("sport", newSport);
-    } else {
-      params.delete("sport");
-    }
-    setSearchParams(params);
+    navigate({
+      to: "/activities",
+      search: (prev) => ({
+        ...prev,
+        sport: newSport || undefined,
+      }),
+    });
   };
 
   return (

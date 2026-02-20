@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen } from "@testing-library/react";
 import SportPageContent, { type SportPageContentProps } from "./SportPageContent";
 import { createYearContext } from "../utils/yearContext";
+import { renderWithRouter } from "../test/renderWithRouter";
 
 // Mock heavy chart components to keep tests fast and focused on layout logic
 vi.mock("./charts/CumulativeMetricsChart", () => ({
@@ -77,41 +77,37 @@ const baseProps: SportPageContentProps = {
   routePrefix: "",
 };
 
-function renderContent(overrides: Partial<SportPageContentProps> = {}) {
-  return render(
-    <MemoryRouter>
-      <SportPageContent {...baseProps} {...overrides} />
-    </MemoryRouter>
-  );
+async function renderContent(overrides: Partial<SportPageContentProps> = {}) {
+  return await renderWithRouter(<SportPageContent {...baseProps} {...overrides} />);
 }
 
 describe("SportPageContent", () => {
   describe("core rendering", () => {
-    it("renders sport title", () => {
-      renderContent();
+    it("renders sport title", async () => {
+      await renderContent();
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Cycling 2025");
     });
 
-    it("renders charts", () => {
-      renderContent();
+    it("renders charts", async () => {
+      await renderContent();
       expect(screen.getByTestId("cumulative-chart")).toBeInTheDocument();
       expect(screen.getByTestId("pacing-chart")).toBeInTheDocument();
     });
 
-    it("renders KPI cards", () => {
-      renderContent();
+    it("renders KPI cards", async () => {
+      await renderContent();
       expect(screen.getByTestId("kpi-cards")).toBeInTheDocument();
     });
 
-    it("renders goal summary table when data exists", () => {
-      renderContent();
+    it("renders goal summary table when data exists", async () => {
+      await renderContent();
       expect(screen.getByTestId("goal-summary-table")).toBeInTheDocument();
     });
   });
 
   describe("empty state", () => {
-    it("renders EmptyState when no chart data and not loading", () => {
-      renderContent({ chartData: [], currentValue: 0 });
+    it("renders EmptyState when no chart data and not loading", async () => {
+      await renderContent({ chartData: [], currentValue: 0 });
       expect(screen.getByText("No")).toBeInTheDocument();
       expect(screen.getByText("data")).toBeInTheDocument();
       expect(screen.getByText("available")).toBeInTheDocument();
@@ -119,9 +115,9 @@ describe("SportPageContent", () => {
   });
 
   describe("no-data banner", () => {
-    it("shows no-data banner with correct routePrefix link", () => {
+    it("shows no-data banner with correct routePrefix link", async () => {
       const thisYear = new Date().getFullYear();
-      renderContent({
+      await renderContent({
         currentYear: thisYear,
         currentValue: 0,
         yearContext: createYearContext(thisYear),
@@ -134,9 +130,9 @@ describe("SportPageContent", () => {
       expect(link).toHaveAttribute("href", `/demo/cycling/${thisYear - 1}`);
     });
 
-    it("uses empty routePrefix for authenticated mode", () => {
+    it("uses empty routePrefix for authenticated mode", async () => {
       const thisYear = new Date().getFullYear();
-      renderContent({
+      await renderContent({
         currentYear: thisYear,
         currentValue: 0,
         yearContext: createYearContext(thisYear),
@@ -149,8 +145,8 @@ describe("SportPageContent", () => {
       expect(link).toHaveAttribute("href", `/cycling/${thisYear - 1}`);
     });
 
-    it("does not show no-data banner for past years", () => {
-      renderContent({
+    it("does not show no-data banner for past years", async () => {
+      await renderContent({
         currentYear: 2020,
         currentValue: 0,
         yearContext: createYearContext(2020),
@@ -161,8 +157,8 @@ describe("SportPageContent", () => {
   });
 
   describe("metric selector", () => {
-    it("renders MetricSelector when multiple metrics and handler provided", () => {
-      renderContent({
+    it("renders MetricSelector when multiple metrics and handler provided", async () => {
+      await renderContent({
         availableMetrics: ["distance_meters", "time_minutes", "elevation_meters"],
         activeMetric: "distance_meters",
         onMetricChange: vi.fn(),
@@ -171,8 +167,8 @@ describe("SportPageContent", () => {
       expect(screen.getByTestId("metric-selector")).toBeInTheDocument();
     });
 
-    it("does not render MetricSelector when availableMetrics omitted", () => {
-      renderContent({
+    it("does not render MetricSelector when availableMetrics omitted", async () => {
+      await renderContent({
         availableMetrics: undefined,
         activeMetric: undefined,
         onMetricChange: undefined,
@@ -181,8 +177,8 @@ describe("SportPageContent", () => {
       expect(screen.queryByTestId("metric-selector")).not.toBeInTheDocument();
     });
 
-    it("does not render MetricSelector for single metric", () => {
-      renderContent({
+    it("does not render MetricSelector for single metric", async () => {
+      await renderContent({
         availableMetrics: ["distance_meters"],
         activeMetric: "distance_meters",
         onMetricChange: vi.fn(),
@@ -193,13 +189,13 @@ describe("SportPageContent", () => {
   });
 
   describe("sidebar auth button", () => {
-    it("passes showAuthButton to Sidebar", () => {
-      renderContent({ showAuthButton: true });
+    it("passes showAuthButton to Sidebar", async () => {
+      await renderContent({ showAuthButton: true });
       expect(screen.getByTestId("sidebar")).toHaveAttribute("data-auth-button", "true");
     });
 
-    it("hides auth button in demo mode", () => {
-      renderContent({ showAuthButton: false });
+    it("hides auth button in demo mode", async () => {
+      await renderContent({ showAuthButton: false });
       expect(screen.getByTestId("sidebar")).toHaveAttribute("data-auth-button", "false");
     });
   });

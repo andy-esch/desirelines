@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { SettingsSection } from "../components/settings/SettingsSection";
