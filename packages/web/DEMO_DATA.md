@@ -28,11 +28,11 @@ there is no user.
 
 Each sport gets a **fill level** that controls data density:
 
-| Level     | Behavior                                             |
-|-----------|------------------------------------------------------|
-| `full`    | Activities from Jan 1 at the configured rate         |
-| `partial` | Activities start 60% into the year, rate halved      |
-| `empty`   | No data — shows the empty-state UI                   |
+| Level     | Behavior                                        |
+| --------- | ----------------------------------------------- |
+| `full`    | Activities from Jan 1 at the configured rate    |
+| `partial` | Activities start 60% into the year, rate halved |
+| `empty`   | No data — shows the empty-state UI              |
 
 Fill levels are **coordinated per session** so all components see the same
 assignment. At most one sport is allowed to be `empty` (prevents a blank
@@ -50,13 +50,13 @@ Sports can define a **rest pattern** (`restPattern` in `demoConfig.ts`) that
 cycles between active and rest weeks. During rest weeks no activities are
 generated, creating natural training periodization:
 
-| Sport    | Pattern           | Meaning                       |
-|----------|-------------------|-------------------------------|
-| Cycling  | 4 on / 1 off      | Rest every 5th week           |
-| Running  | 3 on / 1 off      | Rest every 4th week           |
-| Yoga     | always on         | No rest weeks                 |
-| Hiking   | 1 on / 5 off      | Sporadic — hike then long gap |
-| Workout  | always on         | No rest weeks                 |
+| Sport   | Pattern      | Meaning                       |
+| ------- | ------------ | ----------------------------- |
+| Cycling | 4 on / 1 off | Rest every 5th week           |
+| Running | 3 on / 1 off | Rest every 4th week           |
+| Yoga    | always on    | No rest weeks                 |
+| Hiking  | 1 on / 5 off | Sporadic — hike then long gap |
+| Workout | always on    | No rest weeks                 |
 
 ### 3. Value sampling (log-normal)
 
@@ -70,7 +70,7 @@ sample = exp(mu + sigma * Z)    where Z ~ N(0,1) via Box-Muller
 
 Sigma controls spread:
 
-- `0`   — returns mean exactly
+- `0` — returns mean exactly
 - `0.3` — tight cluster
 - `0.5` — moderate spread
 - `0.8+` — wide tails
@@ -87,20 +87,20 @@ All distribution functions live in `utils/distributions.ts` (pure, no deps).
 
 - 60% — time prefix + sport suffix ("Morning Ride")
 - 35% — sport-specific creative name ("Hill Repeats", "Vinyasa Flow")
-- 5%  — 80s pop-culture easter egg ("Running Up That Hill (Literally)")
+- 5% — 80s pop-culture easter egg ("Running Up That Hill (Literally)")
 
 ## Sport Configuration
 
 Hardcoded in `constants/demoConfig.ts`. Parameters are derived from realistic
 weekly training volumes:
 
-| Sport    | Fill    | Weekly Volume | Sessions/wk | Rest Pattern  | Per-Session Avg       | Dist σ | Dur σ |
-|----------|---------|---------------|-------------|---------------|-----------------------|--------|-------|
-| Cycling  | full    | 80 mi/wk      | 4           | 4 on / 1 off  | 20 mi (~32 km), 1.3 h | 0.4    | 0.3   |
-| Running  | partial | 12 mi/wk      | 3           | 3 on / 1 off  | 4 mi (~6.4 km), 40 min| 0.5    | 0.3   |
-| Yoga     | empty   | 2 hr/wk       | 2           | always on     | — , 1 h               | —      | 0.2   |
-| Hiking   | full    | 8 mi/wk       | 1           | 1 on / 5 off  | 8 mi (~13 km), 3 h    | 0.5    | 0.4   |
-| Workout  | full    | 3 hr/wk       | 3           | always on     | — , 1 h               | —      | 0.3   |
+| Sport   | Fill    | Weekly Volume | Sessions/wk | Rest Pattern | Per-Session Avg        | Dist σ | Dur σ |
+| ------- | ------- | ------------- | ----------- | ------------ | ---------------------- | ------ | ----- |
+| Cycling | full    | 80 mi/wk      | 4           | 4 on / 1 off | 20 mi (~32 km), 1.3 h  | 0.4    | 0.3   |
+| Running | partial | 12 mi/wk      | 3           | 3 on / 1 off | 4 mi (~6.4 km), 40 min | 0.5    | 0.3   |
+| Yoga    | empty   | 2 hr/wk       | 2           | always on    | — , 1 h                | —      | 0.2   |
+| Hiking  | full    | 8 mi/wk       | 1           | 1 on / 5 off | 8 mi (~13 km), 3 h     | 0.5    | 0.4   |
+| Workout | full    | 3 hr/wk       | 3           | always on    | — , 1 h                | —      | 0.3   |
 
 Unknown sports fall back to sensible defaults based on `has_distance` /
 `has_elevation` from the API config.
@@ -126,14 +126,14 @@ DemoSportPage
 
 ### Key generator functions (`utils/demoDataGenerator.ts`)
 
-| Function                     | Returns                           | Used by                    |
-|------------------------------|-----------------------------------|----------------------------|
-| `generateDemoMetrics`        | `MetricsEntry[]` (cumulative)     | Sport page chart, goals    |
-| `generateDemoDailyData`      | `Record<date, DemoDailyActivity>` | Sparklines, heatmap, weekly|
-| `generateDemoActivities`     | `ActivitySummary[]`               | Activity list              |
-| `generateDemoGoals`          | `{ conservative, target, stretch }` | Goal controls            |
-| `getDemoActivityCounts`      | `Record<sport, count>`            | Sidebar badge counts       |
-| `getSessionFillLevels`       | `Record<sport, FillLevel>`        | All generators             |
+| Function                 | Returns                             | Used by                     |
+| ------------------------ | ----------------------------------- | --------------------------- |
+| `generateDemoMetrics`    | `MetricsEntry[]` (cumulative)       | Sport page chart, goals     |
+| `generateDemoDailyData`  | `Record<date, DemoDailyActivity>`   | Sparklines, heatmap, weekly |
+| `generateDemoActivities` | `ActivitySummary[]`                 | Activity list               |
+| `generateDemoGoals`      | `{ conservative, target, stretch }` | Goal controls               |
+| `getDemoActivityCounts`  | `Record<sport, count>`              | Sidebar badge counts        |
+| `getSessionFillLevels`   | `Record<sport, FillLevel>`          | All generators              |
 
 ## Caching
 
@@ -179,8 +179,8 @@ summed together:
 
 ```typescript
 const DASHBOARD_DEMO_TUNING: TuningParams = {
-  activitiesPerWeekMultiplier: 0.7,  // 70% of each sport's configured rate
-  distanceSigma: 0.6,                // "low" consistency — wider spread
+  activitiesPerWeekMultiplier: 0.7, // 70% of each sport's configured rate
+  distanceSigma: 0.6, // "low" consistency — wider spread
   durationSigma: 0.5,
 };
 ```
@@ -194,11 +194,11 @@ The `TuningParams` type in `utils/demoDataGenerator.ts` supports runtime
 overrides that take precedence over config values. It's used internally by
 the dashboard and is available for any future calibration needs:
 
-| Field                          | Effect                                    |
-|--------------------------------|-------------------------------------------|
-| `activitiesPerWeek`            | Absolute override for Poisson lambda       |
-| `activitiesPerWeekMultiplier`  | Scale factor on config's activitiesPerWeek |
-| `distanceSigma`                | Override log-normal spread for distance    |
-| `durationSigma`                | Override log-normal spread for duration    |
-| `avgDistanceMeters`            | Override per-session mean distance         |
-| `avgDurationSeconds`           | Override per-session mean duration          |
+| Field                         | Effect                                     |
+| ----------------------------- | ------------------------------------------ |
+| `activitiesPerWeek`           | Absolute override for Poisson lambda       |
+| `activitiesPerWeekMultiplier` | Scale factor on config's activitiesPerWeek |
+| `distanceSigma`               | Override log-normal spread for distance    |
+| `durationSigma`               | Override log-normal spread for duration    |
+| `avgDistanceMeters`           | Override per-session mean distance         |
+| `avgDurationSeconds`          | Override per-session mean duration         |

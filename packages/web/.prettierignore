@@ -5,3 +5,4 @@ node_modules
 .env
 package-lock.json
 src/types/generated/
+src/routeTree.gen.ts
