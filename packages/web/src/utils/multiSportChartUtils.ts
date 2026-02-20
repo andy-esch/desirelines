@@ -1,4 +1,4 @@
-import type { MetricsEntry } from "../api/activities";
+import type { DailyActivity } from "../api/activities";
 import type { SportConfig } from "../utils/sportConfig";
 import { toDailyArray, normalizeToRange } from "./chartUtils";
 import { getSpectrumColor, getSpectrumTextColor } from "./chartColors";
@@ -12,18 +12,28 @@ interface DateRange {
   to: string;
 }
 
+export interface ProcessedSportData {
+  sport: string;
+  displayName: string;
+  data: { date: string; value: number }[];
+  rawData: { date: string; value: number }[];
+  isDistanceSport: boolean;
+  isTimeSport: boolean;
+  lastActivityYear: number;
+}
+
 /**
  * Normalizes metrics data for a single sport into a 0-1 scale.
  */
 export function processSportSparkline(
   sport: string,
-  sportData: MetricsEntry[],
+  sportData: Record<string, DailyActivity>,
   sportConfig: SportConfig | null,
   range: DateRange,
   currentYear: number
-) {
+): ProcessedSportData {
   // 1. Convert daily data map to sorted array (dense - fills zeros for missing days)
-  const dailyValues = toDailyArray(sportData as any, sport, sportConfig, range);
+  const dailyValues = toDailyArray(sportData, sport, sportConfig, range);
   // 2. Normalize to 0-1 for sparkline display
   const normalized = normalizeToRange(dailyValues);
 
@@ -50,7 +60,7 @@ export function processSportSparkline(
  * Merges processed sparkline data into a single array for Recharts.
  * Calculates vertical offsets for "lane" based stacking.
  */
-export function mergeSparklineData(sparklineData: any[]) {
+export function mergeSparklineData(sparklineData: ProcessedSportData[]) {
   if (sparklineData.length === 0) return [];
 
   const numSports = sparklineData.length;
@@ -58,7 +68,7 @@ export function mergeSparklineData(sparklineData: any[]) {
   const dataHeight = laneHeight * 0.8;
   const padding = laneHeight * 0.1;
 
-  const dates = sparklineData[0]?.data.map((d: any) => d.date) ?? [];
+  const dates = sparklineData[0]?.data.map((d) => d.date) ?? [];
 
   return dates.map((date: string, dateIndex: number) => {
     const entry: Record<string, string | number> = { date };
@@ -76,7 +86,7 @@ export function mergeSparklineData(sparklineData: any[]) {
 /**
  * Generates metadata for each sport, including spectrum colors.
  */
-export function getSportMetadata(sparklineData: any[]) {
+export function getSportMetadata(sparklineData: ProcessedSportData[]) {
   const total = sparklineData.length;
   return sparklineData.map((data, index) => ({
     sport: data.sport,

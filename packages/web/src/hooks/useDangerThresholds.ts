@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useUserConfig } from "./useUserConfig";
 
 /**
@@ -20,22 +19,22 @@ const DEFAULT_DANGER_THRESHOLDS: Record<string, number> = {
  * 1. Global defaults from DEFAULT_DANGER_THRESHOLDS
  * 2. (Future) User-specific overrides from UserConfig
  *
+ * Note: Manual memoization (useCallback/useMemo) is omitted as the
+ * React Compiler handles reference stability automatically.
+ *
  * @returns An object with a getThreshold(sport) method
  */
 export function useDangerThresholds() {
   // We currently don't have danger thresholds in the UserConfig proto,
   // but we fetch preferences anyway to make this future-proof.
-  const { data: prefs } = useUserConfig("preferences");
+  const { data: _prefs } = useUserConfig("preferences");
 
-  const thresholds = useMemo(() => {
-    // Merge global defaults with potential user overrides
-    // (User overrides not yet implemented in schema)
-    return {
-      ...DEFAULT_DANGER_THRESHOLDS,
-      // ...prefs?.dangerThresholdOverrides
-    };
-  }, [prefs]);
-
+  // Merge global defaults with potential user overrides
+  // (User overrides not yet implemented in schema)
+  const thresholds = {
+    ...DEFAULT_DANGER_THRESHOLDS,
+    // ..._prefs?.dangerThresholdOverrides
+  };
   const getThreshold = (sport: string): number => {
     return thresholds[sport] ?? Infinity;
   };

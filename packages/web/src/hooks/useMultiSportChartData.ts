@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useCurrentYear } from "../hooks/useCurrentYear";
 import { useDailySportData } from "../hooks/useDailySportData";
 import { useVisibleSports } from "../hooks/useVisibleSports";
@@ -40,6 +39,9 @@ function getActivityPageSize(sportCount: number): number {
 
 /**
  * Hook for managing multi-sport comparison chart data.
+ *
+ * Note: Manual memoization (useCallback/useMemo) is omitted as the
+ * React Compiler handles reference stability automatically.
  */
 export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: TuningParams) {
   const currentYear = useCurrentYear();
@@ -48,16 +50,13 @@ export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: Tuni
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
   const { data: prefs } = useUserConfig("preferences");
-  const userSettings = useMemo(() => getUserSettings(prefs), [prefs]);
+  const userSettings = getUserSettings(prefs);
 
   // Filter visible sports to only those in config
-  const validSports = useMemo(
-    () => filterValidSports(visibleSports, sportConfig),
-    [visibleSports, sportConfig]
-  );
+  const validSports = filterValidSports(visibleSports, sportConfig);
 
   // Calculate date range for API query
-  const { from, to } = useMemo(() => getDateRangeFromTimeRange(timeRange), [timeRange]);
+  const { from, to } = getDateRangeFromTimeRange(timeRange);
 
   // Fetch data for visible sports only
   const {
@@ -73,17 +72,15 @@ export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: Tuni
   });
 
   // Process data for each sport's sparkline
-  const sparklineData = useMemo(() => {
-    return validSports.map((sport) =>
-      processSportSparkline(sport, data[sport] ?? [], sportConfig, { from, to }, currentYear)
-    );
-  }, [validSports, data, sportConfig, from, to, currentYear]);
+  const sparklineData = validSports.map((sport) =>
+    processSportSparkline(sport, data[sport] ?? {}, sportConfig, { from, to }, currentYear)
+  );
 
   // Merged data for unified chart
-  const unifiedChartData = useMemo(() => mergeSparklineData(sparklineData), [sparklineData]);
+  const unifiedChartData = mergeSparklineData(sparklineData);
 
   // Sport metadata for chart legend and styling
-  const sportMeta = useMemo(() => getSportMetadata(sparklineData), [sparklineData]);
+  const sportMeta = getSportMetadata(sparklineData);
 
   // Calculate dynamic layout parameters
   const displayCount = Math.min(
