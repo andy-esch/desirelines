@@ -126,9 +126,8 @@ describe("KPICards", () => {
     it("shows no data message for current year when currentDistance is 0", () => {
       render(<KPICards {...getDefaultProps()} currentDistance={0} />);
 
-      // Current distance and next goal show "--", pace to goal shows em dash
-      expect(screen.getAllByText("--")).toHaveLength(2);
-      expect(screen.getByText("—")).toBeInTheDocument(); // Em dash for pace
+      // All three cards show "--" when there's no data
+      expect(screen.getAllByText("--")).toHaveLength(3);
       expect(screen.getByText(/295 days elapsed · No data available/)).toBeInTheDocument();
       expect(screen.getByText("No data available")).toBeInTheDocument();
     });

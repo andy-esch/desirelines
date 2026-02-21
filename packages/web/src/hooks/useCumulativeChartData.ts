@@ -12,7 +12,7 @@
  */
 import { useMemo } from "react";
 
-const MS_PER_DAY = MS_PER_DAY;
+const MS_PER_DAY = 86400000;
 
 import type { DistanceEntry } from "../types/activity";
 import type {
