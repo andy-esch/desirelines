@@ -38,7 +38,7 @@ import {
   PRIOR_YEAR_OPACITY_STEP,
 } from "../../constants/chartColors";
 import type { PriorYearLine } from "../../hooks/useCumulativeChartData";
-import { CHART_CONFIG } from "../../constants/chartConfig";
+import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 import { calculateCumulativeYAxisMax } from "../../utils/chartScaling";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
@@ -108,6 +108,13 @@ export interface CumulativeChartPresenterProps {
   // --- Prior Year Lines ---
   /** Prior year ghost line metadata (sorted most recent first) */
   priorYearLines?: PriorYearLine[];
+
+  // --- Danger Zone ---
+  /** Configuration for the cumulative danger zone (zone of unachievability) */
+  dangerZone?: {
+    show: boolean;
+    threshold: number;
+  };
 }
 
 // ============================================================================
@@ -255,6 +262,7 @@ export function CumulativeChartPresenter({
   onChartMouseMove,
   onChartMouseUp,
   priorYearLines,
+  dangerZone,
 }: CumulativeChartPresenterProps) {
   return (
     <div style={{ position: "relative", userSelect: "none" }}>
@@ -262,7 +270,6 @@ export function CumulativeChartPresenter({
         <LineChart
           data={mergedData}
           margin={CHART_CONFIG.margin}
-          accessibilityLayer
           onMouseDown={onChartMouseDown as never}
           onMouseMove={onChartMouseMove as never}
           onMouseUp={onChartMouseUp}
@@ -331,6 +338,20 @@ export function CumulativeChartPresenter({
               isAnimationActive={false}
             />
           ))}
+
+          {/* Danger zone boundary — max achievable at sustainable pace */}
+          {dangerZone?.show && (
+            <Line
+              type="monotone"
+              dataKey="dangerBoundary"
+              stroke={DANGER_ZONE_CONFIG.line.stroke}
+              strokeWidth={DANGER_ZONE_CONFIG.line.strokeWidth}
+              strokeDasharray={DANGER_ZONE_CONFIG.line.strokeDasharray}
+              dot={false}
+              name={`Max Achievable (${dangerZone.threshold}/day)`}
+              isAnimationActive={false}
+            />
+          )}
 
           {/* Actual distance line */}
           <Line

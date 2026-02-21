@@ -8,14 +8,7 @@
  * - With user → Authenticated mode (Firestore for config, API with auth token)
  */
 
-import React, {
-  createContext,
-  useState,
-  useEffect,
-  useLayoutEffect,
-  useCallback,
-  useMemo,
-} from "react";
+import React, { createContext, useState, useEffect, useCallback, useMemo } from "react";
 import { useAuthService } from "./ServiceContext";
 import type { User } from "../services/auth/AuthService";
 import { configureClientAuth } from "../api/client";
@@ -56,10 +49,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Configure API client auth interceptor before children's useEffects fire.
-  // useLayoutEffect guarantees this runs after DOM commit but before any useEffect,
-  // so API calls in child effects will have the interceptor registered.
-  useLayoutEffect(() => {
+  // Configure API client auth interceptor.
+  // useEffect is sufficient here since configureClientAuth only registers an
+  // axios interceptor (no DOM measurement). The interceptor itself waits for
+  // auth readiness via waitForAuthReady(), so requests made before configuration
+  // completes will be handled gracefully once the interceptor is registered.
+  useEffect(() => {
     configureClientAuth(authService);
   }, [authService]);
 
