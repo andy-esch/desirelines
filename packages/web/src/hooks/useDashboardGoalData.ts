@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
 import { useCurrentYear } from "./useCurrentYear";
@@ -27,10 +28,10 @@ export type { SportGoalData };
  * - Demo: generateDemoMetrics for YTD, generateDemoGoals for goals
  * - Auth: API calls for metrics, Firestore for goals (cache-shared with useUserConfig)
  *
- * Memoization strategy: No explicit useMemo/useCallback needed here.
- * The heavy transformation logic lives in `transformToSportGoalData` (a pure
- * utility), and the remaining derivations are cheap (config lookups, array
- * spreads). The React Compiler handles reference stability for these.
+ * Memoization strategy (React Compiler hybrid):
+ * Most derivations are left to the React Compiler. Exception:
+ *   - configService (useMemo): a new instance per render would create new
+ *     queryFn closures in useQueries, causing unnecessary refetches.
  */
 export function useDashboardGoalData(): {
   sportData: SportGoalData[];
@@ -90,9 +91,12 @@ export function useDashboardGoalData(): {
 
   // Auth: batch fetch goals
   const effectiveUserId = user?.uid ?? "default";
-  const configService = user
-    ? new UserConfigService(undefined, "v1", { authService, databaseService })
-    : null;
+  // Explicit useMemo: avoids creating a new service instance (and thus new queryFn
+  // closures in useQueries below) on every render.
+  const configService = useMemo(() => {
+    if (!user) return null;
+    return new UserConfigService(undefined, "v1", { authService, databaseService });
+  }, [user, authService, databaseService]);
 
   const goalsQueries = useQueries({
     queries: validSports.map((sport) => ({

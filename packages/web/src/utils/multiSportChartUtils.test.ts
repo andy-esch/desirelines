@@ -37,9 +37,9 @@ describe("multiSportChartUtils", () => {
   describe("processSportSparkline", () => {
     it("normalizes daily data to 0-1 scale", () => {
       const sportData = {
-        "2026-01-01": { distanceMeters: 1000, activities: 1 },
-        "2026-01-02": { distanceMeters: 2000, activities: 1 },
-        "2026-01-03": { distanceMeters: 1500, activities: 1 },
+        "2026-01-01": { distanceMeters: 1000, activities: 1, activityIds: [] },
+        "2026-01-02": { distanceMeters: 2000, activities: 1, activityIds: [] },
+        "2026-01-03": { distanceMeters: 1500, activities: 1, activityIds: [] },
       };
 
       const result = processSportSparkline("cycling", sportData, mockSportConfig, range, 2026);
@@ -57,8 +57,8 @@ describe("multiSportChartUtils", () => {
 
     it("handles time-based sports correctly", () => {
       const sportData = {
-        "2026-01-01": { timeMinutes: 30, activities: 1 },
-        "2026-01-02": { timeMinutes: 60, activities: 1 },
+        "2026-01-01": { timeMinutes: 30, activities: 1, activityIds: [] },
+        "2026-01-02": { timeMinutes: 60, activities: 1, activityIds: [] },
       };
 
       const result = processSportSparkline("yoga", sportData, mockSportConfig, range, 2026);

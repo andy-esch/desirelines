@@ -118,21 +118,22 @@ describe("parseLocalDateStrict", () => {
 });
 
 describe("getCurrentLocalDate", () => {
-  it("returns a Date object at local midnight", () => {
+  it("returns a Date object at UTC midnight", () => {
     const result = getCurrentLocalDate();
     expect(result).toBeInstanceOf(Date);
-    expect(result.getHours()).toBe(0);
-    expect(result.getMinutes()).toBe(0);
-    expect(result.getSeconds()).toBe(0);
-    expect(result.getMilliseconds()).toBe(0);
+    expect(result.getUTCHours()).toBe(0);
+    expect(result.getUTCMinutes()).toBe(0);
+    expect(result.getUTCSeconds()).toBe(0);
+    expect(result.getUTCMilliseconds()).toBe(0);
   });
 
-  it("matches the current year, month, and day", () => {
+  it("matches the current local year, month, and day (in UTC)", () => {
     const now = new Date();
     const result = getCurrentLocalDate();
-    expect(result.getFullYear()).toBe(now.getFullYear());
-    expect(result.getMonth()).toBe(now.getMonth());
-    expect(result.getDate()).toBe(now.getDate());
+    // The UTC components should reflect today's local calendar date
+    expect(result.getUTCFullYear()).toBe(now.getFullYear());
+    expect(result.getUTCMonth()).toBe(now.getMonth());
+    expect(result.getUTCDate()).toBe(now.getDate());
   });
 });
 

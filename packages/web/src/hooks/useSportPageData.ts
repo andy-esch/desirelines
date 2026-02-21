@@ -153,6 +153,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   const sportInfo = sportConfig?.sport_categories[sport] ?? null;
   const primaryMetric = getPrimaryMetric(sport, sportConfig);
   const availableMetrics = getSportMetrics(sport, sportConfig);
+  const isTime = isTimeSport(sport, sportConfig);
 
   // Initialize selectedMetric to primary when sport or config changes
   useEffect(() => {
@@ -222,7 +223,6 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
     const { roundingFactor, defaultGoalValue } = primaryMetricConfig;
     const generatedGoals = generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue);
-    const isTime = isTimeSport(sport, sportConfig);
     const now = new Date().toISOString();
 
     return {
@@ -243,8 +243,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     primaryMetricConfig,
     sportInfo?.has_distance,
     userSettings.distanceUnit,
-    sport,
-    sportConfig,
+    isTime,
   ]);
 
   const {
@@ -264,7 +263,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
         let displayValue = g.value;
         if (sportInfo?.has_distance) {
           displayValue = Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit));
-        } else if (isTimeSport(sport, sportConfig)) {
+        } else if (isTime) {
           displayValue = Math.round(minutesToHours(g.value));
         }
 
@@ -293,7 +292,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
       };
       await updateGoals(updatedGoalsForYear);
     },
-    [sport, sportConfig, sportInfo?.has_distance, userSettings.distanceUnit, goalsData, updateGoals]
+    [isTime, sportInfo?.has_distance, userSettings.distanceUnit, goalsData, updateGoals]
   );
 
   // Year context and pacing

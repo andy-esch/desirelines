@@ -17,6 +17,7 @@
  */
 
 import type { SportConfig } from "../api/activities";
+export type { SportConfig };
 
 /**
  * Sport colors for chart visualizations (sparklines, etc.)
