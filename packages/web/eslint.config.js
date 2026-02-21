@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactPlugin from "eslint-plugin-react";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
+import jsxA11yPlugin from "eslint-plugin-jsx-a11y";
 
 export default tseslint.config(
   // Base recommended configs
@@ -10,6 +11,9 @@ export default tseslint.config(
 
   // React Hooks + Compiler (merged in eslint-plugin-react-hooks v7)
   reactHooksPlugin.configs.flat["recommended-latest"],
+
+  // Accessibility
+  jsxA11yPlugin.flatConfigs.recommended,
 
   // React configuration
   {
@@ -44,6 +48,21 @@ export default tseslint.config(
           argsIgnorePattern: "^_",
           varsIgnorePattern: "^_",
         },
+      ],
+
+      // Accessibility rule overrides
+      // label-has-associated-control: Our StyledSelect (Headless UI Listbox) is a
+      // custom component the rule doesn't recognize as a form control. Listing it
+      // in controlComponents lets htmlFor/id association work across the boundary.
+      "jsx-a11y/label-has-associated-control": [
+        "error",
+        { controlComponents: ["StyledSelect"] },
+      ],
+      // no-noninteractive-tabindex: Allow tabIndex on elements with role="note"
+      // (used for focusable disabled-button tooltips in SportVisibilitySettings).
+      "jsx-a11y/no-noninteractive-tabindex": [
+        "error",
+        { roles: ["note"], allowExpressionValues: true },
       ],
 
       // General rules

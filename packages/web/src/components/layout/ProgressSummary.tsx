@@ -19,7 +19,8 @@ export default function ProgressSummary({
   isLoading = false,
 }: ProgressSummaryProps) {
   const formatValue = (value: number): string => {
-    if (isLoading || value === 0) return "--";
+    if (isLoading) return "--";
+    if (value === 0) return "--"; // No data yet for this metric
     return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}`;
   };
 

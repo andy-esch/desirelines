@@ -23,9 +23,11 @@ export interface ChartDataPoint {
 
 /**
  * Chart data point for cumulative distance charts.
- * Currently identical to ChartDataPoint but available for future extension.
+ * Extends base with danger boundary for "zone of unachievability".
  */
-export type CumulativeChartDataPoint = ChartDataPoint;
+export interface CumulativeChartDataPoint extends ChartDataPoint {
+  dangerBoundary?: number;
+}
 
 /**
  * Chart data point for pacing charts.

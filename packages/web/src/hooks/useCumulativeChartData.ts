@@ -11,6 +11,9 @@
  * back the correct calendar date from these timestamps.
  */
 import { useMemo } from "react";
+
+const MS_PER_DAY = 86400000;
+
 import type { DistanceEntry } from "../types/activity";
 import type {
   CumulativeChartDataPoint,
@@ -27,6 +30,7 @@ import {
 import { getMetricConfig, generateYAxisTicks } from "../config/metricConfig";
 import { GOAL_COLORS } from "../constants/chartColors";
 import { getCurrentLocalDate } from "../utils/dateUtils";
+import { useDangerThresholds } from "./useDangerThresholds";
 
 /** Metadata for a prior year ghost line. */
 export interface PriorYearLine {
@@ -111,6 +115,10 @@ export function useCumulativeChartData({
   const estimatedYearEnd =
     distanceData.length === 0 ? 0 : estimateYearEndDistance(distanceData, year);
 
+  // 3. Danger zone boundary (max achievable if sustaining danger-threshold pace)
+  const { getThreshold } = useDangerThresholds();
+  const dangerThreshold = getThreshold(sport);
+
   // 3. Chart line projections
   const goalLines: GoalLineData[] = goals.map((goal) => ({
     goal,
@@ -179,6 +187,22 @@ export function useCumulativeChartData({
         average: point.y,
       });
     });
+
+    // Add danger boundary line (max achievable at danger-threshold pace)
+    if (dangerThreshold !== Infinity && distanceData.length > 0) {
+      const todayTs = latestDate.getTime();
+      const endTs = endDate.getTime();
+      const msPerDay = MS_PER_DAY;
+
+      // Generate daily points from today to year end
+      for (let ts = todayTs; ts <= endTs; ts += msPerDay) {
+        const daysFromToday = (ts - todayTs) / msPerDay;
+        const boundaryValue = totalDistanceTraveled + dangerThreshold * daysFromToday;
+        const date = new Date(ts);
+        const existing = dataMap.get(ts) || { date };
+        dataMap.set(ts, { ...existing, dangerBoundary: boundaryValue });
+      }
+    }
 
     // Add prior year data (aligned to current year)
     if (priorYearData) {
@@ -252,6 +276,19 @@ export function useCumulativeChartData({
     return generateYAxisTicks(maxValue, metricConfig);
   }, [mergedData, metricConfig]);
 
+  // 9. Danger zone adaptive visibility
+  // Show the boundary line only when at least one goal requires exceeding
+  // the danger-threshold pace from today to year end.
+  const shouldShowDangerZone = (() => {
+    if (dangerThreshold === Infinity || distanceData.length === 0) return false;
+    const todayTs = latestDate.getTime();
+    const endTs = endDate.getTime();
+    const daysRemaining = (endTs - todayTs) / MS_PER_DAY;
+    if (daysRemaining <= 0) return false;
+    const maxAchievable = totalDistanceTraveled + dangerThreshold * daysRemaining;
+    return goals.some((g) => g.value > maxAchievable);
+  })();
+
   return {
     latestDate,
     totalDistanceTraveled,
@@ -265,5 +302,7 @@ export function useCumulativeChartData({
     currentValues,
     yAxisTicks,
     priorYearLines,
+    dangerThreshold,
+    shouldShowDangerZone,
   };
 }

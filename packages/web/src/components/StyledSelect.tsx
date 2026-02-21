@@ -12,6 +12,10 @@ interface StyledSelectProps {
   options: SelectOption[];
   disabled?: boolean;
   className?: string;
+  /** Associates an external label with this select via htmlFor */
+  id?: string;
+  /** Associates an external label with this select for accessibility */
+  "aria-labelledby"?: string;
 }
 
 /**
@@ -24,13 +28,15 @@ export default function StyledSelect({
   options,
   disabled = false,
   className = "",
+  id,
+  "aria-labelledby": ariaLabelledBy,
 }: StyledSelectProps) {
   const selected = options.find((o) => o.value === value);
 
   return (
     <Listbox value={value} onChange={onChange} disabled={disabled}>
       <div className={`relative ${className}`}>
-        <ListboxButton className="styled-select-button">
+        <ListboxButton id={id} className="styled-select-button" aria-labelledby={ariaLabelledBy}>
           <span className="truncate">{selected?.label ?? value}</span>
           <ChevronDownIcon className="shrink-0 opacity-50" />
         </ListboxButton>

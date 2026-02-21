@@ -41,6 +41,8 @@ resource "google_cloud_run_v2_service" "dispatcher" {
       min_instance_count = 0
     }
 
+    max_instance_request_concurrency = 1 # Serialize webhook processing to avoid token refresh races
+
     containers {
       image = "${local.image_base_url}/dispatcher:${var.deployment_version}"
 
@@ -71,6 +73,15 @@ resource "google_cloud_run_v2_service" "dispatcher" {
       env {
         name  = "LOG_LEVEL"
         value = var.app_config.log_level
+      }
+
+      startup_probe {
+        http_get {
+          path = "/health"
+        }
+        initial_delay_seconds = 0
+        period_seconds        = 3
+        failure_threshold     = 3
       }
 
       # Mount Strava Webhook secrets as atomic volumes
@@ -171,6 +182,15 @@ resource "google_cloud_run_v2_service" "api_gateway" {
       env {
         name  = "DATA_SOURCE"
         value = "cloud-storage"
+      }
+
+      startup_probe {
+        http_get {
+          path = "/health"
+        }
+        initial_delay_seconds = 0
+        period_seconds        = 3
+        failure_threshold     = 3
       }
 
       # Mount allowed emails as secret volume (PII - not exposed as env var)

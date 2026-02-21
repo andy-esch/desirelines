@@ -195,7 +195,7 @@ export function AccountDropdown({
   };
 
   return (
-    <div ref={dropdownRef} className="relative" onKeyDown={handleKeyDown}>
+    <div ref={dropdownRef} className="relative" onKeyDown={handleKeyDown} role="presentation">
       {/* Trigger Button */}
       <button
         ref={triggerRef}
@@ -215,6 +215,7 @@ export function AccountDropdown({
         <div
           ref={menuRef}
           role="menu"
+          tabIndex={-1}
           aria-orientation="vertical"
           style={dropdownMenuStyle}
           onKeyDown={handleMenuKeyDown}

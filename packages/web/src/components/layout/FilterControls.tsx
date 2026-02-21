@@ -53,12 +53,14 @@ export default function FilterControls({
       {/* Sport Selector */}
       <div className="flex items-center mb-1">
         <label
+          htmlFor="sport-selector"
           className="form-label text-sm text-slate-light mb-0 text-left"
           style={{ minWidth: "50px" }}
         >
           Sport
         </label>
         <StyledSelect
+          id="sport-selector"
           value={sport}
           onChange={onSportChange}
           options={sportOptions}
@@ -71,12 +73,14 @@ export default function FilterControls({
       {/* Year Selector */}
       <div className="flex items-center">
         <label
+          htmlFor="year-selector"
           className="form-label text-sm text-slate-light mb-0 text-left"
           style={{ minWidth: "50px" }}
         >
           Year
         </label>
         <StyledSelect
+          id="year-selector"
           value={String(currentYear)}
           onChange={(val) => onYearChange(Number(val))}
           options={yearOptions}

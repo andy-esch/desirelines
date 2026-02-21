@@ -170,7 +170,7 @@ describe("GoalSummaryTable", () => {
     //   >= 1.1: "Ahead", >= 0.9: "On Track", >= 0.75: "Slightly Behind",
     //   >= 0.5: "Behind", < 0.5: "Far Behind"
 
-    it('shows "Achieved ✓" for completed goals', () => {
+    it('shows "Achieved" with check icon for completed goals', () => {
       render(
         <GoalSummaryTable
           goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
@@ -181,7 +181,7 @@ describe("GoalSummaryTable", () => {
         />
       );
 
-      expect(screen.getByText("Achieved ✓")).toBeInTheDocument();
+      expect(screen.getByText("Achieved")).toBeInTheDocument();
     });
 
     it('shows "Ahead" when >10% ahead of pace', () => {
@@ -348,7 +348,8 @@ describe("GoalSummaryTable", () => {
         />
       );
 
-      expect(screen.getByText("⚠️")).toBeInTheDocument();
+      // Warning icon is an SVG with sr-only text for screen readers
+      expect(screen.getByText("Warning: unsustainable pace")).toBeInTheDocument();
     });
 
     it("shows warning banner when dangerous goals exist", () => {
@@ -362,9 +363,11 @@ describe("GoalSummaryTable", () => {
         />
       );
 
-      expect(screen.getByText(/⚠️ Warning:/)).toBeInTheDocument();
-      expect(screen.getByText(/20 miles\/day/)).toBeInTheDocument();
-      expect(screen.getByText(/may be unsustainable/)).toBeInTheDocument();
+      // Target the alert banner specifically (not the inline sr-only text)
+      const banner = screen.getByRole("alert");
+      expect(banner).toHaveTextContent(/Warning:/);
+      expect(banner).toHaveTextContent(/20 miles\/day/);
+      expect(banner).toHaveTextContent(/may be unsustainable/);
     });
 
     it("does not show warning banner when all goals are safe", () => {
@@ -378,7 +381,7 @@ describe("GoalSummaryTable", () => {
         />
       );
 
-      expect(screen.queryByText(/⚠️ Warning:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Warning:/)).not.toBeInTheDocument();
     });
   });
 
@@ -540,7 +543,7 @@ describe("GoalSummaryTable", () => {
       );
 
       // Should use default (cycling = 20 mi/day threshold)
-      expect(screen.queryByText(/⚠️ Warning:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Warning:/)).not.toBeInTheDocument();
     });
   });
 });

@@ -66,9 +66,10 @@ function KPICards({
   const metricTitle = unit === "sessions" ? "Current # Sessions" : "Current Distance";
   const hasData = !isLoading && currentDistance > 0;
 
-  // Helper functions for cleaner rendering
+  // Helper functions for cleaner rendering — all branch on `hasData` first
+  // to separate loading/empty state from data display logic.
   const getCurrentDistanceValue = () => {
-    if (isLoading || currentDistance === 0) return "--";
+    if (!hasData) return "--";
     return (
       <>
         {currentDistance.toFixed(0)} <span className="text-lg">{unit}</span>
@@ -79,7 +80,7 @@ function KPICards({
   const getCurrentDistanceSubtitle = () => {
     if (isLoading) return "Loading...";
 
-    if (currentDistance === 0) {
+    if (!hasData) {
       const yearStatus = yearContext.isPastYear
         ? `${yearContext.year} complete · No data available`
         : `${yearContext.daysElapsed} days elapsed · No data available`;
@@ -106,7 +107,7 @@ function KPICards({
 
   const getNextGoalSubtitle = () => {
     if (isLoading) return "Loading...";
-    if (currentDistance === 0) return "No data available";
+    if (!hasData) return "No data available";
 
     if (nextGoalGap > 0) {
       return `${nextGoalGap.toFixed(0)} ${unit} to ${nextGoal?.value.toLocaleString()}`;
@@ -120,8 +121,7 @@ function KPICards({
   };
 
   const getPaceToGoalValue = () => {
-    if (isLoading) return "--";
-    if (currentDistance === 0) return "—"; // No pace calculation when no data
+    if (!hasData) return "--";
     if (yearContext.shouldShowPacing && paceNeededForNextGoal > 0) {
       return paceNeededForNextGoal.toFixed(1);
     }

@@ -140,6 +140,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                       setEditValidationError(null);
                     }
                   }}
+                  // eslint-disable-next-line jsx-a11y/no-autofocus -- user-initiated inline edit; focus is expected
                   autoFocus
                   disabled={isSaving}
                   aria-describedby={editValidationError ? `goal-error-${goal.id}` : undefined}

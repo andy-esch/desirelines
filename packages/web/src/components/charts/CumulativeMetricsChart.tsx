@@ -225,6 +225,8 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     currentValues,
     yAxisTicks,
     priorYearLines,
+    shouldShowDangerZone,
+    dangerThreshold,
   } = useCumulativeChartData({
     year,
     goals,
@@ -380,6 +382,10 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
         onChartMouseMove={handleChartMouseMove}
         onChartMouseUp={handleChartMouseUp}
         priorYearLines={priorYearLines}
+        dangerZone={{
+          show: shouldShowDangerZone,
+          threshold: dangerThreshold,
+        }}
       />
     </ChartContainer>
   );
