@@ -93,7 +93,9 @@ function SportTable({
                   {isDisabled ? (
                     <span
                       className="inline-block"
+                      role="note"
                       tabIndex={0}
+                      aria-label="At least one sport must be visible"
                       title="At least one sport must be visible"
                       style={{ cursor: "not-allowed" }}
                     >
