@@ -33,7 +33,7 @@ func (m *mockTokenVerifier) VerifyIDToken(_ context.Context, _ string) (*auth.To
 
 func Example_authMiddlewareSetup() {
 	// This example shows how auth middleware is typically configured.
-	// In production, use NewFirebaseAuth with a pre-initialized auth client.
+	// In production, use NewAuthMiddleware with a pre-initialized auth client.
 
 	logger := gcplog.NewNoOpLogger()
 
@@ -49,7 +49,7 @@ func Example_authMiddlewareSetup() {
 	})
 
 	// In production, you would use:
-	// auth := middleware.NewFirebaseAuth(authClient, []string{"user@example.com"}, logger)
+	// auth := middleware.NewAuthMiddleware(authClient, []string{"user@example.com"}, logger)
 	// r.Route("/api", func(r chi.Router) {
 	//     r.Use(auth.Middleware)
 	//     r.Get("/activities", handleActivities)

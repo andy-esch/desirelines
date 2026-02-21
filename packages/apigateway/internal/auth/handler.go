@@ -20,6 +20,19 @@ import (
 
 const stravaAuthorizeURL = "https://www.strava.com/oauth/authorize"
 
+// HandlerConfig holds configuration for the OAuth auth handler.
+type HandlerConfig struct {
+	Strava      StravaOAuthClient
+	Tokens      TokenStore
+	Allowlist   AllowlistChecker
+	Firebase    FirebaseTokenCreator
+	StateSecret []byte
+	FrontendURL string
+	ClientID    string // Strava client ID (for authorize URL)
+	RedirectURI string // AUTH_CALLBACK_URL
+	Logger      *slog.Logger
+}
+
 // Handler holds dependencies for OAuth auth handlers.
 type Handler struct {
 	strava      StravaOAuthClient
@@ -34,27 +47,17 @@ type Handler struct {
 }
 
 // NewHandler creates a new OAuth auth handler.
-func NewHandler(
-	strava StravaOAuthClient,
-	tokens TokenStore,
-	allowlist AllowlistChecker,
-	firebase FirebaseTokenCreator,
-	stateSecret []byte,
-	frontendURL string,
-	clientID string,
-	redirectURI string,
-	logger *slog.Logger,
-) *Handler {
+func NewHandler(cfg *HandlerConfig) *Handler {
 	return &Handler{
-		strava:      strava,
-		tokens:      tokens,
-		allowlist:   allowlist,
-		firebase:    firebase,
-		stateSecret: stateSecret,
-		frontendURL: frontendURL,
-		clientID:    clientID,
-		redirectURI: redirectURI,
-		logger:      logger,
+		strava:      cfg.Strava,
+		tokens:      cfg.Tokens,
+		allowlist:   cfg.Allowlist,
+		firebase:    cfg.Firebase,
+		stateSecret: cfg.StateSecret,
+		frontendURL: cfg.FrontendURL,
+		clientID:    cfg.ClientID,
+		redirectURI: cfg.RedirectURI,
+		logger:      cfg.Logger,
 	}
 }
 
@@ -116,6 +119,12 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if tokenResp.Athlete.ID <= 0 {
+		h.logger.Error("Invalid athlete ID from Strava", "athlete_id", tokenResp.Athlete.ID)
+		h.redirectError(w, r, "exchange_failed")
+		return
+	}
+
 	athleteID := strconv.FormatInt(tokenResp.Athlete.ID, 10)
 
 	// Check allowlist
@@ -131,7 +140,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store tokens in Firestore
+	// Store tokens and profile atomically in Firestore
 	now := time.Now()
 	tokenData := &StravaTokenData{
 		AccessToken:   tokenResp.AccessToken,
@@ -141,13 +150,6 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		ConnectedAt:   now,
 		LastRefreshed: now,
 	}
-	if writeErr := h.tokens.WriteTokens(r.Context(), athleteID, tokenData); writeErr != nil {
-		h.logger.Error("Failed to write tokens", "error", writeErr, "athlete_id", athleteID)
-		h.redirectError(w, r, "server_error")
-		return
-	}
-
-	// Store athlete profile
 	profile := &AthleteProfile{
 		StravaAthleteID: tokenResp.Athlete.ID,
 		FirstName:       tokenResp.Athlete.FirstName,
@@ -155,8 +157,8 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		ProfileURL:      tokenResp.Athlete.Profile,
 		CreatedAt:       now,
 	}
-	if writeErr := h.tokens.WriteProfile(r.Context(), athleteID, profile); writeErr != nil {
-		h.logger.Error("Failed to write profile", "error", writeErr, "athlete_id", athleteID)
+	if writeErr := h.tokens.WriteAuthData(r.Context(), athleteID, tokenData, profile); writeErr != nil {
+		h.logger.Error("Failed to write auth data", "error", writeErr, "athlete_id", athleteID)
 		h.redirectError(w, r, "server_error")
 		return
 	}
@@ -171,8 +173,11 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("OAuth flow completed successfully", "athlete_id", athleteID)
 
-	// Redirect to frontend with the custom token
-	redirectURL := fmt.Sprintf("%s/auth/complete?token=%s", h.frontendURL, url.QueryEscape(customToken))
+	// Redirect to frontend with the custom token in a URL fragment.
+	// Fragments are never sent to the server, preventing token leakage in
+	// server logs, Referer headers, and intermediate proxy logs.
+	// The frontend reads the token via window.location.hash.
+	redirectURL := fmt.Sprintf("%s/auth/complete#token=%s", h.frontendURL, url.QueryEscape(customToken))
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 

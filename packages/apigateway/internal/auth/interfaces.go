@@ -9,8 +9,9 @@ type StravaOAuthClient interface {
 
 // TokenStore manages per-user Strava tokens and profiles in Firestore.
 type TokenStore interface {
-	WriteTokens(ctx context.Context, athleteID string, tokens *StravaTokenData) error
-	WriteProfile(ctx context.Context, athleteID string, profile *AthleteProfile) error
+	// WriteAuthData atomically writes both tokens and profile for an athlete.
+	// Both writes succeed or both fail.
+	WriteAuthData(ctx context.Context, athleteID string, tokens *StravaTokenData, profile *AthleteProfile) error
 }
 
 // AllowlistChecker verifies if an athlete ID is in the allowlist.

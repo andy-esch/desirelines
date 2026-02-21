@@ -36,9 +36,14 @@ type OAuthClient struct {
 var _ auth.StravaOAuthClient = (*OAuthClient)(nil)
 
 // NewOAuthClient creates a new Strava OAuth client.
-func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger) *OAuthClient {
+// An optional *http.Client can be provided for testing; if nil, a default client
+// with a 10-second timeout is used.
+func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger, httpClient *http.Client) *OAuthClient {
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: httpClientTimeout}
+	}
 	return &OAuthClient{
-		httpClient:   &http.Client{Timeout: httpClientTimeout},
+		httpClient:   httpClient,
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		tokenURL:     defaultTokenURL,
@@ -77,7 +82,12 @@ func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (*auth.Stra
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("strava token exchange returned %d: %s", resp.StatusCode, string(body))
+		// Truncate error body to avoid leaking sensitive data in logs
+		snippet := string(body)
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "...(truncated)"
+		}
+		return nil, fmt.Errorf("strava token exchange returned %d: %s", resp.StatusCode, snippet)
 	}
 
 	var tokenResp auth.StravaTokenResponse

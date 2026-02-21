@@ -32,9 +32,9 @@ type AuthMiddleware struct {
 	logger        *slog.Logger
 }
 
-// NewFirebaseAuth creates authentication middleware with a pre-initialized token verifier.
+// NewAuthMiddleware creates authentication middleware with a pre-initialized token verifier.
 // The Firebase app and auth client should be initialized in main.go and passed here.
-func NewFirebaseAuth(verifier TokenVerifier, allowedEmails []string, logger *slog.Logger) *AuthMiddleware {
+func NewAuthMiddleware(verifier TokenVerifier, allowedEmails []string, logger *slog.Logger) *AuthMiddleware {
 	// Convert slice to map for O(1) lookups (normalize to lowercase)
 	emailMap := make(map[string]bool)
 	for _, email := range allowedEmails {

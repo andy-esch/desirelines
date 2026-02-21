@@ -186,7 +186,7 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to get allowed emails: %w", err)
 	}
-	deps.authMiddleware = middleware.NewFirebaseAuth(authClient, allowedEmails, log)
+	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, allowedEmails, log)
 
 	// 5. Initialize Firestore client (for OAuth auth store)
 	firestoreClient, err := firebaseApp.Firestore(ctx)
@@ -289,20 +289,20 @@ func initAuthHandler(authClient auth.FirebaseTokenCreator, firestoreClient *fire
 		return nil, fmt.Errorf("AUTH_CALLBACK_URL environment variable must be set")
 	}
 
-	stravaOAuth := stravaadapter.NewOAuthClient(stravaClientID, stravaClientSecret, log)
+	stravaOAuth := stravaadapter.NewOAuthClient(stravaClientID, stravaClientSecret, log, nil)
 	authStore := firestoreadapter.NewAuthStore(firestoreClient, log)
 
-	handler := auth.NewHandler(
-		stravaOAuth,
-		authStore,
-		authStore,
-		authClient,
-		[]byte(stateSecret),
-		frontendURL,
-		stravaClientID,
-		callbackURL,
-		log,
-	)
+	handler := auth.NewHandler(&auth.HandlerConfig{
+		Strava:      stravaOAuth,
+		Tokens:      authStore,
+		Allowlist:   authStore,
+		Firebase:    authClient,
+		StateSecret: []byte(stateSecret),
+		FrontendURL: frontendURL,
+		ClientID:    stravaClientID,
+		RedirectURI: callbackURL,
+		Logger:      log,
+	})
 
 	log.Info("OAuth auth handler initialized")
 	return handler, nil

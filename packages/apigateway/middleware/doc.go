@@ -5,10 +5,10 @@
 // The primary middleware is [AuthMiddleware], which validates Firebase ID tokens
 // and checks email authorization against an allowlist.
 //
-// Create the middleware with [NewFirebaseAuth]:
+// Create the middleware with [NewAuthMiddleware]:
 //
 //	allowedEmails := []string{"user@example.com", "admin@example.com"}
-//	auth := middleware.NewFirebaseAuth(authClient, allowedEmails, logger)
+//	auth := middleware.NewAuthMiddleware(authClient, allowedEmails, logger)
 //
 // Apply it to protected routes:
 //

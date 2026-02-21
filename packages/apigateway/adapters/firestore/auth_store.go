@@ -34,32 +34,38 @@ func NewAuthStore(client *firestore.Client, logger *slog.Logger) *AuthStore {
 
 // IsAllowed checks whether the given athlete ID exists in the allowlist collection.
 func (s *AuthStore) IsAllowed(ctx context.Context, athleteID string) (bool, error) {
-	doc, err := s.client.Collection("allowlist").Doc(athleteID).Get(ctx)
+	_, err := s.client.Collection("allowlist").Doc(athleteID).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return false, nil
 		}
 		return false, fmt.Errorf("check allowlist: %w", err)
 	}
-	return doc.Exists(), nil
+	return true, nil
 }
 
-// WriteTokens writes Strava tokens to the user's private subcollection.
-// Path: users/{athleteID}/private/strava_tokens
-func (s *AuthStore) WriteTokens(ctx context.Context, athleteID string, tokens *auth.StravaTokenData) error {
-	_, err := s.client.Collection("users").Doc(athleteID).Collection("private").Doc("strava_tokens").Set(ctx, tokens, firestore.MergeAll)
-	if err != nil {
-		return fmt.Errorf("write strava tokens: %w", err)
-	}
-	return nil
-}
+// WriteAuthData atomically writes both Strava tokens and athlete profile.
+// Uses a Firestore transaction to ensure both writes succeed or both fail.
+//
+// Paths:
+//   - users/{athleteID}/private/strava_tokens
+//   - users/{athleteID}/private/profile
+func (s *AuthStore) WriteAuthData(ctx context.Context, athleteID string, tokens *auth.StravaTokenData, profile *auth.AthleteProfile) error {
+	userPrivate := s.client.Collection("users").Doc(athleteID).Collection("private")
+	tokensRef := userPrivate.Doc("strava_tokens")
+	profileRef := userPrivate.Doc("profile")
 
-// WriteProfile writes the athlete profile to the user's private subcollection.
-// Path: users/{athleteID}/private/profile
-func (s *AuthStore) WriteProfile(ctx context.Context, athleteID string, profile *auth.AthleteProfile) error {
-	_, err := s.client.Collection("users").Doc(athleteID).Collection("private").Doc("profile").Set(ctx, profile, firestore.MergeAll)
+	err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		if setErr := tx.Set(tokensRef, tokens, firestore.MergeAll); setErr != nil {
+			return fmt.Errorf("set strava tokens: %w", setErr)
+		}
+		if setErr := tx.Set(profileRef, profile, firestore.MergeAll); setErr != nil {
+			return fmt.Errorf("set athlete profile: %w", setErr)
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("write athlete profile: %w", err)
+		return fmt.Errorf("write auth data: %w", err)
 	}
 	return nil
 }

@@ -10,47 +10,59 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v4"
 )
 
-// --- Mock implementations ---
+// --- Mock implementations with call tracking ---
 
 type mockStravaOAuth struct {
 	resp *StravaTokenResponse
 	err  error
+
+	calledWith string // captures the code argument
 }
 
-func (m *mockStravaOAuth) ExchangeCode(_ context.Context, _ string) (*StravaTokenResponse, error) {
+func (m *mockStravaOAuth) ExchangeCode(_ context.Context, code string) (*StravaTokenResponse, error) {
+	m.calledWith = code
 	return m.resp, m.err
 }
 
 type mockTokenStore struct {
-	writeTokensErr  error
-	writeProfileErr error
+	writeErr error
+
+	calledWith string // captures the athleteID argument
+	called     bool
 }
 
-func (m *mockTokenStore) WriteTokens(_ context.Context, _ string, _ *StravaTokenData) error {
-	return m.writeTokensErr
-}
-
-func (m *mockTokenStore) WriteProfile(_ context.Context, _ string, _ *AthleteProfile) error {
-	return m.writeProfileErr
+func (m *mockTokenStore) WriteAuthData(_ context.Context, athleteID string, _ *StravaTokenData, _ *AthleteProfile) error {
+	m.called = true
+	m.calledWith = athleteID
+	return m.writeErr
 }
 
 type mockAllowlist struct {
 	allowed bool
 	err     error
+
+	calledWith string
 }
 
-func (m *mockAllowlist) IsAllowed(_ context.Context, _ string) (bool, error) {
+func (m *mockAllowlist) IsAllowed(_ context.Context, athleteID string) (bool, error) {
+	m.calledWith = athleteID
 	return m.allowed, m.err
 }
 
 type mockFirebase struct {
 	token string
 	err   error
+
+	calledWith string
 }
 
-func (m *mockFirebase) CustomToken(_ context.Context, _ string) (string, error) {
+func (m *mockFirebase) CustomToken(_ context.Context, uid string) (string, error) {
+	m.calledWith = uid
 	return m.token, m.err
 }
 
@@ -62,17 +74,17 @@ func newTestHandler(
 	allowlist AllowlistChecker,
 	firebase FirebaseTokenCreator,
 ) *Handler {
-	return NewHandler(
-		strava,
-		tokens,
-		allowlist,
-		firebase,
-		[]byte("test-secret-key-32-bytes-long!!!"),
-		"https://app.example.com",
-		"test-client-id",
-		"https://api.example.com/auth/callback",
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-	)
+	return NewHandler(&HandlerConfig{
+		Strava:      strava,
+		Tokens:      tokens,
+		Allowlist:   allowlist,
+		Firebase:    firebase,
+		StateSecret: []byte("test-secret-key-32-bytes-long!!!"),
+		FrontendURL: "https://app.example.com",
+		ClientID:    "test-client-id",
+		RedirectURI: "https://api.example.com/auth/callback",
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
 }
 
 // --- HandleInitiate tests ---
@@ -136,6 +148,18 @@ func TestHandleCallback(t *testing.T) {
 		t.Fatalf("failed to generate state: %v", err)
 	}
 
+	// Create an expired state token for the expiry test
+	expiredClaims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Minute)),
+		IssuedAt:  jwt.NewNumericDate(time.Now().Add(-6 * time.Minute)),
+		ID:        "expired-nonce",
+	}
+	expiredToken := jwt.NewWithClaims(jwt.SigningMethodHS256, expiredClaims)
+	expiredState, err := expiredToken.SignedString(stateSecret)
+	if err != nil {
+		t.Fatalf("failed to create expired state: %v", err)
+	}
+
 	validTokenResp := &StravaTokenResponse{
 		AccessToken:  "strava-access-token",
 		RefreshToken: "strava-refresh-token",
@@ -146,6 +170,13 @@ func TestHandleCallback(t *testing.T) {
 			LastName:  "Doe",
 			Profile:   "https://strava.com/avatar.jpg",
 		},
+	}
+
+	zeroAthleteResp := &StravaTokenResponse{
+		AccessToken:  "strava-access-token",
+		RefreshToken: "strava-refresh-token",
+		ExpiresAt:    1234567890,
+		Athlete:      StravaAthlete{ID: 0},
 	}
 
 	tests := []struct {
@@ -166,7 +197,7 @@ func TestHandleCallback(t *testing.T) {
 			allowlist:    &mockAllowlist{allowed: true},
 			firebase:     &mockFirebase{token: "firebase-custom-token"},
 			wantStatus:   http.StatusFound,
-			wantLocation: "/auth/complete?token=firebase-custom-token",
+			wantLocation: "/auth/complete#token=firebase-custom-token",
 		},
 		{
 			name:         "user denied access",
@@ -181,6 +212,16 @@ func TestHandleCallback(t *testing.T) {
 		{
 			name:         "invalid state",
 			query:        "code=auth-code&state=bad-state",
+			strava:       &mockStravaOAuth{},
+			tokens:       &mockTokenStore{},
+			allowlist:    &mockAllowlist{},
+			firebase:     &mockFirebase{},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/error?error=invalid_state",
+		},
+		{
+			name:         "expired state",
+			query:        "code=auth-code&state=" + expiredState,
 			strava:       &mockStravaOAuth{},
 			tokens:       &mockTokenStore{},
 			allowlist:    &mockAllowlist{},
@@ -209,6 +250,16 @@ func TestHandleCallback(t *testing.T) {
 			wantLocation: "/auth/error?error=exchange_failed",
 		},
 		{
+			name:         "zero athlete ID from Strava",
+			query:        "code=auth-code&state=" + validState,
+			strava:       &mockStravaOAuth{resp: zeroAthleteResp},
+			tokens:       &mockTokenStore{},
+			allowlist:    &mockAllowlist{},
+			firebase:     &mockFirebase{},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/error?error=exchange_failed",
+		},
+		{
 			name:         "not on allowlist",
 			query:        "code=auth-code&state=" + validState,
 			strava:       &mockStravaOAuth{resp: validTokenResp},
@@ -229,20 +280,10 @@ func TestHandleCallback(t *testing.T) {
 			wantLocation: "/auth/error?error=server_error",
 		},
 		{
-			name:         "write tokens error",
+			name:         "write auth data error",
 			query:        "code=auth-code&state=" + validState,
 			strava:       &mockStravaOAuth{resp: validTokenResp},
-			tokens:       &mockTokenStore{writeTokensErr: errors.New("firestore write failed")},
-			allowlist:    &mockAllowlist{allowed: true},
-			firebase:     &mockFirebase{},
-			wantStatus:   http.StatusFound,
-			wantLocation: "/auth/error?error=server_error",
-		},
-		{
-			name:         "write profile error",
-			query:        "code=auth-code&state=" + validState,
-			strava:       &mockStravaOAuth{resp: validTokenResp},
-			tokens:       &mockTokenStore{writeProfileErr: errors.New("firestore write failed")},
+			tokens:       &mockTokenStore{writeErr: errors.New("firestore write failed")},
 			allowlist:    &mockAllowlist{allowed: true},
 			firebase:     &mockFirebase{},
 			wantStatus:   http.StatusFound,
@@ -278,5 +319,63 @@ func TestHandleCallback(t *testing.T) {
 				t.Errorf("Location = %q, want substring %q", location, tt.wantLocation)
 			}
 		})
+	}
+}
+
+func TestHandleCallback_HappyPathVerifiesArguments(t *testing.T) {
+	stateSecret := []byte("test-secret-key-32-bytes-long!!!")
+
+	validState, err := generateState(stateSecret)
+	if err != nil {
+		t.Fatalf("failed to generate state: %v", err)
+	}
+
+	stravaMock := &mockStravaOAuth{resp: &StravaTokenResponse{
+		AccessToken:  "access-tok",
+		RefreshToken: "refresh-tok",
+		ExpiresAt:    9999999999,
+		Athlete: StravaAthlete{
+			ID:        67890,
+			FirstName: "Alice",
+			LastName:  "Smith",
+			Profile:   "https://strava.com/alice.jpg",
+		},
+	}}
+	tokensMock := &mockTokenStore{}
+	allowlistMock := &mockAllowlist{allowed: true}
+	firebaseMock := &mockFirebase{token: "fb-token"}
+
+	h := newTestHandler(stravaMock, tokensMock, allowlistMock, firebaseMock)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/callback?code=the-code&state="+validState, nil)
+	w := httptest.NewRecorder()
+	h.HandleCallback(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want %d", http.StatusFound, w.Code)
+	}
+
+	// Verify the code was passed to Strava
+	if stravaMock.calledWith != "the-code" {
+		t.Errorf("ExchangeCode called with %q, want %q", stravaMock.calledWith, "the-code")
+	}
+
+	// Verify the athlete ID was passed correctly to all downstream services
+	const wantAthleteID = "67890"
+
+	if allowlistMock.calledWith != wantAthleteID {
+		t.Errorf("IsAllowed called with %q, want %q", allowlistMock.calledWith, wantAthleteID)
+	}
+
+	if firebaseMock.calledWith != wantAthleteID {
+		t.Errorf("CustomToken called with %q, want %q", firebaseMock.calledWith, wantAthleteID)
+	}
+
+	// Verify WriteAuthData was called with the right athlete ID
+	if !tokensMock.called {
+		t.Fatal("expected WriteAuthData to be called")
+	}
+	if tokensMock.calledWith != wantAthleteID {
+		t.Errorf("WriteAuthData called with %q, want %q", tokensMock.calledWith, wantAthleteID)
 	}
 }
