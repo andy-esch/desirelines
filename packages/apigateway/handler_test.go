@@ -127,9 +127,12 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 		AuthMiddleware: mockAuth,
 	}
 
+	noopHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 	publicRoutes := server.PublicRoutes{
-		Health:      healthHandler.Handle,
-		SportConfig: sportsHandler.HandleConfig,
+		Health:       healthHandler.Handle,
+		SportConfig:  sportsHandler.HandleConfig,
+		AuthInitiate: noopHandler,
+		AuthCallback: noopHandler,
 	}
 
 	authRoutes := server.AuthenticatedRoutes{

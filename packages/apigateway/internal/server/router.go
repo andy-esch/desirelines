@@ -30,8 +30,10 @@ type RouterConfig struct {
 
 // PublicRoutes are registered without authentication.
 type PublicRoutes struct {
-	Health      http.HandlerFunc
-	SportConfig http.HandlerFunc
+	Health       http.HandlerFunc
+	SportConfig  http.HandlerFunc
+	AuthInitiate http.HandlerFunc // GET /auth/strava
+	AuthCallback http.HandlerFunc // GET /auth/callback
 }
 
 // AuthenticatedRoutes are registered with authentication middleware.
@@ -63,6 +65,8 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	// Public endpoints (no auth required)
 	r.Get("/health", public.Health)
 	r.Get("/sports/config", public.SportConfig)
+	r.Get("/auth/strava", public.AuthInitiate)
+	r.Get("/auth/callback", public.AuthCallback)
 
 	// Authenticated route group
 	r.Group(func(r chi.Router) {

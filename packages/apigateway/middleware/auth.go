@@ -2,13 +2,10 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
-	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
@@ -35,9 +32,9 @@ type AuthMiddleware struct {
 	logger        *slog.Logger
 }
 
-// NewFirebaseAuth creates authentication middleware using Firebase Admin SDK.
-// It validates JWT tokens and checks the email against an allowlist provided as configuration.
-func NewFirebaseAuth(ctx context.Context, allowedEmails []string, logger *slog.Logger) (*AuthMiddleware, error) {
+// NewFirebaseAuth creates authentication middleware with a pre-initialized token verifier.
+// The Firebase app and auth client should be initialized in main.go and passed here.
+func NewFirebaseAuth(verifier TokenVerifier, allowedEmails []string, logger *slog.Logger) *AuthMiddleware {
 	// Convert slice to map for O(1) lookups (normalize to lowercase)
 	emailMap := make(map[string]bool)
 	for _, email := range allowedEmails {
@@ -46,42 +43,18 @@ func NewFirebaseAuth(ctx context.Context, allowedEmails []string, logger *slog.L
 		}
 	}
 
-	// Initialize Firebase Admin SDK
-	// ProjectID is required for token verification (even with emulator)
-	// In Cloud Run, ADC provides credentials automatically
-	projectID := os.Getenv("GCP_PROJECT_ID")
-	if projectID == "" {
-		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
-	}
-	if projectID == "" {
-		return nil, fmt.Errorf("GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable must be set")
-	}
-
-	config := &firebase.Config{
-		ProjectID: projectID,
-	}
-	app, err := firebase.NewApp(ctx, config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Firebase app: %w", err)
-	}
-
-	authClient, err := app.Auth(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
-	}
-
 	if len(emailMap) == 0 {
 		logger.Warn("Auth: No allowed emails configured - all authenticated requests will be forbidden")
 	} else {
 		logger.Info("Auth: Configured authorized emails", "count", len(emailMap))
 	}
 
-	logger.Info("Auth middleware initialized successfully", "project_id", projectID)
+	logger.Info("Auth middleware initialized successfully")
 	return &AuthMiddleware{
-		verifier:      authClient,
+		verifier:      verifier,
 		allowedEmails: emailMap,
 		logger:        logger,
-	}, nil
+	}
 }
 
 // Middleware is the HTTP middleware function that validates authentication.
