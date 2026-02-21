@@ -7,7 +7,6 @@
  * Architecture:
  * - CHART_CONFIG: Shared settings used by all chart types
  * - DANGER_ZONE_CONFIG: Pacing chart specific (zone of unachievability)
- * - calculateYAxisDomain: Shared utility for cumulative chart Y-axis scaling
  */
 
 export const CHART_CONFIG = {
@@ -132,22 +131,3 @@ export const DANGER_ZONE_CONFIG = {
     offset: 5,
   },
 } as const;
-
-/**
- * Calculate Y-axis domain maximum for cumulative charts.
- *
- * Uses tiered rounding to create clean axis values:
- * - < 500: round to nearest 100
- * - < 2000: round to nearest 250
- * - < 5000: round to nearest 500
- * - >= 5000: round to nearest 1000
- *
- * @param dataMax - Maximum value in the data
- * @returns Rounded maximum for Y-axis domain
- */
-export function calculateCumulativeYAxisMax(dataMax: number): number {
-  if (dataMax < 500) return Math.ceil(dataMax / 100) * 100;
-  if (dataMax < 2000) return Math.ceil(dataMax / 250) * 250;
-  if (dataMax < 5000) return Math.ceil(dataMax / 500) * 500;
-  return Math.ceil(dataMax / 1000) * 1000;
-}

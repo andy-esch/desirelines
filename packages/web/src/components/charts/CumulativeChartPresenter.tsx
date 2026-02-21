@@ -38,7 +38,8 @@ import {
   PRIOR_YEAR_OPACITY_STEP,
 } from "../../constants/chartColors";
 import type { PriorYearLine } from "../../hooks/useCumulativeChartData";
-import { CHART_CONFIG, calculateCumulativeYAxisMax } from "../../constants/chartConfig";
+import { CHART_CONFIG } from "../../constants/chartConfig";
+import { calculateCumulativeYAxisMax } from "../../utils/chartScaling";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
 import { formatChartAxisDate } from "../../utils/dateUtils";

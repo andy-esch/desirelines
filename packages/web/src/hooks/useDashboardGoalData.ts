@@ -6,43 +6,20 @@ import { useServices } from "../contexts/ServiceContext";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
 import { useUserConfig } from "./useUserConfig";
-import { getSpectrumColor } from "../utils/chartColors";
 import { fetchMultiSportMetrics, type MetricsEntry } from "../api/activities";
 import {
   generateDemoMetrics,
   generateDemoGoals,
   getSessionFillLevels,
 } from "../utils/demoDataGenerator";
-import { filterValidSports, getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
-import {
-  getMetricConfig,
-  getMetricConfigByMetricId,
-  getMetricFieldName,
-} from "../config/metricConfig";
-import { getTargetGoalValue } from "../utils/goalCalculations";
-import {
-  convertDistance,
-  goalMetersToDisplay,
-  getUserSettings,
-  minutesToHours,
-} from "../utils/units";
+import { filterValidSports } from "../utils/sportConfig";
+import { getUserSettings } from "../utils/units";
 import { createYearContext, type YearContext } from "../utils/yearContext";
 import { UserConfigService } from "../services/userConfigService";
 import type { GoalsForYear } from "../types/generated/user_config";
+import { transformToSportGoalData, type SportGoalData } from "../utils/dashboardUtils";
 
-export interface SportGoalData {
-  sport: string;
-  displayName: string;
-  color: string;
-  currentValue: number;
-  targetGoal: number;
-  metricUnit: string;
-  isDistanceSport: boolean;
-  /** Smallest (least conservative) goal value in display units, for impact calculations */
-  impactGoal: number;
-  /** Label of the smallest goal (e.g. "Conservative") */
-  impactGoalLabel: string;
-}
+export type { SportGoalData };
 
 /**
  * Hook that fetches YTD cumulative metrics + goals for all visible sports.
@@ -50,6 +27,11 @@ export interface SportGoalData {
  * Handles both demo and auth modes:
  * - Demo: generateDemoMetrics for YTD, generateDemoGoals for goals
  * - Auth: API calls for metrics, Firestore for goals (cache-shared with useUserConfig)
+ *
+ * Memoization strategy (React Compiler hybrid):
+ * Most derivations are left to the React Compiler. Exception:
+ *   - configService (useMemo): a new instance per render would create new
+ *     queryFn closures in useQueries, causing unnecessary refetches.
  */
 export function useDashboardGoalData(): {
   sportData: SportGoalData[];
@@ -65,33 +47,28 @@ export function useDashboardGoalData(): {
   const { data: prefs } = useUserConfig("preferences");
 
   const currentYear = useCurrentYear();
-  const yearContext = useMemo(() => createYearContext(currentYear), [currentYear]);
-  const userSettings = useMemo(() => getUserSettings(prefs), [prefs]);
+  const yearContext = createYearContext(currentYear);
+  const userSettings = getUserSettings(prefs);
 
-  const validSports = useMemo(
-    () => filterValidSports(visibleSports, sportConfig),
-    [visibleSports, sportConfig]
-  );
+  const validSports = filterValidSports(visibleSports, sportConfig);
 
-  // --- YTD Cumulative Metrics ---
+  // --- 1. YTD Cumulative Metrics ---
 
   // Demo: generate cumulative metrics synchronously
-  const demoMetrics = useMemo(() => {
-    if (user) return null;
+  let demoMetrics: Record<string, MetricsEntry[]> | null = null;
+  if (!user) {
     const fillLevels = getSessionFillLevels(validSports);
-    const result: Record<string, MetricsEntry[]> = {};
+    demoMetrics = {};
     for (const sport of validSports) {
-      result[sport] = generateDemoMetrics(sport, currentYear, {
+      demoMetrics[sport] = generateDemoMetrics(sport, currentYear, {
         overrideFillLevel: fillLevels[sport],
         allSports: validSports,
       });
     }
-    return result;
-  }, [user, validSports, currentYear]);
+  }
 
-  // Auth: single multi-sport metrics fetch (was N per-sport queries)
-  const sortedSports = useMemo(() => [...validSports].sort(), [validSports]);
-
+  // Auth: single multi-sport metrics fetch
+  const sortedSports = [...validSports].sort();
   const metricsQuery = useQuery({
     queryKey: ["sportMetrics", user?.uid, currentYear, sortedSports],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
@@ -100,20 +77,22 @@ export function useDashboardGoalData(): {
     staleTime: 5 * 60 * 1000,
   });
 
-  // --- Goals ---
+  // --- 2. Goals ---
 
   // Demo: generate goals synchronously
-  const demoGoals = useMemo(() => {
-    if (user) return null;
-    const result: Record<string, { conservative: number; target: number; stretch: number }> = {};
+  let demoGoals: Record<string, { conservative: number; target: number; stretch: number }> | null =
+    null;
+  if (!user) {
+    demoGoals = {};
     for (const sport of validSports) {
-      result[sport] = generateDemoGoals(sport);
+      demoGoals[sport] = generateDemoGoals(sport);
     }
-    return result;
-  }, [user, validSports]);
+  }
 
-  // Auth: batch fetch goals (query keys match useUserConfig for cache sharing)
+  // Auth: batch fetch goals
   const effectiveUserId = user?.uid ?? "default";
+  // Explicit useMemo: avoids creating a new service instance (and thus new queryFn
+  // closures in useQueries below) on every render.
   const configService = useMemo(() => {
     if (!user) return null;
     return new UserConfigService(undefined, "v1", { authService, databaseService });
@@ -131,90 +110,22 @@ export function useDashboardGoalData(): {
     })),
   });
 
-  // --- Combine into SportGoalData ---
+  // --- 3. Transform to UI Model ---
 
-  const sportData = useMemo(() => {
-    const total = validSports.length;
-    return validSports.map((sport, index) => {
-      const metricConfig = getMetricConfig(sport);
-      const primaryMetric = getPrimaryMetric(sport, sportConfig);
-      const metricCfg = getMetricConfigByMetricId(primaryMetric, userSettings);
-      const fieldName = getMetricFieldName(primaryMetric);
-      const isDistance = primaryMetric === "distance_meters";
-      const isTime = primaryMetric === "time_minutes";
-
-      // Get YTD value (in display units)
-      let currentValue = 0;
-      const metrics = user ? metricsQuery.data?.[sport] : demoMetrics?.[sport];
-
-      if (metrics && metrics.length > 0) {
-        const lastEntry = metrics[metrics.length - 1];
-        const rawValue = lastEntry[fieldName] ?? 0;
-        if (isDistance) {
-          currentValue = convertDistance(rawValue, userSettings.distanceUnit);
-        } else if (isTime) {
-          currentValue = minutesToHours(rawValue);
-        } else {
-          currentValue = rawValue;
-        }
-      }
-
-      // Get target goal (in display units)
-      let targetGoal = metricConfig.defaultGoalValue;
-      let impactGoal = targetGoal;
-      let impactGoalLabel = "";
-      if (user) {
-        const goalsData = goalsQueries[index]?.data;
-        if (goalsData?.goals?.length) {
-          const goalValue = getTargetGoalValue(goalsData.goals);
-          if (goalValue !== null) {
-            if (isDistance) {
-              targetGoal = goalMetersToDisplay(goalValue, userSettings.distanceUnit);
-            } else if (isTime) {
-              targetGoal = minutesToHours(goalValue);
-            } else {
-              targetGoal = goalValue;
-            }
-          }
-          // Find the smallest goal for impact calculations
-          const minGoal = goalsData.goals.reduce((min, g) => (g.value < min.value ? g : min));
-          if (isDistance) {
-            impactGoal = goalMetersToDisplay(minGoal.value, userSettings.distanceUnit);
-          } else if (isTime) {
-            impactGoal = minutesToHours(minGoal.value);
-          } else {
-            impactGoal = minGoal.value;
-          }
-          impactGoalLabel = minGoal.label ?? "";
-        }
-      } else if (demoGoals?.[sport]) {
-        targetGoal = demoGoals[sport].target;
-        impactGoal = demoGoals[sport].conservative;
-        impactGoalLabel = "Conservative";
-      }
-
-      return {
-        sport,
-        displayName: getSportDisplayName(sport, sportConfig),
-        color: getSpectrumColor(index, total),
-        currentValue,
-        targetGoal,
-        metricUnit: metricCfg.chartLabel,
-        isDistanceSport: isDistance,
-        impactGoal,
-        impactGoalLabel,
-      };
+  const totalSports = validSports.length;
+  const sportData = validSports.map((sport, index) => {
+    return transformToSportGoalData({
+      sport,
+      index,
+      totalSports,
+      metrics: user ? metricsQuery.data?.[sport] : demoMetrics?.[sport],
+      goalsData: goalsQueries[index]?.data,
+      demoGoals: demoGoals?.[sport],
+      sportConfig,
+      userSettings,
+      isAuthMode: !!user,
     });
-  }, [
-    validSports,
-    sportConfig,
-    user,
-    demoMetrics,
-    metricsQuery.data,
-    demoGoals,
-    goalsQueries,
-    userSettings,
-  ]);
+  });
 
   const isLoading =
     prefsLoading ||

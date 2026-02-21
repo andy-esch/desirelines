@@ -8,13 +8,13 @@ TypeScript API client for the Desirelines API Gateway.
 
 ### How Errors Are Handled
 
-| Scenario | Behavior | Rationale |
-|----------|----------|-----------|
-| Success | Return data | Normal flow |
-| Cancellation (AbortController) | Return empty data | Expected cleanup, not error |
-| 404 Not Found | Return empty/null | No data is valid state |
-| 401/403 Auth error | Throw with user message | User action required |
-| Network/5xx errors | Throw original error | Retryable, needs handling |
+| Scenario                       | Behavior                | Rationale                   |
+| ------------------------------ | ----------------------- | --------------------------- |
+| Success                        | Return data             | Normal flow                 |
+| Cancellation (AbortController) | Return empty data       | Expected cleanup, not error |
+| 404 Not Found                  | Return empty/null       | No data is valid state      |
+| 401/403 Auth error             | Throw with user message | User action required        |
+| Network/5xx errors             | Throw original error    | Retryable, needs handling   |
 
 ### API Contract
 
@@ -32,12 +32,12 @@ All error handling utilities are in `errors.ts`:
 
 ```typescript
 import {
-  isCancellationError,  // Check if error is a cancellation
-  is404Error,           // Check if error is 404
-  isAuthError,          // Check if error is 401/403
-  isRetryableError,     // Check if error is network/5xx
-  buildAuthHeaders,     // Build Authorization header
-  throwApiError,        // Standard error handler (logs + throws)
+  isCancellationError, // Check if error is a cancellation
+  is404Error, // Check if error is 404
+  isAuthError, // Check if error is 401/403
+  isRetryableError, // Check if error is network/5xx
+  buildAuthHeaders, // Build Authorization header
+  throwApiError, // Standard error handler (logs + throws)
 } from "./errors";
 ```
 
@@ -91,7 +91,7 @@ useEffect(() => {
   }
 
   loadData();
-  return () => controller.abort();  // Cleanup cancels in-flight requests
+  return () => controller.abort(); // Cleanup cancels in-flight requests
 }, [id, token]);
 ```
 
@@ -158,12 +158,12 @@ See `activities.test.ts` for examples.
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `activities.ts` | API functions for activities, metrics, metadata |
-| `errors.ts` | Error utilities (detection, headers, logging) |
-| `errors.test.ts` | Tests for error utilities |
-| `activities.test.ts` | Tests for API functions |
+| File                 | Purpose                                         |
+| -------------------- | ----------------------------------------------- |
+| `activities.ts`      | API functions for activities, metrics, metadata |
+| `errors.ts`          | Error utilities (detection, headers, logging)   |
+| `errors.test.ts`     | Tests for error utilities                       |
+| `activities.test.ts` | Tests for API functions                         |
 
 ## Related Documentation
 

@@ -60,7 +60,7 @@ export default defineConfig(({ mode }) => {
       __COMMIT_HASH__: JSON.stringify(version),
     },
     plugins: [
-      TanStackRouterVite({ quoteStyle: "double" }),
+      TanStackRouterVite({ quoteStyle: "double", semicolons: true }),
       tailwindcss(),
       react({
         babel: {

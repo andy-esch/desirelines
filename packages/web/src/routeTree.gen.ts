@@ -289,7 +289,9 @@ const DemoSportRouteChildren: DemoSportRouteChildren = {
   DemoSportIndexRoute: DemoSportIndexRoute,
 };
 
-const DemoSportRouteWithChildren = DemoSportRoute._addFileChildren(DemoSportRouteChildren);
+const DemoSportRouteWithChildren = DemoSportRoute._addFileChildren(
+  DemoSportRouteChildren,
+);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,

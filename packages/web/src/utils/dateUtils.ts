@@ -105,6 +105,23 @@ export function parseLocalDateStrict(dateStr: string): Date {
 }
 
 /**
+ * Get today's calendar date as a UTC-midnight Date object.
+ *
+ * Reads the user's local year/month/day and returns a Date at UTC midnight
+ * for that calendar date. This aligns with the app-wide convention that all
+ * chart dates are UTC timestamps (see useCumulativeChartData.ts header).
+ *
+ * Why UTC? The API returns "YYYY-MM-DD" strings from `start_date_local`,
+ * which JS parses as UTC midnight. All computed boundaries use `Date.UTC()`.
+ * Returning local midnight here would cause off-by-one errors when the
+ * local timezone offset shifts the Date into the previous/next UTC day.
+ */
+export function getCurrentLocalDate(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
+/**
  * Get today's date as a YYYY-MM-DD string in local timezone.
  *
  * @returns Today's date in YYYY-MM-DD format

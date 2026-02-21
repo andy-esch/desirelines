@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, lazy } from "react";
 import { createRootRoute, Navigate, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import Header from "../components/layout/Header";
 import { Footer } from "../components/layout/Footer";
@@ -7,6 +7,19 @@ import PageTransition from "../components/PageTransition";
 import { PageErrorFallback } from "../components/PageErrorFallback";
 import { useScrolled } from "../hooks/useScrolled";
 import { handleChunkLoadError } from "../utils/chunkLoadHandler";
+
+// Lazy-load devtools
+const ReactQueryDevtools = lazy(() =>
+  import("@tanstack/react-query-devtools").then((mod) => ({
+    default: mod.ReactQueryDevtools,
+  }))
+);
+
+const TanStackRouterDevtools = lazy(() =>
+  import("@tanstack/react-router-devtools").then((mod) => ({
+    default: mod.TanStackRouterDevtools,
+  }))
+);
 
 function RootLayout() {
   const scrolled = useScrolled(4);
@@ -45,6 +58,14 @@ function RootLayout() {
         </Suspense>
       </main>
       <Footer />
+
+      {/* Devtools — only in development */}
+      {import.meta.env.DEV && (
+        <Suspense fallback={null}>
+          <ReactQueryDevtools initialIsOpen={false} />
+          <TanStackRouterDevtools />
+        </Suspense>
+      )}
     </div>
   );
 }

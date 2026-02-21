@@ -47,13 +47,18 @@ export interface YearContext {
   shouldShowProgress: boolean;
 }
 
+import { getCurrentLocalDate } from "./dateUtils";
+
 /**
  * Create a YearContext for the given year
  * Calculates all year-related flags and time metrics
  */
 export function createYearContext(year: number): YearContext {
-  const today = new Date();
-  const currentYear = today.getFullYear();
+  // getCurrentLocalDate() returns today's calendar date at UTC midnight
+  // (see dateUtils.ts). Use .getTime() directly for day arithmetic since
+  // the value is already a clean UTC-midnight timestamp.
+  const today = getCurrentLocalDate();
+  const currentYear = today.getUTCFullYear();
 
   const isCurrentYear = year === currentYear;
   const isPastYear = year < currentYear;
@@ -67,16 +72,15 @@ export function createYearContext(year: number): YearContext {
 
   if (isCurrentYear) {
     // Current year: calculate actual elapsed/remaining
-    // Use UTC date values to avoid DST issues while still respecting local day boundaries
-    const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-    const startOfYearUTC = Date.UTC(year, 0, 1);
-    const endOfYearUTC = Date.UTC(year, 11, 31);
+    const todayMs = today.getTime();
+    const startOfYearMs = Date.UTC(year, 0, 1);
+    const endOfYearMs = Date.UTC(year, 11, 31);
 
     // Days elapsed = days from Jan 1 to today (inclusive of both endpoints)
-    daysElapsed = Math.floor((todayUTC - startOfYearUTC) / (1000 * 60 * 60 * 24)) + 1;
+    daysElapsed = Math.floor((todayMs - startOfYearMs) / (1000 * 60 * 60 * 24)) + 1;
 
     // Days remaining = days from today to Dec 31 (inclusive of both endpoints)
-    daysRemaining = Math.max(0, Math.floor((endOfYearUTC - todayUTC) / (1000 * 60 * 60 * 24)) + 1);
+    daysRemaining = Math.max(0, Math.floor((endOfYearMs - todayMs) / (1000 * 60 * 60 * 24)) + 1);
   } else if (isPastYear) {
     // Past year: year is complete
     daysElapsed = daysInYear;

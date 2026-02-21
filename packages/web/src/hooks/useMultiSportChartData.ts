@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useCurrentYear } from "../hooks/useCurrentYear";
 import { useDailySportData } from "../hooks/useDailySportData";
 import { useVisibleSports } from "../hooks/useVisibleSports";
@@ -6,24 +5,21 @@ import { useSportConfig } from "../hooks/useSportConfig";
 import { useUserConfig } from "../hooks/useUserConfig";
 import type { TimeRange } from "../utils/dataNormalization";
 import type { TuningParams } from "../utils/demoDataGenerator";
-import {
-  getSportDisplayName,
-  filterValidSports,
-  isDistanceSport,
-  isTimeSport,
-} from "../utils/sportConfig";
-import { toDailyArray, normalizeToRange, getTimeRangeCutoff } from "../utils/chartUtils";
+import { filterValidSports } from "../utils/sportConfig";
+import { getTimeRangeCutoff } from "../utils/chartUtils";
 import { toLocalDateString } from "../utils/dateUtils";
-import { getSpectrumColor, getSpectrumTextColor } from "../utils/chartColors";
 import { getUserSettings } from "../utils/units";
+import {
+  processSportSparkline,
+  mergeSparklineData,
+  getSportMetadata,
+} from "../utils/multiSportChartUtils";
 
 const SPARKLINE_ROW_HEIGHT = 36;
 const SPARKLINE_XAXIS_HEIGHT = 12;
 const SPARKLINE_PADDING = 16;
 const MIN_SPORTS_FOR_HEIGHT = 3;
 const MAX_SPORTS_DISPLAY = 8;
-/** Midpoint value used for days with no activity in normalized (0-1) sparkline display */
-const NORMALIZED_BASELINE = 0.5;
 
 function getDateRangeFromTimeRange(timeRange: TimeRange): { from: string; to: string } {
   const now = new Date();
@@ -44,10 +40,8 @@ function getActivityPageSize(sportCount: number): number {
 /**
  * Hook for managing multi-sport comparison chart data.
  *
- * Handles:
- * - Fetching data for multiple visible sports
- * - Normalizing data for sparklines (0-1 scale)
- * - Coordinating layout calculations (height, page size)
+ * Note: Manual memoization (useCallback/useMemo) is omitted as the
+ * React Compiler handles reference stability automatically.
  */
 export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: TuningParams) {
   const currentYear = useCurrentYear();
@@ -56,16 +50,13 @@ export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: Tuni
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
   const { data: prefs } = useUserConfig("preferences");
-  const userSettings = useMemo(() => getUserSettings(prefs), [prefs]);
+  const userSettings = getUserSettings(prefs);
 
-  // Filter visible sports to only those in config (handles edge case of stale prefs)
-  const validSports = useMemo(
-    () => filterValidSports(visibleSports, sportConfig),
-    [visibleSports, sportConfig]
-  );
+  // Filter visible sports to only those in config
+  const validSports = filterValidSports(visibleSports, sportConfig);
 
   // Calculate date range for API query
-  const { from, to } = useMemo(() => getDateRangeFromTimeRange(timeRange), [timeRange]);
+  const { from, to } = getDateRangeFromTimeRange(timeRange);
 
   // Fetch data for visible sports only
   const {
@@ -81,87 +72,17 @@ export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: Tuni
   });
 
   // Process data for each sport's sparkline
-  const sparklineData = useMemo(() => {
-    return validSports.map((sport) => {
-      const sportData = data[sport] ?? {};
-      // 1. Convert daily data map to sorted array (dense - fills zeros for missing days)
-      const dailyValues = toDailyArray(sportData, sport, sportConfig, { from, to });
-      // 2. Normalize to 0-1 for sparkline display
-      const normalized = normalizeToRange(dailyValues);
+  const sparklineData = validSports.map((sport) =>
+    processSportSparkline(sport, data[sport] ?? {}, sportConfig, { from, to }, currentYear)
+  );
 
-      // Find year with most recent actual activity (not filled zeros)
-      // Uses raw data keys since they only contain dates with activity
-      const activityDates = Object.keys(sportData).sort();
-      const lastActivityDate =
-        activityDates.length > 0 ? activityDates[activityDates.length - 1] : null;
-      const lastActivityYear = lastActivityDate
-        ? parseInt(lastActivityDate.split("-")[0], 10)
-        : currentYear;
-
-      return {
-        sport,
-        displayName: getSportDisplayName(sport, sportConfig),
-        data: normalized,
-        rawData: dailyValues, // Keep raw values for tooltip display
-        isDistanceSport: isDistanceSport(sport, sportConfig),
-        isTimeSport: isTimeSport(sport, sportConfig),
-        lastActivityYear,
-      };
-    });
-  }, [validSports, data, sportConfig, from, to, currentYear]);
-
-  // Merged data for unified chart: [{date, sport1: value, sport2: value, sport1_raw: rawValue, ...}]
-  // Each sport gets a vertical offset to create stacked "lanes"
-  // Raw values are stored with _raw suffix for tooltip display
-  const unifiedChartData = useMemo(() => {
-    if (sparklineData.length === 0) return [];
-
-    const numSports = sparklineData.length;
-    // Leave some padding between lanes (80% of lane used for data, 20% gap)
-    const laneHeight = 1 / numSports;
-    const dataHeight = laneHeight * 0.8;
-    const padding = laneHeight * 0.1; // Padding on each side
-
-    // All sports have same dates (dense arrays), use first sport's dates as base
-    const dates = sparklineData[0]?.data.map((d) => d.date) ?? [];
-
-    return dates.map((date, dateIndex) => {
-      const entry: Record<string, string | number> = { date };
-      sparklineData.forEach((sportData, sportIndex) => {
-        const normalizedValue = sportData.data[dateIndex]?.value ?? NORMALIZED_BASELINE;
-        const rawValue = sportData.rawData[dateIndex]?.value ?? 0;
-        // Stack from top to bottom: first sport at top, last at bottom
-        const baseOffset = (numSports - 1 - sportIndex) * laneHeight + padding;
-        // Scale normalized value (0-1) to fit within the lane
-        entry[sportData.sport] = baseOffset + normalizedValue * dataHeight;
-        // Store raw value for tooltip
-        entry[`${sportData.sport}_raw`] = rawValue;
-      });
-      return entry;
-    });
-  }, [sparklineData]);
+  // Merged data for unified chart
+  const unifiedChartData = mergeSparklineData(sparklineData);
 
   // Sport metadata for chart legend and styling
-  // Uses rainbow spectrum colors based on vertical position
-  const sportMeta = useMemo(() => {
-    const total = sparklineData.length;
-    return sparklineData.map(
-      (
-        { sport, displayName, lastActivityYear, isDistanceSport: isDistance, isTimeSport: isTime },
-        index
-      ) => ({
-        sport,
-        displayName,
-        color: getSpectrumColor(index, total),
-        textColor: getSpectrumTextColor(index, total),
-        lastActivityYear,
-        isDistanceSport: isDistance,
-        isTimeSport: isTime,
-      })
-    );
-  }, [sparklineData]);
+  const sportMeta = getSportMetadata(sparklineData);
 
-  // Calculate dynamic height based on number of sports
+  // Calculate dynamic layout parameters
   const displayCount = Math.min(
     Math.max(validSports.length, MIN_SPORTS_FOR_HEIGHT),
     MAX_SPORTS_DISPLAY
@@ -169,13 +90,9 @@ export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: Tuni
   const sparklineContainerHeight =
     displayCount * SPARKLINE_ROW_HEIGHT + SPARKLINE_XAXIS_HEIGHT + SPARKLINE_PADDING;
 
-  // Calculate page size for activities
   const activityPageSize = getActivityPageSize(validSports.length);
-
-  // Combined loading state
   const isLoading = prefsLoading || configLoading || dataLoading;
 
-  // Check raw data for any actual activity (before normalization converts zeros to 0.5)
   const hasAnyData = validSports.some((sport) => {
     const sportData = data[sport];
     return sportData && Object.keys(sportData).length > 0;

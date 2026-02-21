@@ -15,12 +15,12 @@ npm run dev  # http://localhost:3000
 
 **Pattern**: `.env.{mode}` = defaults/placeholders (committed) + `.env.{mode}.local` = your credentials (gitignored)
 
-| Mode | Defaults (committed) | Your credentials (gitignored) | When used |
-|------|---------------------|-------------------------------|-----------|
-| `development` | `.env.development` | `.env.development.local` | `npm run dev` |
-| `staging` | `.env.staging` | `.env.staging.local` | `just deploy-web dev` |
-| `production` | `.env.production` | `.env.production.local` | `just deploy-web prod` |
-| `test` | `.env.test` | None (uses mocks) | `npm test` |
+| Mode          | Defaults (committed) | Your credentials (gitignored) | When used              |
+| ------------- | -------------------- | ----------------------------- | ---------------------- |
+| `development` | `.env.development`   | `.env.development.local`      | `npm run dev`          |
+| `staging`     | `.env.staging`       | `.env.staging.local`          | `just deploy-web dev`  |
+| `production`  | `.env.production`    | `.env.production.local`       | `just deploy-web prod` |
+| `test`        | `.env.test`          | None (uses mocks)             | `npm test`             |
 
 **Setup**: Create `.local` files with your Firebase credentials. The committed `.env.{mode}` files show which variables are needed.
 
@@ -38,15 +38,15 @@ Get Firebase credentials: [Firebase Console](https://console.firebase.google.com
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Dev server (localhost:3000) |
-| `npm run build` | Production build |
-| `npm test` | Run tests (watch mode) |
-| `npm run test:run` | Run tests once (CI) |
-| `npm run typecheck` | TypeScript check |
-| `npm run lint` | Lint code |
-| `npm run format` | Format code |
+| Command             | Description                 |
+| ------------------- | --------------------------- |
+| `npm run dev`       | Dev server (localhost:3000) |
+| `npm run build`     | Production build            |
+| `npm test`          | Run tests (watch mode)      |
+| `npm run test:run`  | Run tests once (CI)         |
+| `npm run typecheck` | TypeScript check            |
+| `npm run lint`      | Lint code                   |
+| `npm run format`    | Format code                 |
 
 ## Deployment
 
@@ -109,12 +109,12 @@ src/
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| `auth/invalid-api-key` | Check `.env.*.local` exists with correct Firebase credentials |
-| CORS errors | Use stable Cloud Run URL (format: `https://[function]-[number].[region].run.app`) |
-| Env vars not updating | Restart dev server or delete `build/` and rebuild |
-| Missing `.env.*.local` | Deploy script will fail — create from the committed `.env.{mode}` template |
+| Issue                  | Solution                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `auth/invalid-api-key` | Check `.env.*.local` exists with correct Firebase credentials                     |
+| CORS errors            | Use stable Cloud Run URL (format: `https://[function]-[number].[region].run.app`) |
+| Env vars not updating  | Restart dev server or delete `build/` and rebuild                                 |
+| Missing `.env.*.local` | Deploy script will fail — create from the committed `.env.{mode}` template        |
 
 ## Docs
 
