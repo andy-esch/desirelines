@@ -1,12 +1,3 @@
-// Package auth provides HTTP handlers for the Strava OAuth2 authorization code flow.
-//
-// Endpoints:
-//   - GET /auth/strava   — Initiates OAuth by redirecting to Strava's authorize page
-//   - GET /auth/callback  — Handles the OAuth callback from Strava
-//
-// These endpoints are public (no auth middleware) because they are part of the
-// login flow itself. The callback produces a Firebase custom token that the
-// frontend uses for subsequent authenticated requests.
 package auth
 
 import (
