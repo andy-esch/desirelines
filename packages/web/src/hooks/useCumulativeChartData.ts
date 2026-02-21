@@ -11,6 +11,9 @@
  * back the correct calendar date from these timestamps.
  */
 import { useMemo } from "react";
+
+const MS_PER_DAY = MS_PER_DAY;
+
 import type { DistanceEntry } from "../types/activity";
 import type {
   CumulativeChartDataPoint,
@@ -189,7 +192,7 @@ export function useCumulativeChartData({
     if (dangerThreshold !== Infinity && distanceData.length > 0) {
       const todayTs = latestDate.getTime();
       const endTs = endDate.getTime();
-      const msPerDay = 86400000;
+      const msPerDay = MS_PER_DAY;
 
       // Generate daily points from today to year end
       for (let ts = todayTs; ts <= endTs; ts += msPerDay) {
@@ -280,7 +283,7 @@ export function useCumulativeChartData({
     if (dangerThreshold === Infinity || distanceData.length === 0) return false;
     const todayTs = latestDate.getTime();
     const endTs = endDate.getTime();
-    const daysRemaining = (endTs - todayTs) / 86400000;
+    const daysRemaining = (endTs - todayTs) / MS_PER_DAY;
     if (daysRemaining <= 0) return false;
     const maxAchievable = totalDistanceTraveled + dangerThreshold * daysRemaining;
     return goals.some((g) => g.value > maxAchievable);

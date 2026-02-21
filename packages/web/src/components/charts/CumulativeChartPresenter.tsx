@@ -270,6 +270,7 @@ export function CumulativeChartPresenter({
         <LineChart
           data={mergedData}
           margin={CHART_CONFIG.margin}
+          accessibilityLayer
           onMouseDown={onChartMouseDown as never}
           onMouseMove={onChartMouseMove as never}
           onMouseUp={onChartMouseUp}
