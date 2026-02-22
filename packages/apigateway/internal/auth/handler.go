@@ -134,7 +134,14 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		grantedScope = tokenResp.Scope
 	}
 
-	if !strings.Contains(grantedScope, "activity:read_all") {
+	hasRequiredScope := false
+	for _, scope := range strings.Split(grantedScope, ",") {
+		if strings.TrimSpace(scope) == "activity:read_all" {
+			hasRequiredScope = true
+			break
+		}
+	}
+	if !hasRequiredScope {
 		h.logger.Warn("Insufficient scopes granted", "granted", grantedScope, "required", "activity:read_all", "athlete_id", athleteID)
 		h.redirectError(w, r, "insufficient_scope")
 		return
