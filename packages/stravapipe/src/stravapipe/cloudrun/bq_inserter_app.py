@@ -24,6 +24,7 @@ from stravapipe.cfutils.logging import setup_logging
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_bq_inserter_config
 from stravapipe.domain.activity import DetailedStravaActivity
+from stravapipe.ports.out.write import WriteActivities
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
@@ -67,7 +68,7 @@ async def handle_pubsub(request: Request):
         on_create=lambda event, event_data, cid: _handle_create(
             event, event_data, cid, writer
         ),
-        on_delete=_handle_delete,
+        on_delete=lambda event, event_data, cid: _handle_delete(event, cid),
     )
 
 
@@ -75,7 +76,7 @@ async def _handle_create(
     event: pb.WebhookEvent,
     event_data: dict[str, Any],
     correlation_id: str,
-    writer,
+    writer: WriteActivities,
 ) -> dict:
     """Handle CREATE events - write activity to BigQuery.
 
@@ -122,7 +123,6 @@ async def _handle_create(
 
 async def _handle_delete(
     event: pb.WebhookEvent,
-    event_data: dict[str, Any],
     correlation_id: str,
 ) -> dict:
     """Handle DELETE events - archive and remove from BigQuery."""

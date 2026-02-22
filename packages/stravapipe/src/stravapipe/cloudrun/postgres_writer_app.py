@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
+from sqlalchemy.orm import Session, sessionmaker
 
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
@@ -105,7 +106,7 @@ async def _handle_create(
     event: pb.WebhookEvent,
     event_data: dict[str, Any],
     correlation_id: str,
-    session_factory,
+    session_factory: sessionmaker[Session],
 ) -> dict:
     """Handle CREATE events - insert new activity to PostgreSQL.
 

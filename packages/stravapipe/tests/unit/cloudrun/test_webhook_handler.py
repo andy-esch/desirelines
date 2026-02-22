@@ -163,6 +163,7 @@ class TestAspectRouting:
         data = response.json()
         assert data["status"] == "skipped"
         assert data["reason"] == "not_implemented"
+        assert "not implemented" in data["details"]
 
     def test_only_registered_callbacks_are_invoked(self, app_with_callbacks):
         """Update event doesn't invoke create callback."""

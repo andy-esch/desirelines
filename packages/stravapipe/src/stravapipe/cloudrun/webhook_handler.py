@@ -125,6 +125,7 @@ async def handle_webhook_cloudevent(
         return {
             ResponseField.STATUS: ResponseStatus.SKIPPED,
             ResponseField.REASON: SkipReason.NOT_IMPLEMENTED,
+            ResponseField.DETAILS: f"Event type '{aspect_name}' not implemented for this service",
             ResponseField.CORRELATION_ID: correlation_id,
         }
 
