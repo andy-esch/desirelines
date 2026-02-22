@@ -256,4 +256,4 @@ class TestErrorHandling:
             )
 
             assert response.status_code == 500
-            assert "BigQuery error" in response.json()["detail"]
+            assert "internal server error" in response.json()["detail"]

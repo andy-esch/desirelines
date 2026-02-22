@@ -195,7 +195,7 @@ class TestErrorHandling:
         )
 
         assert response.status_code == 500
-        assert "Something broke" in response.json()["detail"]
+        assert "internal server error" in response.json()["detail"]
 
     def test_correlation_id_is_unique_per_request(self, app_with_callbacks):
         correlation_ids = []
