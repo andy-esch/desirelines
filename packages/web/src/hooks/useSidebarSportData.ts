@@ -38,17 +38,14 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
   });
 
   // Aggregate counts by sport category from year metadata.
-  // Each category (e.g. "run") maps to multiple Strava activity types
-  // (e.g. "Run", "TrailRun", "VirtualRun") — sum across all of them.
+  // The API returns totals keyed by sport category (e.g. "cycling", "running"),
+  // so look up each category directly.
   const sportCounts = useMemo(() => {
     if (!metadata || !sportConfig) return {};
     return Object.fromEntries(
-      Object.entries(sportConfig.sport_categories).map(([category, config]) => [
+      Object.entries(sportConfig.sport_categories).map(([category]) => [
         category,
-        config.strava_types.reduce(
-          (sum, stravaType) => sum + (metadata.totals[stravaType]?.activities ?? 0),
-          0
-        ),
+        metadata.totals[category]?.activities ?? 0,
       ])
     );
   }, [metadata, sportConfig]);
