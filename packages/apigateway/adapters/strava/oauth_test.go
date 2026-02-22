@@ -128,6 +128,19 @@ func TestExchangeCode_MissingAccessToken(t *testing.T) {
 	}
 }
 
+func TestExchangeCode_MissingRefreshToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, `{"access_token":"at","expires_at":123,"athlete":{"id":1}}`)
+	}))
+	defer server.Close()
+
+	client := newTestOAuthClient(server.URL)
+	_, err := client.ExchangeCode(context.Background(), "code")
+	if err == nil {
+		t.Fatal("ExchangeCode() expected error for missing refresh_token, got nil")
+	}
+}
+
 func TestExchangeCode_ServerUnreachable(t *testing.T) {
 	client := newTestOAuthClient("http://127.0.0.1:1") // port 1 — nothing listening
 	_, err := client.ExchangeCode(context.Background(), "code")

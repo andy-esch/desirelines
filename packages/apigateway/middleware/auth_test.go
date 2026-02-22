@@ -133,6 +133,54 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_InjectsUserID(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	verifier := &MockTokenVerifier{
+		Token: &auth.Token{
+			UID: "strava-12345",
+			Claims: map[string]interface{}{
+				"email": "allowed@example.com",
+			},
+		},
+	}
+
+	am := &AuthMiddleware{
+		verifier:      verifier,
+		allowedEmails: map[string]bool{"allowed@example.com": true},
+		logger:        logger,
+	}
+
+	var capturedUID string
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedUID = GetUserID(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := am.Middleware(nextHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if capturedUID != "strava-12345" {
+		t.Errorf("GetUserID() = %q, want %q", capturedUID, "strava-12345")
+	}
+}
+
+func TestGetUserID_MissingFromContext(t *testing.T) {
+	ctx := context.Background()
+	uid := GetUserID(ctx)
+	if uid != "" {
+		t.Errorf("GetUserID() = %q, want empty string", uid)
+	}
+}
+
 func TestNewAuthMiddleware_EmailNormalization(t *testing.T) {
 	// Test email normalization logic without requiring Firebase credentials.
 	// Construct AuthMiddleware directly to avoid the real Firebase client init.

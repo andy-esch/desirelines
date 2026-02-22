@@ -424,6 +424,16 @@ resource "google_secret_manager_secret" "strava_webhook_subscription_id" {
   labels = { environment = var.environment, purpose = "strava-webhook", managed_by = "infisical" }
 }
 
+# Auth state secret for CSRF protection in OAuth flow
+resource "google_secret_manager_secret" "auth_state_secret" {
+  secret_id = "INFISICAL_AUTH_STATE_SECRET"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "oauth-csrf", managed_by = "infisical" }
+}
+
 # IAM Permissions for Atomic Secrets
 
 # Dispatcher needs Webhook tokens
@@ -556,6 +566,27 @@ resource "google_secret_manager_secret" "postgres_conn_reader" {
 # PostgreSQL Secret IAM Permissions
 # ==============================================================================
 # Each service has its own secret with least-privilege database role
+
+# API Gateway access to Strava OAuth secrets (for token exchange in /auth/callback)
+resource "google_secret_manager_secret_iam_member" "api_gateway_strava_oauth_secrets" {
+  for_each = toset([
+    google_secret_manager_secret.strava_client_id.secret_id,
+    google_secret_manager_secret.strava_client_secret.secret_id,
+    google_secret_manager_secret.auth_state_secret.secret_id,
+  ])
+  project   = var.gcp_project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.api_gateway.email}"
+}
+
+# API Gateway needs to create Firebase Custom Tokens (sign JWTs as itself).
+# This requires the serviceAccountTokenCreator role on its own service account.
+resource "google_service_account_iam_member" "api_gateway_token_creator" {
+  service_account_id = google_service_account.api_gateway.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.api_gateway.email}"
+}
 
 # API Gateway access to allowed emails secret
 resource "google_secret_manager_secret_iam_member" "api_gateway_allowed_emails_access" {

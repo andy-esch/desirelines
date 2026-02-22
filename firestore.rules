@@ -19,6 +19,13 @@ service cloud.firestore {
     //   return userId == 'default';
     // }
 
+    // Allowlist collection — backend-only (Admin SDK bypasses rules)
+    // Documents keyed by Strava athlete ID. Only the API gateway writes/reads
+    // these during OAuth callback. No client-side access needed.
+    match /allowlist/{athleteId} {
+      allow read, write: if false;
+    }
+
     // Users collection
     match /users/{userId} {
 

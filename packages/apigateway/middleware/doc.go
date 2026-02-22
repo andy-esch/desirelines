@@ -17,14 +17,26 @@
 //	    r.Get("/activities", handleActivities)
 //	})
 //
+// # User ID Context
+//
+// On successful authentication, the middleware injects the Firebase UID into the
+// request context. Downstream handlers can retrieve it with [GetUserID]:
+//
+//	uid := middleware.GetUserID(r.Context())
+//
+// After the Strava OAuth cutover, this UID will be the Strava athlete ID (as a
+// string), matching the PostgreSQL user_id column. Before the cutover, it is the
+// Google-generated Firebase UID.
+//
 // # Authentication Flow
 //
 // The middleware performs these checks in order:
 //
 //  1. Extract Bearer token from Authorization header
 //  2. Verify token with Firebase Admin SDK
-//  3. Extract email claim from verified token
-//  4. Check email against configured allowlist
+//  3. Inject UID into request context
+//  4. Extract email claim from verified token
+//  5. Check email against configured allowlist
 //
 // # Failure Reason Codes
 //

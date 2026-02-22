@@ -101,7 +101,9 @@ variable "infisical_project_id" {
 variable "app_config" {
   description = "Application configuration values from Infisical"
   type = object({
-    log_level = string
+    log_level         = string
+    frontend_url      = optional(string, "")
+    auth_callback_url = optional(string, "")
   })
   default = {
     log_level = "INFO"

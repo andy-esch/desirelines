@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -31,25 +32,33 @@ type Handler struct {
 	allowlist   AllowlistChecker
 	firebase    FirebaseTokenCreator
 	stateSecret []byte
-	frontendURL string
+	frontendURL *url.URL
 	clientID    string
 	redirectURI string
 	logger      *slog.Logger
 }
 
 // NewHandler creates a new OAuth auth handler.
-func NewHandler(cfg *HandlerConfig) *Handler {
+// Returns an error if FrontendURL is not a valid URL.
+func NewHandler(cfg *HandlerConfig) (*Handler, error) {
+	frontendURL, err := url.Parse(cfg.FrontendURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid frontend URL %q: %w", cfg.FrontendURL, err)
+	}
+	if frontendURL.Scheme == "" || frontendURL.Host == "" {
+		return nil, fmt.Errorf("frontend URL %q must have scheme and host", cfg.FrontendURL)
+	}
 	return &Handler{
 		strava:      cfg.Strava,
 		tokens:      cfg.Tokens,
 		allowlist:   cfg.Allowlist,
 		firebase:    cfg.Firebase,
 		stateSecret: cfg.StateSecret,
-		frontendURL: cfg.FrontendURL,
+		frontendURL: frontendURL,
 		clientID:    cfg.ClientID,
 		redirectURI: cfg.RedirectURI,
 		logger:      cfg.Logger,
-	}
+	}, nil
 }
 
 // HandleInitiate handles GET /auth/strava.
@@ -71,8 +80,14 @@ func (h *Handler) HandleInitiate(w http.ResponseWriter, r *http.Request) {
 		"approval_prompt": {"auto"},
 	}
 
-	authorizeURL := stravaAuthorizeURL + "?" + params.Encode()
-	http.Redirect(w, r, authorizeURL, http.StatusFound)
+	u, parseErr := url.Parse(stravaAuthorizeURL)
+	if parseErr != nil {
+		h.logger.Error("Failed to parse Strava authorize URL", "error", parseErr)
+		h.redirectError(w, r, "server_error")
+		return
+	}
+	u.RawQuery = params.Encode()
+	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
 // HandleCallback handles GET /auth/callback.
@@ -118,6 +133,28 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	athleteID := strconv.FormatInt(tokenResp.Athlete.ID, 10)
 
+	// Verify that the user actually granted the required scopes.
+	// Prefer the scope from the token exchange response (server-to-server, trusted)
+	// over the query parameter (user-controlled, untrusted). Fall back to the
+	// query parameter only if the response doesn't include scopes.
+	grantedScope := tokenResp.Scope
+	if grantedScope == "" {
+		grantedScope = r.URL.Query().Get("scope")
+	}
+
+	hasRequiredScope := false
+	for _, scope := range strings.Split(grantedScope, ",") {
+		if strings.TrimSpace(scope) == "activity:read_all" {
+			hasRequiredScope = true
+			break
+		}
+	}
+	if !hasRequiredScope {
+		h.logger.Warn("Insufficient scopes granted", "granted", grantedScope, "required", "activity:read_all", "athlete_id", athleteID)
+		h.redirectError(w, r, "insufficient_scope")
+		return
+	}
+
 	// Check allowlist
 	allowed, err := h.allowlist.IsAllowed(r.Context(), athleteID)
 	if err != nil {
@@ -137,7 +174,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		AccessToken:   tokenResp.AccessToken,
 		RefreshToken:  tokenResp.RefreshToken,
 		ExpiresAt:     tokenResp.ExpiresAt,
-		Scopes:        "activity:read_all",
+		Scopes:        grantedScope,
 		ConnectedAt:   now,
 		LastRefreshed: now,
 	}
@@ -168,12 +205,16 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Fragments are never sent to the server, preventing token leakage in
 	// server logs, Referer headers, and intermediate proxy logs.
 	// The frontend reads the token via window.location.hash.
-	redirectURL := fmt.Sprintf("%s/auth/complete#token=%s", h.frontendURL, url.QueryEscape(customToken))
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	u := h.frontendURL.JoinPath("auth", "complete")
+	u.Fragment = "token=" + url.QueryEscape(customToken)
+	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
 // redirectError redirects the user to the frontend error page with an error code.
 func (h *Handler) redirectError(w http.ResponseWriter, r *http.Request, errorCode string) {
-	redirectURL := fmt.Sprintf("%s/auth/error?error=%s", h.frontendURL, url.QueryEscape(errorCode))
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	u := h.frontendURL.JoinPath("auth", "error")
+	q := u.Query()
+	q.Set("error", errorCode)
+	u.RawQuery = q.Encode()
+	http.Redirect(w, r, u.String(), http.StatusFound)
 }

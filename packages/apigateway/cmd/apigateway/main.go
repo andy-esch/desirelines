@@ -292,7 +292,7 @@ func initAuthHandler(authClient auth.FirebaseTokenCreator, firestoreClient *fire
 	stravaOAuth := stravaadapter.NewOAuthClient(stravaClientID, stravaClientSecret, log, nil)
 	authStore := firestoreadapter.NewAuthStore(firestoreClient, log)
 
-	handler := auth.NewHandler(&auth.HandlerConfig{
+	handler, err := auth.NewHandler(&auth.HandlerConfig{
 		Strava:      stravaOAuth,
 		Tokens:      authStore,
 		Allowlist:   authStore,
@@ -303,6 +303,9 @@ func initAuthHandler(authClient auth.FirebaseTokenCreator, firestoreClient *fire
 		RedirectURI: callbackURL,
 		Logger:      log,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("create auth handler: %w", err)
+	}
 
 	log.Info("OAuth auth handler initialized")
 	return handler, nil

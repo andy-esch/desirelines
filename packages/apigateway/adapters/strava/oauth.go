@@ -98,6 +98,9 @@ func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (*auth.Stra
 	if tokenResp.AccessToken == "" {
 		return nil, fmt.Errorf("token response missing access_token")
 	}
+	if tokenResp.RefreshToken == "" {
+		return nil, fmt.Errorf("token response missing refresh_token")
+	}
 
 	return &tokenResp, nil
 }
