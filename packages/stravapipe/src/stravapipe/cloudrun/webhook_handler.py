@@ -138,4 +138,6 @@ async def handle_webhook_cloudevent(
             extra={"correlation_id": correlation_id},
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail=str(err)) from err
+        raise HTTPException(
+            status_code=500, detail="An internal server error occurred."
+        ) from err
