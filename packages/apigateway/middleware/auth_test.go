@@ -133,7 +133,7 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 }
 
-func TestNewFirebaseAuth_EmailNormalization(t *testing.T) {
+func TestNewAuthMiddleware_EmailNormalization(t *testing.T) {
 	// Test email normalization logic without requiring Firebase credentials.
 	// Construct AuthMiddleware directly to avoid the real Firebase client init.
 	allowedEmails := []string{"Allowed@Example.Com", "UPPER@EXAMPLE.COM", ""}

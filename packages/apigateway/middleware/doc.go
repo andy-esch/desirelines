@@ -5,13 +5,10 @@
 // The primary middleware is [AuthMiddleware], which validates Firebase ID tokens
 // and checks email authorization against an allowlist.
 //
-// Create the middleware with [NewFirebaseAuth]:
+// Create the middleware with [NewAuthMiddleware]:
 //
 //	allowedEmails := []string{"user@example.com", "admin@example.com"}
-//	auth, err := middleware.NewFirebaseAuth(ctx, allowedEmails, logger)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
+//	auth := middleware.NewAuthMiddleware(authClient, allowedEmails, logger)
 //
 // Apply it to protected routes:
 //
@@ -40,14 +37,6 @@
 //   - email_not_authorized: Email not in ALLOWED_EMAILS
 //
 // These codes enable log aggregation and alerting on authentication issues.
-//
-// # Environment Variables
-//
-// Required:
-//   - GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT: Firebase project ID
-//
-// Optional:
-//   - FIREBASE_AUTH_EMULATOR_HOST: Use Firebase emulator for local development
 //
 // # Testing
 //

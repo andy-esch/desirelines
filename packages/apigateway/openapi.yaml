@@ -35,8 +35,59 @@ tags:
     description: Individual activity operations
   - name: Aggregates
     description: Aggregated activity data by year
+  - name: Auth
+    description: Strava OAuth2 authorization flow
 
 paths:
+  /auth/strava:
+    get:
+      tags: [Auth]
+      summary: Initiate Strava OAuth flow
+      description: Redirects user to Strava's authorization page with a signed state token
+      operationId: authInitiate
+      security: []
+      responses:
+        '302':
+          description: Redirect to Strava authorization page
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Strava authorize URL with client_id, redirect_uri, scope, and state params
+  /auth/callback:
+    get:
+      tags: [Auth]
+      summary: Handle Strava OAuth callback
+      description: |
+        Receives the authorization code from Strava, exchanges it for tokens,
+        validates the athlete against the allowlist, stores tokens and profile,
+        creates a Firebase custom token, and redirects to the frontend.
+      operationId: authCallback
+      security: []
+      parameters:
+        - name: code
+          in: query
+          description: Authorization code from Strava
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: Signed state token for CSRF protection
+          schema:
+            type: string
+        - name: error
+          in: query
+          description: Error code if user denied access
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to frontend (success or error page)
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Frontend URL with token or error code
   /health:
     get:
       tags: [Health]

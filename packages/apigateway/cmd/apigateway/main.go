@@ -19,9 +19,14 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/firestore"
+	firebase "firebase.google.com/go/v4"
+	firestoreadapter "github.com/andy-esch/desirelines/packages/apigateway/adapters/firestore"
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
+	stravaadapter "github.com/andy-esch/desirelines/packages/apigateway/adapters/strava"
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/activities"
+	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/health"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/sports"
@@ -113,12 +118,14 @@ func run(log *slog.Logger) error {
 
 // Dependencies holds all initialized dependencies for the application.
 type Dependencies struct {
-	repo           repository.ActivityRepository
-	authMiddleware server.AuthMiddleware
-	corsHandler    *cors.Handler
-	sportConfig    *config.SportConfig
-	rateLimiter    *ratelimit.Limiter
-	logger         *slog.Logger
+	repo            repository.ActivityRepository
+	authMiddleware  server.AuthMiddleware
+	corsHandler     *cors.Handler
+	sportConfig     *config.SportConfig
+	rateLimiter     *ratelimit.Limiter
+	firestoreClient *firestore.Client
+	authHandler     *auth.Handler
+	logger          *slog.Logger
 }
 
 // Close releases all dependency resources.
@@ -126,6 +133,11 @@ func (d *Dependencies) Close() {
 	if d.repo != nil {
 		if err := d.repo.Close(); err != nil {
 			d.logger.Error("Error closing repository", "error", err)
+		}
+	}
+	if d.firestoreClient != nil {
+		if err := d.firestoreClient.Close(); err != nil {
+			d.logger.Error("Error closing Firestore client", "error", err)
 		}
 	}
 }
@@ -149,24 +161,55 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	allowedOrigins := parseCommaSeparatedEnv("ALLOWED_ORIGINS")
 	deps.corsHandler = cors.NewHandler(allowedOrigins, log)
 
-	// 3. Initialize auth middleware (Firebase JWT + email allowlist)
+	// 3. Initialize Firebase app (shared between auth middleware and OAuth handler)
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
+	}
+	if projectID == "" {
+		return nil, fmt.Errorf("GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable must be set")
+	}
+
+	firebaseApp, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Firebase app: %w", err)
+	}
+
+	authClient, err := firebaseApp.Auth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
+	}
+	log.Info("Firebase app initialized", "project_id", projectID)
+
+	// 4. Initialize auth middleware (Firebase JWT + email allowlist)
 	allowedEmails, err := getAllowedEmails()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get allowed emails: %w", err)
 	}
-	authMiddleware, err := middleware.NewFirebaseAuth(ctx, allowedEmails, log)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize auth middleware: %w", err)
-	}
-	deps.authMiddleware = authMiddleware
+	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, allowedEmails, log)
 
-	// 4. Initialize rate limiter (10 req/s, burst 20 — generous for normal browsing)
+	// 5. Initialize Firestore client (for OAuth auth store)
+	firestoreClient, err := firebaseApp.Firestore(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Firestore client: %w", err)
+	}
+	deps.firestoreClient = firestoreClient
+	log.Info("Firestore client initialized")
+
+	// 6. Initialize OAuth auth handler
+	authHandler, err := initAuthHandler(authClient, firestoreClient, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize auth handler: %w", err)
+	}
+	deps.authHandler = authHandler
+
+	// 7. Initialize rate limiter (10 req/s, burst 20 — generous for normal browsing)
 	deps.rateLimiter = ratelimit.New(ctx, ratelimit.Config{
 		Rate:  10,
 		Burst: 20,
 	}, log)
 
-	// 5. Initialize PostgreSQL repository (required dependency)
+	// 8. Initialize PostgreSQL repository (required dependency)
 	connString, err := getConnectionString()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection string: %w", err)
@@ -197,8 +240,10 @@ func buildRouter(deps *Dependencies) http.Handler {
 	}
 
 	publicRoutes := server.PublicRoutes{
-		Health:      healthHandler.Handle,
-		SportConfig: sportsHandler.HandleConfig,
+		Health:       healthHandler.Handle,
+		SportConfig:  sportsHandler.HandleConfig,
+		AuthInitiate: deps.authHandler.HandleInitiate,
+		AuthCallback: deps.authHandler.HandleCallback,
 	}
 
 	authRoutes := server.AuthenticatedRoutes{
@@ -210,6 +255,57 @@ func buildRouter(deps *Dependencies) http.Handler {
 	}
 
 	return server.NewRouter(routerCfg, publicRoutes, authRoutes, deps.logger)
+}
+
+// initAuthHandler creates the OAuth auth handler with all its dependencies.
+func initAuthHandler(authClient auth.FirebaseTokenCreator, firestoreClient *firestore.Client, log *slog.Logger) (*auth.Handler, error) {
+	// Load Strava OAuth credentials
+	const stravaClientIDPath = "/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value"
+	const stravaClientSecretPath = "/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value" //nolint:gosec // G101: Not credentials, just a file path
+	const stateSecretPath = "/etc/secrets/INFISICAL_AUTH_STATE_SECRET/value"           //nolint:gosec // G101: Not credentials, just a file path
+
+	stravaClientID, err := secrets.LoadFromMount(stravaClientIDPath, "STRAVA_CLIENT_ID")
+	if err != nil {
+		return nil, fmt.Errorf("strava client_id: %w", err)
+	}
+
+	stravaClientSecret, err := secrets.LoadFromMount(stravaClientSecretPath, "STRAVA_CLIENT_SECRET")
+	if err != nil {
+		return nil, fmt.Errorf("strava client_secret: %w", err)
+	}
+
+	stateSecret, err := secrets.LoadFromMount(stateSecretPath, "AUTH_STATE_SECRET")
+	if err != nil {
+		return nil, fmt.Errorf("auth state secret: %w", err)
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		return nil, fmt.Errorf("FRONTEND_URL environment variable must be set")
+	}
+
+	callbackURL := os.Getenv("AUTH_CALLBACK_URL")
+	if callbackURL == "" {
+		return nil, fmt.Errorf("AUTH_CALLBACK_URL environment variable must be set")
+	}
+
+	stravaOAuth := stravaadapter.NewOAuthClient(stravaClientID, stravaClientSecret, log, nil)
+	authStore := firestoreadapter.NewAuthStore(firestoreClient, log)
+
+	handler := auth.NewHandler(&auth.HandlerConfig{
+		Strava:      stravaOAuth,
+		Tokens:      authStore,
+		Allowlist:   authStore,
+		Firebase:    authClient,
+		StateSecret: []byte(stateSecret),
+		FrontendURL: frontendURL,
+		ClientID:    stravaClientID,
+		RedirectURI: callbackURL,
+		Logger:      log,
+	})
+
+	log.Info("OAuth auth handler initialized")
+	return handler, nil
 }
 
 func getEnvOrDefault(key, defaultValue string) string {

@@ -35,13 +35,18 @@ packages/apigateway/
 ├── internal/                # Application layer (not importable externally)
 │   ├── activities/
 │   │   └── handler.go       # Activity endpoints (/activities/*)
+│   ├── auth/
+│   │   ├── handler.go       # Strava OAuth endpoints (/auth/strava, /auth/callback)
+│   │   ├── state.go         # CSRF state token (JWT) generation/validation
+│   │   ├── interfaces.go    # Port interfaces (StravaOAuthClient, TokenStore, etc.)
+│   │   └── types.go         # OAuth data types (token response, athlete profile)
 │   ├── health/
 │   │   └── handler.go       # Health check endpoint
 │   ├── sports/
 │   │   └── handler.go       # Sport config endpoint
 │   └── server/
 │       ├── router.go        # Route registration with chi
-│       ├── middleware.go    # CORS middleware
+│       ├── middleware.go     # CORS middleware
 │       └── response.go      # JSON response helpers
 ├── pkg/                     # Shared utilities (importable)
 │   ├── validate/            # Date, year, input validation
@@ -50,11 +55,15 @@ packages/apigateway/
 │   ├── activities.go        # ActivityRepository interface
 │   └── types.go             # Domain types (Activity, SportMetrics, etc.)
 ├── adapters/                # Infrastructure implementations (adapters)
-│   └── postgres/
-│       ├── activities.go    # PostgreSQL repository implementation
-│       └── pool.go          # Connection pool management
+│   ├── postgres/
+│   │   ├── activities.go    # PostgreSQL repository implementation
+│   │   └── pool.go          # Connection pool management
+│   ├── strava/
+│   │   └── oauth.go         # Strava OAuth token exchange client
+│   └── firestore/
+│       └── auth_store.go    # Firestore allowlist + token/profile storage
 ├── middleware/
-│   └── auth.go              # Firebase JWT + email allowlist
+│   └── auth.go              # Firebase JWT verification + email allowlist
 ├── config/
 │   ├── sport_config.go      # Sport category mappings
 │   └── sport_types.json     # Embedded sport configuration
@@ -123,6 +132,16 @@ packages/apigateway/
 - Implements `repository.ActivityRepository`
 - All SQL queries live here
 
+**`adapters/strava/`** - Strava API adapter
+
+- `OAuthClient` implements `auth.StravaOAuthClient` for token exchange
+- HTTP client with 10s timeout, response body limited to 64KB
+
+**`adapters/firestore/`** - Firestore adapter
+
+- `AuthStore` implements both `auth.AllowlistChecker` and `auth.TokenStore`
+- Atomic writes via Firestore transactions (tokens + profile succeed or fail together)
+
 ### Adding a New Endpoint
 
 1. **Define types** in `repository/types.go` (if needed)
@@ -144,7 +163,7 @@ PORT=8080                          # HTTP port (default: 8080)
 # Local development:
 POSTGRES_CONNECTION_STRING=postgresql://user:pass@host:port/db?application_name=apigateway
 # Cloud Run (uses secret mount):
-# /etc/secrets/postgres/connection_string
+# /etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY/value
 # Note: Connection string MUST include application_name parameter for observability
 
 # Authentication (Firebase)
@@ -152,6 +171,15 @@ GCP_PROJECT_ID=your-project-id     # Google Cloud project ID (or GOOGLE_CLOUD_PR
 ALLOWED_EMAILS=user@example.com    # Comma-separated authorized emails
 # For local development with Firebase emulator:
 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
+
+# Strava OAuth (required for /auth/* endpoints)
+# Cloud Run: loaded from Infisical secret mounts
+# Local development: set as environment variables
+STRAVA_CLIENT_ID=your-strava-client-id
+STRAVA_CLIENT_SECRET=your-strava-client-secret
+AUTH_STATE_SECRET=your-32-byte-secret       # HMAC key for CSRF state tokens
+FRONTEND_URL=https://app.example.com        # Where to redirect after OAuth
+AUTH_CALLBACK_URL=https://api.example.com/auth/callback  # Strava redirect_uri
 
 # CORS
 ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com  # Comma-separated origins
@@ -226,11 +254,14 @@ Each package has GoDoc documentation viewable via `go doc`:
 
 | Package | Description |
 |---------|-------------|
+| [internal/auth](./internal/auth/) | Strava OAuth2 flow (initiate, callback, state tokens) |
 | [pkg/validate](./pkg/validate/) | Input validation (dates, years, sports, cursors) |
 | [pkg/cors](./pkg/cors/) | CORS origin handling |
 | [middleware](./middleware/) | Firebase JWT authentication |
 | [config](./config/) | Sport category configuration |
 | [repository](./repository/) | Domain interfaces (ActivityRepository) |
+| [adapters/strava](./adapters/strava/) | Strava API OAuth client |
+| [adapters/firestore](./adapters/firestore/) | Firestore allowlist and token storage |
 
 Logging uses the shared [gcplog](../shared/gcplog/) package.
 
