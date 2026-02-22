@@ -5,6 +5,13 @@
 locals {
   image_base_url = var.external_artifact_registry
 
+  # Secrets for API Gateway OAuth flow
+  api_gateway_oauth_secrets = {
+    "INFISICAL_STRAVA_CLIENT_ID"     = google_secret_manager_secret.strava_client_id.secret_id
+    "INFISICAL_STRAVA_CLIENT_SECRET" = google_secret_manager_secret.strava_client_secret.secret_id
+    "INFISICAL_AUTH_STATE_SECRET"     = google_secret_manager_secret.auth_state_secret.secret_id
+  }
+
   # Secret definitions for dynamic blocks
   # Keys use INFISICAL_ prefix to match Infisical-managed secret names
   strava_webhook_secrets = {
@@ -184,6 +191,16 @@ resource "google_cloud_run_v2_service" "api_gateway" {
         value = "cloud-storage"
       }
 
+      env {
+        name  = "FRONTEND_URL"
+        value = var.frontend_url
+      }
+
+      env {
+        name  = "AUTH_CALLBACK_URL"
+        value = var.auth_callback_url
+      }
+
       startup_probe {
         http_get {
           path = "/health"
@@ -203,6 +220,15 @@ resource "google_cloud_run_v2_service" "api_gateway" {
       volume_mounts {
         name       = "infisical-postgres-conn-apigateway"
         mount_path = "/etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY"
+      }
+
+      # Mount Strava OAuth secrets as atomic volumes
+      dynamic "volume_mounts" {
+        for_each = local.api_gateway_oauth_secrets
+        content {
+          name       = lower(replace(volume_mounts.key, "_", "-"))
+          mount_path = "/etc/secrets/${volume_mounts.key}"
+        }
       }
     }
 
@@ -232,6 +258,22 @@ resource "google_cloud_run_v2_service" "api_gateway" {
       }
     }
 
+    dynamic "volumes" {
+      for_each = local.api_gateway_oauth_secrets
+      content {
+        name = lower(replace(volumes.key, "_", "-"))
+        secret {
+          secret       = volumes.value
+          default_mode = 292 # 0444
+          items {
+            version = "latest"
+            path    = "value"
+            mode    = 292
+          }
+        }
+      }
+    }
+
     timeout = "60s"
   }
 
@@ -242,7 +284,9 @@ resource "google_cloud_run_v2_service" "api_gateway" {
 
   depends_on = [
     google_secret_manager_secret_iam_member.api_gateway_allowed_emails_access,
-    google_secret_manager_secret_iam_member.api_gateway_postgres_access
+    google_secret_manager_secret_iam_member.api_gateway_postgres_access,
+    google_secret_manager_secret_iam_member.api_gateway_strava_oauth_secrets,
+    google_service_account_iam_member.api_gateway_token_creator
   ]
 }
 
