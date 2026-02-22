@@ -188,12 +188,12 @@ resource "google_cloud_run_v2_service" "api_gateway" {
 
       env {
         name  = "FRONTEND_URL"
-        value = var.frontend_url
+        value = var.app_config.frontend_url
       }
 
       env {
         name  = "AUTH_CALLBACK_URL"
-        value = var.auth_callback_url
+        value = var.app_config.auth_callback_url
       }
 
       startup_probe {

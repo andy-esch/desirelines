@@ -87,16 +87,6 @@ variable "api_gateway_allowed_origins" {
   default     = ""
 }
 
-variable "frontend_url" {
-  description = "Frontend URL for OAuth redirects (e.g., 'https://app.example.com')"
-  type        = string
-}
-
-variable "auth_callback_url" {
-  description = "OAuth callback URL registered with Strava (e.g., 'https://api.example.com/auth/callback')"
-  type        = string
-}
-
 variable "infisical_project_id" {
   description = "Infisical Project ID (used as suffix for integration Service Account)"
   type        = string
@@ -111,7 +101,9 @@ variable "infisical_project_id" {
 variable "app_config" {
   description = "Application configuration values from Infisical"
   type = object({
-    log_level = string
+    log_level         = string
+    frontend_url      = optional(string, "")
+    auth_callback_url = optional(string, "")
   })
   default = {
     log_level = "INFO"
