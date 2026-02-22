@@ -69,12 +69,14 @@ func (m *mockFirebase) CustomToken(_ context.Context, uid string) (string, error
 // --- Helper ---
 
 func newTestHandler(
+	t *testing.T,
 	strava StravaOAuthClient,
 	tokens TokenStore,
 	allowlist AllowlistChecker,
 	firebase FirebaseTokenCreator,
 ) *Handler {
-	return NewHandler(&HandlerConfig{
+	t.Helper()
+	h, err := NewHandler(&HandlerConfig{
 		Strava:      strava,
 		Tokens:      tokens,
 		Allowlist:   allowlist,
@@ -85,12 +87,16 @@ func newTestHandler(
 		RedirectURI: "https://api.example.com/auth/callback",
 		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
+	if err != nil {
+		t.Fatalf("newTestHandler: %v", err)
+	}
+	return h
 }
 
 // --- HandleInitiate tests ---
 
 func TestHandleInitiate(t *testing.T) {
-	h := newTestHandler(
+	h := newTestHandler(t,
 		&mockStravaOAuth{},
 		&mockTokenStore{},
 		&mockAllowlist{},
@@ -374,7 +380,7 @@ func TestHandleCallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := newTestHandler(tt.strava, tt.tokens, tt.allowlist, tt.firebase)
+			h := newTestHandler(t, tt.strava, tt.tokens, tt.allowlist, tt.firebase)
 
 			req := httptest.NewRequest(http.MethodGet, "/auth/callback?"+tt.query, nil)
 			w := httptest.NewRecorder()
@@ -417,7 +423,7 @@ func TestHandleCallback_HappyPathVerifiesArguments(t *testing.T) {
 	allowlistMock := &mockAllowlist{allowed: true}
 	firebaseMock := &mockFirebase{token: "fb-token"}
 
-	h := newTestHandler(stravaMock, tokensMock, allowlistMock, firebaseMock)
+	h := newTestHandler(t, stravaMock, tokensMock, allowlistMock, firebaseMock)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/callback?code=the-code&state="+validState, nil)
 	w := httptest.NewRecorder()

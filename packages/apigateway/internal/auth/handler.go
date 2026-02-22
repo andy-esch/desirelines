@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -31,25 +32,33 @@ type Handler struct {
 	allowlist   AllowlistChecker
 	firebase    FirebaseTokenCreator
 	stateSecret []byte
-	frontendURL string
+	frontendURL *url.URL
 	clientID    string
 	redirectURI string
 	logger      *slog.Logger
 }
 
 // NewHandler creates a new OAuth auth handler.
-func NewHandler(cfg *HandlerConfig) *Handler {
+// Returns an error if FrontendURL is not a valid URL.
+func NewHandler(cfg *HandlerConfig) (*Handler, error) {
+	frontendURL, err := url.Parse(cfg.FrontendURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid frontend URL %q: %w", cfg.FrontendURL, err)
+	}
+	if frontendURL.Scheme == "" || frontendURL.Host == "" {
+		return nil, fmt.Errorf("frontend URL %q must have scheme and host", cfg.FrontendURL)
+	}
 	return &Handler{
 		strava:      cfg.Strava,
 		tokens:      cfg.Tokens,
 		allowlist:   cfg.Allowlist,
 		firebase:    cfg.Firebase,
 		stateSecret: cfg.StateSecret,
-		frontendURL: cfg.FrontendURL,
+		frontendURL: frontendURL,
 		clientID:    cfg.ClientID,
 		redirectURI: cfg.RedirectURI,
 		logger:      cfg.Logger,
-	}
+	}, nil
 }
 
 // HandleInitiate handles GET /auth/strava.
@@ -196,26 +205,14 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Fragments are never sent to the server, preventing token leakage in
 	// server logs, Referer headers, and intermediate proxy logs.
 	// The frontend reads the token via window.location.hash.
-	u, parseErr := url.Parse(h.frontendURL)
-	if parseErr != nil {
-		h.logger.Error("Failed to parse frontend URL", "error", parseErr)
-		h.redirectError(w, r, "server_error")
-		return
-	}
-	u = u.JoinPath("auth", "complete")
+	u := h.frontendURL.JoinPath("auth", "complete")
 	u.Fragment = "token=" + url.QueryEscape(customToken)
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
 // redirectError redirects the user to the frontend error page with an error code.
 func (h *Handler) redirectError(w http.ResponseWriter, r *http.Request, errorCode string) {
-	u, parseErr := url.Parse(h.frontendURL)
-	if parseErr != nil {
-		h.logger.Error("Failed to parse frontend URL for error redirect", "error", parseErr)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	u = u.JoinPath("auth", "error")
+	u := h.frontendURL.JoinPath("auth", "error")
 	q := u.Query()
 	q.Set("error", errorCode)
 	u.RawQuery = q.Encode()
