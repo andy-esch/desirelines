@@ -7,12 +7,17 @@ Activity data is now provided inline in the enriched event (raw_activity field)
 rather than fetched from the Strava API.
 """
 
-import base64
-import json
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 import pytest
+
+from .conftest import (
+    SAMPLE_RAW_ACTIVITY,
+    make_cloudevent_headers,
+    make_pubsub_body,
+    make_webhook_payload,
+)
 
 
 @pytest.fixture
@@ -26,73 +31,17 @@ def mock_bq_config():
 @pytest.fixture
 def client(mock_bq_config):
     """Create a test client with mocked configuration."""
-    from stravapipe.cloudrun.bq_inserter_app import app
+    mock_writer = MagicMock()
+    mock_writer.write_activity.return_value = {"rows_affected": 0}
 
-    return TestClient(app)
+    with patch(
+        "stravapipe.cloudrun.bq_inserter_app.make_write_activities",
+        return_value=mock_writer,
+    ):
+        from stravapipe.cloudrun.bq_inserter_app import app
 
-
-def make_cloudevent_headers(
-    ce_type: str = "google.cloud.pubsub.topic.v1.messagePublished",
-    ce_id: str = "test-event-123",
-    ce_source: str = "//pubsub.googleapis.com/projects/test-project/topics/test-topic",
-    ce_time: str = "2024-01-01T00:00:00Z",
-) -> dict:
-    """Create CloudEvent headers for test requests."""
-    return {
-        "ce-type": ce_type,
-        "ce-id": ce_id,
-        "ce-source": ce_source,
-        "ce-time": ce_time,
-        "content-type": "application/json",
-    }
-
-
-def make_pubsub_body(webhook_data: dict) -> dict:
-    """Create a Pub/Sub message body with base64-encoded webhook data."""
-    encoded_data = base64.b64encode(json.dumps(webhook_data).encode()).decode()
-    return {
-        "message": {
-            "data": encoded_data,
-            "messageId": "test-message-123",
-            "publishTime": "2024-01-01T00:00:00Z",
-        }
-    }
-
-
-def make_webhook_payload(
-    aspect_type: str = "create",
-    object_id: int = 12345678,
-    owner_id: int = 98765,
-    event_time: int = 1704067200,
-    raw_activity: dict | None = None,
-) -> dict:
-    """Create a valid enriched event payload."""
-    payload = {
-        "aspect_type": aspect_type,
-        "event_time": event_time,
-        "object_id": object_id,
-        "object_type": "activity",
-        "owner_id": owner_id,
-        "subscription_id": 123456,
-        "updates": {},
-    }
-    if raw_activity is not None:
-        payload["raw_activity"] = raw_activity
-    return payload
-
-
-# Sample raw activity data for testing
-SAMPLE_RAW_ACTIVITY = {
-    "id": 12345678,
-    "name": "Morning Run",
-    "type": "Run",
-    "sport_type": "Run",
-    "distance": 5000.0,
-    "moving_time": 1800,
-    "elapsed_time": 2000,
-    "start_date_local": "2024-01-01T08:00:00Z",
-    "athlete": {"id": 98765},
-}
+        with TestClient(app) as client:
+            yield client
 
 
 class TestHealthEndpoint:
@@ -183,19 +132,17 @@ class TestCreateEventHandling:
 
     def test_create_event_success(self, client):
         """CREATE event with raw_activity writes to BigQuery."""
+        from stravapipe.cloudrun.bq_inserter_app import app
+
         mock_writer = MagicMock()
         mock_writer.write_activity.return_value = {"rows_affected": 1}
         mock_activity = MagicMock()
 
-        with (
-            patch(
-                "stravapipe.cloudrun.bq_inserter_app.make_write_activities",
-                return_value=mock_writer,
-            ),
-            patch(
-                "stravapipe.cloudrun.bq_inserter_app.DetailedStravaActivity.model_validate",
-                return_value=mock_activity,
-            ),
+        app.state.writer = mock_writer
+
+        with patch(
+            "stravapipe.cloudrun.bq_inserter_app.DetailedStravaActivity.model_validate",
+            return_value=mock_activity,
         ):
             webhook = make_webhook_payload(
                 aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
@@ -243,8 +190,7 @@ class TestUpdateEventHandling:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "skipped"
-        assert data["reason"] == "update"
-        assert "not implemented" in data["details"].lower()
+        assert data["reason"] == "not_implemented"
 
 
 class TestDeleteEventHandling:
@@ -289,18 +235,16 @@ class TestErrorHandling:
 
     def test_unexpected_error_returns_500(self, client):
         """Unexpected errors return 500 to trigger Pub/Sub retry."""
+        from stravapipe.cloudrun.bq_inserter_app import app
+
         mock_writer = MagicMock()
         mock_writer.write_activity.side_effect = RuntimeError("BigQuery error")
 
-        with (
-            patch(
-                "stravapipe.cloudrun.bq_inserter_app.make_write_activities",
-                return_value=mock_writer,
-            ),
-            patch(
-                "stravapipe.cloudrun.bq_inserter_app.DetailedStravaActivity.model_validate",
-                return_value=MagicMock(),
-            ),
+        app.state.writer = mock_writer
+
+        with patch(
+            "stravapipe.cloudrun.bq_inserter_app.DetailedStravaActivity.model_validate",
+            return_value=MagicMock(),
         ):
             webhook = make_webhook_payload(
                 aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY

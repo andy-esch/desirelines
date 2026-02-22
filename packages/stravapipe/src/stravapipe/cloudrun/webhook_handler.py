@@ -18,6 +18,7 @@ from stravapipe.cfutils.constants import (
     DEFAULT_UNKNOWN,
     ResponseField,
     ResponseStatus,
+    SkipReason,
     WebhookField,
 )
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
@@ -123,8 +124,7 @@ async def handle_webhook_cloudevent(
         )
         return {
             ResponseField.STATUS: ResponseStatus.SKIPPED,
-            ResponseField.REASON: aspect_name,
-            ResponseField.DETAILS: "Event type not implemented",
+            ResponseField.REASON: SkipReason.NOT_IMPLEMENTED,
             ResponseField.CORRELATION_ID: correlation_id,
         }
 

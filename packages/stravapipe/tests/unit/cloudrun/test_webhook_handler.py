@@ -5,8 +5,6 @@ FastAPI app, verifying CloudEvent parsing, webhook validation, aspect-type
 routing, and error handling.
 """
 
-import base64
-import json
 from unittest.mock import AsyncMock, MagicMock
 
 from fastapi import FastAPI, Request
@@ -15,52 +13,7 @@ import pytest
 
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 
-
-def make_cloudevent_headers(
-    ce_type: str = "google.cloud.pubsub.topic.v1.messagePublished",
-    ce_id: str = "test-event-123",
-    ce_source: str = "//pubsub.googleapis.com/projects/test-project/topics/test-topic",
-    ce_time: str = "2024-01-01T00:00:00Z",
-) -> dict:
-    """Create CloudEvent headers for test requests."""
-    return {
-        "ce-type": ce_type,
-        "ce-id": ce_id,
-        "ce-source": ce_source,
-        "ce-time": ce_time,
-        "content-type": "application/json",
-    }
-
-
-def make_pubsub_body(webhook_data: dict) -> dict:
-    """Create a Pub/Sub message body with base64-encoded webhook data."""
-    encoded_data = base64.b64encode(json.dumps(webhook_data).encode()).decode()
-    return {
-        "message": {
-            "data": encoded_data,
-            "messageId": "test-message-123",
-            "publishTime": "2024-01-01T00:00:00Z",
-        }
-    }
-
-
-def make_webhook_payload(
-    aspect_type: str = "create",
-    object_id: int = 12345678,
-    owner_id: int = 98765,
-    event_time: int = 1704067200,
-) -> dict:
-    """Create a valid webhook event payload."""
-    return {
-        "aspect_type": aspect_type,
-        "event_time": event_time,
-        "object_id": object_id,
-        "object_type": "activity",
-        "owner_id": owner_id,
-        "subscription_id": 123456,
-        "updates": {},
-    }
-
+from .conftest import make_cloudevent_headers, make_pubsub_body, make_webhook_payload
 
 logger = MagicMock()
 
@@ -209,7 +162,7 @@ class TestAspectRouting:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "skipped"
-        assert data["details"] == "Event type not implemented"
+        assert data["reason"] == "not_implemented"
 
     def test_only_registered_callbacks_are_invoked(self, app_with_callbacks):
         """Update event doesn't invoke create callback."""
@@ -245,6 +198,7 @@ class TestErrorHandling:
 
     def test_correlation_id_is_unique_per_request(self, app_with_callbacks):
         correlation_ids = []
+
         async def capture_cid(event, event_data, cid):
             correlation_ids.append(cid)
             return {"status": "ok"}

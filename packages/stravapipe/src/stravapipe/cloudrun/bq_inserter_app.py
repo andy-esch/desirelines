@@ -20,23 +20,26 @@ from stravapipe.cfutils.constants import (
     ResponseStatus,
     SkipReason,
 )
-from stravapipe.cfutils.logging import setup_cloud_function_logging
+from stravapipe.cfutils.logging import setup_logging
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_bq_inserter_config
 from stravapipe.domain.activity import DetailedStravaActivity
 from stravapipe.types.generated import webhook_pb2 as pb
 
-logger = setup_cloud_function_logging(__name__)
+logger = setup_logging(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Validate configuration on startup."""
+    """Initialize shared resources on startup."""
     try:
-        load_bq_inserter_config()
+        config = load_bq_inserter_config()
         logger.info("BQ Inserter configuration validated successfully")
+
+        app.state.writer = make_write_activities(config)
+        logger.info("BigQuery writer initialized")
     except Exception as e:
-        logger.error("Configuration validation failed: %s", e)
+        logger.error("Startup initialization failed: %s", e)
         raise
     yield
 
@@ -57,10 +60,13 @@ async def health():
 @app.post("/")
 async def handle_pubsub(request: Request):
     """Handle Pub/Sub CloudEvent from Eventarc."""
+    writer = request.app.state.writer
     return await handle_webhook_cloudevent(
         request,
         logger,
-        on_create=_handle_create,
+        on_create=lambda event, event_data, cid: _handle_create(
+            event, event_data, cid, writer
+        ),
         on_delete=_handle_delete,
     )
 
@@ -69,6 +75,7 @@ async def _handle_create(
     event: pb.WebhookEvent,
     event_data: dict[str, Any],
     correlation_id: str,
+    writer,
 ) -> dict:
     """Handle CREATE events - write activity to BigQuery.
 
@@ -95,9 +102,6 @@ async def _handle_create(
     # Construct DetailedStravaActivity from raw Strava API JSON
     activity = DetailedStravaActivity.model_validate(raw_activity)
 
-    # Write directly to BigQuery (no Strava API call needed)
-    config = load_bq_inserter_config()
-    writer = make_write_activities(config)
     stats = writer.write_activity(activity)
 
     logger.info(

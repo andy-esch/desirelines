@@ -20,13 +20,13 @@ from stravapipe.cfutils.constants import (
     ResponseStatus,
     SkipReason,
 )
-from stravapipe.cfutils.logging import setup_cloud_function_logging
+from stravapipe.cfutils.logging import setup_logging
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_postgres_writer_config
 from stravapipe.domain.activity import StandardActivity
 from stravapipe.types.generated import webhook_pb2 as pb
 
-logger = setup_cloud_function_logging(__name__)
+logger = setup_logging(__name__)
 
 
 # =============================================================================

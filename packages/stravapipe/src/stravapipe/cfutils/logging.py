@@ -1,4 +1,4 @@
-"""Logging setup for Cloud Functions"""
+"""Logging setup for Cloud Run services."""
 
 import logging
 import os
@@ -21,8 +21,8 @@ class JsonFieldsAdapter(logging.LoggerAdapter):
         return msg, kwargs
 
 
-def setup_cloud_function_logging(logger_name: str) -> logging.LoggerAdapter:
-    """Set up Cloud Functions compatible logging using Google Cloud Logging
+def setup_logging(logger_name: str) -> logging.LoggerAdapter:
+    """Set up GCP-compatible structured logging using Google Cloud Logging
 
     Uses the official google-cloud-logging library which automatically
     integrates with GCP and properly maps severity levels (INFO, WARNING, ERROR, etc.).
