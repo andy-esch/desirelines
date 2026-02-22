@@ -179,11 +179,6 @@ resource "google_cloud_run_v2_service" "api_gateway" {
         value = var.api_gateway_allowed_origins
       }
 
-      env {
-        name  = "DATA_SOURCE"
-        value = "cloud-storage"
-      }
-
       startup_probe {
         http_get {
           path = "/health"
@@ -317,6 +312,15 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
         name  = "ENABLE_CLOUD_LOGGING"
         value = "true"
       }
+
+      startup_probe {
+        http_get {
+          path = "/health"
+        }
+        initial_delay_seconds = 0
+        period_seconds        = 3
+        failure_threshold     = 3
+      }
     }
 
     timeout = "60s"
@@ -379,6 +383,15 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
       env {
         name  = "ENABLE_CLOUD_LOGGING"
         value = "true"
+      }
+
+      startup_probe {
+        http_get {
+          path = "/health"
+        }
+        initial_delay_seconds = 0
+        period_seconds        = 3
+        failure_threshold     = 3
       }
 
       # Mount PostgreSQL secrets as volume (read/write writer role)
