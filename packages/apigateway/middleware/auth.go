@@ -10,6 +10,24 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
+// contextKey is an unexported type for context keys to avoid collisions.
+type contextKey int
+
+const (
+	// userIDKey is the context key for the authenticated user's ID (Firebase UID).
+	userIDKey contextKey = iota
+)
+
+// GetUserID extracts the authenticated user's ID from the request context.
+// Returns empty string if no user ID is present (e.g., unauthenticated request).
+func GetUserID(ctx context.Context) string {
+	uid, ok := ctx.Value(userIDKey).(string)
+	if !ok {
+		return ""
+	}
+	return uid
+}
+
 // TokenVerifier defines the interface for verifying ID tokens.
 // This allows mocking the Firebase Auth client in tests.
 type TokenVerifier interface {
@@ -110,8 +128,11 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Email is authorized, proceed
-		m.logger.Debug("Auth: Request authorized successfully", "email", email)
-		next.ServeHTTP(w, r)
+		// Email is authorized — inject UID into context and proceed.
+		// The UID is the Firebase UID, which after the Strava OAuth cutover
+		// will be the Strava athlete ID. Before cutover it's the Google UID.
+		ctx := context.WithValue(r.Context(), userIDKey, token.UID)
+		m.logger.Debug("Auth: Request authorized successfully", "email", email, "uid", token.UID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

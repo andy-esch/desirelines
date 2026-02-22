@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -71,8 +72,14 @@ func (h *Handler) HandleInitiate(w http.ResponseWriter, r *http.Request) {
 		"approval_prompt": {"auto"},
 	}
 
-	authorizeURL := stravaAuthorizeURL + "?" + params.Encode()
-	http.Redirect(w, r, authorizeURL, http.StatusFound)
+	u, parseErr := url.Parse(stravaAuthorizeURL)
+	if parseErr != nil {
+		h.logger.Error("Failed to parse Strava authorize URL", "error", parseErr)
+		h.redirectError(w, r, "server_error")
+		return
+	}
+	u.RawQuery = params.Encode()
+	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
 // HandleCallback handles GET /auth/callback.
@@ -118,6 +125,21 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	athleteID := strconv.FormatInt(tokenResp.Athlete.ID, 10)
 
+	// Verify that the user actually granted the required scopes.
+	// Note: Strava returns the granted scopes in the 'scope' query parameter
+	// of the redirect URL, but some providers also include it in the JSON response.
+	// We check both for maximum robustness.
+	grantedScope := r.URL.Query().Get("scope")
+	if grantedScope == "" {
+		grantedScope = tokenResp.Scope
+	}
+
+	if !strings.Contains(grantedScope, "activity:read_all") {
+		h.logger.Warn("Insufficient scopes granted", "granted", grantedScope, "required", "activity:read_all", "athlete_id", athleteID)
+		h.redirectError(w, r, "insufficient_scope")
+		return
+	}
+
 	// Check allowlist
 	allowed, err := h.allowlist.IsAllowed(r.Context(), athleteID)
 	if err != nil {
@@ -137,7 +159,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		AccessToken:   tokenResp.AccessToken,
 		RefreshToken:  tokenResp.RefreshToken,
 		ExpiresAt:     tokenResp.ExpiresAt,
-		Scopes:        "activity:read_all",
+		Scopes:        grantedScope,
 		ConnectedAt:   now,
 		LastRefreshed: now,
 	}
@@ -168,12 +190,24 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Fragments are never sent to the server, preventing token leakage in
 	// server logs, Referer headers, and intermediate proxy logs.
 	// The frontend reads the token via window.location.hash.
-	redirectURL := fmt.Sprintf("%s/auth/complete#token=%s", h.frontendURL, url.QueryEscape(customToken))
+	target, joinErr := url.JoinPath(h.frontendURL, "auth", "complete")
+	if joinErr != nil {
+		h.logger.Error("Failed to construct redirect URL", "error", joinErr)
+		h.redirectError(w, r, "server_error")
+		return
+	}
+	redirectURL := fmt.Sprintf("%s#token=%s", target, url.QueryEscape(customToken))
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
 // redirectError redirects the user to the frontend error page with an error code.
 func (h *Handler) redirectError(w http.ResponseWriter, r *http.Request, errorCode string) {
-	redirectURL := fmt.Sprintf("%s/auth/error?error=%s", h.frontendURL, url.QueryEscape(errorCode))
+	target, joinErr := url.JoinPath(h.frontendURL, "auth", "error")
+	if joinErr != nil {
+		h.logger.Error("Failed to construct error redirect URL", "error", joinErr)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	redirectURL := fmt.Sprintf("%s?error=%s", target, url.QueryEscape(errorCode))
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }

@@ -164,6 +164,20 @@ func TestHandleCallback(t *testing.T) {
 		AccessToken:  "strava-access-token",
 		RefreshToken: "strava-refresh-token",
 		ExpiresAt:    1234567890,
+		Scope:        "read,activity:read_all",
+		Athlete: StravaAthlete{
+			ID:        12345,
+			FirstName: "Jane",
+			LastName:  "Doe",
+			Profile:   "https://strava.com/avatar.jpg",
+		},
+	}
+
+	insufficientScopeResp := &StravaTokenResponse{
+		AccessToken:  "strava-access-token",
+		RefreshToken: "strava-refresh-token",
+		ExpiresAt:    1234567890,
+		Scope:        "read", // Missing activity:read_all
 		Athlete: StravaAthlete{
 			ID:        12345,
 			FirstName: "Jane",
@@ -176,6 +190,7 @@ func TestHandleCallback(t *testing.T) {
 		AccessToken:  "strava-access-token",
 		RefreshToken: "strava-refresh-token",
 		ExpiresAt:    1234567890,
+		Scope:        "read,activity:read_all",
 		Athlete:      StravaAthlete{ID: 0},
 	}
 
@@ -190,7 +205,7 @@ func TestHandleCallback(t *testing.T) {
 		wantLocation string // substring match
 	}{
 		{
-			name:         "happy path",
+			name:         "happy path (scope in JSON)",
 			query:        "code=auth-code&state=" + validState,
 			strava:       &mockStravaOAuth{resp: validTokenResp},
 			tokens:       &mockTokenStore{},
@@ -198,6 +213,46 @@ func TestHandleCallback(t *testing.T) {
 			firebase:     &mockFirebase{token: "firebase-custom-token"},
 			wantStatus:   http.StatusFound,
 			wantLocation: "/auth/complete#token=firebase-custom-token",
+		},
+		{
+			name:  "happy path (scope in query, not in JSON)",
+			query: "code=auth-code&state=" + validState + "&scope=activity:read_all",
+			strava: &mockStravaOAuth{resp: &StravaTokenResponse{
+				AccessToken:  "tok",
+				RefreshToken: "ref",
+				ExpiresAt:    12345678,
+				Athlete:      StravaAthlete{ID: 12345},
+			}},
+			tokens:       &mockTokenStore{},
+			allowlist:    &mockAllowlist{allowed: true},
+			firebase:     &mockFirebase{token: "fb-token"},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/complete#token=fb-token",
+		},
+		{
+			name:         "insufficient scope (missing from both)",
+			query:        "code=auth-code&state=" + validState,
+			strava:       &mockStravaOAuth{resp: insufficientScopeResp},
+			tokens:       &mockTokenStore{},
+			allowlist:    &mockAllowlist{},
+			firebase:     &mockFirebase{},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/error?error=insufficient_scope",
+		},
+		{
+			name:  "insufficient scope (missing from query parameter)",
+			query: "code=auth-code&state=" + validState + "&scope=read",
+			strava: &mockStravaOAuth{resp: &StravaTokenResponse{
+				AccessToken:  "tok",
+				RefreshToken: "ref",
+				ExpiresAt:    12345678,
+				Athlete:      StravaAthlete{ID: 12345},
+			}},
+			tokens:       &mockTokenStore{},
+			allowlist:    &mockAllowlist{},
+			firebase:     &mockFirebase{},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/error?error=insufficient_scope",
 		},
 		{
 			name:         "user denied access",
@@ -334,6 +389,7 @@ func TestHandleCallback_HappyPathVerifiesArguments(t *testing.T) {
 		AccessToken:  "access-tok",
 		RefreshToken: "refresh-tok",
 		ExpiresAt:    9999999999,
+		Scope:        "read,activity:read_all",
 		Athlete: StravaAthlete{
 			ID:        67890,
 			FirstName: "Alice",
