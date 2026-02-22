@@ -255,6 +255,22 @@ func TestHandleCallback(t *testing.T) {
 			wantLocation: "/auth/error?error=insufficient_scope",
 		},
 		{
+			name:  "insufficient scope (JSON response preferred over query param)",
+			query: "code=auth-code&state=" + validState + "&scope=activity:read_all",
+			strava: &mockStravaOAuth{resp: &StravaTokenResponse{
+				AccessToken:  "tok",
+				RefreshToken: "ref",
+				ExpiresAt:    12345678,
+				Scope:        "read",
+				Athlete:      StravaAthlete{ID: 12345},
+			}},
+			tokens:       &mockTokenStore{},
+			allowlist:    &mockAllowlist{},
+			firebase:     &mockFirebase{},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/error?error=insufficient_scope",
+		},
+		{
 			name:         "user denied access",
 			query:        "error=access_denied",
 			strava:       &mockStravaOAuth{},

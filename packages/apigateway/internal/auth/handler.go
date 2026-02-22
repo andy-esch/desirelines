@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -126,12 +125,12 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	athleteID := strconv.FormatInt(tokenResp.Athlete.ID, 10)
 
 	// Verify that the user actually granted the required scopes.
-	// Note: Strava returns the granted scopes in the 'scope' query parameter
-	// of the redirect URL, but some providers also include it in the JSON response.
-	// We check both for maximum robustness.
-	grantedScope := r.URL.Query().Get("scope")
+	// Prefer the scope from the token exchange response (server-to-server, trusted)
+	// over the query parameter (user-controlled, untrusted). Fall back to the
+	// query parameter only if the response doesn't include scopes.
+	grantedScope := tokenResp.Scope
 	if grantedScope == "" {
-		grantedScope = tokenResp.Scope
+		grantedScope = r.URL.Query().Get("scope")
 	}
 
 	hasRequiredScope := false
@@ -197,24 +196,28 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Fragments are never sent to the server, preventing token leakage in
 	// server logs, Referer headers, and intermediate proxy logs.
 	// The frontend reads the token via window.location.hash.
-	target, joinErr := url.JoinPath(h.frontendURL, "auth", "complete")
-	if joinErr != nil {
-		h.logger.Error("Failed to construct redirect URL", "error", joinErr)
+	u, parseErr := url.Parse(h.frontendURL)
+	if parseErr != nil {
+		h.logger.Error("Failed to parse frontend URL", "error", parseErr)
 		h.redirectError(w, r, "server_error")
 		return
 	}
-	redirectURL := fmt.Sprintf("%s#token=%s", target, url.QueryEscape(customToken))
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	u = u.JoinPath("auth", "complete")
+	u.Fragment = "token=" + url.QueryEscape(customToken)
+	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
 // redirectError redirects the user to the frontend error page with an error code.
 func (h *Handler) redirectError(w http.ResponseWriter, r *http.Request, errorCode string) {
-	target, joinErr := url.JoinPath(h.frontendURL, "auth", "error")
-	if joinErr != nil {
-		h.logger.Error("Failed to construct error redirect URL", "error", joinErr)
+	u, parseErr := url.Parse(h.frontendURL)
+	if parseErr != nil {
+		h.logger.Error("Failed to parse frontend URL for error redirect", "error", parseErr)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	redirectURL := fmt.Sprintf("%s?error=%s", target, url.QueryEscape(errorCode))
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	u = u.JoinPath("auth", "error")
+	q := u.Query()
+	q.Set("error", errorCode)
+	u.RawQuery = q.Encode()
+	http.Redirect(w, r, u.String(), http.StatusFound)
 }
