@@ -9,7 +9,7 @@ locals {
   api_gateway_oauth_secrets = {
     "INFISICAL_STRAVA_CLIENT_ID"     = google_secret_manager_secret.strava_client_id.secret_id
     "INFISICAL_STRAVA_CLIENT_SECRET" = google_secret_manager_secret.strava_client_secret.secret_id
-    "INFISICAL_AUTH_STATE_SECRET"     = google_secret_manager_secret.auth_state_secret.secret_id
+    "INFISICAL_AUTH_STATE_SECRET"    = google_secret_manager_secret.auth_state_secret.secret_id
   }
 
   # Secret definitions for dynamic blocks
