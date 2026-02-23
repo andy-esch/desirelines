@@ -1,4 +1,4 @@
-"""Custom exceptions for stravapipe package..."""
+"""Custom exceptions for stravapipe package."""
 
 from collections.abc import Sequence
 
