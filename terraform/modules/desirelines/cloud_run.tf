@@ -357,13 +357,15 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
         value = "true"
       }
 
+      # Python/Uvicorn needs more startup time than Go services:
+      # FastAPI lifespan must complete before /health is served
       startup_probe {
         http_get {
           path = "/health"
         }
-        initial_delay_seconds = 0
+        initial_delay_seconds = 5
         period_seconds        = 3
-        failure_threshold     = 3
+        failure_threshold     = 5
       }
     }
 
@@ -429,13 +431,15 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
         value = "true"
       }
 
+      # Python/Uvicorn needs more startup time than Go services:
+      # FastAPI lifespan must complete (incl. DB connection) before /health is served
       startup_probe {
         http_get {
           path = "/health"
         }
-        initial_delay_seconds = 0
+        initial_delay_seconds = 5
         period_seconds        = 3
-        failure_threshold     = 3
+        failure_threshold     = 5
       }
 
       # Mount PostgreSQL secrets as volume (read/write writer role)
