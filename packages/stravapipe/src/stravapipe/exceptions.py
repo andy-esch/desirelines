@@ -10,7 +10,7 @@ class StravaPipeError(Exception):
 
 
 class ConfigurationError(StravaPipeError):
-    """Raised when there are configuration issues."""
+    """Raised when there are application configuration issues."""
 
     pass
 
