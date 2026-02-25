@@ -59,6 +59,17 @@ func (s *AuthStore) WriteAuthData(ctx context.Context, athleteID string, tokens 
 		if setErr := tx.Set(tokensRef, tokens); setErr != nil {
 			return fmt.Errorf("set strava tokens: %w", setErr)
 		}
+
+		// Preserve CreatedAt from existing profile (first-login timestamp).
+		// On re-login, all other fields are updated but CreatedAt is retained.
+		existingDoc, getErr := tx.Get(profileRef)
+		if getErr == nil {
+			var existing auth.AthleteProfile
+			if decodeErr := existingDoc.DataTo(&existing); decodeErr == nil && !existing.CreatedAt.IsZero() {
+				profile.CreatedAt = existing.CreatedAt
+			}
+		}
+
 		if setErr := tx.Set(profileRef, profile); setErr != nil {
 			return fmt.Errorf("set athlete profile: %w", setErr)
 		}
