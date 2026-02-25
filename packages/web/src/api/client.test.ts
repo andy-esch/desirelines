@@ -18,6 +18,7 @@ const mockAuthService: AuthService = {
     photoURL: null,
   }),
   signIn: vi.fn(),
+  signInWithToken: vi.fn(),
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn().mockReturnValue(() => {}),
   getIdToken: vi.fn().mockResolvedValue("original-token"),

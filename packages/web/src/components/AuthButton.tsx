@@ -1,21 +1,11 @@
 import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 
-interface AuthButtonProps {
-  /** Button variant for signed-out state. Default: "primary" */
-  signInVariant?: string;
-  /** Button variant for signed-in state. Default: "outline-light" */
-  signOutVariant?: string;
-}
-
 /**
  * Authentication button component
- * Shows "Sign In" for anonymous users, "Sign Out" for authenticated users
+ * Shows "Connect with Strava" for anonymous users, "Sign Out" for authenticated users
  */
-export default function AuthButton({
-  signInVariant = "primary",
-  signOutVariant = "outline-light",
-}: AuthButtonProps = {}) {
+export default function AuthButton() {
   const { user, loading, error, signIn, signOut } = useAuth();
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -30,7 +20,6 @@ export default function AuthButton({
       await signIn();
     } catch {
       // Error is already set in useAuth state
-      // Component will re-render with error state
     } finally {
       setActionLoading(false);
     }
@@ -53,8 +42,7 @@ export default function AuthButton({
       <div>
         <button
           onClick={handleSignOut}
-          className={`btn btn-sm btn-${signOutVariant}`}
-          title={`Signed in as ${user.email}`}
+          className="btn btn-sm btn-outline-light"
           disabled={actionLoading}
         >
           {actionLoading ? "Signing out..." : "Sign Out"}
@@ -68,15 +56,11 @@ export default function AuthButton({
     );
   }
 
-  // Show sign in button for anonymous users
+  // Show Strava connect button for anonymous users
   return (
     <div>
-      <button
-        onClick={handleSignIn}
-        className={`btn btn-sm btn-${signInVariant}`}
-        disabled={actionLoading}
-      >
-        {actionLoading ? "Signing in..." : "Sign In"}
+      <button onClick={handleSignIn} className="btn btn-sm btn-primary" disabled={actionLoading}>
+        {actionLoading ? "Connecting..." : "Connect with Strava"}
       </button>
       {error && (
         <div className="text-danger text-sm mt-1" role="alert">

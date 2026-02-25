@@ -181,12 +181,8 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	}
 	log.Info("Firebase app initialized", "project_id", projectID)
 
-	// 4. Initialize auth middleware (Firebase JWT + email allowlist)
-	allowedEmails, err := getAllowedEmails()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get allowed emails: %w", err)
-	}
-	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, allowedEmails, log)
+	// 4. Initialize auth middleware (Firebase JWT verification)
+	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log)
 
 	// 5. Initialize Firestore client (for OAuth auth store)
 	firestoreClient, err := firebaseApp.Firestore(ctx)
@@ -333,16 +329,6 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 		}
 	}
 	return defaultValue
-}
-
-// getAllowedEmails reads allowed emails from secret mount (Cloud Run) or environment variable (local dev).
-func getAllowedEmails() ([]string, error) {
-	const secretPath = "/etc/secrets/INFISICAL_ALLOWED_EMAILS/value" //nolint:gosec // G101: Not credentials, just a file path
-	value, err := secrets.LoadFromMount(secretPath, "ALLOWED_EMAILS")
-	if err != nil {
-		return nil, err
-	}
-	return parseCommaSeparated(value), nil
 }
 
 // parseCommaSeparatedEnv reads an environment variable and parses it as a

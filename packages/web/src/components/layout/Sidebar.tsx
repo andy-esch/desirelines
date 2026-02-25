@@ -81,7 +81,7 @@ export default function Sidebar({
 
       {showAuthButton && (
         <div className="md:hidden mt-auto px-4 py-4 border-t">
-          <AuthButton signOutVariant="outline-secondary" />
+          <AuthButton />
         </div>
       )}
     </>

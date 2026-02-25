@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"firebase.google.com/go/v4/auth"
@@ -25,9 +24,6 @@ func (m *MockTokenVerifier) VerifyIDToken(ctx context.Context, idToken string) (
 
 func TestAuthMiddleware(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	allowedEmails := map[string]bool{
-		"allowed@example.com": true,
-	}
 
 	tests := []struct {
 		name           string
@@ -56,47 +52,11 @@ func TestAuthMiddleware(t *testing.T) {
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:   "Valid token but missing email claim",
+			name:   "Valid token",
 			header: "Bearer valid-token",
 			mockVerifier: &MockTokenVerifier{
 				Token: &auth.Token{
-					Claims: map[string]interface{}{},
-				},
-			},
-			expectedStatus: http.StatusUnauthorized,
-		},
-		{
-			name:   "Valid token but unauthorized email",
-			header: "Bearer valid-token",
-			mockVerifier: &MockTokenVerifier{
-				Token: &auth.Token{
-					Claims: map[string]interface{}{
-						"email": "denied@example.com",
-					},
-				},
-			},
-			expectedStatus: http.StatusForbidden,
-		},
-		{
-			name:   "Valid token and authorized email",
-			header: "Bearer valid-token",
-			mockVerifier: &MockTokenVerifier{
-				Token: &auth.Token{
-					Claims: map[string]interface{}{
-						"email": "allowed@example.com",
-					},
-				},
-			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:   "Authorized email with different casing",
-			header: "Bearer valid-token",
-			mockVerifier: &MockTokenVerifier{
-				Token: &auth.Token{
-					Claims: map[string]interface{}{
-						"email": "Allowed@Example.Com",
-					},
+					UID: "12345",
 				},
 			},
 			expectedStatus: http.StatusOK,
@@ -106,9 +66,8 @@ func TestAuthMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			am := &AuthMiddleware{
-				verifier:      tt.mockVerifier,
-				allowedEmails: allowedEmails,
-				logger:        logger,
+				verifier: tt.mockVerifier,
+				logger:   logger,
 			}
 
 			// Create a dummy handler that returns 200 OK
@@ -139,16 +98,12 @@ func TestAuthMiddleware_InjectsUserID(t *testing.T) {
 	verifier := &MockTokenVerifier{
 		Token: &auth.Token{
 			UID: "strava-12345",
-			Claims: map[string]interface{}{
-				"email": "allowed@example.com",
-			},
 		},
 	}
 
 	am := &AuthMiddleware{
-		verifier:      verifier,
-		allowedEmails: map[string]bool{"allowed@example.com": true},
-		logger:        logger,
+		verifier: verifier,
+		logger:   logger,
 	}
 
 	var capturedUID string
@@ -178,33 +133,5 @@ func TestGetUserID_MissingFromContext(t *testing.T) {
 	uid := GetUserID(ctx)
 	if uid != "" {
 		t.Errorf("GetUserID() = %q, want empty string", uid)
-	}
-}
-
-func TestNewAuthMiddleware_EmailNormalization(t *testing.T) {
-	// Test email normalization logic without requiring Firebase credentials.
-	// Construct AuthMiddleware directly to avoid the real Firebase client init.
-	allowedEmails := []string{"Allowed@Example.Com", "UPPER@EXAMPLE.COM", ""}
-
-	emailMap := make(map[string]bool)
-	for _, email := range allowedEmails {
-		if email != "" {
-			emailMap[strings.ToLower(email)] = true
-		}
-	}
-
-	am := &AuthMiddleware{
-		allowedEmails: emailMap,
-	}
-
-	expected := []string{"allowed@example.com", "upper@example.com"}
-	for _, email := range expected {
-		if !am.allowedEmails[email] {
-			t.Errorf("expected email %q to be allowed", email)
-		}
-	}
-
-	if len(am.allowedEmails) != 2 {
-		t.Errorf("expected 2 allowed emails, got %d", len(am.allowedEmails))
 	}
 }

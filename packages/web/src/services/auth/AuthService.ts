@@ -19,9 +19,15 @@ export interface AuthService {
   getCurrentUser(): User | null;
 
   /**
-   * Sign in with the configured provider (e.g., Google)
+   * Initiate sign-in with the configured provider.
+   * For Strava OAuth, this redirects the browser — the returned promise never resolves.
    */
   signIn(): Promise<void>;
+
+  /**
+   * Complete sign-in using a Firebase custom token (from OAuth callback).
+   */
+  signInWithToken(customToken: string): Promise<void>;
 
   /**
    * Sign out current user
