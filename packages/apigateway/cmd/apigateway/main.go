@@ -185,12 +185,19 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log)
 
 	// 5. Initialize Firestore client (for OAuth auth store)
-	firestoreClient, err := firebaseApp.Firestore(ctx)
+	// Uses the named database (e.g., "desirelines-user-configs") rather than the
+	// default "(default)" database. The database name is set via FIRESTORE_DATABASE
+	// env var, configured in Terraform from google_firestore_database.user_configs.
+	firestoreDB := os.Getenv("FIRESTORE_DATABASE")
+	if firestoreDB == "" {
+		return nil, fmt.Errorf("FIRESTORE_DATABASE environment variable must be set")
+	}
+	firestoreClient, err := firestore.NewClientWithDatabase(ctx, projectID, firestoreDB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Firestore client: %w", err)
 	}
 	deps.firestoreClient = firestoreClient
-	log.Info("Firestore client initialized")
+	log.Info("Firestore client initialized", "database", firestoreDB)
 
 	// 6. Initialize OAuth auth handler
 	authHandler, err := initAuthHandler(authClient, firestoreClient, log)

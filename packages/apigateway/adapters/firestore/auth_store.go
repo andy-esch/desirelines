@@ -56,10 +56,10 @@ func (s *AuthStore) WriteAuthData(ctx context.Context, athleteID string, tokens 
 	profileRef := userPrivate.Doc("profile")
 
 	err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
-		if setErr := tx.Set(tokensRef, tokens, firestore.MergeAll); setErr != nil {
+		if setErr := tx.Set(tokensRef, tokens); setErr != nil {
 			return fmt.Errorf("set strava tokens: %w", setErr)
 		}
-		if setErr := tx.Set(profileRef, profile, firestore.MergeAll); setErr != nil {
+		if setErr := tx.Set(profileRef, profile); setErr != nil {
 			return fmt.Errorf("set athlete profile: %w", setErr)
 		}
 		return nil

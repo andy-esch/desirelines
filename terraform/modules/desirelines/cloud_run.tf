@@ -196,6 +196,11 @@ resource "google_cloud_run_v2_service" "api_gateway" {
         value = var.app_config.auth_callback_url
       }
 
+      env {
+        name  = "FIRESTORE_DATABASE"
+        value = google_firestore_database.user_configs.name
+      }
+
       startup_probe {
         http_get {
           path = "/health"
