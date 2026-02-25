@@ -56,10 +56,7 @@ func (s *AuthStore) WriteAuthData(ctx context.Context, athleteID string, tokens 
 	profileRef := userPrivate.Doc("profile")
 
 	err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
-		if setErr := tx.Set(tokensRef, tokens); setErr != nil {
-			return fmt.Errorf("set strava tokens: %w", setErr)
-		}
-
+		// Firestore transactions require all reads before writes.
 		// Preserve CreatedAt from existing profile (first-login timestamp).
 		// On re-login, all other fields are updated but CreatedAt is retained.
 		existingDoc, getErr := tx.Get(profileRef)
@@ -68,8 +65,13 @@ func (s *AuthStore) WriteAuthData(ctx context.Context, athleteID string, tokens 
 			if decodeErr := existingDoc.DataTo(&existing); decodeErr == nil && !existing.CreatedAt.IsZero() {
 				profile.CreatedAt = existing.CreatedAt
 			}
+		} else if status.Code(getErr) != codes.NotFound {
+			return fmt.Errorf("get existing profile: %w", getErr)
 		}
 
+		if setErr := tx.Set(tokensRef, tokens); setErr != nil {
+			return fmt.Errorf("set strava tokens: %w", setErr)
+		}
 		if setErr := tx.Set(profileRef, profile); setErr != nil {
 			return fmt.Errorf("set athlete profile: %w", setErr)
 		}
