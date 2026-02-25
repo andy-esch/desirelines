@@ -81,10 +81,27 @@ func NewHandlerWithTimeout(repo repository.ActivityRepository, sportConfig *conf
 	}
 }
 
+// getUserID extracts the authenticated user's ID from the request context.
+// Returns the user ID and true if present, or writes a 500 error and returns false.
+// An empty user ID indicates a middleware misconfiguration (route not protected by auth).
+func (h *Handler) getUserID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == "" {
+		h.logger.Error("Auth: user ID missing from request context (middleware misconfiguration)")
+		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return "", false
+	}
+	return userID, true
+}
+
 // HandleMetadata serves year metadata (all sports) from PostgreSQL.
 // GET /activities/{year}/metadata
 func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
 
 	year, ok := h.validateAndGetYear(w, r)
 	if !ok {
@@ -305,7 +322,10 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
 
 	params := h.validateSportQuery(w, r)
 	if params == nil {
@@ -348,7 +368,10 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 //
 //nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
 
 	params := h.validateMultiSportQuery(w, r)
 	if params == nil {
@@ -391,7 +414,10 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
 
 	params := h.validateSportQuery(w, r)
 	if params == nil {
@@ -433,7 +459,10 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 //
 //nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
 
 	params := h.validateMultiSportQuery(w, r)
 	if params == nil {
@@ -486,7 +515,10 @@ func setCachePastData(w http.ResponseWriter, year int, to string, useDateRange b
 // HandleGetActivity serves a single activity by ID.
 // GET /activities/{id}
 func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
 
 	// Parse activity ID from path
 	idStr := chi.URLParam(r, "id")
@@ -526,7 +558,10 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 // HandleListActivities serves a paginated list of activities.
 // GET /activities?from=2025-01-01&to=2025-12-31&sport=cycling&limit=20&cursor=...
 func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
 
 	filter, apiErr := h.parseListActivitiesFilter(r)
 	if !apiErr.IsZero() {

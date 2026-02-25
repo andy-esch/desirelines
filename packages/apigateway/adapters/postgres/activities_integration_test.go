@@ -169,7 +169,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
 				UserID: "test-user",
-	Limit: 10,
+				Limit:  10,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -197,7 +197,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
 				UserID: "test-user",
-	Limit: 2,
+				Limit:  2,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -220,8 +220,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	t.Run("ListActivities_WithSportFilter", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
-				UserID: "test-user",
-	SportTypes: []string{"Ride"},
+				UserID:     "test-user",
+				SportTypes: []string{"Ride"},
 				Limit:      10,
 			})
 			if err != nil {
@@ -246,8 +246,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			// Yoga has type="Workout" but sport="Yoga". Filtering by ["Yoga"]
 			// must match the sport column to find it.
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
-				UserID: "test-user",
-	SportTypes: []string{"Yoga"},
+				UserID:     "test-user",
+				SportTypes: []string{"Yoga"},
 				Limit:      10,
 			})
 			if err != nil {
@@ -275,9 +275,9 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			to := "2024-01-15"
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
 				UserID: "test-user",
-	From:  &from,
-				To:    &to,
-				Limit: 10,
+				From:   &from,
+				To:     &to,
+				Limit:  10,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -296,9 +296,9 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			to := "2023-12-31"
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
 				UserID: "test-user",
-	From:  &from,
-				To:    &to,
-				Limit: 10,
+				From:   &from,
+				To:     &to,
+				Limit:  10,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -319,7 +319,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			// When limit is 0 or not set, should default to 20
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
 				UserID: "test-user",
-	Limit: 0,
+				Limit:  0,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -337,7 +337,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			// When limit exceeds 100, should cap at 100
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
 				UserID: "test-user",
-	Limit: 500,
+				Limit:  500,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)

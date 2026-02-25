@@ -35,7 +35,7 @@ type mockAuthMiddleware struct{}
 
 func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := middleware.SetUserIDForTest(r.Context(), "test-user")
+		ctx := middleware.WithUserID(r.Context(), "test-user")
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
