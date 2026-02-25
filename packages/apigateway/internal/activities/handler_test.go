@@ -25,22 +25,22 @@ type mockRepo struct {
 
 func (m *mockRepo) Ping(ctx context.Context) error { return nil }
 func (m *mockRepo) Close() error                   { return nil }
-func (m *mockRepo) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
+func (m *mockRepo) GetYearMetadata(ctx context.Context, userID string, year int) (*generated.YearMetadata, error) {
 	return nil, m.err
 }
-func (m *mockRepo) GetMultiSportMetrics(ctx context.Context, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (m *mockRepo) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	return nil, m.err
 }
-func (m *mockRepo) GetMultiSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (m *mockRepo) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	return nil, m.err
 }
-func (m *mockRepo) GetMultiSportDailySummary(ctx context.Context, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (m *mockRepo) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
 	return nil, m.err
 }
-func (m *mockRepo) GetMultiSportDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (m *mockRepo) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
 	return nil, m.err
 }
-func (m *mockRepo) GetActivityByID(ctx context.Context, id int64) (*activitiesv1.Activity, error) {
+func (m *mockRepo) GetActivityByID(ctx context.Context, userID string, id int64) (*activitiesv1.Activity, error) {
 	return nil, m.err
 }
 func (m *mockRepo) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {

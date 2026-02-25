@@ -128,7 +128,8 @@ npm run test:ui
 
 - Use demo mode for UI development
 - Use Firebase Emulators for authenticated local testing
-- Create test users in Emulator UI (<http://localhost:4000>)
+- For day-to-day dev, the API gateway dev bypass endpoint issues a custom token without the Strava redirect
+- For end-to-end OAuth testing, use a tunnel (ngrok/cloudflared) or the deployed dev API
 
 ## Troubleshooting
 
@@ -157,4 +158,3 @@ npm install
 
 - Verify `FIREBASE_AUTH_EMULATOR_HOST` is set in API Gateway logs
 - Check Emulator UI at <http://localhost:4000> for test users
-- Ensure test user email is in `ALLOWED_EMAILS` in `.env.local`

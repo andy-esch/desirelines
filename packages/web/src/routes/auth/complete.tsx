@@ -12,6 +12,8 @@ function AuthComplete() {
     if (hasRun.current) return;
     hasRun.current = true;
 
+    let isMounted = true;
+
     const hash = window.location.hash; // "#token=abc123"
     const token = new URLSearchParams(hash.slice(1)).get("token");
 
@@ -25,8 +27,16 @@ function AuthComplete() {
 
     authService
       .signInWithToken(token)
-      .then(() => navigate({ to: "/" }))
-      .catch(() => navigate({ to: "/auth/error", search: { error: "sign_in_failed" } }));
+      .then(() => {
+        if (isMounted) navigate({ to: "/" });
+      })
+      .catch(() => {
+        if (isMounted) navigate({ to: "/auth/error", search: { error: "sign_in_failed" } });
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [navigate, authService]);
 
   return (

@@ -29,6 +29,45 @@ func withTestTx(t *testing.T, pool *pgxpool.Pool, fn func(repo *postgres.Activit
 	fn(postgres.NewTestActivityRepository(tx))
 }
 
+// withTestTxMultiUser is like withTestTx but seeds data for two users to test query isolation.
+func withTestTxMultiUser(t *testing.T, pool *pgxpool.Pool, fn func(repo *postgres.ActivityRepository)) {
+	t.Helper()
+	ctx := context.Background()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback after test is best-effort
+
+	seedTestData(t, tx)
+	seedOtherUserData(t, tx)
+	fn(postgres.NewTestActivityRepository(tx))
+}
+
+// seedOtherUserData inserts a single activity for "other-user" to test isolation.
+//
+// Test data:
+//   - ID 2001: Run, Jan 15 09:00, 3km, user_id="other-user"
+func seedOtherUserData(t *testing.T, tx pgx.Tx) {
+	t.Helper()
+	ctx := context.Background()
+
+	_, err := tx.Exec(ctx, `
+		INSERT INTO desirelines.activities (
+			id, user_id, name, type, sport, start_date_local, year,
+			distance, moving_time, elapsed_time, total_elevation_gain
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`,
+		int64(2001), "other-user", "Evening Run", "Run", "Run",
+		time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC), 2024,
+		float64(3000), int32(900), int32(1000), float64(20),
+	)
+	if err != nil {
+		t.Fatalf("failed to insert other-user test activity: %v", err)
+	}
+}
+
 // seedTestData inserts the standard set of 4 test activities into the transaction.
 //
 // Test data:

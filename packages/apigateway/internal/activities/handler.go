@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
+	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
@@ -80,9 +81,28 @@ func NewHandlerWithTimeout(repo repository.ActivityRepository, sportConfig *conf
 	}
 }
 
+// getUserID extracts the authenticated user's ID from the request context.
+// Returns the user ID and true if present, or writes a 500 error and returns false.
+// An empty user ID indicates a middleware misconfiguration (route not protected by auth).
+func (h *Handler) getUserID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == "" {
+		h.logger.Error("Auth: user ID missing from request context (middleware misconfiguration)")
+		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return "", false
+	}
+	return userID, true
+}
+
 // HandleMetadata serves year metadata (all sports) from PostgreSQL.
 // GET /activities/{year}/metadata
 func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
+
 	year, ok := h.validateAndGetYear(w, r)
 	if !ok {
 		return
@@ -99,7 +119,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
-	metadata, err := h.repo.GetYearMetadata(ctx, yearInt)
+	metadata, err := h.repo.GetYearMetadata(ctx, userID, yearInt)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "year", year)
 		apiErr := gcplog.NewAPIError(
@@ -302,6 +322,11 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
+
 	params := h.validateSportQuery(w, r)
 	if params == nil {
 		return
@@ -313,9 +338,9 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	var byStravaType map[string]*generated.SportMetrics
 	var err error
 	if params.useDateRange {
-		byStravaType, err = h.repo.GetMultiSportMetricsByDateRange(ctx, params.from, params.to, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportMetricsByDateRange(ctx, userID, params.from, params.to, params.sportTypes)
 	} else {
-		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, params.year, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, userID, params.year, params.sportTypes)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
@@ -343,6 +368,11 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 //
 //nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
+
 	params := h.validateMultiSportQuery(w, r)
 	if params == nil {
 		return
@@ -354,9 +384,9 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 	var byStravaType map[string]*generated.SportMetrics
 	var err error
 	if params.useDateRange {
-		byStravaType, err = h.repo.GetMultiSportMetricsByDateRange(ctx, params.from, params.to, params.allSportTypes)
+		byStravaType, err = h.repo.GetMultiSportMetricsByDateRange(ctx, userID, params.from, params.to, params.allSportTypes)
 	} else {
-		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, params.year, params.allSportTypes)
+		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, userID, params.year, params.allSportTypes)
 	}
 	if err != nil {
 		h.logger.Error("Database query failed during multi-sport metrics fetch", "error", err)
@@ -384,6 +414,11 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
+
 	params := h.validateSportQuery(w, r)
 	if params == nil {
 		return
@@ -394,9 +429,9 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	var byStravaType map[string]*generated.DailySummary
 	var err error
 	if params.useDateRange {
-		byStravaType, err = h.repo.GetMultiSportDailySummaryByDateRange(ctx, params.from, params.to, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportDailySummaryByDateRange(ctx, userID, params.from, params.to, params.sportTypes)
 	} else {
-		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, params.year, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, userID, params.year, params.sportTypes)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
@@ -424,6 +459,11 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 //
 //nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
+
 	params := h.validateMultiSportQuery(w, r)
 	if params == nil {
 		return
@@ -435,9 +475,9 @@ func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request)
 	var byStravaType map[string]*generated.DailySummary
 	var err error
 	if params.useDateRange {
-		byStravaType, err = h.repo.GetMultiSportDailySummaryByDateRange(ctx, params.from, params.to, params.allSportTypes)
+		byStravaType, err = h.repo.GetMultiSportDailySummaryByDateRange(ctx, userID, params.from, params.to, params.allSportTypes)
 	} else {
-		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, params.year, params.allSportTypes)
+		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, userID, params.year, params.allSportTypes)
 	}
 	if err != nil {
 		h.logger.Error("Database query failed during multi-sport source fetch", "error", err)
@@ -475,6 +515,11 @@ func setCachePastData(w http.ResponseWriter, year int, to string, useDateRange b
 // HandleGetActivity serves a single activity by ID.
 // GET /activities/{id}
 func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
+
 	// Parse activity ID from path
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -487,7 +532,7 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
-	activity, err := h.repo.GetActivityByID(ctx, id)
+	activity, err := h.repo.GetActivityByID(ctx, userID, id)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "activityId", id)
 		apiErr := gcplog.NewAPIError(
@@ -513,11 +558,17 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 // HandleListActivities serves a paginated list of activities.
 // GET /activities?from=2025-01-01&to=2025-12-31&sport=cycling&limit=20&cursor=...
 func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
+
 	filter, apiErr := h.parseListActivitiesFilter(r)
 	if !apiErr.IsZero() {
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
 	}
+	filter.UserID = userID
 
 	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()

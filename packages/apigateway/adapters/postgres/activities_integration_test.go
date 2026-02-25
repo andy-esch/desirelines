@@ -61,7 +61,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetYearMetadata", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			metadata, err := repo.GetYearMetadata(ctx, 2024)
+			metadata, err := repo.GetYearMetadata(ctx, "test-user", 2024)
 			if err != nil {
 				t.Fatalf("GetYearMetadata failed: %v", err)
 			}
@@ -104,7 +104,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetYearMetadata_NoResults", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			metadata, err := repo.GetYearMetadata(ctx, 1999)
+			metadata, err := repo.GetYearMetadata(ctx, "test-user", 1999)
 			if err != nil {
 				t.Fatalf("GetYearMetadata failed: %v", err)
 			}
@@ -117,7 +117,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetActivityByID", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			activity, err := repo.GetActivityByID(ctx, 1001)
+			activity, err := repo.GetActivityByID(ctx, "test-user", 1001)
 			if err != nil {
 				t.Fatalf("GetActivityByID failed: %v", err)
 			}
@@ -154,7 +154,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetActivityByID_NotFound", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			activity, err := repo.GetActivityByID(ctx, 99999999)
+			activity, err := repo.GetActivityByID(ctx, "test-user", 99999999)
 			if err != nil {
 				t.Fatalf("GetActivityByID failed: %v", err)
 			}
@@ -168,7 +168,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	t.Run("ListActivities_Basic", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
-				Limit: 10,
+				UserID: "test-user",
+				Limit:  10,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -195,7 +196,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	t.Run("ListActivities_WithLimit", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
-				Limit: 2,
+				UserID: "test-user",
+				Limit:  2,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -218,6 +220,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	t.Run("ListActivities_WithSportFilter", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+				UserID:     "test-user",
 				SportTypes: []string{"Ride"},
 				Limit:      10,
 			})
@@ -243,6 +246,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			// Yoga has type="Workout" but sport="Yoga". Filtering by ["Yoga"]
 			// must match the sport column to find it.
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+				UserID:     "test-user",
 				SportTypes: []string{"Yoga"},
 				Limit:      10,
 			})
@@ -270,9 +274,10 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			from := "2024-01-15"
 			to := "2024-01-15"
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
-				From:  &from,
-				To:    &to,
-				Limit: 10,
+				UserID: "test-user",
+				From:   &from,
+				To:     &to,
+				Limit:  10,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -290,9 +295,10 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			from := "2023-01-01"
 			to := "2023-12-31"
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
-				From:  &from,
-				To:    &to,
-				Limit: 10,
+				UserID: "test-user",
+				From:   &from,
+				To:     &to,
+				Limit:  10,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -312,7 +318,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			// When limit is 0 or not set, should default to 20
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
-				Limit: 0,
+				UserID: "test-user",
+				Limit:  0,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -329,7 +336,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			// When limit exceeds 100, should cap at 100
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
-				Limit: 500,
+				UserID: "test-user",
+				Limit:  500,
 			})
 			if err != nil {
 				t.Fatalf("ListActivities failed: %v", err)
@@ -349,7 +357,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	t.Run("GetMultiSportMetrics", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			// Request Ride and Run together — should get separate timeseries per sport
-			result, err := repo.GetMultiSportMetrics(ctx, 2024, []string{"Ride", "Run"})
+			result, err := repo.GetMultiSportMetrics(ctx, "test-user", 2024, []string{"Ride", "Run"})
 			if err != nil {
 				t.Fatalf("GetMultiSportMetrics failed: %v", err)
 			}
@@ -392,7 +400,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			// "NonexistentSport" has no activities — unnest should still include it
 			// in the result with a full zero-filled timeseries
-			result, err := repo.GetMultiSportMetrics(ctx, 2024, []string{"Ride", "NonexistentSport"})
+			result, err := repo.GetMultiSportMetrics(ctx, "test-user", 2024, []string{"Ride", "NonexistentSport"})
 			if err != nil {
 				t.Fatalf("GetMultiSportMetrics failed: %v", err)
 			}
@@ -427,7 +435,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetMultiSportMetricsByDateRange", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			result, err := repo.GetMultiSportMetricsByDateRange(ctx, "2024-01-15", "2024-01-16", []string{"Ride", "Run"})
+			result, err := repo.GetMultiSportMetricsByDateRange(ctx, "test-user", "2024-01-15", "2024-01-16", []string{"Ride", "Run"})
 			if err != nil {
 				t.Fatalf("GetMultiSportMetricsByDateRange failed: %v", err)
 			}
@@ -449,7 +457,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetMultiSportDailySummary", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			result, err := repo.GetMultiSportDailySummary(ctx, 2024, []string{"Ride", "Run", "Yoga"})
+			result, err := repo.GetMultiSportDailySummary(ctx, "test-user", 2024, []string{"Ride", "Run", "Yoga"})
 			if err != nil {
 				t.Fatalf("GetMultiSportDailySummary failed: %v", err)
 			}
@@ -491,7 +499,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetMultiSportDailySummaryByDateRange", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			result, err := repo.GetMultiSportDailySummaryByDateRange(ctx, "2024-01-15", "2024-01-16", []string{"Ride", "Run"})
+			result, err := repo.GetMultiSportDailySummaryByDateRange(ctx, "test-user", "2024-01-15", "2024-01-16", []string{"Ride", "Run"})
 			if err != nil {
 				t.Fatalf("GetMultiSportDailySummaryByDateRange failed: %v", err)
 			}
@@ -508,6 +516,113 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			runSummary := result["Run"]
 			if runSummary == nil || len(runSummary.Daily) != 1 {
 				t.Fatalf("expected 1 Run daily entry, got %v", runSummary)
+			}
+		})
+	})
+
+	// =========================================================================
+	// Multi-user isolation tests
+	// =========================================================================
+
+	t.Run("UserIsolation_GetYearMetadata", func(t *testing.T) {
+		withTestTxMultiUser(t, pool, func(repo *postgres.ActivityRepository) {
+			// test-user should see 3 sports (Ride, Run, Yoga)
+			metadata, err := repo.GetYearMetadata(ctx, "test-user", 2024)
+			if err != nil {
+				t.Fatalf("GetYearMetadata failed: %v", err)
+			}
+			if len(metadata.Sports) != 3 {
+				t.Errorf("test-user: expected 3 sports, got %d: %v", len(metadata.Sports), metadata.Sports)
+			}
+
+			// other-user should see only 1 sport (Run)
+			metadata2, err := repo.GetYearMetadata(ctx, "other-user", 2024)
+			if err != nil {
+				t.Fatalf("GetYearMetadata failed: %v", err)
+			}
+			if len(metadata2.Sports) != 1 {
+				t.Errorf("other-user: expected 1 sport, got %d: %v", len(metadata2.Sports), metadata2.Sports)
+			}
+			if len(metadata2.Sports) > 0 && metadata2.Sports[0] != "Run" {
+				t.Errorf("other-user: expected sport Run, got %s", metadata2.Sports[0])
+			}
+		})
+	})
+
+	t.Run("UserIsolation_GetActivityByID", func(t *testing.T) {
+		withTestTxMultiUser(t, pool, func(repo *postgres.ActivityRepository) {
+			// test-user can see their own activity
+			activity, err := repo.GetActivityByID(ctx, "test-user", 1001)
+			if err != nil {
+				t.Fatalf("GetActivityByID failed: %v", err)
+			}
+			if activity == nil {
+				t.Fatal("test-user should see activity 1001")
+			}
+
+			// other-user cannot see test-user's activity (returns nil, not error)
+			activity2, err := repo.GetActivityByID(ctx, "other-user", 1001)
+			if err != nil {
+				t.Fatalf("GetActivityByID failed: %v", err)
+			}
+			if activity2 != nil {
+				t.Error("other-user should NOT see test-user's activity 1001")
+			}
+
+			// other-user can see their own activity
+			activity3, err := repo.GetActivityByID(ctx, "other-user", 2001)
+			if err != nil {
+				t.Fatalf("GetActivityByID failed: %v", err)
+			}
+			if activity3 == nil {
+				t.Fatal("other-user should see activity 2001")
+			}
+		})
+	})
+
+	t.Run("UserIsolation_ListActivities", func(t *testing.T) {
+		withTestTxMultiUser(t, pool, func(repo *postgres.ActivityRepository) {
+			// test-user should see 4 activities
+			resp1, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+				UserID: "test-user",
+				Limit:  10,
+			})
+			if err != nil {
+				t.Fatalf("ListActivities failed: %v", err)
+			}
+			if len(resp1.Activities) != 4 {
+				t.Errorf("test-user: expected 4 activities, got %d", len(resp1.Activities))
+			}
+
+			// other-user should see 1 activity
+			resp2, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+				UserID: "other-user",
+				Limit:  10,
+			})
+			if err != nil {
+				t.Fatalf("ListActivities failed: %v", err)
+			}
+			if len(resp2.Activities) != 1 {
+				t.Errorf("other-user: expected 1 activity, got %d", len(resp2.Activities))
+			}
+		})
+	})
+
+	t.Run("UserIsolation_GetMultiSportMetrics", func(t *testing.T) {
+		withTestTxMultiUser(t, pool, func(repo *postgres.ActivityRepository) {
+			// other-user queries for Ride — should get zero-filled data (they have no Rides)
+			result, err := repo.GetMultiSportMetrics(ctx, "other-user", 2024, []string{"Ride"})
+			if err != nil {
+				t.Fatalf("GetMultiSportMetrics failed: %v", err)
+			}
+			rideMetrics := result["Ride"]
+			if rideMetrics == nil {
+				t.Fatal("expected Ride key in result (zero-filled)")
+			}
+			// All cumulative values should be zero since other-user has no Rides
+			lastEntry := rideMetrics.Timeseries[len(rideMetrics.Timeseries)-1]
+			if lastEntry.Distance != nil && *lastEntry.Distance != 0 {
+				t.Errorf("other-user: expected 0 cumulative Ride distance, got %f", *lastEntry.Distance)
 			}
 		})
 	})

@@ -224,7 +224,6 @@ GCP_PUBSUB_TOPIC=desirelines_activity_events
 POSTGRES_CONNECTION_STRING=postgresql://postgres:postgres@localhost:15430/desirelines
 
 # Auth (for API Gateway)
-ALLOWED_EMAILS=test@example.com
 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 ```
 

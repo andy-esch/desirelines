@@ -18,6 +18,13 @@ const (
 	userIDKey contextKey = iota
 )
 
+// WithUserID returns a copy of ctx with the given user ID set.
+// Used by the auth middleware to inject the authenticated user's ID,
+// and by tests to set up authenticated request contexts.
+func WithUserID(ctx context.Context, uid string) context.Context {
+	return context.WithValue(ctx, userIDKey, uid)
+}
+
 // GetUserID extracts the authenticated user's ID from the request context.
 // Returns empty string if no user ID is present (e.g., unauthenticated request).
 func GetUserID(ctx context.Context) string {
@@ -91,7 +98,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Token verified — inject UID into context and proceed.
 		// The UID is the Strava athlete ID (as string), matching the
 		// PostgreSQL user_id column.
-		ctx := context.WithValue(r.Context(), userIDKey, token.UID)
+		ctx := WithUserID(r.Context(), token.UID)
 		m.logger.Debug("Auth: Request authorized successfully", "uid", token.UID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

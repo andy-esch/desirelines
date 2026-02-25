@@ -239,6 +239,7 @@ func TestActivityRepository_ListActivities_SignatureAndTypes(t *testing.T) {
 		from := "2024-01-01"
 		to := "2024-12-31"
 		filter := repository.ActivityListFilter{
+			UserID:     "test-user",
 			From:       &from,
 			To:         &to,
 			SportTypes: []string{"Ride", "VirtualRide"},
