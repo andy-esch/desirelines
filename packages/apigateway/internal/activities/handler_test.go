@@ -335,6 +335,7 @@ func TestHandler_validateMultiSportQuery(t *testing.T) {
 			} else {
 				if result == nil {
 					t.Fatal("validateMultiSportQuery() returned nil unexpectedly")
+					return
 				}
 				if len(result.sportCategories) != tt.wantSports {
 					t.Errorf("validateMultiSportQuery() got %d categories, want %d", len(result.sportCategories), tt.wantSports)
@@ -361,6 +362,7 @@ func TestNewHandler(t *testing.T) {
 
 	if handler == nil {
 		t.Fatal("NewHandler returned nil")
+		return
 	}
 	if handler.repo == nil {
 		t.Error("Handler.repo is nil")
