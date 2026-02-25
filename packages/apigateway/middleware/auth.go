@@ -28,6 +28,13 @@ func GetUserID(ctx context.Context) string {
 	return uid
 }
 
+// SetUserIDForTest injects a user ID into context for testing.
+// This is the only way to set the user ID outside the auth middleware,
+// since userIDKey is unexported.
+func SetUserIDForTest(ctx context.Context, uid string) context.Context {
+	return context.WithValue(ctx, userIDKey, uid)
+}
+
 // TokenVerifier defines the interface for verifying ID tokens.
 // This allows mocking the Firebase Auth client in tests.
 type TokenVerifier interface {

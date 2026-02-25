@@ -17,6 +17,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/health"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/sports"
+	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
@@ -28,12 +29,15 @@ import (
 
 // Health status constants imported from health package for test assertions
 
-// mockAuthMiddleware is a no-op auth middleware for testing
+// mockAuthMiddleware injects a test user ID into the request context.
+// This simulates authenticated requests so handlers can extract the user ID.
 type mockAuthMiddleware struct{}
 
 func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
-	// Pass through without authentication (like local development mode)
-	return next
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := middleware.SetUserIDForTest(r.Context(), "test-user")
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // mockActivityRepository is a mock implementation of repository.ActivityRepository
@@ -60,27 +64,27 @@ func (m *mockActivityRepository) Close() error {
 	return m.closeErr
 }
 
-func (m *mockActivityRepository) GetMultiSportMetrics(ctx context.Context, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (m *mockActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	return nil, m.sportMetricsErr
 }
 
-func (m *mockActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (m *mockActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	return nil, m.sportMetricsErr
 }
 
-func (m *mockActivityRepository) GetMultiSportDailySummary(ctx context.Context, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (m *mockActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
 	return nil, m.dailySummaryErr
 }
 
-func (m *mockActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (m *mockActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
 	return nil, m.dailySummaryErr
 }
 
-func (m *mockActivityRepository) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
+func (m *mockActivityRepository) GetYearMetadata(ctx context.Context, userID string, year int) (*generated.YearMetadata, error) {
 	return m.yearMetadata, m.yearMetadataErr
 }
 
-func (m *mockActivityRepository) GetActivityByID(ctx context.Context, id int64) (*activitiesv1.Activity, error) {
+func (m *mockActivityRepository) GetActivityByID(ctx context.Context, userID string, id int64) (*activitiesv1.Activity, error) {
 	return m.activity, m.activityErr
 }
 

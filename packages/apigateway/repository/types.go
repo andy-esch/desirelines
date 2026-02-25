@@ -27,6 +27,7 @@ type ActivityCursor struct {
 // ActivityListFilter contains query filters for listing activities.
 // Used internally by the repository layer.
 type ActivityListFilter struct {
+	UserID     string          // Authenticated user's ID (required for query isolation)
 	From       *string         // Start date (YYYY-MM-DD), inclusive
 	To         *string         // End date (YYYY-MM-DD), inclusive
 	SportTypes []string        // Strava sport_type values (e.g., ["Ride", "VirtualRide"])

@@ -11,7 +11,6 @@ go test ./...
 # Run locally (requires POSTGRES_CONNECTION_STRING with application_name parameter)
 # Example: postgresql://user:pass@localhost:5432/dbname?application_name=apigateway
 export POSTGRES_CONNECTION_STRING="postgresql://..."
-export ALLOWED_EMAILS="your-email@example.com"
 export ALLOWED_ORIGINS="http://localhost:3000"
 export GCP_PROJECT_ID="your-project-id"  # or GOOGLE_CLOUD_PROJECT
 go run ./cmd/apigateway
@@ -63,7 +62,7 @@ packages/apigateway/
 │   └── firestore/
 │       └── auth_store.go    # Firestore allowlist + token/profile storage
 ├── middleware/
-│   └── auth.go              # Firebase JWT verification + email allowlist
+│   └── auth.go              # Firebase JWT verification
 ├── config/
 │   ├── sport_config.go      # Sport category mappings
 │   └── sport_types.json     # Embedded sport configuration
@@ -168,7 +167,6 @@ POSTGRES_CONNECTION_STRING=postgresql://user:pass@host:port/db?application_name=
 
 # Authentication (Firebase)
 GCP_PROJECT_ID=your-project-id     # Google Cloud project ID (or GOOGLE_CLOUD_PROJECT)
-ALLOWED_EMAILS=user@example.com    # Comma-separated authorized emails
 # For local development with Firebase emulator:
 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 

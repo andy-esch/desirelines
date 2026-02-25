@@ -114,7 +114,7 @@ func (r *ActivityRepository) Close() error {
 // GetMultiSportMetricsByDateRange returns cumulative metrics for multiple sports in a date range.
 // Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter,
 // ensuring correct cumulative sums even for sports with no activity data in the range.
-func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	query := `
 		SELECT
 			sport,
@@ -132,10 +132,10 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 				COALESCE(daily.time, 0) as time,
 				COALESCE(daily.activities, 0) as activities
 			FROM (
-				SELECT generate_series($1::date, $2::date, '1 day'::interval)::date as date
+				SELECT generate_series($2::date, $3::date, '1 day'::interval)::date as date
 			) all_dates
 			CROSS JOIN (
-				SELECT unnest($3::text[]) AS sport
+				SELECT unnest($4::text[]) AS sport
 			) sports
 			LEFT JOIN (
 				SELECT
@@ -146,16 +146,17 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 					SUM(moving_time) / 60.0 as time,
 					COUNT(*) as activities
 				FROM desirelines.activities
-				WHERE start_date_local::date >= $1::date
-				  AND start_date_local::date <= $2::date
-				  AND sport = ANY($3)
+				WHERE user_id = $1
+				  AND start_date_local::date >= $2::date
+				  AND start_date_local::date <= $3::date
+				  AND sport = ANY($4)
 				GROUP BY sport, start_date_local::date
 			) daily ON all_dates.date = daily.date AND sports.sport = daily.sport
 		) dense_daily
 		ORDER BY sport, date ASC
 	`
 
-	rows, err := r.db.Query(ctx, query, from, to, sportTypes)
+	rows, err := r.db.Query(ctx, query, userID, from, to, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query multi-sport metrics by date range: %w", err)
 	}
@@ -166,7 +167,7 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 
 // GetMultiSportMetrics returns cumulative metrics for multiple sports in a given year.
 // Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter.
-func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	query := `
 		SELECT
 			sport,
@@ -185,13 +186,13 @@ func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, year int,
 				COALESCE(daily.activities, 0) as activities
 			FROM (
 				SELECT generate_series(
-					make_date($1, 1, 1),
-					LEAST(CURRENT_DATE, make_date($1, 12, 31)),
+					make_date($2, 1, 1),
+					LEAST(CURRENT_DATE, make_date($2, 12, 31)),
 					'1 day'::interval
 				)::date as date
 			) all_dates
 			CROSS JOIN (
-				SELECT unnest($2::text[]) AS sport
+				SELECT unnest($3::text[]) AS sport
 			) sports
 			LEFT JOIN (
 				SELECT
@@ -202,15 +203,16 @@ func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, year int,
 					SUM(moving_time) / 60.0 as time,
 					COUNT(*) as activities
 				FROM desirelines.activities
-				WHERE year = $1
-				  AND sport = ANY($2)
+				WHERE user_id = $1
+				  AND year = $2
+				  AND sport = ANY($3)
 				GROUP BY sport, start_date_local::date
 			) daily ON all_dates.date = daily.date AND sports.sport = daily.sport
 		) dense_daily
 		ORDER BY sport, date ASC
 	`
 
-	rows, err := r.db.Query(ctx, query, year, sportTypes)
+	rows, err := r.db.Query(ctx, query, userID, year, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query multi-sport metrics: %w", err)
 	}
@@ -262,7 +264,7 @@ func scanMultiSportMetricsRows(rows interface {
 
 // GetMultiSportDailySummary returns daily summaries for multiple sports in a given year.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
 	query := `
 		SELECT
 			sport,
@@ -273,13 +275,14 @@ func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, year
 			COUNT(*) as activities,
 			array_agg(id) as activity_ids
 		FROM desirelines.activities
-		WHERE year = $1
-		  AND sport = ANY($2)
+		WHERE user_id = $1
+		  AND year = $2
+		  AND sport = ANY($3)
 		GROUP BY sport, start_date_local::date
 		ORDER BY sport, start_date_local::date ASC
 	`
 
-	rows, err := r.db.Query(ctx, query, year, sportTypes)
+	rows, err := r.db.Query(ctx, query, userID, year, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query multi-sport daily summary: %w", err)
 	}
@@ -290,7 +293,7 @@ func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, year
 
 // GetMultiSportDailySummaryByDateRange returns daily summaries for multiple sports in a date range.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
 	query := `
 		SELECT
 			sport,
@@ -301,14 +304,15 @@ func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Co
 			COUNT(*) as activities,
 			array_agg(id) as activity_ids
 		FROM desirelines.activities
-		WHERE start_date_local::date >= $1::date
-		  AND start_date_local::date <= $2::date
-		  AND sport = ANY($3)
+		WHERE user_id = $1
+		  AND start_date_local::date >= $2::date
+		  AND start_date_local::date <= $3::date
+		  AND sport = ANY($4)
 		GROUP BY sport, start_date_local::date
 		ORDER BY sport, start_date_local::date ASC
 	`
 
-	rows, err := r.db.Query(ctx, query, from, to, sportTypes)
+	rows, err := r.db.Query(ctx, query, userID, from, to, sportTypes)
 	if err != nil {
 		return nil, fmt.Errorf("query multi-sport daily summary by date range: %w", err)
 	}
@@ -361,7 +365,7 @@ func scanMultiSportDailySummaryRows(rows interface {
 
 // GetYearMetadata returns metadata about activities for a given year.
 // Includes list of sports, per-sport totals, and last updated timestamp.
-func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*generated.YearMetadata, error) {
+func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string, year int) (*generated.YearMetadata, error) {
 	// Validate year range early to avoid unnecessary DB query and satisfy G115 (int to int32)
 	if year < 0 || year > math.MaxInt32 {
 		return nil, fmt.Errorf("year %d out of valid range (0-%d)", year, math.MaxInt32)
@@ -377,12 +381,13 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*ge
 			COUNT(*) as activities,
 			MAX(updated_at) as last_updated
 		FROM desirelines.activities
-		WHERE year = $1
+		WHERE user_id = $1
+		  AND year = $2
 		GROUP BY sport
 		ORDER BY sport ASC
 	`
 
-	rows, err := r.db.Query(ctx, query, year)
+	rows, err := r.db.Query(ctx, query, userID, year)
 	if err != nil {
 		return nil, fmt.Errorf("query year metadata: %w", err)
 	}
@@ -438,7 +443,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, year int) (*ge
 
 // GetActivityByID returns a single activity by its Strava ID.
 // Returns nil (not error) if the activity is not found.
-func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*activitiesv1.Activity, error) {
+func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string, id int64) (*activitiesv1.Activity, error) {
 	query := `
 		SELECT
 			id, name, type, sport, start_date_local,
@@ -446,10 +451,10 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, id int64) (*ac
 			total_elevation_gain, average_speed, max_speed,
 			average_heartrate, max_heartrate
 		FROM desirelines.activities
-		WHERE id = $1
+		WHERE id = $1 AND user_id = $2
 	`
 
-	row := r.db.QueryRow(ctx, query, id)
+	row := r.db.QueryRow(ctx, query, id, userID)
 
 	var activityID int64
 	var name, activityType, sport string
@@ -557,6 +562,9 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		FROM desirelines.activities
 		WHERE 1=1
 	`)
+
+	// Filter by user ID (required for query isolation)
+	qb.AddCondition(" AND user_id = $%d", filter.UserID)
 
 	// Add date range filters
 	if filter.From != nil {
