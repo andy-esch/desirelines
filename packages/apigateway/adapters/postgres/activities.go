@@ -451,10 +451,10 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 			total_elevation_gain, average_speed, max_speed,
 			average_heartrate, max_heartrate
 		FROM desirelines.activities
-		WHERE id = $1 AND user_id = $2
+		WHERE user_id = $1 AND id = $2
 	`
 
-	row := r.db.QueryRow(ctx, query, id, userID)
+	row := r.db.QueryRow(ctx, query, userID, id)
 
 	var activityID int64
 	var name, activityType, sport string
