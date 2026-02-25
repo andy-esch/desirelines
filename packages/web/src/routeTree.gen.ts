@@ -18,6 +18,8 @@ import { Route as IndexRouteImport } from "./routes/index";
 import { Route as DemoIndexRouteImport } from "./routes/demo/index";
 import { Route as SportIndexRouteImport } from "./routes/$sport.index";
 import { Route as DemoSportRouteImport } from "./routes/demo/$sport";
+import { Route as AuthErrorRouteImport } from "./routes/auth/error";
+import { Route as AuthCompleteRouteImport } from "./routes/auth/complete";
 import { Route as SportYearRouteImport } from "./routes/$sport.$year";
 import { Route as DemoSportIndexRouteImport } from "./routes/demo/$sport.index";
 import { Route as DemoSportYearRouteImport } from "./routes/demo/$sport.$year";
@@ -67,6 +69,16 @@ const DemoSportRoute = DemoSportRouteImport.update({
   path: "/demo/$sport",
   getParentRoute: () => rootRouteImport,
 } as any);
+const AuthErrorRoute = AuthErrorRouteImport.update({
+  id: "/auth/error",
+  path: "/auth/error",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AuthCompleteRoute = AuthCompleteRouteImport.update({
+  id: "/auth/complete",
+  path: "/auth/complete",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const SportYearRoute = SportYearRouteImport.update({
   id: "/$year",
   path: "/$year",
@@ -91,6 +103,8 @@ export interface FileRoutesByFullPath {
   "/origins": typeof OriginsRoute;
   "/settings": typeof SettingsRoute;
   "/$sport/$year": typeof SportYearRoute;
+  "/auth/complete": typeof AuthCompleteRoute;
+  "/auth/error": typeof AuthErrorRoute;
   "/demo/$sport": typeof DemoSportRouteWithChildren;
   "/$sport/": typeof SportIndexRoute;
   "/demo/": typeof DemoIndexRoute;
@@ -104,6 +118,8 @@ export interface FileRoutesByTo {
   "/origins": typeof OriginsRoute;
   "/settings": typeof SettingsRoute;
   "/$sport/$year": typeof SportYearRoute;
+  "/auth/complete": typeof AuthCompleteRoute;
+  "/auth/error": typeof AuthErrorRoute;
   "/$sport": typeof SportIndexRoute;
   "/demo": typeof DemoIndexRoute;
   "/demo/$sport/$year": typeof DemoSportYearRoute;
@@ -118,6 +134,8 @@ export interface FileRoutesById {
   "/origins": typeof OriginsRoute;
   "/settings": typeof SettingsRoute;
   "/$sport/$year": typeof SportYearRoute;
+  "/auth/complete": typeof AuthCompleteRoute;
+  "/auth/error": typeof AuthErrorRoute;
   "/demo/$sport": typeof DemoSportRouteWithChildren;
   "/$sport/": typeof SportIndexRoute;
   "/demo/": typeof DemoIndexRoute;
@@ -134,6 +152,8 @@ export interface FileRouteTypes {
     | "/origins"
     | "/settings"
     | "/$sport/$year"
+    | "/auth/complete"
+    | "/auth/error"
     | "/demo/$sport"
     | "/$sport/"
     | "/demo/"
@@ -147,6 +167,8 @@ export interface FileRouteTypes {
     | "/origins"
     | "/settings"
     | "/$sport/$year"
+    | "/auth/complete"
+    | "/auth/error"
     | "/$sport"
     | "/demo"
     | "/demo/$sport/$year"
@@ -160,6 +182,8 @@ export interface FileRouteTypes {
     | "/origins"
     | "/settings"
     | "/$sport/$year"
+    | "/auth/complete"
+    | "/auth/error"
     | "/demo/$sport"
     | "/$sport/"
     | "/demo/"
@@ -174,6 +198,8 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute;
   OriginsRoute: typeof OriginsRoute;
   SettingsRoute: typeof SettingsRoute;
+  AuthCompleteRoute: typeof AuthCompleteRoute;
+  AuthErrorRoute: typeof AuthErrorRoute;
   DemoSportRoute: typeof DemoSportRouteWithChildren;
   DemoIndexRoute: typeof DemoIndexRoute;
 }
@@ -243,6 +269,20 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DemoSportRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/auth/error": {
+      id: "/auth/error";
+      path: "/auth/error";
+      fullPath: "/auth/error";
+      preLoaderRoute: typeof AuthErrorRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/auth/complete": {
+      id: "/auth/complete";
+      path: "/auth/complete";
+      fullPath: "/auth/complete";
+      preLoaderRoute: typeof AuthCompleteRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/$sport/$year": {
       id: "/$sport/$year";
       path: "/$year";
@@ -300,6 +340,8 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   OriginsRoute: OriginsRoute,
   SettingsRoute: SettingsRoute,
+  AuthCompleteRoute: AuthCompleteRoute,
+  AuthErrorRoute: AuthErrorRoute,
   DemoSportRoute: DemoSportRouteWithChildren,
   DemoIndexRoute: DemoIndexRoute,
 };

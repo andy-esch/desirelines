@@ -6,8 +6,7 @@
  */
 
 import {
-  GoogleAuthProvider,
-  signInWithPopup,
+  signInWithCustomToken,
   signOut as firebaseSignOut,
   onAuthStateChanged as firebaseOnAuthStateChanged,
   type User as FirebaseUser,
@@ -35,8 +34,15 @@ export class FirebaseAuthService implements AuthService {
   }
 
   async signIn(): Promise<void> {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    // Full page redirect to API gateway OAuth endpoint.
+    // After Strava approval, the gateway redirects back to /auth/complete#token=...
+    window.location.href = `${import.meta.env.VITE_API_GATEWAY_URL}/auth/strava`;
+    // Page navigates away — return a never-resolving promise to prevent callers from proceeding.
+    return new Promise(() => {});
+  }
+
+  async signInWithToken(customToken: string): Promise<void> {
+    await signInWithCustomToken(auth, customToken);
   }
 
   async signOut(): Promise<void> {

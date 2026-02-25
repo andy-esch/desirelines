@@ -27,7 +27,7 @@ export type { User, AuthState };
  *
  * if (loading) return <Spinner />;
  * if (!user) {
- *   return <button onClick={signIn}>Sign In with Google</button>;
+ *   return <button onClick={signIn}>Connect with Strava</button>;
  * } else {
  *   return <button onClick={signOut}>Sign Out</button>;
  * }

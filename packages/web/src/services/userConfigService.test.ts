@@ -24,9 +24,8 @@ vi.mock("firebase/auth", () => ({
     callback({ uid: "test-user", email: "test@example.com", displayName: "Test User" });
     return vi.fn(); // unsubscribe function
   }),
-  signInWithPopup: vi.fn(),
+  signInWithCustomToken: vi.fn(),
   signOut: vi.fn(),
-  GoogleAuthProvider: vi.fn(),
 }));
 
 vi.mock("firebase/firestore", () => ({

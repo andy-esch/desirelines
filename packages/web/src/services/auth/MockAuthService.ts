@@ -30,6 +30,16 @@ export class MockAuthService implements AuthService {
     this.notifyListeners();
   }
 
+  async signInWithToken(_customToken: string): Promise<void> {
+    this.currentUser = {
+      uid: "test-user-123",
+      email: null,
+      displayName: "Test User",
+      photoURL: null,
+    };
+    this.notifyListeners();
+  }
+
   async signOut(): Promise<void> {
     this.currentUser = null;
     this.notifyListeners();
