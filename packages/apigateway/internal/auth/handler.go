@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,9 @@ import (
 )
 
 const stravaAuthorizeURL = "https://www.strava.com/oauth/authorize"
+
+// defaultExternalTimeout is the timeout for external service calls (Firestore, Firebase Auth).
+const defaultExternalTimeout = 10 * time.Second
 
 // HandlerConfig holds configuration for the OAuth auth handler.
 type HandlerConfig struct {
@@ -111,8 +115,8 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Validate code parameter
 	code := r.URL.Query().Get("code")
-	if code == "" {
-		h.logger.Warn("Missing code parameter in callback")
+	if code == "" || len(code) > 256 {
+		h.logger.Warn("Missing or invalid code parameter in callback", "code_len", len(code))
 		h.redirectError(w, r, "missing_code")
 		return
 	}
@@ -155,8 +159,12 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Timeout for Firestore/Firebase operations
+	ctx, cancel := context.WithTimeout(r.Context(), defaultExternalTimeout)
+	defer cancel()
+
 	// Check allowlist
-	allowed, err := h.allowlist.IsAllowed(r.Context(), athleteID)
+	allowed, err := h.allowlist.IsAllowed(ctx, athleteID)
 	if err != nil {
 		h.logger.Error("Failed to check allowlist", "error", err, "athlete_id", athleteID)
 		h.redirectError(w, r, "server_error")
@@ -185,14 +193,14 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		ProfileURL:      tokenResp.Athlete.Profile,
 		CreatedAt:       now,
 	}
-	if writeErr := h.tokens.WriteAuthData(r.Context(), athleteID, tokenData, profile); writeErr != nil {
+	if writeErr := h.tokens.WriteAuthData(ctx, athleteID, tokenData, profile); writeErr != nil {
 		h.logger.Error("Failed to write auth data", "error", writeErr, "athlete_id", athleteID)
 		h.redirectError(w, r, "server_error")
 		return
 	}
 
 	// Create Firebase custom token
-	customToken, err := h.firebase.CustomToken(r.Context(), athleteID)
+	customToken, err := h.firebase.CustomToken(ctx, athleteID)
 	if err != nil {
 		h.logger.Error("Failed to create Firebase custom token", "error", err, "athlete_id", athleteID)
 		h.redirectError(w, r, "server_error")

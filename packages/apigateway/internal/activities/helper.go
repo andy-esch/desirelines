@@ -45,27 +45,14 @@ func (h *Handler) categorizeSports(metadata *generated.YearMetadata) {
 	// Rebuild Totals map with categorized keys, merging duplicates
 	// (e.g., "Ride" and "VirtualRide" both map to "cycling")
 	if len(metadata.Totals) > 0 {
-		mergeFloat64Ptr := func(target **float64, source *float64) {
-			if source == nil {
-				return
-			}
-			if *target == nil {
-				v := *source
-				*target = &v
-				return
-			}
-			sum := **target + *source
-			*target = &sum
-		}
-
 		remapped := make(map[string]*generated.SportTotals, len(metadata.Totals))
 		for rawSport, totals := range metadata.Totals {
 			category := h.sportConfig.GetCategoryForStravaType(rawSport)
 			if existing, ok := remapped[category]; ok {
 				// Merge totals for the same category
-				mergeFloat64Ptr(&existing.DistanceMeters, totals.DistanceMeters)
-				mergeFloat64Ptr(&existing.ElevationMeters, totals.ElevationMeters)
-				mergeFloat64Ptr(&existing.TimeMinutes, totals.TimeMinutes)
+				mergeFloat64PtrField(&existing.DistanceMeters, totals.DistanceMeters)
+				mergeFloat64PtrField(&existing.ElevationMeters, totals.ElevationMeters)
+				mergeFloat64PtrField(&existing.TimeMinutes, totals.TimeMinutes)
 				existing.Activities += totals.Activities
 			} else {
 				remapped[category] = totals
@@ -101,9 +88,9 @@ func (h *Handler) mergeMultiSportMetrics(byStravaType map[string]*generated.Spor
 		// Merge: both have timeseries ordered by date, merge by index (same dense date range)
 		for i, entry := range metrics.Timeseries {
 			if i < len(existing.Timeseries) {
-				addFloat64Ptr(existing.Timeseries[i].Distance, entry.Distance)
-				addFloat64Ptr(existing.Timeseries[i].Elevation, entry.Elevation)
-				addFloat64Ptr(existing.Timeseries[i].Time, entry.Time)
+				mergeFloat64PtrField(&existing.Timeseries[i].Distance, entry.Distance)
+				mergeFloat64PtrField(&existing.Timeseries[i].Elevation, entry.Elevation)
+				mergeFloat64PtrField(&existing.Timeseries[i].Time, entry.Time)
 				if existing.Timeseries[i].Activities != nil && entry.Activities != nil {
 					sum := *existing.Timeseries[i].Activities + *entry.Activities
 					existing.Timeseries[i].Activities = &sum
@@ -128,9 +115,9 @@ func (h *Handler) mergeMultiSportDailySummary(byStravaType map[string]*generated
 		// Merge daily entries
 		for date, daily := range summary.Daily {
 			if existingDaily, has := existing.Daily[date]; has {
-				addFloat64Ptr(existingDaily.DistanceMeters, daily.DistanceMeters)
-				addFloat64Ptr(existingDaily.ElevationMeters, daily.ElevationMeters)
-				addFloat64Ptr(existingDaily.TimeMinutes, daily.TimeMinutes)
+				mergeFloat64PtrField(&existingDaily.DistanceMeters, daily.DistanceMeters)
+				mergeFloat64PtrField(&existingDaily.ElevationMeters, daily.ElevationMeters)
+				mergeFloat64PtrField(&existingDaily.TimeMinutes, daily.TimeMinutes)
 				existingDaily.Activities += daily.Activities
 				existingDaily.ActivityIds = append(existingDaily.ActivityIds, daily.ActivityIds...)
 			} else {
@@ -141,9 +128,15 @@ func (h *Handler) mergeMultiSportDailySummary(byStravaType map[string]*generated
 	return result
 }
 
-// addFloat64Ptr adds source value into target pointer in place.
-func addFloat64Ptr(target, source *float64) {
-	if target != nil && source != nil {
-		*target += *source
+// mergeFloat64PtrField adds source into *target, allocating if *target is nil.
+func mergeFloat64PtrField(target **float64, source *float64) {
+	if source == nil {
+		return
 	}
+	if *target == nil {
+		v := *source
+		*target = &v
+		return
+	}
+	**target += *source
 }
