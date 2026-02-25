@@ -592,10 +592,12 @@ resource "google_service_account_iam_member" "api_gateway_token_creator" {
 # store OAuth tokens/profiles during the Strava auth callback.
 # The Firebase Admin SDK bypasses Firestore Security Rules but still requires
 # IAM-level permission (Firestore uses the Datastore API under the hood).
-resource "google_project_iam_member" "api_gateway_firestore" {
-  project = var.gcp_project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.api_gateway.email}"
+# Scoped to the specific database rather than project-wide for least privilege.
+resource "google_firestore_database_iam_member" "api_gateway_firestore" {
+  project  = var.gcp_project_id
+  database = google_firestore_database.user_configs.name
+  role     = "roles/datastore.user"
+  member   = "serviceAccount:${google_service_account.api_gateway.email}"
 }
 
 # API Gateway access to allowed emails secret
