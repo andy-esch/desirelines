@@ -24,10 +24,12 @@ User → "Connect with Strava" → API Gateway /auth/strava → Strava OAuth
 **Backend** (`packages/apigateway/`):
 
 OAuth endpoints (`internal/auth/`):
+
 1. `GET /auth/strava` — generates CSRF state token, redirects to Strava authorize URL
 2. `GET /auth/callback` — validates state, exchanges code for tokens, checks Firestore allowlist, creates Firebase custom token, redirects to frontend
 
 Auth middleware (`middleware/auth.go`):
+
 1. Validates JWT using Firebase Admin SDK
 2. Injects `token.UID` (Strava athlete ID) into request context
 3. Returns 401 for invalid/missing token
