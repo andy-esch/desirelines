@@ -282,7 +282,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
     google_secret_manager_secret_iam_member.api_gateway_postgres_access,
     google_secret_manager_secret_iam_member.api_gateway_strava_oauth_secrets,
     google_service_account_iam_member.api_gateway_token_creator,
-    google_firestore_database_iam_member.api_gateway_firestore
+    google_project_iam_member.api_gateway_firestore
   ]
 }
 
