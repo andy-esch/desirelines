@@ -10,6 +10,7 @@
 
 import React, { createContext, useState, useEffect, useCallback, useMemo } from "react";
 import { useAuthService } from "./ServiceContext";
+import { useToast } from "./ToastContext";
 import type { User } from "../services/auth/AuthService";
 import { configureClientAuth } from "../api/client";
 
@@ -45,6 +46,7 @@ function usersEqual(a: User | null, b: User | null): boolean {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const authService = useAuthService();
+  const { showToast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -82,13 +84,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       await authService.signOut();
+      showToast("Signed out", "warning");
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Sign out failed");
       console.error("Sign out error:", error);
       setError(error);
       throw error;
     }
-  }, [authService]);
+  }, [authService, showToast]);
 
   const value = useMemo(
     () => ({ user, loading, error, signIn, signOut }),
