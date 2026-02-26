@@ -375,9 +375,9 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
         http_get {
           path = "/health"
         }
-        initial_delay_seconds = 5
-        period_seconds        = 3
-        failure_threshold     = 5
+        initial_delay_seconds = 10
+        period_seconds        = 5
+        failure_threshold     = 10
       }
     }
 
@@ -449,9 +449,9 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
         http_get {
           path = "/health"
         }
-        initial_delay_seconds = 5
-        period_seconds        = 3
-        failure_threshold     = 5
+        initial_delay_seconds = 10
+        period_seconds        = 5
+        failure_threshold     = 10
       }
 
       # Mount PostgreSQL secrets as volume (read/write writer role)
