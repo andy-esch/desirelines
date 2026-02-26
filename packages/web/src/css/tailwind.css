@@ -35,7 +35,7 @@
 
   /* === Status — semantic feedback colors === */
   --color-danger: #dc3545;
-  --color-success: #198754;
+  --color-success: #00ff80;
   --color-warning: #ffc107;
 
   /* === Body text === */
@@ -483,7 +483,7 @@ html:not(.dark) {
     background: transparent;
   }
   .btn-outline-success:hover {
-    color: #fff;
+    color: var(--color-bg-body);
     background-color: var(--color-success);
   }
   .btn-outline-warning {
@@ -643,6 +643,11 @@ html:not(.dark) {
     background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
     border-color: color-mix(in srgb, var(--color-danger) 25%, transparent);
     color: var(--color-danger);
+  }
+  .alert-success {
+    background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
+    border-color: color-mix(in srgb, var(--color-success) 25%, transparent);
+    color: var(--color-success);
   }
 
   /* --- Progress bars --- */

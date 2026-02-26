@@ -1,16 +1,22 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAuthService } from "../../contexts/ServiceContext";
+import { useToast } from "../../contexts/ToastContext";
+
+// Module-level flag to survive component remounts during auth state transitions.
+// When signInWithCustomToken fires, onAuthStateChanged can cause the router to
+// remount this component. A useRef would reset on remount; a module-level flag
+// persists across mounts within the same page load.
+let signInStarted = false;
 
 function AuthComplete() {
   const navigate = useNavigate();
   const authService = useAuthService();
-  const hasRun = useRef(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
-    // Prevent double-execution in StrictMode
-    if (hasRun.current) return;
-    hasRun.current = true;
+    if (signInStarted) return;
+    signInStarted = true;
 
     let isMounted = true;
 
@@ -18,6 +24,7 @@ function AuthComplete() {
     const token = new URLSearchParams(hash.slice(1)).get("token");
 
     if (!token) {
+      signInStarted = false;
       navigate({ to: "/auth/error", search: { error: "missing_token" } });
       return;
     }
@@ -28,16 +35,22 @@ function AuthComplete() {
     authService
       .signInWithToken(token)
       .then(() => {
-        if (isMounted) navigate({ to: "/" });
+        if (isMounted) {
+          showToast("Signed in successfully");
+          navigate({ to: "/" });
+        }
       })
       .catch(() => {
         if (isMounted) navigate({ to: "/auth/error", search: { error: "sign_in_failed" } });
+      })
+      .finally(() => {
+        signInStarted = false;
       });
 
     return () => {
       isMounted = false;
     };
-  }, [navigate, authService]);
+  }, [navigate, authService, showToast]);
 
   return (
     <div className="flex items-center justify-center grow">
