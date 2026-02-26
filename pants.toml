@@ -1,5 +1,5 @@
 [GLOBAL]
-pants_version = "2.30.0"  # Use latest stable version
+pants_version = "2.31.0"  # Use latest stable version
 
 # Enable colors for better readability
 colors = true
@@ -119,7 +119,6 @@ known_versions = [
   "2.6.2|linux_arm64|a2f9c6fe1800d0a6ba2a94ada95debe2c498a636ffc12308ee03022f97be1f33|13159338",
 ]
 # If there's a .golangci.yml config file, it will be used automatically
-# NOTE: golangci-lint backend doesn't support multi-module repos - use `just go-lint` instead
 # args = []  # Custom args if needed
 
 # Go dependency inference
