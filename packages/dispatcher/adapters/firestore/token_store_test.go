@@ -65,7 +65,7 @@ func TestTokenStore_WriteAndRead(t *testing.T) {
 	ctx := context.Background()
 	athleteID := int64(12345)
 
-	tokens := &stravatoken.StravaTokenData{
+	tokens := &stravatoken.Data{
 		AccessToken:  "test-access",
 		RefreshToken: "test-refresh",
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),

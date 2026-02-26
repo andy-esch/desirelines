@@ -32,8 +32,8 @@ type SecretProvider interface {
 
 // TokenStore defines the outbound port for reading and writing per-user Strava tokens.
 type TokenStore interface {
-	GetTokens(ctx context.Context, athleteID int64) (*stravatoken.StravaTokenData, error)
-	WriteTokens(ctx context.Context, athleteID int64, tokens *stravatoken.StravaTokenData) error
+	GetTokens(ctx context.Context, athleteID int64) (*stravatoken.Data, error)
+	WriteTokens(ctx context.Context, athleteID int64, tokens *stravatoken.Data) error
 }
 
 // StravaClient defines the outbound port for fetching activity data from the Strava API.

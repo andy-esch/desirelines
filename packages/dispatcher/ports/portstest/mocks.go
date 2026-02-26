@@ -84,17 +84,17 @@ func (m *MockStravaClient) FetchActivity(_ context.Context, ownerID, activityID 
 // MockTokenStore is a mock implementation of TokenStore for testing.
 type MockTokenStore struct {
 	// Tokens maps athlete IDs to their token data.
-	Tokens map[int64]*stravatoken.StravaTokenData
+	Tokens map[int64]*stravatoken.Data
 	// GetErr is returned by GetTokens (overrides Tokens lookup).
 	GetErr error
 	// WriteErr is returned by WriteTokens.
 	WriteErr error
 	// WrittenTokens tracks tokens written by WriteTokens.
-	WrittenTokens map[int64]*stravatoken.StravaTokenData
+	WrittenTokens map[int64]*stravatoken.Data
 }
 
 // GetTokens implements the TokenStore interface.
-func (m *MockTokenStore) GetTokens(_ context.Context, athleteID int64) (*stravatoken.StravaTokenData, error) {
+func (m *MockTokenStore) GetTokens(_ context.Context, athleteID int64) (*stravatoken.Data, error) {
 	if m.GetErr != nil {
 		return nil, m.GetErr
 	}
@@ -106,12 +106,12 @@ func (m *MockTokenStore) GetTokens(_ context.Context, athleteID int64) (*stravat
 }
 
 // WriteTokens implements the TokenStore interface.
-func (m *MockTokenStore) WriteTokens(_ context.Context, athleteID int64, tokens *stravatoken.StravaTokenData) error {
+func (m *MockTokenStore) WriteTokens(_ context.Context, athleteID int64, tokens *stravatoken.Data) error {
 	if m.WriteErr != nil {
 		return m.WriteErr
 	}
 	if m.WrittenTokens == nil {
-		m.WrittenTokens = make(map[int64]*stravatoken.StravaTokenData)
+		m.WrittenTokens = make(map[int64]*stravatoken.Data)
 	}
 	m.WrittenTokens[athleteID] = tokens
 	return nil

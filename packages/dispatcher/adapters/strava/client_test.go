@@ -56,7 +56,7 @@ func TestFetchActivity_Success(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.StravaTokenData{
+		Tokens: map[int64]*stravatoken.Data{
 			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
 		},
 	}
@@ -82,7 +82,7 @@ func TestFetchActivity_NotFound(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.StravaTokenData{
+		Tokens: map[int64]*stravatoken.Data{
 			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
 		},
 	}
@@ -138,7 +138,7 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.StravaTokenData{
+		Tokens: map[int64]*stravatoken.Data{
 			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
 		},
 	}
@@ -193,7 +193,7 @@ func TestFetchActivity_LazyTokenRefresh(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.StravaTokenData{
+		Tokens: map[int64]*stravatoken.Data{
 			testOwnerID: {AccessToken: "", RefreshToken: "test-refresh"}, // Empty triggers lazy refresh
 		},
 	}
@@ -221,7 +221,7 @@ func TestFetchActivity_ServerError(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.StravaTokenData{
+		Tokens: map[int64]*stravatoken.Data{
 			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
 		},
 	}
@@ -260,7 +260,7 @@ func TestFetchActivity_WriteBackFailureReturnsError(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.StravaTokenData{
+		Tokens: map[int64]*stravatoken.Data{
 			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
 		},
 		WriteErr: errors.New("firestore write failed"),

@@ -205,7 +205,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 // refreshAndPersist refreshes Strava tokens and writes them back to the TokenStore.
 // Returns error if either the refresh or the write-back fails — callers must not
 // proceed with stale tokens if write-back fails.
-func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.StravaTokenData) (*stravatoken.StravaTokenData, error) {
+func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.Data) (*stravatoken.Data, error) {
 	var lastErr error
 	for attempt := range tokenRetryAttempts {
 		newTokens, err := c.doRefreshToken(ctx, tokens.RefreshToken)
@@ -235,7 +235,7 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 }
 
 // doRefreshToken performs a single token refresh request and returns the new tokens.
-func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stravatoken.StravaTokenData, error) {
+func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stravatoken.Data, error) {
 	form := url.Values{
 		"client_id":     {c.clientID},
 		"client_secret": {c.clientSecret},
@@ -277,7 +277,7 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 		return nil, errors.New("token response missing access_token")
 	}
 
-	return &stravatoken.StravaTokenData{
+	return &stravatoken.Data{
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresAt:    tokenResp.ExpiresAt,

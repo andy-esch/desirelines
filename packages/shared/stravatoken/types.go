@@ -3,9 +3,9 @@ package stravatoken
 
 import "time"
 
-// StravaTokenData is the Firestore document schema for per-user Strava tokens.
+// Data is the Firestore document schema for per-user Strava tokens.
 // Stored at users/{athleteID}/private/strava_tokens.
-type StravaTokenData struct {
+type Data struct {
 	AccessToken   string    `firestore:"access_token"`
 	RefreshToken  string    `firestore:"refresh_token"`
 	ExpiresAt     int64     `firestore:"expires_at"`

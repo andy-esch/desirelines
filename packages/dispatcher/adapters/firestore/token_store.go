@@ -34,7 +34,7 @@ func NewTokenStore(client *firestore.Client, logger *slog.Logger) *TokenStore {
 
 // GetTokens reads Strava tokens for the given athlete from Firestore.
 // Returns ports.ErrTokenNotFound if no tokens exist for this athlete.
-func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatoken.StravaTokenData, error) {
+func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatoken.Data, error) {
 	doc, err := s.tokensRef(athleteID).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
@@ -43,7 +43,7 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 		return nil, fmt.Errorf("get tokens for athlete %d: %w", athleteID, err)
 	}
 
-	var tokens stravatoken.StravaTokenData
+	var tokens stravatoken.Data
 	if decodeErr := doc.DataTo(&tokens); decodeErr != nil {
 		return nil, fmt.Errorf("decode tokens for athlete %d: %w", athleteID, decodeErr)
 	}
@@ -52,7 +52,7 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 }
 
 // WriteTokens writes updated Strava tokens for the given athlete to Firestore.
-func (s *TokenStore) WriteTokens(ctx context.Context, athleteID int64, tokens *stravatoken.StravaTokenData) error {
+func (s *TokenStore) WriteTokens(ctx context.Context, athleteID int64, tokens *stravatoken.Data) error {
 	tokens.LastRefreshed = time.Now()
 
 	if _, err := s.tokensRef(athleteID).Set(ctx, tokens); err != nil {
