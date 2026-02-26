@@ -186,7 +186,9 @@ export default function SettingsPage() {
             >
               <CheckIcon />
               <span>{user.displayName || `Athlete ${user.uid}`}</span>
-              <span className="text-slate-light" style={{ fontSize: "0.75rem" }}>↗</span>
+              <span className="text-slate-light" style={{ fontSize: "0.75rem" }}>
+                ↗
+              </span>
             </a>
           </SettingRow>
 

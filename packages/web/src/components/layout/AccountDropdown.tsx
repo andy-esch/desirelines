@@ -55,7 +55,7 @@ const UserIcon = () => (
  * Account dropdown menu for the header
  *
  * Shows user information and auth controls in a dropdown:
- * - Authenticated: email, Strava status, Settings link, Sign Out
+ * - Authenticated: display name, Strava status, Settings link, Sign Out
  * - Demo mode: "Not logged in", Settings link, Sign In button
  */
 export function AccountDropdown({
@@ -237,7 +237,7 @@ export function AccountDropdown({
                 </div>
                 <div
                   className="flex items-center gap-1 mt-1"
-                  style={{ color: "#68d391", fontSize: "0.75rem" }}
+                  style={{ color: "var(--color-success)", fontSize: "0.75rem" }}
                 >
                   <CheckIcon />
                   <span>Connected to Strava</span>
