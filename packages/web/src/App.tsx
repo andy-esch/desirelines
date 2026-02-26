@@ -4,6 +4,7 @@ import { ServiceProvider } from "./contexts/ServiceContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UIStateProvider } from "./contexts/UIStateContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { ToastProvider } from "./contexts/ToastContext";
 import type { createAppRouter } from "./router";
 
 interface AppProps {
@@ -16,7 +17,9 @@ function App({ router }: AppProps) {
       <ServiceProvider>
         <AuthProvider>
           <UIStateProvider>
-            <RouterProvider router={router} />
+            <ToastProvider>
+              <RouterProvider router={router} />
+            </ToastProvider>
           </UIStateProvider>
         </AuthProvider>
       </ServiceProvider>
