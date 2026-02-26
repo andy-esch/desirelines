@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	firebaseauth "firebase.google.com/go/v4/auth"
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -66,6 +67,10 @@ func (m *mockFirebase) CustomToken(_ context.Context, uid string) (string, error
 	return m.token, m.err
 }
 
+func (m *mockFirebase) UpdateUser(_ context.Context, _ string, _ *firebaseauth.UserToUpdate) (*firebaseauth.UserRecord, error) {
+	return nil, nil
+}
+
 // --- Helper ---
 
 func newTestHandler(
@@ -73,7 +78,7 @@ func newTestHandler(
 	strava StravaOAuthClient,
 	tokens TokenStore,
 	allowlist AllowlistChecker,
-	firebase FirebaseTokenCreator,
+	firebase FirebaseAuthClient,
 ) *Handler {
 	t.Helper()
 	h, err := NewHandler(&HandlerConfig{
