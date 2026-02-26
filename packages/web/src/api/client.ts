@@ -22,6 +22,7 @@ function getClient() {
     }
     client = axios.create({
       baseURL: config.apiGatewayUrl,
+      timeout: 30_000,
     });
   }
   return client;
@@ -41,25 +42,36 @@ export function configureClientAuth(authService: AuthService): void {
   configured = true;
 
   const instance = getClient();
-  let authInitialized = false;
+  let authInitPromise: Promise<boolean> | null = null;
 
   instance.interceptors.request.use(async (config) => {
-    // Wait for initial auth state with timeout (only on first request)
-    if (!authInitialized) {
-      const timeoutPromise = new Promise<false>((resolve) => {
-        setTimeout(() => resolve(false), AUTH_READY_TIMEOUT_MS);
-      });
-      const authPromise = authService.waitForAuthReady().then(() => true as const);
-      const ready = await Promise.race([authPromise, timeoutPromise]);
+    // Wait for initial auth state with timeout (only on first request).
+    // Uses a shared promise so concurrent requests coalesce into one wait.
+    if (!authInitPromise) {
+      authInitPromise = (async () => {
+        try {
+          const timeoutPromise = new Promise<false>((resolve) => {
+            setTimeout(() => resolve(false), AUTH_READY_TIMEOUT_MS);
+          });
+          const authPromise = authService.waitForAuthReady().then(() => true as const);
+          return await Promise.race([authPromise, timeoutPromise]);
+        } catch (e) {
+          console.error(
+            "Auth initialization failed:",
+            e instanceof Error ? e.message : "unknown error"
+          );
+          return false;
+        }
+      })();
+    }
 
-      if (!ready) {
-        console.error(
-          `Auth initialization timed out after ${AUTH_READY_TIMEOUT_MS}ms. ` +
-            "Request will proceed without auth token and likely receive 401."
-        );
-        return config;
-      }
-      authInitialized = true;
+    const ready = await authInitPromise;
+    if (!ready) {
+      console.error(
+        `Auth initialization timed out after ${AUTH_READY_TIMEOUT_MS}ms. ` +
+          "Request will proceed without auth token and likely receive 401."
+      );
+      return config;
     }
 
     const user = authService.getCurrentUser();

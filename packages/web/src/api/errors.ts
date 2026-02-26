@@ -117,16 +117,16 @@ export function logApiError(err: unknown, context: string): void {
  * @throws Error - Always throws (auth error or original error)
  */
 export function throwApiError(err: unknown, context: string): never {
+  // Strip Authorization header before any logging or re-throwing
+  // to prevent token leakage in error handlers, loggers, or crash reporters
+  if (axios.isAxiosError(err) && err.config?.headers) {
+    delete err.config.headers.Authorization;
+  }
   if (isAuthError(err)) {
     logApiError(err, context);
     throw createAuthError();
   }
   logApiError(err, context);
-  // Strip Authorization header from Axios errors before re-throwing
-  // to prevent token leakage in error handlers, loggers, or crash reporters
-  if (axios.isAxiosError(err) && err.config?.headers) {
-    delete err.config.headers.Authorization;
-  }
   if (err instanceof Error) {
     throw err;
   }
