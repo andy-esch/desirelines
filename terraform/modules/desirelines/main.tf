@@ -601,6 +601,13 @@ resource "google_project_iam_member" "api_gateway_firestore" {
   member  = "serviceAccount:${google_service_account.api_gateway.email}"
 }
 
+# Dispatcher needs Firestore access to read/write Strava OAuth tokens
+resource "google_project_iam_member" "dispatcher_firestore" {
+  project = var.gcp_project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.dispatcher.email}"
+}
+
 # API Gateway access to allowed emails secret
 resource "google_secret_manager_secret_iam_member" "api_gateway_allowed_emails_access" {
   project   = var.gcp_project_id
