@@ -14,15 +14,15 @@ interface AppProps {
 function App({ router }: AppProps) {
   return (
     <ThemeProvider>
-      <ServiceProvider>
-        <AuthProvider>
-          <UIStateProvider>
-            <ToastProvider>
+      <ToastProvider>
+        <ServiceProvider>
+          <AuthProvider>
+            <UIStateProvider>
               <RouterProvider router={router} />
-            </ToastProvider>
-          </UIStateProvider>
-        </AuthProvider>
-      </ServiceProvider>
+            </UIStateProvider>
+          </AuthProvider>
+        </ServiceProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }
