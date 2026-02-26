@@ -236,7 +236,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	// For CREATE events, fetch the activity from Strava API
 	if webhook.AspectType == generated.AspectType_ASPECT_TYPE_CREATE {
-		rawActivity, fetchErr := h.stravaClient.FetchActivity(r.Context(), webhook.ObjectId)
+		rawActivity, fetchErr := h.stravaClient.FetchActivity(r.Context(), webhook.OwnerId, webhook.ObjectId)
 		if fetchErr != nil {
 			if errors.Is(fetchErr, ports.ErrActivityNotFound) {
 				// Activity was deleted before we could fetch it - publish without activity data

@@ -9,18 +9,27 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
-// newTestClient creates a Client pointing at the given test server.
-func newTestClient(server *httptest.Server) *Client {
+const (
+	testOwnerID         int64 = 67890
+	testActivityPath          = "/api/v3/activities/12345"
+	testTokenPath             = "/oauth/token" //nolint:gosec // URL path, not credential
+	testActivityID      int64 = 12345
+	testSmallActivityID int64 = 1
+)
+
+// newTestClient creates a Client pointing at the given test server with a mock token store.
+func newTestClient(server *httptest.Server, tokenStore *portstest.MockTokenStore) *Client {
 	return &Client{
 		httpClient:   server.Client(),
 		clientID:     "test-id",
 		clientSecret: "test-secret",
-		refreshToken: "test-refresh",
-		accessToken:  "test-access-token",
-		tokenURL:     server.URL + "/oauth/token",
+		tokenStore:   tokenStore,
+		tokenURL:     server.URL + testTokenPath,
 		apiBase:      server.URL + "/api/v3",
 		logger:       gcplog.NewNoOpLogger(),
 	}
@@ -30,7 +39,7 @@ func TestFetchActivity_Success(t *testing.T) {
 	expectedBody := `{"id":12345,"name":"Morning Run","distance":5000}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v3/activities/12345" {
+		if r.URL.Path == testActivityPath {
 			auth := r.Header.Get("Authorization")
 			if auth != "Bearer test-access-token" {
 				t.Errorf("unexpected Authorization header: %s", auth)
@@ -46,9 +55,14 @@ func TestFetchActivity_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := newTestClient(server)
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.StravaTokenData{
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
+		},
+	}
+	client := newTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), 12345)
+	body, err := client.FetchActivity(context.Background(), testOwnerID, 12345)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
@@ -67,9 +81,14 @@ func TestFetchActivity_NotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := newTestClient(server)
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.StravaTokenData{
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
+		},
+	}
+	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), 99999)
+	_, err := client.FetchActivity(context.Background(), testOwnerID, 99999)
 	if err == nil {
 		t.Fatal("expected error for 404")
 	}
@@ -83,14 +102,16 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/oauth/token":
+		case testTokenPath:
 			w.WriteHeader(http.StatusOK)
-			if err := json.NewEncoder(w).Encode(map[string]string{
-				"access_token": "new-access-token",
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "new-access-token",
+				"refresh_token": "new-refresh-token",
+				"expires_at":    1234567890,
 			}); err != nil {
 				t.Errorf("failed to encode response: %v", err)
 			}
-		case "/api/v3/activities/12345":
+		case testActivityPath:
 			count := callCount.Add(1)
 			auth := r.Header.Get("Authorization")
 
@@ -116,10 +137,14 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := newTestClient(server)
-	client.accessToken = "old-token"
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.StravaTokenData{
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
+		},
+	}
+	client := newTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), 12345)
+	body, err := client.FetchActivity(context.Background(), testOwnerID, 12345)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
@@ -127,15 +152,26 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 	if string(body) != `{"id":12345}` {
 		t.Errorf("body = %s, want %s", string(body), `{"id":12345}`)
 	}
+
+	// Verify tokens were written back
+	written, ok := tokenStore.WrittenTokens[testOwnerID]
+	if !ok {
+		t.Fatal("expected tokens to be written back after refresh")
+	}
+	if written.AccessToken != "new-access-token" {
+		t.Errorf("written access token = %s, want new-access-token", written.AccessToken)
+	}
 }
 
 func TestFetchActivity_LazyTokenRefresh(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/oauth/token":
+		case testTokenPath:
 			w.WriteHeader(http.StatusOK)
-			if err := json.NewEncoder(w).Encode(map[string]string{
-				"access_token": "fresh-token",
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "fresh-token",
+				"refresh_token": "new-refresh",
+				"expires_at":    1234567890,
 			}); err != nil {
 				t.Errorf("failed to encode response: %v", err)
 			}
@@ -156,10 +192,14 @@ func TestFetchActivity_LazyTokenRefresh(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := newTestClient(server)
-	client.accessToken = "" // Empty triggers lazy refresh
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.StravaTokenData{
+			testOwnerID: {AccessToken: "", RefreshToken: "test-refresh"}, // Empty triggers lazy refresh
+		},
+	}
+	client := newTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), 1)
+	body, err := client.FetchActivity(context.Background(), testOwnerID, 1)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
@@ -180,9 +220,14 @@ func TestFetchActivity_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := newTestClient(server)
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.StravaTokenData{
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
+		},
+	}
+	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), 12345)
+	_, err := client.FetchActivity(context.Background(), testOwnerID, 12345)
 	if err == nil {
 		t.Fatal("expected error for 500")
 	}
@@ -190,5 +235,43 @@ func TestFetchActivity_ServerError(t *testing.T) {
 	// Should have retried activityRetryAttempts times
 	if int(callCount.Load()) != activityRetryAttempts {
 		t.Errorf("expected %d attempts, got %d", activityRetryAttempts, callCount.Load())
+	}
+}
+
+func TestFetchActivity_WriteBackFailureReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "new-access-token",
+				"refresh_token": "new-refresh-token",
+				"expires_at":    1234567890,
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case testActivityPath:
+			// Return 401 to trigger a refresh
+			w.WriteHeader(http.StatusUnauthorized)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.StravaTokenData{
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
+		},
+		WriteErr: errors.New("firestore write failed"),
+	}
+	client := newTestClient(server, tokenStore)
+
+	_, err := client.FetchActivity(context.Background(), testOwnerID, 12345)
+	if err == nil {
+		t.Fatal("expected error when token write-back fails")
+	}
+	if !errors.Is(err, ErrStravaAuth) {
+		t.Errorf("expected ErrStravaAuth, got %v", err)
 	}
 }

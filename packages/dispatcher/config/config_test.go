@@ -26,6 +26,7 @@ func unsetEnv(t *testing.T, key string) {
 func TestLoadConfig_EnvVars(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("FIRESTORE_DATABASE", "test-db")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -51,6 +52,7 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	// Set required env vars
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("FIRESTORE_DATABASE", "test-db")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -100,9 +102,24 @@ func TestLoadConfig_MissingGCPPubSubTopic(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_MissingFirestoreDatabase(t *testing.T) {
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	unsetEnv(t, "FIRESTORE_DATABASE")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Error("Expected error for missing FIRESTORE_DATABASE, got nil")
+	}
+	if err != nil && err.Error() != "required environment variable FIRESTORE_DATABASE is not set" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
 func TestLoadConfig_CustomTimeouts(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("FIRESTORE_DATABASE", "test-db")
 	t.Setenv("HTTP_READ_TIMEOUT", "45s")
 	t.Setenv("HTTP_WRITE_TIMEOUT", "1m")
 	t.Setenv("HTTP_READ_HEADER_TIMEOUT", "15s")
@@ -130,6 +147,7 @@ func TestLoadConfig_CustomTimeouts(t *testing.T) {
 func TestLoadConfig_InvalidTimeout(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("FIRESTORE_DATABASE", "test-db")
 	t.Setenv("HTTP_READ_TIMEOUT", "invalid")
 
 	_, err := LoadConfig()
@@ -141,6 +159,7 @@ func TestLoadConfig_InvalidTimeout(t *testing.T) {
 func TestLoadConfig_NegativeTimeout(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("FIRESTORE_DATABASE", "test-db")
 	t.Setenv("HTTP_READ_TIMEOUT", "-5s")
 
 	_, err := LoadConfig()
@@ -152,6 +171,7 @@ func TestLoadConfig_NegativeTimeout(t *testing.T) {
 func TestLoadConfig_InvalidBodySize(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("FIRESTORE_DATABASE", "test-db")
 	t.Setenv("MAX_REQUEST_BODY_SIZE", "not-a-number")
 
 	_, err := LoadConfig()

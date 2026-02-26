@@ -4,7 +4,7 @@
 // This file serves as the composition root - it wires together all dependencies
 // following hexagonal architecture principles. Dependencies flow inward:
 //
-//	main.go → handler → port interfaces → adapters (pubsub, strava, env)
+//	main.go → handler → port interfaces → adapters (pubsub, strava, env, firestore)
 package main
 
 import (
@@ -17,7 +17,9 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	envadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/env"
+	firestoreadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/firestore"
 	httpadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/http"
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/pubsub"
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
@@ -113,9 +115,10 @@ func run(log *slog.Logger) error {
 
 // Dependencies holds all initialized dependencies for the dispatcher.
 type Dependencies struct {
-	publisher *pubsub.Publisher
-	handler   *httpadapter.Handler
-	logger    *slog.Logger
+	publisher       *pubsub.Publisher
+	firestoreClient *firestore.Client
+	handler         *httpadapter.Handler
+	logger          *slog.Logger
 }
 
 // Close releases all dependency resources.
@@ -124,6 +127,9 @@ func (d *Dependencies) Close() {
 	defer cancel()
 	if err := d.publisher.Close(closeCtx); err != nil {
 		d.logger.Error("Failed to close publisher", "error", err)
+	}
+	if err := d.firestoreClient.Close(); err != nil {
+		d.logger.Error("Failed to close Firestore client", "error", err)
 	}
 }
 
@@ -138,9 +144,17 @@ func initDependencies(cfg *config.Config, log *slog.Logger) (*Dependencies, erro
 		return nil, fmt.Errorf("pubsub publisher: %w", err)
 	}
 
+	firestoreClient, err := firestore.NewClientWithDatabase(startupCtx, cfg.GCPProjectID, cfg.FirestoreDatabase)
+	if err != nil {
+		return nil, fmt.Errorf("firestore client: %w", err)
+	}
+	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
+
+	tokenStore := firestoreadapter.NewTokenStore(firestoreClient, log)
+
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 
-	stravaClient, err := strava.NewClient(log)
+	stravaClient, err := strava.NewClient(tokenStore, log)
 	if err != nil {
 		return nil, fmt.Errorf("strava client: %w", err)
 	}
@@ -159,8 +173,9 @@ func initDependencies(cfg *config.Config, log *slog.Logger) (*Dependencies, erro
 	})
 
 	return &Dependencies{
-		publisher: publisher,
-		handler:   handler,
-		logger:    log,
+		publisher:       publisher,
+		firestoreClient: firestoreClient,
+		handler:         handler,
+		logger:          log,
 	}, nil
 }

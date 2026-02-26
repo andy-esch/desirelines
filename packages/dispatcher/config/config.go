@@ -26,6 +26,7 @@ const (
 type Config struct {
 	GCPProjectID       string
 	GCPPubSubTopicID   string
+	FirestoreDatabase  string
 	ReadTimeout        time.Duration
 	WriteTimeout       time.Duration
 	ReadHeaderTimeout  time.Duration
@@ -45,6 +46,11 @@ func LoadConfig() (*Config, error) {
 	gcpPubSubTopicID := os.Getenv("GCP_PUBSUB_TOPIC")
 	if gcpPubSubTopicID == "" {
 		return nil, fmt.Errorf("required environment variable GCP_PUBSUB_TOPIC is not set")
+	}
+
+	firestoreDatabase := os.Getenv("FIRESTORE_DATABASE")
+	if firestoreDatabase == "" {
+		return nil, fmt.Errorf("required environment variable FIRESTORE_DATABASE is not set")
 	}
 
 	readTimeout, err := parseDurationEnv("HTTP_READ_TIMEOUT", DefaultReadTimeout)
@@ -70,6 +76,7 @@ func LoadConfig() (*Config, error) {
 	return &Config{
 		GCPProjectID:       gcpProjectID,
 		GCPPubSubTopicID:   gcpPubSubTopicID,
+		FirestoreDatabase:  firestoreDatabase,
 		ReadTimeout:        readTimeout,
 		WriteTimeout:       writeTimeout,
 		ReadHeaderTimeout:  readHeaderTimeout,
