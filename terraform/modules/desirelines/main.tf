@@ -397,15 +397,6 @@ resource "google_secret_manager_secret" "strava_client_secret" {
   labels = { environment = var.environment, purpose = "strava-api", managed_by = "infisical" }
 }
 
-resource "google_secret_manager_secret" "strava_refresh_token" {
-  secret_id = "INFISICAL_STRAVA_REFRESH_TOKEN"
-  project   = var.gcp_project_id
-  replication {
-    auto {}
-  }
-  labels = { environment = var.environment, purpose = "strava-api", managed_by = "infisical" }
-}
-
 resource "google_secret_manager_secret" "strava_webhook_verify_token" {
   secret_id = "INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN"
   project   = var.gcp_project_id
@@ -452,7 +443,6 @@ resource "google_secret_manager_secret_iam_member" "dispatcher_api_tokens" {
   for_each = toset([
     google_secret_manager_secret.strava_client_id.secret_id,
     google_secret_manager_secret.strava_client_secret.secret_id,
-    google_secret_manager_secret.strava_refresh_token.secret_id
   ])
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
