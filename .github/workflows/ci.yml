@@ -4,7 +4,8 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches-ignore:
+      - main
 
 # Cancel in-progress CI runs when a new commit is pushed
 concurrency:
@@ -360,3 +361,4 @@ jobs:
           terraform fmt -check
           terraform init -backend=false
           terraform validate
+
