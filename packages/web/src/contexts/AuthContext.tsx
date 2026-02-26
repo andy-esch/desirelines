@@ -84,13 +84,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       await authService.signOut();
-      showToast("Signed out", "warning");
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Sign out failed");
       console.error("Sign out error:", error);
       setError(error);
       throw error;
     }
+    showToast("Signed out");
   }, [authService, showToast]);
 
   const value = useMemo(
