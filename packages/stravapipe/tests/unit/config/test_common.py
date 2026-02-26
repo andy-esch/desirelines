@@ -48,16 +48,13 @@ def test_load_secrets_from_volumes_multiple():
 def test_load_strava_secrets(monkeypatch):
     """Test loading and mapping of Strava secrets."""
 
-    # Mock file reading to return some secrets and miss others
+    # Mock file reading to return secrets from volumes
     def mock_file_open(file, *args, **kwargs):
         if "INFISICAL_STRAVA_CLIENT_ID" in file:
             return mock_open(read_data="12345").return_value
         if "INFISICAL_STRAVA_CLIENT_SECRET" in file:
             return mock_open(read_data="secret-abc").return_value
         raise FileNotFoundError
-
-    # Mock environment variable for the missing secret
-    monkeypatch.setenv("STRAVA_REFRESH_TOKEN", "refresh-xyz")
 
     with patch("builtins.open", side_effect=mock_file_open):
         secrets = load_strava_secrets()
@@ -67,11 +64,3 @@ def test_load_strava_secrets(monkeypatch):
         "strava_client_id": "12345",
         "strava_client_secret": "secret-abc",
     }
-    # Note: Env vars are logged but NOT added to the returned dictionary
-    # because load_strava_secrets currently only returns what was found in volumes.
-    # The config class (Pydantic) handles the env var fallback separately.
-    # Wait, the logic in load_strava_secrets says:
-    # "Log fallbacks... return {remapped keys from volumes}"
-    # So the return value should ONLY contain the volume secrets.
-
-    assert "strava_refresh_token" not in secrets

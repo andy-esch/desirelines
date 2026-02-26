@@ -47,6 +47,17 @@ func newTestStore(t *testing.T) *TokenStore {
 	return NewTokenStore(client, gcplog.NewNoOpLogger())
 }
 
+// seedTokens writes a full token document directly via Set, simulating what
+// apigateway does during OAuth. This ensures the document exists before
+// WriteTokens (which uses Update) is called.
+func seedTokens(t *testing.T, store *TokenStore, athleteID int64, tokens *stravatoken.Data) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := store.tokensRef(athleteID).Set(ctx, tokens); err != nil {
+		t.Fatalf("seedTokens() error = %v", err)
+	}
+}
+
 func TestTokenStore_GetTokens_NotFound(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
@@ -65,15 +76,24 @@ func TestTokenStore_WriteAndRead(t *testing.T) {
 	ctx := context.Background()
 	athleteID := int64(12345)
 
-	tokens := &stravatoken.Data{
-		AccessToken:  "test-access",
-		RefreshToken: "test-refresh",
+	// Seed the document first (simulates apigateway OAuth write).
+	initial := &stravatoken.Data{
+		AccessToken:  "initial-access",
+		RefreshToken: "initial-refresh",
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
 		Scopes:       "read,activity:read_all",
 		ConnectedAt:  time.Now().Truncate(time.Millisecond),
 	}
+	seedTokens(t, store, athleteID, initial)
 
-	if err := store.WriteTokens(ctx, athleteID, tokens); err != nil {
+	// WriteTokens updates only the dispatcher-owned fields.
+	refreshed := &stravatoken.Data{
+		AccessToken:  "test-access",
+		RefreshToken: "test-refresh",
+		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
+	}
+
+	if err := store.WriteTokens(ctx, athleteID, refreshed); err != nil {
 		t.Fatalf("WriteTokens() error = %v", err)
 	}
 
@@ -82,13 +102,72 @@ func TestTokenStore_WriteAndRead(t *testing.T) {
 		t.Fatalf("GetTokens() error = %v", err)
 	}
 
-	if got.AccessToken != tokens.AccessToken {
-		t.Errorf("AccessToken = %s, want %s", got.AccessToken, tokens.AccessToken)
+	if got.AccessToken != refreshed.AccessToken {
+		t.Errorf("AccessToken = %s, want %s", got.AccessToken, refreshed.AccessToken)
 	}
-	if got.RefreshToken != tokens.RefreshToken {
-		t.Errorf("RefreshToken = %s, want %s", got.RefreshToken, tokens.RefreshToken)
+	if got.RefreshToken != refreshed.RefreshToken {
+		t.Errorf("RefreshToken = %s, want %s", got.RefreshToken, refreshed.RefreshToken)
 	}
 	if got.LastRefreshed.IsZero() {
 		t.Error("LastRefreshed should be set after WriteTokens")
+	}
+}
+
+func TestTokenStore_WriteTokens_PreservesOAuthFields(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	athleteID := int64(67890)
+
+	// Seed a full token document as apigateway would during OAuth.
+	connectedAt := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+	initial := &stravatoken.Data{
+		AccessToken:   "oauth-access",
+		RefreshToken:  "oauth-refresh",
+		ExpiresAt:     time.Now().Add(6 * time.Hour).Unix(),
+		Scopes:        "activity:read_all",
+		ConnectedAt:   connectedAt,
+		LastRefreshed: time.Now().Truncate(time.Millisecond),
+	}
+	seedTokens(t, store, athleteID, initial)
+
+	// Dispatcher refreshes tokens — only access_token, refresh_token,
+	// expires_at, and last_refreshed should change.
+	refreshed := &stravatoken.Data{
+		AccessToken:  "refreshed-access",
+		RefreshToken: "refreshed-refresh",
+		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
+		// Scopes and ConnectedAt are intentionally zero-valued here,
+		// simulating what the dispatcher passes after a Strava token refresh.
+	}
+
+	if err := store.WriteTokens(ctx, athleteID, refreshed); err != nil {
+		t.Fatalf("WriteTokens() error = %v", err)
+	}
+
+	got, err := store.GetTokens(ctx, athleteID)
+	if err != nil {
+		t.Fatalf("GetTokens() error = %v", err)
+	}
+
+	// Verify dispatcher-owned fields were updated.
+	if got.AccessToken != refreshed.AccessToken {
+		t.Errorf("AccessToken = %s, want %s", got.AccessToken, refreshed.AccessToken)
+	}
+	if got.RefreshToken != refreshed.RefreshToken {
+		t.Errorf("RefreshToken = %s, want %s", got.RefreshToken, refreshed.RefreshToken)
+	}
+	if got.ExpiresAt != refreshed.ExpiresAt {
+		t.Errorf("ExpiresAt = %d, want %d", got.ExpiresAt, refreshed.ExpiresAt)
+	}
+	if got.LastRefreshed.IsZero() {
+		t.Error("LastRefreshed should be set after WriteTokens")
+	}
+
+	// Verify apigateway-owned fields were NOT overwritten.
+	if got.Scopes != initial.Scopes {
+		t.Errorf("Scopes = %q, want %q (should be preserved)", got.Scopes, initial.Scopes)
+	}
+	if !got.ConnectedAt.Equal(connectedAt) {
+		t.Errorf("ConnectedAt = %v, want %v (should be preserved)", got.ConnectedAt, connectedAt)
 	}
 }

@@ -61,7 +61,6 @@ The dispatcher enriches CREATE events by fetching activity data from the Strava 
 |-------------|------------------|-------------|
 | `/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value` | `STRAVA_CLIENT_ID` | Strava API app client ID |
 | `/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value` | `STRAVA_CLIENT_SECRET` | Strava API app client secret |
-| `/etc/secrets/INFISICAL_STRAVA_REFRESH_TOKEN/value` | `STRAVA_REFRESH_TOKEN` | OAuth refresh token |
 
 ## Development
 

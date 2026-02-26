@@ -71,7 +71,6 @@ def load_strava_secrets() -> dict[str, str]:
     Standardizes the loading of:
     - INFISICAL_STRAVA_CLIENT_ID -> strava_client_id
     - INFISICAL_STRAVA_CLIENT_SECRET -> strava_client_secret
-    - INFISICAL_STRAVA_REFRESH_TOKEN -> strava_refresh_token
 
     Returns:
         Dictionary with mapped keys (field names for config model).
@@ -80,7 +79,6 @@ def load_strava_secrets() -> dict[str, str]:
     secret_mapping = {
         "INFISICAL_STRAVA_CLIENT_ID": "strava_client_id",
         "INFISICAL_STRAVA_CLIENT_SECRET": "strava_client_secret",
-        "INFISICAL_STRAVA_REFRESH_TOKEN": "strava_refresh_token",
     }
 
     secret_names = list(secret_mapping.keys())
