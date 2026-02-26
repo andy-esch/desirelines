@@ -227,10 +227,20 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 // so the frontend can show the athlete's name without a separate Firestore read.
 // Failures are logged but not propagated — profile sync is best-effort.
 func (h *Handler) syncFirebaseProfile(ctx context.Context, athleteID string, athlete StravaAthlete) {
-	displayName := strings.TrimSpace(athlete.FirstName + " " + athlete.LastName)
-	userUpdate := (&firebaseauth.UserToUpdate{}).DisplayName(displayName)
+	userUpdate := &firebaseauth.UserToUpdate{}
+	hasUpdate := false
+
+	if displayName := strings.TrimSpace(athlete.FirstName + " " + athlete.LastName); displayName != "" {
+		userUpdate.DisplayName(displayName)
+		hasUpdate = true
+	}
 	if athlete.Profile != "" {
-		userUpdate = userUpdate.PhotoURL(athlete.Profile)
+		userUpdate.PhotoURL(athlete.Profile)
+		hasUpdate = true
+	}
+
+	if !hasUpdate {
+		return
 	}
 	if _, err := h.firebase.UpdateUser(ctx, athleteID, userUpdate); err != nil {
 		h.logger.Warn("Failed to update Firebase user profile", "error", err, "athlete_id", athleteID)
