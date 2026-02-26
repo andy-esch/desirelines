@@ -53,9 +53,10 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 
 // WriteTokens writes updated Strava tokens for the given athlete to Firestore.
 func (s *TokenStore) WriteTokens(ctx context.Context, athleteID int64, tokens *stravatoken.Data) error {
-	tokens.LastRefreshed = time.Now()
+	dataToWrite := *tokens
+	dataToWrite.LastRefreshed = time.Now()
 
-	if _, err := s.tokensRef(athleteID).Set(ctx, tokens); err != nil {
+	if _, err := s.tokensRef(athleteID).Set(ctx, &dataToWrite); err != nil {
 		return fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
 	}
 

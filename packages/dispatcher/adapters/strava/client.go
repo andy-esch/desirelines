@@ -115,7 +115,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 	if tokens.AccessToken == "" {
 		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens)
 		if refreshErr != nil {
-			return nil, refreshErr
+			return nil, fmt.Errorf("%w: initial token refresh failed: %w", ErrStravaAuth, refreshErr)
 		}
 		tokens = refreshedTokens
 	}
@@ -210,6 +210,10 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 	for attempt := range tokenRetryAttempts {
 		newTokens, err := c.doRefreshToken(ctx, tokens.RefreshToken)
 		if err == nil {
+			// Strava may not always return a new refresh token; reuse the existing one.
+			if newTokens.RefreshToken == "" {
+				newTokens.RefreshToken = tokens.RefreshToken
+			}
 			if writeErr := c.tokenStore.WriteTokens(ctx, ownerID, newTokens); writeErr != nil {
 				return nil, fmt.Errorf("write-back tokens for athlete %d: %w", ownerID, writeErr)
 			}

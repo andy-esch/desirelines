@@ -161,6 +161,9 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 	if written.AccessToken != "new-access-token" {
 		t.Errorf("written access token = %s, want new-access-token", written.AccessToken)
 	}
+	if written.RefreshToken != "new-refresh-token" {
+		t.Errorf("written refresh token = %s, want new-refresh-token", written.RefreshToken)
+	}
 }
 
 func TestFetchActivity_LazyTokenRefresh(t *testing.T) {
