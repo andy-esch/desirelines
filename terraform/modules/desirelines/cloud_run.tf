@@ -82,6 +82,11 @@ resource "google_cloud_run_v2_service" "dispatcher" {
         value = var.app_config.log_level
       }
 
+      env {
+        name  = "FIRESTORE_DATABASE"
+        value = google_firestore_database.user_configs.name
+      }
+
       startup_probe {
         http_get {
           path = "/health"
@@ -127,7 +132,8 @@ resource "google_cloud_run_v2_service" "dispatcher" {
 
   depends_on = [
     google_secret_manager_secret_iam_member.dispatcher_webhook_tokens,
-    google_secret_manager_secret_iam_member.dispatcher_api_tokens
+    google_secret_manager_secret_iam_member.dispatcher_api_tokens,
+    google_project_iam_member.dispatcher_firestore
   ]
 }
 
