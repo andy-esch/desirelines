@@ -47,7 +47,13 @@ export class MockDatabaseService implements DatabaseService {
     callback((this.data.get(path) as T) ?? null);
 
     return () => {
-      this.listeners.get(path)?.delete(typedCallback);
+      const pathListeners = this.listeners.get(path);
+      if (pathListeners) {
+        pathListeners.delete(typedCallback);
+        if (pathListeners.size === 0) {
+          this.listeners.delete(path);
+        }
+      }
     };
   }
 
