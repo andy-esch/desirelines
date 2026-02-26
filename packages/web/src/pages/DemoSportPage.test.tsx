@@ -15,6 +15,10 @@ vi.mock("../hooks/useCurrentYear", () => ({
   useCurrentYear: () => 2026,
 }));
 
+vi.mock("../hooks/useUserProfile", () => ({
+  useUserProfile: () => ({ displayName: "Athlete", loading: false }),
+}));
+
 vi.mock("../hooks/useDemoData", () => ({
   useDemoData: () => ({
     metrics: null,

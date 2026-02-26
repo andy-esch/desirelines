@@ -15,6 +15,10 @@ vi.mock("../hooks/useCurrentYear", () => ({
   useCurrentYear: () => 2026,
 }));
 
+vi.mock("../hooks/useUserProfile", () => ({
+  useUserProfile: () => ({ displayName: "Athlete", loading: false }),
+}));
+
 const mockRetry = vi.fn();
 const mockOnGoalsChange = vi.fn();
 const mockOnMetricChange = vi.fn();

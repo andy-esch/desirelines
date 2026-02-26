@@ -56,6 +56,6 @@ export function useUserProfile() {
     profile: data ?? null,
     displayName,
     loading: isLoading || authLoading,
-    error: (error as Error | null) || null,
+    error,
   };
 }

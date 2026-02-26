@@ -8,6 +8,16 @@ vi.mock("../hooks/useAuth", () => ({
   useAuth: vi.fn(),
 }));
 
+// Mock useUserProfile hook
+vi.mock("../hooks/useUserProfile", () => ({
+  useUserProfile: vi.fn(() => ({
+    displayName: "Athlete",
+    loading: false,
+    profile: null,
+    error: null,
+  })),
+}));
+
 // Mock useUserConfig hook (used by useMultiSportChartData for distance unit preference)
 vi.mock("../hooks/useUserConfig", () => ({
   useUserConfig: vi.fn(() => ({ data: null, isLoading: false, error: null })),
@@ -124,7 +134,10 @@ vi.mock("recharts", () => ({
 }));
 
 import { useAuth } from "../hooks/useAuth";
+import { useUserProfile } from "../hooks/useUserProfile";
+
 const mockUseAuth = vi.mocked(useAuth);
+const mockUseUserProfile = vi.mocked(useUserProfile);
 
 const mockSignIn = vi.fn();
 const mockSignOut = vi.fn();
@@ -132,6 +145,13 @@ const mockSignOut = vi.fn();
 describe("Dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default mock implementation
+    mockUseUserProfile.mockReturnValue({
+      displayName: "Athlete",
+      loading: false,
+      profile: null,
+      error: null,
+    });
   });
 
   describe("loading state", () => {
@@ -142,6 +162,13 @@ describe("Dashboard", () => {
         error: null,
         signIn: mockSignIn,
         signOut: mockSignOut,
+      });
+      // Also set profile to loading
+      mockUseUserProfile.mockReturnValue({
+        displayName: "Athlete",
+        loading: true,
+        profile: null,
+        error: null,
       });
       const { container } = await renderWithRouter(<Dashboard />);
 
@@ -163,6 +190,12 @@ describe("Dashboard", () => {
         error: null,
         signIn: mockSignIn,
         signOut: mockSignOut,
+      });
+      mockUseUserProfile.mockReturnValue({
+        displayName: "Guest",
+        loading: false,
+        profile: null,
+        error: null,
       });
     });
 
@@ -193,6 +226,12 @@ describe("Dashboard", () => {
         error: null,
         signIn: mockSignIn,
         signOut: mockSignOut,
+      });
+      mockUseUserProfile.mockReturnValue({
+        displayName: "Jane Doe",
+        loading: false,
+        profile: { strava_athlete_id: 123, first_name: "Jane", last_name: "Doe" },
+        error: null,
       });
     });
 
