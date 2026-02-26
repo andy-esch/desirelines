@@ -241,6 +241,105 @@ func TestFetchActivity_ServerError(t *testing.T) {
 	}
 }
 
+func TestFetchActivity_PreservesExistingRefreshToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			// Strava response without refresh_token field
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "fresh-token",
+				"expires_at":   1234567890,
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case "/api/v3/activities/1":
+			auth := r.Header.Get("Authorization")
+			if auth != "Bearer fresh-token" {
+				t.Errorf("expected fresh-token, got %s", auth)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			if _, err := w.Write([]byte(`{"id":1}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "", RefreshToken: "original-refresh"},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	_, err := client.FetchActivity(context.Background(), testOwnerID, 1)
+	if err != nil {
+		t.Fatalf("FetchActivity() error = %v", err)
+	}
+
+	// Verify the existing refresh token was preserved when Strava didn't return one
+	written, ok := tokenStore.WrittenTokens[testOwnerID]
+	if !ok {
+		t.Fatal("expected tokens to be written back")
+	}
+	if written.RefreshToken != "original-refresh" {
+		t.Errorf("refresh token = %s, want original-refresh (should be preserved)", written.RefreshToken)
+	}
+	if written.AccessToken != "fresh-token" {
+		t.Errorf("access token = %s, want fresh-token", written.AccessToken)
+	}
+}
+
+func TestFetchActivity_Repeated401StopsAfterOneRefresh(t *testing.T) {
+	var tokenRefreshCount atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			tokenRefreshCount.Add(1)
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "refreshed-token",
+				"refresh_token": "new-refresh",
+				"expires_at":    1234567890,
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case testActivityPath:
+			// Always return 401 (simulates deauthorized user)
+			w.WriteHeader(http.StatusUnauthorized)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "old-refresh"},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected error for persistent 401")
+	}
+	if !errors.Is(err, ErrStravaAuth) {
+		t.Errorf("expected ErrStravaAuth, got %v", err)
+	}
+
+	// Should only refresh once, not on every retry attempt
+	if tokenRefreshCount.Load() != 1 {
+		t.Errorf("expected 1 token refresh, got %d (should stop after first refresh fails to fix 401)", tokenRefreshCount.Load())
+	}
+}
+
 func TestFetchActivity_WriteBackFailureReturnsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

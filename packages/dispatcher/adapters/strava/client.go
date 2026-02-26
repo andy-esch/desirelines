@@ -121,6 +121,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 	}
 
 	var lastErr error
+	authRefreshed := false
 	for attempt := range activityRetryAttempts {
 		body, fetchErr := c.doFetchActivity(ctx, activityID, tokens.AccessToken)
 		if fetchErr == nil {
@@ -132,14 +133,20 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 			return nil, fetchErr
 		}
 
-		// 401: refresh token and let the loop retry with the new token
+		// 401: refresh token once and retry. A second 401 after refresh
+		// means the user likely deauthorized — stop to avoid hammering
+		// both Strava's token endpoint and Firestore.
 		if isAuthError(fetchErr) {
+			if authRefreshed {
+				return nil, fmt.Errorf("%w: still unauthorized after token refresh", ErrStravaAuth)
+			}
 			c.logger.Warn("Strava 401, refreshing token", "activity_id", activityID, "owner_id", ownerID)
 			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens)
 			if refreshErr != nil {
 				return nil, fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
 			}
 			tokens = refreshedTokens
+			authRefreshed = true
 			lastErr = fetchErr
 			continue
 		}
