@@ -18,6 +18,4 @@ const (
 	SecretPathStravaClientID = "/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value" //nolint:gosec // Path, not credential
 	// SecretPathStravaClientSecret is the path to the Strava client secret.
 	SecretPathStravaClientSecret = "/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value" //nolint:gosec // Path, not credential
-	// SecretPathStravaRefreshToken is the path to the Strava refresh token secret.
-	SecretPathStravaRefreshToken = "/etc/secrets/INFISICAL_STRAVA_REFRESH_TOKEN/value" //nolint:gosec // Path, not credential
 )

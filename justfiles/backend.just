@@ -62,10 +62,10 @@ go-lint +args='':
     #!/usr/bin/env bash
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Linting Go with Pants..."
-        pants lint packages/dispatcher:: packages/apigateway::
+        pants lint packages/dispatcher:: packages/apigateway:: packages/shared::
     else
         echo "🐹 Linting Go with golangci-lint (fast)..."
-        golangci-lint run ./packages/dispatcher/... ./packages/apigateway/... {{args}}
+        golangci-lint run ./packages/dispatcher/... ./packages/apigateway/... ./packages/shared/... {{args}}
     fi
 
 # Format Go code (default: go fmt, use --pants for Pants)

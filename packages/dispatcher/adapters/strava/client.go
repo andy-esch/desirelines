@@ -12,12 +12,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/shared/secrets"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
 // Sentinel errors for Strava API failures.
@@ -56,18 +56,19 @@ const (
 type tokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	ExpiresAt    int64  `json:"expires_at"`
 }
 
 // Client implements ports.StravaClient by calling the Strava REST API.
+// Stateless: each FetchActivity call reads tokens from the TokenStore
+// and writes back refreshed tokens after a token refresh.
 type Client struct {
 	httpClient   *http.Client
 	clientID     string
 	clientSecret string
-	refreshToken string
-	accessToken  string
+	tokenStore   ports.TokenStore
 	tokenURL     string
 	apiBase      string
-	mu           sync.RWMutex
 	logger       *slog.Logger
 }
 
@@ -75,8 +76,9 @@ type Client struct {
 var _ ports.StravaClient = (*Client)(nil)
 
 // NewClient creates a new Strava API client.
-// Credentials are loaded from secret files or environment variables.
-func NewClient(logger *slog.Logger) (*Client, error) {
+// OAuth client credentials are loaded from secret files or environment variables.
+// Per-user tokens are read from the TokenStore on each request.
+func NewClient(tokenStore ports.TokenStore, logger *slog.Logger) (*Client, error) {
 	clientID, err := secrets.LoadFromMount(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
 	if err != nil {
 		return nil, fmt.Errorf("strava client_id: %w", err)
@@ -87,18 +89,13 @@ func NewClient(logger *slog.Logger) (*Client, error) {
 		return nil, fmt.Errorf("strava client_secret: %w", err)
 	}
 
-	refreshToken, err := secrets.LoadFromMount(config.SecretPathStravaRefreshToken, "STRAVA_REFRESH_TOKEN")
-	if err != nil {
-		return nil, fmt.Errorf("strava refresh_token: %w", err)
-	}
-
 	logger.Info("Strava client initialized")
 
 	return &Client{
 		httpClient:   &http.Client{Timeout: httpClientTimeout},
 		clientID:     clientID,
 		clientSecret: clientSecret,
-		refreshToken: refreshToken,
+		tokenStore:   tokenStore,
 		tokenURL:     defaultTokenURL,
 		apiBase:      defaultAPIBase,
 		logger:       logger,
@@ -106,43 +103,62 @@ func NewClient(logger *slog.Logger) (*Client, error) {
 }
 
 // FetchActivity retrieves the raw JSON for a Strava activity.
-// Retries on transient errors and refreshes the token on 401.
-func (c *Client) FetchActivity(ctx context.Context, activityID int64) ([]byte, error) {
-	// Ensure we have a valid access token
-	if err := c.ensureToken(ctx); err != nil {
-		return nil, err
+// Reads the owner's tokens from the TokenStore, retries on transient errors,
+// and refreshes + persists tokens on 401.
+func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) ([]byte, error) {
+	tokens, err := c.tokenStore.GetTokens(ctx, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("get tokens for athlete %d: %w", ownerID, err)
+	}
+
+	// If no access token, refresh first
+	if tokens.AccessToken == "" {
+		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens)
+		if refreshErr != nil {
+			return nil, fmt.Errorf("%w: initial token refresh failed: %w", ErrStravaAuth, refreshErr)
+		}
+		tokens = refreshedTokens
 	}
 
 	var lastErr error
+	authRefreshed := false
 	for attempt := range activityRetryAttempts {
-		body, err := c.doFetchActivity(ctx, activityID)
-		if err == nil {
+		body, fetchErr := c.doFetchActivity(ctx, activityID, tokens.AccessToken)
+		if fetchErr == nil {
 			return body, nil
 		}
 
 		// 404 is not retryable
-		if errors.Is(err, ErrActivityNotFound) {
-			return nil, err
+		if errors.Is(fetchErr, ErrActivityNotFound) {
+			return nil, fetchErr
 		}
 
-		// 401: refresh token and let the loop retry with the new token
-		if isAuthError(err) {
-			c.logger.Warn("Strava 401, refreshing token", "activity_id", activityID)
-			if refreshErr := c.refreshAccessToken(ctx); refreshErr != nil {
+		// 401: refresh token once and retry. A second 401 after refresh
+		// means the user likely deauthorized — stop to avoid hammering
+		// both Strava's token endpoint and Firestore.
+		if isAuthError(fetchErr) {
+			if authRefreshed {
+				return nil, fmt.Errorf("%w: still unauthorized after token refresh", ErrStravaAuth)
+			}
+			c.logger.Warn("Strava 401, refreshing token", "activity_id", activityID, "owner_id", ownerID)
+			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens)
+			if refreshErr != nil {
 				return nil, fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
 			}
-			lastErr = err
+			tokens = refreshedTokens
+			authRefreshed = true
+			lastErr = fetchErr
 			continue
 		}
 
-		lastErr = err
+		lastErr = fetchErr
 		if attempt < activityRetryAttempts-1 {
 			backoff := activityRetryBackoff * time.Duration(math.Pow(2, float64(attempt)))
 			c.logger.Warn("Strava fetch retry",
 				"activity_id", activityID,
 				"attempt", attempt+1,
 				"backoff", backoff,
-				"error", err,
+				"error", fetchErr,
 			)
 			select {
 			case <-ctx.Done():
@@ -156,7 +172,7 @@ func (c *Client) FetchActivity(ctx context.Context, activityID int64) ([]byte, e
 }
 
 // doFetchActivity performs a single GET request to the Strava activities endpoint.
-func (c *Client) doFetchActivity(ctx context.Context, activityID int64) ([]byte, error) {
+func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessToken string) ([]byte, error) {
 	reqURL := fmt.Sprintf("%s/activities/%d", c.apiBase, activityID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
@@ -164,11 +180,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64) ([]byte,
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	c.mu.RLock()
-	token := c.accessToken
-	c.mu.RUnlock()
-
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -197,25 +209,23 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64) ([]byte,
 	}
 }
 
-// ensureToken refreshes the access token if it hasn't been set yet.
-func (c *Client) ensureToken(ctx context.Context) error {
-	c.mu.RLock()
-	hasToken := c.accessToken != ""
-	c.mu.RUnlock()
-
-	if hasToken {
-		return nil
-	}
-	return c.refreshAccessToken(ctx)
-}
-
-// refreshAccessToken gets a new access token from Strava's OAuth endpoint.
-func (c *Client) refreshAccessToken(ctx context.Context) error {
+// refreshAndPersist refreshes Strava tokens and writes them back to the TokenStore.
+// Returns error if either the refresh or the write-back fails — callers must not
+// proceed with stale tokens if write-back fails.
+func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.Data) (*stravatoken.Data, error) {
 	var lastErr error
 	for attempt := range tokenRetryAttempts {
-		err := c.doRefreshToken(ctx)
+		newTokens, err := c.doRefreshToken(ctx, tokens.RefreshToken)
 		if err == nil {
-			return nil
+			// Strava may not always return a new refresh token; reuse the existing one.
+			if newTokens.RefreshToken == "" {
+				newTokens.RefreshToken = tokens.RefreshToken
+			}
+			if writeErr := c.tokenStore.WriteTokens(ctx, ownerID, newTokens); writeErr != nil {
+				return nil, fmt.Errorf("write-back tokens for athlete %d: %w", ownerID, writeErr)
+			}
+			c.logger.Info("Strava access token refreshed", "owner_id", ownerID)
+			return newTokens, nil
 		}
 		lastErr = err
 		if attempt < tokenRetryAttempts-1 {
@@ -227,32 +237,32 @@ func (c *Client) refreshAccessToken(ctx context.Context) error {
 			)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return nil, ctx.Err()
 			case <-time.After(backoff):
 			}
 		}
 	}
-	return fmt.Errorf("token refresh failed after %d attempts: %w", tokenRetryAttempts, lastErr)
+	return nil, fmt.Errorf("token refresh failed after %d attempts: %w", tokenRetryAttempts, lastErr)
 }
 
-// doRefreshToken performs a single token refresh request.
-func (c *Client) doRefreshToken(ctx context.Context) error {
+// doRefreshToken performs a single token refresh request and returns the new tokens.
+func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stravatoken.Data, error) {
 	form := url.Values{
 		"client_id":     {c.clientID},
 		"client_secret": {c.clientSecret},
-		"refresh_token": {c.refreshToken},
+		"refresh_token": {refreshToken},
 		"grant_type":    {"refresh_token"},
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.tokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return fmt.Errorf("create token request: %w", err)
+		return nil, fmt.Errorf("create token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("token request failed: %w", err)
+		return nil, fmt.Errorf("token request failed: %w", err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -262,31 +272,27 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
 	if err != nil {
-		return fmt.Errorf("failed to read token response body: %w", err)
+		return nil, fmt.Errorf("failed to read token response body: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("token refresh returned %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("token refresh returned %d: %s", resp.StatusCode, string(body))
 	}
 
 	var tokenResp tokenResponse
 	if unmarshalErr := json.Unmarshal(body, &tokenResp); unmarshalErr != nil {
-		return fmt.Errorf("decode token response: %w", unmarshalErr)
+		return nil, fmt.Errorf("decode token response: %w", unmarshalErr)
 	}
 
 	if tokenResp.AccessToken == "" {
-		return errors.New("token response missing access_token")
+		return nil, errors.New("token response missing access_token")
 	}
 
-	c.mu.Lock()
-	c.accessToken = tokenResp.AccessToken
-	if tokenResp.RefreshToken != "" {
-		c.refreshToken = tokenResp.RefreshToken
-	}
-	c.mu.Unlock()
-
-	c.logger.Info("Strava access token refreshed")
-	return nil
+	return &stravatoken.Data{
+		AccessToken:  tokenResp.AccessToken,
+		RefreshToken: tokenResp.RefreshToken,
+		ExpiresAt:    tokenResp.ExpiresAt,
+	}, nil
 }
 
 // authError is an internal error type for 401 responses.

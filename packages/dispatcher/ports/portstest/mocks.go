@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
 // MockPublisher is a mock implementation of the Publisher interface for testing.
@@ -68,10 +70,49 @@ type MockStravaClient struct {
 	FetchErr error
 	// FetchedIDs tracks which activity IDs were fetched.
 	FetchedIDs []int64
+	// FetchedOwnerIDs tracks which owner IDs were passed.
+	FetchedOwnerIDs []int64
 }
 
 // FetchActivity implements the StravaClient interface.
-func (m *MockStravaClient) FetchActivity(_ context.Context, activityID int64) ([]byte, error) {
+func (m *MockStravaClient) FetchActivity(_ context.Context, ownerID, activityID int64) ([]byte, error) {
+	m.FetchedOwnerIDs = append(m.FetchedOwnerIDs, ownerID)
 	m.FetchedIDs = append(m.FetchedIDs, activityID)
 	return m.FetchResult, m.FetchErr
+}
+
+// MockTokenStore is a mock implementation of TokenStore for testing.
+type MockTokenStore struct {
+	// Tokens maps athlete IDs to their token data.
+	Tokens map[int64]*stravatoken.Data
+	// GetErr is returned by GetTokens (overrides Tokens lookup).
+	GetErr error
+	// WriteErr is returned by WriteTokens.
+	WriteErr error
+	// WrittenTokens tracks tokens written by WriteTokens.
+	WrittenTokens map[int64]*stravatoken.Data
+}
+
+// GetTokens implements the TokenStore interface.
+func (m *MockTokenStore) GetTokens(_ context.Context, athleteID int64) (*stravatoken.Data, error) {
+	if m.GetErr != nil {
+		return nil, m.GetErr
+	}
+	tokens, ok := m.Tokens[athleteID]
+	if !ok {
+		return nil, ports.ErrTokenNotFound
+	}
+	return tokens, nil
+}
+
+// WriteTokens implements the TokenStore interface.
+func (m *MockTokenStore) WriteTokens(_ context.Context, athleteID int64, tokens *stravatoken.Data) error {
+	if m.WriteErr != nil {
+		return m.WriteErr
+	}
+	if m.WrittenTokens == nil {
+		m.WrittenTokens = make(map[int64]*stravatoken.Data)
+	}
+	m.WrittenTokens[athleteID] = tokens
+	return nil
 }
