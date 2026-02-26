@@ -1,6 +1,10 @@
 package auth
 
-import "context"
+import (
+	"context"
+
+	firebaseauth "firebase.google.com/go/v4/auth"
+)
 
 // StravaOAuthClient exchanges an authorization code for tokens.
 type StravaOAuthClient interface {
@@ -19,9 +23,9 @@ type AllowlistChecker interface {
 	IsAllowed(ctx context.Context, athleteID string) (bool, error)
 }
 
-// FirebaseTokenCreator creates Firebase Custom Auth tokens.
-// firebase.google.com/go/v4/auth.Client satisfies this interface directly
-// via its CustomToken method.
-type FirebaseTokenCreator interface {
+// FirebaseAuthClient creates Firebase Custom Auth tokens and manages user profiles.
+// firebase.google.com/go/v4/auth.Client satisfies this interface directly.
+type FirebaseAuthClient interface {
 	CustomToken(ctx context.Context, uid string) (string, error)
+	UpdateUser(ctx context.Context, uid string, user *firebaseauth.UserToUpdate) (*firebaseauth.UserRecord, error)
 }

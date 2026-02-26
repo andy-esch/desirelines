@@ -261,7 +261,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 }
 
 // initAuthHandler creates the OAuth auth handler with all its dependencies.
-func initAuthHandler(authClient auth.FirebaseTokenCreator, firestoreClient *firestore.Client, log *slog.Logger) (*auth.Handler, error) {
+func initAuthHandler(authClient auth.FirebaseAuthClient, firestoreClient *firestore.Client, log *slog.Logger) (*auth.Handler, error) {
 	// Load Strava OAuth credentials
 	const stravaClientIDPath = "/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value"
 	const stravaClientSecretPath = "/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value" //nolint:gosec // G101: Not credentials, just a file path

@@ -172,19 +172,24 @@ export default function SettingsPage() {
 
       {user && (
         <SettingsSection title="Account">
-          <SettingRow label="Email" readOnly>
-            <span className="text-slate-light">{user.email || "—"}</span>
-          </SettingRow>
-
           <SettingRow label="Name" readOnly>
             <span className="text-slate-light">{user.displayName || "—"}</span>
           </SettingRow>
 
-          <SettingRow label="Connected Account" readOnly>
-            <span className="flex items-center gap-1" style={{ color: "var(--color-success)" }}>
+          <SettingRow label="Strava Profile" readOnly>
+            <a
+              href={`https://www.strava.com/athletes/${user.uid}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:underline"
+              style={{ color: "var(--color-success)" }}
+            >
               <CheckIcon />
-              Strava
-            </span>
+              <span>{user.displayName || `Athlete ${user.uid}`}</span>
+              <span className="text-slate-light" style={{ fontSize: "0.75rem" }}>
+                ↗
+              </span>
+            </a>
           </SettingRow>
 
           <div className="pt-6">

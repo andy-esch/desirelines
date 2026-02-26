@@ -55,7 +55,7 @@ const UserIcon = () => (
  * Account dropdown menu for the header
  *
  * Shows user information and auth controls in a dropdown:
- * - Authenticated: email, Strava status, Settings link, Sign Out
+ * - Authenticated: display name, Strava status, Settings link, Sign Out
  * - Demo mode: "Not logged in", Settings link, Sign In button
  */
 export function AccountDropdown({
@@ -204,7 +204,7 @@ export function AccountDropdown({
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="menu"
-        aria-label={user ? `Account menu for ${user.email}` : "Account menu"}
+        aria-label={user ? `Account menu for ${user.displayName || user.uid}` : "Account menu"}
       >
         <UserIcon />
         <ChevronDownIcon size={10} className="opacity-60" />
@@ -232,28 +232,12 @@ export function AccountDropdown({
                     whiteSpace: "nowrap",
                     maxWidth: "200px",
                   }}
-                  title={user.email || undefined}
                 >
-                  {user.displayName || user.email}
+                  {user.displayName || "Athlete"}
                 </div>
-                {user.displayName && user.email && (
-                  <div
-                    className="text-white/50"
-                    style={{
-                      fontSize: "0.7rem",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      maxWidth: "200px",
-                    }}
-                    title={user.email}
-                  >
-                    {user.email}
-                  </div>
-                )}
                 <div
                   className="flex items-center gap-1 mt-1"
-                  style={{ color: "#68d391", fontSize: "0.75rem" }}
+                  style={{ color: "var(--color-success)", fontSize: "0.75rem" }}
                 >
                   <CheckIcon />
                   <span>Connected to Strava</span>

@@ -45,7 +45,7 @@
 //   - [StravaOAuthClient]: Exchanges authorization code for tokens
 //   - [TokenStore]: Writes tokens and profile to Firestore
 //   - [AllowlistChecker]: Checks if athlete is invited
-//   - [FirebaseTokenCreator]: Creates Firebase custom auth tokens
+//   - [FirebaseAuthClient]: Creates Firebase custom auth tokens and manages user profiles
 //
 // All dependencies are injected via [HandlerConfig] and [NewHandler].
 // Production adapters live in adapters/strava/ and adapters/firestore/.

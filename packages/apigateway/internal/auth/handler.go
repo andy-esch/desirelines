@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	firebaseauth "firebase.google.com/go/v4/auth"
 )
 
 const stravaAuthorizeURL = "https://www.strava.com/oauth/authorize"
@@ -21,7 +23,7 @@ type HandlerConfig struct {
 	Strava      StravaOAuthClient
 	Tokens      TokenStore
 	Allowlist   AllowlistChecker
-	Firebase    FirebaseTokenCreator
+	Firebase    FirebaseAuthClient
 	StateSecret []byte
 	FrontendURL string
 	ClientID    string // Strava client ID (for authorize URL)
@@ -34,7 +36,7 @@ type Handler struct {
 	strava      StravaOAuthClient
 	tokens      TokenStore
 	allowlist   AllowlistChecker
-	firebase    FirebaseTokenCreator
+	firebase    FirebaseAuthClient
 	stateSecret []byte
 	frontendURL *url.URL
 	clientID    string
@@ -199,6 +201,9 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sync Strava profile to Firebase user record (non-fatal on failure)
+	h.syncFirebaseProfile(ctx, athleteID, tokenResp.Athlete)
+
 	// Create Firebase custom token
 	customToken, err := h.firebase.CustomToken(ctx, athleteID)
 	if err != nil {
@@ -216,6 +221,30 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	u := h.frontendURL.JoinPath("auth", "complete")
 	u.Fragment = "token=" + url.QueryEscape(customToken)
 	http.Redirect(w, r, u.String(), http.StatusFound)
+}
+
+// syncFirebaseProfile sets the display name and photo on the Firebase user record
+// so the frontend can show the athlete's name without a separate Firestore read.
+// Failures are logged but not propagated — profile sync is best-effort.
+func (h *Handler) syncFirebaseProfile(ctx context.Context, athleteID string, athlete StravaAthlete) {
+	userUpdate := &firebaseauth.UserToUpdate{}
+	hasUpdate := false
+
+	if displayName := strings.TrimSpace(athlete.FirstName + " " + athlete.LastName); displayName != "" {
+		userUpdate.DisplayName(displayName)
+		hasUpdate = true
+	}
+	if athlete.Profile != "" {
+		userUpdate.PhotoURL(athlete.Profile)
+		hasUpdate = true
+	}
+
+	if !hasUpdate {
+		return
+	}
+	if _, err := h.firebase.UpdateUser(ctx, athleteID, userUpdate); err != nil {
+		h.logger.Warn("Failed to update Firebase user profile", "error", err, "athlete_id", athleteID)
+	}
 }
 
 // redirectError redirects the user to the frontend error page with an error code.
