@@ -23,7 +23,7 @@ import type { Preferences } from "../types/generated/user_config";
  * Custom 80s-style avatar icon for the settings page
  */
 const LargeUserAvatar = () => (
-  <div className="relative w-24 h-24 md:w-32 md:h-24 flex-shrink-0">
+  <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0">
     <svg width="100%" height="100%" viewBox="0 0 40 40" className="drop-shadow-lg">
       <circle
         cx="20"
@@ -169,7 +169,7 @@ export default function SettingsPage() {
                     className="inline-flex items-center justify-center md:justify-start gap-1 text-accent-cyan hover:underline text-sm font-medium"
                   >
                     View Strava Profile
-                    <span style={{ fontSize: "0.75rem" }}>↗</span>
+                    <span className="text-xs">↗</span>
                   </a>
                 </div>
               </div>
@@ -261,41 +261,6 @@ export default function SettingsPage() {
       >
         <SportVisibilitySettings />
       </SettingsSection>
-
-      {user && (
-        <SettingsSection title="Account">
-          <SettingRow label="Name" readOnly>
-            <span className="text-slate-light">{displayName}</span>
-          </SettingRow>
-
-          <SettingRow label="Strava Profile" readOnly>
-            <a
-              href={`https://www.strava.com/athletes/${user.uid}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 hover:underline"
-              style={{ color: "var(--color-success)" }}
-            >
-              <CheckIcon />
-              <span>{displayName}</span>
-              <span className="text-slate-light" style={{ fontSize: "0.75rem" }}>
-                ↗
-              </span>
-            </a>
-          </SettingRow>
-
-          <div className="pt-6">
-            <button
-              type="button"
-              className="btn btn-outline-danger btn-sm"
-              onClick={handleSignOut}
-              disabled={signingOut}
-            >
-              {signingOut ? "Signing out..." : "Sign Out"}
-            </button>
-          </div>
-        </SettingsSection>
-      )}
 
       <SettingsSection title="Goals" description="Manage your goals across all sports and years">
         <GoalManagementTable />
