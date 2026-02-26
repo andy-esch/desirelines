@@ -21,7 +21,7 @@ import type { Preferences } from "../types/generated/user_config";
 
 export default function SettingsPage() {
   const { user, loading: authLoading, signOut } = useAuth();
-  const { displayName, profile, loading: profileLoading } = useUserProfile();
+  const { displayName, loading: profileLoading } = useUserProfile();
   const [signingOut, setSigningOut] = useState(false);
   const location = useLocation();
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
 import { useServices } from "../contexts/ServiceContext";
-import { UserProfileService, type AthleteProfile } from "../services/userProfileService";
+import { UserProfileService } from "../services/userProfileService";
 
 /**
  * Hook for accessing the athlete profile with real-time Firestore sync.
