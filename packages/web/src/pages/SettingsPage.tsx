@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
+import { useUserProfile } from "../hooks/useUserProfile";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { SettingsSection } from "../components/settings/SettingsSection";
 import { SettingRow } from "../components/settings/SettingRow";
@@ -20,6 +21,7 @@ import type { Preferences } from "../types/generated/user_config";
 
 export default function SettingsPage() {
   const { user, loading: authLoading, signOut } = useAuth();
+  const { displayName, loading: profileLoading } = useUserProfile();
   const [signingOut, setSigningOut] = useState(false);
   const location = useLocation();
 
@@ -72,7 +74,7 @@ export default function SettingsPage() {
   // demo mode (localStorage) - no redirect needed
 
   // Show loading state
-  if (authLoading || prefsLoading) {
+  if (authLoading || prefsLoading || profileLoading) {
     return (
       <NarrowPageLayout background="settings">
         <div className="flex justify-center items-center" style={{ minHeight: "60vh" }}>
@@ -173,7 +175,7 @@ export default function SettingsPage() {
       {user && (
         <SettingsSection title="Account">
           <SettingRow label="Name" readOnly>
-            <span className="text-slate-light">{user.displayName || "—"}</span>
+            <span className="text-slate-light">{displayName}</span>
           </SettingRow>
 
           <SettingRow label="Strava Profile" readOnly>
@@ -185,7 +187,7 @@ export default function SettingsPage() {
               style={{ color: "var(--color-success)" }}
             >
               <CheckIcon />
-              <span>{user.displayName || `Athlete ${user.uid}`}</span>
+              <span>{displayName}</span>
               <span className="text-slate-light" style={{ fontSize: "0.75rem" }}>
                 ↗
               </span>

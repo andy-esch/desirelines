@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
 import type { User } from "../../hooks/useAuth";
+import { useUserProfile } from "../../hooks/useUserProfile";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -60,16 +61,19 @@ const UserIcon = () => (
  */
 export function AccountDropdown({
   user,
-  loading = false,
+  loading: authLoading = false,
   onSignIn,
   onSignOut,
 }: AccountDropdownProps) {
   const { theme, setTheme } = useTheme();
+  const { displayName, loading: profileLoading } = useUserProfile();
   const [isOpen, setIsOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const loading = authLoading || (!!user && profileLoading);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -204,7 +208,7 @@ export function AccountDropdown({
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="menu"
-        aria-label={user ? `Account menu for ${user.displayName || user.uid}` : "Account menu"}
+        aria-label={user ? `Account menu for ${displayName}` : "Account menu"}
       >
         <UserIcon />
         <ChevronDownIcon size={10} className="opacity-60" />
@@ -233,7 +237,7 @@ export function AccountDropdown({
                     maxWidth: "200px",
                   }}
                 >
-                  {user.displayName || "Athlete"}
+                  {displayName}
                 </div>
                 <div
                   className="flex items-center gap-1 mt-1"

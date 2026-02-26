@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { useUserProfile } from "../hooks/useUserProfile";
 import { ErrorBoundary } from "react-error-boundary";
 import MultiSportSparklineChart from "../components/dashboard/MultiSportSparklineChart";
 import RecentActivitiesListCard from "../components/dashboard/RecentActivitiesListCard";
@@ -34,8 +35,11 @@ const DASHBOARD_DEMO_TUNING: TuningParams = {
 };
 
 export default function Dashboard() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { displayName, loading: profileLoading } = useUserProfile();
   const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
+
+  const loading = authLoading || (!!user && profileLoading);
 
   if (loading) {
     return (
@@ -65,7 +69,7 @@ export default function Dashboard() {
         {/* Header Section */}
         <div className="dashboard-header mb-3">
           <h1 className="h2 font-display">
-            {user ? `Welcome back, ${user.displayName?.split(" ")[0] || "there"}!` : "Welcome!"}
+            {user ? `Welcome back, ${displayName.split(" ")[0]}!` : "Welcome!"}
           </h1>
           <p className="text-slate-light">
             {user
