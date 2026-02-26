@@ -26,7 +26,6 @@ Environment Variables:
     # Strava API
     export STRAVA_CLIENT_ID=12345
     export STRAVA_CLIENT_SECRET=abc123...
-    export STRAVA_REFRESH_TOKEN=def456...
 
     # PostgreSQL (include application_name for observability)
     export POSTGRES_CONNECTION_STRING="postgres://writer:PASSWORD@HOST/desirelines?sslmode=require&application_name=postgres-writer"

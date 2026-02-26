@@ -22,7 +22,6 @@ locals {
   strava_api_secrets = {
     "INFISICAL_STRAVA_CLIENT_ID"     = google_secret_manager_secret.strava_client_id.secret_id
     "INFISICAL_STRAVA_CLIENT_SECRET" = google_secret_manager_secret.strava_client_secret.secret_id
-    "INFISICAL_STRAVA_REFRESH_TOKEN" = google_secret_manager_secret.strava_refresh_token.secret_id
   }
 
   # Combined secrets for dispatcher service
