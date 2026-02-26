@@ -19,6 +19,49 @@ import {
 } from "../constants/settings";
 import type { Preferences } from "../types/generated/user_config";
 
+/**
+ * Custom 80s-style avatar icon for the settings page
+ */
+const LargeUserAvatar = () => (
+  <div className="relative w-24 h-24 md:w-32 md:h-24 flex-shrink-0">
+    <svg width="100%" height="100%" viewBox="0 0 40 40" className="drop-shadow-lg">
+      <circle
+        cx="20"
+        cy="20"
+        r="19"
+        fill="var(--color-slate-dark)"
+        stroke="var(--color-slate)"
+        strokeWidth="1"
+      />
+      <path
+        d="M12 15 A8 8 0 1 0 28 15"
+        fill="none"
+        stroke="var(--color-neon-cyan)"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M11 15 L11 10 L29 10 L29 15"
+        fill="none"
+        stroke="var(--color-neon-magenta)"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 34 C8 27 13 24 20 24 C27 24 32 27 32 34"
+        fill="none"
+        stroke="var(--color-neon-green)"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+    <div className="absolute -bottom-1 -right-1 bg-success rounded-full p-1 border-2 border-slate-dark shadow-[0_0_10px_var(--color-success)]">
+      <CheckIcon size={12} className="text-slate-dark" />
+    </div>
+  </div>
+);
+
 export default function SettingsPage() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { displayName, loading: profileLoading } = useUserProfile();
@@ -97,6 +140,53 @@ export default function SettingsPage() {
         <InlineAlert className="mb-6" onDismiss={clearSaveError}>
           {saveError.message}
         </InlineAlert>
+      )}
+
+      {user && (
+        <div className="card mb-8 overflow-hidden neon-backdrop">
+          <div className="card-body p-6 md:p-8">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+              <LargeUserAvatar />
+
+              <div className="flex-grow text-center md:text-left">
+                <div className="mb-1 text-slate-lighter text-sm uppercase tracking-widest font-bold">
+                  Authenticated Athlete
+                </div>
+                <h2 className="h3 mb-2 text-white font-display neon-gradient-text">
+                  {displayName}
+                </h2>
+
+                <div className="flex flex-col gap-2 mt-4">
+                  <div className="flex items-center justify-center md:justify-start gap-2 text-slate-light text-sm">
+                    <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_var(--color-success)]"></span>
+                    Connected to Strava
+                  </div>
+
+                  <a
+                    href={`https://www.strava.com/athletes/${user.uid}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center md:justify-start gap-1 text-accent-cyan hover:underline text-sm font-medium"
+                  >
+                    View Strava Profile
+                    <span style={{ fontSize: "0.75rem" }}>↗</span>
+                  </a>
+                </div>
+              </div>
+
+              <div className="flex-shrink-0 self-center md:self-start">
+                <button
+                  type="button"
+                  className="btn btn-outline-danger btn-sm"
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                >
+                  {signingOut ? "Signing out..." : "Sign Out"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <SettingsSection
