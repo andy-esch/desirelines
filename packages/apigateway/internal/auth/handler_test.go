@@ -13,7 +13,7 @@ import (
 	"time"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // --- Mock implementations with call tracking ---
