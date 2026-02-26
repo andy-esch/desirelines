@@ -16,13 +16,12 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 
 const TOAST_DURATION_MS = 3000;
 
-let nextId = 0;
-
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const nextId = React.useRef(0);
 
   const showToast = useCallback((message: string, variant: ToastVariant = "success") => {
-    const id = nextId++;
+    const id = nextId.current++;
     setToasts((prev) => [...prev, { id, message, variant }]);
   }, []);
 
