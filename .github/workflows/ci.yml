@@ -19,7 +19,6 @@ env:
   GCP_PUBSUB_TOPIC: "test-topic"
   STRAVA_CLIENT_ID: "123"
   STRAVA_CLIENT_SECRET: "test_secret"
-  STRAVA_REFRESH_TOKEN: "test_token"
   STRAVA_WEBHOOK_VERIFY_TOKEN: "test_verify_token"
   STRAVA_WEBHOOK_SUBSCRIPTION_ID: "12345"
 

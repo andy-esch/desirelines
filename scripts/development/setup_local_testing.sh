@@ -20,7 +20,6 @@ echo "📋 Checking environment variables..."
 check_env_var "GCP_PROJECT_ID"
 check_env_var "STRAVA_CLIENT_ID"
 check_env_var "STRAVA_CLIENT_SECRET"
-check_env_var "STRAVA_REFRESH_TOKEN"
 
 # Set defaults for local testing
 LOCAL_DATASET="${GCP_BIGQUERY_DATASET:-local_testing}"
@@ -79,7 +78,6 @@ GCP_PUBSUB_TOPIC=strava-webhook-events
 # Strava API Configuration (Live)
 STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID
 STRAVA_CLIENT_SECRET=$STRAVA_CLIENT_SECRET
-STRAVA_REFRESH_TOKEN=$STRAVA_REFRESH_TOKEN
 
 # Webhook Configuration (for testing dispatcher)
 STRAVA_WEBHOOK_VERIFY_TOKEN=${STRAVA_WEBHOOK_VERIFY_TOKEN:-local-testing-token}

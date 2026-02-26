@@ -28,7 +28,6 @@ Secrets synced to GCP Secret Manager use the `INFISICAL_` prefix to indicate pro
 
 - `INFISICAL_STRAVA_CLIENT_ID` (dispatcher, apigateway)
 - `INFISICAL_STRAVA_CLIENT_SECRET` (dispatcher, apigateway)
-- `INFISICAL_STRAVA_REFRESH_TOKEN` (dispatcher only)
 - `INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN` (dispatcher only)
 - `INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID` (dispatcher only)
 - `INFISICAL_AUTH_STATE_SECRET` (apigateway only — HMAC key for OAuth CSRF state tokens)
