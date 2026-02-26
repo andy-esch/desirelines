@@ -60,6 +60,11 @@ type mockFirebase struct {
 	err   error
 
 	calledWith string
+
+	updateUserCalled bool
+	updateUserUID    string
+	updateUserParams *firebaseauth.UserToUpdate
+	updateUserErr    error
 }
 
 func (m *mockFirebase) CustomToken(_ context.Context, uid string) (string, error) {
@@ -67,8 +72,11 @@ func (m *mockFirebase) CustomToken(_ context.Context, uid string) (string, error
 	return m.token, m.err
 }
 
-func (m *mockFirebase) UpdateUser(_ context.Context, _ string, _ *firebaseauth.UserToUpdate) (*firebaseauth.UserRecord, error) {
-	return nil, nil
+func (m *mockFirebase) UpdateUser(_ context.Context, uid string, params *firebaseauth.UserToUpdate) (*firebaseauth.UserRecord, error) {
+	m.updateUserCalled = true
+	m.updateUserUID = uid
+	m.updateUserParams = params
+	return nil, m.updateUserErr
 }
 
 // --- Helper ---
@@ -460,5 +468,13 @@ func TestHandleCallback_HappyPathVerifiesArguments(t *testing.T) {
 	}
 	if tokensMock.calledWith != wantAthleteID {
 		t.Errorf("WriteAuthData called with %q, want %q", tokensMock.calledWith, wantAthleteID)
+	}
+
+	// Verify UpdateUser was called to sync Strava profile to Firebase
+	if !firebaseMock.updateUserCalled {
+		t.Fatal("expected UpdateUser to be called")
+	}
+	if firebaseMock.updateUserUID != wantAthleteID {
+		t.Errorf("UpdateUser called with UID %q, want %q", firebaseMock.updateUserUID, wantAthleteID)
 	}
 }
