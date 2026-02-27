@@ -244,21 +244,17 @@ func buildRouter(deps *Dependencies) http.Handler {
 // initAuthHandler creates the OAuth auth handler with all its dependencies.
 func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, firestoreClient *firestore.Client, log *slog.Logger) (*auth.Handler, error) {
 	// Load Strava OAuth credentials from Infisical mounts
-	const stravaClientIDPath = "/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value"
-	const stravaClientSecretPath = "/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value" //nolint:gosec // G101: Not credentials, just a file path
-	const stateSecretPath = "/etc/secrets/INFISICAL_AUTH_STATE_SECRET/value"           //nolint:gosec // G101: Not credentials, just a file path
-
-	stravaClientID, err := secrets.LoadFromMount(stravaClientIDPath, "STRAVA_CLIENT_ID")
+	stravaClientID, err := secrets.LoadFromMount(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
 	if err != nil {
 		return nil, fmt.Errorf("strava client_id: %w", err)
 	}
 
-	stravaClientSecret, err := secrets.LoadFromMount(stravaClientSecretPath, "STRAVA_CLIENT_SECRET")
+	stravaClientSecret, err := secrets.LoadFromMount(config.SecretPathStravaClientSecret, "STRAVA_CLIENT_SECRET")
 	if err != nil {
 		return nil, fmt.Errorf("strava client_secret: %w", err)
 	}
 
-	stateSecret, err := secrets.LoadFromMount(stateSecretPath, "AUTH_STATE_SECRET")
+	stateSecret, err := secrets.LoadFromMount(config.SecretPathAuthStateSecret, "AUTH_STATE_SECRET")
 	if err != nil {
 		return nil, fmt.Errorf("auth state secret: %w", err)
 	}
@@ -288,13 +284,11 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 // getConnectionString reads PostgreSQL connection string from secret mount.
 // In local development (no ENVIRONMENT set), falls back to POSTGRES_CONNECTION_STRING env var.
 func getConnectionString(cfg *config.Config) (string, error) {
-	const secretPath = "/etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY/value" //nolint:gosec // G101: Not credentials, just a file path
-
 	// Only allow env var fallback in local development (ENVIRONMENT is always set in Cloud Run)
 	envFallback := ""
 	if cfg.Environment == "" {
 		envFallback = "POSTGRES_CONNECTION_STRING"
 	}
 
-	return secrets.LoadFromMount(secretPath, envFallback)
+	return secrets.LoadFromMount(config.SecretPathPostgresConn, envFallback)
 }
