@@ -34,7 +34,7 @@ export function useGoalManager({
   const [saveError, setSaveError] = useState<Error | null>(null);
 
   // Debounce timers for label changes (per goal ID)
-  const labelDebounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const labelDebounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Ref to access latest goals in debounce callbacks without stale closures
   const goalsRef = useRef(goals);
