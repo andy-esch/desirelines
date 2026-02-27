@@ -3,6 +3,7 @@ package firestore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -13,13 +14,6 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-)
-
-// Firestore path components for per-user token storage.
-const (
-	usersCollection   = "users"
-	privateCollection = "private"
-	tokensDocument    = "strava_tokens" //nolint:gosec // Document name, not credential
 )
 
 // TokenStore implements ports.TokenStore using Firestore.
@@ -58,23 +52,46 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 	return &tokens, nil
 }
 
-// WriteTokens writes updated Strava tokens for the given athlete to Firestore.
-// It uses Update with explicit fields so that fields owned by apigateway
-// (scopes, connected_at) are preserved.
-func (s *TokenStore) WriteTokens(ctx context.Context, athleteID int64, tokens *stravatoken.Data) error {
-	if _, err := s.tokensRef(athleteID).Update(ctx, []firestore.Update{
-		{Path: "access_token", Value: tokens.AccessToken},
-		{Path: "refresh_token", Value: tokens.RefreshToken},
-		{Path: "expires_at", Value: tokens.ExpiresAt},
-		{Path: "last_refreshed", Value: time.Now()},
-	}); err != nil {
+// WriteTokensIfUnmodified atomically writes tokens only if last_refreshed matches
+// the expected value (optimistic concurrency). Returns ports.ErrTokenConflict if
+// another goroutine has already refreshed the tokens since they were read.
+func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) error {
+	ref := s.tokensRef(athleteID)
+
+	err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		snap, getErr := tx.Get(ref)
+		if getErr != nil {
+			return fmt.Errorf("read tokens in transaction: %w", getErr)
+		}
+
+		var current stravatoken.Data
+		if decodeErr := snap.DataTo(&current); decodeErr != nil {
+			return fmt.Errorf("decode tokens in transaction: %w", decodeErr)
+		}
+
+		// Check version: if last_refreshed has changed, another thread won the race.
+		if !current.LastRefreshed.Equal(expectedLastRefreshed) {
+			return ports.ErrTokenConflict
+		}
+
+		return tx.Update(ref, []firestore.Update{
+			{Path: "access_token", Value: tokens.AccessToken},
+			{Path: "refresh_token", Value: tokens.RefreshToken},
+			{Path: "expires_at", Value: tokens.ExpiresAt},
+			{Path: "last_refreshed", Value: time.Now()},
+		})
+	})
+
+	if err != nil {
+		if errors.Is(err, ports.ErrTokenConflict) {
+			return ports.ErrTokenConflict
+		}
 		return fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
 	}
-
 	return nil
 }
 
 // tokensRef returns the Firestore document reference for an athlete's tokens.
 func (s *TokenStore) tokensRef(athleteID int64) *firestore.DocumentRef {
-	return s.client.Collection(usersCollection).Doc(strconv.FormatInt(athleteID, 10)).Collection(privateCollection).Doc(tokensDocument)
+	return s.client.Collection(stravatoken.UsersCollection).Doc(strconv.FormatInt(athleteID, 10)).Collection(stravatoken.PrivateCollection).Doc(stravatoken.TokensDocument)
 }

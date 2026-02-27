@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
@@ -97,7 +99,11 @@ func TestFetchActivity_NotFound(t *testing.T) {
 	}
 }
 
-func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
+// new401ThenSuccessServer creates an httptest.Server that returns 401 on the first activity
+// request (triggering a token refresh), then succeeds on the retry with the expected token.
+// The token endpoint returns the given refreshedAccess/refreshedRefresh tokens.
+func new401ThenSuccessServer(t *testing.T, oldToken, refreshedAccess, refreshedRefresh string) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
 	var callCount atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -105,8 +111,8 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 		case testTokenPath:
 			w.WriteHeader(http.StatusOK)
 			if err := json.NewEncoder(w).Encode(map[string]any{
-				"access_token":  "new-access-token",
-				"refresh_token": "new-refresh-token",
+				"access_token":  refreshedAccess,
+				"refresh_token": refreshedRefresh,
 				"expires_at":    1234567890,
 			}); err != nil {
 				t.Errorf("failed to encode response: %v", err)
@@ -115,13 +121,11 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 			count := callCount.Add(1)
 			auth := r.Header.Get("Authorization")
 
-			if count == 1 && auth == "Bearer old-token" {
-				// First call with old token: return 401
+			if count == 1 && auth == "Bearer "+oldToken {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			if count == 2 && auth == "Bearer new-access-token" {
-				// Retry with new token: success
+			if count == 2 && auth == "Bearer "+refreshedAccess {
 				w.WriteHeader(http.StatusOK)
 				if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
 					t.Errorf("failed to write response: %v", err)
@@ -135,6 +139,11 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
+	return server, &callCount
+}
+
+func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
+	server, _ := new401ThenSuccessServer(t, "old-token", "new-access-token", "new-refresh-token")
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
@@ -337,6 +346,88 @@ func TestFetchActivity_Repeated401StopsAfterOneRefresh(t *testing.T) {
 	// Should only refresh once, not on every retry attempt
 	if tokenRefreshCount.Load() != 1 {
 		t.Errorf("expected 1 token refresh, got %d (should stop after first refresh fails to fix 401)", tokenRefreshCount.Load())
+	}
+}
+
+// conflictTokenStore simulates the optimistic concurrency conflict scenario.
+// First GetTokens returns old tokens; WriteTokensIfUnmodified returns ErrTokenConflict;
+// second GetTokens returns the winner's tokens.
+type conflictTokenStore struct {
+	getCount     atomic.Int32
+	oldTokens    *stravatoken.Data
+	winnerTokens *stravatoken.Data
+}
+
+func (s *conflictTokenStore) GetTokens(_ context.Context, _ int64) (*stravatoken.Data, error) {
+	count := s.getCount.Add(1)
+	if count == 1 {
+		return s.oldTokens, nil
+	}
+	// After conflict, return the winner's tokens.
+	return s.winnerTokens, nil
+}
+
+func (s *conflictTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) error {
+	return ports.ErrTokenConflict
+}
+
+func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
+	// Custom server: token refresh returns "loser-token", but after the conflict
+	// the client re-reads and gets "winner-access" from the store, which succeeds.
+	var activityCallCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "loser-token", "refresh_token": "loser-refresh", "expires_at": 1234567890,
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case testActivityPath:
+			count := activityCallCount.Add(1)
+			auth := r.Header.Get("Authorization")
+			if count == 1 && auth == "Bearer old-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			if count == 2 && auth == "Bearer winner-access" {
+				w.WriteHeader(http.StatusOK)
+				if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
+					t.Errorf("failed to write response: %v", err)
+				}
+				return
+			}
+			t.Errorf("unexpected activity call %d with auth %q", count, auth)
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &conflictTokenStore{
+		oldTokens:    &stravatoken.Data{AccessToken: "old-token", RefreshToken: "old-refresh"},
+		winnerTokens: &stravatoken.Data{AccessToken: "winner-access", RefreshToken: "winner-refresh"},
+	}
+
+	client := &Client{
+		httpClient:   server.Client(),
+		clientID:     "test-id",
+		clientSecret: "test-secret",
+		tokenStore:   tokenStore,
+		tokenURL:     server.URL + testTokenPath,
+		apiBase:      server.URL + "/api/v3",
+		logger:       gcplog.NewNoOpLogger(),
+	}
+
+	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err != nil {
+		t.Fatalf("FetchActivity() error = %v", err)
+	}
+
+	if string(body) != `{"id":12345}` {
+		t.Errorf("body = %s, want %s", string(body), `{"id":12345}`)
 	}
 }
 

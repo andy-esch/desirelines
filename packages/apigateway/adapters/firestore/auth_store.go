@@ -8,6 +8,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -34,7 +35,7 @@ func NewAuthStore(client *firestore.Client, logger *slog.Logger) *AuthStore {
 
 // IsAllowed checks whether the given athlete ID exists in the allowlist collection.
 func (s *AuthStore) IsAllowed(ctx context.Context, athleteID string) (bool, error) {
-	_, err := s.client.Collection("allowlist").Doc(athleteID).Get(ctx)
+	_, err := s.client.Collection(stravatoken.AllowlistCollection).Doc(athleteID).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return false, nil
@@ -50,10 +51,10 @@ func (s *AuthStore) IsAllowed(ctx context.Context, athleteID string) (bool, erro
 // Paths:
 //   - users/{athleteID}/private/strava_tokens
 //   - users/{athleteID}/private/profile
-func (s *AuthStore) WriteAuthData(ctx context.Context, athleteID string, tokens *auth.StravaTokenData, profile *auth.AthleteProfile) error {
-	userPrivate := s.client.Collection("users").Doc(athleteID).Collection("private")
-	tokensRef := userPrivate.Doc("strava_tokens")
-	profileRef := userPrivate.Doc("profile")
+func (s *AuthStore) WriteAuthData(ctx context.Context, athleteID string, tokens *stravatoken.Data, profile *auth.AthleteProfile) error {
+	userPrivate := s.client.Collection(stravatoken.UsersCollection).Doc(athleteID).Collection(stravatoken.PrivateCollection)
+	tokensRef := userPrivate.Doc(stravatoken.TokensDocument)
+	profileRef := userPrivate.Doc(stravatoken.ProfileDocument)
 
 	err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
 		// Firestore transactions require all reads before writes.

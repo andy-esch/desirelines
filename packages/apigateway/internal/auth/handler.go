@@ -11,6 +11,7 @@ import (
 	"time"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
 const stravaAuthorizeURL = "https://www.strava.com/oauth/authorize"
@@ -180,7 +181,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Store tokens and profile atomically in Firestore
 	now := time.Now()
-	tokenData := &StravaTokenData{
+	tokenData := &stravatoken.Data{
 		AccessToken:   tokenResp.AccessToken,
 		RefreshToken:  tokenResp.RefreshToken,
 		ExpiresAt:     tokenResp.ExpiresAt,

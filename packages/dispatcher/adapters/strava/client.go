@@ -209,10 +209,16 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 	}
 }
 
-// refreshAndPersist refreshes Strava tokens and writes them back to the TokenStore.
+// refreshAndPersist refreshes Strava tokens and writes them back to the TokenStore
+// using optimistic concurrency. If another goroutine refreshed tokens concurrently,
+// the conflict is detected and the winner's tokens are used instead.
+//
 // Returns error if either the refresh or the write-back fails — callers must not
 // proceed with stale tokens if write-back fails.
 func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.Data) (*stravatoken.Data, error) {
+	// Capture the version stamp before calling the external API.
+	versionBefore := tokens.LastRefreshed
+
 	var lastErr error
 	for attempt := range tokenRetryAttempts {
 		newTokens, err := c.doRefreshToken(ctx, tokens.RefreshToken)
@@ -221,9 +227,22 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 			if newTokens.RefreshToken == "" {
 				newTokens.RefreshToken = tokens.RefreshToken
 			}
-			if writeErr := c.tokenStore.WriteTokens(ctx, ownerID, newTokens); writeErr != nil {
+
+			// Optimistic write: only succeeds if no concurrent refresh happened.
+			writeErr := c.tokenStore.WriteTokensIfUnmodified(ctx, ownerID, newTokens, versionBefore)
+			if writeErr != nil {
+				if errors.Is(writeErr, ports.ErrTokenConflict) {
+					// Another goroutine won the race. Re-read their tokens.
+					c.logger.Warn("Token refresh race detected, using competing thread's tokens", "owner_id", ownerID)
+					winner, getErr := c.tokenStore.GetTokens(ctx, ownerID)
+					if getErr != nil {
+						return nil, fmt.Errorf("re-read tokens after conflict for athlete %d: %w", ownerID, getErr)
+					}
+					return winner, nil
+				}
 				return nil, fmt.Errorf("write-back tokens for athlete %d: %w", ownerID, writeErr)
 			}
+
 			c.logger.Info("Strava access token refreshed", "owner_id", ownerID)
 			return newTokens, nil
 		}

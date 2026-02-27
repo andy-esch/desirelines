@@ -4,6 +4,7 @@ package portstest
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
@@ -87,10 +88,12 @@ type MockTokenStore struct {
 	Tokens map[int64]*stravatoken.Data
 	// GetErr is returned by GetTokens (overrides Tokens lookup).
 	GetErr error
-	// WriteErr is returned by WriteTokens.
+	// WriteErr is returned by WriteTokensIfUnmodified.
 	WriteErr error
-	// WrittenTokens tracks tokens written by WriteTokens.
+	// WrittenTokens tracks tokens written by WriteTokensIfUnmodified.
 	WrittenTokens map[int64]*stravatoken.Data
+	// SimulateConflict causes WriteTokensIfUnmodified to return ErrTokenConflict.
+	SimulateConflict bool
 }
 
 // GetTokens implements the TokenStore interface.
@@ -105,8 +108,11 @@ func (m *MockTokenStore) GetTokens(_ context.Context, athleteID int64) (*stravat
 	return tokens, nil
 }
 
-// WriteTokens implements the TokenStore interface.
-func (m *MockTokenStore) WriteTokens(_ context.Context, athleteID int64, tokens *stravatoken.Data) error {
+// WriteTokensIfUnmodified implements the TokenStore interface with optimistic concurrency.
+func (m *MockTokenStore) WriteTokensIfUnmodified(_ context.Context, athleteID int64, tokens *stravatoken.Data, _ time.Time) error {
+	if m.SimulateConflict {
+		return ports.ErrTokenConflict
+	}
 	if m.WriteErr != nil {
 		return m.WriteErr
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
 // StravaOAuthClient exchanges an authorization code for tokens.
@@ -15,7 +16,7 @@ type StravaOAuthClient interface {
 type TokenStore interface {
 	// WriteAuthData atomically writes both tokens and profile for an athlete.
 	// Both writes succeed or both fail.
-	WriteAuthData(ctx context.Context, athleteID string, tokens *StravaTokenData, profile *AthleteProfile) error
+	WriteAuthData(ctx context.Context, athleteID string, tokens *stravatoken.Data, profile *AthleteProfile) error
 }
 
 // AllowlistChecker verifies if an athlete ID is in the allowlist.
