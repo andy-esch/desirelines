@@ -1,4 +1,4 @@
-// Package config provides sport category configuration for the API Gateway.
+// Package config provides application and sport category configuration for the API Gateway.
 //
 // The package manages a versioned JSON configuration that defines how Strava
 // activity types map to display categories (e.g., "Ride" and "VirtualRide"

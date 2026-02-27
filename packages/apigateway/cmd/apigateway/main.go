@@ -14,10 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
-	"time"
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
@@ -38,17 +35,9 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/secrets"
 )
 
-// Server timeout defaults (can be overridden via environment variables).
-const (
-	defaultReadTimeout       = 30 * time.Second
-	defaultWriteTimeout      = 30 * time.Second
-	defaultReadHeaderTimeout = 10 * time.Second
-	defaultShutdownTimeout   = 30 * time.Second
-)
-
 func main() {
 	// Logger configured for GCP Cloud Logging. See packages/shared/gcplog/README.md
-	log := gcplog.New()
+	log := gcplog.NewWithLevel(config.ParseLogLevel())
 	log.Info("Starting API Gateway")
 
 	if err := run(log); err != nil {
@@ -59,10 +48,16 @@ func main() {
 }
 
 func run(log *slog.Logger) error {
+	// Load configuration
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
 	ctx := context.Background()
 
 	// Initialize all dependencies
-	deps, err := initDependencies(ctx, log)
+	deps, err := initDependencies(ctx, cfg, log)
 	if err != nil {
 		return fmt.Errorf("failed to initialize dependencies: %w", err)
 	}
@@ -72,25 +67,26 @@ func run(log *slog.Logger) error {
 	router := buildRouter(deps)
 
 	// Start server with configurable timeouts
-	port := getEnvOrDefault("PORT", "8080")
+	port := config.GetEnvOrDefault("PORT", "8080")
+	log.Info("Server listening", "port", port)
+
+	// Create server with configurable timeouts for security
+	// #nosec G114 - Timeouts are configured via environment variables
 	srv := &http.Server{
 		Addr:              ":" + port,
 		Handler:           router,
-		ReadTimeout:       getDurationEnv("SERVER_READ_TIMEOUT", defaultReadTimeout),
-		WriteTimeout:      getDurationEnv("SERVER_WRITE_TIMEOUT", defaultWriteTimeout),
-		ReadHeaderTimeout: getDurationEnv("SERVER_READ_HEADER_TIMEOUT", defaultReadHeaderTimeout),
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 	}
-
-	// Wait for interrupt signal for graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	// Error channel to capture server errors
 	serverErrors := make(chan error, 1)
+	// Signal channel for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start server in goroutine to allow graceful shutdown
 	go func() {
-		log.Info("Server listening", "port", port)
 		if serverErr := srv.ListenAndServe(); serverErr != nil && serverErr != http.ErrServerClosed {
 			serverErrors <- fmt.Errorf("server failed: %w", serverErr)
 		}
@@ -104,9 +100,7 @@ func run(log *slog.Logger) error {
 		log.Info("Shutting down server...")
 	}
 
-	// Give server time to finish in-flight requests
-	shutdownTimeout := getDurationEnv("SERVER_SHUTDOWN_TIMEOUT", defaultShutdownTimeout)
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 
 	if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
@@ -144,7 +138,7 @@ func (d *Dependencies) Close() {
 
 // initDependencies creates and wires all application dependencies.
 // This is the composition root following hexagonal architecture.
-func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, error) {
+func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Dependencies, error) {
 	deps := &Dependencies{
 		logger: log,
 	}
@@ -158,19 +152,10 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	deps.sportConfig = sportConfig
 
 	// 2. Initialize CORS handler
-	allowedOrigins := parseCommaSeparatedEnv("ALLOWED_ORIGINS")
-	deps.corsHandler = cors.NewHandler(allowedOrigins, log)
+	deps.corsHandler = cors.NewHandler(cfg.AllowedOrigins, log)
 
 	// 3. Initialize Firebase app (shared between auth middleware and OAuth handler)
-	projectID := os.Getenv("GCP_PROJECT_ID")
-	if projectID == "" {
-		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
-	}
-	if projectID == "" {
-		return nil, fmt.Errorf("GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable must be set")
-	}
-
-	firebaseApp, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
+	firebaseApp, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: cfg.GCPProjectID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Firebase app: %w", err)
 	}
@@ -179,7 +164,7 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
 	}
-	log.Info("Firebase app initialized", "project_id", projectID)
+	log.Info("Firebase app initialized", "project_id", cfg.GCPProjectID)
 
 	// 4. Initialize auth middleware (Firebase JWT verification)
 	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log)
@@ -188,19 +173,15 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	// Uses the named database (e.g., "desirelines-user-configs") rather than the
 	// default "(default)" database. The database name is set via FIRESTORE_DATABASE
 	// env var, configured in Terraform from google_firestore_database.user_configs.
-	firestoreDB := os.Getenv("FIRESTORE_DATABASE")
-	if firestoreDB == "" {
-		return nil, fmt.Errorf("FIRESTORE_DATABASE environment variable must be set")
-	}
-	firestoreClient, err := firestore.NewClientWithDatabase(ctx, projectID, firestoreDB)
+	firestoreClient, err := firestore.NewClientWithDatabase(ctx, cfg.GCPProjectID, cfg.FirestoreDatabase)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Firestore client: %w", err)
 	}
 	deps.firestoreClient = firestoreClient
-	log.Info("Firestore client initialized", "database", firestoreDB)
+	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
 
 	// 6. Initialize OAuth auth handler
-	authHandler, err := initAuthHandler(authClient, firestoreClient, log)
+	authHandler, err := initAuthHandler(cfg, authClient, firestoreClient, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize auth handler: %w", err)
 	}
@@ -213,7 +194,7 @@ func initDependencies(ctx context.Context, log *slog.Logger) (*Dependencies, err
 	}, log)
 
 	// 8. Initialize PostgreSQL repository (required dependency)
-	connString, err := getConnectionString()
+	connString, err := getConnectionString(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection string: %w", err)
 	}
@@ -261,8 +242,8 @@ func buildRouter(deps *Dependencies) http.Handler {
 }
 
 // initAuthHandler creates the OAuth auth handler with all its dependencies.
-func initAuthHandler(authClient auth.FirebaseAuthClient, firestoreClient *firestore.Client, log *slog.Logger) (*auth.Handler, error) {
-	// Load Strava OAuth credentials
+func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, firestoreClient *firestore.Client, log *slog.Logger) (*auth.Handler, error) {
+	// Load Strava OAuth credentials from Infisical mounts
 	const stravaClientIDPath = "/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value"
 	const stravaClientSecretPath = "/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value" //nolint:gosec // G101: Not credentials, just a file path
 	const stateSecretPath = "/etc/secrets/INFISICAL_AUTH_STATE_SECRET/value"           //nolint:gosec // G101: Not credentials, just a file path
@@ -282,16 +263,6 @@ func initAuthHandler(authClient auth.FirebaseAuthClient, firestoreClient *firest
 		return nil, fmt.Errorf("auth state secret: %w", err)
 	}
 
-	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		return nil, fmt.Errorf("FRONTEND_URL environment variable must be set")
-	}
-
-	callbackURL := os.Getenv("AUTH_CALLBACK_URL")
-	if callbackURL == "" {
-		return nil, fmt.Errorf("AUTH_CALLBACK_URL environment variable must be set")
-	}
-
 	stravaOAuth := stravaadapter.NewOAuthClient(stravaClientID, stravaClientSecret, log, nil)
 	authStore := firestoreadapter.NewAuthStore(firestoreClient, log)
 
@@ -301,9 +272,9 @@ func initAuthHandler(authClient auth.FirebaseAuthClient, firestoreClient *firest
 		Allowlist:   authStore,
 		Firebase:    authClient,
 		StateSecret: []byte(stateSecret),
-		FrontendURL: frontendURL,
+		FrontendURL: cfg.FrontendURL,
 		ClientID:    stravaClientID,
-		RedirectURI: callbackURL,
+		RedirectURI: cfg.AuthCallbackURL,
 		Logger:      log,
 	})
 	if err != nil {
@@ -314,59 +285,14 @@ func initAuthHandler(authClient auth.FirebaseAuthClient, firestoreClient *firest
 	return handler, nil
 }
 
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-// getDurationEnv reads a duration from environment variable (in seconds).
-// Returns defaultValue if the environment variable is not set or invalid.
-func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		seconds, err := strconv.Atoi(value)
-		if err == nil && seconds > 0 {
-			return time.Duration(seconds) * time.Second
-		}
-		if err != nil {
-			slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
-		} else {
-			slog.Warn("Invalid environment variable value (must be positive), using default", "key", key, "value", value)
-		}
-	}
-	return defaultValue
-}
-
-// parseCommaSeparatedEnv reads an environment variable and parses it as a
-// comma-separated list, trimming whitespace and filtering empty values.
-func parseCommaSeparatedEnv(key string) []string {
-	value := os.Getenv(key)
-	if value == "" {
-		return nil
-	}
-	return parseCommaSeparated(value)
-}
-
-// parseCommaSeparated splits a comma-separated string, trimming whitespace and filtering empty values.
-func parseCommaSeparated(value string) []string {
-	var result []string
-	for _, item := range strings.Split(value, ",") {
-		if trimmed := strings.TrimSpace(item); trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
-}
-
 // getConnectionString reads PostgreSQL connection string from secret mount.
 // In local development (no ENVIRONMENT set), falls back to POSTGRES_CONNECTION_STRING env var.
-func getConnectionString() (string, error) {
+func getConnectionString(cfg *config.Config) (string, error) {
 	const secretPath = "/etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY/value" //nolint:gosec // G101: Not credentials, just a file path
 
 	// Only allow env var fallback in local development (ENVIRONMENT is always set in Cloud Run)
 	envFallback := ""
-	if os.Getenv("ENVIRONMENT") == "" {
+	if cfg.Environment == "" {
 		envFallback = "POSTGRES_CONNECTION_STRING"
 	}
 
