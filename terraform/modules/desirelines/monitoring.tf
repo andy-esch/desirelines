@@ -5,7 +5,7 @@
 # - Dead Letter Queue health (critical early warning)
 # - Cloud Run service performance and errors
 # - PubSub message flow and backlogs
-# - Data pipeline health (BigQuery & Storage)
+# - Data pipeline health (BigQuery & PostgreSQL)
 # ============================================================================
 
 resource "google_monitoring_dashboard" "desirelines_observability" {
@@ -353,7 +353,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"(desirelines-.*-dlq|eventarc-.*)\") AND metric.type=\"pubsub.googleapis.com/subscription/num_unacked_messages_by_region\""
+                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"pubsub.googleapis.com/subscription/num_unacked_messages_by_region\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MEAN"
@@ -389,7 +389,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"(desirelines-.*-dlq|eventarc-.*)\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
+                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MAX"
@@ -410,6 +410,207 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               thresholds = [{
                 value = 300
               }]
+            }
+          }
+        },
+
+        # ====================================================================
+        # Section Header: Cloud Run Resource Utilization - Row 34
+        # ====================================================================
+        {
+          yPos   = 34
+          width  = 12
+          height = 2
+          widget = {
+            title = "Cloud Run Resource Utilization"
+            text = {
+              content = "CPU and memory usage across services. Helps identify resource constraints and right-size allocations."
+              format  = "MARKDOWN"
+              style   = {}
+            }
+          }
+        },
+
+        # CPU Utilization - Row 36, Left
+        {
+          yPos   = 36
+          width  = 6
+          height = 4
+          widget = {
+            title = "CPU Utilization (%)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/container/cpu/utilizations\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                      crossSeriesReducer = "REDUCE_MEAN"
+                      groupByFields      = ["resource.labels.service_name"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${resource.labels.service_name}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Utilization"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # Memory Utilization - Row 36, Right
+        {
+          xPos   = 6
+          yPos   = 36
+          width  = 6
+          height = 4
+          widget = {
+            title = "Memory Utilization (%)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/container/memory/utilizations\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                      crossSeriesReducer = "REDUCE_MEAN"
+                      groupByFields      = ["resource.labels.service_name"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${resource.labels.service_name}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Utilization"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # Startup Latency - Row 40
+        {
+          yPos   = 40
+          width  = 12
+          height = 4
+          widget = {
+            title = "Container Startup Latency (ms)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/container/startup_latencies\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_DELTA"
+                      crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      groupByFields      = ["resource.labels.service_name"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${resource.labels.service_name}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Milliseconds"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # ====================================================================
+        # Section Header: PubSub Delivery Performance - Row 44
+        # ====================================================================
+        {
+          yPos   = 44
+          width  = 12
+          height = 2
+          widget = {
+            title = "PubSub Push Delivery Performance"
+            text = {
+              content = "How quickly and reliably PubSub push subscriptions are delivering to Cloud Run services."
+              format  = "MARKDOWN"
+              style   = {}
+            }
+          }
+        },
+
+        # Push Delivery Latency - Row 46, Left
+        {
+          yPos   = 46
+          width  = 6
+          height = 4
+          widget = {
+            title = "Push Delivery Latency P95 (ms)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"pubsub.googleapis.com/subscription/push_request_latencies\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_DELTA"
+                      crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      groupByFields      = ["resource.labels.subscription_id"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${resource.labels.subscription_id}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Milliseconds"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # Push Delivery Results - Row 46, Right
+        {
+          xPos   = 6
+          yPos   = 46
+          width  = 6
+          height = 4
+          widget = {
+            title = "Push Delivery Results (per minute)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"pubsub.googleapis.com/subscription/push_request_count\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_RATE"
+                      crossSeriesReducer = "REDUCE_SUM"
+                      groupByFields      = ["metric.labels.response_class"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.response_class}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Requests/min"
+                scale = "LINEAR"
+              }
             }
           }
         }
@@ -469,6 +670,49 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
 
     condition_threshold {
       filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.bq_inserter_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+      duration        = "60s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+    }
+  }
+
+  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
+
+  alert_strategy {
+    auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
+  }
+}
+
+# CRITICAL: DLQ Messages Detected (PostgreSQL Writer)
+resource "google_monitoring_alert_policy" "dlq_postgres_writer" {
+  display_name = "DLQ: PostgreSQL Writer Has Messages"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **CRITICAL**: The PostgreSQL Writer Dead Letter Queue has messages.
+
+      This indicates that activities are failing to be written to PostgreSQL.
+
+      **Action Required**:
+      1. Check DLQ messages in PubSub console
+      2. Review PostgreSQL Writer service logs for errors
+      3. Check PostgreSQL connectivity and schema issues
+
+      Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
+    EOT
+  }
+
+  conditions {
+    display_name = "PostgreSQL Writer DLQ has messages"
+
+    condition_threshold {
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.postgres_writer_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
       duration        = "60s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0
@@ -610,9 +854,9 @@ resource "google_monitoring_alert_policy" "old_messages" {
       Oldest unacked message is older than 5 minutes, indicating a processing backlog.
 
       **Action Required**:
-      1. Check if functions are scaling properly
-      2. Review function execution times for performance issues
-      3. Check for function instance limits
+      1. Check if Cloud Run services are scaling properly
+      2. Review service logs for performance issues
+      3. Check for instance limits or resource constraints
 
       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
     EOT
@@ -622,7 +866,7 @@ resource "google_monitoring_alert_policy" "old_messages" {
     display_name = "Oldest unacked message > 5 minutes"
 
     condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"(desirelines-.*-dlq|eventarc-.*)\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
       duration        = "300s" # 5 minutes
       comparison      = "COMPARISON_GT"
       threshold_value = 300 # 5 minutes in seconds
@@ -653,9 +897,10 @@ output "monitoring_dashboard_url" {
 output "alert_policy_ids" {
   description = "IDs of created alert policies"
   value = {
-    dlq_bq_inserter = google_monitoring_alert_policy.dlq_bq_inserter.id
-    service_4xx     = google_monitoring_alert_policy.service_4xx_errors.id
-    service_5xx     = google_monitoring_alert_policy.service_5xx_errors.id
-    old_messages    = google_monitoring_alert_policy.old_messages.id
+    dlq_bq_inserter     = google_monitoring_alert_policy.dlq_bq_inserter.id
+    dlq_postgres_writer = google_monitoring_alert_policy.dlq_postgres_writer.id
+    service_4xx         = google_monitoring_alert_policy.service_4xx_errors.id
+    service_5xx         = google_monitoring_alert_policy.service_5xx_errors.id
+    old_messages        = google_monitoring_alert_policy.old_messages.id
   }
 }
