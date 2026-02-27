@@ -18,6 +18,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Error codes
@@ -47,12 +49,17 @@ type Handler struct {
 	logger             *slog.Logger
 	rateLimiter        *ratelimit.Limiter
 	maxRequestBodySize int64
+	webhookCounter     metric.Int64Counter
+	httpHistogram      metric.Float64Histogram
 }
 
 // HandlerConfig holds configuration for the HTTP handler.
 type HandlerConfig struct {
 	MaxRequestBodySize int64
 	RateLimiter        *ratelimit.Limiter
+	WebhookCounter     metric.Int64Counter
+	HTTPHistogram      metric.Float64Histogram
+	PubSubHistogram    metric.Float64Histogram
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
@@ -62,8 +69,12 @@ func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, 
 		maxBodySize = cfg.MaxRequestBodySize
 	}
 	var rateLimiter *ratelimit.Limiter
+	var webhookCounter metric.Int64Counter
+	var httpHistogram metric.Float64Histogram
 	if cfg != nil {
 		rateLimiter = cfg.RateLimiter
+		webhookCounter = cfg.WebhookCounter
+		httpHistogram = cfg.HTTPHistogram
 	}
 	return &Handler{
 		secretProvider:     secretProvider,
@@ -72,6 +83,8 @@ func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, 
 		logger:             logger,
 		rateLimiter:        rateLimiter,
 		maxRequestBodySize: maxBodySize,
+		webhookCounter:     webhookCounter,
+		httpHistogram:      httpHistogram,
 	}
 }
 
@@ -85,7 +98,11 @@ func (h *Handler) RegisterRoutes() http.Handler {
 		r.Use(h.rateLimiter.Middleware)
 	}
 	r.Use(gcplog.WithCloudTraceContext)
-	r.Use(gcplog.HTTPRequestLogger(h.logger))
+	if h.httpHistogram != nil {
+		r.Use(gcplog.HTTPRequestLoggerWithMetrics(h.logger, h.httpHistogram))
+	} else {
+		r.Use(gcplog.HTTPRequestLogger(h.logger))
+	}
 	r.Use(chiMiddleware.Recoverer)
 
 	// Health check endpoint for Cloud Run / docker health checks
@@ -224,6 +241,16 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		apiErr.Code = ErrCodeInvalidSubscriptionID
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return
+	}
+
+	// Record webhook event metric
+	if h.webhookCounter != nil {
+		h.webhookCounter.Add(r.Context(), 1,
+			metric.WithAttributes(
+				attribute.String("aspect_type", webhookproto.AspectTypeToString(webhook.AspectType)),
+				attribute.String("object_type", webhookproto.ObjectTypeToString(webhook.ObjectType)),
+			),
+		)
 	}
 
 	if webhook.ObjectType != generated.ObjectType_OBJECT_TYPE_ACTIVITY {

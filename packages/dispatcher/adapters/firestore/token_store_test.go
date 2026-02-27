@@ -11,6 +11,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
@@ -44,7 +45,8 @@ func newTestStore(t *testing.T) *TokenStore {
 		}
 	})
 
-	return NewTokenStore(client, gcplog.NewNoOpLogger())
+	noopHist, _ := otel.NoopMeter().Float64Histogram("test")
+	return NewTokenStore(client, gcplog.NewNoOpLogger(), noopHist)
 }
 
 // seedTokens writes a full token document directly via Set, simulating what

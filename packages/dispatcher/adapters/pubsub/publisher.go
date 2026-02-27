@@ -12,6 +12,8 @@ import (
 	"cloud.google.com/go/pubsub/v2"
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
+	"go.opentelemetry.io/otel/metric"
 )
 
 const (
@@ -40,6 +42,7 @@ type Publisher struct {
 	client    *pubsub.Client
 	publisher *pubsub.Publisher
 	logger    *slog.Logger
+	histogram metric.Float64Histogram
 
 	mu     sync.RWMutex
 	closed bool
@@ -93,6 +96,11 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 	}, nil
 }
 
+// SetHistogram sets the OTel histogram for publish duration recording.
+func (p *Publisher) SetHistogram(h metric.Float64Histogram) {
+	p.histogram = h
+}
+
 // Publish sends an enriched webhook event to the configured Pub/Sub topic.
 // Returns ErrPublisherClosed if called after Close.
 // If the context has no deadline, a default timeout of 30s is applied.
@@ -126,7 +134,9 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 	})
 
 	// Get blocks until the message is published or context is canceled.
+	done := otel.RecordDuration(ctx, p.histogram)
 	id, err := result.Get(ctx)
+	done(err)
 	if err != nil {
 		return fmt.Errorf("failed to publish to PubSub: %w", err)
 	}

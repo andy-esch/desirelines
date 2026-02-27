@@ -6,10 +6,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // traceContextKey is the context key for trace information.
@@ -80,6 +84,82 @@ func HTTPRequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				default:
 					logger.Info("HTTP Request", attrs...)
 				}
+			}()
+
+			next.ServeHTTP(ww, r)
+		})
+	}
+}
+
+// HTTPRequestLoggerWithMetrics is a variant of HTTPRequestLogger that also records
+// request duration to an OpenTelemetry histogram. The histogram is recorded with
+// http.method, http.status_code, and http.route attributes.
+//
+// The http.route attribute uses chi's RouteContext for low-cardinality route patterns
+// (e.g., "/activities/{id}") rather than the actual URL path.
+func HTTPRequestLoggerWithMetrics(logger *slog.Logger, histogram metric.Float64Histogram) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+
+			// Wrap the response writer to capture the status code and bytes written
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+			defer func() {
+				status := ww.Status()
+				latency := time.Since(start)
+
+				// Build httpRequest field per GCP spec
+				httpRequest := slog.Group("httpRequest",
+					"requestMethod", r.Method,
+					"requestUrl", r.URL.String(),
+					"status", status,
+					"responseSize", ww.BytesWritten(),
+					"userAgent", r.UserAgent(),
+					"remoteIp", r.RemoteAddr,
+					"latency", formatLatency(latency),
+					"protocol", r.Proto,
+				)
+
+				// Get request ID from chi context (if available)
+				requestID := middleware.GetReqID(r.Context())
+
+				attrs := []any{httpRequest}
+				if requestID != "" {
+					attrs = append(attrs, "request_id", requestID)
+				}
+
+				// Add trace context if available
+				if tc := GetTraceContext(r.Context()); tc != nil {
+					attrs = append(attrs,
+						"logging.googleapis.com/trace", tc.TraceID,
+						"logging.googleapis.com/spanId", tc.SpanID,
+						"logging.googleapis.com/trace_sampled", tc.TraceSampled,
+					)
+				}
+
+				// Log at appropriate level based on status code
+				switch {
+				case status >= 500:
+					logger.Error("HTTP Request", attrs...)
+				case status >= 400:
+					logger.Warn("HTTP Request", attrs...)
+				default:
+					logger.Info("HTTP Request", attrs...)
+				}
+
+				// Record OTel histogram
+				route := "unknown"
+				if rctx := chi.RouteContext(r.Context()); rctx != nil && rctx.RoutePattern() != "" {
+					route = rctx.RoutePattern()
+				}
+				histogram.Record(r.Context(), float64(latency.Milliseconds()),
+					metric.WithAttributes(
+						attribute.String("http.method", r.Method),
+						attribute.String("http.status_code", strconv.Itoa(status)),
+						attribute.String("http.route", route),
+					),
+				)
 			}()
 
 			next.ServeHTTP(ww, r)

@@ -31,8 +31,10 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/andy-esch/desirelines/packages/shared/secrets"
+	otelmetric "go.opentelemetry.io/otel/metric"
 )
 
 func main() {
