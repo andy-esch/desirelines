@@ -13,6 +13,7 @@ import (
 	"time"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -37,7 +38,7 @@ type mockTokenStore struct {
 	called     bool
 }
 
-func (m *mockTokenStore) WriteAuthData(_ context.Context, athleteID string, _ *StravaTokenData, _ *AthleteProfile) error {
+func (m *mockTokenStore) WriteAuthData(_ context.Context, athleteID string, _ *stravatoken.Data, _ *AthleteProfile) error {
 	m.called = true
 	m.calledWith = athleteID
 	return m.writeErr

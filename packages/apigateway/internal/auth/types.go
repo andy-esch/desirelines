@@ -20,17 +20,6 @@ type StravaAthlete struct {
 	Profile   string `json:"profile"`
 }
 
-// StravaTokenData is the Firestore document schema for tokens.
-// Stored at users/{athleteID}/private/strava_tokens.
-type StravaTokenData struct {
-	AccessToken   string    `firestore:"access_token"`
-	RefreshToken  string    `firestore:"refresh_token"`
-	ExpiresAt     int64     `firestore:"expires_at"`
-	Scopes        string    `firestore:"scopes"`
-	ConnectedAt   time.Time `firestore:"connected_at"`
-	LastRefreshed time.Time `firestore:"last_refreshed"`
-}
-
 // AthleteProfile is the Firestore document schema for the user profile.
 // Stored at users/{athleteID}/private/profile.
 type AthleteProfile struct {

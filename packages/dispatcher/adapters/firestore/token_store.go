@@ -15,13 +15,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Firestore path components for per-user token storage.
-const (
-	usersCollection   = "users"
-	privateCollection = "private"
-	tokensDocument    = "strava_tokens" //nolint:gosec // Document name, not credential
-)
-
 // TokenStore implements ports.TokenStore using Firestore.
 type TokenStore struct {
 	client *firestore.Client
@@ -76,5 +69,5 @@ func (s *TokenStore) WriteTokens(ctx context.Context, athleteID int64, tokens *s
 
 // tokensRef returns the Firestore document reference for an athlete's tokens.
 func (s *TokenStore) tokensRef(athleteID int64) *firestore.DocumentRef {
-	return s.client.Collection(usersCollection).Doc(strconv.FormatInt(athleteID, 10)).Collection(privateCollection).Doc(tokensDocument)
+	return s.client.Collection(stravatoken.UsersCollection).Doc(strconv.FormatInt(athleteID, 10)).Collection(stravatoken.PrivateCollection).Doc(stravatoken.TokensDocument)
 }
