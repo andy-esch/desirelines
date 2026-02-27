@@ -50,7 +50,8 @@ type Config struct {
 // Secrets are loaded separately via secrets.LoadFromMount for Infisical mount support.
 // Returns an error if required configuration is missing.
 func LoadConfig() (*Config, error) {
-	// Validate required environment variables first (fail fast)
+	// Validate required environment variables first (fail fast).
+	// GCP_PROJECT_ID has a fallback (GOOGLE_CLOUD_PROJECT) so it's handled separately.
 	gcpProjectID := os.Getenv("GCP_PROJECT_ID")
 	if gcpProjectID == "" {
 		gcpProjectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -59,19 +60,19 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("required environment variable GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT is not set")
 	}
 
-	firestoreDatabase := os.Getenv("FIRESTORE_DATABASE")
-	if firestoreDatabase == "" {
-		return nil, fmt.Errorf("required environment variable FIRESTORE_DATABASE is not set")
+	firestoreDatabase, err := getRequiredEnv("FIRESTORE_DATABASE")
+	if err != nil {
+		return nil, err
 	}
 
-	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		return nil, fmt.Errorf("required environment variable FRONTEND_URL is not set")
+	frontendURL, err := getRequiredEnv("FRONTEND_URL")
+	if err != nil {
+		return nil, err
 	}
 
-	authCallbackURL := os.Getenv("AUTH_CALLBACK_URL")
-	if authCallbackURL == "" {
-		return nil, fmt.Errorf("required environment variable AUTH_CALLBACK_URL is not set")
+	authCallbackURL, err := getRequiredEnv("AUTH_CALLBACK_URL")
+	if err != nil {
+		return nil, err
 	}
 
 	readTimeout, err := parseDurationEnvSeconds("SERVER_READ_TIMEOUT", DefaultReadTimeout)
@@ -106,6 +107,15 @@ func LoadConfig() (*Config, error) {
 		ReadHeaderTimeout: readHeaderTimeout,
 		ShutdownTimeout:   shutdownTimeout,
 	}, nil
+}
+
+// getRequiredEnv returns the value of an environment variable or an error if it's not set.
+func getRequiredEnv(key string) (string, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return "", fmt.Errorf("required environment variable %s is not set", key)
+	}
+	return value, nil
 }
 
 // parseDurationEnvSeconds parses an environment variable as an integer number of seconds.

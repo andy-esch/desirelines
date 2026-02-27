@@ -88,9 +88,9 @@ type MockTokenStore struct {
 	Tokens map[int64]*stravatoken.Data
 	// GetErr is returned by GetTokens (overrides Tokens lookup).
 	GetErr error
-	// WriteErr is returned by WriteTokens and WriteTokensIfUnmodified.
+	// WriteErr is returned by WriteTokensIfUnmodified.
 	WriteErr error
-	// WrittenTokens tracks tokens written by WriteTokens or WriteTokensIfUnmodified.
+	// WrittenTokens tracks tokens written by WriteTokensIfUnmodified.
 	WrittenTokens map[int64]*stravatoken.Data
 	// SimulateConflict causes WriteTokensIfUnmodified to return ErrTokenConflict.
 	SimulateConflict bool
@@ -106,18 +106,6 @@ func (m *MockTokenStore) GetTokens(_ context.Context, athleteID int64) (*stravat
 		return nil, ports.ErrTokenNotFound
 	}
 	return tokens, nil
-}
-
-// WriteTokens implements the TokenStore interface.
-func (m *MockTokenStore) WriteTokens(_ context.Context, athleteID int64, tokens *stravatoken.Data) error {
-	if m.WriteErr != nil {
-		return m.WriteErr
-	}
-	if m.WrittenTokens == nil {
-		m.WrittenTokens = make(map[int64]*stravatoken.Data)
-	}
-	m.WrittenTokens[athleteID] = tokens
-	return nil
 }
 
 // WriteTokensIfUnmodified implements the TokenStore interface with optimistic concurrency.

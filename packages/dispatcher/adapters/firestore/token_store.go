@@ -52,22 +52,6 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 	return &tokens, nil
 }
 
-// WriteTokens writes updated Strava tokens for the given athlete to Firestore.
-// It uses Update with explicit fields so that fields owned by apigateway
-// (scopes, connected_at) are preserved.
-func (s *TokenStore) WriteTokens(ctx context.Context, athleteID int64, tokens *stravatoken.Data) error {
-	if _, err := s.tokensRef(athleteID).Update(ctx, []firestore.Update{
-		{Path: "access_token", Value: tokens.AccessToken},
-		{Path: "refresh_token", Value: tokens.RefreshToken},
-		{Path: "expires_at", Value: tokens.ExpiresAt},
-		{Path: "last_refreshed", Value: time.Now()},
-	}); err != nil {
-		return fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
-	}
-
-	return nil
-}
-
 // WriteTokensIfUnmodified atomically writes tokens only if last_refreshed matches
 // the expected value (optimistic concurrency). Returns ports.ErrTokenConflict if
 // another goroutine has already refreshed the tokens since they were read.

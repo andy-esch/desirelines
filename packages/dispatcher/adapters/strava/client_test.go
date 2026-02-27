@@ -367,10 +367,6 @@ func (s *conflictTokenStore) GetTokens(_ context.Context, _ int64) (*stravatoken
 	return s.winnerTokens, nil
 }
 
-func (s *conflictTokenStore) WriteTokens(_ context.Context, _ int64, _ *stravatoken.Data) error {
-	return nil
-}
-
 func (s *conflictTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) error {
 	return ports.ErrTokenConflict
 }

@@ -37,7 +37,6 @@ type SecretProvider interface {
 // TokenStore defines the outbound port for reading and writing per-user Strava tokens.
 type TokenStore interface {
 	GetTokens(ctx context.Context, athleteID int64) (*stravatoken.Data, error)
-	WriteTokens(ctx context.Context, athleteID int64, tokens *stravatoken.Data) error
 	// WriteTokensIfUnmodified atomically writes tokens only if last_refreshed
 	// matches expectedLastRefreshed. Returns ErrTokenConflict if another
 	// goroutine has already refreshed the tokens (optimistic concurrency).
