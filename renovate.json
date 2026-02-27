@@ -1,6 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
+  "terraform": {
+    "enabled": true
+  },
+  "terraform-version": {
+    "enabled": true
+  },
   "packageRules": [
     {
       "description": "Group all Dockerfile base image updates into one PR",
@@ -18,8 +24,21 @@
       "groupName": "github actions"
     },
     {
-      "description": "Group all npm updates into one PR",
+      "description": "Group all TanStack updates into one PR",
+      "matchPackagePrefixes": ["@tanstack/"],
+      "groupName": "tanstack"
+    },
+    {
+      "description": "Group React and related type updates into one PR",
+      "matchPackageNames": ["react", "react-dom"],
+      "matchPackagePrefixes": ["@types/react", "@types/react-dom"],
+      "groupName": "react"
+    },
+    {
+      "description": "Group all other npm updates into one PR",
       "matchManagers": ["npm"],
+      "excludePackagePrefixes": ["@tanstack/"],
+      "excludePackageNames": ["react", "react-dom"],
       "groupName": "npm dependencies"
     },
     {
@@ -36,6 +55,11 @@
       "description": "Pin Go to 1.25.x - wait for ecosystem tooling to catch up with 1.26",
       "matchPackageNames": ["golang", "go"],
       "allowedVersions": "<1.26.0"
+    },
+    {
+      "description": "Group all Terraform updates into one PR",
+      "matchManagers": ["terraform", "terraform-version"],
+      "groupName": "terraform updates"
     }
   ]
 }
