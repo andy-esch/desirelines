@@ -159,7 +159,7 @@ export function loadConfig(): AppConfig {
         `See README.md for setup instructions.\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: error });
     }
     // Re-throw non-Zod errors
     throw error;
