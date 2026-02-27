@@ -3,6 +3,7 @@ package firestore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -64,6 +65,45 @@ func (s *TokenStore) WriteTokens(ctx context.Context, athleteID int64, tokens *s
 		return fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
 	}
 
+	return nil
+}
+
+// WriteTokensIfUnmodified atomically writes tokens only if last_refreshed matches
+// the expected value (optimistic concurrency). Returns ports.ErrTokenConflict if
+// another goroutine has already refreshed the tokens since they were read.
+func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) error {
+	ref := s.tokensRef(athleteID)
+
+	err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		snap, getErr := tx.Get(ref)
+		if getErr != nil {
+			return fmt.Errorf("read tokens in transaction: %w", getErr)
+		}
+
+		var current stravatoken.Data
+		if decodeErr := snap.DataTo(&current); decodeErr != nil {
+			return fmt.Errorf("decode tokens in transaction: %w", decodeErr)
+		}
+
+		// Check version: if last_refreshed has changed, another thread won the race.
+		if !current.LastRefreshed.Equal(expectedLastRefreshed) {
+			return ports.ErrTokenConflict
+		}
+
+		return tx.Update(ref, []firestore.Update{
+			{Path: "access_token", Value: tokens.AccessToken},
+			{Path: "refresh_token", Value: tokens.RefreshToken},
+			{Path: "expires_at", Value: tokens.ExpiresAt},
+			{Path: "last_refreshed", Value: time.Now()},
+		})
+	})
+
+	if err != nil {
+		if errors.Is(err, ports.ErrTokenConflict) {
+			return ports.ErrTokenConflict
+		}
+		return fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
+	}
 	return nil
 }
 

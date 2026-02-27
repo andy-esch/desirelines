@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
@@ -14,6 +15,9 @@ var (
 	ErrActivityNotFound = errors.New("activity not found")
 	// ErrTokenNotFound is returned when no Strava tokens exist for an athlete.
 	ErrTokenNotFound = errors.New("token not found")
+	// ErrTokenConflict is returned when a concurrent token refresh was detected.
+	// The caller should re-read the tokens and retry with the winner's values.
+	ErrTokenConflict = errors.New("token conflict: concurrent refresh detected")
 )
 
 // Publisher defines the outbound port for publishing enriched webhook events.
@@ -34,6 +38,10 @@ type SecretProvider interface {
 type TokenStore interface {
 	GetTokens(ctx context.Context, athleteID int64) (*stravatoken.Data, error)
 	WriteTokens(ctx context.Context, athleteID int64, tokens *stravatoken.Data) error
+	// WriteTokensIfUnmodified atomically writes tokens only if last_refreshed
+	// matches expectedLastRefreshed. Returns ErrTokenConflict if another
+	// goroutine has already refreshed the tokens (optimistic concurrency).
+	WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) error
 }
 
 // StravaClient defines the outbound port for fetching activity data from the Strava API.
