@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 import { useGoalMigration } from "./useGoalMigration";
 import type { GoalsForYear } from "../services/userConfigService";
 
@@ -37,11 +37,11 @@ const MIGRATED_GOALS: GoalsForYear = {
 };
 
 describe("useGoalMigration", () => {
-  let updateGoals: ReturnType<typeof vi.fn>;
+  let updateGoals: Mock<(goals: GoalsForYear) => Promise<void>>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    updateGoals = vi.fn().mockResolvedValue(undefined);
+    updateGoals = vi.fn<(goals: GoalsForYear) => Promise<void>>().mockResolvedValue(undefined);
   });
 
   it("does nothing when goalsData is null", () => {
