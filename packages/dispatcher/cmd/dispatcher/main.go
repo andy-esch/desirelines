@@ -26,6 +26,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
+	"github.com/andy-esch/desirelines/packages/shared/secrets"
 )
 
 const (
@@ -154,10 +155,16 @@ func initDependencies(cfg *config.Config, log *slog.Logger) (*Dependencies, erro
 
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 
-	stravaClient, err := strava.NewClient(tokenStore, log)
+	stravaClientID, err := secrets.LoadFromMount(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
 	if err != nil {
-		return nil, fmt.Errorf("strava client: %w", err)
+		return nil, fmt.Errorf("strava client_id: %w", err)
 	}
+	stravaClientSecret, err := secrets.LoadFromMount(config.SecretPathStravaClientSecret, "STRAVA_CLIENT_SECRET")
+	if err != nil {
+		return nil, fmt.Errorf("strava client_secret: %w", err)
+	}
+
+	stravaClient := strava.NewClient(stravaClientID, stravaClientSecret, tokenStore, log)
 
 	// Rate limiter: 5 req/s, burst 10 (Strava sends a few events/day normally)
 	// Uses Background context (not startupCtx) because the cleanup goroutine must

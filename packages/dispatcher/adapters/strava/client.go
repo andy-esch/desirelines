@@ -14,9 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
-	"github.com/andy-esch/desirelines/packages/shared/secrets"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
@@ -76,21 +74,9 @@ type Client struct {
 var _ ports.StravaClient = (*Client)(nil)
 
 // NewClient creates a new Strava API client.
-// OAuth client credentials are loaded from secret files or environment variables.
+// OAuth client credentials must be injected by the caller (composition root).
 // Per-user tokens are read from the TokenStore on each request.
-func NewClient(tokenStore ports.TokenStore, logger *slog.Logger) (*Client, error) {
-	clientID, err := secrets.LoadFromMount(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
-	if err != nil {
-		return nil, fmt.Errorf("strava client_id: %w", err)
-	}
-
-	clientSecret, err := secrets.LoadFromMount(config.SecretPathStravaClientSecret, "STRAVA_CLIENT_SECRET")
-	if err != nil {
-		return nil, fmt.Errorf("strava client_secret: %w", err)
-	}
-
-	logger.Info("Strava client initialized")
-
+func NewClient(clientID, clientSecret string, tokenStore ports.TokenStore, logger *slog.Logger) *Client {
 	return &Client{
 		httpClient:   &http.Client{Timeout: httpClientTimeout},
 		clientID:     clientID,
@@ -99,7 +85,7 @@ func NewClient(tokenStore ports.TokenStore, logger *slog.Logger) (*Client, error
 		tokenURL:     defaultTokenURL,
 		apiBase:      defaultAPIBase,
 		logger:       logger,
-	}, nil
+	}
 }
 
 // FetchActivity retrieves the raw JSON for a Strava activity.

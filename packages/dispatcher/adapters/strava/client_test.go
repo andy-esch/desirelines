@@ -26,15 +26,11 @@ const (
 
 // newTestClient creates a Client pointing at the given test server with a token store.
 func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client {
-	return &Client{
-		httpClient:   server.Client(),
-		clientID:     "test-id",
-		clientSecret: "test-secret",
-		tokenStore:   tokenStore,
-		tokenURL:     server.URL + testTokenPath,
-		apiBase:      server.URL + "/api/v3",
-		logger:       gcplog.NewNoOpLogger(),
-	}
+	c := NewClient("test-id", "test-secret", tokenStore, gcplog.NewNoOpLogger())
+	c.httpClient = server.Client()
+	c.tokenURL = server.URL + testTokenPath
+	c.apiBase = server.URL + "/api/v3"
+	return c
 }
 
 func TestFetchActivity_Success(t *testing.T) {
