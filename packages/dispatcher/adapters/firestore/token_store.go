@@ -58,6 +58,9 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) error {
 	ref := s.tokensRef(athleteID)
 
+	// Capture timestamp before the transaction so retries use a consistent value.
+	now := time.Now()
+
 	err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
 		snap, getErr := tx.Get(ref)
 		if getErr != nil {
@@ -78,7 +81,7 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 			{Path: "access_token", Value: tokens.AccessToken},
 			{Path: "refresh_token", Value: tokens.RefreshToken},
 			{Path: "expires_at", Value: tokens.ExpiresAt},
-			{Path: "last_refreshed", Value: time.Now()},
+			{Path: "last_refreshed", Value: now},
 		})
 	})
 

@@ -24,8 +24,8 @@ const (
 	testSmallActivityID int64 = 1
 )
 
-// newTestClient creates a Client pointing at the given test server with a mock token store.
-func newTestClient(server *httptest.Server, tokenStore *portstest.MockTokenStore) *Client {
+// newTestClient creates a Client pointing at the given test server with a token store.
+func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client {
 	return &Client{
 		httpClient:   server.Client(),
 		clientID:     "test-id",
@@ -411,15 +411,7 @@ func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
 		winnerTokens: &stravatoken.Data{AccessToken: "winner-access", RefreshToken: "winner-refresh"},
 	}
 
-	client := &Client{
-		httpClient:   server.Client(),
-		clientID:     "test-id",
-		clientSecret: "test-secret",
-		tokenStore:   tokenStore,
-		tokenURL:     server.URL + testTokenPath,
-		apiBase:      server.URL + "/api/v3",
-		logger:       gcplog.NewNoOpLogger(),
-	}
+	client := newTestClient(server, tokenStore)
 
 	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
 	if err != nil {
