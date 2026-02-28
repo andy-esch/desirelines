@@ -323,7 +323,7 @@ func scanMultiSportDailySummaryRows(rows interface {
 
 // GetYearMetadata returns metadata about activities for a given year.
 // Includes list of sports, per-sport totals, and last updated timestamp.
-func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string, year int) (_ *generated.YearMetadata, retErr error) {
+func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string, year int) (metadata *generated.YearMetadata, retErr error) {
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "year_metadata"))
 	defer func() { done(retErr) }()
 	// Validate year range early to avoid unnecessary DB query and satisfy G115 (int to int32)
@@ -347,9 +347,9 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string,
 		ORDER BY sport ASC
 	`
 
-	rows, err := r.db.Query(ctx, query, userID, year)
-	if err != nil {
-		return nil, fmt.Errorf("query year metadata: %w", err)
+	rows, retErr := r.db.Query(ctx, query, userID, year)
+	if retErr != nil {
+		return nil, fmt.Errorf("query year metadata: %w", retErr)
 	}
 	defer rows.Close()
 
@@ -364,6 +364,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string,
 		var lastUpdated *time.Time
 
 		if scanErr := rows.Scan(&sport, &distance, &elevation, &timeMinutes, &activities, &lastUpdated); scanErr != nil {
+			retErr = scanErr
 			return nil, fmt.Errorf("scan year metadata row: %w", scanErr)
 		}
 
@@ -403,7 +404,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string,
 
 // GetActivityByID returns a single activity by its Strava ID.
 // Returns nil (not error) if the activity is not found.
-func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string, id int64) (_ *activitiesv1.Activity, retErr error) {
+func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string, id int64) (activity *activitiesv1.Activity, retErr error) {
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_activity_by_id"))
 	defer func() { done(retErr) }()
 	query := `
@@ -425,7 +426,7 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 	var movingTime, elapsedTime int32
 	var elevation, avgSpeed, maxSpeed, avgHR, maxHR *float64
 
-	err := row.Scan(
+	retErr = row.Scan(
 		&activityID,
 		&name,
 		&activityType,
@@ -441,12 +442,12 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 		&maxHR,
 	)
 
-	if err != nil {
+	if retErr != nil {
 		// Check for not found - pgx returns specific error
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(retErr, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("query activity by id: %w", err)
+		return nil, fmt.Errorf("query activity by id: %w", retErr)
 	}
 
 	return &activitiesv1.Activity{
@@ -514,7 +515,7 @@ func (qb *queryBuilder) append(s string) {
 // ListActivities returns activities matching the filter criteria with cursor-based pagination.
 // Results are ordered by (start_date_local DESC, id DESC) for stable ordering.
 // Uses keyset pagination for O(1) performance regardless of offset.
-func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (_ *activitiesv1.ListActivitiesResponse, retErr error) {
+func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (resp *activitiesv1.ListActivitiesResponse, retErr error) {
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "list_activities"))
 	defer func() { done(retErr) }()
 	// Build query dynamically based on filter
@@ -565,9 +566,9 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	}
 	qb.AddCondition(" LIMIT $%d", limit+1)
 
-	rows, err := r.db.Query(ctx, qb.query, qb.args...)
-	if err != nil {
-		return nil, fmt.Errorf("query activities list: %w", err)
+	rows, retErr := r.db.Query(ctx, qb.query, qb.args...)
+	if retErr != nil {
+		return nil, fmt.Errorf("query activities list: %w", retErr)
 	}
 	defer rows.Close()
 

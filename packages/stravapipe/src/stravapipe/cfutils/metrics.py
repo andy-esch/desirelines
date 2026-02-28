@@ -41,10 +41,10 @@ def setup_metrics(service_name: str) -> Meter:
         return get_meter("desirelines.io")
 
     try:
-        from opentelemetry.exporter.cloud_monitoring import (
+        from opentelemetry.exporter.cloud_monitoring import (  # type: ignore[import-not-found]
             CloudMonitoringMetricsExporter,
         )
-        from opentelemetry.resourcedetector.gcp_resource_detector import (
+        from opentelemetry.resourcedetector.gcp_resource_detector import (  # type: ignore[import-not-found]
             GoogleCloudResourceDetector,
         )
 
@@ -78,10 +78,12 @@ def setup_metrics(service_name: str) -> Meter:
 
 @contextmanager
 def record_duration(
-    histogram: Histogram,
+    histogram: Histogram | None,
     attributes: dict[str, str] | None = None,
 ) -> Generator[None]:
     """Context manager that records elapsed time (ms) on a histogram.
+
+    If histogram is None, acts as a no-op (the body still executes).
 
     Usage::
 
@@ -90,6 +92,9 @@ def record_duration(
 
     On exception, adds result=error; on success, result=success.
     """
+    if histogram is None:
+        yield
+        return
     attrs = dict(attributes) if attributes else {}
     start = time.monotonic()
     try:

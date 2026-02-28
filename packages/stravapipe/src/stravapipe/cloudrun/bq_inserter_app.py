@@ -121,10 +121,7 @@ async def _handle_create(
     # Construct DetailedStravaActivity from raw Strava API JSON
     activity = DetailedStravaActivity.model_validate(raw_activity)
 
-    if bq_histogram is not None:
-        with record_duration(bq_histogram, {"operation": "insert_rows"}):
-            stats = writer.write_activity(activity)
-    else:
+    with record_duration(bq_histogram, {"operation": "insert_rows"}):
         stats = writer.write_activity(activity)
 
     logger.info(
@@ -157,14 +154,7 @@ async def _handle_delete(
 
     service = make_delete_service()
 
-    if bq_histogram is not None:
-        with record_duration(bq_histogram, {"operation": "dml"}):
-            result = service.run(
-                activity_id=event.object_id,
-                correlation_id=correlation_id,
-                event_time=event.event_time,
-            )
-    else:
+    with record_duration(bq_histogram, {"operation": "dml"}):
         result = service.run(
             activity_id=event.object_id,
             correlation_id=correlation_id,

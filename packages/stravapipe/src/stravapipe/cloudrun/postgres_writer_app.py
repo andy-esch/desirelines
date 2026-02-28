@@ -154,12 +154,7 @@ async def _handle_create(
 
     # Insert to PostgreSQL within transaction (no Strava API call needed)
     uow = SqlAlchemyUnitOfWork(session_factory)
-    if pg_histogram is not None:
-        with record_duration(pg_histogram, {"operation": "insert"}):
-            with uow:
-                inserted = uow.activities.insert(activity)
-                uow.commit()
-    else:
+    with record_duration(pg_histogram, {"operation": "insert"}):
         with uow:
             inserted = uow.activities.insert(activity)
             uow.commit()
@@ -222,22 +217,15 @@ async def _handle_update(
         )
 
     uow = SqlAlchemyUnitOfWork(session_factory)
-
-    def _do_update():
+    with record_duration(pg_histogram, {"operation": "update_metadata"}):
         with uow:
             # If activity doesn't exist, skip with warning
             # (going forward, CREATEs always carry data so backfill is not needed)
             if not uow.activities.exists(activity_id):
-                return None
-            updated = uow.activities.update_metadata(activity_id, relevant_updates)
-            uow.commit()
-            return updated
-
-    if pg_histogram is not None:
-        with record_duration(pg_histogram, {"operation": "update_metadata"}):
-            updated = _do_update()
-    else:
-        updated = _do_update()
+                updated = None
+            else:
+                updated = uow.activities.update_metadata(activity_id, relevant_updates)
+                uow.commit()
 
     if updated is None:
         logger.warning(
@@ -278,12 +266,7 @@ async def _handle_delete(
     activity_id = event.object_id
     uow = SqlAlchemyUnitOfWork(session_factory)
 
-    if pg_histogram is not None:
-        with record_duration(pg_histogram, {"operation": "delete"}):
-            with uow:
-                deleted = uow.activities.delete(activity_id)
-                uow.commit()
-    else:
+    with record_duration(pg_histogram, {"operation": "delete"}):
         with uow:
             deleted = uow.activities.delete(activity_id)
             uow.commit()

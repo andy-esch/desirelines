@@ -58,11 +58,7 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 		r.Use(cfg.RateLimiter.Middleware)
 	}
 	r.Use(gcplog.WithCloudTraceContext)
-	if cfg.HTTPHistogram != nil {
-		r.Use(gcplog.HTTPRequestLoggerWithMetrics(logger, cfg.HTTPHistogram))
-	} else {
-		r.Use(gcplog.HTTPRequestLogger(logger))
-	}
+	r.Use(gcplog.HTTPRequestLoggerWithMetrics(logger, cfg.HTTPHistogram))
 	r.Use(chiMiddleware.Recoverer)
 
 	// CORS middleware for all routes

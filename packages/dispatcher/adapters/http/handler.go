@@ -97,11 +97,7 @@ func (h *Handler) RegisterRoutes() http.Handler {
 		r.Use(h.rateLimiter.Middleware)
 	}
 	r.Use(gcplog.WithCloudTraceContext)
-	if h.httpHistogram != nil {
-		r.Use(gcplog.HTTPRequestLoggerWithMetrics(h.logger, h.httpHistogram))
-	} else {
-		r.Use(gcplog.HTTPRequestLogger(h.logger))
-	}
+	r.Use(gcplog.HTTPRequestLoggerWithMetrics(h.logger, h.httpHistogram))
 	r.Use(chiMiddleware.Recoverer)
 
 	// Health check endpoint for Cloud Run / docker health checks
