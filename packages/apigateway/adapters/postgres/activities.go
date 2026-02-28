@@ -382,8 +382,8 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string,
 		}
 	}
 
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, fmt.Errorf("iterate year metadata rows: %w", rowsErr)
+	if retErr = rows.Err(); retErr != nil {
+		return nil, fmt.Errorf("iterate year metadata rows: %w", retErr)
 	}
 
 	// Convert time to ISO string for JSON response
@@ -593,7 +593,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		var movingTime int32
 		var elevation *float64
 
-		if scanErr := rows.Scan(
+		if retErr = rows.Scan(
 			&id,
 			&name,
 			&activityType,
@@ -602,8 +602,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			&distanceMeters,
 			&movingTime,
 			&elevation,
-		); scanErr != nil {
-			return nil, fmt.Errorf("scan activity row: %w", scanErr)
+		); retErr != nil {
+			return nil, fmt.Errorf("scan activity row: %w", retErr)
 		}
 
 		scannedActivities = append(scannedActivities, scannedActivity{
@@ -618,8 +618,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		})
 	}
 
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, fmt.Errorf("iterate activities rows: %w", rowsErr)
+	if retErr = rows.Err(); retErr != nil {
+		return nil, fmt.Errorf("iterate activities rows: %w", retErr)
 	}
 
 	// Determine if there are more results
