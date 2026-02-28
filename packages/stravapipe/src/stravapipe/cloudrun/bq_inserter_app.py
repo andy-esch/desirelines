@@ -84,9 +84,7 @@ async def handle_pubsub(request: Request):
         on_create=lambda event, event_data, cid: _handle_create(
             event, event_data, cid, writer, bq_hist
         ),
-        on_delete=lambda event, event_data, cid: _handle_delete(
-            event, cid, bq_hist
-        ),
+        on_delete=lambda event, event_data, cid: _handle_delete(event, cid, bq_hist),
         webhook_counter=webhook_counter,
     )
 

@@ -49,9 +49,7 @@ def setup_metrics(service_name: str) -> Meter:
         )
 
         gcp_resource = GoogleCloudResourceDetector().detect()
-        resource = Resource.create({"service.name": service_name}).merge(
-            gcp_resource
-        )
+        resource = Resource.create({"service.name": service_name}).merge(gcp_resource)
 
         exporter = CloudMonitoringMetricsExporter()
         reader = PeriodicExportingMetricReader(

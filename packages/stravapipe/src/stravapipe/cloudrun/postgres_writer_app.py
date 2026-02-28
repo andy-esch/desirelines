@@ -229,9 +229,7 @@ async def _handle_update(
             # (going forward, CREATEs always carry data so backfill is not needed)
             if not uow.activities.exists(activity_id):
                 return None
-            updated = uow.activities.update_metadata(
-                activity_id, relevant_updates
-            )
+            updated = uow.activities.update_metadata(activity_id, relevant_updates)
             uow.commit()
             return updated
 

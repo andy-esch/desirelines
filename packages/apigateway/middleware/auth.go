@@ -9,7 +9,6 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -93,7 +92,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		idToken := parts[1]
 
 		// Verify the ID token with Firebase
-		done := otel.RecordDuration(r.Context(), m.histogram, attribute.String("result", "pending"))
+		done := otel.RecordDuration(r.Context(), m.histogram)
 		token, err := m.verifier.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
 			done(err)
