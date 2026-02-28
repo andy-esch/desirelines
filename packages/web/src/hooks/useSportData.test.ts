@@ -69,7 +69,7 @@ describe("useSportData", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
-    } as ReturnType<typeof useUserConfigModule.useUserConfig>);
+    } as unknown as ReturnType<typeof useUserConfigModule.useUserConfig>);
   });
 
   it("starts in loading state", () => {

@@ -395,6 +395,8 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 
 // handleMultiSportMetrics handles GET /activities/{year}/metrics?sports=X,Y,Z.
 // Uses a single DB query for all sports, then re-keys results from Strava types to categories.
+//
+//nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {
@@ -484,6 +486,8 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 
 // handleMultiSportSource handles GET /activities/{year}/source?sports=X,Y,Z.
 // Uses a single DB query for all sports, then re-keys results from Strava types to categories.
+//
+//nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {
