@@ -33,8 +33,9 @@ type ActivityRepository interface {
 
 	// GetMultiSportDailySummary returns daily summaries for multiple sports in a single query.
 	// Returns a map keyed by raw Strava sport type.
+	// loc determines "today" for current-year queries.
 	// Used by: GET /activities/{year}/source?sports=X,Y,Z (without from/to params)
-	GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error)
+	GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.DailySummary, error)
 
 	// GetMultiSportDailySummaryByDateRange returns daily summaries for multiple sports in a date range.
 	// Returns a map keyed by raw Strava sport type.

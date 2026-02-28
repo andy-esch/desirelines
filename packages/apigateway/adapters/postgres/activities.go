@@ -245,9 +245,17 @@ func scanMultiSportMetricsRows(rows interface {
 
 // GetMultiSportDailySummary returns daily summaries for multiple sports in a given year.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.DailySummary, error) {
 	from := fmt.Sprintf("%d-01-01", year)
 	to := fmt.Sprintf("%d-12-31", year)
+
+	// Optimization: If querying the current year, cap the query at today
+	// in the user's timezone to match GetMultiSportMetrics behavior.
+	now := time.Now().In(loc)
+	if year == now.Year() {
+		to = now.Format("2006-01-02")
+	}
+
 	return r.GetMultiSportDailySummaryByDateRange(ctx, userID, from, to, sportTypes)
 }
 

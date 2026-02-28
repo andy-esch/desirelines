@@ -460,7 +460,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetMultiSportDailySummary", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			result, err := repo.GetMultiSportDailySummary(ctx, "test-user", 2024, []string{"Ride", "Run", "Yoga"})
+			result, err := repo.GetMultiSportDailySummary(ctx, "test-user", 2024, []string{"Ride", "Run", "Yoga"}, time.UTC)
 			if err != nil {
 				t.Fatalf("GetMultiSportDailySummary failed: %v", err)
 			}

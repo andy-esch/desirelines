@@ -459,7 +459,7 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	if params.useDateRange {
 		byStravaType, err = h.repo.GetMultiSportDailySummaryByDateRange(ctx, userID, params.from, params.to, params.sportTypes)
 	} else {
-		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, userID, params.year, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, userID, params.year, params.sportTypes, params.loc)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
@@ -503,7 +503,7 @@ func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request)
 	if params.useDateRange {
 		byStravaType, err = h.repo.GetMultiSportDailySummaryByDateRange(ctx, userID, params.from, params.to, params.allSportTypes)
 	} else {
-		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, userID, params.year, params.allSportTypes)
+		byStravaType, err = h.repo.GetMultiSportDailySummary(ctx, userID, params.year, params.allSportTypes, params.loc)
 	}
 	if err != nil {
 		h.logger.Error("Database query failed during multi-sport source fetch", "error", err)

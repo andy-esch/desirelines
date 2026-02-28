@@ -73,7 +73,7 @@ func (m *mockActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Con
 	return nil, m.sportMetricsErr
 }
 
-func (m *mockActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (m *mockActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.DailySummary, error) {
 	return nil, m.dailySummaryErr
 }
 
