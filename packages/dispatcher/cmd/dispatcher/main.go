@@ -155,7 +155,36 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 	startupCtx, cancel := context.WithTimeout(context.Background(), startupTimeout)
 	defer cancel()
 
-	publisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubTopicID, log)
+	// 1. Create OTel instruments first so they can be injected into adapters.
+	// Errors are non-fatal; instruments will be no-op on failure.
+	stravaHist, err := meter.Float64Histogram("desirelines.io/strava/api.duration",
+		metric.WithUnit("ms"), metric.WithDescription("Strava API call duration"))
+	if err != nil {
+		log.Warn("Failed to create strava histogram", "error", err)
+	}
+	firestoreHist, err := meter.Float64Histogram("desirelines.io/firestore/operation.duration",
+		metric.WithUnit("ms"), metric.WithDescription("Firestore operation duration"))
+	if err != nil {
+		log.Warn("Failed to create firestore histogram", "error", err)
+	}
+	pubsubHist, err := meter.Float64Histogram("desirelines.io/pubsub/publish.duration",
+		metric.WithUnit("ms"), metric.WithDescription("PubSub publish duration"))
+	if err != nil {
+		log.Warn("Failed to create pubsub histogram", "error", err)
+	}
+	webhookCounter, err := meter.Int64Counter("desirelines.io/webhook/events",
+		metric.WithDescription("Webhook events processed"))
+	if err != nil {
+		log.Warn("Failed to create webhook counter", "error", err)
+	}
+	httpHist, err := meter.Float64Histogram("desirelines.io/http/request.duration",
+		metric.WithUnit("ms"), metric.WithDescription("HTTP request duration"))
+	if err != nil {
+		log.Warn("Failed to create http histogram", "error", err)
+	}
+
+	// 2. Initialize infrastructure adapters
+	publisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubTopicID, log, pubsubHist)
 	if err != nil {
 		return nil, fmt.Errorf("pubsub publisher: %w", err)
 	}
@@ -165,20 +194,6 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 		return nil, fmt.Errorf("firestore client: %w", err)
 	}
 	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
-
-	// Create OTel instruments
-	stravaHist, _ := meter.Float64Histogram("desirelines.io/strava/api.duration",
-		metric.WithUnit("ms"), metric.WithDescription("Strava API call duration"))
-	firestoreHist, _ := meter.Float64Histogram("desirelines.io/firestore/operation.duration",
-		metric.WithUnit("ms"), metric.WithDescription("Firestore operation duration"))
-	pubsubHist, _ := meter.Float64Histogram("desirelines.io/pubsub/publish.duration",
-		metric.WithUnit("ms"), metric.WithDescription("PubSub publish duration"))
-	webhookCounter, _ := meter.Int64Counter("desirelines.io/webhook/events",
-		metric.WithDescription("Webhook events processed"))
-	httpHist, _ := meter.Float64Histogram("desirelines.io/http/request.duration",
-		metric.WithUnit("ms"), metric.WithDescription("HTTP request duration"))
-
-	publisher.SetHistogram(pubsubHist)
 
 	tokenStore := firestoreadapter.NewTokenStore(firestoreClient, log, firestoreHist)
 
@@ -208,7 +223,6 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 		RateLimiter:        rateLimiter,
 		WebhookCounter:     webhookCounter,
 		HTTPHistogram:      httpHist,
-		PubSubHistogram:    pubsubHist,
 	})
 
 	return &Dependencies{

@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
+	"go.opentelemetry.io/otel/metric"
 )
 
 const (
@@ -30,6 +32,7 @@ type OAuthClient struct {
 	clientSecret string
 	tokenURL     string
 	logger       *slog.Logger
+	histogram    metric.Float64Histogram
 }
 
 // Compile-time check that OAuthClient implements StravaOAuthClient.
@@ -38,7 +41,7 @@ var _ auth.StravaOAuthClient = (*OAuthClient)(nil)
 // NewOAuthClient creates a new Strava OAuth client.
 // An optional *http.Client can be provided for testing; if nil, a default client
 // with a 10-second timeout is used.
-func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger, httpClient *http.Client) *OAuthClient {
+func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger, httpClient *http.Client, histogram metric.Float64Histogram) *OAuthClient {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: httpClientTimeout}
 	}
@@ -48,11 +51,14 @@ func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger, httpClie
 		clientSecret: clientSecret,
 		tokenURL:     defaultTokenURL,
 		logger:       logger,
+		histogram:    histogram,
 	}
 }
 
 // ExchangeCode exchanges an authorization code for Strava tokens.
-func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (*auth.StravaTokenResponse, error) {
+func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (_ *auth.StravaTokenResponse, retErr error) {
+	done := otel.RecordDuration(ctx, c.histogram)
+	defer func() { done(retErr) }()
 	form := url.Values{
 		"client_id":     {c.clientID},
 		"client_secret": {c.clientSecret},

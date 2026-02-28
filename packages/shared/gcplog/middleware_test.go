@@ -231,6 +231,43 @@ func TestHTTPRequestLogger_IncludesLatency(t *testing.T) {
 	}
 }
 
+func TestHTTPRequestLogger_RedactsQueryParams(t *testing.T) {
+	logger, handler := NewCaptureLogger()
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	r := chi.NewRouter()
+	r.Use(HTTPRequestLogger(logger))
+	r.Get("/webhook", nextHandler)
+
+	// Simulate Strava webhook validation with a secret token in the query string
+	req := httptest.NewRequest(http.MethodGet, "/webhook?hub.verify_token=s3cret&hub.challenge=abc", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	logs := handler.Logs()
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(logs))
+	}
+
+	httpReq, ok := logs[0].Attrs["httpRequest"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected httpRequest group, got %T", logs[0].Attrs["httpRequest"])
+	}
+
+	requestURL, ok := httpReq["requestUrl"].(string)
+	if !ok {
+		t.Fatalf("expected requestUrl to be string, got %T", httpReq["requestUrl"])
+	}
+	// Must log only the path, never the query string containing secrets
+	if requestURL != "/webhook" {
+		t.Errorf("expected requestUrl to be '/webhook' (path only), got %q", requestURL)
+	}
+}
+
 // runTraceTest is a helper to reduce duplication between GCP and W3C trace tests
 func runTraceTest(t *testing.T, headerName, headerValue, expectedTrace, expectedSpan string, expectedSample bool) {
 	t.Helper()

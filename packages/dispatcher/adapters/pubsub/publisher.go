@@ -72,7 +72,8 @@ func ValidateTopicID(topicID string) error {
 
 // NewPublisher creates a new Pub/Sub publisher adapter.
 // Returns an error if projectID or topicID have invalid format.
-func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.Logger) (*Publisher, error) {
+// The histogram parameter is optional — pass nil to disable duration recording.
+func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.Logger, histogram metric.Float64Histogram) (*Publisher, error) {
 	if err := ValidateProjectID(projectID); err != nil {
 		return nil, err
 	}
@@ -93,12 +94,8 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 		client:    client,
 		publisher: publisher,
 		logger:    logger,
+		histogram: histogram,
 	}, nil
-}
-
-// SetHistogram sets the OTel histogram for publish duration recording.
-func (p *Publisher) SetHistogram(h metric.Float64Histogram) {
-	p.histogram = h
 }
 
 // Publish sends an enriched webhook event to the configured Pub/Sub topic.

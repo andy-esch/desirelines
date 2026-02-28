@@ -45,7 +45,7 @@ func newTestStore(t *testing.T) *TokenStore {
 		}
 	})
 
-	noopHist, _ := otel.NoopMeter().Float64Histogram("test")
+	noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
 	return NewTokenStore(client, gcplog.NewNoOpLogger(), noopHist)
 }
 

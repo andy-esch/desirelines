@@ -59,7 +59,6 @@ type HandlerConfig struct {
 	RateLimiter        *ratelimit.Limiter
 	WebhookCounter     metric.Int64Counter
 	HTTPHistogram      metric.Float64Histogram
-	PubSubHistogram    metric.Float64Histogram
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.

@@ -13,6 +13,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
 )
 
 // TestIntegration_ActivityRepository runs integration tests against a real PostgreSQL database.
@@ -51,7 +52,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create wrapped pool: %v", err)
 		}
-		repo := postgres.NewActivityRepository(wrappedPool)
+		noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
+		repo := postgres.NewActivityRepository(wrappedPool, noopHist)
 		defer repo.Close()
 
 		if err := repo.Ping(ctx); err != nil {

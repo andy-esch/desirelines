@@ -12,6 +12,7 @@ from typing import Any
 import uuid
 
 from fastapi import HTTPException, Request
+from opentelemetry.metrics import Counter
 
 from stravapipe.adapters.proto import dict_to_webhook_event
 from stravapipe.cfutils.constants import (
@@ -36,6 +37,7 @@ async def handle_webhook_cloudevent(
     on_create: AspectCallback | None = None,
     on_update: AspectCallback | None = None,
     on_delete: AspectCallback | None = None,
+    webhook_counter: Counter | None = None,
 ) -> dict:
     """Parse a Pub/Sub CloudEvent and route to aspect-specific callbacks.
 
@@ -96,6 +98,16 @@ async def handle_webhook_cloudevent(
             )
 
         aspect_name = event_data.get(WebhookField.ASPECT_TYPE, DEFAULT_UNKNOWN)
+
+        # Record webhook event metric
+        if webhook_counter is not None:
+            webhook_counter.add(
+                1,
+                {
+                    "aspect_type": aspect_name,
+                    "object_type": "activity",
+                },
+            )
 
         logger.info(
             "Processing webhook",

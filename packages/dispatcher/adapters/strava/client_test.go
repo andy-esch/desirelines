@@ -27,7 +27,7 @@ const (
 
 // newTestClient creates a Client pointing at the given test server with a token store.
 func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client {
-	noopHist, _ := otel.NoopMeter().Float64Histogram("test")
+	noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
 	c := NewClient("test-id", "test-secret", tokenStore, gcplog.NewNoOpLogger(), noopHist)
 	c.httpClient = server.Client()
 	c.tokenURL = server.URL + testTokenPath

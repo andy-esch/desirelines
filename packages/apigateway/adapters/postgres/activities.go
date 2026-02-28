@@ -61,7 +61,10 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // AggregationVersion is the version string for the data aggregation schema.
@@ -75,16 +78,17 @@ const AggregationVersion = "2.0"
 // In production, db and pool both point to the connection pool.
 // In tests, db may be a transaction (for rollback isolation) while pool is nil.
 type ActivityRepository struct {
-	db   DBQuerier
-	pool *Pool
+	db        DBQuerier
+	pool      *Pool
+	histogram metric.Float64Histogram
 }
 
 // Compile-time interface verification
 var _ repository.ActivityRepository = (*ActivityRepository)(nil)
 
 // NewActivityRepository creates a PostgreSQL activity repository.
-func NewActivityRepository(pool *Pool) *ActivityRepository {
-	return &ActivityRepository{db: pool, pool: pool}
+func NewActivityRepository(pool *Pool, histogram metric.Float64Histogram) *ActivityRepository {
+	return &ActivityRepository{db: pool, pool: pool, histogram: histogram}
 }
 
 // newActivityRepository creates a repository backed by any DBQuerier.
@@ -114,7 +118,9 @@ func (r *ActivityRepository) Close() error {
 // GetMultiSportMetricsByDateRange returns cumulative metrics for multiple sports in a date range.
 // Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter,
 // ensuring correct cumulative sums even for sports with no activity data in the range.
-func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (_ map[string]*generated.SportMetrics, retErr error) {
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_metrics_by_date_range"))
+	defer func() { done(retErr) }()
 	query := `
 		SELECT
 			sport,
@@ -167,7 +173,9 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 
 // GetMultiSportMetrics returns cumulative metrics for multiple sports in a given year.
 // Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter.
-func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (_ map[string]*generated.SportMetrics, retErr error) {
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_metrics"))
+	defer func() { done(retErr) }()
 	query := `
 		SELECT
 			sport,
@@ -264,7 +272,9 @@ func scanMultiSportMetricsRows(rows interface {
 
 // GetMultiSportDailySummary returns daily summaries for multiple sports in a given year.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (_ map[string]*generated.DailySummary, retErr error) {
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "daily_summary"))
+	defer func() { done(retErr) }()
 	query := `
 		SELECT
 			sport,
@@ -293,7 +303,9 @@ func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, user
 
 // GetMultiSportDailySummaryByDateRange returns daily summaries for multiple sports in a date range.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (_ map[string]*generated.DailySummary, retErr error) {
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "daily_summary_by_date_range"))
+	defer func() { done(retErr) }()
 	query := `
 		SELECT
 			sport,
@@ -365,7 +377,9 @@ func scanMultiSportDailySummaryRows(rows interface {
 
 // GetYearMetadata returns metadata about activities for a given year.
 // Includes list of sports, per-sport totals, and last updated timestamp.
-func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string, year int) (*generated.YearMetadata, error) {
+func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string, year int) (_ *generated.YearMetadata, retErr error) {
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "year_metadata"))
+	defer func() { done(retErr) }()
 	// Validate year range early to avoid unnecessary DB query and satisfy G115 (int to int32)
 	if year < 0 || year > math.MaxInt32 {
 		return nil, fmt.Errorf("year %d out of valid range (0-%d)", year, math.MaxInt32)
@@ -443,7 +457,9 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string,
 
 // GetActivityByID returns a single activity by its Strava ID.
 // Returns nil (not error) if the activity is not found.
-func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string, id int64) (*activitiesv1.Activity, error) {
+func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string, id int64) (_ *activitiesv1.Activity, retErr error) {
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_activity_by_id"))
+	defer func() { done(retErr) }()
 	query := `
 		SELECT
 			id, name, type, sport, start_date_local,
@@ -552,7 +568,9 @@ func (qb *queryBuilder) append(s string) {
 // ListActivities returns activities matching the filter criteria with cursor-based pagination.
 // Results are ordered by (start_date_local DESC, id DESC) for stable ordering.
 // Uses keyset pagination for O(1) performance regardless of offset.
-func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
+func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (_ *activitiesv1.ListActivitiesResponse, retErr error) {
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "list_activities"))
+	defer func() { done(retErr) }()
 	// Build query dynamically based on filter
 	// We fetch limit+1 to determine if there are more results
 	qb := newQueryBuilder(`

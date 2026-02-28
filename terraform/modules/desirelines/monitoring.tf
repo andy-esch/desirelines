@@ -613,6 +613,190 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
             }
           }
+        },
+
+        # ====================================================================
+        # Section Header: Application Metrics (OTel) - Row 50
+        # ====================================================================
+        {
+          yPos   = 50
+          width  = 12
+          height = 2
+          widget = {
+            title = "Application Metrics (OTel)"
+            text = {
+              content = "Custom application metrics exported via OpenTelemetry SDK to GCP Cloud Monitoring. Shows external dependency latency and business-level counters."
+              format  = "MARKDOWN"
+              style   = {}
+            }
+          }
+        },
+
+        # Strava API Latency - Row 52, Left
+        {
+          yPos   = 52
+          width  = 6
+          height = 4
+          widget = {
+            title = "Strava API Latency (ms)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/strava/api.duration\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_DELTA"
+                      crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      groupByFields      = ["metric.labels.operation"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.operation}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Milliseconds"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # PostgreSQL Query Latency - Row 52, Right
+        {
+          xPos   = 6
+          yPos   = 52
+          width  = 6
+          height = 4
+          widget = {
+            title = "PostgreSQL Query Latency (ms)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/postgres/query.duration\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_DELTA"
+                      crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      groupByFields      = ["metric.labels.operation"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.operation}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Milliseconds"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # BigQuery Operation Latency - Row 56, Left
+        {
+          yPos   = 56
+          width  = 6
+          height = 4
+          widget = {
+            title = "BigQuery Operation Latency (ms)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/bigquery/operation.duration\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_DELTA"
+                      crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      groupByFields      = ["metric.labels.operation"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.operation}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Milliseconds"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # Webhook Events Counter - Row 56, Right
+        {
+          xPos   = 6
+          yPos   = 56
+          width  = 6
+          height = 4
+          widget = {
+            title = "Webhook Events (per minute)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/events\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_RATE"
+                      crossSeriesReducer = "REDUCE_SUM"
+                      groupByFields      = ["metric.labels.aspect_type"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.aspect_type}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Events/min"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # Connection Pool Gauge - Row 60
+        {
+          yPos   = 60
+          width  = 12
+          height = 4
+          widget = {
+            title = "PostgreSQL Connection Pool (API Gateway)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/postgres/pool.connections\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_MEAN"
+                      crossSeriesReducer = "REDUCE_SUM"
+                      groupByFields      = ["metric.labels.state"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.state}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Connections"
+                scale = "LINEAR"
+              }
+            }
+          }
         }
       ]
     }

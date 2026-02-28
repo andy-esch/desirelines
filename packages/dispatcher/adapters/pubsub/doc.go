@@ -5,7 +5,7 @@
 //
 // # Basic Usage
 //
-//	publisher, err := pubsub.NewPublisher(ctx, "my-project", "webhooks-topic", logger)
+//	publisher, err := pubsub.NewPublisher(ctx, "my-project", "webhooks-topic", logger, histogram)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}

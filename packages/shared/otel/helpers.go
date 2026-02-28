@@ -19,6 +19,9 @@ import (
 //	result, err := store.GetTokens(ctx, id)
 //	done(err)
 func RecordDuration(ctx context.Context, h metric.Float64Histogram, attrs ...attribute.KeyValue) func(error) {
+	if h == nil {
+		return func(error) {}
+	}
 	start := time.Now()
 	return func(err error) {
 		elapsed := float64(time.Since(start).Milliseconds())
