@@ -141,6 +141,18 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	h.respondProtobuf(w, r, metadata)
 }
 
+// defaultLocation is the fallback timezone when no tz param is provided.
+// Matches the current single-user deployment (US Eastern).
+var defaultLocation = func() *time.Location {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		// This should only happen if the timezone database is missing.
+		// Fall back to UTC to avoid nil pointer panics later.
+		return time.UTC
+	}
+	return loc
+}()
+
 // sportQueryParams holds validated parameters for sport-based queries.
 type sportQueryParams struct {
 	year         int // parsed year value (only used when useDateRange is false)
@@ -148,6 +160,7 @@ type sportQueryParams struct {
 	from         string // empty if not using date range
 	to           string // empty if not using date range
 	useDateRange bool
+	loc          *time.Location // user's timezone for "today" calculations
 }
 
 // validateSportQuery validates common parameters for metrics and source endpoints.
@@ -192,6 +205,7 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		from:         fromStr,
 		to:           toStr,
 		useDateRange: fromStr != "" && toStr != "",
+		loc:          parseTimezone(r),
 	}
 }
 
@@ -204,6 +218,7 @@ type multiSportQueryParams struct {
 	from            string
 	to              string
 	useDateRange    bool
+	loc             *time.Location // user's timezone for "today" calculations
 }
 
 // validateMultiSportQuery validates the ?sports=X,Y,Z parameter for multi-sport endpoints.
@@ -289,12 +304,27 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 		from:            fromStr,
 		to:              toStr,
 		useDateRange:    fromStr != "" && toStr != "",
+		loc:             parseTimezone(r),
 	}
 }
 
 // isMultiSportRequest returns true if the request uses the ?sports= (plural) parameter.
 func isMultiSportRequest(r *http.Request) bool {
 	return r.URL.Query().Get("sports") != ""
+}
+
+// parseTimezone parses and validates the tz query parameter.
+// Returns defaultLocation if tz is empty or invalid.
+func parseTimezone(r *http.Request) *time.Location {
+	tz := r.URL.Query().Get("tz")
+	if tz == "" {
+		return defaultLocation
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return defaultLocation
+	}
+	return loc
 }
 
 // logAndRespondDBError logs a database error and writes an error response.
@@ -340,7 +370,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	if params.useDateRange {
 		byStravaType, err = h.repo.GetMultiSportMetricsByDateRange(ctx, userID, params.from, params.to, params.sportTypes)
 	} else {
-		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, userID, params.year, params.sportTypes)
+		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, userID, params.year, params.sportTypes, params.loc)
 	}
 	if err != nil {
 		h.logAndRespondDBError(w, r, err, params)
@@ -365,8 +395,6 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 
 // handleMultiSportMetrics handles GET /activities/{year}/metrics?sports=X,Y,Z.
 // Uses a single DB query for all sports, then re-keys results from Strava types to categories.
-//
-//nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {
@@ -386,7 +414,7 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 	if params.useDateRange {
 		byStravaType, err = h.repo.GetMultiSportMetricsByDateRange(ctx, userID, params.from, params.to, params.allSportTypes)
 	} else {
-		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, userID, params.year, params.allSportTypes)
+		byStravaType, err = h.repo.GetMultiSportMetrics(ctx, userID, params.year, params.allSportTypes, params.loc)
 	}
 	if err != nil {
 		h.logger.Error("Database query failed during multi-sport metrics fetch", "error", err)
@@ -456,8 +484,6 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 
 // handleMultiSportSource handles GET /activities/{year}/source?sports=X,Y,Z.
 // Uses a single DB query for all sports, then re-keys results from Strava types to categories.
-//
-//nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {

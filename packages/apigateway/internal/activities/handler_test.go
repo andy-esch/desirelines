@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
@@ -28,7 +29,7 @@ func (m *mockRepo) Close() error                   { return nil }
 func (m *mockRepo) GetYearMetadata(ctx context.Context, userID string, year int) (*generated.YearMetadata, error) {
 	return nil, m.err
 }
-func (m *mockRepo) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (m *mockRepo) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.SportMetrics, error) {
 	return nil, m.err
 }
 func (m *mockRepo) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {

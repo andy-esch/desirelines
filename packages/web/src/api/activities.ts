@@ -78,6 +78,7 @@ export interface FetchSportMetricsOptions {
   sport: string;
   from?: string; // YYYY-MM-DD - if provided with 'to', uses date range query
   to?: string; // YYYY-MM-DD - if provided with 'from', uses date range query
+  tz?: string; // IANA timezone (e.g., "America/New_York") — caps current-year series at "today" in this timezone
   signal?: AbortSignal;
 }
 
@@ -88,6 +89,9 @@ export const fetchSportMetrics = async (
   if (options.from && options.to) {
     params.set("from", options.from);
     params.set("to", options.to);
+  }
+  if (options.tz) {
+    params.set("tz", options.tz);
   }
   const url = `/activities/${options.year}/metrics?${params.toString()}`;
 
@@ -145,6 +149,7 @@ export interface FetchMultiSportOptions {
   sports: string[];
   from?: string;
   to?: string;
+  tz?: string; // IANA timezone (e.g., "America/New_York") — caps current-year series at "today" in this timezone
   signal?: AbortSignal;
 }
 
@@ -185,6 +190,9 @@ export const fetchMultiSportMetrics = async (
   if (options.from && options.to) {
     params.set("from", options.from);
     params.set("to", options.to);
+  }
+  if (options.tz) {
+    params.set("tz", options.tz);
   }
   const url = `/activities/${options.year}/metrics?${params.toString()}`;
 

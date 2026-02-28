@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSportMetrics, type SportMetrics, type SportConfig } from "../api/activities";
 import { useAuth } from "./useAuth";
 import { useSportConfig } from "./useSportConfig";
+import { useUserConfig } from "./useUserConfig";
 
 export interface SportDataResult {
   metrics: SportMetrics | null;
@@ -37,6 +38,8 @@ export function useSportData(year: number, sport: string): SportDataResult {
     error: configError,
     retry: configRetry,
   } = useSportConfig();
+  const { data: prefs } = useUserConfig("preferences");
+  const tz = prefs?.timezone || undefined;
 
   const isValidSport = !!sportConfig && sport in sportConfig.sport_categories;
 
@@ -46,8 +49,8 @@ export function useSportData(year: number, sport: string): SportDataResult {
     error: metricsError,
     refetch,
   } = useQuery({
-    queryKey: ["sportMetrics", year, sport],
-    queryFn: ({ signal }) => fetchSportMetrics({ year, sport, signal }),
+    queryKey: ["sportMetrics", year, sport, tz],
+    queryFn: ({ signal }) => fetchSportMetrics({ year, sport, tz, signal }),
     enabled: !authLoading && isValidSport,
   });
 

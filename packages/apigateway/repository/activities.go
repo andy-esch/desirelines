@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
@@ -21,8 +22,9 @@ type ActivityRepository interface {
 	// GetMultiSportMetrics returns cumulative metrics for multiple sports in a single query.
 	// Returns a map keyed by raw Strava sport type (e.g., "Ride", "VirtualRide").
 	// The handler re-keys results by category using sportConfig.GetCategoryForStravaType().
+	// loc determines "today" for current-year queries (caps the dense series at today in the given timezone).
 	// Used by: GET /activities/{year}/metrics?sports=X,Y,Z (without from/to params)
-	GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error)
+	GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.SportMetrics, error)
 
 	// GetMultiSportMetricsByDateRange returns cumulative metrics for multiple sports in a date range.
 	// Returns a map keyed by raw Strava sport type.

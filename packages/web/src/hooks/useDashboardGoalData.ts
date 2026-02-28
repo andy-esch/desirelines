@@ -69,10 +69,11 @@ export function useDashboardGoalData(): {
 
   // Auth: single multi-sport metrics fetch
   const sortedSports = [...validSports].sort();
+  const tz = prefs?.timezone || undefined;
   const metricsQuery = useQuery({
-    queryKey: ["sportMetrics", user?.uid, currentYear, sortedSports],
+    queryKey: ["sportMetrics", user?.uid, currentYear, sortedSports, tz],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      fetchMultiSportMetrics({ year: currentYear, sports: sortedSports, signal }),
+      fetchMultiSportMetrics({ year: currentYear, sports: sortedSports, tz, signal }),
     enabled: !authLoading && !!user && validSports.length > 0,
     staleTime: 5 * 60 * 1000,
   });

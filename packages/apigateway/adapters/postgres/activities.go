@@ -186,13 +186,15 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 
 // GetMultiSportMetrics returns cumulative metrics for multiple sports in a given year.
 // Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter.
-func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+// loc determines "today" for current-year queries — using the user's timezone prevents
+// the dense series from extending into "tomorrow" when the server runs in UTC.
+func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.SportMetrics, error) {
 	from := fmt.Sprintf("%d-01-01", year)
 	to := fmt.Sprintf("%d-12-31", year)
 
 	// Optimization: If querying the current year, cap the dense series at today
 	// to avoid trailing zeros for future dates in the year.
-	now := time.Now()
+	now := time.Now().In(loc)
 	if year == now.Year() {
 		to = now.Format("2006-01-02")
 	}
