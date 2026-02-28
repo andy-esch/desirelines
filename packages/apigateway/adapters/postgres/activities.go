@@ -115,12 +115,25 @@ func (r *ActivityRepository) Close() error {
 	return nil
 }
 
+// queryMultiSportByDateRange is a helper that executes a multi-sport query with a date range.
+// It handles OpenTelemetry duration recording and common error wrapping.
+func (r *ActivityRepository) queryMultiSportByDateRange(ctx context.Context, op, query, userID, from, to string, sportTypes []string) (pgx.Rows, error) {
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", op))
+	var retErr error
+	defer func() { done(retErr) }()
+
+	rows, err := r.db.Query(ctx, query, userID, from, to, sportTypes)
+	if err != nil {
+		retErr = err
+		return nil, fmt.Errorf("query multi-sport %s: %w", op, err)
+	}
+	return rows, nil
+}
+
 // GetMultiSportMetricsByDateRange returns cumulative metrics for multiple sports in a date range.
 // Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter,
 // ensuring correct cumulative sums even for sports with no activity data in the range.
-func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (_ map[string]*generated.SportMetrics, retErr error) {
-	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_metrics_by_date_range"))
-	defer func() { done(retErr) }()
+func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
 	query := `
 		SELECT
 			sport,
@@ -162,9 +175,9 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 		ORDER BY sport, date ASC
 	`
 
-	rows, err := r.db.Query(ctx, query, userID, from, to, sportTypes)
+	rows, err := r.queryMultiSportByDateRange(ctx, "get_metrics_by_date_range", query, userID, from, to, sportTypes)
 	if err != nil {
-		return nil, fmt.Errorf("query multi-sport metrics by date range: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -173,60 +186,18 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 
 // GetMultiSportMetrics returns cumulative metrics for multiple sports in a given year.
 // Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter.
-func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (_ map[string]*generated.SportMetrics, retErr error) {
-	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_metrics"))
-	defer func() { done(retErr) }()
-	query := `
-		SELECT
-			sport,
-			date,
-			SUM(distance) OVER (PARTITION BY sport ORDER BY date) as distance,
-			SUM(elevation) OVER (PARTITION BY sport ORDER BY date) as elevation,
-			SUM(time) OVER (PARTITION BY sport ORDER BY date) as time,
-			SUM(activities) OVER (PARTITION BY sport ORDER BY date)::int as activities
-		FROM (
-			SELECT
-				sports.sport,
-				all_dates.date,
-				COALESCE(daily.distance, 0) as distance,
-				COALESCE(daily.elevation, 0) as elevation,
-				COALESCE(daily.time, 0) as time,
-				COALESCE(daily.activities, 0) as activities
-			FROM (
-				SELECT generate_series(
-					make_date($2, 1, 1),
-					LEAST(CURRENT_DATE, make_date($2, 12, 31)),
-					'1 day'::interval
-				)::date as date
-			) all_dates
-			CROSS JOIN (
-				SELECT unnest($3::text[]) AS sport
-			) sports
-			LEFT JOIN (
-				SELECT
-					sport,
-					start_date_local::date as date,
-					SUM(distance) as distance,
-					SUM(total_elevation_gain) as elevation,
-					SUM(moving_time) / 60.0 as time,
-					COUNT(*) as activities
-				FROM desirelines.activities
-				WHERE user_id = $1
-				  AND year = $2
-				  AND sport = ANY($3)
-				GROUP BY sport, start_date_local::date
-			) daily ON all_dates.date = daily.date AND sports.sport = daily.sport
-		) dense_daily
-		ORDER BY sport, date ASC
-	`
+func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+	from := fmt.Sprintf("%d-01-01", year)
+	to := fmt.Sprintf("%d-12-31", year)
 
-	rows, err := r.db.Query(ctx, query, userID, year, sportTypes)
-	if err != nil {
-		return nil, fmt.Errorf("query multi-sport metrics: %w", err)
+	// Optimization: If querying the current year, cap the dense series at today
+	// to avoid trailing zeros for future dates in the year.
+	now := time.Now()
+	if year == now.Year() {
+		to = now.Format("2006-01-02")
 	}
-	defer rows.Close()
 
-	return scanMultiSportMetricsRows(rows)
+	return r.GetMultiSportMetricsByDateRange(ctx, userID, from, to, sportTypes)
 }
 
 // scanMultiSportMetricsRows scans database rows into a map of sport → SportMetrics.
@@ -272,40 +243,15 @@ func scanMultiSportMetricsRows(rows interface {
 
 // GetMultiSportDailySummary returns daily summaries for multiple sports in a given year.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (_ map[string]*generated.DailySummary, retErr error) {
-	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "daily_summary"))
-	defer func() { done(retErr) }()
-	query := `
-		SELECT
-			sport,
-			start_date_local::date as date,
-			SUM(distance) as distance,
-			SUM(total_elevation_gain) as elevation,
-			SUM(moving_time) / 60.0 as time,
-			COUNT(*) as activities,
-			array_agg(id) as activity_ids
-		FROM desirelines.activities
-		WHERE user_id = $1
-		  AND year = $2
-		  AND sport = ANY($3)
-		GROUP BY sport, start_date_local::date
-		ORDER BY sport, start_date_local::date ASC
-	`
-
-	rows, err := r.db.Query(ctx, query, userID, year, sportTypes)
-	if err != nil {
-		return nil, fmt.Errorf("query multi-sport daily summary: %w", err)
-	}
-	defer rows.Close()
-
-	return scanMultiSportDailySummaryRows(rows)
+func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+	from := fmt.Sprintf("%d-01-01", year)
+	to := fmt.Sprintf("%d-12-31", year)
+	return r.GetMultiSportDailySummaryByDateRange(ctx, userID, from, to, sportTypes)
 }
 
 // GetMultiSportDailySummaryByDateRange returns daily summaries for multiple sports in a date range.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (_ map[string]*generated.DailySummary, retErr error) {
-	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "daily_summary_by_date_range"))
-	defer func() { done(retErr) }()
+func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
 	query := `
 		SELECT
 			sport,
@@ -324,9 +270,9 @@ func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Co
 		ORDER BY sport, start_date_local::date ASC
 	`
 
-	rows, err := r.db.Query(ctx, query, userID, from, to, sportTypes)
+	rows, err := r.queryMultiSportByDateRange(ctx, "daily_summary_by_date_range", query, userID, from, to, sportTypes)
 	if err != nil {
-		return nil, fmt.Errorf("query multi-sport daily summary by date range: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
