@@ -8,6 +8,8 @@ import (
 
 	"firebase.google.com/go/v4/auth"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // contextKey is an unexported type for context keys to avoid collisions.
@@ -45,17 +47,19 @@ type TokenVerifier interface {
 // the request context. Access control is handled by the Firestore athlete ID
 // allowlist (checked during OAuth callback), not by this middleware.
 type AuthMiddleware struct {
-	verifier TokenVerifier
-	logger   *slog.Logger
+	verifier  TokenVerifier
+	logger    *slog.Logger
+	histogram metric.Float64Histogram
 }
 
 // NewAuthMiddleware creates authentication middleware with a pre-initialized token verifier.
 // The Firebase app and auth client should be initialized in main.go and passed here.
-func NewAuthMiddleware(verifier TokenVerifier, logger *slog.Logger) *AuthMiddleware {
+func NewAuthMiddleware(verifier TokenVerifier, logger *slog.Logger, histogram metric.Float64Histogram) *AuthMiddleware {
 	logger.Info("Auth middleware initialized successfully")
 	return &AuthMiddleware{
-		verifier: verifier,
-		logger:   logger,
+		verifier:  verifier,
+		logger:    logger,
+		histogram: histogram,
 	}
 }
 
@@ -88,12 +92,15 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		idToken := parts[1]
 
 		// Verify the ID token with Firebase
+		done := otel.RecordDuration(r.Context(), m.histogram)
 		token, err := m.verifier.VerifyIDToken(r.Context(), idToken)
 		if err != nil {
+			done(err)
 			m.logger.Warn("Auth: Authentication failed", "reason", "token_verification_failed", "error", err)
 			gcplog.WriteError(w, r, gcplog.ErrUnauthorized, m.logger)
 			return
 		}
+		done(nil)
 
 		// Token verified — inject UID into context and proceed.
 		// The UID is the Strava athlete ID (as string), matching the

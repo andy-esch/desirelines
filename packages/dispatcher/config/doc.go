@@ -11,7 +11,7 @@
 //	    log.Fatal(err)
 //	}
 //
-//	publisher, _ := pubsub.NewPublisher(ctx, cfg.GCPProjectID, cfg.GCPPubSubTopicID, logger)
+//	publisher, _ := pubsub.NewPublisher(ctx, cfg.GCPProjectID, cfg.GCPPubSubTopicID, logger, nil)
 //
 // # Environment Variables
 //

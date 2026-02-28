@@ -6,10 +6,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // traceContextKey is the context key for trace information.
@@ -31,6 +35,23 @@ type TraceContext struct {
 //   - 4xx errors: WARN
 //   - All others: INFO
 func HTTPRequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
+	return requestLogger(logger, nil)
+}
+
+// HTTPRequestLoggerWithMetrics is a variant of HTTPRequestLogger that also records
+// request duration to an OpenTelemetry histogram. The histogram is recorded with
+// http.method, http.status_code, and http.route attributes.
+//
+// The http.route attribute uses chi's RouteContext for low-cardinality route patterns
+// (e.g., "/activities/{id}") rather than the actual URL path.
+func HTTPRequestLoggerWithMetrics(logger *slog.Logger, histogram metric.Float64Histogram) func(http.Handler) http.Handler {
+	return requestLogger(logger, histogram)
+}
+
+// requestLogger is the shared implementation for both HTTPRequestLogger and
+// HTTPRequestLoggerWithMetrics. When histogram is non-nil, it records request
+// duration as an OTel metric.
+func requestLogger(logger *slog.Logger, histogram metric.Float64Histogram) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -42,10 +63,12 @@ func HTTPRequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				status := ww.Status()
 				latency := time.Since(start)
 
-				// Build httpRequest field per GCP spec
+				// Build httpRequest field per GCP spec.
+				// Log only the URL path — never the query string, which may
+				// contain secrets (e.g. hub.verify_token on the webhook endpoint).
 				httpRequest := slog.Group("httpRequest",
 					"requestMethod", r.Method,
-					"requestUrl", r.URL.String(),
+					"requestUrl", r.URL.Path,
 					"status", status,
 					"responseSize", ww.BytesWritten(),
 					"userAgent", r.UserAgent(),
@@ -79,6 +102,21 @@ func HTTPRequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 					logger.Warn("HTTP Request", attrs...)
 				default:
 					logger.Info("HTTP Request", attrs...)
+				}
+
+				// Record OTel histogram if provided
+				if histogram != nil {
+					route := "unknown"
+					if rctx := chi.RouteContext(r.Context()); rctx != nil && rctx.RoutePattern() != "" {
+						route = rctx.RoutePattern()
+					}
+					histogram.Record(r.Context(), float64(latency.Milliseconds()),
+						metric.WithAttributes(
+							attribute.String("http.method", r.Method),
+							attribute.String("http.status_code", strconv.Itoa(status)),
+							attribute.String("http.route", route),
+						),
+					)
 				}
 			}()
 

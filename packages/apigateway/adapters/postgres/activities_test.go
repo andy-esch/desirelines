@@ -8,6 +8,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
 )
 
 func TestActivityRepository_Ping(t *testing.T) {
@@ -46,7 +47,8 @@ func TestNewActivityRepository(t *testing.T) {
 		constructor := NewActivityRepository
 
 		// Verify nil pool handling (defensive - shouldn't happen in practice)
-		repo := constructor(nil)
+		noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
+		repo := constructor(nil, noopHist)
 		if repo.pool != nil {
 			t.Error("expected nil pool to be stored as nil")
 		}

@@ -13,6 +13,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
@@ -26,15 +27,12 @@ const (
 
 // newTestClient creates a Client pointing at the given test server with a token store.
 func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client {
-	return &Client{
-		httpClient:   server.Client(),
-		clientID:     "test-id",
-		clientSecret: "test-secret",
-		tokenStore:   tokenStore,
-		tokenURL:     server.URL + testTokenPath,
-		apiBase:      server.URL + "/api/v3",
-		logger:       gcplog.NewNoOpLogger(),
-	}
+	noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
+	c := NewClient("test-id", "test-secret", tokenStore, gcplog.NewNoOpLogger(), noopHist)
+	c.httpClient = server.Client()
+	c.tokenURL = server.URL + testTokenPath
+	c.apiBase = server.URL + "/api/v3"
+	return c
 }
 
 func TestFetchActivity_Success(t *testing.T) {

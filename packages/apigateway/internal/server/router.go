@@ -14,6 +14,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // AuthMiddleware defines the interface for authentication middleware.
@@ -26,6 +27,7 @@ type RouterConfig struct {
 	CORSHandler    *cors.Handler
 	AuthMiddleware AuthMiddleware
 	RateLimiter    *ratelimit.Limiter
+	HTTPHistogram  metric.Float64Histogram
 }
 
 // PublicRoutes are registered without authentication.
@@ -56,7 +58,7 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 		r.Use(cfg.RateLimiter.Middleware)
 	}
 	r.Use(gcplog.WithCloudTraceContext)
-	r.Use(gcplog.HTTPRequestLogger(logger))
+	r.Use(gcplog.HTTPRequestLoggerWithMetrics(logger, cfg.HTTPHistogram))
 	r.Use(chiMiddleware.Recoverer)
 
 	// CORS middleware for all routes

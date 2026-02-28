@@ -12,6 +12,8 @@ import (
 	"cloud.google.com/go/pubsub/v2"
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
+	"go.opentelemetry.io/otel/metric"
 )
 
 const (
@@ -40,6 +42,7 @@ type Publisher struct {
 	client    *pubsub.Client
 	publisher *pubsub.Publisher
 	logger    *slog.Logger
+	histogram metric.Float64Histogram
 
 	mu     sync.RWMutex
 	closed bool
@@ -69,7 +72,8 @@ func ValidateTopicID(topicID string) error {
 
 // NewPublisher creates a new Pub/Sub publisher adapter.
 // Returns an error if projectID or topicID have invalid format.
-func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.Logger) (*Publisher, error) {
+// The histogram parameter is optional — pass nil to disable duration recording.
+func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.Logger, histogram metric.Float64Histogram) (*Publisher, error) {
 	if err := ValidateProjectID(projectID); err != nil {
 		return nil, err
 	}
@@ -90,6 +94,7 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 		client:    client,
 		publisher: publisher,
 		logger:    logger,
+		histogram: histogram,
 	}, nil
 }
 
@@ -126,7 +131,9 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 	})
 
 	// Get blocks until the message is published or context is canceled.
+	done := otel.RecordDuration(ctx, p.histogram)
 	id, err := result.Get(ctx)
+	done(err)
 	if err != nil {
 		return fmt.Errorf("failed to publish to PubSub: %w", err)
 	}

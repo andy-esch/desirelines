@@ -368,6 +368,11 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
         value = "true"
       }
 
+      env {
+        name  = "ENABLE_OTEL_METRICS"
+        value = "true"
+      }
+
       # Python/Uvicorn needs more startup time than Go services:
       # FastAPI lifespan must complete before /health is served
       startup_probe {
@@ -439,6 +444,11 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
 
       env {
         name  = "ENABLE_CLOUD_LOGGING"
+        value = "true"
+      }
+
+      env {
+        name  = "ENABLE_OTEL_METRICS"
         value = "true"
       }
 

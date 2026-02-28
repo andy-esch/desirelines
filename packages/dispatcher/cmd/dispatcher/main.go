@@ -25,7 +25,10 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
+	"github.com/andy-esch/desirelines/packages/shared/secrets"
+	"go.opentelemetry.io/otel/metric"
 )
 
 const (
@@ -59,8 +62,21 @@ func run(log *slog.Logger) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
+	// Initialize OTel metrics (warn and continue with no-op on failure)
+	meter, otelShutdown, otelErr := otel.Setup(context.Background(), log, "desirelines-dispatcher")
+	if otelErr != nil {
+		log.Warn("OTel metrics disabled, using no-op meter", "error", otelErr)
+		meter = otel.NoopMeter()
+	} else {
+		defer func() {
+			if shutdownErr := otelShutdown(context.Background()); shutdownErr != nil {
+				log.Error("OTel shutdown error", "error", shutdownErr)
+			}
+		}()
+	}
+
 	// Initialize all dependencies
-	deps, err := initDependencies(cfg, log)
+	deps, err := initDependencies(cfg, log, meter)
 	if err != nil {
 		return fmt.Errorf("failed to initialize dependencies: %w", err)
 	}
@@ -135,11 +151,40 @@ func (d *Dependencies) Close() {
 
 // initDependencies creates and wires all application dependencies.
 // This is the composition root following hexagonal architecture.
-func initDependencies(cfg *config.Config, log *slog.Logger) (*Dependencies, error) {
+func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) (*Dependencies, error) {
 	startupCtx, cancel := context.WithTimeout(context.Background(), startupTimeout)
 	defer cancel()
 
-	publisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubTopicID, log)
+	// 1. Create OTel instruments first so they can be injected into adapters.
+	// Errors are non-fatal; instruments will be no-op on failure.
+	stravaHist, err := meter.Float64Histogram("desirelines.io/strava/api.duration",
+		metric.WithUnit("ms"), metric.WithDescription("Strava API call duration"))
+	if err != nil {
+		log.Warn("Failed to create strava histogram", "error", err)
+	}
+	firestoreHist, err := meter.Float64Histogram("desirelines.io/firestore/operation.duration",
+		metric.WithUnit("ms"), metric.WithDescription("Firestore operation duration"))
+	if err != nil {
+		log.Warn("Failed to create firestore histogram", "error", err)
+	}
+	pubsubHist, err := meter.Float64Histogram("desirelines.io/pubsub/publish.duration",
+		metric.WithUnit("ms"), metric.WithDescription("PubSub publish duration"))
+	if err != nil {
+		log.Warn("Failed to create pubsub histogram", "error", err)
+	}
+	webhookCounter, err := meter.Int64Counter("desirelines.io/webhook/events",
+		metric.WithDescription("Webhook events processed"))
+	if err != nil {
+		log.Warn("Failed to create webhook counter", "error", err)
+	}
+	httpHist, err := meter.Float64Histogram("desirelines.io/http/request.duration",
+		metric.WithUnit("ms"), metric.WithDescription("HTTP request duration"))
+	if err != nil {
+		log.Warn("Failed to create http histogram", "error", err)
+	}
+
+	// 2. Initialize infrastructure adapters
+	publisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubTopicID, log, pubsubHist)
 	if err != nil {
 		return nil, fmt.Errorf("pubsub publisher: %w", err)
 	}
@@ -150,14 +195,20 @@ func initDependencies(cfg *config.Config, log *slog.Logger) (*Dependencies, erro
 	}
 	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
 
-	tokenStore := firestoreadapter.NewTokenStore(firestoreClient, log)
+	tokenStore := firestoreadapter.NewTokenStore(firestoreClient, log, firestoreHist)
 
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 
-	stravaClient, err := strava.NewClient(tokenStore, log)
+	stravaClientID, err := secrets.LoadFromMount(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
 	if err != nil {
-		return nil, fmt.Errorf("strava client: %w", err)
+		return nil, fmt.Errorf("strava client_id: %w", err)
 	}
+	stravaClientSecret, err := secrets.LoadFromMount(config.SecretPathStravaClientSecret, "STRAVA_CLIENT_SECRET")
+	if err != nil {
+		return nil, fmt.Errorf("strava client_secret: %w", err)
+	}
+
+	stravaClient := strava.NewClient(stravaClientID, stravaClientSecret, tokenStore, log, stravaHist)
 
 	// Rate limiter: 5 req/s, burst 10 (Strava sends a few events/day normally)
 	// Uses Background context (not startupCtx) because the cleanup goroutine must
@@ -170,6 +221,8 @@ func initDependencies(cfg *config.Config, log *slog.Logger) (*Dependencies, erro
 	handler := httpadapter.NewHandler(publisher, secretProvider, stravaClient, log, &httpadapter.HandlerConfig{
 		MaxRequestBodySize: cfg.MaxRequestBodySize,
 		RateLimiter:        rateLimiter,
+		WebhookCounter:     webhookCounter,
+		HTTPHistogram:      httpHist,
 	})
 
 	return &Dependencies{
