@@ -31,7 +31,9 @@ describe("dashboardUtils", () => {
       totalSports: 1,
       metrics: [{ date: "2026-01-01", distance: 1609.34 } as any], // 1 mile
       goalsData: {
-        goals: [{ id: "1", value: 3218.68, label: "Target", createdAt: "", updatedAt: "" }],
+        goals: [
+          { id: "1", value: 3218.68, label: "Target", createdAt: "", updatedAt: "", metric: "" },
+        ],
       },
       demoGoals: undefined,
       sportConfig: mockSportConfig,
@@ -43,7 +45,7 @@ describe("dashboardUtils", () => {
     expect(result.currentValue).toBeCloseTo(1.0, 1);
     expect(result.targetGoal).toBeCloseTo(2.0, 1);
     expect(result.metricUnit).toBe("mi");
-    expect(result.isDistanceSport).toBe(true);
+    expect(result.metricType).toBe("distance");
   });
 
   it("uses demo goals when not in auth mode", () => {
@@ -72,8 +74,8 @@ describe("dashboardUtils", () => {
       metrics: [],
       goalsData: {
         goals: [
-          { id: "1", value: 10000, label: "Stretch", createdAt: "", updatedAt: "" },
-          { id: "2", value: 5000, label: "Base", createdAt: "", updatedAt: "" },
+          { id: "1", value: 10000, label: "Stretch", createdAt: "", updatedAt: "", metric: "" },
+          { id: "2", value: 5000, label: "Base", createdAt: "", updatedAt: "", metric: "" },
         ],
       },
       demoGoals: undefined,

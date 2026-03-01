@@ -24,15 +24,15 @@ const USER_ID = "user-abc-123";
 
 const GOALS_DATA: GoalsForYear = {
   goals: [
-    { id: "1", value: 2000, label: "Conservative", createdAt: "", updatedAt: "" },
-    { id: "2", value: 2500, label: "Target", createdAt: "", updatedAt: "" },
+    { id: "1", value: 2000, label: "Conservative", createdAt: "", updatedAt: "", metric: "" },
+    { id: "2", value: 2500, label: "Target", createdAt: "", updatedAt: "", metric: "" },
   ],
 };
 
 const MIGRATED_GOALS: GoalsForYear = {
   goals: [
-    { id: "1", value: 3218688, label: "Conservative", createdAt: "", updatedAt: "" },
-    { id: "2", value: 4023360, label: "Target", createdAt: "", updatedAt: "" },
+    { id: "1", value: 3218688, label: "Conservative", createdAt: "", updatedAt: "", metric: "" },
+    { id: "2", value: 4023360, label: "Target", createdAt: "", updatedAt: "", metric: "" },
   ],
 };
 

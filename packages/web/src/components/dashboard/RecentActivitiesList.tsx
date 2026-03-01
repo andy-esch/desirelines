@@ -257,7 +257,7 @@ export default function RecentActivitiesList({
               let impactPct: number | null = null;
               let impactTooltip = "";
               if (goal?.impactGoal) {
-                if (goal.isDistanceSport) {
+                if (goal.metricType === "distance") {
                   const displayDist = convertDistance(activity.distanceMeters, distanceUnit);
                   impactPct = (displayDist / goal.impactGoal) * 100;
                 } else {

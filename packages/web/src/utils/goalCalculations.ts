@@ -62,6 +62,7 @@ export interface Goal {
   id: string; // Unique identifier
   value: number; // Display-unit value (miles/km for distance sports, raw count for session sports)
   label?: string; // Optional user label
+  metric?: string; // e.g., "distance_meters", "time_minutes", "activities"
 }
 
 /**

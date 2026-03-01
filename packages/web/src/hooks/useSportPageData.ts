@@ -224,6 +224,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     const { roundingFactor, defaultGoalValue } = primaryMetricConfig;
     const generatedGoals = generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue);
     const now = new Date().toISOString();
+    const primaryMetric = getPrimaryMetric(sport, sportConfig);
 
     return {
       goals: generatedGoals.map((goal) => ({
@@ -234,6 +235,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
             ? Math.round(hoursToMinutes(goal.value))
             : goal.value,
         label: goal.label || "",
+        metric: primaryMetric,
         createdAt: now,
         updatedAt: now,
       })),
@@ -244,6 +246,8 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     sportInfo?.hasDistance,
     userSettings.distanceUnit,
     isTime,
+    sport,
+    sportConfig,
   ]);
 
   const {
@@ -275,7 +279,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // Explicit useCallback: passed as onGoalsChange prop to child components.
   const handleGoalsChange = useCallback(
     async (newGoals: Goals) => {
-      const isTime = isTimeSport(sport, sportConfig);
+      const primaryMetric = getPrimaryMetric(sport, sportConfig);
       const updatedGoalsForYear: GoalsForYear = {
         goals: newGoals.map((goal) => ({
           id: goal.id,
@@ -285,6 +289,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
               ? Math.round(hoursToMinutes(goal.value))
               : goal.value,
           label: goal.label || "",
+          metric: primaryMetric,
           updatedAt: new Date().toISOString(),
           createdAt:
             goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
@@ -292,7 +297,15 @@ export function useSportPageData(sport: string, year: number): SportPageData {
       };
       await updateGoals(updatedGoalsForYear);
     },
-    [isTime, sportInfo?.hasDistance, userSettings.distanceUnit, goalsData, updateGoals]
+    [
+      isTime,
+      sportInfo?.hasDistance,
+      userSettings.distanceUnit,
+      goalsData,
+      updateGoals,
+      sport,
+      sportConfig,
+    ]
   );
 
   // Year context and pacing

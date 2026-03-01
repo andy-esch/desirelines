@@ -207,7 +207,7 @@ describe("useWeeklySummary", () => {
       const cycling = result.current.sportTotals.find((s) => s.sport === "cycling");
       // 50000 + 30000 = 80000 meters = ~49.7 miles
       expect(cycling?.weeklyTotal).toBeCloseTo(49.7, 0);
-      expect(cycling?.isDistanceSport).toBe(true);
+      expect(cycling?.metricType).toBe("distance");
     });
 
     it("sums time for time sports (converted to hours)", async () => {
@@ -220,7 +220,7 @@ describe("useWeeklySummary", () => {
       const yoga = result.current.sportTotals.find((s) => s.sport === "yoga");
       // 45 + 30 + 60 = 135 minutes = 2.25 hours
       expect(yoga?.weeklyTotal).toBeCloseTo(2.25, 1);
-      expect(yoga?.isDistanceSport).toBe(false);
+      expect(yoga?.metricType).toBe("time");
     });
 
     it("correctly identifies metric units", async () => {
