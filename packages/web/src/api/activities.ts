@@ -165,6 +165,9 @@ export const fetchMultiSportDailySummary = async (
     params.set("from", options.from);
     params.set("to", options.to);
   }
+  if (options.tz) {
+    params.set("tz", options.tz);
+  }
   const url = `/activities/${options.year}/source?${params.toString()}`;
 
   try {
