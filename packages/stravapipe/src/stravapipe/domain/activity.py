@@ -363,8 +363,8 @@ class StandardActivity(BaseModel):
         default=None, description="Maximum heart rate in bpm"
     )
 
-    # Note: Geospatial fields (map, start_latlng, end_latlng) will be added
-    # when implementing postgresql-08-geospatial-tables task
+    # Geospatial — optional because indoor/manual activities have no map
+    map: PolylineMap | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

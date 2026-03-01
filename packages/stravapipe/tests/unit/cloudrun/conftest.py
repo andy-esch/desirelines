@@ -12,7 +12,27 @@ SAMPLE_RAW_ACTIVITY = {
     "moving_time": 1800,
     "elapsed_time": 2000,
     "start_date_local": "2024-01-01T08:00:00Z",
-    "athlete": {"id": 98765},
+    "athlete": {"id": 98765, "resource_state": 1},
+}
+
+SAMPLE_RAW_ACTIVITY_WITH_MAP = {
+    **SAMPLE_RAW_ACTIVITY,
+    "map": {
+        "id": "a12345678",
+        "polyline": "_p~iF~ps|U_ulLnnqC_mqNvxq`@",
+        "resource_state": 3,
+        "summary_polyline": "_p~iF~ps|U_ulLnnqC",
+    },
+}
+
+SAMPLE_RAW_ACTIVITY_NO_POLYLINE = {
+    **SAMPLE_RAW_ACTIVITY,
+    "map": {
+        "id": "a12345678",
+        "polyline": None,
+        "resource_state": 3,
+        "summary_polyline": None,
+    },
 }
 
 

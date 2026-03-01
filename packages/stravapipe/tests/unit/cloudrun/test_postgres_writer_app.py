@@ -14,6 +14,8 @@ import pytest
 
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
+    SAMPLE_RAW_ACTIVITY_NO_POLYLINE,
+    SAMPLE_RAW_ACTIVITY_WITH_MAP,
     make_cloudevent_headers,
     make_pubsub_body,
     make_webhook_payload,
@@ -189,6 +191,111 @@ class TestCreateEventHandling:
             data = response.json()
             assert data["status"] == "skipped"
             assert data["reason"] == "already_exists"
+
+    def test_create_event_with_polyline_inserts_route(self, client):
+        """CREATE event with map.polyline also inserts route geometry."""
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert_route.return_value = True
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY_WITH_MAP
+            )
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+            assert response.status_code == 200
+            assert response.json()["status"] == "created"
+            mock_uow.activities.insert.assert_called_once()
+            mock_uow.activities.insert_route.assert_called_once()
+            # Verify geojson argument is a valid GeoJSON string
+            call_args = mock_uow.activities.insert_route.call_args
+            assert call_args[0][0] == 12345678  # activity_id
+            import json
+
+            geojson = json.loads(call_args[0][1])
+            assert geojson["type"] == "LineString"
+
+    def test_create_event_without_polyline_skips_route(self, client):
+        """CREATE event with null polyline does not insert route."""
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY_NO_POLYLINE
+            )
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+            assert response.status_code == 200
+            assert response.json()["status"] == "created"
+            mock_uow.activities.insert_route.assert_not_called()
+
+    def test_create_event_without_map_skips_route(self, client):
+        """CREATE event without map field does not insert route."""
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+            assert response.status_code == 200
+            assert response.json()["status"] == "created"
+            mock_uow.activities.insert_route.assert_not_called()
+
+    def test_create_event_duplicate_skips_route(self, client):
+        """CREATE event for existing activity skips route insert too."""
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = False  # Already exists
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY_WITH_MAP
+            )
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+            assert response.status_code == 200
+            assert response.json()["status"] == "skipped"
+            mock_uow.activities.insert_route.assert_not_called()
 
     def test_create_event_missing_raw_activity(self, client):
         """CREATE event without raw_activity returns skipped."""

@@ -79,6 +79,21 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def insert_route(self, activity_id: int, geojson: str) -> bool:
+        """Insert activity route geometry, ignore if already exists.
+
+        Uses ON CONFLICT DO NOTHING to match activity insert behavior.
+
+        Args:
+            activity_id: Strava activity ID (must exist in activities table)
+            geojson: GeoJSON LineString string for ST_GeomFromGeoJSON()
+
+        Returns:
+            True if inserted, False if already existed (conflict)
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def delete(self, activity_id: int) -> bool:
         """Delete activity by ID.
 
