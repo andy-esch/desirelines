@@ -12,10 +12,13 @@ from stravapipe.adapters.proto import (
 )
 from stravapipe.types.generated import webhook_pb2 as pb
 
+
 def _resolve_fixtures_path() -> Path:
     """Resolve fixtures path for both uv (repo root) and Pants (sandbox) contexts."""
     # uv pytest: navigate from test file to repo root
-    repo_root_path = Path(__file__).parents[6] / "schemas" / "test-fixtures" / "webhook_events.json"
+    repo_root_path = (
+        Path(__file__).parents[6] / "schemas" / "test-fixtures" / "webhook_events.json"
+    )
     if repo_root_path.exists():
         return repo_root_path
     # Pants sandbox: schemas/ source root is stripped, file is at test-fixtures/
