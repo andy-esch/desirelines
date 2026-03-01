@@ -150,7 +150,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   const userSettings = getUserSettings(preferences);
 
   // Determine sport type and primary metric
-  const sportInfo = sportConfig?.sport_categories[sport] ?? null;
+  const sportInfo = sportConfig?.sportCategories?.[sport] ?? null;
   const primaryMetric = getPrimaryMetric(sport, sportConfig);
   const availableMetrics = getSportMetrics(sport, sportConfig);
   const isTime = isTimeSport(sport, sportConfig);
@@ -177,7 +177,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
       case "activities":
         return "sessions" as const;
       default:
-        return sportInfo?.has_distance ? userSettings.distanceUnit : "sessions";
+        return sportInfo?.hasDistance ? userSettings.distanceUnit : "sessions";
     }
   })();
 
@@ -228,7 +228,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     return {
       goals: generatedGoals.map((goal) => ({
         id: goal.id,
-        value: sportInfo?.has_distance
+        value: sportInfo?.hasDistance
           ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
           : isTime
             ? Math.round(hoursToMinutes(goal.value))
@@ -241,7 +241,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   }, [
     estimatedYearEnd,
     primaryMetricConfig,
-    sportInfo?.has_distance,
+    sportInfo?.hasDistance,
     userSettings.distanceUnit,
     isTime,
   ]);
@@ -255,13 +255,13 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   } = useUserConfig("goals", year, sport, defaultGoalsForYear);
 
   // One-time migration: convert goals from legacy miles format to meters
-  useGoalMigration(goalsData, user?.uid ?? "", year, sport, !!sportInfo?.has_distance, updateGoals);
+  useGoalMigration(goalsData, user?.uid ?? "", year, sport, !!sportInfo?.hasDistance, updateGoals);
 
   // Convert goals from storage units to display units for UI
   const goals: Goals = goalsData?.goals
     ? goalsData.goals.map((g) => {
         let displayValue = g.value;
-        if (sportInfo?.has_distance) {
+        if (sportInfo?.hasDistance) {
           displayValue = Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit));
         } else if (isTime) {
           displayValue = Math.round(minutesToHours(g.value));
@@ -279,7 +279,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
       const updatedGoalsForYear: GoalsForYear = {
         goals: newGoals.map((goal) => ({
           id: goal.id,
-          value: sportInfo?.has_distance
+          value: sportInfo?.hasDistance
             ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
             : isTime
               ? Math.round(hoursToMinutes(goal.value))
@@ -292,7 +292,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
       };
       await updateGoals(updatedGoalsForYear);
     },
-    [isTime, sportInfo?.has_distance, userSettings.distanceUnit, goalsData, updateGoals]
+    [isTime, sportInfo?.hasDistance, userSettings.distanceUnit, goalsData, updateGoals]
   );
 
   // Year context and pacing

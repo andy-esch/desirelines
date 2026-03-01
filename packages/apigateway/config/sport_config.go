@@ -44,16 +44,16 @@ var embeddedSportConfig []byte
 // The database stores both: column 'type' = Strava type, column 'sport' = Strava sport_type.
 // All filtering queries must use the 'sport' column to match against StravaTypes.
 type SportCategory struct {
-	DisplayName string `json:"display_name" validate:"required"`
+	DisplayName string `json:"displayName" validate:"required"`
 	// StravaTypes lists Strava sport_type values belonging to this category.
 	// Example: cycling = ["Ride", "VirtualRide", "GravelRide", "MountainBikeRide", ...]
 	// These match the DB 'sport' column, NOT the 'type' column.
-	StravaTypes   []string `json:"strava_types" validate:"required,min=1"`
-	ExcludedTypes []string `json:"excluded_types"`
-	PrimaryMetric string   `json:"primary_metric" validate:"required"`
+	StravaTypes   []string `json:"stravaTypes" validate:"required,min=1"`
+	ExcludedTypes []string `json:"excludedTypes"`
+	PrimaryMetric string   `json:"primaryMetric" validate:"required"`
 	Metrics       []string `json:"metrics" validate:"required,min=1"`
-	HasDistance   bool     `json:"has_distance"`
-	HasElevation  bool     `json:"has_elevation"`
+	HasDistance   bool     `json:"hasDistance"`
+	HasElevation  bool     `json:"hasElevation"`
 }
 
 // SportConfigData is a config that holds the sport config version and
@@ -61,7 +61,7 @@ type SportCategory struct {
 //	the valid sport categories the application can serve
 type SportConfigData struct {
 	Version         string                   `json:"version" validate:"required"`
-	SportCategories map[string]SportCategory `json:"sport_categories" validate:"required,min=1,dive"`
+	SportCategories map[string]SportCategory `json:"sportCategories" validate:"required,min=1,dive"`
 }
 
 // SportConfig contains the data as a SportConfigData struct

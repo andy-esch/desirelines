@@ -78,15 +78,15 @@ def test_unsupported_version_fails(tmp_path):
     """
     config_data = {
         "version": "99.0",
-        "sport_categories": {
+        "sportCategories": {
             "cycling": {
-                "display_name": "Cycling",
-                "strava_types": ["Ride"],
-                "excluded_types": [],
-                "primary_metric": "distance_meters",
+                "displayName": "Cycling",
+                "stravaTypes": ["Ride"],
+                "excludedTypes": [],
+                "primaryMetric": "distance_meters",
                 "metrics": ["distance_meters"],
-                "has_distance": True,
-                "has_elevation": True,
+                "hasDistance": True,
+                "hasElevation": True,
             }
         },
     }
@@ -105,15 +105,15 @@ def test_unsupported_version_can_be_loaded_without_validation(tmp_path):
     """
     config_data = {
         "version": "99.0",
-        "sport_categories": {
+        "sportCategories": {
             "cycling": {
-                "display_name": "Cycling",
-                "strava_types": ["Ride"],
-                "excluded_types": [],
-                "primary_metric": "distance_meters",
+                "displayName": "Cycling",
+                "stravaTypes": ["Ride"],
+                "excludedTypes": [],
+                "primaryMetric": "distance_meters",
                 "metrics": ["distance_meters"],
-                "has_distance": True,
-                "has_elevation": True,
+                "hasDistance": True,
+                "hasElevation": True,
             }
         },
     }
@@ -129,10 +129,10 @@ def test_unsupported_version_can_be_loaded_without_validation(tmp_path):
 
 def test_invalid_schema_fails(tmp_path):
     """Test that invalid config schemas are rejected."""
-    # Missing required field: strava_types
+    # Missing required field: stravaTypes
     config_data = {
         "version": "1.0",
-        "sport_categories": {"cycling": {"display_name": "Cycling"}},
+        "sportCategories": {"cycling": {"displayName": "Cycling"}},
     }
     config_path = tmp_path / "sport_types.json"
     with open(config_path, "w") as f:
@@ -146,15 +146,15 @@ def test_empty_strava_types_fails(tmp_path):
     """Test that empty strava_types list is rejected."""
     config_data = {
         "version": "1.0",
-        "sport_categories": {
+        "sportCategories": {
             "cycling": {
-                "display_name": "Cycling",
-                "strava_types": [],  # Empty list should fail
-                "excluded_types": [],
-                "primary_metric": "distance_meters",
+                "displayName": "Cycling",
+                "stravaTypes": [],  # Empty list should fail
+                "excludedTypes": [],
+                "primaryMetric": "distance_meters",
                 "metrics": ["distance_meters"],
-                "has_distance": True,
-                "has_elevation": True,
+                "hasDistance": True,
+                "hasElevation": True,
             }
         },
     }

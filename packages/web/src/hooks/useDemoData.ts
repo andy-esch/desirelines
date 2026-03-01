@@ -36,12 +36,12 @@ export function useDemoData(
 
   // Memoize allSports to avoid creating new array reference on every render
   const allSports = useMemo(
-    () => (sportConfig ? Object.keys(sportConfig.sport_categories) : undefined),
+    () => (sportConfig ? Object.keys(sportConfig.sportCategories) : undefined),
     [sportConfig]
   );
 
   // Get sport info from API config for generating realistic data
-  const sportInfo = sportConfig?.sport_categories?.[sport];
+  const sportInfo = sportConfig?.sportCategories?.[sport];
 
   // Generate metrics using the data generator
   // Data generation is synchronous - no artificial delay needed
@@ -52,7 +52,7 @@ export function useDemoData(
     // Generate data with sport info from API
     return generateDemoMetrics(sport, year, {
       sportInfo: sportInfo
-        ? { has_distance: sportInfo.has_distance, has_elevation: sportInfo.has_elevation }
+        ? { hasDistance: sportInfo.hasDistance, hasElevation: sportInfo.hasElevation }
         : undefined,
       allSports,
       tuningParams,
@@ -73,7 +73,7 @@ export function useDemoData(
  */
 export function getDemoGoalsForSport(
   sport: string,
-  sportInfo?: { has_distance?: boolean; has_elevation?: boolean }
+  sportInfo?: { hasDistance?: boolean; hasElevation?: boolean }
 ): {
   conservative: number;
   target: number;

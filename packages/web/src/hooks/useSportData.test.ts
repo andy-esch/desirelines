@@ -29,24 +29,24 @@ const createWrapper = () => {
 describe("useSportData", () => {
   const mockConfig = {
     version: "1.0",
-    sport_categories: {
+    sportCategories: {
       cycling: {
-        display_name: "Cycling",
-        strava_types: ["Ride"],
-        excluded_types: [],
-        primary_metric: "distanceMeters",
-        metrics: ["distanceMeters"],
-        has_distance: true,
-        has_elevation: true,
+        displayName: "Cycling",
+        stravaTypes: ["Ride"],
+        excludedTypes: [],
+        primaryMetric: "distance_meters",
+        metrics: ["distance_meters"],
+        hasDistance: true,
+        hasElevation: true,
       },
       running: {
-        display_name: "Running",
-        strava_types: ["Run"],
-        excluded_types: [],
-        primary_metric: "distanceMeters",
-        metrics: ["distanceMeters"],
-        has_distance: true,
-        has_elevation: true,
+        displayName: "Running",
+        stravaTypes: ["Run"],
+        excludedTypes: [],
+        primaryMetric: "distance_meters",
+        metrics: ["distance_meters"],
+        hasDistance: true,
+        hasElevation: true,
       },
     },
   };

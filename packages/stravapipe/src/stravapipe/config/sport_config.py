@@ -14,22 +14,28 @@ SUPPORTED_CONFIG_VERSIONS = ["1.0"]
 class SportCategoryModel(BaseModel):
     """Schema for sport category configuration."""
 
-    display_name: str
+    display_name: str = Field(alias="displayName")
     # Strava sport_type values (NOT the broad 'type' field).
     # E.g., ["Yoga"] not ["Workout"]. See SportCategory docstring for details.
-    strava_types: list[str] = Field(min_length=1)
-    excluded_types: list[str] = []
-    primary_metric: str
+    strava_types: list[str] = Field(alias="stravaTypes", min_length=1)
+    excluded_types: list[str] = Field(default=[], alias="excludedTypes")
+    primary_metric: str = Field(alias="primaryMetric")
     metrics: list[str] = Field(min_length=1)
-    has_distance: bool
-    has_elevation: bool
+    has_distance: bool = Field(alias="hasDistance")
+    has_elevation: bool = Field(alias="hasElevation")
+
+    model_config = {"populate_by_name": True}
 
 
 class SportConfigModel(BaseModel):
     """Schema for sport configuration file."""
 
     version: str
-    sport_categories: dict[str, SportCategoryModel] = Field(min_length=1)
+    sport_categories: dict[str, SportCategoryModel] = Field(
+        alias="sportCategories", min_length=1
+    )
+
+    model_config = {"populate_by_name": True}
 
 
 class SportCategory:

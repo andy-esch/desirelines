@@ -41,11 +41,11 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   const userSettings = getUserSettings(null);
 
   // Determine sport type and primary metric
-  const sportInfo = sportConfig?.sport_categories[sport] ?? null;
+  const sportInfo = sportConfig?.sportCategories?.[sport] ?? null;
   const primaryMetric = getPrimaryMetric(sport, sportConfig);
 
   // Determine the unit label based on sport type
-  const metricUnit = sportInfo?.has_distance ? userSettings.distanceUnit : "sessions";
+  const metricUnit = sportInfo?.hasDistance ? userSettings.distanceUnit : "sessions";
 
   // Convert metrics to chart data format
   const chartData: DistanceEntry[] = useMemo(() => {

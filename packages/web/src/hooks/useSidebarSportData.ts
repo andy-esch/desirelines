@@ -43,7 +43,7 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
   const sportCounts = useMemo(() => {
     if (!metadata || !sportConfig) return {};
     return Object.fromEntries(
-      Object.entries(sportConfig.sport_categories).map(([category]) => [
+      Object.entries(sportConfig.sportCategories).map(([category]) => [
         category,
         metadata.totals[category]?.activities ?? 0,
       ])
@@ -76,11 +76,11 @@ export function useDemoSidebarSportData(currentYear: number): SidebarSportData {
   // Build sport info map for the generator (memoized)
   const sportInfoMap = useMemo(() => {
     if (!sportConfig) return undefined;
-    const map: Record<string, { has_distance?: boolean; has_elevation?: boolean }> = {};
+    const map: Record<string, { hasDistance?: boolean; hasElevation?: boolean }> = {};
     for (const sport of visibleSports) {
-      const info = sportConfig.sport_categories[sport];
+      const info = sportConfig.sportCategories[sport];
       if (info) {
-        map[sport] = { has_distance: info.has_distance, has_elevation: info.has_elevation };
+        map[sport] = { hasDistance: info.hasDistance, hasElevation: info.hasElevation };
       }
     }
     return map;

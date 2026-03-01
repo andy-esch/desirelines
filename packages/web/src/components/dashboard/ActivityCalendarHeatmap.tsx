@@ -212,10 +212,10 @@ export default function ActivityCalendarHeatmap({
 
   // Determine which sports to include based on filter mode
   const allSports = useMemo(() => {
-    if (!sportConfig?.sport_categories) {
+    if (!sportConfig?.sportCategories) {
       return ["cycling", "running", "yoga"]; // Fallback
     }
-    return Object.keys(sportConfig.sport_categories);
+    return Object.keys(sportConfig.sportCategories);
   }, [sportConfig]);
 
   const validVisibleSports = useMemo(

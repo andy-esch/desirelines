@@ -20,8 +20,8 @@ export interface UseSportConfigResult {
  * const { sportConfig, isLoading } = useSportConfig();
  *
  * if (sportConfig) {
- *   Object.entries(sportConfig.sport_categories).map(([key, config]) => (
- *     <div>{config.display_name}</div>
+ *   Object.entries(sportConfig.sportCategories).map(([key, config]) => (
+ *     <div>{config.displayName}</div>
  *   ));
  * }
  * ```

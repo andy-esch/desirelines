@@ -74,9 +74,9 @@ const ActivitiesPage = () => {
   const { sportConfig } = useSportConfig();
   const sportOptions = useMemo(() => {
     if (!sportConfig) return FALLBACK_SPORT_OPTIONS;
-    const options = Object.entries(sportConfig.sport_categories).map(([key, cat]) => ({
+    const options = Object.entries(sportConfig.sportCategories).map(([key, cat]) => ({
       value: key,
-      label: cat.display_name,
+      label: cat.displayName,
     }));
     return [{ value: "", label: "All Sports" }, ...options];
   }, [sportConfig]);

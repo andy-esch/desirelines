@@ -5,15 +5,15 @@ import type { SportConfig } from "../api/activities";
 describe("dashboardUtils", () => {
   const mockSportConfig: SportConfig = {
     version: "1.0.0",
-    sport_categories: {
+    sportCategories: {
       cycling: {
-        display_name: "Cycling",
-        strava_types: ["Ride"],
-        excluded_types: [],
-        primary_metric: "distance_meters",
+        displayName: "Cycling",
+        stravaTypes: ["Ride"],
+        excludedTypes: [],
+        primaryMetric: "distance_meters",
         metrics: ["distance_meters"],
-        has_distance: true,
-        has_elevation: true,
+        hasDistance: true,
+        hasElevation: true,
       },
     },
   };

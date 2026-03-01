@@ -25,7 +25,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
   const sports = visibleSports.map((id) => ({
     id,
     label:
-      sportConfig?.sport_categories[id]?.display_name || id.charAt(0).toUpperCase() + id.slice(1),
+      sportConfig?.sportCategories[id]?.displayName || id.charAt(0).toUpperCase() + id.slice(1),
   }));
 
   // Determine if we're on a sport/goals page

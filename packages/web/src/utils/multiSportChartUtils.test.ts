@@ -10,24 +10,24 @@ import type { SportConfig } from "./sportConfig";
 describe("multiSportChartUtils", () => {
   const mockSportConfig: SportConfig = {
     version: "1.0.0",
-    sport_categories: {
+    sportCategories: {
       cycling: {
-        display_name: "Cycling",
-        strava_types: ["Ride"],
-        excluded_types: [],
-        primary_metric: "distance_meters",
+        displayName: "Cycling",
+        stravaTypes: ["Ride"],
+        excludedTypes: [],
+        primaryMetric: "distance_meters",
         metrics: ["distance_meters", "time_minutes"],
-        has_distance: true,
-        has_elevation: true,
+        hasDistance: true,
+        hasElevation: true,
       },
       yoga: {
-        display_name: "Yoga",
-        strava_types: ["Yoga"],
-        excluded_types: [],
-        primary_metric: "time_minutes",
+        displayName: "Yoga",
+        stravaTypes: ["Yoga"],
+        excludedTypes: [],
+        primaryMetric: "time_minutes",
         metrics: ["time_minutes", "activities"],
-        has_distance: false,
-        has_elevation: false,
+        hasDistance: false,
+        hasElevation: false,
       },
     },
   };
