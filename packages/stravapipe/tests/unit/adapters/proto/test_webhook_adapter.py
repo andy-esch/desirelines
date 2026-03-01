@@ -1,5 +1,8 @@
 """Tests for webhook proto adapter."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 from stravapipe.adapters.proto import (
@@ -8,6 +11,21 @@ from stravapipe.adapters.proto import (
     validate_webhook_event,
 )
 from stravapipe.types.generated import webhook_pb2 as pb
+
+
+def _resolve_fixtures_path() -> Path:
+    """Resolve fixtures path for both uv (repo root) and Pants (sandbox) contexts."""
+    # uv pytest: navigate from test file to repo root
+    repo_root_path = (
+        Path(__file__).parents[6] / "schemas" / "test-fixtures" / "webhook_events.json"
+    )
+    if repo_root_path.exists():
+        return repo_root_path
+    # Pants sandbox: schemas/ source root is stripped, file is at test-fixtures/
+    return Path("test-fixtures") / "webhook_events.json"
+
+
+FIXTURES_PATH = _resolve_fixtures_path()
 
 
 class TestDictToWebhookEvent:
@@ -213,3 +231,89 @@ class TestValidateWebhookEvent:
         assert "object_id is required" in errors
         assert "owner_id is required" in errors
         assert "subscription_id is required" in errors
+
+
+_FIXTURES = json.loads(FIXTURES_PATH.read_text())
+_FIXTURE_IDS = [tc["name"] for tc in _FIXTURES]
+_VALID_FIXTURES = [f for f in _FIXTURES if not f["expect_error"]]
+_VALID_FIXTURE_IDS = [f["name"] for f in _VALID_FIXTURES]
+
+
+class TestSharedFixtures:
+    """Tests driven by shared cross-language fixtures."""
+
+    @pytest.mark.parametrize(
+        "fixture",
+        _FIXTURES,
+        ids=_FIXTURE_IDS,
+    )
+    def test_parse(self, fixture: dict):
+        """Test that parsing matches expected output for each fixture."""
+        if fixture["expect_error"]:
+            with pytest.raises(ValueError, match=r"Invalid (aspect|object)_type"):
+                dict_to_webhook_event(fixture["input"])
+            return
+
+        event = dict_to_webhook_event(fixture["input"])
+        expected = fixture["expected"]
+
+        assert event.object_id == expected["object_id"]
+        assert event.owner_id == expected["owner_id"]
+        assert event.event_time == expected["event_time"]
+        assert event.subscription_id == expected["subscription_id"]
+
+        # Check enum fields via string comparison
+        aspect_map = {
+            pb.ASPECT_TYPE_CREATE: "create",
+            pb.ASPECT_TYPE_UPDATE: "update",
+            pb.ASPECT_TYPE_DELETE: "delete",
+        }
+        object_map = {
+            pb.OBJECT_TYPE_ACTIVITY: "activity",
+            pb.OBJECT_TYPE_ATHLETE: "athlete",
+        }
+        assert aspect_map[event.aspect_type] == expected["aspect_type"]
+        assert object_map[event.object_type] == expected["object_type"]
+
+        # Check updates
+        expected_updates = expected.get("updates")
+        if expected_updates is None:
+            assert not event.updates.ByteSize(), (
+                f"expected no updates, got {event.updates}"
+            )
+        else:
+            if "title" in expected_updates:
+                assert event.updates.HasField("title")
+                assert event.updates.title == expected_updates["title"]
+            else:
+                assert not event.updates.HasField("title")
+
+            if "type" in expected_updates:
+                assert event.updates.HasField("type")
+                assert event.updates.type == expected_updates["type"]
+            else:
+                assert not event.updates.HasField("type")
+
+            if "private" in expected_updates:
+                assert event.updates.HasField("private")
+                assert event.updates.private == expected_updates["private"]
+            else:
+                assert not event.updates.HasField("private")
+
+    @pytest.mark.parametrize(
+        "fixture",
+        _VALID_FIXTURES,
+        ids=_VALID_FIXTURE_IDS,
+    )
+    def test_roundtrip(self, fixture: dict):
+        """Test that parse -> serialize -> parse produces consistent results."""
+        event = dict_to_webhook_event(fixture["input"])
+        as_dict = proto_to_dict(event)
+        reparsed = dict_to_webhook_event(as_dict)
+
+        assert reparsed.aspect_type == event.aspect_type
+        assert reparsed.object_type == event.object_type
+        assert reparsed.object_id == event.object_id
+        assert reparsed.owner_id == event.owner_id
+        assert reparsed.event_time == event.event_time
+        assert reparsed.subscription_id == event.subscription_id

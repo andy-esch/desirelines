@@ -10,6 +10,7 @@ Data schemas and contracts for the desirelines monorepo.
 | [`database/`](database/) | PostgreSQL migrations (Flyway) | `postgres-writer` (stravapipe), `api-gateway` |
 | [`proto/`](proto/) | Protocol Buffer contracts | `api-gateway`, `dispatcher`, `stravapipe`, `web` |
 | [`sports/`](sports/) | Sport type configuration | `api-gateway`, `web` frontend |
+| [`test-fixtures/`](test-fixtures/) | Shared cross-language test fixtures | `dispatcher`, `stravapipe` |
 
 ## Overview
 

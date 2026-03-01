@@ -2,6 +2,9 @@ package proto
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	pb "github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
@@ -524,6 +527,148 @@ func TestObjectTypeRoundtrip(t *testing.T) {
 			if back != tt.str {
 				t.Errorf("ObjectTypeToString(%v) = %q, want %q", parsed, back, tt.str)
 			}
+		})
+	}
+}
+
+// fixtureCase represents a single test case from the shared fixtures file.
+type fixtureCase struct {
+	Name        string          `json:"name"`
+	Input       json.RawMessage `json:"input"`
+	Expected    *fixtureExpect  `json:"expected"`
+	ExpectError bool            `json:"expect_error"`
+}
+
+type fixtureExpect struct {
+	AspectType     string          `json:"aspect_type"`
+	ObjectType     string          `json:"object_type"`
+	ObjectID       int64           `json:"object_id"`
+	OwnerID        int64           `json:"owner_id"`
+	EventTime      int64           `json:"event_time"`
+	SubscriptionID int32           `json:"subscription_id"`
+	Updates        json.RawMessage `json:"updates"`
+}
+
+// fixtureUpdates holds the typed updates from the fixture expected block.
+type fixtureUpdates struct {
+	Title   *string `json:"title"`
+	Type    *string `json:"type"`
+	Private *bool   `json:"private"`
+}
+
+func loadFixtures(t *testing.T) []fixtureCase {
+	t.Helper()
+	// Resolve path relative to this test file's location
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot determine test file location")
+	}
+	fixturesPath := filepath.Join(filepath.Dir(filename), "..", "..", "..", "..", "schemas", "test-fixtures", "webhook_events.json")
+	data, err := os.ReadFile(fixturesPath) //nolint:gosec // path is relative to test file
+	if err != nil {
+		t.Fatalf("failed to read shared fixtures: %v", err)
+	}
+	var fixtures []fixtureCase
+	err = json.Unmarshal(data, &fixtures)
+	if err != nil {
+		t.Fatalf("failed to parse shared fixtures: %v", err)
+	}
+	return fixtures
+}
+
+func verifyBaseFields(t *testing.T, event *pb.WebhookEvent, expected *fixtureExpect) {
+	t.Helper()
+	if AspectTypeToString(event.AspectType) != expected.AspectType {
+		t.Errorf("aspect_type = %q, want %q", AspectTypeToString(event.AspectType), expected.AspectType)
+	}
+	if ObjectTypeToString(event.ObjectType) != expected.ObjectType {
+		t.Errorf("object_type = %q, want %q", ObjectTypeToString(event.ObjectType), expected.ObjectType)
+	}
+	if event.ObjectId != expected.ObjectID {
+		t.Errorf("object_id = %d, want %d", event.ObjectId, expected.ObjectID)
+	}
+	if event.OwnerId != expected.OwnerID {
+		t.Errorf("owner_id = %d, want %d", event.OwnerId, expected.OwnerID)
+	}
+	if event.EventTime != expected.EventTime {
+		t.Errorf("event_time = %d, want %d", event.EventTime, expected.EventTime)
+	}
+	if event.SubscriptionId != expected.SubscriptionID {
+		t.Errorf("subscription_id = %d, want %d", event.SubscriptionId, expected.SubscriptionID)
+	}
+}
+
+func verifyUpdates(t *testing.T, event *pb.WebhookEvent, expected *fixtureExpect) {
+	t.Helper()
+	updatesIsNull := expected.Updates == nil || string(expected.Updates) == "null"
+	if updatesIsNull {
+		if event.Updates != nil {
+			t.Errorf("expected nil updates, got %+v", event.Updates)
+		}
+		return
+	}
+
+	if event.Updates == nil {
+		t.Fatal("expected non-nil updates, got nil")
+	}
+
+	var expectedUpdates fixtureUpdates
+	if err := json.Unmarshal(expected.Updates, &expectedUpdates); err != nil {
+		t.Fatalf("failed to parse expected updates: %v", err)
+	}
+
+	assertOptionalStringField(t, "updates.title", event.Updates.Title, expectedUpdates.Title)
+	assertOptionalStringField(t, "updates.type", event.Updates.Type, expectedUpdates.Type)
+	assertOptionalBoolField(t, "updates.private", event.Updates.Private, expectedUpdates.Private)
+}
+
+func verifyRoundtrip(t *testing.T, event *pb.WebhookEvent) {
+	t.Helper()
+	jsonData, err := ToStravaJSON(event)
+	if err != nil {
+		t.Fatalf("ToStravaJSON roundtrip error: %v", err)
+	}
+	reparsed, err := ParseStravaWebhook(jsonData)
+	if err != nil {
+		t.Fatalf("roundtrip parse error: %v", err)
+	}
+	if AspectTypeToString(reparsed.AspectType) != AspectTypeToString(event.AspectType) {
+		t.Errorf("roundtrip aspect_type mismatch: %q vs %q",
+			AspectTypeToString(reparsed.AspectType), AspectTypeToString(event.AspectType))
+	}
+	if ObjectTypeToString(reparsed.ObjectType) != ObjectTypeToString(event.ObjectType) {
+		t.Errorf("roundtrip object_type mismatch: %q vs %q",
+			ObjectTypeToString(reparsed.ObjectType), ObjectTypeToString(event.ObjectType))
+	}
+	if reparsed.ObjectId != event.ObjectId {
+		t.Errorf("roundtrip object_id mismatch: %d vs %d", reparsed.ObjectId, event.ObjectId)
+	}
+}
+
+func TestSharedFixtures(t *testing.T) {
+	fixtures := loadFixtures(t)
+
+	for _, tc := range fixtures {
+		t.Run(tc.Name, func(t *testing.T) {
+			event, err := ParseStravaWebhook(tc.Input)
+
+			if tc.ExpectError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Verify all fields match expected
+			verifyBaseFields(t, event, tc.Expected)
+			verifyUpdates(t, event, tc.Expected)
+
+			// Roundtrip test: proto -> JSON -> proto
+			verifyRoundtrip(t, event)
 		})
 	}
 }
