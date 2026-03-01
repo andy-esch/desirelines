@@ -110,8 +110,12 @@ sync-sport-config:
     @cp schemas/sports/sport_types.json packages/apigateway/config/
     @echo "✅ Sport config synced"
 
+# Verify both webhook adapters handle all proto fields and enum values
+verify-webhook-adapters:
+    @./scripts/verify-webhook-adapters.sh
+
 # Verify schema files are in sync (used in CI)
-verify-schemas:
+verify-schemas: verify-webhook-adapters
     @echo "🔍 Verifying schemas are in sync..."
     @diff -q schemas/sports/sport_types.json packages/stravapipe/src/stravapipe/config/sport_types.json || \
         (echo "❌ stravapipe sport config out of sync! Run: just sync-sport-config" && exit 1)

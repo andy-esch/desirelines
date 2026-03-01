@@ -1,0 +1,210 @@
+[
+  {
+    "name": "create activity with all base fields",
+    "input": {
+      "aspect_type": "create",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999
+    },
+    "expected": {
+      "aspect_type": "create",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": null
+    },
+    "expect_error": false
+  },
+  {
+    "name": "update activity with title change",
+    "input": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {"title": "Evening Ride"}
+    },
+    "expected": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {
+        "title": "Evening Ride"
+      }
+    },
+    "expect_error": false
+  },
+  {
+    "name": "update activity with type change",
+    "input": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {"type": "Ride"}
+    },
+    "expected": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {
+        "type": "Ride"
+      }
+    },
+    "expect_error": false
+  },
+  {
+    "name": "update activity with private true",
+    "input": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {"private": "true"}
+    },
+    "expected": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {
+        "private": true
+      }
+    },
+    "expect_error": false
+  },
+  {
+    "name": "update activity with all update fields",
+    "input": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {"title": "Morning Run", "type": "Run", "private": "false"}
+    },
+    "expected": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {
+        "title": "Morning Run",
+        "type": "Run",
+        "private": false
+      }
+    },
+    "expect_error": false
+  },
+  {
+    "name": "delete activity",
+    "input": {
+      "aspect_type": "delete",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999
+    },
+    "expected": {
+      "aspect_type": "delete",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": null
+    },
+    "expect_error": false
+  },
+  {
+    "name": "create athlete",
+    "input": {
+      "aspect_type": "create",
+      "object_type": "athlete",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999
+    },
+    "expected": {
+      "aspect_type": "create",
+      "object_type": "athlete",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": null
+    },
+    "expect_error": false
+  },
+  {
+    "name": "delete athlete",
+    "input": {
+      "aspect_type": "delete",
+      "object_type": "athlete",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999
+    },
+    "expected": {
+      "aspect_type": "delete",
+      "object_type": "athlete",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": null
+    },
+    "expect_error": false
+  },
+  {
+    "name": "invalid aspect_type",
+    "input": {
+      "aspect_type": "invalid",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999
+    },
+    "expected": null,
+    "expect_error": true
+  },
+  {
+    "name": "invalid object_type",
+    "input": {
+      "aspect_type": "create",
+      "object_type": "invalid",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999
+    },
+    "expected": null,
+    "expect_error": true
+  }
+]

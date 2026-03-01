@@ -1,5 +1,8 @@
 """Tests for webhook proto adapter."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 from stravapipe.adapters.proto import (
@@ -8,6 +11,9 @@ from stravapipe.adapters.proto import (
     validate_webhook_event,
 )
 from stravapipe.types.generated import webhook_pb2 as pb
+
+REPO_ROOT = Path(__file__).parents[6]
+FIXTURES_PATH = REPO_ROOT / "schemas" / "test-fixtures" / "webhook_events.json"
 
 
 class TestDictToWebhookEvent:
@@ -213,3 +219,94 @@ class TestValidateWebhookEvent:
         assert "object_id is required" in errors
         assert "owner_id is required" in errors
         assert "subscription_id is required" in errors
+
+
+def _load_fixtures() -> list[dict]:
+    """Load shared webhook event fixtures."""
+    with FIXTURES_PATH.open() as f:
+        return json.load(f)
+
+
+def _fixture_ids() -> list[str]:
+    """Return fixture names for parametrize IDs."""
+    return [tc["name"] for tc in _load_fixtures()]
+
+
+class TestSharedFixtures:
+    """Tests driven by shared cross-language fixtures."""
+
+    @pytest.mark.parametrize(
+        "fixture",
+        _load_fixtures(),
+        ids=_fixture_ids(),
+    )
+    def test_parse(self, fixture: dict):
+        """Test that parsing matches expected output for each fixture."""
+        if fixture["expect_error"]:
+            with pytest.raises(ValueError):
+                dict_to_webhook_event(fixture["input"])
+            return
+
+        event = dict_to_webhook_event(fixture["input"])
+        expected = fixture["expected"]
+
+        assert event.object_id == expected["object_id"]
+        assert event.owner_id == expected["owner_id"]
+        assert event.event_time == expected["event_time"]
+        assert event.subscription_id == expected["subscription_id"]
+
+        # Check enum fields via string comparison
+        aspect_map = {
+            pb.ASPECT_TYPE_CREATE: "create",
+            pb.ASPECT_TYPE_UPDATE: "update",
+            pb.ASPECT_TYPE_DELETE: "delete",
+        }
+        object_map = {
+            pb.OBJECT_TYPE_ACTIVITY: "activity",
+            pb.OBJECT_TYPE_ATHLETE: "athlete",
+        }
+        assert aspect_map[event.aspect_type] == expected["aspect_type"]
+        assert object_map[event.object_type] == expected["object_type"]
+
+        # Check updates
+        expected_updates = expected.get("updates")
+        if expected_updates is None:
+            assert not event.updates.ByteSize(), (
+                f"expected no updates, got {event.updates}"
+            )
+        else:
+            if "title" in expected_updates:
+                assert event.updates.HasField("title")
+                assert event.updates.title == expected_updates["title"]
+            else:
+                assert not event.updates.HasField("title")
+
+            if "type" in expected_updates:
+                assert event.updates.HasField("type")
+                assert event.updates.type == expected_updates["type"]
+            else:
+                assert not event.updates.HasField("type")
+
+            if "private" in expected_updates:
+                assert event.updates.HasField("private")
+                assert event.updates.private == expected_updates["private"]
+            else:
+                assert not event.updates.HasField("private")
+
+    @pytest.mark.parametrize(
+        "fixture",
+        [f for f in _load_fixtures() if not f["expect_error"]],
+        ids=[f["name"] for f in _load_fixtures() if not f["expect_error"]],
+    )
+    def test_roundtrip(self, fixture: dict):
+        """Test that parse -> serialize -> parse produces consistent results."""
+        event = dict_to_webhook_event(fixture["input"])
+        as_dict = proto_to_dict(event)
+        reparsed = dict_to_webhook_event(as_dict)
+
+        assert reparsed.aspect_type == event.aspect_type
+        assert reparsed.object_type == event.object_type
+        assert reparsed.object_id == event.object_id
+        assert reparsed.owner_id == event.owner_id
+        assert reparsed.event_time == event.event_time
+        assert reparsed.subscription_id == event.subscription_id
