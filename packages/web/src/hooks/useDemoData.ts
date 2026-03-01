@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { MetricsEntry, SportConfig } from "../api/activities";
+import type { SportMetricsInfo } from "../utils/sportConfig";
 import { usePublicSportConfig } from "./usePublicSportConfig";
 import {
   generateDemoMetrics,
@@ -73,7 +74,7 @@ export function useDemoData(
  */
 export function getDemoGoalsForSport(
   sport: string,
-  sportInfo?: { hasDistance?: boolean; hasElevation?: boolean }
+  sportInfo?: SportMetricsInfo
 ): {
   conservative: number;
   target: number;

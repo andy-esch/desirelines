@@ -6,6 +6,7 @@ import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
 import { usePublicSportConfig } from "./usePublicSportConfig";
 import { getDemoActivityCounts } from "../utils/demoDataGenerator";
+import type { SportMetricsInfo } from "../utils/sportConfig";
 
 export interface SidebarSportData {
   /** Sports available in dropdown, sorted by count descending */
@@ -76,7 +77,7 @@ export function useDemoSidebarSportData(currentYear: number): SidebarSportData {
   // Build sport info map for the generator (memoized)
   const sportInfoMap = useMemo(() => {
     if (!sportConfig) return undefined;
-    const map: Record<string, { hasDistance?: boolean; hasElevation?: boolean }> = {};
+    const map: Record<string, SportMetricsInfo> = {};
     for (const sport of visibleSports) {
       const info = sportConfig.sportCategories[sport];
       if (info) {

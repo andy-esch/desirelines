@@ -20,6 +20,7 @@ import {
 import { generateActivityName } from "./activityNameGenerator";
 import { toLocalDateString } from "./dateUtils";
 import { logNormal, poisson } from "./distributions";
+import type { SportMetricsInfo } from "./sportConfig";
 
 // Re-export types for consumers
 export type { FillLevel };
@@ -183,7 +184,7 @@ export interface GetDemoActivityCountsOptions {
   /** Sports to get counts for (defaults to getDemoSports()) */
   sports?: string[];
   /** Sport info for generating defaults for unknown sports */
-  sportInfoMap?: Record<string, { hasDistance?: boolean; hasElevation?: boolean }>;
+  sportInfoMap?: Record<string, SportMetricsInfo>;
 }
 
 /**
@@ -439,10 +440,7 @@ const DEFAULT_TIME_SPORT_CONFIG: DemoSportConfig = {
  * @param sport - Sport key
  * @param sportInfo - Optional sport info from API (has_distance, has_elevation)
  */
-export function getDemoConfigForSport(
-  sport: string,
-  sportInfo?: { hasDistance?: boolean; hasElevation?: boolean }
-): DemoSportConfig {
+export function getDemoConfigForSport(sport: string, sportInfo?: SportMetricsInfo): DemoSportConfig {
   // Use hardcoded config if available
   if (sport in DEMO_SPORT_CONFIG) {
     return DEMO_SPORT_CONFIG[sport as keyof typeof DEMO_SPORT_CONFIG];
@@ -485,7 +483,7 @@ export interface GenerateDemoMetricsOptions {
   /** Override fill level (for testing) */
   overrideFillLevel?: FillLevel;
   /** Sport info from API (for generating defaults for unknown sports) */
-  sportInfo?: { hasDistance?: boolean; hasElevation?: boolean };
+  sportInfo?: SportMetricsInfo;
   /** All sports in the session (for coordinated fill levels) */
   allSports?: string[];
   /** Tuning overrides for distribution parameters */
@@ -624,7 +622,7 @@ export interface GenerateDemoActivitiesOptions {
   /** Override fill level (for testing) */
   overrideFillLevel?: FillLevel;
   /** Sport info from API (for generating defaults for unknown sports) */
-  sportInfo?: { hasDistance?: boolean; hasElevation?: boolean };
+  sportInfo?: SportMetricsInfo;
   /** All sports in the session (for coordinated fill levels) */
   allSports?: string[];
 }
@@ -749,7 +747,7 @@ export function generateDemoActivities(
  */
 export function generateDemoGoals(
   sport: string,
-  sportInfo?: { hasDistance?: boolean; hasElevation?: boolean }
+  sportInfo?: SportMetricsInfo
 ): {
   conservative: number;
   target: number;
@@ -785,7 +783,7 @@ export interface GenerateDemoDailyDataOptions {
   /** Override fill level (for testing) */
   overrideFillLevel?: FillLevel;
   /** Sport info from API (for generating defaults for unknown sports) */
-  sportInfo?: { hasDistance?: boolean; hasElevation?: boolean };
+  sportInfo?: SportMetricsInfo;
   /** All sports in the session (for coordinated fill levels) */
   allSports?: string[];
   /** Tuning overrides for distribution parameters */
