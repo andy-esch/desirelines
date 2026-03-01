@@ -205,7 +205,7 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		from:         fromStr,
 		to:           toStr,
 		useDateRange: fromStr != "" && toStr != "",
-		loc:          parseTimezone(r),
+		loc:          h.parseTimezone(r),
 	}
 }
 
@@ -304,7 +304,7 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 		from:            fromStr,
 		to:              toStr,
 		useDateRange:    fromStr != "" && toStr != "",
-		loc:             parseTimezone(r),
+		loc:             h.parseTimezone(r),
 	}
 }
 
@@ -315,13 +315,14 @@ func isMultiSportRequest(r *http.Request) bool {
 
 // parseTimezone parses and validates the tz query parameter.
 // Returns defaultLocation if tz is empty or invalid.
-func parseTimezone(r *http.Request) *time.Location {
+func (h *Handler) parseTimezone(r *http.Request) *time.Location {
 	tz := r.URL.Query().Get("tz")
 	if tz == "" {
 		return defaultLocation
 	}
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
+		h.logger.Warn("Invalid timezone in query, falling back to default", "timezone", tz, "error", err)
 		return defaultLocation
 	}
 	return loc
