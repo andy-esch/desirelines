@@ -159,8 +159,7 @@ async def _handle_create(
         with uow:
             inserted = uow.activities.insert(activity)
             if inserted and activity.map and activity.map.polyline:
-                geojson = decode_polyline_to_geojson(activity.map.polyline)
-                if geojson:
+                if geojson := decode_polyline_to_geojson(activity.map.polyline):
                     uow.activities.insert_route(activity.id, geojson)
             uow.commit()
 
