@@ -12,8 +12,17 @@ from stravapipe.adapters.proto import (
 )
 from stravapipe.types.generated import webhook_pb2 as pb
 
-REPO_ROOT = Path(__file__).parents[6]
-FIXTURES_PATH = REPO_ROOT / "schemas" / "test-fixtures" / "webhook_events.json"
+def _resolve_fixtures_path() -> Path:
+    """Resolve fixtures path for both uv (repo root) and Pants (sandbox) contexts."""
+    # uv pytest: navigate from test file to repo root
+    repo_root_path = Path(__file__).parents[6] / "schemas" / "test-fixtures" / "webhook_events.json"
+    if repo_root_path.exists():
+        return repo_root_path
+    # Pants sandbox: schemas/ source root is stripped, file is at test-fixtures/
+    return Path("test-fixtures") / "webhook_events.json"
+
+
+FIXTURES_PATH = _resolve_fixtures_path()
 
 
 class TestDictToWebhookEvent:
@@ -221,15 +230,10 @@ class TestValidateWebhookEvent:
         assert "subscription_id is required" in errors
 
 
-def _load_fixtures() -> list[dict]:
-    """Load shared webhook event fixtures."""
-    with FIXTURES_PATH.open() as f:
-        return json.load(f)
-
-
-def _fixture_ids() -> list[str]:
-    """Return fixture names for parametrize IDs."""
-    return [tc["name"] for tc in _load_fixtures()]
+_FIXTURES = json.loads(FIXTURES_PATH.read_text())
+_FIXTURE_IDS = [tc["name"] for tc in _FIXTURES]
+_VALID_FIXTURES = [f for f in _FIXTURES if not f["expect_error"]]
+_VALID_FIXTURE_IDS = [f["name"] for f in _VALID_FIXTURES]
 
 
 class TestSharedFixtures:
@@ -237,8 +241,8 @@ class TestSharedFixtures:
 
     @pytest.mark.parametrize(
         "fixture",
-        _load_fixtures(),
-        ids=_fixture_ids(),
+        _FIXTURES,
+        ids=_FIXTURE_IDS,
     )
     def test_parse(self, fixture: dict):
         """Test that parsing matches expected output for each fixture."""
@@ -295,8 +299,8 @@ class TestSharedFixtures:
 
     @pytest.mark.parametrize(
         "fixture",
-        [f for f in _load_fixtures() if not f["expect_error"]],
-        ids=[f["name"] for f in _load_fixtures() if not f["expect_error"]],
+        _VALID_FIXTURES,
+        ids=_VALID_FIXTURE_IDS,
     )
     def test_roundtrip(self, fixture: dict):
         """Test that parse -> serialize -> parse produces consistent results."""
