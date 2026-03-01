@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -359,7 +360,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	t.Run("GetMultiSportMetrics", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			// Request Ride and Run together — should get separate timeseries per sport
-			result, err := repo.GetMultiSportMetrics(ctx, "test-user", 2024, []string{"Ride", "Run"})
+			result, err := repo.GetMultiSportMetrics(ctx, "test-user", 2024, []string{"Ride", "Run"}, time.UTC)
 			if err != nil {
 				t.Fatalf("GetMultiSportMetrics failed: %v", err)
 			}
@@ -402,7 +403,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			// "NonexistentSport" has no activities — unnest should still include it
 			// in the result with a full zero-filled timeseries
-			result, err := repo.GetMultiSportMetrics(ctx, "test-user", 2024, []string{"Ride", "NonexistentSport"})
+			result, err := repo.GetMultiSportMetrics(ctx, "test-user", 2024, []string{"Ride", "NonexistentSport"}, time.UTC)
 			if err != nil {
 				t.Fatalf("GetMultiSportMetrics failed: %v", err)
 			}
@@ -459,7 +460,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetMultiSportDailySummary", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			result, err := repo.GetMultiSportDailySummary(ctx, "test-user", 2024, []string{"Ride", "Run", "Yoga"})
+			result, err := repo.GetMultiSportDailySummary(ctx, "test-user", 2024, []string{"Ride", "Run", "Yoga"}, time.UTC)
 			if err != nil {
 				t.Fatalf("GetMultiSportDailySummary failed: %v", err)
 			}
@@ -613,7 +614,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	t.Run("UserIsolation_GetMultiSportMetrics", func(t *testing.T) {
 		withTestTxMultiUser(t, pool, func(repo *postgres.ActivityRepository) {
 			// other-user queries for Ride — should get zero-filled data (they have no Rides)
-			result, err := repo.GetMultiSportMetrics(ctx, "other-user", 2024, []string{"Ride"})
+			result, err := repo.GetMultiSportMetrics(ctx, "other-user", 2024, []string{"Ride"}, time.UTC)
 			if err != nil {
 				t.Fatalf("GetMultiSportMetrics failed: %v", err)
 			}

@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/activities"
@@ -64,7 +65,7 @@ func (m *mockActivityRepository) Close() error {
 	return m.closeErr
 }
 
-func (m *mockActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+func (m *mockActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.SportMetrics, error) {
 	return nil, m.sportMetricsErr
 }
 
@@ -72,7 +73,7 @@ func (m *mockActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Con
 	return nil, m.sportMetricsErr
 }
 
-func (m *mockActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
+func (m *mockActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.DailySummary, error) {
 	return nil, m.dailySummaryErr
 }
 
@@ -324,10 +325,10 @@ func TestHandlerCORS(t *testing.T) {
 func TestHandlerMetrics(t *testing.T) {
 	logger := slog.Default()
 	distance := 68400.0
-	time := 120.0
+	movingTime := 120.0
 	testMetrics := &generated.SportMetrics{
 		Timeseries: []*generated.CumulativeMetricsEntry{
-			{Date: "2024-01-15", Distance: &distance, Time: &time},
+			{Date: "2024-01-15", Distance: &distance, Time: &movingTime},
 		},
 	}
 
@@ -479,12 +480,12 @@ func TestHandlerMetrics(t *testing.T) {
 func TestHandlerSource(t *testing.T) {
 	logger := slog.Default()
 	distance := 8370.0
-	time := 48.0
+	movingMinutes := 48.0
 	testSummary := &generated.DailySummary{
 		Daily: map[string]*generated.DailyActivity{
 			"2024-01-15": {
 				DistanceMeters: &distance,
-				TimeMinutes:    &time,
+				TimeMinutes:    &movingMinutes,
 				Activities:     1,
 				ActivityIds:    []int64{12345},
 			},

@@ -5,11 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useSportData } from "./useSportData";
 import * as useAuthModule from "./useAuth";
 import * as useSportConfigModule from "./useSportConfig";
+import * as useUserConfigModule from "./useUserConfig";
 import * as activitiesApi from "../api/activities";
 
 // Mock dependencies
 vi.mock("./useAuth");
 vi.mock("./useSportConfig");
+vi.mock("./useUserConfig");
 vi.mock("../api/activities");
 
 const createWrapper = () => {
@@ -58,6 +60,16 @@ describe("useSportData", () => {
       error: null,
       retry: vi.fn(),
     });
+    // Default: preferences with timezone
+    vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
+      data: { timezone: "America/New_York" },
+      loading: false,
+      error: null,
+      updateData: vi.fn(),
+      isSaving: false,
+      saveError: null,
+      clearSaveError: vi.fn(),
+    } as unknown as ReturnType<typeof useUserConfigModule.useUserConfig>);
   });
 
   it("starts in loading state", () => {
@@ -154,6 +166,7 @@ describe("useSportData", () => {
     expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith({
       year: 2025,
       sport: "cycling",
+      tz: "America/New_York",
       signal: expect.any(AbortSignal),
     });
   });
@@ -184,6 +197,7 @@ describe("useSportData", () => {
     expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith({
       year: 2025,
       sport: "cycling",
+      tz: "America/New_York",
       signal: expect.any(AbortSignal),
     });
   });

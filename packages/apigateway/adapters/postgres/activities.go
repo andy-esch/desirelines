@@ -184,19 +184,26 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 	return scanMultiSportMetricsRows(rows)
 }
 
-// GetMultiSportMetrics returns cumulative metrics for multiple sports in a given year.
-// Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter.
-func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.SportMetrics, error) {
-	from := fmt.Sprintf("%d-01-01", year)
-	to := fmt.Sprintf("%d-12-31", year)
+// getDateRangeForYear calculates the from and to date strings for a given year,
+// capping the 'to' date at today if it's the current year. Using the user's timezone
+// prevents the range from extending into "tomorrow" when the server runs in UTC.
+func getDateRangeForYear(year int, loc *time.Location) (from, to string) {
+	from = fmt.Sprintf("%d-01-01", year)
+	to = fmt.Sprintf("%d-12-31", year)
 
-	// Optimization: If querying the current year, cap the dense series at today
-	// to avoid trailing zeros for future dates in the year.
-	now := time.Now()
+	now := time.Now().In(loc)
 	if year == now.Year() {
 		to = now.Format("2006-01-02")
 	}
+	return from, to
+}
 
+// GetMultiSportMetrics returns cumulative metrics for multiple sports in a given year.
+// Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter.
+// loc determines "today" for current-year queries — using the user's timezone prevents
+// the dense series from extending into "tomorrow" when the server runs in UTC.
+func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.SportMetrics, error) {
+	from, to := getDateRangeForYear(year, loc)
 	return r.GetMultiSportMetricsByDateRange(ctx, userID, from, to, sportTypes)
 }
 
@@ -243,9 +250,8 @@ func scanMultiSportMetricsRows(rows interface {
 
 // GetMultiSportDailySummary returns daily summaries for multiple sports in a given year.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string) (map[string]*generated.DailySummary, error) {
-	from := fmt.Sprintf("%d-01-01", year)
-	to := fmt.Sprintf("%d-12-31", year)
+func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.DailySummary, error) {
+	from, to := getDateRangeForYear(year, loc)
 	return r.GetMultiSportDailySummaryByDateRange(ctx, userID, from, to, sportTypes)
 }
 

@@ -56,9 +56,9 @@ func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger, httpClie
 }
 
 // ExchangeCode exchanges an authorization code for Strava tokens.
-func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (_ *auth.StravaTokenResponse, retErr error) {
+func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (tokenResult *auth.StravaTokenResponse, err error) {
 	done := otel.RecordDuration(ctx, c.histogram)
-	defer func() { done(retErr) }()
+	defer func() { done(err) }()
 	form := url.Values{
 		"client_id":     {c.clientID},
 		"client_secret": {c.clientSecret},
@@ -97,8 +97,8 @@ func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (_ *auth.St
 	}
 
 	var tokenResp auth.StravaTokenResponse
-	if unmarshalErr := json.Unmarshal(body, &tokenResp); unmarshalErr != nil {
-		return nil, fmt.Errorf("decode token response: %w", unmarshalErr)
+	if err = json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("decode token response: %w", err)
 	}
 
 	if tokenResp.AccessToken == "" {

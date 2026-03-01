@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
+import { useUserConfig } from "./useUserConfig";
 import { fetchMultiSportDailySummary, type DailyActivity } from "../api/activities";
 import {
   generateDemoDailyData,
@@ -80,6 +81,8 @@ const DEFAULT_SPORTS = ["cycling", "running", "yoga"];
 
 export function useDailySportData(options: UseDailySportDataOptions): DailySportDataResult {
   const { user, loading: authLoading } = useAuth();
+  const { data: prefs } = useUserConfig("preferences");
+  const tz = prefs?.timezone || undefined;
 
   const { year, from, to, tuningParams } = options;
   // Note: Callers must ensure `options.sports` is referentially stable (memoized) to prevent
@@ -110,13 +113,14 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
   const sortedSports = useMemo(() => [...sports].sort(), [sports]);
 
   const query = useQuery({
-    queryKey: ["dailySummary", user?.uid, year, sortedSports, from, to],
+    queryKey: ["dailySummary", user?.uid, year, sortedSports, from, to, tz],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       fetchMultiSportDailySummary({
         year,
         sports: sortedSports,
         from,
         to,
+        tz,
         signal,
       }),
     enabled: !authLoading && !!user,
