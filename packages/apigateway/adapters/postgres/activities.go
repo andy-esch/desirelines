@@ -51,6 +51,7 @@ package postgres
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -667,6 +668,66 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		NextCursor: nextCursor,
 		HasMore:    hasMore,
 	}, nil
+}
+
+// GetNormalizedRoutes returns activity routes with coordinates centered at (0,0).
+// Uses ST_Translate to center each route's start point at the origin, and
+// ST_Simplify to reduce coordinate density for efficient frontend rendering.
+func (r *ActivityRepository) GetNormalizedRoutes(ctx context.Context, userID string, limit int) (routes []repository.NormalizedRoute, retErr error) {
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_normalized_routes"))
+	defer func() { done(retErr) }()
+
+	query := `
+		SELECT
+			a.id,
+			a.name,
+			a.sport,
+			a.distance,
+			a.start_date_local::date,
+			ST_AsGeoJSON(
+				ST_Simplify(
+					ST_Translate(ar.route,
+						-ST_X(ST_StartPoint(ar.route)),
+						-ST_Y(ST_StartPoint(ar.route))),
+					0.0001)
+			)::jsonb -> 'coordinates' AS coords
+		FROM desirelines.activity_routes ar
+		JOIN desirelines.activities a ON a.id = ar.activity_id
+		WHERE a.user_id = $1
+		ORDER BY a.start_date_local DESC
+		LIMIT $2
+	`
+
+	rows, retErr := r.db.Query(ctx, query, userID, limit)
+	if retErr != nil {
+		return nil, fmt.Errorf("query normalized routes: %w", retErr)
+	}
+	defer rows.Close()
+
+	routes = make([]repository.NormalizedRoute, 0, limit)
+	for rows.Next() {
+		var route repository.NormalizedRoute
+		var date time.Time
+		var coordsJSON []byte
+
+		if retErr = rows.Scan(&route.ActivityID, &route.Name, &route.Sport, &route.Distance, &date, &coordsJSON); retErr != nil {
+			return nil, fmt.Errorf("scan normalized route row: %w", retErr)
+		}
+
+		route.Date = date.Format("2006-01-02")
+
+		if retErr = json.Unmarshal(coordsJSON, &route.Coords); retErr != nil {
+			return nil, fmt.Errorf("unmarshal route coords for activity %d: %w", route.ActivityID, retErr)
+		}
+
+		routes = append(routes, route)
+	}
+
+	if retErr = rows.Err(); retErr != nil {
+		return nil, fmt.Errorf("iterate normalized route rows: %w", retErr)
+	}
+
+	return routes, nil
 }
 
 // encodeCursor encodes an ActivityCursor to a base64 string.

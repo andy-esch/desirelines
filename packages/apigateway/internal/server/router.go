@@ -43,6 +43,7 @@ type AuthenticatedRoutes struct {
 	GetMetadata     http.HandlerFunc
 	GetMetrics      http.HandlerFunc
 	GetSource       http.HandlerFunc
+	GetRoutes       http.HandlerFunc
 	ListActivities  http.HandlerFunc
 	GetActivityByID http.HandlerFunc
 }
@@ -78,6 +79,9 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 		r.Get("/activities/{year}/metadata", auth.GetMetadata)
 		r.Get("/activities/{year}/metrics", auth.GetMetrics)
 		r.Get("/activities/{year}/source", auth.GetSource)
+
+		// Route art endpoint (must be registered before {id} to avoid chi matching "routes" as an ID)
+		r.Get("/activities/routes", auth.GetRoutes)
 
 		// Individual activity endpoints
 		// Note: {id} occupies the same path segment as {year} above, but the

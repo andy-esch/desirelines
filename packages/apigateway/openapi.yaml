@@ -174,6 +174,39 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /activities/routes:
+    get:
+      tags: [Activities]
+      summary: Get normalized route geometries
+      description: Returns activity routes centered at (0,0) for abstract art visualization
+      operationId: getRoutes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of routes to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+      responses:
+        '200':
+          description: List of normalized routes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NormalizedRoute'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /activities/{id}:
     get:
       tags: [Activities]
@@ -538,6 +571,37 @@ components:
         activities:
           type: integer
           description: Cumulative activity count
+
+    NormalizedRoute:
+      type: object
+      required: [activityId, name, sport, distance, date, coords]
+      properties:
+        activityId:
+          type: integer
+          format: int64
+          description: Strava activity ID
+        name:
+          type: string
+          description: Activity name
+        sport:
+          type: string
+          description: Categorized sport (cycling, running, etc.)
+        distance:
+          type: number
+          format: double
+          description: Distance in meters
+        date:
+          type: string
+          format: date
+          description: Activity date (YYYY-MM-DD)
+        coords:
+          type: array
+          description: Route coordinates centered at (0,0)
+          items:
+            type: array
+            items:
+              type: number
+              format: double
 
     DailySummary:
       type: object

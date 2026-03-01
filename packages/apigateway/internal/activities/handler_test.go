@@ -47,6 +47,9 @@ func (m *mockRepo) GetActivityByID(ctx context.Context, userID string, id int64)
 func (m *mockRepo) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
 	return nil, m.err
 }
+func (m *mockRepo) GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]repository.NormalizedRoute, error) {
+	return nil, m.err
+}
 
 func newTestHandler(t *testing.T) *Handler {
 	t.Helper()

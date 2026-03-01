@@ -294,6 +294,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 		GetMetadata:     activitiesHandler.HandleMetadata,
 		GetMetrics:      activitiesHandler.HandleMetrics,
 		GetSource:       activitiesHandler.HandleSource,
+		GetRoutes:       activitiesHandler.HandleRoutes,
 		ListActivities:  activitiesHandler.HandleListActivities,
 		GetActivityByID: activitiesHandler.HandleGetActivity,
 	}

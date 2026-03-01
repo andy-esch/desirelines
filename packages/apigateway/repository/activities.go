@@ -56,4 +56,9 @@ type ActivityRepository interface {
 	// Uses cursor-based pagination for efficient sequential access.
 	// Used by: GET /activities
 	ListActivities(ctx context.Context, filter ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error)
+
+	// GetNormalizedRoutes returns activity routes with coordinates centered at (0,0).
+	// Each route's start point is translated to the origin for overlaid visualization.
+	// Used by: GET /activities/routes
+	GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]NormalizedRoute, error)
 }
