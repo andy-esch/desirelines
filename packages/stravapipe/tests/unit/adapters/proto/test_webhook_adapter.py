@@ -243,7 +243,7 @@ class TestSharedFixtures:
     def test_parse(self, fixture: dict):
         """Test that parsing matches expected output for each fixture."""
         if fixture["expect_error"]:
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match=r"Invalid (aspect|object)_type"):
                 dict_to_webhook_event(fixture["input"])
             return
 
