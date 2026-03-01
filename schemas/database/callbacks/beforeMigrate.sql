@@ -36,3 +36,12 @@ END $$;
 -- =============================================================================
 CREATE SCHEMA IF NOT EXISTS desirelines;
 CREATE SCHEMA IF NOT EXISTS extensions;
+
+-- =============================================================================
+-- EXTENSIONS (needed by V0003)
+-- =============================================================================
+-- PostGIS is required for geometry columns in activity_routes.
+-- Local/CI: runs as superuser (desirelines), so CREATE EXTENSION works.
+-- Production (Neon): already installed manually by neondb_owner in extensions
+-- schema (see docs/guides/database-setup.md Section 3). IF NOT EXISTS is a no-op.
+CREATE EXTENSION IF NOT EXISTS postgis;

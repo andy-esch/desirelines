@@ -11,10 +11,8 @@ SET ROLE desirelines_ddl_grp;
 -- =============================================================================
 -- ACTIVITY ROUTES TABLE
 -- =============================================================================
--- Prerequisite: PostGIS extension must already be installed.
--- Local/CI: pre-installed by postgis/postgis Docker image (public schema)
--- Production: manually installed by neondb_owner (extensions schema)
--- See: docs/guides/database-setup.md Section 3
+-- Prerequisite: PostGIS extension is ensured by beforeMigrate.sql callback.
+-- See: docs/guides/database-setup.md Section 3 for production setup.
 
 -- Stores decoded detailed polylines from Strava activities.
 -- Separate table keeps activities table lean; indoor/manual activities have no route.
