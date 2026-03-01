@@ -19,6 +19,12 @@
 import type { SportConfig } from "../api/activities";
 export type { SportConfig };
 
+/** Subset of sport category properties used for data generation. */
+export interface SportMetricsInfo {
+  hasDistance?: boolean;
+  hasElevation?: boolean;
+}
+
 /**
  * Sport colors for chart visualizations (sparklines, etc.)
  *
