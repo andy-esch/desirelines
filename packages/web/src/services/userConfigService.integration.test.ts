@@ -78,6 +78,7 @@ describe("UserConfigService Integration Tests", () => {
             label: "Test goal",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            metric: "",
           },
         ],
       };
@@ -129,6 +130,7 @@ describe("UserConfigService Integration Tests", () => {
             label: "Conservative",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            metric: "",
           },
           {
             id: "goal-2",
@@ -136,6 +138,7 @@ describe("UserConfigService Integration Tests", () => {
             label: "Target",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            metric: "",
           },
         ],
       };
@@ -216,6 +219,7 @@ describe("UserConfigService Integration Tests", () => {
             label: "Initial",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            metric: "",
           },
         ],
       };
@@ -230,6 +234,7 @@ describe("UserConfigService Integration Tests", () => {
             label: "Updated",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            metric: "",
           },
         ],
       };
@@ -269,6 +274,7 @@ describe("UserConfigService Integration Tests", () => {
             label: "User A data",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            metric: "",
           },
         ],
       };
@@ -343,6 +349,7 @@ describe("UserConfigService Integration Tests", () => {
             label: "Test",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            metric: "",
           },
         ],
       };

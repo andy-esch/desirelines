@@ -64,8 +64,11 @@ export interface GoalsForYear {
  * A single goal with a target value
  * UNIT CONVENTIONS:
  * - For distance-based sports (cycling, running, etc.): value is in METERS
- * - For session-based sports (yoga, workout, etc.): value is the number of sessions
- * The frontend converts to display units (miles/km) based on user preferences.
+ * - For time-based sports (yoga, workout, etc.): value is in MINUTES
+ * - For session-based sports: value is the number of sessions
+ * The frontend converts to display units (miles/km, hours) based on user preferences.
+ * The `metric` field records which metric this goal tracks (e.g., "distance_meters",
+ * "time_minutes", "activities"). Empty string means legacy goal — infer from sport config.
  */
 export interface Goal {
   id: string;
@@ -76,6 +79,8 @@ export interface Goal {
   createdAt: string;
   /** RFC3339 timestamp */
   updatedAt: string;
+  /** e.g., "distance_meters", "time_minutes", "activities" */
+  metric: string;
 }
 
 /** Annotations for a specific year */
@@ -479,7 +484,7 @@ export const GoalsForYear: MessageFns<GoalsForYear> = {
 };
 
 function createBaseGoal(): Goal {
-  return { id: "", value: 0, label: "", createdAt: "", updatedAt: "" };
+  return { id: "", value: 0, label: "", createdAt: "", updatedAt: "", metric: "" };
 }
 
 export const Goal: MessageFns<Goal> = {
@@ -498,6 +503,9 @@ export const Goal: MessageFns<Goal> = {
     }
     if (message.updatedAt !== "") {
       writer.uint32(42).string(message.updatedAt);
+    }
+    if (message.metric !== "") {
+      writer.uint32(50).string(message.metric);
     }
     return writer;
   },
@@ -547,6 +555,14 @@ export const Goal: MessageFns<Goal> = {
           }
 
           message.updatedAt = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.metric = reader.string();
           continue;
         }
       }

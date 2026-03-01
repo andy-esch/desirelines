@@ -17,6 +17,7 @@ import {
   goalMetersToDisplay,
   getUserSettings,
   minutesToHours,
+  type MetricType,
 } from "../utils/units";
 import { toLocalDateString } from "../utils/dateUtils";
 import { useQueries } from "@tanstack/react-query";
@@ -31,7 +32,7 @@ export interface WeeklySportTotal {
   weeklyGoal: number;
   achievementPct: number;
   metricUnit: string;
-  isDistanceSport: boolean;
+  metricType: MetricType;
 }
 
 /**
@@ -200,7 +201,7 @@ export function useWeeklySummary(): {
         weeklyGoal,
         achievementPct,
         metricUnit: metricCfg.chartLabel,
-        isDistanceSport: isDistance,
+        metricType: (isDistance ? "distance" : isTime ? "time" : "sessions") as MetricType,
       };
     });
   }, [

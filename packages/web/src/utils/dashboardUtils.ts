@@ -9,7 +9,12 @@ import {
 } from "../config/metricConfig";
 import { getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
 import { getTargetGoalValue } from "../utils/goalCalculations";
-import { convertDistance, goalMetersToDisplay, minutesToHours } from "../utils/units";
+import {
+  convertDistance,
+  goalMetersToDisplay,
+  minutesToHours,
+  type MetricType,
+} from "../utils/units";
 import { getSpectrumColor } from "../utils/chartColors";
 
 export interface SportGoalData {
@@ -19,7 +24,7 @@ export interface SportGoalData {
   currentValue: number;
   targetGoal: number;
   metricUnit: string;
-  isDistanceSport: boolean;
+  metricType: MetricType;
   /** Smallest (least conservative) goal value in display units, for impact calculations */
   impactGoal: number;
   /** Label of the smallest goal (e.g. "Conservative") */
@@ -121,7 +126,7 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
     currentValue,
     targetGoal,
     metricUnit: metricCfg.chartLabel,
-    isDistanceSport: isDistance,
+    metricType: isDistance ? "distance" : isTime ? "time" : "sessions",
     impactGoal,
     impactGoalLabel,
   };

@@ -440,7 +440,10 @@ const DEFAULT_TIME_SPORT_CONFIG: DemoSportConfig = {
  * @param sport - Sport key
  * @param sportInfo - Optional sport info from API (has_distance, has_elevation)
  */
-export function getDemoConfigForSport(sport: string, sportInfo?: SportMetricsInfo): DemoSportConfig {
+export function getDemoConfigForSport(
+  sport: string,
+  sportInfo?: SportMetricsInfo
+): DemoSportConfig {
   // Use hardcoded config if available
   if (sport in DEMO_SPORT_CONFIG) {
     return DEMO_SPORT_CONFIG[sport as keyof typeof DEMO_SPORT_CONFIG];

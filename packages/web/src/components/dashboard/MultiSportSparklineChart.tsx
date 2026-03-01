@@ -1,7 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
-import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
+import {
+  convertDistance,
+  getDistanceLabel,
+  formatHoursMinutes,
+  type DistanceUnit,
+} from "../../utils/units";
 import { SparklineSkeleton } from "../Skeleton";
 import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
 import type { TuningParams } from "../../utils/demoDataGenerator";
@@ -71,8 +76,7 @@ function formatMetricValue(
   if (isTime) {
     // Time-based: convert minutes from API to hours for display
     const hours = rawValue / 60;
-    const decimals = hours >= 10 ? 0 : 1;
-    return `${hours.toFixed(decimals)} hrs`;
+    return formatHoursMinutes(hours);
   }
 
   // Session-based: show as integer

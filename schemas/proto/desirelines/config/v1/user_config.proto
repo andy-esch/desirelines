@@ -30,14 +30,18 @@ message GoalsForYear {
 // A single goal with a target value
 // UNIT CONVENTIONS:
 // - For distance-based sports (cycling, running, etc.): value is in METERS
-// - For session-based sports (yoga, workout, etc.): value is the number of sessions
-// The frontend converts to display units (miles/km) based on user preferences.
+// - For time-based sports (yoga, workout, etc.): value is in MINUTES
+// - For session-based sports: value is the number of sessions
+// The frontend converts to display units (miles/km, hours) based on user preferences.
+// The `metric` field records which metric this goal tracks (e.g., "distance_meters",
+// "time_minutes", "activities"). Empty string means legacy goal — infer from sport config.
 message Goal {
   string id = 1;
   int32 value = 2; // See UNIT CONVENTIONS above
   string label = 3;
   string created_at = 4; // RFC3339 timestamp
   string updated_at = 5; // RFC3339 timestamp
+  string metric = 6; // e.g., "distance_meters", "time_minutes", "activities"
 }
 
 // Annotations for a specific year

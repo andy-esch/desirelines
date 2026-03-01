@@ -208,9 +208,9 @@ describe("useDashboardGoalData", () => {
       const cycling = result.current.sportData.find((s) => s.sport === "cycling");
       const yoga = result.current.sportData.find((s) => s.sport === "yoga");
 
-      expect(cycling?.isDistanceSport).toBe(true);
+      expect(cycling?.metricType).toBe("distance");
       expect(cycling?.metricUnit).toBe("mi"); // default US units
-      expect(yoga?.isDistanceSport).toBe(false);
+      expect(yoga?.metricType).toBe("time");
       expect(yoga?.metricUnit).toBe("hrs"); // time sport shows hours
     });
 

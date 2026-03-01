@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { useWeeklySummary } from "../../hooks/useWeeklySummary";
-import { formatMetricDisplayValue } from "../../utils/units";
+import { formatMetricDisplayValue, formatHoursMinutes } from "../../utils/units";
 import Skeleton from "../Skeleton";
 
 /**
@@ -27,13 +27,11 @@ export default function WeeklySummaryCard() {
   const hasAnyActivity = sportTotals.some((s) => s.weeklyTotal > 0);
 
   // Aggregate totals by type for footer
-  const distanceSports = sportTotals.filter((s) => s.isDistanceSport && s.weeklyTotal > 0);
-  const timeSports = sportTotals.filter(
-    (s) => !s.isDistanceSport && s.metricUnit === "hrs" && s.weeklyTotal > 0
+  const distanceSports = sportTotals.filter(
+    (s) => s.metricType === "distance" && s.weeklyTotal > 0
   );
-  const sessionSports = sportTotals.filter(
-    (s) => !s.isDistanceSport && s.metricUnit !== "hrs" && s.weeklyTotal > 0
-  );
+  const timeSports = sportTotals.filter((s) => s.metricType === "time" && s.weeklyTotal > 0);
+  const sessionSports = sportTotals.filter((s) => s.metricType === "sessions" && s.weeklyTotal > 0);
 
   const totalDistance = distanceSports.reduce((sum, s) => sum + s.weeklyTotal, 0);
   const totalTime = timeSports.reduce((sum, s) => sum + s.weeklyTotal, 0);
@@ -95,7 +93,11 @@ export default function WeeklySummaryCard() {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">
                   {sport.weeklyTotal > 0
-                    ? `${formatMetricDisplayValue(sport.weeklyTotal, sport.isDistanceSport)} ${sport.metricUnit}`
+                    ? formatMetricDisplayValue(
+                        sport.weeklyTotal,
+                        sport.metricType,
+                        sport.metricUnit
+                      )
                     : "—"}
                 </span>
                 {sport.weeklyTotal > 0 && (
@@ -119,12 +121,10 @@ export default function WeeklySummaryCard() {
             <small className="text-slate-light">
               Total:{" "}
               {totalDistance > 0 && (
-                <span>
-                  {formatMetricDisplayValue(totalDistance, true)} {distanceUnit}
-                </span>
+                <span>{formatMetricDisplayValue(totalDistance, "distance", distanceUnit)}</span>
               )}
               {totalDistance > 0 && (totalTime > 0 || totalSessions > 0) && ", "}
-              {totalTime > 0 && <span>{totalTime.toFixed(1)} hrs</span>}
+              {totalTime > 0 && <span>{formatHoursMinutes(totalTime)}</span>}
               {totalTime > 0 && totalSessions > 0 && ", "}
               {totalSessions > 0 && (
                 <span>

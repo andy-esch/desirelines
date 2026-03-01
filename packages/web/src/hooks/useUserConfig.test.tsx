@@ -88,6 +88,7 @@ describe("useUserConfig", () => {
             label: "Goal",
             createdAt: "2025-01-01T00:00:00Z",
             updatedAt: "2025-01-01T00:00:00Z",
+            metric: "",
           },
         ],
       };
@@ -118,7 +119,7 @@ describe("useUserConfig", () => {
 
     it("should read from localStorage when user is null", async () => {
       const storedGoals = {
-        goals: [{ id: "ls", value: 500, label: "LS", createdAt: "", updatedAt: "" }],
+        goals: [{ id: "ls", value: 500, label: "LS", createdAt: "", updatedAt: "", metric: "" }],
       };
       localStorageMock.getItem.mockReturnValue(JSON.stringify(storedGoals));
 
@@ -147,6 +148,7 @@ describe("useUserConfig", () => {
             label: "New",
             createdAt: "2025-01-01T00:00:00Z",
             updatedAt: "2025-01-01T00:00:00Z",
+            metric: "",
           },
         ],
       };
@@ -233,6 +235,7 @@ describe("useUserConfig", () => {
             label: "Initial",
             createdAt: "2025-01-01T00:00:00Z",
             updatedAt: "2025-01-01T00:00:00Z",
+            metric: "",
           },
         ],
       };
@@ -244,6 +247,7 @@ describe("useUserConfig", () => {
             label: "New",
             createdAt: "2025-01-01T00:00:00Z",
             updatedAt: "2025-01-01T00:00:00Z",
+            metric: "",
           },
         ],
       };
@@ -295,6 +299,7 @@ describe("useUserConfig", () => {
             label: "Initial",
             createdAt: "2025-01-01T00:00:00Z",
             updatedAt: "2025-01-01T00:00:00Z",
+            metric: "",
           },
         ],
       };
@@ -306,6 +311,7 @@ describe("useUserConfig", () => {
             label: "New",
             createdAt: "2025-01-01T00:00:00Z",
             updatedAt: "2025-01-01T00:00:00Z",
+            metric: "",
           },
         ],
       };
@@ -354,6 +360,7 @@ describe("useUserConfig", () => {
             label: "Migrated",
             createdAt: "2025-01-01T00:00:00Z",
             updatedAt: "2025-01-01T00:00:00Z",
+            metric: "",
           },
         ],
       };
@@ -438,6 +445,7 @@ describe("useFullUserConfig", () => {
           label: "Test",
           createdAt: "2025-01-01T00:00:00Z",
           updatedAt: "2025-01-01T00:00:00Z",
+          metric: "",
         },
       ],
     };

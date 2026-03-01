@@ -119,16 +119,39 @@ export function getMetricUnitLabel(unit: MetricUnit): string {
   return unit;
 }
 
+export type MetricType = "distance" | "time" | "sessions";
+
 /**
- * Format a metric value for compact display.
- * Distance: 1 decimal for < 100, locale-formatted integer for >= 100.
- * Sessions: rounded integer.
+ * Format hours as a human-friendly duration string.
+ * Examples: "1 hr 13 min", "45 min", "2 hr"
  */
-export function formatMetricDisplayValue(value: number, isDistance: boolean): string {
-  if (isDistance) {
-    return value >= 100 ? Math.round(value).toLocaleString() : value.toFixed(1);
+export function formatHoursMinutes(hours: number): string {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} hr`;
+  return `${h} hr ${m} min`;
+}
+
+/**
+ * Format a metric value for compact display, including the unit label.
+ * Distance: 1 decimal for < 100, locale-formatted integer for >= 100, with unit.
+ * Time: human-friendly duration (e.g., "1 hr 13 min") — unit is baked into the format.
+ * Sessions: rounded integer with unit.
+ */
+export function formatMetricDisplayValue(
+  value: number,
+  metricType: MetricType,
+  unitLabel: string
+): string {
+  switch (metricType) {
+    case "distance":
+      return `${value >= 100 ? Math.round(value).toLocaleString() : value.toFixed(1)} ${unitLabel}`;
+    case "time":
+      return formatHoursMinutes(value);
+    case "sessions":
+      return `${Math.round(value).toString()} ${unitLabel}`;
   }
-  return Math.round(value).toString();
 }
 
 // Default user settings (can be loaded from Firestore later)
