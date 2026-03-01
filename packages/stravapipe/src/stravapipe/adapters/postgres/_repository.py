@@ -94,6 +94,29 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         # RETURNING id only returns a row if insert happened (not on conflict)
         return result.fetchone() is not None
 
+    def insert_route(self, activity_id: int, geojson: str) -> bool:
+        """Insert activity route geometry, ignore if already exists.
+
+        Args:
+            activity_id: Strava activity ID (must exist in activities table)
+            geojson: GeoJSON LineString string for ST_GeomFromGeoJSON()
+
+        Returns:
+            True if inserted, False if already existed (conflict)
+        """
+        query = text("""
+            INSERT INTO desirelines.activity_routes (activity_id, route)
+            VALUES (:activity_id, ST_GeomFromGeoJSON(:geojson))
+            ON CONFLICT (activity_id) DO NOTHING
+            RETURNING activity_id
+        """)
+
+        result = self._session.execute(
+            query,
+            {"activity_id": activity_id, "geojson": geojson},
+        )
+        return result.fetchone() is not None
+
     def exists(self, activity_id: int) -> bool:
         """Check if activity exists in database.
 

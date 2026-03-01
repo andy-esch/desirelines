@@ -313,7 +313,7 @@ jobs:
       - name: Go integration tests
         working-directory: packages/apigateway
         env:
-          POSTGRES_CONNECTION_STRING: "postgresql://desirelines:test_password@localhost:5432/desirelines_test?search_path=desirelines&application_name=integration-test"
+          POSTGRES_CONNECTION_STRING: "postgresql://desirelines:test_password@localhost:5432/desirelines_test?search_path=desirelines,extensions,public&application_name=integration-test"
         run: go test -tags=integration -v -race ./adapters/postgres/...
 
       - name: Install Python dependencies
@@ -324,7 +324,7 @@ jobs:
         working-directory: packages/stravapipe
         run: |
           uv run pytest tests/integration/ -v \
-            --db-url="postgresql+psycopg://desirelines:test_password@localhost:5432/desirelines_test?options=-csearch_path%3Ddesirelines"
+            --db-url="postgresql+psycopg://desirelines:test_password@localhost:5432/desirelines_test?options=-csearch_path%3Ddesirelines,extensions,public"
 
   # ===========================================================================
   # Terraform: Format, Init, Validate

@@ -27,6 +27,7 @@ from stravapipe.cfutils.metrics import record_duration, setup_metrics
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_postgres_writer_config
 from stravapipe.domain.activity import StandardActivity
+from stravapipe.domain.geometry import decode_polyline_to_geojson
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
@@ -157,6 +158,9 @@ async def _handle_create(
     with record_duration(pg_histogram, {"operation": "insert"}):
         with uow:
             inserted = uow.activities.insert(activity)
+            if inserted and activity.map and activity.map.polyline:
+                if geojson := decode_polyline_to_geojson(activity.map.polyline):
+                    uow.activities.insert_route(activity.id, geojson)
             uow.commit()
 
     if inserted:

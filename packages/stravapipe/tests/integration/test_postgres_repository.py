@@ -166,6 +166,71 @@ class TestActivityRepository:
         assert result is False
 
 
+class TestActivityRouteRepository:
+    """Integration tests for activity route geometry storage."""
+
+    def test_insert_route_happy_path(self, uow, db_session):
+        """insert_route stores geometry and is queryable with PostGIS."""
+        activity = make_activity(activity_id=300001)
+        geojson = '{"type":"LineString","coordinates":[[-120.2,38.5],[-120.95,40.7],[-126.453,43.252]]}'
+
+        with uow:
+            uow.activities.insert(activity)
+            result = uow.activities.insert_route(300001, geojson)
+            uow.commit()
+
+        assert result is True
+
+        # Verify geometry stored correctly via ST_AsGeoJSON
+        row = db_session.execute(
+            text(
+                "SELECT ST_AsGeoJSON(route)::json->>'type' as geom_type, "
+                "ST_NPoints(route) as npoints "
+                "FROM desirelines.activity_routes WHERE activity_id = :id"
+            ),
+            {"id": 300001},
+        ).fetchone()
+        assert row.geom_type == "LineString"
+        assert row.npoints == 3
+
+    def test_insert_route_duplicate_returns_false(self, uow):
+        """insert_route returns False for duplicate (ON CONFLICT DO NOTHING)."""
+        activity = make_activity(activity_id=300002)
+        geojson = '{"type":"LineString","coordinates":[[-120.2,38.5],[-120.95,40.7]]}'
+
+        with uow:
+            uow.activities.insert(activity)
+            result1 = uow.activities.insert_route(300002, geojson)
+            uow.commit()
+
+        with uow:
+            result2 = uow.activities.insert_route(300002, geojson)
+            uow.commit()
+
+        assert result1 is True
+        assert result2 is False
+
+    def test_delete_activity_cascades_to_route(self, uow, db_session):
+        """Deleting an activity cascades to its route."""
+        activity = make_activity(activity_id=300003)
+        geojson = '{"type":"LineString","coordinates":[[-120.2,38.5],[-120.95,40.7]]}'
+
+        with uow:
+            uow.activities.insert(activity)
+            uow.activities.insert_route(300003, geojson)
+            uow.commit()
+
+        with uow:
+            uow.activities.delete(300003)
+            uow.commit()
+
+        row = db_session.execute(
+            text("SELECT 1 FROM desirelines.activity_routes WHERE activity_id = :id"),
+            {"id": 300003},
+        ).fetchone()
+        assert row is None
+
+
 class TestTransactionRollback:
     """Tests verifying transaction rollback works correctly."""
 
