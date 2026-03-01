@@ -28,15 +28,15 @@ vi.mock("./useGoalStats", () => ({
 
 describe("useSportPageData", () => {
   const mockSportConfig = {
-    sport_categories: {
+    sportCategories: {
       cycling: {
-        display_name: "Cycling",
-        strava_types: ["Ride"],
-        excluded_types: [],
-        primary_metric: "distance_meters",
+        displayName: "Cycling",
+        stravaTypes: ["Ride"],
+        excludedTypes: [],
+        primaryMetric: "distance_meters",
         metrics: ["distance_meters", "time_minutes"],
-        has_distance: true,
-        has_elevation: true,
+        hasDistance: true,
+        hasElevation: true,
       },
     },
   };

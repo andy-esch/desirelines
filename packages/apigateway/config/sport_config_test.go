@@ -166,7 +166,7 @@ func TestInvalidSchemaFails(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "test.json")
 
 	// Missing required field: StravaTypes
-	invalidJSON := `{"version": "1.0", "sport_categories": {"cycling": {"display_name": "Cycling"}}}`
+	invalidJSON := `{"version": "1.0", "sportCategories": {"cycling": {"displayName": "Cycling"}}}`
 	err := os.WriteFile(configPath, []byte(invalidJSON), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)

@@ -41,7 +41,7 @@ export function useSportData(year: number, sport: string): SportDataResult {
   const { data: prefs } = useUserConfig("preferences");
   const tz = prefs?.timezone || undefined;
 
-  const isValidSport = !!sportConfig && sport in sportConfig.sport_categories;
+  const isValidSport = !!sportConfig && sport in sportConfig.sportCategories;
 
   const {
     data: metrics,

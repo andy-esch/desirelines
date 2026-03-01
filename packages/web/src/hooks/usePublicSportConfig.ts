@@ -22,7 +22,7 @@ export interface UsePublicSportConfigResult {
  * const { sportConfig, isLoading } = usePublicSportConfig();
  *
  * if (sportConfig) {
- *   const sports = Object.keys(sportConfig.sport_categories);
+ *   const sports = Object.keys(sportConfig.sportCategories);
  * }
  * ```
  */

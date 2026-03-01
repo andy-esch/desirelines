@@ -213,13 +213,13 @@ export function SportVisibilitySettings() {
 
   // Get sorted sport entries
   const sportEntries = useMemo(() => {
-    if (!sportConfig?.sport_categories) return [];
+    if (!sportConfig?.sportCategories) return [];
 
-    return Object.entries(sportConfig.sport_categories)
+    return Object.entries(sportConfig.sportCategories)
       .map(([key, config]) => ({
         key,
-        displayName: config.display_name,
-        stravaTypes: config.strava_types,
+        displayName: config.displayName,
+        stravaTypes: config.stravaTypes,
         metrics: config.metrics,
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName));

@@ -124,8 +124,8 @@ export function getSportTextColor(sport: string): string {
  * @returns Display name (e.g., "Cycling") or formatted key as fallback
  */
 export function getSportDisplayName(sport: string, sportConfig: SportConfig | null): string {
-  if (sportConfig?.sport_categories[sport]) {
-    return sportConfig.sport_categories[sport].display_name;
+  if (sportConfig?.sportCategories?.[sport]) {
+    return sportConfig.sportCategories[sport].displayName;
   }
   // Fallback: capitalize and replace underscores
   return sport
@@ -165,8 +165,8 @@ export function getPrimaryMetric(
   // }
 
   // Use server-defined primary metric
-  if (sportConfig?.sport_categories[sport]) {
-    return sportConfig.sport_categories[sport].primary_metric;
+  if (sportConfig?.sportCategories?.[sport]) {
+    return sportConfig.sportCategories[sport].primaryMetric;
   }
 
   // Fallback for unknown sports
@@ -208,7 +208,7 @@ export function isTimeSport(sport: string, sportConfig: SportConfig | null): boo
 const INTERNAL_METRICS = new Set(["activity_ids"]);
 
 export function getSportMetrics(sport: string, sportConfig: SportConfig | null): string[] {
-  const metrics = sportConfig?.sport_categories[sport]?.metrics ?? [];
+  const metrics = sportConfig?.sportCategories?.[sport]?.metrics ?? [];
   return metrics.filter((m) => !INTERNAL_METRICS.has(m));
 }
 
@@ -225,9 +225,9 @@ export function filterValidSports(
   visibleSports: string[],
   sportConfig: SportConfig | null
 ): string[] {
-  if (!sportConfig?.sport_categories) {
+  if (!sportConfig?.sportCategories) {
     return visibleSports;
   }
-  const validKeys = Object.keys(sportConfig.sport_categories);
+  const validKeys = Object.keys(sportConfig.sportCategories);
   return visibleSports.filter((sport) => validKeys.includes(sport));
 }

@@ -15,24 +15,24 @@ import (
 // validConfigJSON is a minimal but realistic sport config matching the actual schema.
 const validConfigJSON = `{
   "version": "1.0",
-  "sport_categories": {
+  "sportCategories": {
     "cycling": {
-      "display_name": "Cycling",
-      "strava_types": ["Ride", "VirtualRide"],
-      "excluded_types": ["EBikeRide"],
-      "primary_metric": "distance_meters",
+      "displayName": "Cycling",
+      "stravaTypes": ["Ride", "VirtualRide"],
+      "excludedTypes": ["EBikeRide"],
+      "primaryMetric": "distance_meters",
       "metrics": ["distance_meters", "time_minutes"],
-      "has_distance": true,
-      "has_elevation": true
+      "hasDistance": true,
+      "hasElevation": true
     },
     "running": {
-      "display_name": "Running",
-      "strava_types": ["Run"],
-      "excluded_types": [],
-      "primary_metric": "distance_meters",
+      "displayName": "Running",
+      "stravaTypes": ["Run"],
+      "excludedTypes": [],
+      "primaryMetric": "distance_meters",
       "metrics": ["distance_meters", "time_minutes"],
-      "has_distance": true,
-      "has_elevation": true
+      "hasDistance": true,
+      "hasElevation": true
     }
   }
 }`
