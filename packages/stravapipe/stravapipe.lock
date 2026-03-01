@@ -21,6 +21,7 @@
 //     "opentelemetry-exporter-gcp-monitoring>=1.8.0a0",
 //     "opentelemetry-resourcedetector-gcp>=1.8.0a0",
 //     "opentelemetry-sdk>=1.28.0",
+//     "polyline>=2.0.4",
 //     "pre-commit>=4.3.0",
 //     "protobuf>=6.33.2",
 //     "psycopg[binary]>=3.2.0",
@@ -1261,13 +1262,13 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "f4e7214f24b2262258492e05c48cf21125e4ffc427e30dd32fb4f74049a3d56a",
-              "url": "https://files.pythonhosted.org/packages/e3/e6/fd49c28a54b7d6f5c64045155e40f6cff9ed4920055043fb5ac7969f7f2f/fastapi-0.134.0-py3-none-any.whl"
+              "hash": "46e2fc5745924b7c840f71ddd277382af29ce1cdb7d5eab5bf697e3fb9999c9e",
+              "url": "https://files.pythonhosted.org/packages/e4/72/42e900510195b23a56bde950d26a51f8b723846bfcaa0286e90287f0422b/fastapi-0.135.1-py3-none-any.whl"
             },
             {
               "algorithm": "sha256",
-              "hash": "3122b1ea0dbeaab48b5976e80b99ca7eda02be154bf03e126a33220e73255a9a",
-              "url": "https://files.pythonhosted.org/packages/96/15/647ea81cb73b55b48fb095158a9cd64e42e9e4f1d34dbb5cc4a4939779d6/fastapi-0.134.0.tar.gz"
+              "hash": "d04115b508d936d254cea545b7312ecaa58a7b3a0f84952535b4c9afae7668cd",
+              "url": "https://files.pythonhosted.org/packages/e7/7b/f8e0211e9380f7195ba3f3d40c292594fd81ba8ec4629e3854c353aaca45/fastapi-0.135.1.tar.gz"
             }
           ],
           "project_name": "fastapi",
@@ -1305,7 +1306,7 @@
             "uvicorn[standard]>=0.12.0; extra == \"standard-no-fastapi-cloud-cli\""
           ],
           "requires_python": ">=3.10",
-          "version": "0.134.0"
+          "version": "0.135.1"
         },
         {
           "artifacts": [
@@ -1621,19 +1622,19 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "426e9a4660391f7f8a810d71b0555bce9008b0a1cc342ab1f6947d37639e002d",
-              "url": "https://files.pythonhosted.org/packages/9c/0f/5d0c71a1aefeb08efff26272149e07ab922b64f46c63363756224bd6872e/filelock-3.24.3-py3-none-any.whl"
+              "hash": "5ccf8069f7948f494968fc0713c10e5c182a9c9d9eef3a636307a20c2490f047",
+              "url": "https://files.pythonhosted.org/packages/f9/0b/de6f54d4a8bedfe8645c41497f3c18d749f0bd3218170c667bf4b81d0cdd/filelock-3.25.0-py3-none-any.whl"
             },
             {
               "algorithm": "sha256",
-              "hash": "011a5644dc937c22699943ebbfc46e969cdde3e171470a6e40b9533e5a72affa",
-              "url": "https://files.pythonhosted.org/packages/73/92/a8e2479937ff39185d20dd6a851c1a63e55849e447a55e798cc2e1f49c65/filelock-3.24.3.tar.gz"
+              "hash": "8f00faf3abf9dc730a1ffe9c354ae5c04e079ab7d3a683b7c32da5dd05f26af3",
+              "url": "https://files.pythonhosted.org/packages/77/18/a1fd2231c679dcb9726204645721b12498aeac28e1ad0601038f94b42556/filelock-3.25.0.tar.gz"
             }
           ],
           "project_name": "filelock",
           "requires_dists": [],
           "requires_python": ">=3.10",
-          "version": "3.24.3"
+          "version": "3.25.0"
         },
         {
           "artifacts": [
@@ -2583,13 +2584,13 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "391ee4d77741d994189522896270b787aed8670389bfd60f326d677d64a6dfb0",
-              "url": "https://files.pythonhosted.org/packages/b8/58/40fbbcefeda82364720eba5cf2270f98496bdfa19ea75b4cccae79c698e6/identify-2.6.16-py2.py3-none-any.whl"
+              "hash": "be5f8412d5ed4b20f2bd41a65f920990bdccaa6a4a18a08f1eefdcd0bdd885f0",
+              "url": "https://files.pythonhosted.org/packages/40/66/71c1227dff78aaeb942fed29dd5651f2aec166cc7c9aeea3e8b26a539b7d/identify-2.6.17-py2.py3-none-any.whl"
             },
             {
               "algorithm": "sha256",
-              "hash": "846857203b5511bbe94d5a352a48ef2359532bc8f6727b5544077a0dcfb24980",
-              "url": "https://files.pythonhosted.org/packages/5b/8d/e8b97e6bd3fb6fb271346f7981362f1e04d6a7463abd0de79e1fda17c067/identify-2.6.16.tar.gz"
+              "hash": "f816b0b596b204c9fdf076ded172322f2723cf958d02f9c3587504834c8ff04d",
+              "url": "https://files.pythonhosted.org/packages/57/84/376a3b96e5a8d33a7aa2c5b3b31a4b3c364117184bf0b17418055f6ace66/identify-2.6.17.tar.gz"
             }
           ],
           "project_name": "identify",
@@ -2597,7 +2598,7 @@
             "ukkonen; extra == \"license\""
           ],
           "requires_python": ">=3.10",
-          "version": "2.6.16"
+          "version": "2.6.17"
         },
         {
           "artifacts": [
@@ -3567,6 +3568,34 @@
           "artifacts": [
             {
               "algorithm": "sha256",
+              "hash": "a4e0c15b8ecb32915559f8cf210f1f8c2f5cc53d3cd32c91d7c1668d6e936e10",
+              "url": "https://files.pythonhosted.org/packages/34/a8/4ebd3cb31d380e018efb1c8bf92664b196a41aba19506015b682af2587b9/polyline-2.0.4-py3-none-any.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "f05ade694522bf1720febebe1672f820f43a13c6a1664751e7769d47e8ca9b1b",
+              "url": "https://files.pythonhosted.org/packages/2c/c1/1a6ee4f9f02a55b2a9241bbadd342970160f7e42423307f21ee8f5530d4e/polyline-2.0.4.tar.gz"
+            }
+          ],
+          "project_name": "polyline",
+          "requires_dists": [
+            "build~=0.8; extra == \"publish\"",
+            "pylint~=3.0.3; extra == \"dev\"",
+            "pytest-cov~=4.0; extra == \"dev\"",
+            "pytest~=7.0; extra == \"dev\"",
+            "sphinx-rtd-theme~=1.2.0; extra == \"dev\"",
+            "sphinx~=5.3.0; extra == \"dev\"",
+            "standard-imghdr; python_version > \"3.12\" and extra == \"dev\"",
+            "tomli; python_version < \"3.11\" and extra == \"dev\"",
+            "twine~=6.0; extra == \"publish\""
+          ],
+          "requires_python": ">=3.8",
+          "version": "2.0.4"
+        },
+        {
+          "artifacts": [
+            {
+              "algorithm": "sha256",
               "hash": "3b3afd891e97337708c1674210f8eba659b52a38ea5f822ff142d10786221f77",
               "url": "https://files.pythonhosted.org/packages/5d/19/fd3ef348460c80af7bb4669ea7926651d1f95c23ff2df18b9d24bab4f3fa/pre_commit-4.5.1-py2.py3-none-any.whl"
             },
@@ -4367,21 +4396,21 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "b81ee9561e9ca4004139c6cbba3a238c32b03e4894671e181b671e8cb8425d61",
-              "url": "https://files.pythonhosted.org/packages/14/1b/a298b06749107c305e1fe0f814c6c74aea7b2f1e10989cb30f544a1b3253/python_dotenv-1.2.1-py3-none-any.whl"
+              "hash": "1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a",
+              "url": "https://files.pythonhosted.org/packages/0b/d7/1959b9648791274998a9c3526f6d0ec8fd2233e4d4acce81bbae76b44b2a/python_dotenv-1.2.2-py3-none-any.whl"
             },
             {
               "algorithm": "sha256",
-              "hash": "42667e897e16ab0d66954af0e60a9caa94f0fd4ecf3aaf6d2d260eec1aa36ad6",
-              "url": "https://files.pythonhosted.org/packages/f0/26/19cadc79a718c5edbec86fd4919a6b6d3f681039a2f6d66d14be94e75fb9/python_dotenv-1.2.1.tar.gz"
+              "hash": "2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3",
+              "url": "https://files.pythonhosted.org/packages/82/ed/0301aeeac3e5353ef3d94b6ec08bbcabd04a72018415dcb29e588514bba8/python_dotenv-1.2.2.tar.gz"
             }
           ],
           "project_name": "python-dotenv",
           "requires_dists": [
             "click>=5.0; extra == \"cli\""
           ],
-          "requires_python": ">=3.9",
-          "version": "1.2.1"
+          "requires_python": ">=3.10",
+          "version": "1.2.2"
         },
         {
           "artifacts": [
@@ -6267,6 +6296,7 @@
     "opentelemetry-exporter-gcp-monitoring>=1.8.0a0",
     "opentelemetry-resourcedetector-gcp>=1.8.0a0",
     "opentelemetry-sdk>=1.28.0",
+    "polyline>=2.0.4",
     "pre-commit>=4.3.0",
     "protobuf>=6.33.2",
     "psycopg[binary]>=3.2.0",

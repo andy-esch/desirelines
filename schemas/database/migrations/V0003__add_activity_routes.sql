@@ -9,17 +9,12 @@
 SET ROLE desirelines_ddl_grp;
 
 -- =============================================================================
--- ENABLE POSTGIS EXTENSION
--- =============================================================================
-
--- PostGIS must be enabled before creating geometry columns.
--- CREATE EXTENSION is idempotent with IF NOT EXISTS.
--- Requires superuser or rds_superuser; Neon enables it by default.
-CREATE EXTENSION IF NOT EXISTS postgis;
-
--- =============================================================================
 -- ACTIVITY ROUTES TABLE
 -- =============================================================================
+-- Prerequisite: PostGIS extension must already be installed.
+-- Local/CI: pre-installed by postgis/postgis Docker image (public schema)
+-- Production: manually installed by neondb_owner (extensions schema)
+-- See: docs/guides/database-setup.md Section 3
 
 -- Stores decoded detailed polylines from Strava activities.
 -- Separate table keeps activities table lean; indoor/manual activities have no route.
