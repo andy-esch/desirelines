@@ -93,9 +93,11 @@ export default function WeeklySummaryCard() {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">
                   {sport.weeklyTotal > 0
-                    ? sport.metricType === "time"
-                      ? formatMetricDisplayValue(sport.weeklyTotal, sport.metricType)
-                      : `${formatMetricDisplayValue(sport.weeklyTotal, sport.metricType)} ${sport.metricUnit}`
+                    ? formatMetricDisplayValue(
+                        sport.weeklyTotal,
+                        sport.metricType,
+                        sport.metricUnit
+                      )
                     : "—"}
                 </span>
                 {sport.weeklyTotal > 0 && (
@@ -119,9 +121,7 @@ export default function WeeklySummaryCard() {
             <small className="text-slate-light">
               Total:{" "}
               {totalDistance > 0 && (
-                <span>
-                  {formatMetricDisplayValue(totalDistance, "distance")} {distanceUnit}
-                </span>
+                <span>{formatMetricDisplayValue(totalDistance, "distance", distanceUnit)}</span>
               )}
               {totalDistance > 0 && (totalTime > 0 || totalSessions > 0) && ", "}
               {totalTime > 0 && <span>{formatHoursMinutes(totalTime)}</span>}

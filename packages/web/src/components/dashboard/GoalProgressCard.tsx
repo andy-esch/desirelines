@@ -95,11 +95,9 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
   // Natural phrasing: "43.3 mi ahead" / "On track" / "10.8 mi behind"
   let statusDisplay = status;
   if (delta !== null && status !== "On Track") {
-    const formatted = formatMetricDisplayValue(Math.abs(delta), sport.metricType);
+    const formatted = formatMetricDisplayValue(Math.abs(delta), sport.metricType, sport.metricUnit);
     const direction = delta >= 0 ? "ahead" : "behind";
-    // formatMetricDisplayValue for time already includes the unit (e.g., "1 hr 13 min")
-    const unit = sport.metricType === "time" ? "" : ` ${sport.metricUnit}`;
-    statusDisplay = `${formatted}${unit} ${direction}`;
+    statusDisplay = `${formatted} ${direction}`;
   }
 
   return (
@@ -125,9 +123,8 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
       />
 
       <div className="text-sm text-slate-light" style={{ fontSize: "0.7rem" }}>
-        {formatMetricDisplayValue(sport.currentValue, sport.metricType)} /{" "}
-        {formatMetricDisplayValue(sport.targetGoal, sport.metricType)}
-        {sport.metricType !== "time" ? ` ${sport.metricUnit}` : ""}
+        {formatMetricDisplayValue(sport.currentValue, sport.metricType, sport.metricUnit)} /{" "}
+        {formatMetricDisplayValue(sport.targetGoal, sport.metricType, sport.metricUnit)}
       </div>
     </div>
   );

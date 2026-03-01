@@ -134,19 +134,23 @@ export function formatHoursMinutes(hours: number): string {
 }
 
 /**
- * Format a metric value for compact display.
- * Distance: 1 decimal for < 100, locale-formatted integer for >= 100.
- * Time: human-friendly duration (e.g., "1 hr 13 min") — includes unit in output.
- * Sessions: rounded integer.
+ * Format a metric value for compact display, including the unit label.
+ * Distance: 1 decimal for < 100, locale-formatted integer for >= 100, with unit.
+ * Time: human-friendly duration (e.g., "1 hr 13 min") — unit is baked into the format.
+ * Sessions: rounded integer with unit.
  */
-export function formatMetricDisplayValue(value: number, metricType: MetricType): string {
+export function formatMetricDisplayValue(
+  value: number,
+  metricType: MetricType,
+  unitLabel: string
+): string {
   switch (metricType) {
     case "distance":
-      return value >= 100 ? Math.round(value).toLocaleString() : value.toFixed(1);
+      return `${value >= 100 ? Math.round(value).toLocaleString() : value.toFixed(1)} ${unitLabel}`;
     case "time":
       return formatHoursMinutes(value);
     case "sessions":
-      return Math.round(value).toString();
+      return `${Math.round(value).toString()} ${unitLabel}`;
   }
 }
 
