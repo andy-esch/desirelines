@@ -7,6 +7,7 @@ Activity data is now provided inline in the enriched event (raw_activity field)
 rather than fetched from the Strava API.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -220,7 +221,6 @@ class TestCreateEventHandling:
             # Verify geojson argument is a valid GeoJSON string
             call_args = mock_uow.activities.insert_route.call_args
             assert call_args[0][0] == 12345678  # activity_id
-            import json
 
             geojson = json.loads(call_args[0][1])
             assert geojson["type"] == "LineString"

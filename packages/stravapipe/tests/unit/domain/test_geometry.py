@@ -30,6 +30,10 @@ class TestDecodePolylineToGeojson:
         result = decode_polyline_to_geojson("")
         assert result is None
 
+    def test_malformed_polyline_returns_none(self):
+        result = decode_polyline_to_geojson("\x00\xff\xfe")
+        assert result is None
+
     def test_two_point_polyline_is_valid(self):
         # "_p~iF~ps|U_ulLnnqC" encodes 2 points
         encoded = "_p~iF~ps|U_ulLnnqC"
