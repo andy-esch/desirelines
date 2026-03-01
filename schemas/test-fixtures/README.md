@@ -20,7 +20,7 @@ The `webhook.proto` schema is the source of truth, but each language has a hand-
     "owner_id": 67890,
     "event_time": 1704067200,
     "subscription_id": 999,
-    "updates": {"title": "Morning Run"}
+    "updates": { "title": "Morning Run" }
   },
   "expected": {
     "aspect_type": "create",
@@ -37,12 +37,12 @@ The `webhook.proto` schema is the source of truth, but each language has a hand-
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Human-readable test case label |
-| `input` | object | Strava JSON dict (string enums, snake_case fields) |
-| `expected` | object \| null | Expected parsed field values after adapter conversion. `null` for error cases. `updates` is `null` when no updates are expected, or an object with typed values (booleans for `private`, strings for `title`/`type`). |
-| `expect_error` | boolean | Whether the adapter should return an error |
+| Field          | Type           | Description                                                                                                                                                                                                           |
+| -------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`         | string         | Human-readable test case label                                                                                                                                                                                        |
+| `input`        | object         | Strava JSON dict (string enums, snake_case fields)                                                                                                                                                                    |
+| `expected`     | object \| null | Expected parsed field values after adapter conversion. `null` for error cases. `updates` is `null` when no updates are expected, or an object with typed values (booleans for `private`, strings for `title`/`type`). |
+| `expect_error` | boolean        | Whether the adapter should return an error                                                                                                                                                                            |
 
 ### `expected.updates` conventions
 
@@ -55,6 +55,7 @@ The `webhook.proto` schema is the source of truth, but each language has a hand-
 ### Go (`packages/dispatcher/adapters/proto/webhook_adapter_test.go`)
 
 `TestSharedFixtures` reads the JSON file using `os.ReadFile` with a relative path (`../../../schemas/test-fixtures/webhook_events.json`), iterates over cases, and:
+
 - For non-error cases: calls `ParseStravaWebhook(input)` and asserts all fields match `expected`
 - For error cases: asserts `ParseStravaWebhook` returns an error
 - Tests roundtrip: `ParseStravaWebhook` → `ToStravaJSON` → parse again → verify equality
@@ -62,6 +63,7 @@ The `webhook.proto` schema is the source of truth, but each language has a hand-
 ### Python (`packages/stravapipe/tests/unit/adapters/proto/test_webhook_adapter.py`)
 
 `TestSharedFixtures` reads the JSON file using `pathlib.Path`, uses `@pytest.mark.parametrize` over the fixture cases, and:
+
 - For non-error cases: calls `dict_to_webhook_event(input)` and asserts all fields match `expected`
 - For error cases: asserts `ValueError` is raised
 - Tests roundtrip: `dict_to_webhook_event` → `proto_to_dict` → compare to input
