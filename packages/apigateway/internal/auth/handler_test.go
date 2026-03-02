@@ -20,8 +20,9 @@ import (
 // --- Mock implementations with call tracking ---
 
 type mockStravaOAuth struct {
-	resp *StravaTokenResponse
-	err  error
+	resp         *StravaTokenResponse
+	err          error
+	authorizeURL string // if empty, defaults to Strava's real URL
 
 	calledWith string // captures the code argument
 }
@@ -32,6 +33,9 @@ func (m *mockStravaOAuth) ExchangeCode(_ context.Context, code string) (*StravaT
 }
 
 func (m *mockStravaOAuth) AuthorizeURL() string {
+	if m.authorizeURL != "" {
+		return m.authorizeURL
+	}
 	return "https://www.strava.com/oauth/authorize"
 }
 
@@ -144,6 +148,67 @@ func TestHandleInitiate(t *testing.T) {
 	}
 
 	query := u.Query()
+	checks := map[string]string{
+		"client_id":       "test-client-id",
+		"redirect_uri":    "https://api.example.com/auth/callback",
+		"response_type":   "code",
+		"scope":           "activity:read_all",
+		"approval_prompt": "auto",
+	}
+	for key, want := range checks {
+		if got := query.Get(key); got != want {
+			t.Errorf("query param %s = %q, want %q", key, got, want)
+		}
+	}
+
+	if query.Get("state") == "" {
+		t.Error("expected non-empty state parameter")
+	}
+}
+
+func TestHandleInitiate_MergesExistingQueryParams(t *testing.T) {
+	// When AuthorizeURL() returns a URL with existing query params (like the mock
+	// adapter's "?code=mock-dev-code"), HandleInitiate must merge its own params
+	// without dropping the existing ones.
+	callbackURL := "http://localhost:8084/auth/callback?code=mock-dev-code"
+	h := newTestHandler(t,
+		&mockStravaOAuth{authorizeURL: callbackURL},
+		&mockTokenStore{},
+		&mockAllowlist{},
+		&mockFirebase{},
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/strava", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleInitiate(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected status %d, got %d", http.StatusFound, w.Code)
+	}
+
+	location := w.Header().Get("Location")
+	u, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("failed to parse Location header: %v", err)
+	}
+
+	// Should redirect to the callback URL, not Strava
+	if u.Host != "localhost:8084" {
+		t.Errorf("expected host localhost:8084, got %s", u.Host)
+	}
+	if u.Path != "/auth/callback" {
+		t.Errorf("expected path /auth/callback, got %s", u.Path)
+	}
+
+	query := u.Query()
+
+	// The pre-existing "code" param from AuthorizeURL must survive the merge
+	if got := query.Get("code"); got != "mock-dev-code" {
+		t.Errorf("existing query param code = %q, want %q", got, "mock-dev-code")
+	}
+
+	// Handler-added params must also be present
 	checks := map[string]string{
 		"client_id":       "test-client-id",
 		"redirect_uri":    "https://api.example.com/auth/callback",
