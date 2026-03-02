@@ -9,6 +9,12 @@ const SPORT_COLORS: Record<string, string> = {
 };
 const DEFAULT_COLOR = "255, 0, 255";
 
+const CANVAS_PADDING = 40;
+/** Routes above this count get lower opacity to avoid blowing out with additive blending */
+const HIGH_DENSITY_THRESHOLD = 200;
+const HIGH_DENSITY_ALPHA = 0.05;
+const LOW_DENSITY_ALPHA = 0.08;
+
 function getColorForSport(sport: string): string {
   return SPORT_COLORS[sport] ?? DEFAULT_COLOR;
 }
@@ -37,7 +43,7 @@ export default function RouteCanvas({ routes, className = "" }: RouteCanvasProps
 
     const width = rect.width;
     const height = rect.height;
-    const padding = 40;
+    const padding = CANVAS_PADDING;
 
     // Compute bounding box across all routes
     let minX = Infinity;
@@ -80,7 +86,7 @@ export default function RouteCanvas({ routes, className = "" }: RouteCanvasProps
     // Additive blending for glow effect
     ctx.globalCompositeOperation = "lighter";
 
-    const alpha = routes.length > 200 ? 0.05 : 0.08;
+    const alpha = routes.length > HIGH_DENSITY_THRESHOLD ? HIGH_DENSITY_ALPHA : LOW_DENSITY_ALPHA;
 
     for (const route of routes) {
       if (route.coords.length < 2) continue;
