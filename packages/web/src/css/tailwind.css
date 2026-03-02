@@ -362,6 +362,10 @@ html:not(.dark) {
   background: linear-gradient(110deg, rgba(0, 212, 255, 0.14) 0%, rgba(180, 0, 255, 0.1) 100%);
 }
 
+@utility page-bg-routes {
+  background: linear-gradient(155deg, rgba(0, 255, 128, 0.16) 0%, rgba(0, 212, 255, 0.1) 100%);
+}
+
 /* Neon gradient text — clip a background gradient to text.
    Override --neon-gradient to customise the gradient per-page. */
 @utility neon-gradient-text {

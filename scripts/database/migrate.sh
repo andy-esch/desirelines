@@ -59,8 +59,8 @@ fi
 # Parse connection string to extract user, password, and URL without credentials
 # Format: postgresql://user:password@host/database?params
 DB_USER=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://([^:]+):.*|\1|')
-DB_PASSWORD=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://[^:]+:([^@]+)@.*|\1|')
-URL_WITHOUT_CREDS=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://[^@]+@|postgresql://|')
+DB_PASSWORD=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://[^:]+:(.+)@.*|\1|')
+URL_WITHOUT_CREDS=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://.+@|postgresql://|')
 JDBC_URL="jdbc:${URL_WITHOUT_CREDS}"
 
 echo "DB_USER=$DB_USER"
