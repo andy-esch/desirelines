@@ -25,8 +25,8 @@ User → "Connect with Strava" → API Gateway /auth/strava → Strava OAuth
 
 OAuth endpoints (`internal/auth/`):
 
-1. `GET /auth/strava` — generates CSRF state token, redirects to Strava authorize URL
-2. `GET /auth/callback` — validates state, exchanges code for tokens, checks Firestore allowlist, creates Firebase custom token, redirects to frontend
+1. `GET /auth/strava` — generates CSRF state token, redirects to authorize URL from `StravaOAuthClient.AuthorizeURL()` (Strava in production, gateway's own callback in local dev)
+2. `GET /auth/callback` — validates state, exchanges code for tokens via `StravaOAuthClient.ExchangeCode()`, checks allowlist, creates Firebase custom token, redirects to frontend
 
 Auth middleware (`middleware/auth.go`):
 
@@ -91,10 +91,23 @@ const effectiveUserId = userId ?? user?.uid ?? "default";
 
 **Authenticated Mode** (for testing auth flows):
 
-- Uses Firebase Emulator Suite (Auth + Firestore)
-- Run `just start-frontend` to start emulators + API Gateway
-- For testing the OAuth flow end-to-end, use a tunnel (ngrok/cloudflared) or the deployed dev API
-- For day-to-day development, the dev bypass endpoint skips the Strava redirect and issues a custom token directly
+- Run `just start-frontend` to start Firebase emulators + API Gateway + PostgreSQL
+- Uses Firebase Auth Emulator for real JWT minting/verification
+- A mock Strava adapter (`MockOAuthClient`) replaces the real Strava OAuth redirect — clicking "Connect with Strava" instantly completes the OAuth flow via the gateway's own callback URL
+- A mock auth store (`MockAuthStore`) replaces Firestore for token storage and allowlist checks (always allows, discards writes)
+- The full auth middleware runs on every request, verifying real Firebase JWTs against the emulator — identical to production
+- Firebase Emulator UI available at `http://localhost:4000`
+
+```
+Local dev flow:
+1. User clicks "Connect with Strava"
+2. HandleInitiate redirects to gateway's own callback (mock AuthorizeURL includes code=mock-dev-code)
+3. HandleCallback validates state JWT, calls MockOAuthClient.ExchangeCode → hardcoded athlete
+4. MockAuthStore.IsAllowed → true, WriteAuthData → no-op
+5. Firebase Admin SDK mints custom token against Auth emulator
+6. Frontend signInWithCustomToken() against Auth emulator → real session
+7. All API calls carry real Firebase ID tokens, verified by real auth middleware
+```
 
 See `docs/guides/frontend-local-dev.md` for detailed setup instructions.
 
@@ -103,9 +116,12 @@ See `docs/guides/frontend-local-dev.md` for detailed setup instructions.
 | Component | File |
 |-----------|------|
 | OAuth handler | `packages/apigateway/internal/auth/handler.go` |
+| Auth interfaces | `packages/apigateway/internal/auth/interfaces.go` |
 | Auth middleware | `packages/apigateway/middleware/auth.go` |
 | Strava OAuth client | `packages/apigateway/adapters/strava/oauth.go` |
+| Mock Strava OAuth | `packages/apigateway/adapters/strava/mock_oauth.go` |
 | Firestore auth store | `packages/apigateway/adapters/firestore/auth_store.go` |
+| Mock auth store | `packages/apigateway/adapters/mock/auth_store.go` |
 | Firebase init | `packages/web/src/lib/firebase.ts` |
 | Auth service | `packages/web/src/services/auth/FirebaseAuthService.ts` |
 | Auth context | `packages/web/src/contexts/AuthContext.tsx` |

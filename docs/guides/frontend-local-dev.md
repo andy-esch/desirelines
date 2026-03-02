@@ -34,19 +34,13 @@ For fully offline authenticated development using Firebase Emulators:
    just start-frontend  # Starts Firebase Emulators + API Gateway + PostgreSQL
    ```
 
-2. **Enable emulators in frontend**:
-
-   ```bash
-   # In packages/web/.env.development.local:
-   VITE_USE_FIREBASE_EMULATORS=true
-   VITE_API_GATEWAY_URL=http://localhost:8084
-   ```
-
-3. **Start frontend dev server**:
+2. **Start frontend dev server**:
 
    ```bash
    cd packages/web && npm run dev
    ```
+
+   Emulators are enabled by default in `.env.development` (`VITE_USE_FIREBASE_EMULATORS=true`).
 
 Console should show:
 
@@ -75,16 +69,17 @@ No local backend setup needed.
 Create `packages/web/.env.development.local` (gitignored) with your Firebase credentials:
 
 ```bash
-# Firebase config (required for auth)
+# Firebase config (required for auth against real Firebase — not needed for emulators)
 VITE_FIREBASE_API_KEY=your-api-key
 VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=your-project-id
 
-# Optional: Use Firebase emulators
-VITE_USE_FIREBASE_EMULATORS=true
-
-# Optional: Override API Gateway URL
+# Optional: Override API Gateway URL (defaults to http://localhost:8084)
 VITE_API_GATEWAY_URL=http://localhost:8084
+
+# Firebase emulators are enabled by default in .env.development.
+# Set to false here to use real Firebase instead:
+# VITE_USE_FIREBASE_EMULATORS=false
 ```
 
 ## Service URLs
@@ -126,10 +121,10 @@ npm run test:ui
 
 ### Testing Auth Flows
 
-- Use demo mode for UI development
-- Use Firebase Emulators for authenticated local testing
-- For day-to-day dev, the API gateway dev bypass endpoint issues a custom token without the Strava redirect
-- For end-to-end OAuth testing, use a tunnel (ngrok/cloudflared) or the deployed dev API
+- Use demo mode for UI development (no sign-in, client-side generated data)
+- Use Firebase Emulators for authenticated local testing — click "Connect with Strava" to sign in instantly (mock Strava adapter skips the real OAuth redirect)
+- The full auth middleware runs locally, verifying real Firebase JWTs against the emulator
+- For end-to-end OAuth testing against real Strava, use a tunnel (ngrok/cloudflared) or the deployed dev API
 
 ## Troubleshooting
 
