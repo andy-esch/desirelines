@@ -27,7 +27,7 @@ func (h *Handler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		parsed, err := strconv.Atoi(limitStr)
 		if err != nil || parsed < 1 || parsed > repository.MaxRoutesLimit {
-			apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-1000)")
+			apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-"+strconv.Itoa(repository.MaxRoutesLimit)+")")
 			gcplog.WriteError(w, r, apiErr, h.logger)
 			return
 		}
