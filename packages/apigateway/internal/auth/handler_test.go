@@ -31,6 +31,10 @@ func (m *mockStravaOAuth) ExchangeCode(_ context.Context, code string) (*StravaT
 	return m.resp, m.err
 }
 
+func (m *mockStravaOAuth) AuthorizeURL() string {
+	return "https://www.strava.com/oauth/authorize"
+}
+
 type mockTokenStore struct {
 	writeErr error
 

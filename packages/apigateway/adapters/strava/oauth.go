@@ -55,6 +55,11 @@ func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger, httpClie
 	}
 }
 
+// AuthorizeURL returns the Strava OAuth authorization endpoint.
+func (c *OAuthClient) AuthorizeURL() string {
+	return "https://www.strava.com/oauth/authorize"
+}
+
 // ExchangeCode exchanges an authorization code for Strava tokens.
 func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (tokenResult *auth.StravaTokenResponse, err error) {
 	done := otel.RecordDuration(ctx, c.histogram)

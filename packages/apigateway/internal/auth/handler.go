@@ -14,8 +14,6 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
-const stravaAuthorizeURL = "https://www.strava.com/oauth/authorize"
-
 // defaultExternalTimeout is the timeout for external service calls (Firestore, Firebase Auth).
 const defaultExternalTimeout = 10 * time.Second
 
@@ -87,13 +85,19 @@ func (h *Handler) HandleInitiate(w http.ResponseWriter, r *http.Request) {
 		"approval_prompt": {"auto"},
 	}
 
-	u, parseErr := url.Parse(stravaAuthorizeURL)
+	u, parseErr := url.Parse(h.strava.AuthorizeURL())
 	if parseErr != nil {
-		h.logger.Error("Failed to parse Strava authorize URL", "error", parseErr)
+		h.logger.Error("Failed to parse authorize URL", "error", parseErr)
 		h.redirectError(w, r, "server_error")
 		return
 	}
-	u.RawQuery = params.Encode()
+	// Merge handler params with any existing query params from the URL
+	// (e.g., mock adapter may include code=mock-dev-code).
+	existing := u.Query()
+	for k, v := range params {
+		existing[k] = v
+	}
+	u.RawQuery = existing.Encode()
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
