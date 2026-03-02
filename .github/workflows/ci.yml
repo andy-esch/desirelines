@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 # Cancel in-progress CI runs when a new commit is pushed
 concurrency:

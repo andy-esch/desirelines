@@ -24,6 +24,23 @@ type ActivityCursor struct {
 	ID        int64  `json:"id"` // Activity ID of last item (tiebreaker)
 }
 
+// NormalizedRoute represents an activity route centered at (0,0) for art visualization.
+// Used by the /routes page to render abstract route art on a canvas.
+type NormalizedRoute struct {
+	ActivityID int64       `json:"activityId"`
+	Name       string      `json:"name"`
+	Sport      string      `json:"sport"`
+	Distance   float64     `json:"distance"`
+	Date       string      `json:"date"`
+	Coords     [][]float64 `json:"coords"`
+}
+
+// DefaultRoutesLimit is the default number of routes to return.
+const DefaultRoutesLimit = 500
+
+// MaxRoutesLimit is the maximum number of routes allowed.
+const MaxRoutesLimit = 1000
+
 // ActivityListFilter contains query filters for listing activities.
 // Used internally by the repository layer.
 type ActivityListFilter struct {

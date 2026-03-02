@@ -6,10 +6,10 @@ React + TypeScript frontend for multi-sport activity visualization (cycling, run
 
 ```bash
 npm install
-# Create .env.development.local with your Firebase credentials
-# (use .env.development as a reference for the required variables)
-npm run dev  # http://localhost:3000
+npm run dev  # http://localhost:3000 — starts in demo mode (no backend needed)
 ```
+
+For authenticated local dev, run `just start-frontend` to start Firebase emulators + API Gateway, then click "Connect with Strava" in the UI. See `docs/guides/frontend-local-dev.md` for details.
 
 ## Environment Files
 
@@ -22,14 +22,11 @@ npm run dev  # http://localhost:3000
 | `production`  | `.env.production`    | `.env.production.local`       | `just deploy-web prod` |
 | `test`        | `.env.test`          | None (uses mocks)             | `npm test`             |
 
-**Setup**: Create `.local` files with your Firebase credentials. The committed `.env.{mode}` files show which variables are needed.
+**Setup**: For local development, Firebase emulators are enabled by default — no `.local` file needed. For staging/production deploys, create `.local` files with your real Firebase credentials:
 
 ```bash
-# Local dev — add Firebase credentials
-# See .env.development for the required variables
-vi .env.development.local
-
-# Staging / production — same pattern
+# Staging / production — add Firebase credentials
+# See the committed .env.{mode} files for required variables
 vi .env.staging.local
 vi .env.production.local
 ```

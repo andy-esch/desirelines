@@ -3,6 +3,7 @@ import { Menu, MenuButton, MenuItems, MenuItem, Transition } from "@headlessui/r
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { useCurrentYear } from "../../hooks/useCurrentYear";
+import { useAuth } from "../../hooks/useAuth";
 
 interface NavigationProps {
   className?: string;
@@ -17,6 +18,7 @@ interface NavigationProps {
 export default function Navigation({ className = "", vertical = false }: NavigationProps) {
   const currentYear = useCurrentYear();
   const location = useLocation();
+  const { user } = useAuth();
   const { visibleSports } = useVisibleSports();
   const { sportConfig } = useSportConfig();
 
@@ -70,6 +72,15 @@ export default function Navigation({ className = "", vertical = false }: Navigat
         >
           Activities
         </Link>
+        {user && (
+          <Link
+            to="/routes"
+            activeProps={{ className: "nav-link no-underline active" }}
+            inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+          >
+            Routes
+          </Link>
+        )}
       </nav>
     );
   }
@@ -144,6 +155,17 @@ export default function Navigation({ className = "", vertical = false }: Navigat
       >
         Activities
       </Link>
+
+      {/* Routes link — authenticated only */}
+      {user && (
+        <Link
+          to="/routes"
+          activeProps={{ className: "nav-link no-underline active" }}
+          inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+        >
+          Routes
+        </Link>
+      )}
     </nav>
   );
 }

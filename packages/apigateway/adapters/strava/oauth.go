@@ -19,7 +19,8 @@ import (
 
 const (
 	//nolint:gosec // URL, not credential
-	defaultTokenURL = "https://www.strava.com/oauth/token"
+	defaultTokenURL     = "https://www.strava.com/oauth/token"
+	defaultAuthorizeURL = "https://www.strava.com/oauth/authorize"
 
 	httpClientTimeout     = 10 * time.Second
 	maxTokenResponseBytes = 64 << 10 // 64 KB
@@ -53,6 +54,11 @@ func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger, httpClie
 		logger:       logger,
 		histogram:    histogram,
 	}
+}
+
+// AuthorizeURL returns the Strava OAuth authorization endpoint.
+func (c *OAuthClient) AuthorizeURL() string {
+	return defaultAuthorizeURL
 }
 
 // ExchangeCode exchanges an authorization code for Strava tokens.

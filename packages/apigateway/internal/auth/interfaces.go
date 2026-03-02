@@ -10,6 +10,7 @@ import (
 // StravaOAuthClient exchanges an authorization code for tokens.
 type StravaOAuthClient interface {
 	ExchangeCode(ctx context.Context, code string) (*StravaTokenResponse, error)
+	AuthorizeURL() string
 }
 
 // TokenStore manages per-user Strava tokens and profiles in Firestore.

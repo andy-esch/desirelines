@@ -93,6 +93,10 @@ func (m *mockActivityRepository) ListActivities(ctx context.Context, filter repo
 	return m.activityList, m.activityListErr
 }
 
+func (m *mockActivityRepository) GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]repository.NormalizedRoute, error) {
+	return nil, nil
+}
+
 // Compile-time interface verification
 var _ repository.ActivityRepository = (*mockActivityRepository)(nil)
 
@@ -144,6 +148,7 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 		GetMetadata:     activitiesHandler.HandleMetadata,
 		GetMetrics:      activitiesHandler.HandleMetrics,
 		GetSource:       activitiesHandler.HandleSource,
+		GetRoutes:       activitiesHandler.HandleRoutes,
 		ListActivities:  activitiesHandler.HandleListActivities,
 		GetActivityByID: activitiesHandler.HandleGetActivity,
 	}

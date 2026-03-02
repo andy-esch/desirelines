@@ -9,7 +9,7 @@ import { CloseIconLg, SettingsIcon } from "../icons";
 import { useUIState } from "../../contexts/UIStateContext";
 
 /** Non-sport first-level routes — anything else is a sport detail page */
-const PAGE_ROUTES = new Set(["", "dashboard", "activities", "origins", "settings"]);
+const PAGE_ROUTES = new Set(["", "dashboard", "activities", "routes", "origins", "settings"]);
 
 const HamburgerIcon = () => (
   <svg width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
