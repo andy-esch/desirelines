@@ -16,51 +16,29 @@ export default function RoutesPage() {
   const { user, loading: authLoading } = useAuth();
   const { routes, isLoading, error } = useRouteData();
 
-  // Not authenticated
+  let statusContent: React.ReactNode = null;
+
   if (!authLoading && !user) {
-    return (
-      <PageLayout background="routes">
-        <StatusMessage>
-          <p className="text-white/50">
-            <Link to="/" className="text-accent-cyan no-underline">
-              Sign in
-            </Link>{" "}
-            to view your route art.
-          </p>
-        </StatusMessage>
-      </PageLayout>
+    statusContent = (
+      <p className="text-white/50">
+        <Link to="/" className="text-accent-cyan no-underline">
+          Sign in
+        </Link>{" "}
+        to view your route art.
+      </p>
     );
+  } else if (isLoading) {
+    statusContent = <p className="text-white/50">Loading routes...</p>;
+  } else if (error) {
+    statusContent = <p className="text-red-400">Failed to load routes. Please try again later.</p>;
+  } else if (routes.length === 0) {
+    statusContent = <p className="text-white/50">No routes yet. Go record some activities!</p>;
   }
 
-  // Loading
-  if (isLoading) {
+  if (statusContent) {
     return (
       <PageLayout background="routes">
-        <StatusMessage>
-          <p className="text-white/50">Loading routes...</p>
-        </StatusMessage>
-      </PageLayout>
-    );
-  }
-
-  // Error
-  if (error) {
-    return (
-      <PageLayout background="routes">
-        <StatusMessage>
-          <p className="text-red-400">Failed to load routes. Please try again later.</p>
-        </StatusMessage>
-      </PageLayout>
-    );
-  }
-
-  // Empty
-  if (routes.length === 0) {
-    return (
-      <PageLayout background="routes">
-        <StatusMessage>
-          <p className="text-white/50">No routes yet. Go record some activities!</p>
-        </StatusMessage>
+        <StatusMessage>{statusContent}</StatusMessage>
       </PageLayout>
     );
   }
