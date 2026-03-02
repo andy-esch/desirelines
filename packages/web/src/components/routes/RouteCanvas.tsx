@@ -80,7 +80,7 @@ export default function RouteCanvas({ routes, className = "" }: RouteCanvasProps
     const projectY = (y: number) => centerY - (y - dataCenterY) * scale;
 
     // Fill dark background
-    ctx.fillStyle = "#0f1724";
+    ctx.fillStyle = getComputedStyle(canvas).getPropertyValue("--color-bg-body");
     ctx.fillRect(0, 0, width, height);
 
     // Additive blending for glow effect

@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 
 /** Page background keys matching @utility page-bg-* classes in tailwind.css */
-export type PageBackgroundKey = "dashboard" | "activities" | "origins" | "settings";
+export type PageBackgroundKey = "dashboard" | "activities" | "origins" | "settings" | "routes";
 
 const bgClasses: Record<PageBackgroundKey, string> = {
   dashboard: "page-bg-dashboard",
   activities: "page-bg-activities",
   origins: "page-bg-origins",
   settings: "page-bg-settings",
+  routes: "page-bg-routes",
 };
 
 interface PageLayoutProps {

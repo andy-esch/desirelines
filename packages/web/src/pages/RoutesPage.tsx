@@ -1,69 +1,49 @@
 import { useRouteData } from "../hooks/useRouteData";
 import RouteCanvas from "../components/routes/RouteCanvas";
+import { PageLayout } from "../components/layout/PageLayout";
 import { useAuth } from "../hooks/useAuth";
 import { Link } from "@tanstack/react-router";
 
-const BG_COLOR = "#0f1724";
-
 function StatusMessage({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="flex items-center justify-center"
-      style={{ height: "100vh", backgroundColor: BG_COLOR }}
-    >
-      {children}
-    </div>
-  );
+  return <div className="flex grow items-center justify-center">{children}</div>;
 }
 
 export default function RoutesPage() {
   const { user, loading: authLoading } = useAuth();
   const { routes, isLoading, error } = useRouteData();
 
-  // Not authenticated
+  let statusContent: React.ReactNode = null;
+
   if (!authLoading && !user) {
-    return (
-      <StatusMessage>
-        <p className="text-white/50">
-          <Link to="/" className="text-accent-cyan no-underline">
-            Sign in
-          </Link>{" "}
-          to view your route art.
-        </p>
-      </StatusMessage>
+    statusContent = (
+      <p className="text-white/50">
+        <Link to="/" className="text-accent-cyan no-underline">
+          Sign in
+        </Link>{" "}
+        to view your route art.
+      </p>
     );
+  } else if (isLoading) {
+    statusContent = <p className="text-white/50">Loading routes...</p>;
+  } else if (error) {
+    statusContent = <p className="text-red-400">Failed to load routes. Please try again later.</p>;
+  } else if (routes.length === 0) {
+    statusContent = <p className="text-white/50">No routes yet. Go record some activities!</p>;
   }
 
-  // Loading
-  if (isLoading) {
+  if (statusContent) {
     return (
-      <StatusMessage>
-        <p className="text-white/50">Loading routes...</p>
-      </StatusMessage>
-    );
-  }
-
-  // Error
-  if (error) {
-    return (
-      <StatusMessage>
-        <p className="text-red-400">Failed to load routes. Please try again later.</p>
-      </StatusMessage>
-    );
-  }
-
-  // Empty
-  if (routes.length === 0) {
-    return (
-      <StatusMessage>
-        <p className="text-white/50">No routes yet. Go record some activities!</p>
-      </StatusMessage>
+      <PageLayout background="routes">
+        <StatusMessage>{statusContent}</StatusMessage>
+      </PageLayout>
     );
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, backgroundColor: BG_COLOR }}>
-      <RouteCanvas routes={routes} />
-    </div>
+    <PageLayout background="routes">
+      <div className="fixed inset-0 bg-bg-body">
+        <RouteCanvas routes={routes} />
+      </div>
+    </PageLayout>
   );
 }
