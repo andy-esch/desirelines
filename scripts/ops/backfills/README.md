@@ -8,6 +8,7 @@ Scripts for backfilling and migrating production data.
 | ---------------------------------------------------------------- | ------------------------------------------------------------- | --------- |
 | [`backfill_from_strava.py`](#backfill-from-strava)               | Backfill activities from Strava API → BigQuery                | ✅ Active |
 | [`backfill_bq_to_postgres.py`](#backfill-bigquery-to-postgresql) | Migrate activities from BigQuery → PostgreSQL                 | ✅ Active                     |
+| [`backfill_routes_bq_to_postgres.py`](#backfill-routes)          | Backfill activity routes from BigQuery polylines → PostgreSQL | ✅ Active                     |
 | [`webhook-replay/`](#webhook-replay-load-testing)                | Simulate production webhook load for testing                  | ✅ Active                     |
 
 **Deprecated scripts** (in this directory but no longer maintained):
@@ -76,6 +77,38 @@ uv run python scripts/ops/backfills/backfill_bq_to_postgres.py --project desirel
 - `POSTGRES_CONNECTION_STRING` environment variable
 - BigQuery read permissions
 - PostgreSQL write permissions
+
+---
+
+## Backfill Routes
+
+**Script**: `backfill_routes_bq_to_postgres.py`
+
+Backfills the `desirelines.activity_routes` table from BigQuery polyline data. Decodes Google encoded polylines to GeoJSON LineStrings and inserts via PostGIS `ST_GeomFromGeoJSON`. Uses `ON CONFLICT DO NOTHING` for safe re-runs.
+
+Uses [uv inline script dependencies](https://docs.astral.sh/uv/guides/scripts/#declaring-script-dependencies) — no workspace setup needed.
+
+### Usage
+
+```bash
+# Set connection string
+export POSTGRES_CONNECTION_STRING="postgresql://user:pass@host/db?sslmode=require"
+
+# Dry run
+uv run scripts/ops/backfills/backfill_routes_bq_to_postgres.py --dry-run
+
+# Run backfill (defaults to desirelines-dev)
+uv run scripts/ops/backfills/backfill_routes_bq_to_postgres.py
+
+# Production
+uv run scripts/ops/backfills/backfill_routes_bq_to_postgres.py --project desirelines-prod
+```
+
+### Requirements
+
+- `POSTGRES_CONNECTION_STRING` environment variable
+- BigQuery read permissions
+- PostgreSQL with PostGIS extension (activity_routes table from V0003 migration)
 
 ---
 
