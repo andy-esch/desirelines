@@ -275,7 +275,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 		authCallback = deps.authHandler.HandleCallback
 	} else {
 		noAuth := func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "OAuth not configured — set FIREBASE_AUTH_EMULATOR_HOST for local dev", http.StatusNotFound)
+			http.Error(w, "OAuth not configured — set FIREBASE_AUTH_EMULATOR_HOST for local dev", http.StatusNotImplemented)
 		}
 		authInitiate = noAuth
 		authCallback = noAuth
@@ -394,11 +394,9 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	// Real auth middleware — verifies JWTs against the emulator
 	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist)
 
-	// State secret: env var with local-dev fallback
 	stateSecret := os.Getenv("AUTH_STATE_SECRET")
 	if stateSecret == "" {
-		stateSecret = "local-dev-state-secret-32-bytes!!" //nolint:gosec // Not a real credential, local-dev only fallback
-		log.Warn("AUTH_STATE_SECRET not set, using default local-dev secret")
+		return fmt.Errorf("AUTH_STATE_SECRET is required — generate one with: openssl rand -base64 32")
 	}
 
 	// Mock Strava: redirects through the gateway's own callback URL

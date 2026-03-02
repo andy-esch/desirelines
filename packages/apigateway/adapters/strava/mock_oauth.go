@@ -7,6 +7,19 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
 )
 
+const (
+	// MockAuthCode is the authorization code returned in the mock authorize URL.
+	MockAuthCode = "mock-dev-code"
+	// mockAccessToken is the access token returned by ExchangeCode.
+	mockAccessToken = "mock-access-token"
+	// mockRefreshToken is the refresh token returned by ExchangeCode.
+	mockRefreshToken = "mock-refresh-token"
+	// mockScope is the OAuth scope returned by ExchangeCode.
+	mockScope = "read,activity:read_all"
+	// mockTokenLifetime is how far in the future the mock token expires.
+	mockTokenLifetime = 6 * time.Hour
+)
+
 // Compile-time check that MockOAuthClient implements StravaOAuthClient.
 var _ auth.StravaOAuthClient = (*MockOAuthClient)(nil)
 
@@ -35,16 +48,16 @@ func NewMockOAuthClient(callbackURL string, athleteID int64, firstName, lastName
 // HandleInitiate merges its params (state, client_id, etc.) into this URL,
 // so the browser redirects straight back to the callback handler.
 func (m *MockOAuthClient) AuthorizeURL() string {
-	return m.callbackURL + "?code=mock-dev-code"
+	return m.callbackURL + "?code=" + MockAuthCode
 }
 
 // ExchangeCode returns a hardcoded token response with the configured athlete.
 func (m *MockOAuthClient) ExchangeCode(_ context.Context, _ string) (*auth.StravaTokenResponse, error) {
 	return &auth.StravaTokenResponse{
-		AccessToken:  "mock-access-token",
-		RefreshToken: "mock-refresh-token",
-		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
-		Scope:        "read,activity:read_all",
+		AccessToken:  mockAccessToken,
+		RefreshToken: mockRefreshToken,
+		ExpiresAt:    time.Now().Add(mockTokenLifetime).Unix(),
+		Scope:        mockScope,
 		Athlete: auth.StravaAthlete{
 			ID:        m.athleteID,
 			FirstName: m.firstName,

@@ -19,14 +19,14 @@ func TestMockOAuthClient_AuthorizeURL(t *testing.T) {
 			callbackURL: "http://localhost:8084/auth/callback",
 			wantHost:    "localhost:8084",
 			wantPath:    "/auth/callback",
-			wantCode:    "mock-dev-code",
+			wantCode:    MockAuthCode,
 		},
 		{
 			name:        "custom host",
 			callbackURL: "https://dev.example.com/auth/callback",
 			wantHost:    "dev.example.com",
 			wantPath:    "/auth/callback",
-			wantCode:    "mock-dev-code",
+			wantCode:    MockAuthCode,
 		},
 	}
 
@@ -64,8 +64,8 @@ func TestMockOAuthClient_AuthorizeURL_TrailingSlash(t *testing.T) {
 	}
 
 	// Path should still be parseable and code should be present
-	if got := u.Query().Get("code"); got != "mock-dev-code" {
-		t.Errorf("query param code = %q, want %q", got, "mock-dev-code")
+	if got := u.Query().Get("code"); got != MockAuthCode {
+		t.Errorf("query param code = %q, want %q", got, MockAuthCode)
 	}
 }
 
