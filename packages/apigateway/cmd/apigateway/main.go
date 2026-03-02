@@ -19,6 +19,7 @@ import (
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	firestoreadapter "github.com/andy-esch/desirelines/packages/apigateway/adapters/firestore"
+	mockadapter "github.com/andy-esch/desirelines/packages/apigateway/adapters/mock"
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 	stravaadapter "github.com/andy-esch/desirelines/packages/apigateway/adapters/strava"
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
@@ -155,6 +156,8 @@ func (d *Dependencies) Close() {
 
 // initDependencies creates and wires all application dependencies.
 // This is the composition root following hexagonal architecture.
+//
+//nolint:gocyclo // Composition root — wiring complexity is inherent.
 func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger, meter otelmetric.Meter) (*Dependencies, error) {
 	deps := &Dependencies{
 		logger: log,
@@ -194,38 +197,20 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	// 3. Initialize CORS handler
 	deps.corsHandler = cors.NewHandler(cfg.AllowedOrigins, log)
 
-	// 4. Initialize Firebase app (shared between auth middleware and OAuth handler)
-	firebaseApp, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: cfg.GCPProjectID})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Firebase app: %w", err)
+	// 4–7. Auth setup: Firebase (via emulator in local dev) + Strava (mock in local dev)
+	if cfg.Environment == "" && os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" {
+		// Local dev: real Firebase auth (via emulator) + mock Strava
+		if authErr := initLocalDevAuth(ctx, cfg, deps, log, authHist); authErr != nil {
+			return nil, authErr
+		}
+	} else if cfg.Environment != "" {
+		// Production/staging: real Firebase + real Strava
+		if authErr := initFirebaseAuth(ctx, cfg, deps, log, authHist, oauthHist); authErr != nil {
+			return nil, authErr
+		}
+	} else {
+		log.Warn("No auth configured — set FIREBASE_AUTH_EMULATOR_HOST for local dev")
 	}
-
-	authClient, err := firebaseApp.Auth(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
-	}
-	log.Info("Firebase app initialized", "project_id", cfg.GCPProjectID)
-
-	// 5. Initialize auth middleware (Firebase JWT verification)
-	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist)
-
-	// 6. Initialize Firestore client (for OAuth auth store)
-	// Uses the named database (e.g., "desirelines-user-configs") rather than the
-	// default "(default)" database. The database name is set via FIRESTORE_DATABASE
-	// env var, configured in Terraform from google_firestore_database.user_configs.
-	firestoreClient, err := firestore.NewClientWithDatabase(ctx, cfg.GCPProjectID, cfg.FirestoreDatabase)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Firestore client: %w", err)
-	}
-	deps.firestoreClient = firestoreClient
-	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
-
-	// 7. Initialize OAuth auth handler
-	authHandler, err := initAuthHandler(cfg, authClient, firestoreClient, log, oauthHist)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize auth handler: %w", err)
-	}
-	deps.authHandler = authHandler
 
 	// 8. Initialize rate limiter (10 req/s, burst 20 — generous for normal browsing)
 	deps.rateLimiter = ratelimit.New(ctx, ratelimit.Config{
@@ -283,11 +268,24 @@ func buildRouter(deps *Dependencies) http.Handler {
 		HTTPHistogram:  deps.httpHistogram,
 	}
 
+	// Auth routes — authHandler may be nil if no auth is configured (no emulator, no env)
+	var authInitiate, authCallback http.HandlerFunc
+	if deps.authHandler != nil {
+		authInitiate = deps.authHandler.HandleInitiate
+		authCallback = deps.authHandler.HandleCallback
+	} else {
+		noAuth := func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "OAuth not configured — set FIREBASE_AUTH_EMULATOR_HOST for local dev", http.StatusNotImplemented)
+		}
+		authInitiate = noAuth
+		authCallback = noAuth
+	}
+
 	publicRoutes := server.PublicRoutes{
 		Health:       healthHandler.Handle,
 		SportConfig:  sportsHandler.HandleConfig,
-		AuthInitiate: deps.authHandler.HandleInitiate,
-		AuthCallback: deps.authHandler.HandleCallback,
+		AuthInitiate: authInitiate,
+		AuthCallback: authCallback,
 	}
 
 	authRoutes := server.AuthenticatedRoutes{
@@ -340,6 +338,96 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 
 	log.Info("OAuth auth handler initialized")
 	return handler, nil
+}
+
+// initFirebaseAuth initializes Firebase, Firestore, and OAuth dependencies.
+// Extracted from initDependencies for cyclomatic complexity.
+func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist, oauthHist otelmetric.Float64Histogram) error {
+	firebaseApp, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: cfg.GCPProjectID})
+	if err != nil {
+		return fmt.Errorf("failed to initialize Firebase app: %w", err)
+	}
+
+	authClient, err := firebaseApp.Auth(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
+	}
+	log.Info("Firebase app initialized", "project_id", cfg.GCPProjectID)
+
+	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist)
+
+	firestoreClient, err := firestore.NewClientWithDatabase(ctx, cfg.GCPProjectID, cfg.FirestoreDatabase)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Firestore client: %w", err)
+	}
+	deps.firestoreClient = firestoreClient
+	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
+
+	authHandler, err := initAuthHandler(cfg, authClient, firestoreClient, log, oauthHist)
+	if err != nil {
+		return fmt.Errorf("failed to initialize auth handler: %w", err)
+	}
+	deps.authHandler = authHandler
+
+	return nil
+}
+
+// initLocalDevAuth sets up auth for local development using the Firebase Auth
+// emulator (for real JWT minting/verification) and a mock Strava adapter (to
+// skip the real Strava OAuth redirect). The full auth middleware runs on every
+// request, exactly as in production.
+func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist otelmetric.Float64Histogram) error {
+	log.Info("Local dev auth: Firebase emulator + mock Strava")
+
+	// Firebase Admin SDK auto-detects FIREBASE_AUTH_EMULATOR_HOST
+	firebaseApp, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: cfg.GCPProjectID})
+	if err != nil {
+		return fmt.Errorf("failed to initialize Firebase app: %w", err)
+	}
+
+	authClient, err := firebaseApp.Auth(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
+	}
+	log.Info("Firebase Auth emulator connected", "host", os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"))
+
+	// Real auth middleware — verifies JWTs against the emulator
+	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist)
+
+	stateSecret := os.Getenv("AUTH_STATE_SECRET")
+	if stateSecret == "" {
+		return fmt.Errorf("AUTH_STATE_SECRET is required — generate one with: openssl rand -base64 32")
+	}
+
+	// Mock Strava: redirects through the gateway's own callback URL
+	mockStrava := stravaadapter.NewMockOAuthClient(
+		cfg.AuthCallbackURL,
+		15339103,  // hardcoded local dev athlete ID
+		"Dev",     // first name
+		"Athlete", // last name
+	)
+
+	// Mock auth store: always allows, discards token writes
+	mockStore := mockadapter.NewAuthStore(log)
+
+	handler, err := auth.NewHandler(&auth.HandlerConfig{
+		Strava:      mockStrava,
+		Tokens:      mockStore,
+		Allowlist:   mockStore,
+		Firebase:    authClient,
+		StateSecret: []byte(stateSecret),
+		FrontendURL: cfg.FrontendURL,
+		ClientID:    "mock-client-id",
+		RedirectURI: cfg.AuthCallbackURL,
+		Logger:      log,
+	})
+	if err != nil {
+		return fmt.Errorf("create local dev auth handler: %w", err)
+	}
+	deps.authHandler = handler
+
+	log.Info("Local dev auth initialized (mock Strava + Firebase emulator)")
+	return nil
 }
 
 // getConnectionString reads PostgreSQL connection string from secret mount.

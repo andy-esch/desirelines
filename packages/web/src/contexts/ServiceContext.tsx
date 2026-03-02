@@ -21,17 +21,16 @@ interface Services {
 const ServiceContext = createContext<Services | null>(null);
 
 /**
- * Production service provider - uses Firebase implementations
+ * Production service provider - uses Firebase implementations.
+ * In local dev, Firebase emulators handle auth and Firestore.
  */
 export function ServiceProvider({ children }: { children: React.ReactNode }) {
-  // Memoize services to prevent recreating on every render
-  const services = useMemo<Services>(
-    () => ({
+  const services = useMemo<Services>(() => {
+    return {
       authService: new FirebaseAuthService(),
       databaseService: new FirestoreService(),
-    }),
-    []
-  );
+    };
+  }, []);
 
   return <ServiceContext.Provider value={services}>{children}</ServiceContext.Provider>;
 }
