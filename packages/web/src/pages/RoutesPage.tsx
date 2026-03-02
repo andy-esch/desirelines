@@ -5,11 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Link } from "@tanstack/react-router";
 
 function StatusMessage({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex grow items-center justify-center">
-      {children}
-    </div>
-  );
+  return <div className="flex grow items-center justify-center">{children}</div>;
 }
 
 export default function RoutesPage() {
