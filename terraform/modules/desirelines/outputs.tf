@@ -83,12 +83,13 @@ output "cloud_run_urls" {
 }
 
 output "service_names" {
-  description = "Names of deployed services (Cloud Run)"
+  description = "Names of deployed services and jobs (Cloud Run)"
   value = {
     dispatcher      = google_cloud_run_v2_service.dispatcher.name
     api_gateway     = google_cloud_run_v2_service.api_gateway.name
     bq_inserter     = google_cloud_run_v2_service.bq_inserter.name
     postgres_writer = google_cloud_run_v2_service.postgres_writer.name
+    backfill        = google_cloud_run_v2_job.backfill.name
   }
 }
 

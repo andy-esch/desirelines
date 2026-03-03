@@ -258,6 +258,12 @@ resource "google_service_account" "postgres_writer" {
   description  = "Service account for PostgreSQL writer function in ${var.environment} environment"
 }
 
+resource "google_service_account" "backfill" {
+  account_id   = "backfill"
+  display_name = "Desirelines Backfill Job (${title(var.environment)})"
+  description  = "Service account for backfill Cloud Run Job in ${var.environment} environment"
+}
+
 # Infisical Integration Service Account
 # Required for Secret Manager Sync. Suffix is determined by Infisical Project ID.
 resource "google_service_account" "infisical_sync" {
@@ -368,6 +374,13 @@ resource "google_service_account_iam_member" "api_gateway_impersonation" {
 resource "google_service_account_iam_member" "postgres_writer_impersonation" {
   count              = var.developer_email != null ? 1 : 0
   service_account_id = google_service_account.postgres_writer.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "user:${var.developer_email}"
+}
+
+resource "google_service_account_iam_member" "backfill_impersonation" {
+  count              = var.developer_email != null ? 1 : 0
+  service_account_id = google_service_account.backfill.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
@@ -620,6 +633,53 @@ resource "google_secret_manager_secret_iam_member" "postgres_writer_postgres_acc
   secret_id = google_secret_manager_secret.postgres_conn_writer.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.postgres_writer.email}"
+}
+
+# ==============================================================================
+# Backfill Job IAM
+# ==============================================================================
+# Backfill needs: Firestore (read tokens), PG writer secret, Strava API secrets,
+# and BigQuery (data editor + job user) for writing backfilled activities.
+
+# Backfill needs Firestore access to read per-user Strava OAuth tokens
+resource "google_project_iam_member" "backfill_firestore" {
+  project = var.gcp_project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.backfill.email}"
+}
+
+# Backfill access to PostgreSQL writer connection string
+resource "google_secret_manager_secret_iam_member" "backfill_postgres_access" {
+  project   = var.gcp_project_id
+  secret_id = google_secret_manager_secret.postgres_conn_writer.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.backfill.email}"
+}
+
+# Backfill access to Strava API secrets (client_id, client_secret)
+resource "google_secret_manager_secret_iam_member" "backfill_strava_api_secrets" {
+  for_each = toset([
+    google_secret_manager_secret.strava_client_id.secret_id,
+    google_secret_manager_secret.strava_client_secret.secret_id,
+  ])
+  project   = var.gcp_project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.backfill.email}"
+}
+
+# Backfill needs BigQuery dataEditor for inserting backfilled activities
+resource "google_bigquery_dataset_iam_member" "backfill_data_editor" {
+  dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.backfill.email}"
+}
+
+# Backfill needs BigQuery jobUser to run MERGE queries
+resource "google_project_iam_member" "backfill_bigquery_job_user" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.backfill.email}"
 }
 
 # Grant developer access to admin PostgreSQL secret for local development
