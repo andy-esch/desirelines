@@ -9,14 +9,14 @@
  * Memoization strategy (React Compiler hybrid):
  *
  * Most derivations are left unmemoized — the React Compiler handles these.
- * Exceptions where explicit memoization is retained:
- *   - handleGoalsChange (useCallback): passed as a prop to child components;
- *     without stable identity, goal editor would re-render on every parent render.
+ * Exception where explicit memoization is retained:
  *   - defaultGoalsForYear (useMemo): contains new Date().toISOString() calls that
  *     produce fresh values each render, making the object perpetually unstable
- *     and defeating useUserConfig's default-value comparison.
+ *     and defeating useUserConfig's default-value comparison. The compiler's
+ *     preserve-manual-memoization rule is suppressed here since the compiler
+ *     cannot auto-memoize impure Date() calls.
  */
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   convertDistance,
   convertElevation,
@@ -136,7 +136,10 @@ export function convertMetricsToChartData(
 
 export function useSportPageData(sport: string, year: number): SportPageData {
   const { user } = useAuth();
-  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+  const [metricSelection, setMetricSelection] = useState<{
+    sport: string;
+    metric: string;
+  } | null>(null);
   const [showPriorYears, setShowPriorYears] = useState(false);
 
   // Fetch sport metrics and config
@@ -155,15 +158,9 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   const availableMetrics = getSportMetrics(sport, sportConfig);
   const isTime = isTimeSport(sport, sportConfig);
 
-  // Initialize selectedMetric to primary when sport or config changes
-  useEffect(() => {
-    if (sportConfig) {
-      setSelectedMetric(primaryMetric);
-    }
-  }, [sport, sportConfig, primaryMetric]);
-
-  // Use selectedMetric or fall back to primary
-  const activeMetric = selectedMetric ?? primaryMetric;
+  // Derive active metric: use selection if it's for the current sport, otherwise fall back to primary
+  const activeMetric =
+    metricSelection?.sport === sport ? metricSelection.metric : primaryMetric;
 
   // Determine the unit label based on selected metric
   const metricUnit: MetricUnit = (() => {
@@ -217,38 +214,38 @@ export function useSportPageData(sport: string, year: number): SportPageData {
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
+  // Capture mutable property accesses into stable locals for the React Compiler.
+  // Without this, the compiler sees `userSettings.distanceUnit` and `sportInfo?.hasDistance`
+  // as properties on mutable objects that could change between the memo check and usage.
+  const distanceUnit = userSettings.distanceUnit;
+  const hasDistance = sportInfo?.hasDistance ?? false;
+
   // Goals management
   // Explicit useMemo: contains new Date().toISOString() which would make the object
   // perpetually unstable, causing useUserConfig to re-trigger on every render.
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional: new Date() is impure, compiler can't auto-memoize
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
     const { roundingFactor, defaultGoalValue } = primaryMetricConfig;
     const generatedGoals = generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue);
     const now = new Date().toISOString();
-    const primaryMetric = getPrimaryMetric(sport, sportConfig);
+    const goalMetric = getPrimaryMetric(sport, sportConfig);
 
     return {
       goals: generatedGoals.map((goal) => ({
         id: goal.id,
-        value: sportInfo?.hasDistance
-          ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
+        value: hasDistance
+          ? Math.round(goalDisplayToMeters(goal.value, distanceUnit))
           : isTime
             ? Math.round(hoursToMinutes(goal.value))
             : goal.value,
         label: goal.label || "",
-        metric: primaryMetric,
+        metric: goalMetric,
         createdAt: now,
         updatedAt: now,
       })),
     };
-  }, [
-    estimatedYearEnd,
-    primaryMetricConfig,
-    sportInfo?.hasDistance,
-    userSettings.distanceUnit,
-    isTime,
-    sport,
-    sportConfig,
-  ]);
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional: new Date() is impure, compiler can't auto-memoize
+  }, [estimatedYearEnd, primaryMetricConfig, hasDistance, distanceUnit, isTime, sport, sportConfig]);
 
   const {
     data: goalsData,
@@ -259,14 +256,14 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   } = useUserConfig("goals", year, sport, defaultGoalsForYear);
 
   // One-time migration: convert goals from legacy miles format to meters
-  useGoalMigration(goalsData, user?.uid ?? "", year, sport, !!sportInfo?.hasDistance, updateGoals);
+  useGoalMigration(goalsData, user?.uid ?? "", year, sport, hasDistance, updateGoals);
 
   // Convert goals from storage units to display units for UI
   const goals: Goals = goalsData?.goals
     ? goalsData.goals.map((g) => {
         let displayValue = g.value;
-        if (sportInfo?.hasDistance) {
-          displayValue = Math.round(goalMetersToDisplay(g.value, userSettings.distanceUnit));
+        if (hasDistance) {
+          displayValue = Math.round(goalMetersToDisplay(g.value, distanceUnit));
         } else if (isTime) {
           displayValue = Math.round(minutesToHours(g.value));
         }
@@ -276,37 +273,27 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     : [];
 
   // Handle goals change: convert from display units back to storage units
-  // Explicit useCallback: passed as onGoalsChange prop to child components.
-  const handleGoalsChange = useCallback(
-    async (newGoals: Goals) => {
-      const primaryMetric = getPrimaryMetric(sport, sportConfig);
-      const updatedGoalsForYear: GoalsForYear = {
-        goals: newGoals.map((goal) => ({
-          id: goal.id,
-          value: sportInfo?.hasDistance
-            ? Math.round(goalDisplayToMeters(goal.value, userSettings.distanceUnit))
-            : isTime
-              ? Math.round(hoursToMinutes(goal.value))
-              : goal.value,
-          label: goal.label || "",
-          metric: primaryMetric,
-          updatedAt: new Date().toISOString(),
-          createdAt:
-            goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
-        })),
-      };
-      await updateGoals(updatedGoalsForYear);
-    },
-    [
-      isTime,
-      sportInfo?.hasDistance,
-      userSettings.distanceUnit,
-      goalsData,
-      updateGoals,
-      sport,
-      sportConfig,
-    ]
-  );
+  // No manual useCallback — the React Compiler auto-memoizes this. The new Date()
+  // calls are inside the callback body (lazy), so they don't break memoization.
+  const handleGoalsChange = async (newGoals: Goals) => {
+    const goalMetric = getPrimaryMetric(sport, sportConfig);
+    const updatedGoalsForYear: GoalsForYear = {
+      goals: newGoals.map((goal) => ({
+        id: goal.id,
+        value: hasDistance
+          ? Math.round(goalDisplayToMeters(goal.value, distanceUnit))
+          : isTime
+            ? Math.round(hoursToMinutes(goal.value))
+            : goal.value,
+        label: goal.label || "",
+        metric: goalMetric,
+        updatedAt: new Date().toISOString(),
+        createdAt:
+          goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
+      })),
+    };
+    await updateGoals(updatedGoalsForYear);
+  };
 
   // Year context and pacing
   const yearContext = createYearContext(year);
@@ -349,7 +336,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     sportCounts,
     availableMetrics,
     activeMetric,
-    onMetricChange: setSelectedMetric,
+    onMetricChange: (metric: string) => setMetricSelection({ sport, metric }),
     priorYearData,
     showPriorYears,
     onPriorYearsChange: setShowPriorYears,

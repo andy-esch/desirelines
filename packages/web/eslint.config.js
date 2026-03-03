@@ -32,9 +32,8 @@ export default tseslint.config(
       "react/prop-types": "off", // Using TypeScript for prop validation
 
       // React Compiler rules — warn while remaining violations are cleaned up.
-      // Remaining: ThemeContext, useSportPageData, useScrolled, GoalManagementTable,
-      // and isFirstRender/localSelectionRef tradeoffs in chart components.
-      // Promote to error once these are resolved.
+      // Remaining: GoalManagementTable and isFirstRender/localSelectionRef
+      // tradeoffs in chart components. Promote to error once these are resolved.
       "react-hooks/purity": "warn",
       "react-hooks/refs": "warn",
       "react-hooks/set-state-in-effect": "warn",

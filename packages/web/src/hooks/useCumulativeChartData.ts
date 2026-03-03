@@ -224,7 +224,8 @@ export function useCumulativeChartData({
 
     // Convert map to sorted array
     return Array.from(dataMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [distanceData, goalLines, currentAverageLine, priorYearData, year]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- endDate and latestDate are derived from year and distanceData (already deps)
+  }, [distanceData, goalLines, currentAverageLine, priorYearData, year, dangerThreshold, totalDistanceTraveled]);
 
   // 6. Calculate current summary values
   const latestActualData = mergedData.find(

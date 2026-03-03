@@ -15,10 +15,6 @@ function getSystemPreference(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function resolveTheme(mode: ThemeMode): ResolvedTheme {
-  return mode === "system" ? getSystemPreference() : mode;
-}
-
 function applyTheme(resolved: ResolvedTheme) {
   const root = document.documentElement;
   if (resolved === "dark") {
@@ -49,28 +45,27 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return "system";
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme(theme));
+  const [systemPref, setSystemPref] = useState<ResolvedTheme>(getSystemPreference);
 
   const setTheme = useCallback((mode: ThemeMode) => {
     localStorage.setItem(STORAGE_KEY, mode);
     setThemeState(mode);
   }, []);
 
-  // Resolve theme whenever mode changes or system preference changes
-  useEffect(() => {
-    const resolved = resolveTheme(theme);
-    setResolvedTheme(resolved);
-    applyTheme(resolved);
+  // Derived during render — no setState needed
+  const resolvedTheme: ResolvedTheme = theme === "system" ? systemPref : theme;
 
+  // Apply theme to DOM whenever resolved value changes
+  useEffect(() => {
+    applyTheme(resolvedTheme);
+  }, [resolvedTheme]);
+
+  // Listen for system preference changes when in "system" mode
+  useEffect(() => {
     if (theme !== "system") return;
 
-    // Listen for system preference changes when in "system" mode
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => {
-      const updated = getSystemPreference();
-      setResolvedTheme(updated);
-      applyTheme(updated);
-    };
+    const handler = () => setSystemPref(getSystemPreference());
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, [theme]);
