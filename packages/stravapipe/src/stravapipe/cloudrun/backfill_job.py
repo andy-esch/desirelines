@@ -11,12 +11,17 @@ Usage (local):
     ATHLETE_ID=12345 BACKFILL_YEARS=2024,2025 \
     GCP_PROJECT_ID=desirelines-dev \
     POSTGRES_CONNECTION_STRING="postgresql://..." \
+    STRAVA_CLIENT_ID=... STRAVA_CLIENT_SECRET=... \
+    GOOGLE_APPLICATION_CREDENTIALS=path/to/sa.json \
         python -m stravapipe.cloudrun.backfill_job
 """
 
 import logging
 import sys
 
+from google.cloud.firestore_v1 import Client as FirestoreClient
+
+from stravapipe.adapters.firestore import FirestoreTokenStore
 from stravapipe.adapters.gcp import ActivitiesWriter, BigQueryClientWrapper
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork, create_session_factory
 from stravapipe.adapters.strava import create_strava_activities_repo
@@ -46,15 +51,19 @@ def main() -> None:
 
     # --- Wire up dependencies ---
 
-    # Strava API client
-    # TODO(multiuser-07): Replace with per-user Firestore token repository
-    # For now, tokens must be provided via environment variables.
-    # access_token is empty — StravaTokenManager will refresh on first use.
+    # Strava API client — tokens from Firestore, client creds from config (secret mounts)
+    firestore_client = FirestoreClient(
+        project=config.gcp_project_id,
+        database=config.firestore_database,
+    )
+    token_store = FirestoreTokenStore(firestore_client)
+    token_data = token_store.get_tokens(config.athlete_id)
+
     tokens = StravaTokenSet(
-        client_id=int(_require_env("STRAVA_CLIENT_ID")),
-        client_secret=_require_env("STRAVA_CLIENT_SECRET"),
-        access_token="",
-        refresh_token=_require_env("STRAVA_REFRESH_TOKEN"),
+        client_id=int(config.strava_client_id),
+        client_secret=config.strava_client_secret,
+        access_token=token_data.access_token,
+        refresh_token=token_data.refresh_token,
     )
     strava_repo = create_strava_activities_repo(tokens)
 
@@ -101,17 +110,6 @@ def main() -> None:
             "Backfill completed with %d errors", result.total_errors
         )
         sys.exit(1)
-
-
-def _require_env(name: str) -> str:
-    """Read a required environment variable."""
-    import os
-
-    value = os.environ.get(name)
-    if not value:
-        logger.error("Required environment variable %s is not set", name)
-        sys.exit(1)
-    return value
 
 
 if __name__ == "__main__":
