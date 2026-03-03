@@ -159,8 +159,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   const isTime = isTimeSport(sport, sportConfig);
 
   // Derive active metric: use selection if it's for the current sport, otherwise fall back to primary
-  const activeMetric =
-    metricSelection?.sport === sport ? metricSelection.metric : primaryMetric;
+  const activeMetric = metricSelection?.sport === sport ? metricSelection.metric : primaryMetric;
 
   // Determine the unit label based on selected metric
   const metricUnit: MetricUnit = (() => {
@@ -192,8 +191,8 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // Convert each prior year's metrics to chart data
   const priorYearData: Record<number, DistanceEntry[]> = {};
   if (showPriorYears) {
-    for (const [yearStr, metrics] of Object.entries(priorMetrics)) {
-      const converted = convertMetricsToChartData(metrics, activeMetric, userSettings);
+    for (const [yearStr, priorMetric] of Object.entries(priorMetrics)) {
+      const converted = convertMetricsToChartData(priorMetric, activeMetric, userSettings);
       if (converted.length > 0) {
         priorYearData[Number(yearStr)] = converted;
       }
@@ -245,7 +244,15 @@ export function useSportPageData(sport: string, year: number): SportPageData {
       })),
     };
     // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional: new Date() is impure, compiler can't auto-memoize
-  }, [estimatedYearEnd, primaryMetricConfig, hasDistance, distanceUnit, isTime, sport, sportConfig]);
+  }, [
+    estimatedYearEnd,
+    primaryMetricConfig,
+    hasDistance,
+    distanceUnit,
+    isTime,
+    sport,
+    sportConfig,
+  ]);
 
   const {
     data: goalsData,
