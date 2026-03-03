@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"cloud.google.com/go/firestore"
@@ -399,10 +400,20 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 		return fmt.Errorf("AUTH_STATE_SECRET is required — generate one with: openssl rand -base64 32")
 	}
 
+	// Mock athlete ID — configurable via MOCK_ATHLETE_ID, defaults to 123456789 (matches seed data)
+	mockAthleteID := int64(123456789)
+	if envID := os.Getenv("MOCK_ATHLETE_ID"); envID != "" {
+		parsed, parseErr := strconv.ParseInt(envID, 10, 64)
+		if parseErr != nil {
+			return fmt.Errorf("invalid MOCK_ATHLETE_ID %q: %w", envID, parseErr)
+		}
+		mockAthleteID = parsed
+	}
+
 	// Mock Strava: redirects through the gateway's own callback URL
 	mockStrava := stravaadapter.NewMockOAuthClient(
 		cfg.AuthCallbackURL,
-		15339103,  // hardcoded local dev athlete ID
+		mockAthleteID,
 		"Dev",     // first name
 		"Athlete", // last name
 	)
