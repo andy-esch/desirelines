@@ -71,7 +71,7 @@ func TestMockOAuthClient_AuthorizeURL_TrailingSlash(t *testing.T) {
 
 func TestMockOAuthClient_ExchangeCode(t *testing.T) {
 	const (
-		athleteID = int64(15339103)
+		athleteID = int64(123456789)
 		firstName = "Dev"
 		lastName  = "Athlete"
 	)

@@ -60,9 +60,12 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("required environment variable GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT is not set")
 	}
 
-	firestoreDatabase, err := getRequiredEnv("FIRESTORE_DATABASE")
-	if err != nil {
-		return nil, err
+	// FIRESTORE_DATABASE is required in production but optional in local dev
+	// (mock auth store replaces Firestore when ENVIRONMENT is empty).
+	environment := os.Getenv("ENVIRONMENT")
+	firestoreDatabase := os.Getenv("FIRESTORE_DATABASE")
+	if firestoreDatabase == "" && environment != "" {
+		return nil, fmt.Errorf("required environment variable FIRESTORE_DATABASE is not set")
 	}
 
 	frontendURL, err := getRequiredEnv("FRONTEND_URL")
@@ -101,7 +104,7 @@ func LoadConfig() (*Config, error) {
 		FrontendURL:       frontendURL,
 		AuthCallbackURL:   authCallbackURL,
 		AllowedOrigins:    parseCommaSeparated(os.Getenv("ALLOWED_ORIGINS")),
-		Environment:       os.Getenv("ENVIRONMENT"),
+		Environment:       environment,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
 		ReadHeaderTimeout: readHeaderTimeout,

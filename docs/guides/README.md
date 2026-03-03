@@ -13,6 +13,10 @@
 - **[Protobuf Development](protobuf-development.md)** - Schema changes and code generation
 - **[Docker](docker.md)** - Container builds and local services
 
+## Architecture
+
+- **[Domain Model](../architecture/domain-model.md)** - Cross-package type glossary (Rosetta Stone for tracing data through the pipeline)
+
 ## Operations
 
 - **[Deployment](deployment.md)** - Cloud Run deployment procedures

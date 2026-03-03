@@ -53,3 +53,7 @@ This file is synced to three packages via `just sync-schemas`. Each consumer dep
 - **apigateway**: `config/sport_config.go`, `internal/config/handler.go`
 - **stravapipe**: `stravapipe/config/sport_config.py`
 - **web**: `api/activities.ts` (type definition), `utils/sportConfig.ts` (field access)
+
+## Related
+
+- [Domain Model](../../docs/architecture/domain-model.md) — see "Sport Configuration" section for how this config maps to types in each package

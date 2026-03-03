@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package desirelines.config.v1;
 
+// Cross-package type mapping: see docs/architecture/domain-model.md
 option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/generated";
 
 // Top-level user configuration stored in Firestore

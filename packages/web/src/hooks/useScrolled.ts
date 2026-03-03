@@ -10,19 +10,19 @@ export function useScrolled(
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
+    const target = elementRef?.current || window;
+
     const handleScroll = () => {
       const scrollY = elementRef?.current ? elementRef.current.scrollTop : window.scrollY;
       setScrolled(scrollY > threshold);
     };
-
-    const target = elementRef?.current || window;
 
     // Check initial state
     handleScroll();
 
     target.addEventListener("scroll", handleScroll, { passive: true });
     return () => target.removeEventListener("scroll", handleScroll);
-  }, [threshold, elementRef?.current]);
+  }, [threshold, elementRef]);
 
   return scrolled;
 }

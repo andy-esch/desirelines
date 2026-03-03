@@ -11,9 +11,6 @@
  * back the correct calendar date from these timestamps.
  */
 import { useMemo } from "react";
-
-const MS_PER_DAY = 86400000;
-
 import type { DistanceEntry } from "../types/activity";
 import type {
   CumulativeChartDataPoint,
@@ -31,6 +28,8 @@ import { getMetricConfig, generateYAxisTicks } from "../config/metricConfig";
 import { GOAL_COLORS } from "../constants/chartColors";
 import { getCurrentLocalDate } from "../utils/dateUtils";
 import { useDangerThresholds } from "./useDangerThresholds";
+
+const MS_PER_DAY = 86400000;
 
 /** Metadata for a prior year ghost line. */
 export interface PriorYearLine {
@@ -80,11 +79,11 @@ function alignToYear(entries: DistanceEntry[], targetYear: number): DistanceEntr
  *
  * Memoization strategy (React Compiler hybrid):
  *
- * Cheap derivations (steps 1-4, 6-7) are left unmemoized — the React Compiler
+ * Cheap derivations (steps 1-5, 7-8) are left unmemoized — the React Compiler
  * can auto-memoize these when inputs are stable, and the cost of re-running
  * them is negligible.
  *
- * Expensive O(N) computations (steps 5, 8) retain explicit useMemo because:
+ * Expensive O(N) computations (steps 6, 9) retain explicit useMemo because:
  *   1. They iterate the full dataset (Map build, sort, flatMap + Math.max).
  *   2. Inputs like `distanceData` and `goals` often arrive as new array
  *      references from TanStack Query, so the compiler cannot guarantee
@@ -119,14 +118,14 @@ export function useCumulativeChartData({
   const { getThreshold } = useDangerThresholds();
   const dangerThreshold = getThreshold(sport);
 
-  // 3. Chart line projections
+  // 4. Chart line projections
   const goalLines: GoalLineData[] = goals.map((goal) => ({
     goal,
     line: calculateDesireLine(goal.value, year, displayEndDate),
   }));
   const currentAverageLine = calculateCurrentAverageLine(distanceData, year, displayEndDate);
 
-  // 4. Detect goal achievements (when actual crosses goal line)
+  // 5. Detect goal achievements (when actual crosses goal line)
   const goalAchievements: GoalAchievement[] = [];
   goalLines.forEach((gl, index) => {
     // Find first point where actual distance exceeds goal
@@ -150,7 +149,7 @@ export function useCumulativeChartData({
     }
   });
 
-  // 5. Merge all data into a single array for Recharts
+  // 6. Merge all data into a single array for Recharts
   // Explicit useMemo: O(N) Map build + sort over every data series. See header comment.
   const mergedData: CumulativeChartDataPoint[] = useMemo(() => {
     const dataMap = new Map<number, CumulativeChartDataPoint>();
@@ -224,9 +223,18 @@ export function useCumulativeChartData({
 
     // Convert map to sorted array
     return Array.from(dataMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [distanceData, goalLines, currentAverageLine, priorYearData, year]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- endDate and latestDate are derived from year and distanceData (already deps)
+  }, [
+    distanceData,
+    goalLines,
+    currentAverageLine,
+    priorYearData,
+    year,
+    dangerThreshold,
+    totalDistanceTraveled,
+  ]);
 
-  // 6. Calculate current summary values
+  // 7. Calculate current summary values
   const latestActualData = mergedData.find(
     (d) => d.actual !== undefined && typeof d.actual === "number" && d.actual > 0
   );
@@ -249,7 +257,7 @@ export function useCumulativeChartData({
     average: currentActualData?.average || 0,
   };
 
-  // 7. Build prior year line metadata (sorted most recent first)
+  // 8. Build prior year line metadata (sorted most recent first)
   const priorYearLines: PriorYearLine[] = priorYearData
     ? Object.keys(priorYearData)
         .map(Number)
@@ -257,7 +265,7 @@ export function useCumulativeChartData({
         .map((y) => ({ year: y, dataKey: `prior_${y}` }))
     : [];
 
-  // 8. Metric-specific UI configuration
+  // 9. Metric-specific UI configuration
   const metricConfig = getMetricConfig(sport);
 
   // Explicit useMemo: flatMap over full merged dataset + Math.max. See header comment.
@@ -276,7 +284,7 @@ export function useCumulativeChartData({
     return generateYAxisTicks(maxValue, metricConfig);
   }, [mergedData, metricConfig]);
 
-  // 9. Danger zone adaptive visibility
+  // 10. Danger zone adaptive visibility
   // Show the boundary line only when at least one goal requires exceeding
   // the danger-threshold pace from today to year end.
   const shouldShowDangerZone = (() => {
