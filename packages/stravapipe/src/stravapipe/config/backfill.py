@@ -110,4 +110,4 @@ def load_backfill_config() -> BackfillConfig:
     strava_secrets = load_strava_secrets()
     config_dict.update(strava_secrets)
 
-    return BackfillConfig.model_validate(config_dict)
+    return BackfillConfig(**config_dict)

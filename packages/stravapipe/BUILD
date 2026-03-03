@@ -70,6 +70,13 @@ docker_image(
 )
 
 docker_image(
-    name="docker",
+    name="backfill",
     source="Dockerfile.backfill",
+    context_root="packages/stravapipe",
+    dependencies=[":docker_sources"],
+    image_tags=[
+        "latest",
+        "{build_args.GIT_COMMIT}",
+    ],
+    extra_build_args=["GIT_COMMIT"],
 )
