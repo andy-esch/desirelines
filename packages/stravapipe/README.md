@@ -4,27 +4,31 @@ Strava data pipeline - processes webhook events and syncs to BigQuery and Postgr
 
 ## Services
 
-This package provides two Cloud Run services:
+This package provides two Cloud Run services and one Cloud Run job:
 
-| Service | Description | Trigger |
-|---------|-------------|---------|
-| `bq-inserter` | Syncs activities to BigQuery | Eventarc (PubSub) |
-| `postgres-writer` | Syncs activities to PostgreSQL | Eventarc (PubSub) |
+| Service | Type | Description | Trigger |
+|---------|------|-------------|---------|
+| `bq-inserter` | Service | Syncs activities to BigQuery | Eventarc (PubSub) |
+| `postgres-writer` | Service | Syncs activities to PostgreSQL | Eventarc (PubSub) |
+| `backfill` | Job | Backfills historical activities to PG + BQ | Manual (`gcloud run jobs execute`) |
 
 ## Architecture
 
 ```
 packages/stravapipe/
 ├── src/stravapipe/
-│   ├── cloudrun/               # FastAPI apps for Cloud Run
-│   │   ├── bq_inserter_app.py
-│   │   ├── postgres_writer_app.py
+│   ├── cloudrun/               # Cloud Run entrypoints
+│   │   ├── bq_inserter_app.py  # FastAPI service
+│   │   ├── postgres_writer_app.py  # FastAPI service
+│   │   ├── backfill_job.py     # Batch job (runs to completion)
 │   │   └── pubsub.py           # CloudEvent parsing
 │   ├── application/            # Business logic
+│   │   ├── backfill/           # Historical activity backfill
 │   │   ├── bq_inserter/        # BigQuery sync services
 │   │   └── postgres_sync/      # PostgreSQL sync services
 │   ├── adapters/               # External service clients
 │   │   ├── strava/             # Strava API
+│   │   ├── firestore/          # Per-user token storage
 │   │   ├── gcp/                # BigQuery, Cloud Storage
 │   │   └── proto/              # Protobuf adapters (webhook)
 │   ├── domain/                 # Domain models
@@ -33,6 +37,7 @@ packages/stravapipe/
 │   ├── config/                 # Configuration
 │   └── exceptions.py
 ├── tests/
+├── Dockerfile.backfill
 ├── Dockerfile.bq_inserter
 └── Dockerfile.postgres_writer
 ```
@@ -67,15 +72,35 @@ docker compose --profile backend up
 docker compose logs -f postgres-writer
 ```
 
-## Deployment
+### Running the backfill job
 
-Built and deployed via Pants:
+The backfill job fetches historical Strava activities and writes them to PostgreSQL and BigQuery.
 
 ```bash
-# Build and publish Docker images
-GIT_COMMIT=$(git rev-parse --short HEAD) pants publish \
-  packages/stravapipe:bq-inserter \
-  packages/stravapipe:postgres-writer
+# Cloud Run (production)
+gcloud run jobs execute desirelines-backfill \
+  --set-env-vars ATHLETE_ID=12345,BACKFILL_YEARS=2023,2024,2025
+
+# Local via docker-compose
+ATHLETE_ID=12345 BACKFILL_YEARS=2024,2025 \
+  docker compose --profile backfill run --rm backfill
+
+# Local via Python (requires env vars or .env file)
+ATHLETE_ID=12345 BACKFILL_YEARS=2024,2025 \
+  GCP_PROJECT_ID=desirelines-dev \
+  STRAVA_CLIENT_ID=... STRAVA_CLIENT_SECRET=... \
+  POSTGRES_CONNECTION_STRING="postgresql://..." \
+  GOOGLE_APPLICATION_CREDENTIALS=path/to/sa.json \
+    uv run python -m stravapipe.cloudrun.backfill_job
+```
+
+## Deployment
+
+```bash
+# Build Docker images
+docker build -f Dockerfile.bq_inserter -t bq-inserter .
+docker build -f Dockerfile.postgres_writer -t postgres-writer .
+docker build -f Dockerfile.backfill -t backfill .
 ```
 
 See [Docker Guide](../../docs/guides/docker.md) and [Deployment Guide](../../docs/guides/deployment.md).
@@ -86,8 +111,11 @@ Each service has its own config class in `config/`:
 
 - `BQInserterConfig` - GCP project, BigQuery dataset
 - `PostgresWriterConfig` - GCP project, PostgreSQL connection string
+- `BackfillConfig` - Athlete ID, years, PG connection, Firestore database, Strava client creds
 
-All load from environment variables with Secret Manager integration for production. Strava API credentials are **not** needed by these services — the dispatcher enriches events with activity data before publishing to PubSub.
+The event-driven services (bq-inserter, postgres-writer) load from environment variables with Secret Manager integration. Strava API credentials are **not** needed by these services — the dispatcher enriches events with activity data before publishing to PubSub.
+
+The backfill job loads Strava client credentials from secret volume mounts and fetches per-user OAuth tokens from Firestore at runtime.
 
 ### PostgreSQL Connection Pooling
 

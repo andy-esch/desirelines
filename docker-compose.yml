@@ -92,12 +92,11 @@ services:
     environment:
       - GCP_PROJECT_ID=local-dev
       - POSTGRES_CONNECTION_STRING=postgresql://${POSTGRES_USER_LOCAL}:${POSTGRES_PASSWORD_LOCAL}@postgres:5432/${POSTGRES_DB_LOCAL}?application_name=backfill
-      # Set these when running:
+      # Set these when running (or in .env.local):
       # - ATHLETE_ID=12345
       # - BACKFILL_YEARS=2023,2024,2025
-      # - STRAVA_CLIENT_ID=...
-      # - STRAVA_CLIENT_SECRET=...
-      # - STRAVA_REFRESH_TOKEN=...
+      # STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET must be in .env.local
+      # Per-user OAuth tokens are fetched from Firestore via ATHLETE_ID
     env_file:
       - .env.local
     volumes:

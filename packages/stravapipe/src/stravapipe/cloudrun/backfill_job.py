@@ -13,7 +13,11 @@ Usage (local):
     POSTGRES_CONNECTION_STRING="postgresql://..." \
     STRAVA_CLIENT_ID=... STRAVA_CLIENT_SECRET=... \
     GOOGLE_APPLICATION_CREDENTIALS=path/to/sa.json \
-        python -m stravapipe.cloudrun.backfill_job
+        uv run python -m stravapipe.cloudrun.backfill_job
+
+    Strava client creds can also be loaded from secret volume mounts
+    (INFISICAL_STRAVA_CLIENT_ID, INFISICAL_STRAVA_CLIENT_SECRET).
+    Per-user OAuth tokens are fetched from Firestore via ATHLETE_ID.
 """
 
 import logging
@@ -69,7 +73,9 @@ def main() -> None:
 
     # PostgreSQL
     session_factory = create_session_factory(config.postgres_connection_string)
-    uow_factory = lambda: SqlAlchemyUnitOfWork(session_factory)  # noqa: E731
+
+    def create_uow() -> SqlAlchemyUnitOfWork:
+        return SqlAlchemyUnitOfWork(session_factory)
 
     # BigQuery (optional)
     bq_writer = None
@@ -84,7 +90,7 @@ def main() -> None:
 
     service = BackfillService(
         strava_reader=strava_repo,
-        uow_factory=uow_factory,
+        uow_factory=create_uow,
         bq_writer=bq_writer,
         batch_size=config.batch_size,
     )

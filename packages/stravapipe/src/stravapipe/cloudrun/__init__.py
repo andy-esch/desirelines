@@ -1,4 +1,4 @@
-"""Cloud Run inbound adapters for stravapipe services."""
+"""Cloud Run entrypoints: event-driven services and batch jobs."""
 
 from stravapipe.cloudrun.pubsub import (
     CloudEventContext,

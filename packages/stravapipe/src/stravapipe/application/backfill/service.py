@@ -274,7 +274,7 @@ class BackfillService:
                 with uow:
                     for activity in batch:
                         standard = StandardActivity.model_validate(
-                            activity.model_dump()
+                            activity, from_attributes=True
                         )
                         if uow.activities.insert(standard):
                             batch_inserted += 1

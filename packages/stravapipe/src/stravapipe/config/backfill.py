@@ -10,6 +10,7 @@ Per-user access/refresh tokens come from Firestore at runtime.
 
 from datetime import UTC, datetime
 import logging
+from typing import Any
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -99,7 +100,7 @@ def load_backfill_config() -> BackfillConfig:
         ValidationError: If required configuration is missing or invalid.
         ConnectionStringError: If PostgreSQL connection string is missing or invalid.
     """
-    config_dict: dict[str, str] = {}
+    config_dict: dict[str, Any] = {}
 
     # Load PostgreSQL connection string with validation and dialect transformation
     config_dict["postgres_connection_string"] = load_connection_string()
