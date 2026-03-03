@@ -1,34 +1,31 @@
 #!/usr/bin/env python3
 """
-Backfill production data from Strava API
+DEPRECATED: Use the BackfillService Cloud Run Job instead.
 
-Fetches activities from Strava (source of truth) and inserts to BigQuery
-and PostgreSQL. Handles rate limiting and resumability.
+This script has been replaced by:
+    - stravapipe.application.backfill.service.BackfillService (library)
+    - stravapipe.cloudrun.backfill_job (Cloud Run Job entrypoint)
+    - packages/stravapipe/Dockerfile.backfill (container)
 
-This script uses Strava as the authoritative source, ensuring deleted activities
-are properly excluded and all current activities are included.
+To run the new backfill:
+    # Cloud Run Job
+    gcloud run jobs execute backfill \\
+        --set-env-vars ATHLETE_ID=12345,BACKFILL_YEARS=2023,2024,2025
 
-Usage:
-    # Dry run to preview activities
-    python scripts/ops/backfills/backfill_from_strava.py --years 2024 --dry-run
+    # Local via Docker
+    docker compose --profile backfill run --rm backfill
 
-    # Backfill single year
-    python scripts/ops/backfills/backfill_from_strava.py --years 2024
+See task: 04-multiuser-09:-dockerize-and-deploy-backfill-service.md
 
-    # Backfill multiple years
-    python scripts/ops/backfills/backfill_from_strava.py --years 2023 2024 2025
+---
 
-Environment Variables:
-    # GCP
-    export GCP_PROJECT_ID=desirelines-dev
-    export BQ_DATASET=activities
+Original description (preserved for reference):
+Backfill production data from Strava API. Fetches activities from Strava
+(source of truth) and inserts to BigQuery and PostgreSQL.
 
-    # Strava API
-    export STRAVA_CLIENT_ID=12345
-    export STRAVA_CLIENT_SECRET=abc123...
-
-    # PostgreSQL (include application_name for observability)
-    export POSTGRES_CONNECTION_STRING="postgres://writer:PASSWORD@HOST/desirelines?sslmode=require&application_name=postgres-writer"
+NOTE: This script is currently broken — STRAVA_REFRESH_TOKEN env var was
+removed as part of Infisical cleanup. The new BackfillService handles
+per-user tokens via Firestore.
 """
 
 import argparse

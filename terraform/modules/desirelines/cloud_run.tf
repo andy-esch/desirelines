@@ -497,6 +497,113 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
 }
 
 # ==============================================================================
+# Backfill - Cloud Run Job (Python batch job)
+# ==============================================================================
+# Runs to completion (not a web server). Triggered manually via:
+#   gcloud run jobs execute desirelines-backfill --set-env-vars ATHLETE_ID=...
+
+resource "google_cloud_run_v2_job" "backfill" {
+  name     = "${var.project_name}-backfill"
+  location = var.gcp_region
+
+  labels = local.common_labels
+
+  template {
+    template {
+      service_account = google_service_account.backfill.email
+
+      max_retries = 0 # Batch job — don't retry on failure
+
+      timeout = "3600s" # 1 hour max for large backfills
+
+      containers {
+        image = "${local.image_base_url}/backfill:${var.deployment_version}"
+
+        resources {
+          limits = {
+            cpu    = "1"
+            memory = "512Mi"
+          }
+        }
+
+        env {
+          name  = "GCP_PROJECT_ID"
+          value = var.gcp_project_id
+        }
+
+        env {
+          name  = "FIRESTORE_DATABASE"
+          value = google_firestore_database.user_configs.name
+        }
+
+        env {
+          name  = "GCP_BIGQUERY_DATASET"
+          value = google_bigquery_dataset.activities_dataset.dataset_id
+        }
+
+        env {
+          name  = "LOG_LEVEL"
+          value = var.app_config.log_level
+        }
+
+        # ATHLETE_ID and BACKFILL_YEARS are set at execution time via:
+        #   gcloud run jobs execute ... --set-env-vars ATHLETE_ID=12345,BACKFILL_YEARS=2024,2025
+
+        # Mount PostgreSQL writer secret
+        volume_mounts {
+          name       = "infisical-postgres-conn-writer"
+          mount_path = "/etc/secrets/INFISICAL_POSTGRES_CONN_WRITER"
+        }
+
+        # Mount Strava API secrets
+        dynamic "volume_mounts" {
+          for_each = local.strava_api_secrets
+          content {
+            name       = lower(replace(volume_mounts.key, "_", "-"))
+            mount_path = "/etc/secrets/${volume_mounts.key}"
+          }
+        }
+      }
+
+      volumes {
+        name = "infisical-postgres-conn-writer"
+        secret {
+          secret       = google_secret_manager_secret.postgres_conn_writer.secret_id
+          default_mode = 292 # 0444
+          items {
+            version = "latest"
+            path    = "value"
+            mode    = 292
+          }
+        }
+      }
+
+      dynamic "volumes" {
+        for_each = local.strava_api_secrets
+        content {
+          name = lower(replace(volumes.key, "_", "-"))
+          secret {
+            secret       = volumes.value
+            default_mode = 292 # 0444
+            items {
+              version = "latest"
+              path    = "value"
+              mode    = 292
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    google_secret_manager_secret_iam_member.backfill_postgres_access,
+    google_secret_manager_secret_iam_member.backfill_strava_api_secrets,
+    google_project_iam_member.backfill_firestore,
+  ]
+}
+
+# ==============================================================================
 # IAM Bindings for Pub/Sub Push → Cloud Run Invocation
 # ==============================================================================
 # Push subscriptions use OIDC tokens signed by service accounts to authenticate.

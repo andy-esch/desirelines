@@ -12,6 +12,7 @@ dependencies = [
     "fastapi[standard]>=0.115.0",
     "functions-framework>=3.8.3",
     "google-cloud-bigquery>=3.35.1",
+    "google-cloud-firestore>=2.19.0",
     "google-cloud-logging>=3.11.0",
     "google-cloud-storage>=3.3.0",
     "protobuf>=6.33.2",
