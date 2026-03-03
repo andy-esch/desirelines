@@ -68,3 +68,8 @@ docker_image(
     ],
     extra_build_args=["GIT_COMMIT"],
 )
+
+docker_image(
+    name="docker",
+    source="Dockerfile.backfill",
+)
