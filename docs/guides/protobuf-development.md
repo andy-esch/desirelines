@@ -389,5 +389,6 @@ git diff packages/*/types/generated/
 
 ## Related
 
+- [Domain Model](../architecture/domain-model.md) - Cross-package type glossary mapping proto types to their Go, Python, and TypeScript equivalents
 - [schemas/proto/README.md](../../schemas/proto/README.md) - Proto directory structure
 - [schemas/proto/BUILD](../../schemas/proto/BUILD) - Pants build targets

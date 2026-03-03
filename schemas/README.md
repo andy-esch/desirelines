@@ -26,3 +26,7 @@ Data schemas and contracts for the desirelines monorepo.
   See [`proto/README.md`](proto/README.md) for code generation commands.
 
 - **Sports**: JSON configuration mapping Strava sport types to app categories with their available metrics.
+
+## Related
+
+- [Domain Model](../docs/architecture/domain-model.md) — maps how these schemas manifest as types in each package

@@ -4,6 +4,7 @@ package desirelines.webhook.v1;
 
 // Go code generated to dispatcher for webhook handling
 // Python code generated to stravapipe for webhook processing
+// Cross-package type mapping: see docs/architecture/domain-model.md
 option go_package = "github.com/andy-esch/desirelines/packages/dispatcher/types/generated";
 
 // AspectType represents the type of change in a webhook event.

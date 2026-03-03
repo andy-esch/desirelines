@@ -3,6 +3,7 @@ syntax = "proto3";
 package desirelines.activities.v1;
 
 // Go code generated to apigateway for activity handling
+// Cross-package type mapping: see docs/architecture/domain-model.md
 option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1";
 
 // =============================================================================

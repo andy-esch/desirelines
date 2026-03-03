@@ -101,6 +101,7 @@ just proto-lint   # Lint proto files
 
 ## Related
 
+- [Domain Model](../../docs/architecture/domain-model.md) — cross-package type glossary mapping these proto types to Go, Python, and TypeScript
 - [API Gateway handlers](../../packages/apigateway/internal/)
 - [Dispatcher proto adapter](../../packages/dispatcher/adapters/proto/)
 - [Stravapipe proto adapter](../../packages/stravapipe/src/stravapipe/adapters/proto/)
