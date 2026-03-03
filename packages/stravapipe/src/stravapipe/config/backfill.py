@@ -48,9 +48,7 @@ class BackfillConfig(BaseSettings):
     strava_client_secret: str = Field(description="Strava OAuth client secret")
 
     # Database
-    postgres_connection_string: str = Field(
-        description="PostgreSQL connection string"
-    )
+    postgres_connection_string: str = Field(description="PostgreSQL connection string")
 
     # Firestore
     firestore_database: str = Field(

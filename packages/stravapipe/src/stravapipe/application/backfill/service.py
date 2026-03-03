@@ -129,9 +129,7 @@ class BackfillService:
         self._progress = progress_reporter or NoOpProgressReporter()
         self._batch_size = batch_size
 
-    def backfill_user(
-        self, athlete_id: str, years: list[int]
-    ) -> BackfillResult:
+    def backfill_user(self, athlete_id: str, years: list[int]) -> BackfillResult:
         """Backfill all specified years for a user.
 
         Args:
@@ -314,9 +312,7 @@ class BackfillService:
         inserted_count = 0
         error_count = 0
 
-        total_batches = (
-            len(activities) + BQ_MAX_BATCH_SIZE - 1
-        ) // BQ_MAX_BATCH_SIZE
+        total_batches = (len(activities) + BQ_MAX_BATCH_SIZE - 1) // BQ_MAX_BATCH_SIZE
 
         for batch_num, i in enumerate(
             range(0, len(activities), BQ_MAX_BATCH_SIZE), start=1

@@ -48,12 +48,7 @@ def _sample_token_data() -> dict:
 
 def _ref_mock(client: MagicMock) -> MagicMock:
     """Get the ref mock at the end of the collection/document chain."""
-    return (
-        client.collection.return_value
-        .document.return_value
-        .collection.return_value
-        .document.return_value
-    )
+    return client.collection.return_value.document.return_value.collection.return_value.document.return_value
 
 
 # ============================================================
@@ -179,9 +174,7 @@ class TestWriteTokensIfUnmodified:
     ):
         stale_last_refreshed = datetime(2025, 2, 1, tzinfo=UTC)
         current_data = _sample_token_data()
-        current_data["last_refreshed"] = datetime(
-            2025, 3, 1, 12, 0, 0, tzinfo=UTC
-        )
+        current_data["last_refreshed"] = datetime(2025, 3, 1, 12, 0, 0, tzinfo=UTC)
 
         new_tokens = TokenData(
             access_token="new_access",

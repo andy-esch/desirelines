@@ -135,12 +135,15 @@ class FirestoreTokenStore:
             if current.last_refreshed != expected_last_refreshed:
                 return False  # Conflict — another process already refreshed
 
-            transaction.update(ref, {
-                "access_token": tokens.access_token,
-                "refresh_token": tokens.refresh_token,
-                "expires_at": tokens.expires_at,
-                "last_refreshed": now,
-            })
+            transaction.update(
+                ref,
+                {
+                    "access_token": tokens.access_token,
+                    "refresh_token": tokens.refresh_token,
+                    "expires_at": tokens.expires_at,
+                    "last_refreshed": now,
+                },
+            )
             return True
 
         try:

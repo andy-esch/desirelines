@@ -106,9 +106,7 @@ def main() -> None:
         )
         sys.exit(0)
     else:
-        logger.error(
-            "Backfill completed with %d errors", result.total_errors
-        )
+        logger.error("Backfill completed with %d errors", result.total_errors)
         sys.exit(1)
 
 

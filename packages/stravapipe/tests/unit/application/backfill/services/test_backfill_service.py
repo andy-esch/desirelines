@@ -70,9 +70,7 @@ def make_summary_activity(
 
 def make_activities(count: int, year: int = 2024) -> list[SummaryStravaActivity]:
     """Create a list of test activities."""
-    return [
-        make_summary_activity(activity_id=i + 1, year=year) for i in range(count)
-    ]
+    return [make_summary_activity(activity_id=i + 1, year=year) for i in range(count)]
 
 
 @pytest.fixture
@@ -107,7 +105,10 @@ def mock_bq_writer():
     """Mock BigQuery writer."""
     writer = create_autospec(ActivitiesWriter, instance=True)
     writer.write_activities_batch.return_value = {
-        "rows_affected": 0, "execution_time_ms": 100, "job_id": "test", "query_preview": ""
+        "rows_affected": 0,
+        "execution_time_ms": 100,
+        "job_id": "test",
+        "query_preview": "",
     }
     return writer
 
@@ -346,7 +347,10 @@ class TestBigQueryInsertion:
         mock_strava_reader.read_activities_by_year.return_value = activities
         mock_activity_repo.insert.return_value = True
         mock_bq_writer.write_activities_batch.return_value = {
-            "rows_affected": 3, "execution_time_ms": 100, "job_id": "test", "query_preview": ""
+            "rows_affected": 3,
+            "execution_time_ms": 100,
+            "job_id": "test",
+            "query_preview": "",
         }
 
         result = service_with_bq.backfill_user("12345", years=[2024])
