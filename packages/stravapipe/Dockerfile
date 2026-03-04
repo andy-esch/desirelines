@@ -1,10 +1,10 @@
-# Backfill Job - Cloud Run Job (Python)
-# Multi-stage build for optimal container size
+# Stravapipe Mono-Image — Cloud Run Services & Jobs (Python)
+# Single image for all stravapipe entrypoints: bq-inserter, postgres-writer, backfill.
+# Cloud Run overrides the CMD at deployment time for each service/job.
 #
-# Unlike bq_inserter and postgres_writer (Cloud Run services with uvicorn),
-# this is a Cloud Run Job that runs to completion and exits.
+# Multi-stage build for optimal container size.
 
-ARG PYTHON_VERSION=3.13
+ARG PYTHON_VERSION=3.14
 
 # Build stage
 FROM python:${PYTHON_VERSION}-slim AS builder
@@ -24,7 +24,7 @@ RUN uv pip install --system --no-cache .
 # Runtime stage
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
-ARG PYTHON_VERSION=3.13
+ARG PYTHON_VERSION=3.14
 
 WORKDIR /app
 
@@ -36,5 +36,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 RUN useradd --system --no-create-home appuser
 USER appuser
 
-# Cloud Run Job - runs to completion, no port needed
-CMD ["python", "-m", "stravapipe.cloudrun.backfill_job"]
+EXPOSE 8080
+
+# Default: bq-inserter (Cloud Run overrides this per-service)
+CMD ["uvicorn", "stravapipe.cloudrun.bq_inserter_app:app", "--host", "0.0.0.0", "--port", "8080"]

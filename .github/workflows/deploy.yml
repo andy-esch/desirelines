@@ -20,9 +20,7 @@ jobs:
   # Builds all Cloud Run services and jobs:
   # - dispatcher (Go) - Webhook receiver
   # - apigateway (Go) - API for web frontend
-  # - bq-inserter (Python/FastAPI) - BigQuery sync
-  # - postgres-writer (Python/FastAPI) - PostgreSQL sync
-  # - backfill (Python) - Historical activity backfill job
+  # - stravapipe (Python) - Mono-image for bq-inserter, postgres-writer, backfill
   build-images:
     name: Build & Publish Docker Images
     runs-on: ubuntu-latest
@@ -79,9 +77,7 @@ jobs:
           GIT_COMMIT=${{ steps.metadata.outputs.git_sha }} pants publish \
             packages/dispatcher:dispatcher \
             packages/apigateway:apigateway \
-            packages/stravapipe:bq-inserter \
-            packages/stravapipe:postgres-writer \
-            packages/stravapipe:backfill
+            packages/stravapipe:stravapipe
 
   # ===========================================================================
   # Job 2: Trigger Deploy Repo

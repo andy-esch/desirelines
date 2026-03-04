@@ -11,8 +11,7 @@ packages/
 ├── apigateway/
 │   └── Dockerfile                  # Go - Cloud Run
 └── stravapipe/
-    ├── Dockerfile.bq_inserter      # Python/FastAPI - Cloud Run
-    └── Dockerfile.postgres_writer  # Python/FastAPI - Cloud Run
+    └── Dockerfile                  # Python mono-image - Cloud Run (CMD per-service)
 
 local-dev/containers/
 ├── cloudevent-adapter/
@@ -32,8 +31,7 @@ Pants is the recommended build system for CI/CD and production deployments.
 GIT_COMMIT=$(git rev-parse --short HEAD) pants publish \
   packages/dispatcher:dispatcher \
   packages/apigateway:apigateway \
-  packages/stravapipe:bq-inserter \
-  packages/stravapipe:postgres-writer
+  packages/stravapipe:stravapipe
 ```
 
 Or use the Just recipe:
@@ -52,7 +50,7 @@ This:
 
 ```bash
 pants package packages/dispatcher:dispatcher
-pants package packages/stravapipe:bq-inserter
+pants package packages/stravapipe:stravapipe
 ```
 
 ### View Available Targets

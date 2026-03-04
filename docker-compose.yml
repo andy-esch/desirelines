@@ -30,7 +30,8 @@ services:
     profiles: ["backend"] # Backend pipeline only
     build:
       context: ./packages/stravapipe
-      dockerfile: Dockerfile.bq_inserter
+      dockerfile: Dockerfile
+    command: ["uvicorn", "stravapipe.cloudrun.bq_inserter_app:app", "--host", "0.0.0.0", "--port", "8080"]
     ports:
       - "8083:8080"
     environment:
@@ -62,7 +63,8 @@ services:
     profiles: ["backend"] # Backend pipeline only
     build:
       context: ./packages/stravapipe
-      dockerfile: Dockerfile.postgres_writer
+      dockerfile: Dockerfile
+    command: ["uvicorn", "stravapipe.cloudrun.postgres_writer_app:app", "--host", "0.0.0.0", "--port", "8080"]
     ports:
       - "8086:8080"
     environment:
@@ -88,7 +90,8 @@ services:
     profiles: ["backfill"]
     build:
       context: ./packages/stravapipe
-      dockerfile: Dockerfile.backfill
+      dockerfile: Dockerfile
+    command: ["python", "-m", "stravapipe.cloudrun.backfill_job"]
     environment:
       - GCP_PROJECT_ID=local-dev
       - POSTGRES_CONNECTION_STRING=postgresql://${POSTGRES_USER_LOCAL}:${POSTGRES_PASSWORD_LOCAL}@postgres:5432/${POSTGRES_DB_LOCAL}?application_name=backfill

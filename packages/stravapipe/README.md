@@ -37,9 +37,7 @@ packages/stravapipe/
 │   ├── config/                 # Configuration
 │   └── exceptions.py
 ├── tests/
-├── Dockerfile.backfill
-├── Dockerfile.bq_inserter
-└── Dockerfile.postgres_writer
+└── Dockerfile                 # Mono-image for all services (CMD overridden per-service)
 ```
 
 **Type Definitions:** Webhook and sports metrics types are defined in `schemas/proto/` and shared with Go services. Generated code lives in `types/generated/`. See `just proto-gen-backend`.
@@ -97,10 +95,13 @@ ATHLETE_ID=12345 BACKFILL_YEARS=2024,2025 \
 ## Deployment
 
 ```bash
-# Build Docker images
-docker build -f Dockerfile.bq_inserter -t bq-inserter .
-docker build -f Dockerfile.postgres_writer -t postgres-writer .
-docker build -f Dockerfile.backfill -t backfill .
+# Build the mono-image
+docker build -t stravapipe .
+
+# Run individual services with command overrides
+docker run stravapipe uvicorn stravapipe.cloudrun.bq_inserter_app:app --host 0.0.0.0 --port 8080
+docker run stravapipe uvicorn stravapipe.cloudrun.postgres_writer_app:app --host 0.0.0.0 --port 8080
+docker run stravapipe python -m stravapipe.cloudrun.backfill_job
 ```
 
 See [Docker Guide](../../docs/guides/docker.md) and [Deployment Guide](../../docs/guides/deployment.md).

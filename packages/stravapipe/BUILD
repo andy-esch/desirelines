@@ -27,10 +27,10 @@ python_sources(
 )
 
 # =============================================================================
-# Docker Images for Cloud Run (Python/FastAPI services)
+# Docker Image for Cloud Run (Python/FastAPI mono-image)
 # =============================================================================
+# Single image for all stravapipe services. Cloud Run overrides CMD per-service.
 # Build context is this directory (packages/stravapipe)
-# Dockerfiles reference paths relative to this directory
 
 # Source files for Docker build context (raw files, not PEX)
 files(
@@ -46,32 +46,8 @@ files(
 )
 
 docker_image(
-    name="bq-inserter",
-    source="Dockerfile.bq_inserter",
-    context_root="packages/stravapipe",
-    dependencies=[":docker_sources"],
-    image_tags=[
-        "latest",
-        "{build_args.GIT_COMMIT}",
-    ],
-    extra_build_args=["GIT_COMMIT"],
-)
-
-docker_image(
-    name="postgres-writer",
-    source="Dockerfile.postgres_writer",
-    context_root="packages/stravapipe",
-    dependencies=[":docker_sources"],
-    image_tags=[
-        "latest",
-        "{build_args.GIT_COMMIT}",
-    ],
-    extra_build_args=["GIT_COMMIT"],
-)
-
-docker_image(
-    name="backfill",
-    source="Dockerfile.backfill",
+    name="stravapipe",
+    source="Dockerfile",
     context_root="packages/stravapipe",
     dependencies=[":docker_sources"],
     image_tags=[
