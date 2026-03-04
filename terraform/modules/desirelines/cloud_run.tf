@@ -506,6 +506,8 @@ resource "google_cloud_run_v2_job" "backfill" {
   name     = "${var.project_name}-backfill"
   location = var.gcp_region
 
+  deletion_protection = false # Batch job, safe to recreate
+
   labels = local.common_labels
 
   template {
