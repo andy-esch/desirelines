@@ -20,8 +20,7 @@ echo "🐳 Building and publishing Cloud Run images..."
 GIT_COMMIT=$SHA pants publish \
 	packages/dispatcher:dispatcher \
 	packages/apigateway:apigateway \
-	packages/stravapipe:bq-inserter \
-	packages/stravapipe:postgres-writer
+	packages/stravapipe:stravapipe
 
 echo "✅ Docker images published to Artifact Registry"
 echo ""
@@ -36,8 +35,7 @@ echo ""
 echo "🐳 Docker images (in Artifact Registry):"
 echo "   - dispatcher:${SHA} + dispatcher:latest"
 echo "   - apigateway:${SHA} + apigateway:latest"
-echo "   - bq-inserter:${SHA} + bq-inserter:latest"
-echo "   - postgres-writer:${SHA} + postgres-writer:latest"
+echo "   - stravapipe:${SHA} + stravapipe:latest"
 echo "   → Already published and ready to deploy"
 echo ""
 echo "🚀 Next step - Deploy by merging to main (triggers CI → deploy repo)"

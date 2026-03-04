@@ -5,7 +5,7 @@ DEPRECATED: Use the BackfillService Cloud Run Job instead.
 This script has been replaced by:
     - stravapipe.application.backfill.service.BackfillService (library)
     - stravapipe.cloudrun.backfill_job (Cloud Run Job entrypoint)
-    - packages/stravapipe/Dockerfile.backfill (container)
+    - packages/stravapipe/Dockerfile (container, with command override)
 
 To run the new backfill:
     # Cloud Run Job

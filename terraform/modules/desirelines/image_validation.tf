@@ -4,10 +4,9 @@
 
 locals {
   cloud_run_images = {
-    dispatcher      = "dispatcher"
-    apigateway      = "apigateway"
-    bq_inserter     = "bq-inserter"
-    postgres_writer = "postgres-writer"
+    dispatcher  = "dispatcher"
+    apigateway  = "apigateway"
+    stravapipe  = "stravapipe"
   }
 }
 
@@ -38,12 +37,8 @@ resource "terraform_data" "image_validation" {
       error_message = "Image not found: ${var.external_artifact_registry}/apigateway:${var.deployment_version}\nRun 'just build-publish' first."
     }
     precondition {
-      condition     = data.external.image_exists["bq_inserter"].result.exists == "true"
-      error_message = "Image not found: ${var.external_artifact_registry}/bq-inserter:${var.deployment_version}\nRun 'just build-publish' first."
-    }
-    precondition {
-      condition     = data.external.image_exists["postgres_writer"].result.exists == "true"
-      error_message = "Image not found: ${var.external_artifact_registry}/postgres-writer:${var.deployment_version}\nRun 'just build-publish' first."
+      condition     = data.external.image_exists["stravapipe"].result.exists == "true"
+      error_message = "Image not found: ${var.external_artifact_registry}/stravapipe:${var.deployment_version}\nRun 'just build-publish' first."
     }
   }
 }

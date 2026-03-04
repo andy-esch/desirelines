@@ -327,7 +327,10 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
     }
 
     containers {
-      image = "${local.image_base_url}/bq-inserter:${var.deployment_version}"
+      image = "${local.image_base_url}/stravapipe:${var.deployment_version}"
+
+      command = ["uvicorn"]
+      args    = ["stravapipe.cloudrun.bq_inserter_app:app", "--host", "0.0.0.0", "--port", "8080"]
 
       resources {
         limits = {
@@ -416,7 +419,10 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     }
 
     containers {
-      image = "${local.image_base_url}/postgres-writer:${var.deployment_version}"
+      image = "${local.image_base_url}/stravapipe:${var.deployment_version}"
+
+      command = ["uvicorn"]
+      args    = ["stravapipe.cloudrun.postgres_writer_app:app", "--host", "0.0.0.0", "--port", "8080"]
 
       resources {
         limits = {
@@ -519,7 +525,10 @@ resource "google_cloud_run_v2_job" "backfill" {
       timeout = "3600s" # 1 hour max for large backfills
 
       containers {
-        image = "${local.image_base_url}/backfill:${var.deployment_version}"
+        image = "${local.image_base_url}/stravapipe:${var.deployment_version}"
+
+        command = ["python"]
+        args    = ["-m", "stravapipe.cloudrun.backfill_job"]
 
         resources {
           limits = {

@@ -1,5 +1,8 @@
-# PostgreSQL Writer - Cloud Run Service (Python/FastAPI)
-# Multi-stage build for optimal container size
+# Stravapipe Mono-Image — Cloud Run Services & Jobs (Python)
+# Single image for all stravapipe entrypoints: bq-inserter, postgres-writer, backfill.
+# Cloud Run overrides the CMD at deployment time for each service/job.
+#
+# Multi-stage build for optimal container size.
 
 # Build stage
 FROM python:3.14-slim AS builder
@@ -25,14 +28,11 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy package source code (includes cloudrun module with FastAPI app)
-COPY src/stravapipe ./stravapipe
-
-# Create non-root system user and own application files
-RUN useradd --system --no-create-home appuser && chown -R appuser:appuser /app/stravapipe
+# Run as non-root user
+RUN useradd --system --no-create-home appuser
 USER appuser
 
 EXPOSE 8080
 
-# Run with Uvicorn (single worker for Cloud Run)
-CMD ["uvicorn", "stravapipe.cloudrun.postgres_writer_app:app", "--host", "0.0.0.0", "--port", "8080"]
+# Default: bq-inserter (Cloud Run overrides this per-service)
+CMD ["uvicorn", "stravapipe.cloudrun.bq_inserter_app:app", "--host", "0.0.0.0", "--port", "8080"]
