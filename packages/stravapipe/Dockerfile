@@ -4,8 +4,10 @@
 #
 # Multi-stage build for optimal container size.
 
+ARG PYTHON_VERSION=3.14
+
 # Build stage
-FROM python:3.14-slim AS builder
+FROM python:${PYTHON_VERSION}-slim AS builder
 
 WORKDIR /build
 
@@ -20,12 +22,14 @@ COPY src/ ./src/
 RUN uv pip install --system --no-cache .
 
 # Runtime stage
-FROM python:3.14-slim AS runtime
+FROM python:${PYTHON_VERSION}-slim AS runtime
+
+ARG PYTHON_VERSION=3.14
 
 WORKDIR /app
 
 # Copy installed packages from builder stage
-COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=builder /usr/local/lib/python${PYTHON_VERSION}/site-packages /usr/local/lib/python${PYTHON_VERSION}/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Run as non-root user

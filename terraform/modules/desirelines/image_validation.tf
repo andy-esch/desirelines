@@ -4,9 +4,9 @@
 
 locals {
   cloud_run_images = {
-    dispatcher  = "dispatcher"
-    apigateway  = "apigateway"
-    stravapipe  = "stravapipe"
+    dispatcher = "dispatcher"
+    apigateway = "apigateway"
+    stravapipe = "stravapipe"
   }
 }
 
