@@ -243,7 +243,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
         updatedAt: now,
       })),
     };
-    // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional: new Date() is impure, compiler can't auto-memoize
+    /* eslint-disable react-hooks/preserve-manual-memoization -- intentional: new Date() is impure, compiler can't auto-memoize */
   }, [
     estimatedYearEnd,
     primaryMetricConfig,
@@ -253,6 +253,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     sport,
     sportConfig,
   ]);
+  /* eslint-enable react-hooks/preserve-manual-memoization */
 
   const {
     data: goalsData,

@@ -260,6 +260,9 @@ export default function RecentActivitiesList({
                 if (goal.metricType === "distance") {
                   const displayDist = convertDistance(activity.distanceMeters, distanceUnit);
                   impactPct = (displayDist / goal.impactGoal) * 100;
+                } else if (goal.metricType === "time") {
+                  const activityHours = activity.movingTimeSeconds / 3600;
+                  impactPct = (activityHours / goal.impactGoal) * 100;
                 } else {
                   impactPct = (1 / goal.impactGoal) * 100;
                 }
