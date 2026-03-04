@@ -182,7 +182,7 @@ services:
   # so the user exists in the emulator UI before the first OAuth flow.
   firebase-bootstrap:
     profiles: ["frontend"]
-    image: curlimages/curl:latest
+    image: curlimages/curl:8.8.0
     depends_on:
       firebase-emulators:
         condition: service_healthy
