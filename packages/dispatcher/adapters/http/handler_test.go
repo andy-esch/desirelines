@@ -272,19 +272,19 @@ func TestHandler_HandleEvent(t *testing.T) {
 			expectedCode:   "INVALID_SUBSCRIPTION_ID",
 		},
 		{
-			name:        "Non-activity event (ignored)",
+			name:        "Non-deauth athlete create event acknowledged",
 			method:      "POST",
 			contentType: "application/json",
 			payload: webhookproto.StravaWebhookJSON{
 				AspectType:     "create",
 				EventTime:      testEventTime,
 				ObjectID:       testObjectID,
-				ObjectType:     "athlete", // Not activity
+				ObjectType:     "athlete",
 				OwnerID:        testOwnerID,
 				SubscriptionID: testSubscriptionID,
 			},
 			mockSubID:      testSubscriptionID,
-			expectedStatus: http.StatusOK, // 200 OK for acknowledged but ignored events
+			expectedStatus: http.StatusOK,
 			expectedBody:   "acknowledged",
 		},
 		{
@@ -307,6 +307,15 @@ func TestHandler_HandleEvent(t *testing.T) {
 			stravaErr:      errors.New("strava API error"),
 			expectedStatus: http.StatusInternalServerError,
 			expectedCode:   "STRAVA_FETCH_FAILED",
+		},
+		{
+			name:           "Oversized request body",
+			method:         "POST",
+			contentType:    "application/json",
+			payload:        strings.Repeat("x", 1<<20+1), // Exceeds DefaultMaxRequestBodySize (1MB)
+			mockSubID:      testSubscriptionID,
+			expectedStatus: http.StatusBadRequest,
+			expectedCode:   "READ_FAILED",
 		},
 		{
 			name:           "Strava 404 publishes without activity data",

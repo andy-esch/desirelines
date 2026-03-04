@@ -330,7 +330,12 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		var payload struct {
 			Updates map[string]string `json:"updates"`
 		}
-		if err := json.Unmarshal(body, &payload); err == nil {
+		if err := json.Unmarshal(body, &payload); err != nil {
+			h.logger.Warn("Failed to unmarshal athlete update payload",
+				"error", err,
+				"owner_id", webhook.OwnerId,
+			)
+		} else {
 			if val, ok := payload.Updates["authorized"]; ok && val == "false" {
 				isDeauth = true
 			}
