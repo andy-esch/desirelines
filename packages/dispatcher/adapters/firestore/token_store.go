@@ -104,6 +104,18 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 	return nil
 }
 
+// DeleteTokens removes all stored tokens for the given athlete.
+// Returns nil if the tokens do not exist (Firestore Delete is idempotent).
+func (s *TokenStore) DeleteTokens(ctx context.Context, athleteID int64) error {
+	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "delete_tokens"))
+	_, err := s.tokensRef(athleteID).Delete(ctx)
+	done(err)
+	if err != nil {
+		return fmt.Errorf("delete tokens for athlete %d: %w", athleteID, err)
+	}
+	return nil
+}
+
 // tokensRef returns the Firestore document reference for an athlete's tokens.
 func (s *TokenStore) tokensRef(athleteID int64) *firestore.DocumentRef {
 	return s.client.Collection(stravatoken.UsersCollection).Doc(strconv.FormatInt(athleteID, 10)).Collection(stravatoken.PrivateCollection).Doc(stravatoken.TokensDocument)

@@ -218,7 +218,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 		Burst: 10,
 	}, log)
 
-	handler := httpadapter.NewHandler(publisher, secretProvider, stravaClient, log, &httpadapter.HandlerConfig{
+	handler := httpadapter.NewHandler(publisher, secretProvider, stravaClient, tokenStore, log, &httpadapter.HandlerConfig{
 		MaxRequestBodySize: cfg.MaxRequestBodySize,
 		RateLimiter:        rateLimiter,
 		WebhookCounter:     webhookCounter,

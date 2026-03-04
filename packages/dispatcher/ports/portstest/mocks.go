@@ -92,6 +92,10 @@ type MockTokenStore struct {
 	WriteErr error
 	// WrittenTokens tracks tokens written by WriteTokensIfUnmodified.
 	WrittenTokens map[int64]*stravatoken.Data
+	// DeleteErr is returned by DeleteTokens.
+	DeleteErr error
+	// DeletedAthleteIDs tracks which athlete IDs had tokens deleted.
+	DeletedAthleteIDs []int64
 }
 
 // GetTokens implements the TokenStore interface.
@@ -116,4 +120,10 @@ func (m *MockTokenStore) WriteTokensIfUnmodified(_ context.Context, athleteID in
 	}
 	m.WrittenTokens[athleteID] = tokens
 	return nil
+}
+
+// DeleteTokens implements the TokenStore interface.
+func (m *MockTokenStore) DeleteTokens(_ context.Context, athleteID int64) error {
+	m.DeletedAthleteIDs = append(m.DeletedAthleteIDs, athleteID)
+	return m.DeleteErr
 }

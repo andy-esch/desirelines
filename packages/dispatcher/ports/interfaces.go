@@ -41,6 +41,9 @@ type TokenStore interface {
 	// matches expectedLastRefreshed. Returns ErrTokenConflict if another
 	// goroutine has already refreshed the tokens (optimistic concurrency).
 	WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) error
+	// DeleteTokens removes all stored tokens for the given athlete.
+	// Returns nil if the tokens do not exist (idempotent).
+	DeleteTokens(ctx context.Context, athleteID int64) error
 }
 
 // StravaClient defines the outbound port for fetching activity data from the Strava API.

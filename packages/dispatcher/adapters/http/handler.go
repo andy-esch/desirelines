@@ -1,6 +1,7 @@
 package httpadapter
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -35,6 +36,7 @@ const (
 	ErrCodePublishFailed         = "PUBLISH_FAILED"
 	ErrCodeStravaFetchFailed     = "STRAVA_FETCH_FAILED"
 	ErrCodeInvalidChallenge      = "INVALID_CHALLENGE"
+	ErrCodeDeauthFailed          = "DEAUTH_FAILED"
 )
 
 // maxChallengeLength is the maximum allowed length for hub.challenge.
@@ -46,6 +48,7 @@ type Handler struct {
 	secretProvider     ports.SecretProvider
 	publisher          ports.Publisher
 	stravaClient       ports.StravaClient
+	tokenStore         ports.TokenStore
 	logger             *slog.Logger
 	rateLimiter        *ratelimit.Limiter
 	maxRequestBodySize int64
@@ -62,7 +65,7 @@ type HandlerConfig struct {
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
-func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, logger *slog.Logger, cfg *HandlerConfig) *Handler {
+func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, logger *slog.Logger, cfg *HandlerConfig) *Handler {
 	maxBodySize := config.DefaultMaxRequestBodySize
 	if cfg != nil && cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
@@ -79,6 +82,7 @@ func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, 
 		secretProvider:     secretProvider,
 		publisher:          publisher,
 		stravaClient:       stravaClient,
+		tokenStore:         tokenStore,
 		logger:             logger,
 		rateLimiter:        rateLimiter,
 		maxRequestBodySize: maxBodySize,
@@ -248,6 +252,12 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
+	// Handle athlete events (deauthorization) separately from activity events.
+	if webhook.ObjectType == generated.ObjectType_OBJECT_TYPE_ATHLETE {
+		h.handleAthleteEvent(r.Context(), w, r, webhook)
+		return
+	}
+
 	if webhook.ObjectType != generated.ObjectType_OBJECT_TYPE_ACTIVITY {
 		h.writeAcknowledged(w)
 		return
@@ -293,6 +303,45 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeSuccess(w)
+}
+
+// handleAthleteEvent processes athlete-type webhook events.
+// For deauthorization (aspect_type=delete), it deletes stored tokens and publishes the event.
+// Non-deauth athlete events are acknowledged without processing.
+func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent) {
+	if webhook.AspectType != generated.AspectType_ASPECT_TYPE_DELETE {
+		h.writeAcknowledged(w)
+		return
+	}
+
+	correlationID := chiMiddleware.GetReqID(ctx)
+	h.logger.Info("Athlete deauthorization received",
+		"owner_id", webhook.OwnerId,
+		"correlation_id", correlationID,
+	)
+
+	// Best-effort token deletion — the downstream deletion job will clean up on failure.
+	if deleteErr := h.tokenStore.DeleteTokens(ctx, webhook.OwnerId); deleteErr != nil {
+		h.logger.Warn("Failed to delete tokens during deauth (will be cleaned up by deletion job)",
+			"owner_id", webhook.OwnerId,
+			"error", deleteErr,
+		)
+	}
+
+	// Publish the deauth event so downstream consumers (e.g., deletion job) can act on it.
+	enriched := &generated.EnrichedEvent{Event: webhook}
+	if publishErr := h.publisher.Publish(ctx, enriched, correlationID); publishErr != nil {
+		apiErr := gcplog.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Failed to publish deauth event",
+			fmt.Sprintf("Publish failed: %v", publishErr),
+		)
+		apiErr.Code = ErrCodeDeauthFailed
+		gcplog.WriteError(w, r, apiErr, h.logger)
+		return
+	}
+
+	h.writeAcknowledged(w)
 }
 
 // webhookResponse is the JSON response for successful webhook processing.
