@@ -371,6 +371,10 @@ func (s *conflictTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64,
 	return ports.ErrTokenConflict
 }
 
+func (s *conflictTokenStore) DeleteTokens(_ context.Context, _ int64) error {
+	return nil
+}
+
 func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
 	// Custom server: token refresh returns "loser-token", but after the conflict
 	// the client re-reads and gets "winner-access" from the store, which succeeds.

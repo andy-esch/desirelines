@@ -177,6 +177,40 @@ func TestTokenStore_WriteIfUnmodified_PreservesOAuthFields(t *testing.T) {
 	}
 }
 
+func TestTokenStore_DeleteTokens(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	athleteID := int64(22222)
+
+	// Seed tokens, then delete them.
+	seedTokens(t, store, athleteID, &stravatoken.Data{
+		AccessToken:   "to-delete",
+		RefreshToken:  "to-delete",
+		ExpiresAt:     time.Now().Add(6 * time.Hour).Unix(),
+		LastRefreshed: time.Now().Truncate(time.Millisecond),
+	})
+
+	if err := store.DeleteTokens(ctx, athleteID); err != nil {
+		t.Fatalf("DeleteTokens() error = %v", err)
+	}
+
+	// Verify tokens are gone.
+	_, err := store.GetTokens(ctx, athleteID)
+	if err != ports.ErrTokenNotFound {
+		t.Errorf("expected ErrTokenNotFound after delete, got %v", err)
+	}
+}
+
+func TestTokenStore_DeleteTokens_NotFound(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Deleting non-existent tokens should not error (idempotent).
+	if err := store.DeleteTokens(ctx, 999998); err != nil {
+		t.Errorf("DeleteTokens() for non-existent athlete should return nil, got %v", err)
+	}
+}
+
 func TestTokenStore_WriteIfUnmodified_Conflict(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
