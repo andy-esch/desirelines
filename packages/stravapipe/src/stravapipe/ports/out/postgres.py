@@ -106,3 +106,18 @@ class ActivityRepository(ABC):
             True if deleted, False if not found
         """
         raise NotImplementedError
+
+    @abstractmethod
+    def delete_by_user(self, user_id: str) -> int:
+        """Delete all activities for a user.
+
+        Used for user deauthorization — hard delete of all user data.
+        activity_routes are cascade-deleted via FK (ON DELETE CASCADE).
+
+        Args:
+            user_id: Strava athlete ID (string)
+
+        Returns:
+            Count of deleted activity rows
+        """
+        raise NotImplementedError

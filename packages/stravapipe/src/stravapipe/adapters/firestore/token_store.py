@@ -170,6 +170,20 @@ class FirestoreTokenStore:
             )
             raise
 
+    def delete_tokens(self, athlete_id: str) -> None:
+        """Delete Strava tokens for the given athlete.
+
+        Idempotent — deleting a non-existent document is a no-op in Firestore.
+
+        Args:
+            athlete_id: Strava athlete ID (string)
+        """
+        self._tokens_ref(athlete_id).delete()
+        logger.info(
+            "Deleted tokens for athlete %s from Firestore",
+            athlete_id,
+        )
+
     def _tokens_ref(self, athlete_id: str):
         """Build Firestore document reference for an athlete's tokens."""
         return (

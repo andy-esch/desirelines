@@ -232,6 +232,38 @@ class TestWriteTokensIfUnmodified:
 
 
 # ============================================================
+# FirestoreTokenStore.delete_tokens
+# ============================================================
+
+
+class TestDeleteTokens:
+    def test_deletes_token_document(self, store, mock_firestore_client):
+        store.delete_tokens("12345")
+
+        _ref_mock(mock_firestore_client).delete.assert_called_once()
+
+    def test_uses_correct_firestore_path(self, store, mock_firestore_client):
+        store.delete_tokens("67890")
+
+        mock_firestore_client.collection.assert_called_with(USERS_COLLECTION)
+        mock_firestore_client.collection.return_value.document.assert_called_with(
+            "67890"
+        )
+        mock_firestore_client.collection.return_value.document.return_value.collection.assert_called_with(
+            PRIVATE_COLLECTION
+        )
+        mock_firestore_client.collection.return_value.document.return_value.collection.return_value.document.assert_called_with(
+            TOKENS_DOCUMENT
+        )
+
+    def test_idempotent_delete_non_existent(self, store, mock_firestore_client):
+        """Deleting non-existent tokens should not raise."""
+        store.delete_tokens("99999")
+
+        _ref_mock(mock_firestore_client).delete.assert_called_once()
+
+
+# ============================================================
 # TokenNotFoundError
 # ============================================================
 

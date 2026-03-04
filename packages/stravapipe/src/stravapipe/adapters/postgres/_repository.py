@@ -206,3 +206,21 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """)
         result = self._session.execute(query, {"activity_id": activity_id})
         return result.fetchone() is not None
+
+    def delete_by_user(self, user_id: str) -> int:
+        """Delete all activities for a user.
+
+        activity_routes are cascade-deleted via FK (ON DELETE CASCADE).
+
+        Args:
+            user_id: Strava athlete ID (string)
+
+        Returns:
+            Count of deleted activity rows
+        """
+        query = text("""
+            DELETE FROM desirelines.activities
+            WHERE user_id = :user_id
+        """)
+        result = self._session.execute(query, {"user_id": user_id})
+        return result.rowcount  # type: ignore[attr-defined]
