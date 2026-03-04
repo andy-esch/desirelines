@@ -130,7 +130,7 @@ func TestHandler_HandleVerification(t *testing.T) {
 			mockPublisher := &portstest.MockPublisher{}
 			mockStrava := &portstest.MockStravaClient{}
 
-			handler := NewHandler(mockPublisher, mockSecrets, mockStrava, &portstest.MockTokenStore{}, log, nil)
+			handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, mockSecrets, mockStrava, &portstest.MockTokenStore{}, log, nil)
 			router := handler.RegisterRoutes()
 
 			req := httptest.NewRequest(tt.method, "/webhook", nil)
@@ -353,19 +353,21 @@ func TestHandler_HandleEvent(t *testing.T) {
 }
 
 type handleEventTestCase struct {
-	name           string
-	method         string
-	contentType    string
-	payload        any
-	mockSubID      int32
-	mockSubErr     error
-	publishErr     error
-	stravaResult   []byte
-	stravaErr      error
-	mockTokenStore *portstest.MockTokenStore
-	expectedStatus int
-	expectedCode   string
-	expectedBody   string
+	name                string
+	method              string
+	contentType         string
+	payload             any
+	mockSubID           int32
+	mockSubErr          error
+	publishErr          error
+	deauthPublishErr    error
+	stravaResult        []byte
+	stravaErr           error
+	mockTokenStore      *portstest.MockTokenStore
+	mockDeauthPublisher *portstest.MockPublisher
+	expectedStatus      int
+	expectedCode        string
+	expectedBody        string
 }
 
 func mockTokenStoreOrDefault(ts *portstest.MockTokenStore) *portstest.MockTokenStore {
@@ -373,6 +375,13 @@ func mockTokenStoreOrDefault(ts *portstest.MockTokenStore) *portstest.MockTokenS
 		return ts
 	}
 	return &portstest.MockTokenStore{}
+}
+
+func mockDeauthPublisherOrDefault(pub *portstest.MockPublisher, publishErr error) *portstest.MockPublisher {
+	if pub != nil {
+		return pub
+	}
+	return &portstest.MockPublisher{PublishErr: publishErr}
 }
 
 func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
@@ -384,12 +393,13 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 	mockPublisher := &portstest.MockPublisher{
 		PublishErr: tt.publishErr,
 	}
+	mockDeauthPublisher := mockDeauthPublisherOrDefault(tt.mockDeauthPublisher, tt.deauthPublishErr)
 	mockStrava := &portstest.MockStravaClient{
 		FetchResult: tt.stravaResult,
 		FetchErr:    tt.stravaErr,
 	}
 
-	handler := NewHandler(mockPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), log, nil)
+	handler := NewHandler(mockPublisher, mockDeauthPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), log, nil)
 	router := handler.RegisterRoutes()
 
 	var body []byte
@@ -456,21 +466,27 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 		SubscriptionID: testSubscriptionID,
 	}
 
-	t.Run("Deauth delete deletes tokens and publishes event", func(t *testing.T) {
+	t.Run("Deauth delete deletes tokens and publishes to deauth topic", func(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
+		mockDeauth := &portstest.MockPublisher{}
 		tt := handleEventTestCase{
-			method:         "POST",
-			contentType:    "application/json",
-			payload:        deauthDeletePayload,
-			mockSubID:      testSubscriptionID,
-			mockTokenStore: mockTokens,
-			expectedStatus: http.StatusOK,
-			expectedBody:   "acknowledged",
+			method:              "POST",
+			contentType:         "application/json",
+			payload:             deauthDeletePayload,
+			mockSubID:           testSubscriptionID,
+			mockTokenStore:      mockTokens,
+			mockDeauthPublisher: mockDeauth,
+			expectedStatus:      http.StatusOK,
+			expectedBody:        "acknowledged",
 		}
 		runHandleEventTest(t, &tt)
 
 		if len(mockTokens.DeletedAthleteIDs) != 1 || mockTokens.DeletedAthleteIDs[0] != testOwnerID {
 			t.Errorf("expected DeleteTokens called with athlete %d, got %v", testOwnerID, mockTokens.DeletedAthleteIDs)
+		}
+		// Verify deauth event was published to deauth publisher, not activity publisher
+		if len(mockDeauth.Published) != 1 {
+			t.Errorf("expected 1 event published to deauth topic, got %d", len(mockDeauth.Published))
 		}
 	})
 
@@ -523,14 +539,14 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 	t.Run("Deauth with publish failure returns 500", func(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		tt := handleEventTestCase{
-			method:         "POST",
-			contentType:    "application/json",
-			payload:        deauthDeletePayload,
-			mockSubID:      testSubscriptionID,
-			mockTokenStore: mockTokens,
-			publishErr:     errors.New("pubsub unavailable"),
-			expectedStatus: http.StatusInternalServerError,
-			expectedCode:   "DEAUTH_FAILED",
+			method:           "POST",
+			contentType:      "application/json",
+			payload:          deauthDeletePayload,
+			mockSubID:        testSubscriptionID,
+			mockTokenStore:   mockTokens,
+			deauthPublishErr: errors.New("pubsub unavailable"),
+			expectedStatus:   http.StatusInternalServerError,
+			expectedCode:     "DEAUTH_FAILED",
 		}
 		runHandleEventTest(t, &tt)
 	})
@@ -568,7 +584,7 @@ func TestHandler_EnrichmentBehavior_Create(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{FetchResult: rawActivity}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, log, nil)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, log, nil)
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -615,7 +631,7 @@ func TestHandler_EnrichmentBehavior_Update(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, log, nil)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, log, nil)
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -656,7 +672,7 @@ func TestHandler_EnrichmentBehavior_Delete(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, log, nil)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, log, nil)
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -740,7 +756,7 @@ func TestNewHandler_WithConfig(t *testing.T) {
 // Test health endpoints
 func TestHandler_Health(t *testing.T) {
 	log := gcplog.NewNoOpLogger()
-	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockSecretProvider{}, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, log, nil)
+	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{}, &portstest.MockSecretProvider{}, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, log, nil)
 	router := handler.RegisterRoutes()
 
 	tests := []struct {

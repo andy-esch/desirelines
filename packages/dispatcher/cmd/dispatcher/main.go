@@ -132,6 +132,7 @@ func run(log *slog.Logger) error {
 // Dependencies holds all initialized dependencies for the dispatcher.
 type Dependencies struct {
 	publisher       *pubsub.Publisher
+	deauthPublisher *pubsub.Publisher
 	firestoreClient *firestore.Client
 	handler         *httpadapter.Handler
 	logger          *slog.Logger
@@ -143,6 +144,9 @@ func (d *Dependencies) Close() {
 	defer cancel()
 	if err := d.publisher.Close(closeCtx); err != nil {
 		d.logger.Error("Failed to close publisher", "error", err)
+	}
+	if err := d.deauthPublisher.Close(closeCtx); err != nil {
+		d.logger.Error("Failed to close deauth publisher", "error", err)
 	}
 	if err := d.firestoreClient.Close(); err != nil {
 		d.logger.Error("Failed to close Firestore client", "error", err)
@@ -189,6 +193,11 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 		return nil, fmt.Errorf("pubsub publisher: %w", err)
 	}
 
+	deauthPublisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubDeauthTopicID, log, pubsubHist)
+	if err != nil {
+		return nil, fmt.Errorf("pubsub deauth publisher: %w", err)
+	}
+
 	firestoreClient, err := firestore.NewClientWithDatabase(startupCtx, cfg.GCPProjectID, cfg.FirestoreDatabase)
 	if err != nil {
 		return nil, fmt.Errorf("firestore client: %w", err)
@@ -218,7 +227,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 		Burst: 10,
 	}, log)
 
-	handler := httpadapter.NewHandler(publisher, secretProvider, stravaClient, tokenStore, log, &httpadapter.HandlerConfig{
+	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, log, &httpadapter.HandlerConfig{
 		MaxRequestBodySize: cfg.MaxRequestBodySize,
 		RateLimiter:        rateLimiter,
 		WebhookCounter:     webhookCounter,
@@ -227,6 +236,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 
 	return &Dependencies{
 		publisher:       publisher,
+		deauthPublisher: deauthPublisher,
 		firestoreClient: firestoreClient,
 		handler:         handler,
 		logger:          log,
