@@ -9,6 +9,12 @@ import (
 
 // StravaWebhookJSON represents the raw JSON structure from Strava webhooks.
 // Strava sends string enums ("create", "activity") while proto uses int enums.
+//
+// Per https://developers.strava.com/docs/webhooks/:
+//   - object_type: "activity" or "athlete"
+//   - aspect_type: "create", "update", or "delete"
+//   - updates (activities): title, type, private
+//   - updates (athlete deauth): {"authorized":"false"}
 type StravaWebhookJSON struct {
 	AspectType     string            `json:"aspect_type"`
 	ObjectType     string            `json:"object_type"`
@@ -45,7 +51,9 @@ func ParseStravaWebhook(data []byte) (*pb.WebhookEvent, error) {
 		SubscriptionId: raw.SubscriptionID,
 	}
 
-	// Convert updates map to typed ActivityUpdates for activity update events
+	// Convert updates map to typed ActivityUpdates for activity update events.
+	// Athlete updates (e.g., deauth {"authorized":"false"}) are handled by the
+	// HTTP handler via raw body inspection since they have a different schema.
 	if objectType == pb.ObjectType_OBJECT_TYPE_ACTIVITY &&
 		aspectType == pb.AspectType_ASPECT_TYPE_UPDATE &&
 		len(raw.Updates) > 0 {

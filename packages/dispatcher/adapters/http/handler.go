@@ -171,6 +171,14 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleEvent processes incoming Strava webhook POST events.
+//
+// Strava webhook spec (https://developers.strava.com/docs/webhooks/):
+//   - object_type: "activity" or "athlete"
+//   - aspect_type: "create", "update", or "delete"
+//   - Activity updates contain: title, type, private
+//   - Athlete deauth contains: updates={"authorized":"false"}
+//   - Must respond 200 OK within 2 seconds; retried up to 3 total attempts on failure
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// Validate Content-Type header
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -254,7 +262,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Handle athlete events (deauthorization) separately from activity events.
 	if webhook.ObjectType == generated.ObjectType_OBJECT_TYPE_ATHLETE {
-		h.handleAthleteEvent(r.Context(), w, r, webhook)
+		h.handleAthleteEvent(r.Context(), w, r, webhook, bodyBytes)
 		return
 	}
 
@@ -275,7 +283,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 				h.logger.Warn("Activity not found in Strava, publishing without activity data",
 					"object_id", webhook.ObjectId)
 			} else {
-				// Other Strava errors - return 500 so Strava retries the webhook
+				// Other Strava errors — return 500 so Strava retries (up to 3 total attempts per spec)
 				apiErr := gcplog.NewAPIErrorWithLog(
 					http.StatusInternalServerError,
 					"Failed to fetch activity from Strava",
@@ -306,10 +314,32 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAthleteEvent processes athlete-type webhook events.
-// For deauthorization (aspect_type=delete), it deletes stored tokens and publishes the event.
-// Non-deauth athlete events are acknowledged without processing.
-func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent) {
-	if webhook.AspectType != generated.AspectType_ASPECT_TYPE_DELETE {
+//
+// Per Strava webhook docs (https://developers.strava.com/docs/webhooks/),
+// deauthorization is signaled via object_type=athlete with
+// updates={"authorized":"false"}. We also handle aspect_type=delete
+// defensively in case Strava sends that form.
+func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, body []byte) {
+	var isDeauth bool
+	switch webhook.AspectType {
+	case generated.AspectType_ASPECT_TYPE_DELETE:
+		isDeauth = true
+	case generated.AspectType_ASPECT_TYPE_UPDATE:
+		// The proto parser only handles activity updates, so inspect the raw JSON
+		// to detect the athlete deauthorization update payload.
+		var payload struct {
+			Updates map[string]string `json:"updates"`
+		}
+		if err := json.Unmarshal(body, &payload); err == nil {
+			if val, ok := payload.Updates["authorized"]; ok && val == "false" {
+				isDeauth = true
+			}
+		}
+	default:
+		// Non-deauth athlete events (e.g., create) are acknowledged.
+	}
+
+	if !isDeauth {
 		h.writeAcknowledged(w)
 		return
 	}
@@ -318,6 +348,7 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	h.logger.Info("Athlete deauthorization received",
 		"owner_id", webhook.OwnerId,
 		"correlation_id", correlationID,
+		"aspect_type", webhook.AspectType.String(),
 	)
 
 	// Best-effort token deletion — the downstream deletion job will clean up on failure.
@@ -351,6 +382,10 @@ type webhookResponse struct {
 }
 
 // writeSuccess returns 201 Created when a message is published to Pub/Sub.
+//
+// NOTE: Strava docs specify "200 OK" for acknowledgment. In practice Strava
+// accepts any 2xx, but if retries are observed this should be changed to 200.
+// We use 201 to distinguish "published to Pub/Sub" from "acknowledged but ignored".
 func (h *Handler) writeSuccess(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -359,8 +394,9 @@ func (h *Handler) writeSuccess(w http.ResponseWriter) {
 	}
 }
 
-// writeAcknowledged returns 200 OK when a webhook is received but no action is taken
-// (e.g., non-activity events that are intentionally ignored).
+// writeAcknowledged returns 200 OK per Strava's webhook spec requirement.
+// Used for events that are received but need no further processing
+// (e.g., non-deauth athlete events) and for successfully handled deauth events.
 func (h *Handler) writeAcknowledged(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

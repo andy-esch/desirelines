@@ -363,6 +363,7 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 		FetchResult: tt.stravaResult,
 		FetchErr:    tt.stravaErr,
 	}
+
 	handler := NewHandler(mockPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), log, nil)
 	router := handler.RegisterRoutes()
 
@@ -421,7 +422,7 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 }
 
 func TestHandler_AthleteDeauth(t *testing.T) {
-	deauthPayload := webhookproto.StravaWebhookJSON{
+	deauthDeletePayload := webhookproto.StravaWebhookJSON{
 		AspectType:     "delete",
 		EventTime:      testEventTime,
 		ObjectID:       testOwnerID,
@@ -430,13 +431,38 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 		SubscriptionID: testSubscriptionID,
 	}
 
-	t.Run("Deauth deletes tokens and publishes event", func(t *testing.T) {
+	t.Run("Deauth delete deletes tokens and publishes event", func(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		tt := handleEventTestCase{
-			name:           "Deauth deletes tokens and publishes event",
 			method:         "POST",
 			contentType:    "application/json",
-			payload:        deauthPayload,
+			payload:        deauthDeletePayload,
+			mockSubID:      testSubscriptionID,
+			mockTokenStore: mockTokens,
+			expectedStatus: http.StatusOK,
+			expectedBody:   "acknowledged",
+		}
+		runHandleEventTest(t, &tt)
+
+		if len(mockTokens.DeletedAthleteIDs) != 1 || mockTokens.DeletedAthleteIDs[0] != testOwnerID {
+			t.Errorf("expected DeleteTokens called with athlete %d, got %v", testOwnerID, mockTokens.DeletedAthleteIDs)
+		}
+	})
+
+	t.Run("Deauth update with authorized false deletes tokens and publishes", func(t *testing.T) {
+		mockTokens := &portstest.MockTokenStore{}
+		tt := handleEventTestCase{
+			method:      "POST",
+			contentType: "application/json",
+			payload: webhookproto.StravaWebhookJSON{
+				AspectType:     "update",
+				EventTime:      testEventTime,
+				ObjectID:       testOwnerID,
+				ObjectType:     "athlete",
+				OwnerID:        testOwnerID,
+				SubscriptionID: testSubscriptionID,
+				Updates:        map[string]string{"authorized": "false"},
+			},
 			mockSubID:      testSubscriptionID,
 			mockTokenStore: mockTokens,
 			expectedStatus: http.StatusOK,
@@ -454,10 +480,9 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 			DeleteErr: errors.New("firestore unavailable"),
 		}
 		tt := handleEventTestCase{
-			name:           "Deauth with token deletion failure",
 			method:         "POST",
 			contentType:    "application/json",
-			payload:        deauthPayload,
+			payload:        deauthDeletePayload,
 			mockSubID:      testSubscriptionID,
 			mockTokenStore: mockTokens,
 			expectedStatus: http.StatusOK,
@@ -465,7 +490,6 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 		}
 		runHandleEventTest(t, &tt)
 
-		// Token deletion was attempted even though it failed.
 		if len(mockTokens.DeletedAthleteIDs) != 1 {
 			t.Errorf("expected DeleteTokens to be called, got %v", mockTokens.DeletedAthleteIDs)
 		}
@@ -474,10 +498,9 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 	t.Run("Deauth with publish failure returns 500", func(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		tt := handleEventTestCase{
-			name:           "Deauth with publish failure",
 			method:         "POST",
 			contentType:    "application/json",
-			payload:        deauthPayload,
+			payload:        deauthDeletePayload,
 			mockSubID:      testSubscriptionID,
 			mockTokenStore: mockTokens,
 			publishErr:     errors.New("pubsub unavailable"),
@@ -490,7 +513,6 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 	t.Run("Non-deauth athlete event is acknowledged without processing", func(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		tt := handleEventTestCase{
-			name:        "Non-deauth athlete event",
 			method:      "POST",
 			contentType: "application/json",
 			payload: webhookproto.StravaWebhookJSON{
@@ -500,6 +522,7 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 				ObjectType:     "athlete",
 				OwnerID:        testOwnerID,
 				SubscriptionID: testSubscriptionID,
+				Updates:        map[string]string{"profile": "updated"},
 			},
 			mockSubID:      testSubscriptionID,
 			mockTokenStore: mockTokens,
@@ -508,7 +531,6 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 		}
 		runHandleEventTest(t, &tt)
 
-		// No token deletion should occur for non-deauth athlete events.
 		if len(mockTokens.DeletedAthleteIDs) != 0 {
 			t.Errorf("expected no DeleteTokens calls, got %v", mockTokens.DeletedAthleteIDs)
 		}
