@@ -10,6 +10,7 @@ with a simpler flow: parse event → extract owner_id → delete from all stores
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+import uuid
 
 from fastapi import FastAPI, HTTPException, Request
 from google.cloud import bigquery
@@ -150,7 +151,6 @@ async def handle_deauth_event(request: Request):
     one fails — all deletions are idempotent, so retries are safe.
     If any deletion fails, raises 500 to trigger Pub/Sub retry.
     """
-    import uuid
 
     correlation_id = str(uuid.uuid4())
 

@@ -72,6 +72,11 @@ resource "google_cloud_run_v2_service" "dispatcher" {
       }
 
       env {
+        name  = "GCP_PUBSUB_DEAUTH_TOPIC"
+        value = google_pubsub_topic.deauth_events.name
+      }
+
+      env {
         name  = "ENVIRONMENT"
         value = var.environment
       }
@@ -615,6 +620,110 @@ resource "google_cloud_run_v2_job" "backfill" {
 }
 
 # ==============================================================================
+# Deletion Service - Cloud Run Service (Python/FastAPI)
+# ==============================================================================
+# Receives deauth events from deauth_events Pub/Sub topic and deletes all user
+# data from PostgreSQL, BigQuery, and Firestore.
+
+resource "google_cloud_run_v2_service" "deletion_service" {
+  name     = "${var.project_name}-deletion-service"
+  location = var.gcp_region
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Only Pub/Sub push can call this
+
+  labels = local.common_labels
+
+  template {
+    service_account = google_service_account.deletion_service.email
+
+    scaling {
+      max_instance_count = 1
+      min_instance_count = 0
+    }
+
+    containers {
+      image = "${local.image_base_url}/stravapipe:${var.deployment_version}"
+
+      command = ["uvicorn"]
+      args    = ["stravapipe.cloudrun.deletion_service_app:app", "--host", "0.0.0.0", "--port", "8080"]
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "256Mi"
+        }
+        cpu_idle          = true
+        startup_cpu_boost = true
+      }
+
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.gcp_project_id
+      }
+
+      env {
+        name  = "GCP_BIGQUERY_DATASET"
+        value = google_bigquery_dataset.activities_dataset.dataset_id
+      }
+
+      env {
+        name  = "FIRESTORE_DATABASE"
+        value = google_firestore_database.user_configs.name
+      }
+
+      env {
+        name  = "LOG_LEVEL"
+        value = var.app_config.log_level
+      }
+
+      env {
+        name  = "ENABLE_OTEL_METRICS"
+        value = "true"
+      }
+
+      startup_probe {
+        http_get {
+          path = "/health"
+        }
+        initial_delay_seconds = 10
+        period_seconds        = 5
+        failure_threshold     = 10
+      }
+
+      # Mount PostgreSQL writer secret (same connection string as postgres_writer)
+      volume_mounts {
+        name       = "infisical-postgres-conn-writer"
+        mount_path = "/etc/secrets/INFISICAL_POSTGRES_CONN_WRITER"
+      }
+    }
+
+    volumes {
+      name = "infisical-postgres-conn-writer"
+      secret {
+        secret       = google_secret_manager_secret.postgres_conn_writer.secret_id
+        default_mode = 292 # 0444 in octal (read-only)
+        items {
+          version = "latest"
+          path    = "value"
+          mode    = 292 # 0444
+        }
+      }
+    }
+
+    timeout = "60s"
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+
+  depends_on = [
+    google_secret_manager_secret_iam_member.deletion_service_postgres_access,
+    google_project_iam_member.deletion_service_firestore,
+  ]
+}
+
+# ==============================================================================
 # IAM Bindings for Pub/Sub Push → Cloud Run Invocation
 # ==============================================================================
 # Push subscriptions use OIDC tokens signed by service accounts to authenticate.
@@ -630,6 +739,16 @@ resource "google_cloud_run_v2_service_iam_member" "bq_inserter_eventarc_invoker"
   name     = google_cloud_run_v2_service.bq_inserter.name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.bq_inserter.email}"
+}
+
+# Allow Deletion Service's service account to invoke the Cloud Run service
+# (used by Pub/Sub push subscription OIDC authentication)
+resource "google_cloud_run_v2_service_iam_member" "deletion_service_invoker" {
+  project  = var.gcp_project_id
+  location = var.gcp_region
+  name     = google_cloud_run_v2_service.deletion_service.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.deletion_service.email}"
 }
 
 # Allow PostgreSQL Writer's service account to invoke the Cloud Run service
