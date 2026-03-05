@@ -329,10 +329,10 @@ For rapid iteration:
 
 ```bash
 # Only test what you're working on
-pants test packages/stravapipe/tests/services/test_my_change.py
+pants test packages/stravapipe/tests/unit/config/test_common.py
 
 # Only lint specific files
-pants lint packages/stravapipe/src/stravapipe/services/my_file.py
+pants lint packages/stravapipe/src/stravapipe/config/bq_inserter.py
 ```
 
 ## Branch Protection Rules

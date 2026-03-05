@@ -1,6 +1,2 @@
-# Complete platform definitions for cross-platform builds
-
-resource(
-    name="cloud-functions-python312-x86_64",
-    source="cloud-functions-python312-x86_64.json",
-)
+# Build support files for Pants
+# constraints.txt is referenced by pants.toml [python.resolves_to_constraints_file]
