@@ -71,6 +71,7 @@ schemas/
 ```
 
 **Data Flow**:
+
 - Activities: Strava webhook → dispatcher → PubSub (`activity_events`) → bq-inserter + postgres-writer → BigQuery/PostgreSQL → apigateway → web
 - Deauth: Strava webhook → dispatcher → PubSub (`deauth_events`) → deletion-service → deletes from PostgreSQL, BigQuery, Firestore
 

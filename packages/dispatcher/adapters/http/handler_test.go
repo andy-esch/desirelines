@@ -715,7 +715,7 @@ func TestNewHandler_WithConfig(t *testing.T) {
 
 	// Create handler with a very small MaxRequestBodySize
 	cfg := &HandlerConfig{MaxRequestBodySize: 512}
-	handler := NewHandler(mockPublisher, mockSecrets, mockStrava, mockTokens, log, cfg)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, mockSecrets, mockStrava, mockTokens, log, cfg)
 	router := handler.RegisterRoutes()
 
 	// Build a valid JSON payload that exceeds 512 bytes
