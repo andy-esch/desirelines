@@ -105,9 +105,7 @@ class BQUserDeletionService:
         DELETE FROM {self._table("activities")}
         WHERE CAST(athlete.id AS STRING) = @user_id
         """
-        delete_config = bigquery.QueryJobConfig(
-            query_parameters=[user_id_param]
-        )
+        delete_config = bigquery.QueryJobConfig(query_parameters=[user_id_param])
         del_job = self.bq_client.query(delete_activities, job_config=delete_config)
         del_job.result()
         activities_deleted = del_job.num_dml_affected_rows or 0
@@ -117,9 +115,7 @@ class BQUserDeletionService:
         DELETE FROM {self._table("activities_staging")}
         WHERE CAST(athlete.id AS STRING) = @user_id
         """
-        staging_config = bigquery.QueryJobConfig(
-            query_parameters=[user_id_param]
-        )
+        staging_config = bigquery.QueryJobConfig(query_parameters=[user_id_param])
         staging_job = self.bq_client.query(delete_staging, job_config=staging_config)
         staging_job.result()
         staging_deleted = staging_job.num_dml_affected_rows or 0
