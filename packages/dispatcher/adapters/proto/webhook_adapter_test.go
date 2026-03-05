@@ -332,6 +332,39 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "missing owner_id",
+			event: &pb.WebhookEvent{
+				AspectType:     pb.AspectType_ASPECT_TYPE_CREATE,
+				ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
+				ObjectId:       12345,
+				EventTime:      1704067200,
+				SubscriptionId: 999,
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing subscription_id",
+			event: &pb.WebhookEvent{
+				AspectType: pb.AspectType_ASPECT_TYPE_CREATE,
+				ObjectType: pb.ObjectType_OBJECT_TYPE_ACTIVITY,
+				ObjectId:   12345,
+				OwnerId:    67890,
+				EventTime:  1704067200,
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing event_time",
+			event: &pb.WebhookEvent{
+				AspectType:     pb.AspectType_ASPECT_TYPE_CREATE,
+				ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
+				ObjectId:       12345,
+				OwnerId:        67890,
+				SubscriptionId: 999,
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -642,6 +675,27 @@ func verifyRoundtrip(t *testing.T, event *pb.WebhookEvent) {
 	}
 	if reparsed.ObjectId != event.ObjectId {
 		t.Errorf("roundtrip object_id mismatch: %d vs %d", reparsed.ObjectId, event.ObjectId)
+	}
+}
+
+func TestAspectTypeToString_Unspecified(t *testing.T) {
+	result := AspectTypeToString(pb.AspectType_ASPECT_TYPE_UNSPECIFIED)
+	if result != "" {
+		t.Errorf("AspectTypeToString(UNSPECIFIED) = %q, want %q", result, "")
+	}
+}
+
+func TestObjectTypeToString_Unspecified(t *testing.T) {
+	result := ObjectTypeToString(pb.ObjectType_OBJECT_TYPE_UNSPECIFIED)
+	if result != "" {
+		t.Errorf("ObjectTypeToString(UNSPECIFIED) = %q, want %q", result, "")
+	}
+}
+
+func TestActivityUpdatesToMap_EmptyStruct(t *testing.T) {
+	result := activityUpdatesToMap(&pb.ActivityUpdates{})
+	if result != nil {
+		t.Errorf("activityUpdatesToMap(empty) = %v, want nil", result)
 	}
 }
 

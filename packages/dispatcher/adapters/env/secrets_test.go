@@ -198,32 +198,136 @@ func TestSecretCache_EnvOverridesAfterFilesMissing(t *testing.T) {
 }
 
 func TestSecretCache_InvalidSubscriptionID(t *testing.T) {
-	tempDir, createErr := os.MkdirTemp("", "secret_cache_test")
-	if createErr != nil {
-		t.Fatalf("Failed to create temp dir: %v", createErr)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	verifyTokenPath := filepath.Join(tempDir, "VERIFY_TOKEN")
-	subscriptionIDPath := filepath.Join(tempDir, "SUBSCRIPTION_ID")
-
-	if writeErr := os.WriteFile(verifyTokenPath, []byte("token"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write verify token: %v", writeErr)
-	}
-	if writeErr := os.WriteFile(subscriptionIDPath, []byte("not-a-number"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write subscription id: %v", writeErr)
-	}
+	tokenPath, subIDPath, cleanup := setupTempSecrets(t, "token", "not-a-number")
+	defer cleanup()
 
 	log := gcplog.NewNoOpLogger()
-	cache := env.NewSecretCache(verifyTokenPath, subscriptionIDPath, time.Minute, log)
+	cache := env.NewSecretCache(tokenPath, subIDPath, time.Minute, log)
 
 	_, _, err := cache.GetSecrets()
 	if err == nil {
 		t.Errorf("Expected error for invalid subscription ID integer, got nil")
+	}
+}
+
+func TestSecretCache_LoadSecretsFromEnv_Success(t *testing.T) {
+	// Use /dev/null/invalid paths so hashFiles fails with ENOTDIR (not ENOENT),
+	// which triggers the loadSecretsFromEnv fallback in GetSecrets.
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "env-token-direct")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "77777")
+
+	log := gcplog.NewNoOpLogger()
+	cache := env.NewSecretCache("/dev/null/invalid_token", "/dev/null/invalid_sub", time.Minute, log)
+
+	token, subID, err := cache.GetSecrets()
+	if err != nil {
+		t.Fatalf("Expected loadSecretsFromEnv to succeed, got error: %v", err)
+	}
+	const expectedDirectToken = "env-token-direct" //nolint:gosec // Test constant, not a credential
+	if token != expectedDirectToken {
+		t.Errorf("Expected token '%s', got '%s'", expectedDirectToken, token)
+	}
+	if subID != 77777 {
+		t.Errorf("Expected subscription ID 77777, got %d", subID)
+	}
+}
+
+func TestSecretCache_LoadSecretsFromEnv_InvalidSubID(t *testing.T) {
+	// hashFiles fails (ENOTDIR), no cache, env has non-numeric subscription ID.
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "some-token")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "not-a-number")
+
+	log := gcplog.NewNoOpLogger()
+	cache := env.NewSecretCache("/dev/null/invalid_token", "/dev/null/invalid_sub", time.Minute, log)
+
+	_, _, err := cache.GetSecrets()
+	if err == nil {
+		t.Fatal("Expected error for non-numeric subscription ID from env, got nil")
+	}
+}
+
+func TestSecretCache_LoadSecretsFromEnv_MissingSubID(t *testing.T) {
+	// hashFiles fails (ENOTDIR), no cache, STRAVA_WEBHOOK_SUBSCRIPTION_ID not set.
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "some-token")
+	// Set to empty string to simulate unset (GetEnvOrDefault treats "" as unset)
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
+
+	log := gcplog.NewNoOpLogger()
+	cache := env.NewSecretCache("/dev/null/invalid_token", "/dev/null/invalid_sub", time.Minute, log)
+
+	_, _, err := cache.GetSecrets()
+	if err == nil {
+		t.Fatal("Expected error when subscription ID is missing from env, got nil")
+	}
+}
+
+func TestSecretCache_HashFailsNoCacheFallbackToEnvFails(t *testing.T) {
+	// First call: hashFiles fails, no cached values, env vars not set -> error.
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
+
+	log := gcplog.NewNoOpLogger()
+	cache := env.NewSecretCache("/dev/null/invalid_token", "/dev/null/invalid_sub", time.Minute, log)
+
+	_, _, err := cache.GetSecrets()
+	if err == nil {
+		t.Fatal("Expected error when hash fails and env vars are missing, got nil")
+	}
+}
+
+func TestSecretCache_ContentChangedButReloadFails_UsesCached(t *testing.T) {
+	// Clear env so that loadSecrets env fallback fails when files become invalid.
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
+
+	tokenPath, subIDPath, cleanup := setupTempSecrets(t, "good-token", "42")
+	defer cleanup()
+
+	log := gcplog.NewNoOpLogger()
+	cache := env.NewSecretCache(tokenPath, subIDPath, 100*time.Millisecond, log)
+
+	// Initial load succeeds from files.
+	token, subID, err := cache.GetSecrets()
+	if err != nil {
+		t.Fatalf("Expected initial load to succeed, got %v", err)
+	}
+	if token != "good-token" || subID != 42 {
+		t.Fatalf("Initial values wrong: token=%s, id=%d", token, subID)
+	}
+
+	// Corrupt the subscription ID file so loadSecrets fails on reload.
+	if writeErr := os.WriteFile(subIDPath, []byte("not-a-number"), 0o600); writeErr != nil {
+		t.Fatalf("Failed to corrupt subscription id file: %v", writeErr)
+	}
+
+	// Wait for TTL to expire.
+	time.Sleep(150 * time.Millisecond)
+
+	// Content hash changed (file was modified), loadSecrets fails, but cached values exist.
+	// Should log Warn and return cached values.
+	token, subID, err = cache.GetSecrets()
+	if err != nil {
+		t.Fatalf("Expected cached fallback, got error: %v", err)
+	}
+	if token != "good-token" {
+		t.Errorf("Expected cached token 'good-token', got '%s'", token)
+	}
+	if subID != 42 {
+		t.Errorf("Expected cached subscription ID 42, got %d", subID)
+	}
+}
+
+func TestSecretCache_SubscriptionIDOutOfRange(t *testing.T) {
+	// Value exceeds math.MaxInt32 (2147483647)
+	tokenPath, subIDPath, cleanup := setupTempSecrets(t, "token", "2147483648")
+	defer cleanup()
+
+	log := gcplog.NewNoOpLogger()
+	cache := env.NewSecretCache(tokenPath, subIDPath, time.Minute, log)
+
+	_, _, err := cache.GetSecrets()
+	if err == nil {
+		t.Fatal("Expected error for subscription ID > MaxInt32, got nil")
 	}
 }
 
@@ -232,25 +336,8 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
 	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
 
-	tempDir, createErr := os.MkdirTemp("", "secret_cache_test")
-	if createErr != nil {
-		t.Fatalf("Failed to create temp dir: %v", createErr)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	tokenPath := filepath.Join(tempDir, "TOKEN")
-	subPath := filepath.Join(tempDir, "SUB")
-
-	if writeErr := os.WriteFile(tokenPath, []byte("cached-token"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write token: %v", writeErr)
-	}
-	if writeErr := os.WriteFile(subPath, []byte("11111"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write subscription id: %v", writeErr)
-	}
+	tokenPath, subPath, cleanup := setupTempSecrets(t, "cached-token", "11111")
+	defer cleanup()
 
 	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache(tokenPath, subPath, 100*time.Millisecond, log)

@@ -318,6 +318,22 @@ func TestHandler_HandleEvent(t *testing.T) {
 			expectedCode:   "READ_FAILED",
 		},
 		{
+			name:        "Validation failure (event_time=0)",
+			method:      "POST",
+			contentType: "application/json",
+			payload: webhookproto.StravaWebhookJSON{
+				AspectType:     "create",
+				EventTime:      0, // Passes parse but fails Validate
+				ObjectID:       testObjectID,
+				ObjectType:     "activity",
+				OwnerID:        testOwnerID,
+				SubscriptionID: testSubscriptionID,
+			},
+			mockSubID:      testSubscriptionID,
+			expectedStatus: http.StatusBadRequest,
+			expectedCode:   "VALIDATION_FAILED",
+		},
+		{
 			name:           "Strava 404 publishes without activity data",
 			method:         "POST",
 			contentType:    "application/json",
@@ -674,6 +690,53 @@ func TestHandler_EnrichmentBehavior_Delete(t *testing.T) {
 	}
 }
 
+func TestNewHandler_WithConfig(t *testing.T) {
+	log := gcplog.NewNoOpLogger()
+	mockPublisher := &portstest.MockPublisher{}
+	mockSecrets := &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}
+	mockStrava := &portstest.MockStravaClient{}
+	mockTokens := &portstest.MockTokenStore{}
+
+	// Create handler with a very small MaxRequestBodySize
+	cfg := &HandlerConfig{MaxRequestBodySize: 512}
+	handler := NewHandler(mockPublisher, mockSecrets, mockStrava, mockTokens, log, cfg)
+	router := handler.RegisterRoutes()
+
+	// Build a valid JSON payload that exceeds 512 bytes
+	payload := webhookproto.StravaWebhookJSON{
+		AspectType:     "create",
+		EventTime:      testEventTime,
+		ObjectID:       testObjectID,
+		ObjectType:     "activity",
+		OwnerID:        testOwnerID,
+		SubscriptionID: testSubscriptionID,
+		Updates:        map[string]string{"padding": strings.Repeat("x", 600)},
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Failed to marshal payload: %v", err)
+	}
+	if int64(len(body)) <= 512 {
+		t.Fatalf("Test payload must exceed 512 bytes, got %d", len(body))
+	}
+
+	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d (body: %s)", http.StatusBadRequest, w.Code, w.Body.String())
+	}
+	errResp := parseErrorResponse(w.Body.String())
+	if errResp == nil {
+		t.Fatalf("expected JSON error response, got non-JSON: %q", w.Body.String())
+	}
+	if errResp.Code != ErrCodeReadFailed {
+		t.Errorf("expected error code %q, got %q", ErrCodeReadFailed, errResp.Code)
+	}
+}
+
 // Test health endpoints
 func TestHandler_Health(t *testing.T) {
 	log := gcplog.NewNoOpLogger()
@@ -697,6 +760,12 @@ func TestHandler_Health(t *testing.T) {
 			method:         "GET",
 			path:           "/health",
 			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "GET / returns 405 (only HEAD is registered)",
+			method:         "GET",
+			path:           "/",
+			expectedStatus: http.StatusMethodNotAllowed,
 		},
 	}
 

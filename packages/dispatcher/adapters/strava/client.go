@@ -43,6 +43,10 @@ const (
 	activityRetryAttempts = 3
 	activityRetryBackoff  = 1 * time.Second
 
+	// maxRetryBackoff caps exponential backoff to prevent excessive waits
+	// if retry attempt counts are ever increased.
+	maxRetryBackoff = 10 * time.Second
+
 	// httpClientTimeout is the timeout for individual HTTP requests to the Strava API.
 	httpClientTimeout = 10 * time.Second
 
@@ -146,7 +150,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 
 		lastErr = fetchErr
 		if attempt < activityRetryAttempts-1 {
-			backoff := activityRetryBackoff * time.Duration(math.Pow(2, float64(attempt)))
+			backoff := min(activityRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
 			c.logger.Warn("Strava fetch retry",
 				"activity_id", activityID,
 				"attempt", attempt+1,
@@ -243,7 +247,7 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 		}
 		lastErr = err
 		if attempt < tokenRetryAttempts-1 {
-			backoff := tokenRetryBackoff * time.Duration(math.Pow(2, float64(attempt)))
+			backoff := min(tokenRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
 			c.logger.Warn("Token refresh retry",
 				"attempt", attempt+1,
 				"backoff", backoff,
