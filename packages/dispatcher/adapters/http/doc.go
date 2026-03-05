@@ -5,7 +5,7 @@
 //
 // # Basic Usage
 //
-//	handler := httpadapter.NewHandler(publisher, secretProvider, logger, &httpadapter.HandlerConfig{
+//	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, logger, &httpadapter.HandlerConfig{
 //	    MaxRequestBodySize: 1 << 20, // 1MB
 //	})
 //	router := handler.RegisterRoutes()

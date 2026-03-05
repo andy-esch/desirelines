@@ -184,8 +184,19 @@ resource "google_pubsub_topic" "activity_events" {
   depends_on = [google_project_service.required_apis]
 }
 
-# Eventarc-created subscriptions are managed at the root module level
-# to configure dead letter queues. See the environment-specific main.tf files.
+# PubSub Topic for deauth events (user disconnects from Strava)
+# Separate from activity_events so deauth events route to the deletion service
+# instead of bq_inserter/postgres_writer which only handle activities.
+resource "google_pubsub_topic" "deauth_events" {
+  name = "${var.project_name}_deauth_events"
+
+  labels = local.common_labels
+
+  # Message retention for 7 days
+  message_retention_duration = "604800s"
+
+  depends_on = [google_project_service.required_apis]
+}
 
 # Dead letter topic for failed messages
 resource "google_pubsub_topic" "dead_letter" {
@@ -223,6 +234,7 @@ resource "google_pubsub_subscription_iam_member" "dlq_subscriber" {
   for_each = toset([
     google_pubsub_subscription.bq_inserter.name,
     google_pubsub_subscription.postgres_writer.name,
+    google_pubsub_subscription.deletion_service.name,
   ])
 
   subscription = each.value
@@ -256,6 +268,12 @@ resource "google_service_account" "postgres_writer" {
   account_id   = "postgres-writer"
   display_name = "Desirelines PostgreSQL Writer (${title(var.environment)})"
   description  = "Service account for PostgreSQL writer function in ${var.environment} environment"
+}
+
+resource "google_service_account" "deletion_service" {
+  account_id   = "deletion-service"
+  display_name = "Desirelines Deletion Service (${title(var.environment)})"
+  description  = "Service account for user data deletion service in ${var.environment} environment"
 }
 
 resource "google_service_account" "backfill" {
@@ -313,6 +331,13 @@ resource "google_service_account_iam_member" "infisical_cloud_impersonation" {
 # Flow: Strava webhook → Dispatcher → PubSub → BQ Inserter / Postgres Writer
 resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   topic  = google_pubsub_topic.activity_events.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.dispatcher.email}"
+}
+
+# Dispatcher publishes deauth events to the deauth_events topic
+resource "google_pubsub_topic_iam_member" "dispatcher_deauth_publisher" {
+  topic  = google_pubsub_topic.deauth_events.name
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:${google_service_account.dispatcher.email}"
 }
@@ -633,6 +658,49 @@ resource "google_secret_manager_secret_iam_member" "postgres_writer_postgres_acc
   secret_id = google_secret_manager_secret.postgres_conn_writer.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.postgres_writer.email}"
+}
+
+# ==============================================================================
+# Deletion Service IAM
+# ==============================================================================
+# Deletion service needs: Firestore (delete user docs), PostgreSQL (delete activities),
+# BigQuery (archive + delete), and Firebase Auth (delete user).
+
+# Deletion service needs Firestore access to delete user documents
+resource "google_project_iam_member" "deletion_service_firestore" {
+  project = var.gcp_project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.deletion_service.email}"
+}
+
+# Deletion service needs BigQuery dataEditor for DML DELETE operations
+resource "google_bigquery_dataset_iam_member" "deletion_service_data_editor" {
+  dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.deletion_service.email}"
+}
+
+# Deletion service needs BigQuery jobUser to run DML queries
+resource "google_project_iam_member" "deletion_service_bigquery_job_user" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.deletion_service.email}"
+}
+
+# Deletion service access to PostgreSQL writer connection string
+resource "google_secret_manager_secret_iam_member" "deletion_service_postgres_access" {
+  project   = var.gcp_project_id
+  secret_id = google_secret_manager_secret.postgres_conn_writer.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.deletion_service.email}"
+}
+
+# Developer impersonation for deletion service
+resource "google_service_account_iam_member" "deletion_service_impersonation" {
+  count              = var.developer_email != null ? 1 : 0
+  service_account_id = google_service_account.deletion_service.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "user:${var.developer_email}"
 }
 
 # ==============================================================================

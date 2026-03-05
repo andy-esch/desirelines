@@ -24,13 +24,14 @@ const (
 // Secrets (verify token, subscription ID) are handled by SecretCache,
 // which provides TTL-based caching and hot-reload support.
 type Config struct {
-	GCPProjectID       string
-	GCPPubSubTopicID   string
-	FirestoreDatabase  string
-	ReadTimeout        time.Duration
-	WriteTimeout       time.Duration
-	ReadHeaderTimeout  time.Duration
-	MaxRequestBodySize int64
+	GCPProjectID           string
+	GCPPubSubTopicID       string
+	GCPPubSubDeauthTopicID string
+	FirestoreDatabase      string
+	ReadTimeout            time.Duration
+	WriteTimeout           time.Duration
+	ReadHeaderTimeout      time.Duration
+	MaxRequestBodySize     int64
 }
 
 // LoadConfig loads non-secret configuration from environment variables.
@@ -46,6 +47,11 @@ func LoadConfig() (*Config, error) {
 	gcpPubSubTopicID := os.Getenv("GCP_PUBSUB_TOPIC")
 	if gcpPubSubTopicID == "" {
 		return nil, fmt.Errorf("required environment variable GCP_PUBSUB_TOPIC is not set")
+	}
+
+	gcpPubSubDeauthTopicID := os.Getenv("GCP_PUBSUB_DEAUTH_TOPIC")
+	if gcpPubSubDeauthTopicID == "" {
+		return nil, fmt.Errorf("required environment variable GCP_PUBSUB_DEAUTH_TOPIC is not set")
 	}
 
 	firestoreDatabase := os.Getenv("FIRESTORE_DATABASE")
@@ -74,13 +80,14 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return &Config{
-		GCPProjectID:       gcpProjectID,
-		GCPPubSubTopicID:   gcpPubSubTopicID,
-		FirestoreDatabase:  firestoreDatabase,
-		ReadTimeout:        readTimeout,
-		WriteTimeout:       writeTimeout,
-		ReadHeaderTimeout:  readHeaderTimeout,
-		MaxRequestBodySize: maxBodySize,
+		GCPProjectID:           gcpProjectID,
+		GCPPubSubTopicID:       gcpPubSubTopicID,
+		GCPPubSubDeauthTopicID: gcpPubSubDeauthTopicID,
+		FirestoreDatabase:      firestoreDatabase,
+		ReadTimeout:            readTimeout,
+		WriteTimeout:           writeTimeout,
+		ReadHeaderTimeout:      readHeaderTimeout,
+		MaxRequestBodySize:     maxBodySize,
 	}, nil
 }
 

@@ -117,6 +117,56 @@ resource "google_pubsub_subscription" "postgres_writer" {
   ]
 }
 
+# ------------------------------------------------------------------------------
+# Deletion Service Push Subscription (deauth_events topic)
+# ------------------------------------------------------------------------------
+resource "google_pubsub_subscription" "deletion_service" {
+  name  = "${var.project_name}-deletion-service-${var.environment}"
+  topic = google_pubsub_topic.deauth_events.name
+
+  # Push to Cloud Run service with CloudEvents format
+  push_config {
+    push_endpoint = "${google_cloud_run_v2_service.deletion_service.uri}?__GCP_CloudEventsMode=CUSTOM_PUBSUB_${google_pubsub_topic.deauth_events.id}"
+
+    oidc_token {
+      service_account_email = google_service_account.deletion_service.email
+      audience              = google_cloud_run_v2_service.deletion_service.uri
+    }
+
+    attributes = {
+      x-goog-version = "v1"
+    }
+  }
+
+  # Dead letter policy - failed messages go to DLQ after max attempts
+  dead_letter_policy {
+    dead_letter_topic     = google_pubsub_topic.dead_letter.id
+    max_delivery_attempts = 5
+  }
+
+  # Retry policy with exponential backoff
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+
+  # Long ack deadline for multi-store deletion operations
+  ack_deadline_seconds = 600
+
+  # Retain messages for 7 days (matches topic retention)
+  message_retention_duration = "604800s"
+
+  labels = merge(local.common_labels, {
+    service = "deletion-service"
+    type    = "push-subscription"
+  })
+
+  depends_on = [
+    google_cloud_run_v2_service.deletion_service,
+    google_project_service.required_apis
+  ]
+}
+
 # ==============================================================================
 # IAM: Allow Pub/Sub to invoke Cloud Run services
 # ==============================================================================
@@ -172,15 +222,34 @@ resource "google_pubsub_subscription" "postgres_writer_dlq" {
   depends_on = [google_project_service.required_apis]
 }
 
+resource "google_pubsub_subscription" "deletion_service_dlq" {
+  name  = "${var.project_name}-deletion-service-dlq-${var.environment}"
+  topic = google_pubsub_topic.dead_letter.name
+
+  # Long retention for debugging failed deletions
+  message_retention_duration = "1209600s" # 14 days
+  ack_deadline_seconds       = 600
+
+  labels = merge(local.common_labels, {
+    purpose = "dead-letter-queue"
+    service = "deletion-service"
+    type    = "dlq-monitoring"
+  })
+
+  depends_on = [google_project_service.required_apis]
+}
+
 # ==============================================================================
 # Outputs for subscription names (useful for CLI commands and debugging)
 # ==============================================================================
 output "pubsub_subscription_names" {
-  description = "Names of Pub/Sub subscriptions for activity processing"
+  description = "Names of Pub/Sub subscriptions for event processing"
   value = {
-    bq_inserter         = google_pubsub_subscription.bq_inserter.name
-    postgres_writer     = google_pubsub_subscription.postgres_writer.name
-    bq_inserter_dlq     = google_pubsub_subscription.bq_inserter_dlq.name
-    postgres_writer_dlq = google_pubsub_subscription.postgres_writer_dlq.name
+    bq_inserter          = google_pubsub_subscription.bq_inserter.name
+    postgres_writer      = google_pubsub_subscription.postgres_writer.name
+    deletion_service     = google_pubsub_subscription.deletion_service.name
+    bq_inserter_dlq      = google_pubsub_subscription.bq_inserter_dlq.name
+    postgres_writer_dlq  = google_pubsub_subscription.postgres_writer_dlq.name
+    deletion_service_dlq = google_pubsub_subscription.deletion_service_dlq.name
   }
 }

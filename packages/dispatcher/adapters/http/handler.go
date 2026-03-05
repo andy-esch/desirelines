@@ -47,6 +47,7 @@ const maxChallengeLength = 256
 type Handler struct {
 	secretProvider     ports.SecretProvider
 	publisher          ports.Publisher
+	deauthPublisher    ports.Publisher
 	stravaClient       ports.StravaClient
 	tokenStore         ports.TokenStore
 	logger             *slog.Logger
@@ -65,7 +66,7 @@ type HandlerConfig struct {
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
-func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, logger *slog.Logger, cfg *HandlerConfig) *Handler {
+func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, logger *slog.Logger, cfg *HandlerConfig) *Handler {
 	maxBodySize := config.DefaultMaxRequestBodySize
 	if cfg != nil && cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
@@ -81,6 +82,7 @@ func NewHandler(publisher ports.Publisher, secretProvider ports.SecretProvider, 
 	return &Handler{
 		secretProvider:     secretProvider,
 		publisher:          publisher,
+		deauthPublisher:    deauthPublisher,
 		stravaClient:       stravaClient,
 		tokenStore:         tokenStore,
 		logger:             logger,
@@ -364,9 +366,9 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		)
 	}
 
-	// Publish the deauth event so downstream consumers (e.g., deletion job) can act on it.
+	// Publish the deauth event to the dedicated deauth topic so downstream consumers can act on it.
 	enriched := &generated.EnrichedEvent{Event: webhook}
-	if publishErr := h.publisher.Publish(ctx, enriched, correlationID); publishErr != nil {
+	if publishErr := h.deauthPublisher.Publish(ctx, enriched, correlationID); publishErr != nil {
 		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to publish deauth event",

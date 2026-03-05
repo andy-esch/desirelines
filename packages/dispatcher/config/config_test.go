@@ -26,6 +26,7 @@ func unsetEnv(t *testing.T, key string) {
 func TestLoadConfig_EnvVars(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
 	t.Setenv("FIRESTORE_DATABASE", "test-db")
 
 	cfg, err := LoadConfig()
@@ -38,6 +39,9 @@ func TestLoadConfig_EnvVars(t *testing.T) {
 	}
 	if cfg.GCPPubSubTopicID != "test-topic" {
 		t.Errorf("Expected GCP topic 'test-topic', got '%s'", cfg.GCPPubSubTopicID)
+	}
+	if cfg.GCPPubSubDeauthTopicID != "test-deauth-topic" {
+		t.Errorf("Expected GCP deauth topic 'test-deauth-topic', got '%s'", cfg.GCPPubSubDeauthTopicID)
 	}
 }
 
@@ -52,6 +56,7 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	// Set required env vars
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
 	t.Setenv("FIRESTORE_DATABASE", "test-db")
 
 	cfg, err := LoadConfig()
@@ -102,9 +107,24 @@ func TestLoadConfig_MissingGCPPubSubTopic(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_MissingDeauthTopic(t *testing.T) {
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	unsetEnv(t, "GCP_PUBSUB_DEAUTH_TOPIC")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Error("Expected error for missing GCP_PUBSUB_DEAUTH_TOPIC, got nil")
+	}
+	if err != nil && err.Error() != "required environment variable GCP_PUBSUB_DEAUTH_TOPIC is not set" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
 func TestLoadConfig_MissingFirestoreDatabase(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
 	unsetEnv(t, "FIRESTORE_DATABASE")
 
 	_, err := LoadConfig()
@@ -119,6 +139,7 @@ func TestLoadConfig_MissingFirestoreDatabase(t *testing.T) {
 func TestLoadConfig_CustomTimeouts(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
 	t.Setenv("FIRESTORE_DATABASE", "test-db")
 	t.Setenv("HTTP_READ_TIMEOUT", "45s")
 	t.Setenv("HTTP_WRITE_TIMEOUT", "1m")
@@ -147,6 +168,7 @@ func TestLoadConfig_CustomTimeouts(t *testing.T) {
 func TestLoadConfig_InvalidTimeout(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
 	t.Setenv("FIRESTORE_DATABASE", "test-db")
 	t.Setenv("HTTP_READ_TIMEOUT", "invalid")
 
@@ -159,6 +181,7 @@ func TestLoadConfig_InvalidTimeout(t *testing.T) {
 func TestLoadConfig_NegativeTimeout(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
 	t.Setenv("FIRESTORE_DATABASE", "test-db")
 	t.Setenv("HTTP_READ_TIMEOUT", "-5s")
 
@@ -171,6 +194,7 @@ func TestLoadConfig_NegativeTimeout(t *testing.T) {
 func TestLoadConfig_InvalidBodySize(t *testing.T) {
 	t.Setenv("GCP_PROJECT_ID", "test-project")
 	t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+	t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
 	t.Setenv("FIRESTORE_DATABASE", "test-db")
 	t.Setenv("MAX_REQUEST_BODY_SIZE", "not-a-number")
 
