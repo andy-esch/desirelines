@@ -1,8 +1,22 @@
-"""BigQuery user deletion service.
+"""BigQuery user deletion service for Strava deauthorization.
 
-Archives and deletes all BigQuery data for a user during deauthorization.
-Follows the archive-then-delete pattern from DeleteActivityService but
-operates by user_id across all BQ tables.
+When a user disconnects the app from Strava, the Strava API Agreement
+(Section 5.4, https://www.strava.com/legal/api) requires that all user
+data is deleted within 48 hours.
+
+This service handles the BigQuery portion of that deletion:
+1. Archive activities → deleted_activities (audit trail with deletion metadata)
+2. Delete from activities (primary table)
+3. Delete from activities_staging (landing zone for new data)
+
+The deleted_activities archive is intentionally retained. It serves as an
+audit trail proving deletion occurred, containing only the activity data
+that was present at deletion time plus deletion metadata (deleted_at,
+correlation_id). This mirrors the per-activity DeleteActivityService
+pattern used when individual activities are deleted via webhook.
+
+All operations are idempotent — safe to retry on partial failure via
+Pub/Sub dead-letter redelivery.
 """
 
 from dataclasses import dataclass
@@ -20,17 +34,15 @@ class BQDeletionResult:
     activities_archived: int
     activities_deleted: int
     staging_deleted: int
-    archive_deleted: int
 
 
 class BQUserDeletionService:
-    """Delete all BigQuery data for a user.
+    """Delete all BigQuery data for a user on deauthorization.
 
     Process:
-    1. Archive activities to deleted_activities table
+    1. Archive activities to deleted_activities table (audit trail)
     2. Delete from activities table
     3. Delete from activities_staging table
-    4. Delete from deleted_activities table (cleanup after archive)
     """
 
     def __init__(self, bq_client: bigquery.Client, project_id: str, dataset_id: str):
@@ -56,14 +68,7 @@ class BQUserDeletionService:
         Raises:
             Exception: If any BQ operation fails (triggers Pub/Sub retry)
         """
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-                bigquery.ScalarQueryParameter(
-                    "correlation_id", "STRING", correlation_id
-                ),
-            ]
-        )
+        user_id_param = bigquery.ScalarQueryParameter("user_id", "STRING", user_id)
 
         # 1. Archive activities to deleted_activities
         archive_query = f"""
@@ -76,7 +81,15 @@ class BQUserDeletionService:
         FROM {self._table("activities")}
         WHERE CAST(athlete.id AS STRING) = @user_id
         """
-        archive_job = self.bq_client.query(archive_query, job_config=job_config)
+        archive_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                user_id_param,
+                bigquery.ScalarQueryParameter(
+                    "correlation_id", "STRING", correlation_id
+                ),
+            ]
+        )
+        archive_job = self.bq_client.query(archive_query, job_config=archive_config)
         archive_job.result()
         activities_archived = archive_job.num_dml_affected_rows or 0
 
@@ -92,7 +105,10 @@ class BQUserDeletionService:
         DELETE FROM {self._table("activities")}
         WHERE CAST(athlete.id AS STRING) = @user_id
         """
-        del_job = self.bq_client.query(delete_activities, job_config=job_config)
+        delete_config = bigquery.QueryJobConfig(
+            query_parameters=[user_id_param]
+        )
+        del_job = self.bq_client.query(delete_activities, job_config=delete_config)
         del_job.result()
         activities_deleted = del_job.num_dml_affected_rows or 0
 
@@ -101,24 +117,17 @@ class BQUserDeletionService:
         DELETE FROM {self._table("activities_staging")}
         WHERE CAST(athlete.id AS STRING) = @user_id
         """
-        staging_job = self.bq_client.query(delete_staging, job_config=job_config)
+        staging_config = bigquery.QueryJobConfig(
+            query_parameters=[user_id_param]
+        )
+        staging_job = self.bq_client.query(delete_staging, job_config=staging_config)
         staging_job.result()
         staging_deleted = staging_job.num_dml_affected_rows or 0
-
-        # 4. Delete from deleted_activities archive
-        delete_archive = f"""
-        DELETE FROM {self._table("deleted_activities")}
-        WHERE CAST(athlete.id AS STRING) = @user_id
-        """
-        archive_del_job = self.bq_client.query(delete_archive, job_config=job_config)
-        archive_del_job.result()
-        archive_deleted = archive_del_job.num_dml_affected_rows or 0
 
         result = BQDeletionResult(
             activities_archived=activities_archived,
             activities_deleted=activities_deleted,
             staging_deleted=staging_deleted,
-            archive_deleted=archive_deleted,
         )
 
         logger.info(

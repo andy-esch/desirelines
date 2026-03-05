@@ -1,7 +1,20 @@
 """FastAPI application for the user deletion Cloud Run service.
 
-Receives deauth events from the deauth_events Pub/Sub topic and deletes
-all user data from PostgreSQL, BigQuery, and Firestore.
+Implements user data deletion required by the Strava API Agreement (Section
+5.4, https://www.strava.com/legal/api): all user data must be deleted within
+48 hours of deauthorization.
+
+Triggered by deauth events on the deauth_events Pub/Sub topic. When a user
+disconnects the app from Strava, this service deletes their data from all
+stores:
+
+- PostgreSQL: activities + routes (CASCADE)
+- BigQuery: archive to deleted_activities (audit trail), then delete from
+  activities and activities_staging
+- Firestore: OAuth tokens, user profile, config, allowlist entry
+
+All deletions are idempotent. On partial failure, returns 500 to trigger
+Pub/Sub retry via dead-letter redelivery.
 
 Does NOT use handle_webhook_cloudevent() since that function hardcodes
 object_type == ACTIVITY routing. This service handles athlete deauth events
@@ -58,7 +71,6 @@ def _delete_firestore_user_docs(
     Documents:
     - users/{user_id}/private/strava_tokens (handled by token_store.delete_tokens)
     - users/{user_id}/private/profile
-    - users/{user_id}/private/backfill_status
     - users/{user_id}/config/v1
     - allowlist/{user_id}
 
@@ -70,7 +82,6 @@ def _delete_firestore_user_docs(
     # Delete subcollection documents
     subcollection_docs = [
         user_ref.collection("private").document("profile"),
-        user_ref.collection("private").document("backfill_status"),
         user_ref.collection("config").document("v1"),
     ]
     for doc_ref in subcollection_docs:

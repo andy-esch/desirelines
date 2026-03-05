@@ -33,36 +33,48 @@ def _mock_query_result(bq_client, affected_rows_sequence):
 
 
 class TestBQUserDeletionService:
-    def test_deletes_from_all_tables(self, service, mock_bq_client):
-        _mock_query_result(mock_bq_client, [5, 5, 2, 7])
+    def test_archives_then_deletes_from_all_tables(self, service, mock_bq_client):
+        """Archives activities for audit trail, then deletes from active tables."""
+        _mock_query_result(mock_bq_client, [5, 5, 2])
 
         result = service.run("12345", "corr-123")
 
-        assert mock_bq_client.query.call_count == 4
+        # 3 queries: archive, delete activities, delete staging
+        assert mock_bq_client.query.call_count == 3
         assert result.activities_archived == 5
         assert result.activities_deleted == 5
         assert result.staging_deleted == 2
-        assert result.archive_deleted == 7
 
     def test_handles_no_data_to_delete(self, service, mock_bq_client):
-        _mock_query_result(mock_bq_client, [0, 0, 0, 0])
+        _mock_query_result(mock_bq_client, [0, 0, 0])
 
         result = service.run("99999", "corr-456")
 
         assert result.activities_archived == 0
         assert result.activities_deleted == 0
         assert result.staging_deleted == 0
-        assert result.archive_deleted == 0
 
     def test_uses_parameterized_queries(self, service, mock_bq_client):
-        _mock_query_result(mock_bq_client, [0, 0, 0, 0])
+        _mock_query_result(mock_bq_client, [0, 0, 0])
 
         service.run("12345", "corr-123")
 
-        # Verify all queries use the job_config with query parameters
+        # Each query gets its own job_config
         for c in mock_bq_client.query.call_args_list:
             job_config = c.kwargs.get("job_config") or c.args[1]
             assert job_config is not None
+
+        # Archive query (first call) includes correlation_id param
+        archive_config = mock_bq_client.query.call_args_list[0].kwargs["job_config"]
+        param_names = [p.name for p in archive_config.query_parameters]
+        assert "user_id" in param_names
+        assert "correlation_id" in param_names
+
+        # Delete queries (calls 2-3) only have user_id param
+        for c in mock_bq_client.query.call_args_list[1:]:
+            config = c.kwargs["job_config"]
+            param_names = [p.name for p in config.query_parameters]
+            assert param_names == ["user_id"]
 
     def test_raises_on_bq_failure(self, service, mock_bq_client):
         job = MagicMock()

@@ -88,7 +88,6 @@ class TestDeauthEndpoint:
             activities_archived=3,
             activities_deleted=3,
             staging_deleted=1,
-            archive_deleted=4,
         )
 
         # Mock UoW context manager
