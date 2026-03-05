@@ -1,6 +1,6 @@
 module github.com/andy-esch/desirelines/packages/shared
 
-go 1.25.0
+go 1.25.1
 
 require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0
