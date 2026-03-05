@@ -185,6 +185,7 @@ async def handle_deauth_event(request: Request):
             )
 
         user_id = str(owner_id)
+        event_time = event_data.get("event_time", 0)
         result = DeletionResult(user_id=user_id)
 
         session_factory = request.app.state.session_factory
@@ -218,7 +219,7 @@ async def handle_deauth_event(request: Request):
         # 2. Delete from BigQuery
         try:
             with record_duration(deletion_hist, {"store": "bigquery"}):
-                bq_result = bq_service.run(user_id, correlation_id)
+                bq_result = bq_service.run(user_id, correlation_id, event_time)
             result.bq_activities_deleted = bq_result.activities_deleted
             result.bq_staging_deleted = bq_result.staging_deleted
         except Exception as e:
@@ -298,6 +299,7 @@ async def handle_deauth_event(request: Request):
             "user_id": user_id,
             "pg_deleted": result.pg_deleted,
             "bq_activities_deleted": result.bq_activities_deleted,
+            "bq_staging_deleted": result.bq_staging_deleted,
         }
 
     except HTTPException:

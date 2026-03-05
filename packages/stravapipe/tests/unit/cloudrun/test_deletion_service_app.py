@@ -111,6 +111,8 @@ class TestDeauthEndpoint:
         assert data["status"] == "deleted"
         assert data["user_id"] == "98765"
         assert data["pg_deleted"] == 3
+        assert data["bq_activities_deleted"] == 3
+        assert data["bq_staging_deleted"] == 1
 
     def test_missing_owner_id_returns_422(self, client):
         """Event without owner_id returns 422."""

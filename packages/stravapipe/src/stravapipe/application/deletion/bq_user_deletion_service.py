@@ -53,7 +53,9 @@ class BQUserDeletionService:
     def _table(self, name: str) -> str:
         return f"`{self.project_id}.{self.dataset_id}.{name}`"
 
-    def run(self, user_id: str, correlation_id: str) -> BQDeletionResult:
+    def run(
+        self, user_id: str, correlation_id: str, event_time: int
+    ) -> BQDeletionResult:
         """Delete all BigQuery data for a user.
 
         All operations are idempotent — safe to retry on partial failure.
@@ -61,6 +63,7 @@ class BQUserDeletionService:
         Args:
             user_id: Strava athlete ID (string)
             correlation_id: Request correlation ID for tracing
+            event_time: Strava webhook event_time (Unix timestamp)
 
         Returns:
             BQDeletionResult with counts of affected rows
@@ -76,7 +79,7 @@ class BQUserDeletionService:
         SELECT
             *,
             CURRENT_TIMESTAMP() AS deleted_at,
-            0 AS deletion_event_time,
+            @event_time AS deletion_event_time,
             @correlation_id AS deletion_correlation_id
         FROM {self._table("activities")}
         WHERE CAST(athlete.id AS STRING) = @user_id
@@ -84,6 +87,7 @@ class BQUserDeletionService:
         archive_config = bigquery.QueryJobConfig(
             query_parameters=[
                 user_id_param,
+                bigquery.ScalarQueryParameter("event_time", "INT64", event_time),
                 bigquery.ScalarQueryParameter(
                     "correlation_id", "STRING", correlation_id
                 ),
