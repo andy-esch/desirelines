@@ -14,7 +14,7 @@ pants test packages/dispatcher::
 pants test packages/apigateway::
 
 # Run specific test file
-pants test packages/stravapipe/tests/test_config.py
+pants test packages/stravapipe/tests/unit/config/test_common.py
 ```
 
 ## Test Workflows
@@ -27,10 +27,7 @@ Run all tests across all languages (Python + Go):
 pants test ::
 ```
 
-**Performance:**
-
-- First run: ~60s (building cache)
-- Subsequent runs: ~1.7s (90% faster with caching!)
+**Performance:** First run is slower (building cache). Subsequent cached runs are significantly faster.
 
 ### Test Specific Package
 
@@ -91,10 +88,10 @@ pants test --use-coverage packages/stravapipe::
 
 ```bash
 # Specific test file
-pants test packages/stravapipe/tests/test_config.py
+pants test packages/stravapipe/tests/unit/config/test_common.py
 
 # Specific test function (use pytest syntax)
-pants test packages/stravapipe/tests/test_config.py -- -k test_load_config
+pants test packages/stravapipe/tests/unit/config/test_common.py -- -k test_common_config
 ```
 
 ### Debug Test Failures
@@ -113,20 +110,14 @@ Automatically re-run tests when files change:
 pants test --loop packages/stravapipe::
 ```
 
-## Performance Comparison
-
-| Scenario | Traditional (Native) | Pants (first) | Pants (cached) | Speedup |
-|----------|----------|---------------|----------------|---------|
-| Python tests | 3.5s | ~60s | 1.7s | **2x faster** |
-| All tests | ~65s | ~90s | ~10s | **6.5x faster** |
-| Changed only | Manual | N/A | ~5-30s | **Massive** |
+## Performance
 
 **Key benefits:**
 
-- ✅ Caching makes repeat runs **2-6x faster**
-- ✅ Changed detection only tests affected code
-- ✅ Cross-language dependency tracking (proto → Python + Go)
-- ✅ Single unified command for all languages
+- Caching makes repeat runs significantly faster (exact speedup depends on codebase size and what changed)
+- Changed detection only tests affected code
+- Cross-language dependency tracking (proto changes trigger Python + Go tests)
+- Single unified command for all languages
 
 ## Test Configuration
 
@@ -157,7 +148,7 @@ output_dir = "{distdir}/coverage/python"  # Coverage output directory
 
 **Cause:** Pants is building its cache of dependencies and test environments.
 
-**Solution:** This is expected. Subsequent runs will be much faster (~90% improvement).
+**Solution:** This is expected. Subsequent runs will be much faster due to caching.
 
 ### Tests not discovered
 
@@ -218,10 +209,12 @@ just test
 just py-test
 just go-test
 
-# Use --pants flag to run via Pants (leveraging caching)
-just test --pants
+# Use --pants flag to run per-package via Pants (leveraging caching)
 just py-test --pants
+just go-test --pants
 ```
+
+**Note:** The `--pants` flag works on per-package commands (`py-test`, `go-test`), not the aggregate `just test`.
 
 **Recommendation:** Use `just` for daily workflows and `pants` directly for advanced features like change detection or debugging.
 
@@ -241,7 +234,7 @@ pants test --shard=1/4 ::
 # etc.
 ```
 
-### Remote Caching (Coming in Phase 7)
+### Remote Caching
 
 Enable remote caching for even faster CI:
 
@@ -280,8 +273,8 @@ pants test --loop packages/stravapipe::  # Watch mode
 
 **Why Pants?**
 
-- 🚀 **90% faster** on repeat runs (caching)
-- 🎯 **Smart test selection** (changed detection)
-- 🔗 **Cross-language aware** (proto changes → all tests)
-- 📊 **Unified coverage** across all languages
-- ⚡ **Parallel execution** by default
+- Faster repeat runs via caching
+- Smart test selection via change detection
+- Cross-language aware (proto changes trigger all tests)
+- Unified coverage across all languages
+- Parallel execution by default

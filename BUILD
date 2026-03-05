@@ -1,10 +1,4 @@
 # Root BUILD file for Pants
-# Defines project-wide targets and dependencies
-
-# Root pyproject.toml uses [dependency-groups] which Pants doesn't support yet
-# (Dev dependencies managed by uv, not Pants)
-# python_requirements(
-#     name="python-default",
-#     source="pyproject.toml",
-#     resolve="python-default",
-# )
+# No project-wide targets needed — dependencies are declared per-package.
+# Root pyproject.toml uses [dependency-groups] which Pants reads via PEP 735
+# support (2.31+). Package-level deps are in packages/stravapipe/BUILD.

@@ -31,18 +31,3 @@ protobuf_sources(
     go_mod_address="packages/dispatcher:mod",
 )
 
-# Aggregate target for apigateway Go protos (excludes webhook which uses dispatcher)
-# Note: No python_resolve here - Python generation uses individual targets above
-protobuf_sources(
-    name="apigateway",
-    sources=[
-        "desirelines/sports/v1/sports_metrics.proto",
-        "desirelines/config/v1/user_config.proto",
-        "desirelines/activities/v1/activities.proto",
-    ],
-    go_mod_address="packages/apigateway:mod",
-)
-
-# Aggregate target for all protos - note: this won't work cleanly with Pants
-# since different protos have different go_mod_address targets.
-# Use specific targets (apigateway, webhook) instead.

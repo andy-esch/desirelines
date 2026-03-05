@@ -32,5 +32,5 @@ docker_image(
     ],
     extra_build_args=["GIT_COMMIT"],  # Pass as Docker build arg (value from env var)
     # Repository configured in pants.toml [docker] section
-    # Output: us-central1-docker.pkg.dev/desirelines-dev/desirelines-functions/dispatcher:latest
+    # Output: us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/dispatcher:latest
 )

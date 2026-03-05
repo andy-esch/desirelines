@@ -5,11 +5,7 @@ go_mod(
     name="mod",
 )
 
-go_package(
-    name="lib",
-    # Protobuf imports will be auto-inferred from schemas/proto
-    # Generated .pb.go files are in types/generated/
-)
+go_package(name="pkg")
 # All source files for Docker build context
 files(
     name="sources",
@@ -38,5 +34,5 @@ docker_image(
     ],
     extra_build_args=["GIT_COMMIT"],  # Pass as Docker build arg (value from env var)
     # Repository configured in pants.toml [docker] section
-    # Output: us-central1-docker.pkg.dev/desirelines-dev/desirelines-functions/apigateway:latest
+    # Output: us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/apigateway:latest
 )
