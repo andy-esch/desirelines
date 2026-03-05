@@ -428,19 +428,31 @@ func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
 }
 
 func TestAuthError_Error(t *testing.T) {
-	e := &authError{statusCode: 401}
-	got := e.Error()
-	want := "strava auth error: HTTP 401"
-	if got != want {
-		t.Errorf("authError.Error() = %q, want %q", got, want)
+	tests := []struct {
+		name       string
+		statusCode int
+		want       string
+	}{
+		{
+			name:       "401 Unauthorized",
+			statusCode: 401,
+			want:       "strava auth error: HTTP 401",
+		},
+		{
+			name:       "403 Forbidden",
+			statusCode: 403,
+			want:       "strava auth error: HTTP 403",
+		},
 	}
 
-	// Also verify a different status code to ensure it's not hardcoded.
-	e2 := &authError{statusCode: 403}
-	got2 := e2.Error()
-	want2 := "strava auth error: HTTP 403"
-	if got2 != want2 {
-		t.Errorf("authError.Error() = %q, want %q", got2, want2)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &authError{statusCode: tt.statusCode}
+			got := e.Error()
+			if got != tt.want {
+				t.Errorf("authError.Error() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

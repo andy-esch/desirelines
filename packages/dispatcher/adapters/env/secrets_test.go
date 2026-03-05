@@ -336,25 +336,8 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
 	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
 
-	tempDir, createErr := os.MkdirTemp("", "secret_cache_test")
-	if createErr != nil {
-		t.Fatalf("Failed to create temp dir: %v", createErr)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	tokenPath := filepath.Join(tempDir, "TOKEN")
-	subPath := filepath.Join(tempDir, "SUB")
-
-	if writeErr := os.WriteFile(tokenPath, []byte("cached-token"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write token: %v", writeErr)
-	}
-	if writeErr := os.WriteFile(subPath, []byte("11111"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write subscription id: %v", writeErr)
-	}
+	tokenPath, subPath, cleanup := setupTempSecrets(t, "cached-token", "11111")
+	defer cleanup()
 
 	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache(tokenPath, subPath, 100*time.Millisecond, log)
