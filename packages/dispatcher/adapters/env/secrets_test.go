@@ -198,28 +198,11 @@ func TestSecretCache_EnvOverridesAfterFilesMissing(t *testing.T) {
 }
 
 func TestSecretCache_InvalidSubscriptionID(t *testing.T) {
-	tempDir, createErr := os.MkdirTemp("", "secret_cache_test")
-	if createErr != nil {
-		t.Fatalf("Failed to create temp dir: %v", createErr)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	verifyTokenPath := filepath.Join(tempDir, "VERIFY_TOKEN")
-	subscriptionIDPath := filepath.Join(tempDir, "SUBSCRIPTION_ID")
-
-	if writeErr := os.WriteFile(verifyTokenPath, []byte("token"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write verify token: %v", writeErr)
-	}
-	if writeErr := os.WriteFile(subscriptionIDPath, []byte("not-a-number"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write subscription id: %v", writeErr)
-	}
+	tokenPath, subIDPath, cleanup := setupTempSecrets(t, "token", "not-a-number")
+	defer cleanup()
 
 	log := gcplog.NewNoOpLogger()
-	cache := env.NewSecretCache(verifyTokenPath, subscriptionIDPath, time.Minute, log)
+	cache := env.NewSecretCache(tokenPath, subIDPath, time.Minute, log)
 
 	_, _, err := cache.GetSecrets()
 	if err == nil {
@@ -240,8 +223,9 @@ func TestSecretCache_LoadSecretsFromEnv_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected loadSecretsFromEnv to succeed, got error: %v", err)
 	}
-	if token != "env-token-direct" {
-		t.Errorf("Expected token 'env-token-direct', got '%s'", token)
+	const expectedDirectToken = "env-token-direct" //nolint:gosec // Test constant, not a credential
+	if token != expectedDirectToken {
+		t.Errorf("Expected token '%s', got '%s'", expectedDirectToken, token)
 	}
 	if subID != 77777 {
 		t.Errorf("Expected subscription ID 77777, got %d", subID)
@@ -265,8 +249,8 @@ func TestSecretCache_LoadSecretsFromEnv_InvalidSubID(t *testing.T) {
 func TestSecretCache_LoadSecretsFromEnv_MissingSubID(t *testing.T) {
 	// hashFiles fails (ENOTDIR), no cache, STRAVA_WEBHOOK_SUBSCRIPTION_ID not set.
 	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "some-token")
-	// Ensure subscription ID env var is not set
-	os.Unsetenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID")
+	// Set to empty string to simulate unset (GetEnvOrDefault treats "" as unset)
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
 
 	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache("/dev/null/invalid_token", "/dev/null/invalid_sub", time.Minute, log)
@@ -279,8 +263,8 @@ func TestSecretCache_LoadSecretsFromEnv_MissingSubID(t *testing.T) {
 
 func TestSecretCache_HashFailsNoCacheFallbackToEnvFails(t *testing.T) {
 	// First call: hashFiles fails, no cached values, env vars not set -> error.
-	os.Unsetenv("STRAVA_WEBHOOK_VERIFY_TOKEN")
-	os.Unsetenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID")
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
 
 	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache("/dev/null/invalid_token", "/dev/null/invalid_sub", time.Minute, log)
@@ -334,26 +318,9 @@ func TestSecretCache_ContentChangedButReloadFails_UsesCached(t *testing.T) {
 }
 
 func TestSecretCache_SubscriptionIDOutOfRange(t *testing.T) {
-	tempDir, createErr := os.MkdirTemp("", "secret_cache_test")
-	if createErr != nil {
-		t.Fatalf("Failed to create temp dir: %v", createErr)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Logf("Failed to clean up temp dir: %v", removeErr)
-		}
-	}()
-
-	tokenPath := filepath.Join(tempDir, "VERIFY_TOKEN")
-	subIDPath := filepath.Join(tempDir, "SUBSCRIPTION_ID")
-
-	if writeErr := os.WriteFile(tokenPath, []byte("token"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write verify token: %v", writeErr)
-	}
 	// Value exceeds math.MaxInt32 (2147483647)
-	if writeErr := os.WriteFile(subIDPath, []byte("2147483648"), 0o600); writeErr != nil {
-		t.Fatalf("Failed to write subscription id: %v", writeErr)
-	}
+	tokenPath, subIDPath, cleanup := setupTempSecrets(t, "token", "2147483648")
+	defer cleanup()
 
 	log := gcplog.NewNoOpLogger()
 	cache := env.NewSecretCache(tokenPath, subIDPath, time.Minute, log)

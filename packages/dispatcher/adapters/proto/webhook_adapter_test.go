@@ -346,11 +346,11 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing subscription_id",
 			event: &pb.WebhookEvent{
-				AspectType:     pb.AspectType_ASPECT_TYPE_CREATE,
-				ObjectType:     pb.ObjectType_OBJECT_TYPE_ACTIVITY,
-				ObjectId:       12345,
-				OwnerId:        67890,
-				EventTime:      1704067200,
+				AspectType: pb.AspectType_ASPECT_TYPE_CREATE,
+				ObjectType: pb.ObjectType_OBJECT_TYPE_ACTIVITY,
+				ObjectId:   12345,
+				OwnerId:    67890,
+				EventTime:  1704067200,
 			},
 			wantErr: true,
 		},

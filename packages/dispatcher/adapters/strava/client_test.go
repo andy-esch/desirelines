@@ -562,7 +562,7 @@ func TestFetchActivity_ContextCancellation(t *testing.T) {
 
 	_, err := client.FetchActivity(ctx, testOwnerID, testActivityID)
 	if err == nil {
-		t.Fatal("expected error when context is cancelled")
+		t.Fatal("expected error when context is canceled")
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
