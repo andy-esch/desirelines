@@ -427,6 +427,148 @@ func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
 	}
 }
 
+func TestAuthError_Error(t *testing.T) {
+	e := &authError{statusCode: 401}
+	got := e.Error()
+	want := "strava auth error: HTTP 401"
+	if got != want {
+		t.Errorf("authError.Error() = %q, want %q", got, want)
+	}
+
+	// Also verify a different status code to ensure it's not hardcoded.
+	e2 := &authError{statusCode: 403}
+	got2 := e2.Error()
+	want2 := "strava auth error: HTTP 403"
+	if got2 != want2 {
+		t.Errorf("authError.Error() = %q, want %q", got2, want2)
+	}
+}
+
+func TestFetchActivity_TokenStoreError(t *testing.T) {
+	// No server needed — the error occurs before any HTTP call.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("no HTTP request expected when token store fails")
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	storeErr := errors.New("firestore unavailable")
+	tokenStore := &portstest.MockTokenStore{
+		GetErr: storeErr,
+	}
+	client := newTestClient(server, tokenStore)
+
+	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected error when token store returns a generic error")
+	}
+	if !errors.Is(err, storeErr) {
+		t.Errorf("expected wrapped storeErr, got %v", err)
+	}
+}
+
+func TestFetchActivity_TokenRefreshReturnsNoAccessToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			// Return valid JSON but with empty access_token.
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "",
+				"refresh_token": "some-refresh",
+				"expires_at":    1234567890,
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case testActivityPath:
+			// Return 401 to trigger the refresh path.
+			w.WriteHeader(http.StatusUnauthorized)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected error when token response has empty access_token")
+	}
+	if !errors.Is(err, ErrStravaAuth) {
+		t.Errorf("expected ErrStravaAuth, got %v", err)
+	}
+}
+
+func TestFetchActivity_TokenRefreshInvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			// Return 200 with non-JSON body.
+			w.WriteHeader(http.StatusOK)
+			if _, err := w.Write([]byte("this is not json")); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
+		case testActivityPath:
+			// Return 401 to trigger the refresh path.
+			w.WriteHeader(http.StatusUnauthorized)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected error when token endpoint returns invalid JSON")
+	}
+	if !errors.Is(err, ErrStravaAuth) {
+		t.Errorf("expected ErrStravaAuth, got %v", err)
+	}
+}
+
+func TestFetchActivity_ContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// Always return 500 to trigger retry with backoff.
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, err := w.Write([]byte(`{"error":"internal"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel immediately so the first retry backoff select picks up ctx.Done().
+	cancel()
+
+	_, err := client.FetchActivity(ctx, testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected error when context is cancelled")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
 func TestFetchActivity_WriteBackFailureReturnsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
