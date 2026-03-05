@@ -4,13 +4,16 @@ Strava data pipeline - processes webhook events and syncs to BigQuery and Postgr
 
 ## Services
 
-This package provides two Cloud Run services and one Cloud Run job:
+This package provides three Cloud Run services and one Cloud Run job:
 
 | Service | Type | Description | Trigger |
 |---------|------|-------------|---------|
-| `bq-inserter` | Service | Syncs activities to BigQuery | Eventarc (PubSub) |
-| `postgres-writer` | Service | Syncs activities to PostgreSQL | Eventarc (PubSub) |
+| `bq-inserter` | Service | Syncs activities to BigQuery | Pub/Sub push (`activity_events`) |
+| `postgres-writer` | Service | Syncs activities to PostgreSQL | Pub/Sub push (`activity_events`) |
+| `deletion-service` | Service | Deletes all user data on Strava deauthorization | Pub/Sub push (`deauth_events`) |
 | `backfill` | Job | Backfills historical activities to PG + BQ | Manual (`gcloud run jobs execute`) |
+
+The deletion service implements user data deletion required by the [Strava API Agreement (Section 5.4)](https://www.strava.com/legal/api). When a user disconnects the app from Strava, it deletes their data from PostgreSQL, BigQuery, and Firestore within 48 hours.
 
 ## Architecture
 
@@ -20,11 +23,13 @@ packages/stravapipe/
 │   ├── cloudrun/               # Cloud Run entrypoints
 │   │   ├── bq_inserter_app.py  # FastAPI service
 │   │   ├── postgres_writer_app.py  # FastAPI service
+│   │   ├── deletion_service_app.py # FastAPI service (user data deletion)
 │   │   ├── backfill_job.py     # Batch job (runs to completion)
 │   │   └── pubsub.py           # CloudEvent parsing
 │   ├── application/            # Business logic
 │   │   ├── backfill/           # Historical activity backfill
 │   │   ├── bq_inserter/        # BigQuery sync services
+│   │   ├── deletion/           # User data deletion (deauthorization)
 │   │   └── postgres_sync/      # PostgreSQL sync services
 │   ├── adapters/               # External service clients
 │   │   ├── strava/             # Strava API
@@ -101,6 +106,7 @@ docker build -t stravapipe .
 # Run individual services with command overrides
 docker run stravapipe uvicorn stravapipe.cloudrun.bq_inserter_app:app --host 0.0.0.0 --port 8080
 docker run stravapipe uvicorn stravapipe.cloudrun.postgres_writer_app:app --host 0.0.0.0 --port 8080
+docker run stravapipe uvicorn stravapipe.cloudrun.deletion_service_app:app --host 0.0.0.0 --port 8080
 docker run stravapipe python -m stravapipe.cloudrun.backfill_job
 ```
 
@@ -112,6 +118,7 @@ Each service has its own config class in `config/`:
 
 - `BQInserterConfig` - GCP project, BigQuery dataset
 - `PostgresWriterConfig` - GCP project, PostgreSQL connection string
+- `DeletionServiceConfig` - GCP project, PG connection, BigQuery dataset, Firestore database
 - `BackfillConfig` - Athlete ID, years, PG connection, Firestore database, Strava client creds
 
 The event-driven services (bq-inserter, postgres-writer) load from environment variables with Secret Manager integration. Strava API credentials are **not** needed by these services — the dispatcher enriches events with activity data before publishing to PubSub.

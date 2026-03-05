@@ -62,7 +62,7 @@ packages/
 ├── web/           # React frontend
 ├── apigateway/    # Go REST API
 ├── dispatcher/    # Go webhook receiver
-└── stravapipe/    # Python event processors (bq-inserter, postgres-writer)
+└── stravapipe/    # Python event processors (bq-inserter, postgres-writer, deletion-service)
 
 schemas/
 ├── proto/         # Cross-language type definitions
@@ -70,7 +70,9 @@ schemas/
 └── bigquery/      # BigQuery table schemas
 ```
 
-**Data Flow**: Strava webhook → dispatcher → PubSub → stravapipe → PostgreSQL/BigQuery → apigateway → web
+**Data Flow**:
+- Activities: Strava webhook → dispatcher → PubSub (`activity_events`) → bq-inserter + postgres-writer → BigQuery/PostgreSQL → apigateway → web
+- Deauth: Strava webhook → dispatcher → PubSub (`deauth_events`) → deletion-service → deletes from PostgreSQL, BigQuery, Firestore
 
 ## Documentation
 
