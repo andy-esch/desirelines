@@ -21,9 +21,24 @@ function getClient() {
       );
     }
     client = axios.create({
-      baseURL: config.apiGatewayUrl,
+      baseURL: `${config.apiGatewayUrl}/v1`,
       timeout: 30_000,
     });
+
+    // Dev-only guard: URLs starting with "/" resolve against the origin root,
+    // bypassing the /v1 base path. This silently breaks isInternalRequest()
+    // and drops the auth token. Catch this mistake early in development.
+    if (!config.isProduction) {
+      client.interceptors.request.use((reqConfig) => {
+        if (reqConfig.url?.startsWith("/")) {
+          console.error(
+            `[API Client] URL "${reqConfig.url}" starts with "/" which bypasses the /v1 base path. ` +
+              `Use a relative URL instead (e.g., "activities" not "/activities").`
+          );
+        }
+        return reqConfig;
+      });
+    }
   }
   return client;
 }

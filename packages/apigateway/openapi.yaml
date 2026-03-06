@@ -5,11 +5,11 @@ info:
     REST API for serving Strava activity data to the web frontend.
 
     ## Authentication
-    All `/activities` endpoints require Firebase authentication.
+    All `/v1/activities` endpoints require Firebase authentication.
     Include `Authorization: Bearer <firebase-token>` header.
 
     ## Pagination
-    The `/activities` list endpoint uses cursor-based pagination.
+    The `/v1/activities` list endpoint uses cursor-based pagination.
     Use `next_cursor` from the response to fetch subsequent pages.
   version: 1.0.0
   contact:
@@ -103,7 +103,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
 
-  /sports/config:
+  /v1/sports/config:
     get:
       tags: [Config]
       summary: Get sport configuration
@@ -118,7 +118,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/SportsConfig'
 
-  /activities:
+  /v1/activities:
     get:
       tags: [Activities]
       summary: List activities
@@ -174,7 +174,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /activities/routes:
+  /v1/activities/routes:
     get:
       tags: [Activities]
       summary: Get normalized route geometries
@@ -207,7 +207,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /activities/{id}:
+  /v1/activities/{id}:
     get:
       tags: [Activities]
       summary: Get activity by ID
@@ -240,7 +240,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /activities/{year}/metadata:
+  /v1/activities/{year}/metadata:
     get:
       tags: [Aggregates]
       summary: Get year metadata
@@ -264,7 +264,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /activities/{year}/metrics:
+  /v1/activities/{year}/metrics:
     get:
       tags: [Aggregates]
       summary: Get cumulative metrics
@@ -289,7 +289,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /activities/{year}/source:
+  /v1/activities/{year}/source:
     get:
       tags: [Aggregates]
       summary: Get daily summaries

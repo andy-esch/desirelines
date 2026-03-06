@@ -341,7 +341,7 @@ func TestHandlerMetrics(t *testing.T) {
 		mockRepo := &mockActivityRepository{sportMetrics: testMetrics}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -357,7 +357,7 @@ func TestHandlerMetrics(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -371,7 +371,7 @@ func TestHandlerMetrics(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=invalid", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=invalid", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -386,7 +386,7 @@ func TestHandlerMetrics(t *testing.T) {
 		mockRepo := &mockActivityRepository{sportMetrics: testMetrics}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2024-12-15&to=2025-01-01", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=2024-12-15&to=2025-01-01", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -400,7 +400,7 @@ func TestHandlerMetrics(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2024-12-15", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=2024-12-15", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -414,7 +414,7 @@ func TestHandlerMetrics(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&to=2025-01-01", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&to=2025-01-01", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -428,7 +428,7 @@ func TestHandlerMetrics(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2025-01-01&to=2024-12-15", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=2025-01-01&to=2024-12-15", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -443,7 +443,7 @@ func TestHandlerMetrics(t *testing.T) {
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		// Request 2 years of data (exceeds 366 day limit)
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2023-01-01&to=2025-01-01", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=2023-01-01&to=2025-01-01", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -457,7 +457,7 @@ func TestHandlerMetrics(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=invalid&to=2025-01-01", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=invalid&to=2025-01-01", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -471,7 +471,7 @@ func TestHandlerMetrics(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metrics?sport=cycling&from=2024-12-15&to=invalid", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=2024-12-15&to=invalid", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -501,7 +501,7 @@ func TestHandlerSource(t *testing.T) {
 		mockRepo := &mockActivityRepository{dailySummary: testSummary}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source?sport=running", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/source?sport=running", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -517,7 +517,7 @@ func TestHandlerSource(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/source", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -531,7 +531,7 @@ func TestHandlerSource(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/source?sport=badminton", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/source?sport=badminton", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -561,7 +561,7 @@ func TestHandlerMetadata(t *testing.T) {
 		mockRepo := &mockActivityRepository{yearMetadata: testMetadata}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/2024/metadata", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metadata", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -578,7 +578,7 @@ func TestHandlerSportConfig(t *testing.T) {
 	logger := slog.Default()
 	router := newTestRouter([]string{}, logger)
 
-	req := httptest.NewRequest(http.MethodGet, "/sports/config", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/sports/config", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -617,7 +617,7 @@ func TestHandlerGetActivity(t *testing.T) {
 		mockRepo := &mockActivityRepository{activity: testActivity}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/12345678901", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/12345678901", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -645,7 +645,7 @@ func TestHandlerGetActivity(t *testing.T) {
 		mockRepo := &mockActivityRepository{activity: nil} // Not found
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/99999999999", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/99999999999", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -659,7 +659,7 @@ func TestHandlerGetActivity(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/not-a-number", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/not-a-number", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -675,7 +675,7 @@ func TestHandlerGetActivity(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityErr: errors.New("database error")}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities/12345678901", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/12345678901", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -709,7 +709,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -737,7 +737,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities?from=2025-12-01&to=2025-12-28", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?from=2025-12-01&to=2025-12-28", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -751,7 +751,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities?sport=cycling", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sport=cycling", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -765,7 +765,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities?limit=50", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?limit=50", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -779,7 +779,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities?from=not-a-date", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?from=not-a-date", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -793,7 +793,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities?to=not-a-date", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?to=not-a-date", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -807,7 +807,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities?sport=badminton", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sport=badminton", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -821,7 +821,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities?limit=999", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?limit=999", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -835,7 +835,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities?cursor=not-valid-base64!!!", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?cursor=not-valid-base64!!!", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -851,7 +851,7 @@ func TestHandlerListActivities(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityListErr: errors.New("database error")}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/activities", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)

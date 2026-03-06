@@ -22,7 +22,7 @@ export const fetchRoutes = async (options: FetchRoutesOptions = {}): Promise<Nor
   }
 
   const query = params.toString();
-  const url = `/activities/routes${query ? `?${query}` : ""}`;
+  const url = `activities/routes${query ? `?${query}` : ""}`;
 
   try {
     const { data } = await getClient().get<NormalizedRoute[]>(url, {

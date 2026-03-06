@@ -93,7 +93,7 @@ export const fetchSportMetrics = async (
   if (options.tz) {
     params.set("tz", options.tz);
   }
-  const url = `/activities/${options.year}/metrics?${params.toString()}`;
+  const url = `activities/${options.year}/metrics?${params.toString()}`;
 
   try {
     const { data } = await getClient().get<SportMetricsProto>(url, {
@@ -109,7 +109,7 @@ export const fetchYearMetadata = async (
   year: number,
   signal?: AbortSignal
 ): Promise<YearMetadata> => {
-  const url = `/activities/${year}/metadata`;
+  const url = `activities/${year}/metadata`;
 
   try {
     const { data } = await getClient().get<YearMetadata>(url, {
@@ -127,7 +127,7 @@ export const fetchYearMetadata = async (
 };
 
 export const fetchSportConfig = async (signal?: AbortSignal): Promise<SportConfig> => {
-  const url = `/sports/config`;
+  const url = `sports/config`;
 
   try {
     const { data } = await getClient().get<SportConfig>(url, {
@@ -168,7 +168,7 @@ export const fetchMultiSportDailySummary = async (
   if (options.tz) {
     params.set("tz", options.tz);
   }
-  const url = `/activities/${options.year}/source?${params.toString()}`;
+  const url = `activities/${options.year}/source?${params.toString()}`;
 
   try {
     const { data } = await getClient().get<AllSportsDailySummaryProto>(url, {
@@ -197,7 +197,7 @@ export const fetchMultiSportMetrics = async (
   if (options.tz) {
     params.set("tz", options.tz);
   }
-  const url = `/activities/${options.year}/metrics?${params.toString()}`;
+  const url = `activities/${options.year}/metrics?${params.toString()}`;
 
   try {
     const { data } = await getClient().get<AllSportsMetricsProto>(url, {
@@ -218,7 +218,7 @@ export const fetchMultiSportMetrics = async (
  * Fetch a single activity by ID
  */
 export const fetchActivity = async (id: number, signal?: AbortSignal): Promise<Activity | null> => {
-  const url = `/activities/${id}`;
+  const url = `activities/${id}`;
 
   try {
     const { data } = await getClient().get<Activity>(url, {
@@ -248,7 +248,7 @@ export const fetchActivities = async (
   if (filter.limit) params.set("limit", filter.limit.toString());
   if (filter.cursor) params.set("cursor", filter.cursor);
 
-  const url = `/activities?${params.toString()}`;
+  const url = `activities?${params.toString()}`;
 
   try {
     const { data } = await getClient().get<ActivityListResponse>(url, {
