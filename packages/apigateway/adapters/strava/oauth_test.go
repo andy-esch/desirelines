@@ -38,6 +38,8 @@ func TestExchangeCode_HappyPath(t *testing.T) {
 			t.Errorf("Content-Type = %q, want application/x-www-form-urlencoded", ct)
 		}
 
+		// Limit request body size to prevent memory exhaustion (G120)
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		if parseErr := r.ParseForm(); parseErr != nil {
 			t.Fatalf("failed to parse form: %v", parseErr)
 		}

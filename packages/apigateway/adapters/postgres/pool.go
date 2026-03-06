@@ -141,8 +141,10 @@ func getInt32Env(key string, defaultValue int32) int32 {
 			return int32(i)
 		}
 		if err != nil {
+			// #nosec G706 - environment variable values are logged for configuration debugging.
 			slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
 		} else {
+			// #nosec G706 - environment variable values are logged for configuration debugging.
 			slog.Warn("Invalid environment variable value (must be non-negative), using default", "key", key, "value", value)
 		}
 	}
@@ -158,8 +160,10 @@ func getDurationEnvMinutes(key string, defaultValue time.Duration) time.Duration
 			return time.Duration(minutes) * time.Minute
 		}
 		if err != nil {
+			// #nosec G706 - environment variable values are logged for configuration debugging.
 			slog.Warn("Invalid environment variable value, using default", "key", key, "value", value, "error", err)
 		} else {
+			// #nosec G706 - environment variable values are logged for configuration debugging.
 			slog.Warn("Invalid environment variable value (must be positive), using default", "key", key, "value", value)
 		}
 	}

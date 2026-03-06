@@ -249,6 +249,7 @@ func TestHandleCallback(t *testing.T) {
 		t.Fatalf("failed to create expired state: %v", err)
 	}
 
+	// #nosec G101 - mock response data for testing
 	validTokenResp := &StravaTokenResponse{
 		AccessToken:  "strava-access-token",
 		RefreshToken: "strava-refresh-token",
@@ -262,6 +263,7 @@ func TestHandleCallback(t *testing.T) {
 		},
 	}
 
+	// #nosec G101 - mock response data for testing
 	insufficientScopeResp := &StravaTokenResponse{
 		AccessToken:  "strava-access-token",
 		RefreshToken: "strava-refresh-token",
@@ -275,6 +277,7 @@ func TestHandleCallback(t *testing.T) {
 		},
 	}
 
+	// #nosec G101 - mock response data for testing
 	zeroAthleteResp := &StravaTokenResponse{
 		AccessToken:  "strava-access-token",
 		RefreshToken: "strava-refresh-token",
