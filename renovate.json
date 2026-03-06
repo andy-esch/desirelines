@@ -13,11 +13,6 @@
   },
   "packageRules": [
     {
-      "description": "Group all non-major updates into one PR for reduced noise",
-      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
-      "groupName": "all non-major updates"
-    },
-    {
       "description": "Pin PostGIS to PostgreSQL v17 - major version bumps require database migration",
       "matchPackageNames": ["postgis/postgis"],
       "allowedVersions": "17.x"
@@ -34,6 +29,11 @@
       "description": "Group all Terraform updates into one PR",
       "matchManagers": ["terraform", "terraform-version"],
       "groupName": "terraform updates"
+    },
+    {
+      "description": "Catch-all: group remaining non-major updates into one PR for reduced noise",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "all non-major updates"
     }
   ]
 }
