@@ -52,10 +52,12 @@
       "allowedVersions": "/^17-\\d+\\.\\d+/"
     },
     {
-      "description": "Pin Go to 1.25.x - wait for ecosystem tooling to catch up with 1.26",
+      "description": "Pin Go to 1.25.x across all managers (Go modules, GitHub Actions, Docker)",
       "matchPackageNames": ["go", "golang"],
-      "matchDatasources": ["golang-version", "go"],
-      "allowedVersions": "<1.26.0"
+      "matchDatasources": ["docker", "golang-version", "go"],
+      "matchManagers": ["gomod", "github-actions", "dockerfile"],
+      "allowedVersions": "<1.26.0",
+      "groupName": "go version"
     },
     {
       "description": "Group all Terraform updates into one PR",
