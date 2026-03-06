@@ -11,20 +11,6 @@ file(
     source="pyproject.toml",
 )
 
-python_sources(
-    name="lib",
-    # Exclude generated protobuf files - they're handled by types/generated/BUILD
-    sources=["src/**/*.py", "!src/stravapipe/types/generated/*_pb2.py"],
-    resolve="stravapipe",
-    # Overrides for specific files
-    overrides={
-        # sport_config.py needs JSON resource dependency
-        # Pants can't auto-infer Path(__file__).parent / "file.json" dependencies
-        "src/stravapipe/config/sport_config.py": {
-            "dependencies": ["packages/stravapipe/src/stravapipe/config:sport_config_json"],
-        },
-    },
-)
 
 # =============================================================================
 # Docker Image for Cloud Run (Python/FastAPI mono-image)
