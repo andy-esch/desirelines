@@ -1,6 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    "group:monorepos",
+    ":monorepoReact",
+    ":monorepoTanstack"
+  ],
   "terraform": {
     "enabled": true
   },
@@ -9,52 +15,16 @@
   },
   "packageRules": [
     {
-      "description": "Group all Dockerfile base image updates into one PR",
-      "matchManagers": ["dockerfile"],
-      "groupName": "dockerfile base images"
-    },
-    {
-      "description": "Group all Go module updates into one PR",
-      "matchManagers": ["gomod"],
-      "groupName": "go modules"
-    },
-    {
-      "description": "Group all GitHub Actions updates into one PR",
-      "matchManagers": ["github-actions"],
-      "groupName": "github actions"
-    },
-    {
-      "description": "Group all TanStack updates into one PR",
-      "matchPackagePrefixes": ["@tanstack/"],
-      "groupName": "tanstack"
-    },
-    {
-      "description": "Group React and related type updates into one PR",
-      "matchPackageNames": ["react", "react-dom"],
-      "matchPackagePrefixes": ["@types/react", "@types/react-dom"],
-      "groupName": "react"
-    },
-    {
-      "description": "Group all other npm updates into one PR",
-      "matchManagers": ["npm"],
-      "excludePackagePrefixes": ["@tanstack/"],
-      "excludePackageNames": ["react", "react-dom"],
-      "groupName": "npm dependencies"
-    },
-    {
-      "description": "Group all docker-compose image updates into one PR",
-      "matchManagers": ["docker-compose"],
-      "groupName": "docker-compose images"
-    },
-    {
       "description": "Pin PostGIS to PostgreSQL v17 - major version bumps require database migration",
       "matchPackageNames": ["postgis/postgis"],
       "allowedVersions": "17.x"
     },
     {
       "description": "Pin Go to 1.25.x across all managers (Go modules, GitHub Actions, Docker)",
-      "matchPackagePatterns": ["^go$", "^golang$", "^actions/setup-go$"],
-      "allowedVersions": "<1.26.0",
+      "matchPackagePatterns": ["^go$", "^golang$"],
+      "matchManagers": ["gomod", "github-actions", "dockerfile"],
+      "matchDatasources": ["go", "golang-version", "docker"],
+      "allowedVersions": "1.25.x",
       "groupName": "go version"
     },
     {
