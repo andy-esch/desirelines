@@ -3,7 +3,9 @@
   "extends": [
     "config:recommended",
     ":dependencyDashboard",
-    "group:monorepos"
+    "group:monorepos",
+    ":monorepoReact",
+    ":monorepoTanstack"
   ],
   "terraform": {
     "enabled": true
@@ -19,21 +21,16 @@
     },
     {
       "description": "Pin Go to 1.25.x across all managers (Go modules, GitHub Actions, Docker)",
-      "matchPackagePatterns": ["^go$", "^golang$", "^actions/setup-go$"],
+      "matchPackagePatterns": ["^go$", "^golang$"],
       "matchManagers": ["gomod", "github-actions", "dockerfile"],
       "matchDatasources": ["go", "golang-version", "docker"],
-      "allowedVersions": "<1.26.0",
+      "allowedVersions": "1.25.x",
       "groupName": "go version"
     },
     {
       "description": "Group all Terraform updates into one PR",
       "matchManagers": ["terraform", "terraform-version"],
       "groupName": "terraform updates"
-    },
-    {
-      "description": "Catch-all: group remaining non-major updates into one PR for reduced noise",
-      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
-      "groupName": "all non-major updates"
     }
   ]
 }
