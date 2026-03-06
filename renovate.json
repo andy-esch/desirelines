@@ -4,8 +4,9 @@
     "config:recommended",
     ":dependencyDashboard",
     "group:monorepos",
-    ":monorepoReact",
-    ":monorepoTanstack"
+    "monorepo:react",
+    "monorepo:tanstack-query",
+    "monorepo:tanstack-router"
   ],
   "terraform": {
     "enabled": true
