@@ -31,7 +31,7 @@ function getClient() {
     if (!config.isProduction) {
       client.interceptors.request.use((reqConfig) => {
         if (reqConfig.url?.startsWith("/")) {
-          console.error(
+          throw new Error(
             `[API Client] URL "${reqConfig.url}" starts with "/" which bypasses the /v1 base path. ` +
               `Use a relative URL instead (e.g., "activities" not "/activities").`
           );
