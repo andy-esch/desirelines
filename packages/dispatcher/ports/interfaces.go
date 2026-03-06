@@ -30,6 +30,13 @@ type Publisher interface {
 
 // SecretProvider defines the outbound port for retrieving webhook secrets.
 // The subscription ID is returned as int32 to match the protobuf field type.
+//
+// GetSecrets returns both verifyToken and subscriptionID in a single call.
+// The verification handler uses only verifyToken, and the event handler uses
+// only subscriptionID. This coupling is intentional: both values come from
+// the same secret file and share a TTL cache, so a single method keeps the
+// interface simple. If the secret source is split in the future, consider
+// splitting into VerifyTokenProvider and SubscriptionIDProvider.
 type SecretProvider interface {
 	GetSecrets() (verifyToken string, subscriptionID int32, err error)
 }
