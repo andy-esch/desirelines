@@ -88,6 +88,10 @@ func BenchmarkHandler_ServeHTTP_InvalidWebhook(b *testing.B) {
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			b.Fatalf("unexpected status for invalid webhook: got %d, want %d", rr.Code, http.StatusBadRequest)
+		}
 	}
 }
 
@@ -114,6 +118,10 @@ func BenchmarkHandler_ServeHTTP_Concurrent(b *testing.B) {
 			rr := httptest.NewRecorder()
 
 			router.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusCreated {
+				b.Errorf("unexpected status in concurrent test: got %d, want %d", rr.Code, http.StatusCreated)
+			}
 		}
 	})
 }
