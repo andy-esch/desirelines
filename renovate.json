@@ -53,7 +53,8 @@
     },
     {
       "description": "Pin Go to 1.25.x - wait for ecosystem tooling to catch up with 1.26",
-      "matchPackageNames": ["golang", "go"],
+      "matchPackageNames": ["go", "golang"],
+      "matchDatasources": ["golang-version", "go"],
       "allowedVersions": "<1.26.0"
     },
     {
