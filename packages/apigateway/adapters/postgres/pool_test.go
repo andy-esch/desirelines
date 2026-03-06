@@ -7,6 +7,7 @@ import (
 )
 
 func TestValidateConnectionString(t *testing.T) {
+	// #nosec G101 - test connection strings use dummy credentials.
 	tests := []struct {
 		name      string
 		connStr   string
