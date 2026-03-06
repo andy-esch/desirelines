@@ -49,13 +49,11 @@
     {
       "description": "Pin PostGIS to PostgreSQL v17 - major version bumps require database migration",
       "matchPackageNames": ["postgis/postgis"],
-      "allowedVersions": "/^17-\\d+\\.\\d+/"
+      "allowedVersions": "17.x"
     },
     {
       "description": "Pin Go to 1.25.x across all managers (Go modules, GitHub Actions, Docker)",
-      "matchPackageNames": ["go", "golang"],
-      "matchDatasources": ["docker", "golang-version", "go"],
-      "matchManagers": ["gomod", "github-actions", "dockerfile"],
+      "matchPackagePatterns": ["^go$", "^golang$", "^actions/setup-go$"],
       "allowedVersions": "<1.26.0",
       "groupName": "go version"
     },
