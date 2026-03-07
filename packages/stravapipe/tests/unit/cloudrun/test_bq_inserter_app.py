@@ -206,15 +206,13 @@ class TestDeleteEventHandling:
 
     def test_delete_event_success(self, client):
         """DELETE event successfully archives and removes activity."""
-        from stravapipe.cloudrun.bq_inserter_app import app
-
         expected_result = {
             "status": "deleted",
             "activity_id": 12345678,
             "correlation_id": "test-correlation-id",
         }
 
-        mock_service = app.state.delete_service
+        mock_service = client.app.state.delete_service
         mock_service.run.return_value = expected_result
 
         webhook = make_webhook_payload(aspect_type="delete")
