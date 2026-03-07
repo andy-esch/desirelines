@@ -663,14 +663,12 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 // validateAndGetYear extracts and validates the year path parameter.
 // Returns the parsed year and true if valid, or writes an error response and returns false.
 func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (int, bool) {
-	yearStr := chi.URLParam(r, "year")
-	if !validate.Year(yearStr) {
+	year, ok := validate.ParseYear(chi.URLParam(r, "year"))
+	if !ok {
 		err := gcplog.NewAPIError(http.StatusBadRequest, "Invalid year format")
 		gcplog.WriteError(w, r, err, h.logger)
 		return 0, false
 	}
-	// validate.Year already confirmed this is a 4-digit number
-	year, _ := strconv.Atoi(yearStr)
 	return year, true
 }
 
