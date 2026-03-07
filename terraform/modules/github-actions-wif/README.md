@@ -44,11 +44,11 @@ From the `desirelines-deploy` repo:
 ```bash
 cd desirelines-deploy/environments/dev
 terraform init
-infisical run --env=dev --path=/ci/secrets -- terraform apply
+infisical run --env=dev --path=/ci/deploy -- terraform apply
 
 # Get the values for GitHub secrets
-infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_provider
-infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_service_account
+infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_provider
+infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_service_account
 ```
 
 ### Add GitHub Secrets

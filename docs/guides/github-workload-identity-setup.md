@@ -31,7 +31,7 @@ From the `desirelines-deploy` repo:
 ```bash
 cd desirelines-deploy/environments/dev
 terraform init
-infisical run --env=dev --path=/ci/secrets -- terraform apply
+infisical run --env=dev --path=/ci/deploy -- terraform apply
 ```
 
 This creates:
@@ -83,7 +83,7 @@ For production environment (`desirelines-prod`), from the `desirelines-deploy` r
 ```bash
 cd desirelines-deploy/environments/prod
 terraform init
-infisical run --env=prod --path=/ci/secrets -- terraform apply
+infisical run --env=prod --path=/ci/deploy -- terraform apply
 ```
 
 **Note on secrets**: The public repo's `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT` are **manually set** as repository-level secrets (not synced via Infisical), because the two repos need different SAs and Infisical can't differentiate per-repo for the same secret name. The deploy repo's WIF secrets are environment-scoped and synced via Infisical.
@@ -165,8 +165,8 @@ gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
 
 ```bash
 cd desirelines-deploy/environments/dev
-infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_provider
-infisical run --env=dev --path=/ci/secrets -- terraform output github_wif_service_account
+infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_provider
+infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_service_account
 ```
 
 **Verify resources exist:**
@@ -205,8 +205,8 @@ If something is misconfigured (from `desirelines-deploy` repo):
 cd desirelines-deploy/environments/dev
 
 # Destroy and recreate
-infisical run --env=dev --path=/ci/secrets -- terraform destroy -target=module.github_actions
-infisical run --env=dev --path=/ci/secrets -- terraform apply
+infisical run --env=dev --path=/ci/deploy -- terraform destroy -target=module.github_actions
+infisical run --env=dev --path=/ci/deploy -- terraform apply
 ```
 
 ## Security Best Practices

@@ -65,8 +65,8 @@ For manual deployment, use the `desirelines-deploy` repo:
 
 ```bash
 cd desirelines-deploy/environments/dev
-infisical run --env=dev --path=/ci/secrets -- terraform plan
-infisical run --env=dev --path=/ci/secrets -- terraform apply
+infisical run --env=dev --path=/ci/deploy -- terraform plan
+infisical run --env=dev --path=/ci/deploy -- terraform apply
 ```
 
 ## Troubleshooting
@@ -104,7 +104,7 @@ just build-publish
 # Deploy terraform only (from desirelines-deploy repo)
 cd desirelines-deploy/environments/dev
 terraform init
-infisical run --env=dev --path=/ci/secrets -- terraform apply
+infisical run --env=dev --path=/ci/deploy -- terraform apply
 ```
 
 ## Environment Cleanup
@@ -113,7 +113,7 @@ To completely tear down an environment (from `desirelines-deploy` repo):
 
 ```bash
 cd desirelines-deploy/environments/dev  # or prod
-infisical run --env=dev --path=/ci/secrets -- terraform destroy
+infisical run --env=dev --path=/ci/deploy -- terraform destroy
 ```
 
 This removes all infrastructure but preserves:
