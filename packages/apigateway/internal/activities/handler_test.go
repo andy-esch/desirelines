@@ -557,7 +557,10 @@ func TestHandleRoutes_SportCategoryMapping(t *testing.T) {
 		t.Fatalf("expected 1 route, got %d", len(routes))
 	}
 	// "Ride" is a Strava type that maps to the "cycling" category
-	sport, _ := routes[0]["sport"].(string)
+	sport, ok := routes[0]["sport"].(string)
+	if !ok {
+		t.Fatal("sport field missing or not a string")
+	}
 	if sport == "Ride" {
 		t.Error("sport should be mapped to category name, not raw Strava type")
 	}
