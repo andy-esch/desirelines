@@ -3,8 +3,9 @@
 import logging
 from typing import Any
 
-from google.cloud import bigquery
+from google.cloud.bigquery import ScalarQueryParameter
 
+from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.cfutils.constants import (
     ResponseField,
     ResponseStatus,
@@ -17,17 +18,18 @@ logger = logging.getLogger(__name__)
 class DeleteActivityService:
     """Archive deleted activity from activities to deleted_activities table"""
 
-    def __init__(self, bq_client: bigquery.Client, project_id: str, dataset_id: str):
+    def __init__(self, client: BigQueryClientWrapper, *, dataset_id: str):
         """Initialize the delete service with required dependencies.
 
         Args:
-            bq_client: BigQuery client for database operations.
-            project_id: GCP project ID.
+            client: BigQuery client wrapper for database operations.
             dataset_id: BigQuery dataset ID (without project prefix).
         """
-        self.bq_client = bq_client
-        self.project_id = project_id
-        self.dataset_id = dataset_id
+        self._client = client
+        self._dataset_id = dataset_id
+
+    def _table(self, name: str) -> str:
+        return f"`{self._client.project_id}.{self._dataset_id}.{name}`"
 
     def run(
         self,
@@ -52,7 +54,7 @@ class DeleteActivityService:
             dict: Result with status and metadata.
 
         Raises:
-            Exception: If archiving fails (will trigger retry via DLQ).
+            BigQueryError: If archiving fails (will trigger retry via DLQ).
         """
         logger.info(
             "Processing delete event for activity %s",
@@ -60,82 +62,49 @@ class DeleteActivityService:
             extra={"correlation_id": correlation_id, "activity_id": activity_id},
         )
 
-        # Archive activity into deleted_activity
+        # Archive activity into deleted_activities
         insert_query = f"""
-        INSERT INTO `{self.project_id}.{self.dataset_id}.deleted_activities`
+        INSERT INTO {self._table("deleted_activities")}
         SELECT
-            *,  -- All columns from activities table
+            *,
             CURRENT_TIMESTAMP() AS deleted_at,
             @event_time AS deletion_event_time,
             @correlation_id AS deletion_correlation_id
-        FROM `{self.project_id}.{self.dataset_id}.activities`
+        FROM {self._table("activities")}
         WHERE id = @activity_id
         """
 
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("activity_id", "INT64", activity_id),
-                bigquery.ScalarQueryParameter("event_time", "INT64", event_time),
-                bigquery.ScalarQueryParameter(
-                    "correlation_id", "STRING", correlation_id
-                ),
-            ]
+        rows_archived = self._client.execute_dml_query(
+            insert_query,
+            [
+                ScalarQueryParameter("activity_id", "INT64", activity_id),
+                ScalarQueryParameter("event_time", "INT64", event_time),
+                ScalarQueryParameter("correlation_id", "STRING", correlation_id),
+            ],
         )
 
-        try:
-            logger.info(
-                "Archiving activity %s to deleted_activities table",
+        if rows_archived == 0:
+            logger.warning(
+                "Activity %s not found for deletion (may have been deleted already)",
                 activity_id,
                 extra={"correlation_id": correlation_id},
             )
-
-            query_job = self.bq_client.query(insert_query, job_config=job_config)
-            _ = query_job.result()
-
-            # Check if any rows were inserted
-            if query_job.num_dml_affected_rows == 0:
-                logger.warning(
-                    "Activity %s not found for deletion (may have been deleted already)",
-                    activity_id,
-                    extra={"correlation_id": correlation_id},
-                )
-                return {
-                    ResponseField.STATUS: ResponseStatus.SKIPPED,
-                    ResponseField.REASON: SkipReason.ACTIVITY_NOT_FOUND,
-                    ResponseField.ACTIVITY_ID: activity_id,
-                }
-
-        except Exception as e:
-            logger.error(
-                "Failed to archive activity %s: %s",
-                activity_id,
-                str(e),
-                extra={"correlation_id": correlation_id},
-            )
-            raise  # Re-raise to trigger retry
+            return {
+                ResponseField.STATUS: ResponseStatus.SKIPPED,
+                ResponseField.REASON: SkipReason.ACTIVITY_NOT_FOUND,
+                ResponseField.ACTIVITY_ID: activity_id,
+            }
 
         # Delete from activities table
         delete_query = f"""
-        DELETE FROM `{self.project_id}.{self.dataset_id}.activities`
+        DELETE FROM {self._table("activities")}
         WHERE id = @activity_id
         """
 
-        delete_job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("activity_id", "INT64", activity_id),
-            ]
+        self._client.execute_dml_query(
+            delete_query,
+            [ScalarQueryParameter("activity_id", "INT64", activity_id)],
         )
-
-        try:
-            self.bq_client.query(delete_query, job_config=delete_job_config).result()
-        except Exception as e:
-            logger.error(
-                "Failed to delete activity %s from activities table: %s",
-                activity_id,
-                str(e),
-                extra={"correlation_id": correlation_id},
-            )
-            raise  # Re-raise to trigger retry
 
         logger.info(
             "Successfully archived deleted activity %s",

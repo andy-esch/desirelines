@@ -26,10 +26,10 @@ from dataclasses import dataclass, field
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
-from google.cloud import bigquery
 from google.cloud.firestore_v1 import Client as FirestoreClient
 
 from stravapipe.adapters.firestore import FirestoreTokenStore
+from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
 from stravapipe.application.deletion import BQUserDeletionService
@@ -109,9 +109,9 @@ async def lifespan(app: FastAPI):
         logger.info("PostgreSQL session factory initialized")
 
         # BigQuery
-        bq_client = bigquery.Client(project=config.project_id)
+        bq_client = BigQueryClientWrapper(project_id=config.project_id)
         app.state.bq_deletion_service = BQUserDeletionService(
-            bq_client, config.project_id, config.bq_dataset
+            bq_client, dataset_id=config.bq_dataset
         )
         logger.info("BigQuery deletion service initialized")
 

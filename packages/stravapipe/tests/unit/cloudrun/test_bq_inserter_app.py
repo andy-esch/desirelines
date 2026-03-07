@@ -34,9 +34,17 @@ def client(mock_bq_config):
     mock_writer = MagicMock()
     mock_writer.write_activity.return_value = {"rows_affected": 0}
 
-    with patch(
-        "stravapipe.cloudrun.bq_inserter_app.make_write_activities",
-        return_value=mock_writer,
+    mock_delete_service = MagicMock()
+
+    with (
+        patch(
+            "stravapipe.cloudrun.bq_inserter_app.make_write_activities",
+            return_value=mock_writer,
+        ),
+        patch(
+            "stravapipe.cloudrun.bq_inserter_app.make_delete_service",
+            return_value=mock_delete_service,
+        ),
     ):
         from stravapipe.cloudrun.bq_inserter_app import app
 
@@ -198,36 +206,34 @@ class TestDeleteEventHandling:
 
     def test_delete_event_success(self, client):
         """DELETE event successfully archives and removes activity."""
+        from stravapipe.cloudrun.bq_inserter_app import app
+
         expected_result = {
             "status": "deleted",
             "activity_id": 12345678,
             "correlation_id": "test-correlation-id",
         }
 
-        with patch(
-            "stravapipe.cloudrun.bq_inserter_app.make_delete_service"
-        ) as mock_factory:
-            mock_service = MagicMock()
-            mock_service.run.return_value = expected_result
-            mock_factory.return_value = mock_service
+        mock_service = app.state.delete_service
+        mock_service.run.return_value = expected_result
 
-            webhook = make_webhook_payload(aspect_type="delete")
-            response = client.post(
-                "/",
-                headers=make_cloudevent_headers(),
-                json=make_pubsub_body(webhook),
-            )
+        webhook = make_webhook_payload(aspect_type="delete")
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(webhook),
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "deleted"
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "deleted"
 
-            # Verify service was called with correct arguments
-            mock_service.run.assert_called_once()
-            call_kwargs = mock_service.run.call_args.kwargs
-            assert call_kwargs["activity_id"] == 12345678
-            assert call_kwargs["event_time"] == webhook["event_time"]
-            assert "correlation_id" in call_kwargs
+        # Verify service was called with correct arguments
+        mock_service.run.assert_called_once()
+        call_kwargs = mock_service.run.call_args.kwargs
+        assert call_kwargs["activity_id"] == 12345678
+        assert call_kwargs["event_time"] == webhook["event_time"]
+        assert "correlation_id" in call_kwargs
 
 
 class TestErrorHandling:
