@@ -15,14 +15,14 @@ from fastapi import HTTPException, Request
 from opentelemetry.metrics import Counter
 
 from stravapipe.adapters.proto import dict_to_webhook_event
-from stravapipe.cfutils.constants import (
+from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
+from stravapipe.shared.constants import (
     DEFAULT_UNKNOWN,
     ResponseField,
     ResponseStatus,
     SkipReason,
     WebhookField,
 )
-from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.types.generated import webhook_pb2 as pb
 
 # Callback type for aspect handlers.

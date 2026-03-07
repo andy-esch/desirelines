@@ -115,6 +115,56 @@ func newTestHandler(
 	return h
 }
 
+// --- NewHandler validation tests ---
+
+func TestNewHandler_URLValidation(t *testing.T) {
+	baseCfg := HandlerConfig{
+		Strava:      &mockStravaOAuth{},
+		Tokens:      &mockTokenStore{},
+		Allowlist:   &mockAllowlist{},
+		Firebase:    &mockFirebase{},
+		StateSecret: []byte("test-secret-key-32-bytes-long!!!"),
+		ClientID:    "test-client-id",
+		FrontendURL: "https://app.example.com",
+		RedirectURI: "https://api.example.com/auth/callback",
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	tests := []struct {
+		name        string
+		frontendURL string
+		redirectURI string
+		environment string
+		wantErr     bool
+	}{
+		// Frontend URL validation
+		{"frontend https in production", "https://app.example.com", "https://api.example.com/auth/callback", "production", false},
+		{"frontend http in local dev", "http://localhost:5173", "http://localhost:8080/auth/callback", "", false},
+		{"frontend http in production rejected", "http://app.example.com", "https://api.example.com/auth/callback", "production", true},
+		{"frontend missing scheme rejected", "app.example.com", "https://api.example.com/auth/callback", "", true},
+		{"frontend empty URL rejected", "", "https://api.example.com/auth/callback", "", true},
+
+		// Redirect URI validation
+		{"redirect https in production", "https://app.example.com", "https://api.example.com/auth/callback", "production", false},
+		{"redirect http in production rejected", "https://app.example.com", "http://api.example.com/auth/callback", "production", true},
+		{"redirect missing scheme rejected", "https://app.example.com", "api.example.com/auth/callback", "production", true},
+		{"redirect empty URI rejected", "https://app.example.com", "", "production", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := baseCfg
+			cfg.FrontendURL = tt.frontendURL
+			cfg.RedirectURI = tt.redirectURI
+			cfg.Environment = tt.environment
+			_, err := NewHandler(&cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewHandler() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // --- HandleInitiate tests ---
 
 func TestHandleInitiate(t *testing.T) {

@@ -6,7 +6,7 @@ from typing import Any
 from google.cloud.bigquery import ScalarQueryParameter
 
 from stravapipe.adapters.gcp import BigQueryClientWrapper
-from stravapipe.cfutils.constants import (
+from stravapipe.shared.constants import (
     ResponseField,
     ResponseStatus,
     SkipReason,
