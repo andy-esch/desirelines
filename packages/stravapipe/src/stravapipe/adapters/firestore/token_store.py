@@ -22,6 +22,8 @@ from google.cloud.firestore_v1 import Client as FirestoreClient
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from google.cloud.firestore_v1.transaction import transactional
 
+from stravapipe.exceptions import StravaPipeError
+
 logger = logging.getLogger(__name__)
 
 # Firestore path constants — must match Go shared/stravatoken/types.go
@@ -30,7 +32,7 @@ PRIVATE_COLLECTION = "private"
 TOKENS_DOCUMENT = "strava_tokens"
 
 
-class TokenNotFoundError(Exception):
+class TokenNotFoundError(StravaPipeError):
     """Raised when no tokens exist for an athlete in Firestore."""
 
     def __init__(self, athlete_id: str):
