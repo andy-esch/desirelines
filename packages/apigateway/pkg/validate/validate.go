@@ -47,11 +47,21 @@ const (
 
 // Year validates that the year string is a 4-digit number within valid bounds.
 func Year(s string) bool {
+	_, ok := ParseYear(s)
+	return ok
+}
+
+// ParseYear parses and validates a year string in one step.
+// Returns the parsed year and true if valid, or 0 and false otherwise.
+func ParseYear(s string) (int, bool) {
 	if len(s) != 4 {
-		return false
+		return 0, false
 	}
 	year, err := strconv.Atoi(s)
-	return err == nil && year >= MinValidYear && year <= MaxValidYear
+	if err != nil || year < MinValidYear || year > MaxValidYear {
+		return 0, false
+	}
+	return year, true
 }
 
 // Sport validates that the sport string is within acceptable length bounds.

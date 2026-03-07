@@ -17,7 +17,7 @@
 //
 // 1. "Write and return bool" - for validators that take ResponseWriter:
 //
-//	year, ok := h.validateAndGetYear(w, r)
+//	year, ok := h.validateAndGetYear(w, r)  // returns int
 //	if !ok { return }  // Response already written
 //
 // This pattern enables clean composition of multiple validations without
@@ -108,18 +108,10 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	yearInt, err := strconv.Atoi(year)
-	if err != nil {
-		// This should never happen since year is validated, but handle it properly
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		gcplog.WriteError(w, r, apiErr, h.logger)
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(r.Context(), h.dbTimeout)
 	defer cancel()
 
-	metadata, err := h.repo.GetYearMetadata(ctx, userID, yearInt)
+	metadata, err := h.repo.GetYearMetadata(ctx, userID, year)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "year", year)
 		apiErr := gcplog.NewAPIError(
@@ -134,7 +126,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	h.categorizeSports(metadata)
 
 	// Cache past years (immutable) for 1 hour; private prevents CDN/proxy caching
-	if yearInt < time.Now().Year() {
+	if year < time.Now().Year() {
 		w.Header().Set("Cache-Control", "private, max-age=3600")
 	}
 
@@ -166,16 +158,8 @@ type sportQueryParams struct {
 // validateSportQuery validates common parameters for metrics and source endpoints.
 // Returns nil and writes error response if validation fails.
 func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sportQueryParams {
-	yearStr, ok := h.validateAndGetYear(w, r)
+	year, ok := h.validateAndGetYear(w, r)
 	if !ok {
-		return nil
-	}
-
-	// Parse year to int (validation already confirmed it's a valid 4-digit year)
-	yearInt, parseErr := strconv.Atoi(yearStr)
-	if parseErr != nil {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		gcplog.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
@@ -193,14 +177,14 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		return nil
 	}
 
-	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, yearInt); errMsg != "" {
+	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, year); errMsg != "" {
 		apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
 	return &sportQueryParams{
-		year:         yearInt,
+		year:         year,
 		sportTypes:   sportTypes,
 		from:         fromStr,
 		to:           toStr,
@@ -224,15 +208,8 @@ type multiSportQueryParams struct {
 // validateMultiSportQuery validates the ?sports=X,Y,Z parameter for multi-sport endpoints.
 // Returns nil and writes error response if validation fails.
 func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request) *multiSportQueryParams {
-	yearStr, ok := h.validateAndGetYear(w, r)
+	year, ok := h.validateAndGetYear(w, r)
 	if !ok {
-		return nil
-	}
-
-	yearInt, parseErr := strconv.Atoi(yearStr)
-	if parseErr != nil {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		gcplog.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
@@ -285,7 +262,7 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 		return nil
 	}
 
-	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, yearInt); errMsg != "" {
+	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, year); errMsg != "" {
 		apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
 		gcplog.WriteError(w, r, apiErr, h.logger)
 		return nil
@@ -298,7 +275,7 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 	}
 
 	return &multiSportQueryParams{
-		year:            yearInt,
+		year:            year,
 		sportCategories: sportCategories,
 		allSportTypes:   allTypes,
 		from:            fromStr,
@@ -684,13 +661,13 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 }
 
 // validateAndGetYear extracts and validates the year path parameter.
-// Returns the year string and true if valid, or writes an error response and returns false.
-func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (string, bool) {
-	year := chi.URLParam(r, "year")
-	if !validate.Year(year) {
+// Returns the parsed year and true if valid, or writes an error response and returns false.
+func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (int, bool) {
+	year, ok := validate.ParseYear(chi.URLParam(r, "year"))
+	if !ok {
 		err := gcplog.NewAPIError(http.StatusBadRequest, "Invalid year format")
 		gcplog.WriteError(w, r, err, h.logger)
-		return "", false
+		return 0, false
 	}
 	return year, true
 }
