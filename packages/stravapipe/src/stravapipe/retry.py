@@ -19,15 +19,16 @@ def retry_on_failure(
     max_attempts: int = 3,
     backoff_seconds: float = 1.0,
     exponential_backoff: bool = True,
-    retry_on_status: tuple[int, ...] = (429, 500, 502, 503, 504),
 ) -> Callable[[F], F]:
     """Retry decorator for API calls with exponential backoff.
+
+    Retries on: 429 (rate limit), 5xx (server errors), connection errors,
+    and timeouts. All other HTTP errors are raised immediately.
 
     Args:
         max_attempts: Maximum number of retry attempts
         backoff_seconds: Initial delay between retries
         exponential_backoff: Whether to use exponential backoff
-        retry_on_status: HTTP status codes to retry on
     """
 
     def decorator(func: F) -> F:
@@ -69,14 +70,11 @@ def retry_on_failure(
                             continue
 
                         # Don't retry on client errors (except rate limiting)
-                        if status_code < 500 and status_code != 429:
+                        if status_code < 500:
                             raise
 
-                        # Retry on server errors
-                        if status_code in retry_on_status:
-                            last_exception = e
-                        else:
-                            raise
+                        # Retry on server errors (5xx)
+                        last_exception = e
                     else:
                         # Network error without response
                         last_exception = e
