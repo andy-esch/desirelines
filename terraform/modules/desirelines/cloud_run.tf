@@ -630,6 +630,8 @@ resource "google_cloud_run_v2_service" "deletion_service" {
   location = var.gcp_region
   ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Only Pub/Sub push can call this
 
+  deletion_protection = false
+
   labels = local.common_labels
 
   template {
