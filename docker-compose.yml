@@ -84,6 +84,42 @@ services:
       flyway:
         condition: service_completed_successfully
 
+  # Deletion Service - handles user data deletion on Strava deauthorization
+  deletion-service:
+    profiles: ["backend"] # Backend pipeline only
+    build:
+      context: ./packages/stravapipe
+      dockerfile: Dockerfile
+    command: ["uvicorn", "stravapipe.cloudrun.deletion_service_app:app", "--host", "0.0.0.0", "--port", "8080"]
+    ports:
+      - "8088:8080"
+    environment:
+      - GCP_PROJECT_ID=local-dev
+      - GCP_BIGQUERY_DATASET=local_dev_dataset
+      - FIRESTORE_DATABASE=(default)
+      - POSTGRES_CONNECTION_STRING=postgresql://${POSTGRES_USER_LOCAL}:${POSTGRES_PASSWORD_LOCAL}@postgres:5432/${POSTGRES_DB_LOCAL}?application_name=deletion-service
+      - LOG_LEVEL=INFO
+      - ENABLE_CLOUD_LOGGING=true
+      - GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/adc.json
+    env_file:
+      - .env.local
+    volumes:
+      - ${HOME}/.config/gcloud/application_default_credentials.json:/tmp/keys/adc.json:ro
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Backfill Job - one-shot container for backfilling historical Strava activities
   # Run with: docker compose --profile backfill run --rm backfill
   backfill:
