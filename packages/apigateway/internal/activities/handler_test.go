@@ -160,16 +160,16 @@ func TestHandler_validateAndGetYear(t *testing.T) {
 		name      string
 		yearParam string
 		wantOK    bool
-		wantYear  string
+		wantYear  int
 	}{
-		{"valid year 2024", "2024", true, "2024"},
-		{"valid year 2000", "2000", true, "2000"},
-		{"valid year 2050", "2050", true, "2050"},
-		{"invalid year 1999", "1999", false, ""},
-		{"invalid year 2051", "2051", false, ""},
-		{"invalid format abc", "abc", false, ""},
-		{"invalid format 20", "20", false, ""},
-		{"empty", "", false, ""},
+		{"valid year 2024", "2024", true, 2024},
+		{"valid year 2000", "2000", true, 2000},
+		{"valid year 2050", "2050", true, 2050},
+		{"invalid year 1999", "1999", false, 0},
+		{"invalid year 2051", "2051", false, 0},
+		{"invalid format abc", "abc", false, 0},
+		{"invalid format 20", "20", false, 0},
+		{"empty", "", false, 0},
 	}
 
 	for _, tt := range tests {
