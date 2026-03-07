@@ -65,30 +65,35 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	// CORS middleware for all routes
 	r.Use(CORSMiddleware(cfg.CORSHandler))
 
-	// Public endpoints (no auth required)
+	// Root-level endpoints (health checks and OAuth flow)
 	r.Get("/health", public.Health)
-	r.Get("/sports/config", public.SportConfig)
 	r.Get("/auth/strava", public.AuthInitiate)
 	r.Get("/auth/callback", public.AuthCallback)
 
-	// Authenticated route group
-	r.Group(func(r chi.Router) {
-		r.Use(cfg.AuthMiddleware.Middleware)
+	// Versioned API routes
+	r.Route("/v1", func(r chi.Router) {
+		// Public endpoints (no auth required)
+		r.Get("/sports/config", public.SportConfig)
 
-		// Multi-sport endpoints (PostgreSQL backed)
-		r.Get("/activities/{year}/metadata", auth.GetMetadata)
-		r.Get("/activities/{year}/metrics", auth.GetMetrics)
-		r.Get("/activities/{year}/source", auth.GetSource)
+		// Authenticated route group
+		r.Group(func(r chi.Router) {
+			r.Use(cfg.AuthMiddleware.Middleware)
 
-		// Route art endpoint (must be registered before {id} to avoid chi matching "routes" as an ID)
-		r.Get("/activities/routes", auth.GetRoutes)
+			// Multi-sport endpoints (PostgreSQL backed)
+			r.Get("/activities/{year}/metadata", auth.GetMetadata)
+			r.Get("/activities/{year}/metrics", auth.GetMetrics)
+			r.Get("/activities/{year}/source", auth.GetSource)
 
-		// Individual activity endpoints
-		// Note: {id} occupies the same path segment as {year} above, but the
-		// {year} routes all require a sub-path (/metadata, /metrics, /source).
-		// Strava IDs are 10+ digits, so no practical collision with 4-digit years.
-		r.Get("/activities", auth.ListActivities)
-		r.Get("/activities/{id}", auth.GetActivityByID)
+			// Route art endpoint (must be registered before {id} to avoid chi matching "routes" as an ID)
+			r.Get("/activities/routes", auth.GetRoutes)
+
+			// Individual activity endpoints
+			// Note: {id} occupies the same path segment as {year} above, but the
+			// {year} routes all require a sub-path (/metadata, /metrics, /source).
+			// Strava IDs are 10+ digits, so no practical collision with 4-digit years.
+			r.Get("/activities", auth.ListActivities)
+			r.Get("/activities/{id}", auth.GetActivityByID)
+		})
 	})
 
 	return r

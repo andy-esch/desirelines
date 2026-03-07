@@ -66,7 +66,7 @@ describe("401 response interceptor", () => {
 
     vi.mocked(mockAuthService.getIdToken).mockResolvedValueOnce("refreshed-token");
 
-    const response = await client.get("/test");
+    const response = await client.get("test");
 
     expect(response.data).toEqual(successData);
     expect(adapter).toHaveBeenCalledTimes(2);
@@ -81,7 +81,7 @@ describe("401 response interceptor", () => {
 
     vi.mocked(mockAuthService.getIdToken).mockResolvedValue("refreshed-token");
 
-    await expect(client.get("/test")).rejects.toThrow();
+    await expect(client.get("test")).rejects.toThrow();
     // Original request + 1 retry = 2 calls, not infinite
     expect(adapter).toHaveBeenCalledTimes(2);
   });
@@ -92,7 +92,7 @@ describe("401 response interceptor", () => {
     });
     client.defaults.adapter = adapter;
 
-    await expect(client.get("/test")).rejects.toThrow();
+    await expect(client.get("test")).rejects.toThrow();
     expect(adapter).toHaveBeenCalledTimes(1);
     expect(mockAuthService.getIdToken).not.toHaveBeenCalledWith(true);
   });
@@ -111,7 +111,7 @@ describe("401 response interceptor", () => {
       .mockResolvedValueOnce("original-token")
       .mockRejectedValueOnce(new Error("Token refresh failed"));
 
-    await expect(client.get("/test")).rejects.toThrow();
+    await expect(client.get("test")).rejects.toThrow();
     // Should not have retried since token refresh failed
     expect(adapter).toHaveBeenCalledTimes(1);
   });

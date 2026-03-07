@@ -198,6 +198,18 @@ func TestCORSMiddleware(t *testing.T) {
 	})
 }
 
+// noopAuthRoutes returns AuthenticatedRoutes with no-op handlers for testing.
+func noopAuthRoutes() AuthenticatedRoutes {
+	return AuthenticatedRoutes{
+		GetMetadata:     func(w http.ResponseWriter, r *http.Request) {},
+		GetMetrics:      func(w http.ResponseWriter, r *http.Request) {},
+		GetSource:       func(w http.ResponseWriter, r *http.Request) {},
+		GetRoutes:       func(w http.ResponseWriter, r *http.Request) {},
+		ListActivities:  func(w http.ResponseWriter, r *http.Request) {},
+		GetActivityByID: func(w http.ResponseWriter, r *http.Request) {},
+	}
+}
+
 // newTestRouter creates a router with no-op handlers for testing
 func newTestRouter(c *cors.Handler, auth *mockAuthMiddleware, logger *slog.Logger) chi.Router {
 	return NewRouter(
@@ -206,13 +218,7 @@ func newTestRouter(c *cors.Handler, auth *mockAuthMiddleware, logger *slog.Logge
 			Health:      func(w http.ResponseWriter, r *http.Request) {},
 			SportConfig: func(w http.ResponseWriter, r *http.Request) {},
 		},
-		AuthenticatedRoutes{
-			GetMetadata:     func(w http.ResponseWriter, r *http.Request) {},
-			GetMetrics:      func(w http.ResponseWriter, r *http.Request) {},
-			GetSource:       func(w http.ResponseWriter, r *http.Request) {},
-			ListActivities:  func(w http.ResponseWriter, r *http.Request) {},
-			GetActivityByID: func(w http.ResponseWriter, r *http.Request) {},
-		},
+		noopAuthRoutes(),
 		logger,
 	)
 }
@@ -228,12 +234,13 @@ func TestNewRouter_RouteRegistration(t *testing.T) {
 		wantAuthCall bool
 	}{
 		{"health endpoint (public)", http.MethodGet, "/health", false},
-		{"sports config (public)", http.MethodGet, "/sports/config", false},
-		{"metadata (auth)", http.MethodGet, "/activities/2024/metadata", true},
-		{"metrics (auth)", http.MethodGet, "/activities/2024/metrics", true},
-		{"source (auth)", http.MethodGet, "/activities/2024/source", true},
-		{"list activities (auth)", http.MethodGet, "/activities", true},
-		{"get activity by ID (auth)", http.MethodGet, "/activities/123", true},
+		{"sports config (public)", http.MethodGet, "/v1/sports/config", false},
+		{"metadata (auth)", http.MethodGet, "/v1/activities/2024/metadata", true},
+		{"metrics (auth)", http.MethodGet, "/v1/activities/2024/metrics", true},
+		{"source (auth)", http.MethodGet, "/v1/activities/2024/source", true},
+		{"routes (auth)", http.MethodGet, "/v1/activities/routes", true},
+		{"list activities (auth)", http.MethodGet, "/v1/activities", true},
+		{"get activity by ID (auth)", http.MethodGet, "/v1/activities/123", true},
 	}
 
 	for _, tt := range tests {
@@ -261,23 +268,19 @@ func TestNewRouter_AuthBlocking(t *testing.T) {
 	auth := &mockAuthMiddleware{blockAccess: true}
 
 	handlerCalled := false
+	authRoutes := noopAuthRoutes()
+	authRoutes.GetMetadata = func(w http.ResponseWriter, r *http.Request) { handlerCalled = true }
 	router := NewRouter(
 		RouterConfig{CORSHandler: c, AuthMiddleware: auth},
 		PublicRoutes{
 			Health:      func(w http.ResponseWriter, r *http.Request) {},
 			SportConfig: func(w http.ResponseWriter, r *http.Request) {},
 		},
-		AuthenticatedRoutes{
-			GetMetadata:     func(w http.ResponseWriter, r *http.Request) { handlerCalled = true },
-			GetMetrics:      func(w http.ResponseWriter, r *http.Request) {},
-			GetSource:       func(w http.ResponseWriter, r *http.Request) {},
-			ListActivities:  func(w http.ResponseWriter, r *http.Request) {},
-			GetActivityByID: func(w http.ResponseWriter, r *http.Request) {},
-		},
+		authRoutes,
 		logger,
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/activities/2024/metadata", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metadata", nil)
 	req.Header.Set("Origin", "https://example.com")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -303,13 +306,7 @@ func TestNewRouter_PublicBypassesAuth(t *testing.T) {
 			Health:      func(w http.ResponseWriter, r *http.Request) { healthCalled = true },
 			SportConfig: func(w http.ResponseWriter, r *http.Request) {},
 		},
-		AuthenticatedRoutes{
-			GetMetadata:     func(w http.ResponseWriter, r *http.Request) {},
-			GetMetrics:      func(w http.ResponseWriter, r *http.Request) {},
-			GetSource:       func(w http.ResponseWriter, r *http.Request) {},
-			ListActivities:  func(w http.ResponseWriter, r *http.Request) {},
-			GetActivityByID: func(w http.ResponseWriter, r *http.Request) {},
-		},
+		noopAuthRoutes(),
 		logger,
 	)
 
@@ -330,7 +327,7 @@ func TestNewRouter_CORSPreflight(t *testing.T) {
 	auth := &mockAuthMiddleware{}
 	router := newTestRouter(c, auth, logger)
 
-	paths := []string{"/health", "/activities/2024/metrics"}
+	paths := []string{"/health", "/v1/activities/2024/metrics"}
 	for _, path := range paths {
 		req := httptest.NewRequest(http.MethodOptions, path, nil)
 		req.Header.Set("Origin", "https://example.com")
