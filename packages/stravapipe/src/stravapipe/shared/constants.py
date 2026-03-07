@@ -1,4 +1,4 @@
-"""Shared constants for Cloud Functions and Cloud Run services.
+"""Shared constants for Cloud Run services.
 
 This module centralizes magic strings used across the stravapipe package
 for better maintainability, type safety, and IDE autocomplete support.

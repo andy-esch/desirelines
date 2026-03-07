@@ -19,17 +19,17 @@ from stravapipe.application.bq_inserter import (
     DeleteActivityService,
     make_delete_service,
 )
-from stravapipe.cfutils.constants import (
-    ResponseField,
-    ResponseStatus,
-    SkipReason,
-)
-from stravapipe.cfutils.logging import setup_logging
-from stravapipe.cfutils.metrics import record_duration, setup_metrics
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_bq_inserter_config
 from stravapipe.domain.activity import DetailedStravaActivity
 from stravapipe.ports.out.write import WriteActivities
+from stravapipe.shared.constants import (
+    ResponseField,
+    ResponseStatus,
+    SkipReason,
+)
+from stravapipe.shared.logging import setup_logging
+from stravapipe.shared.metrics import record_duration, setup_metrics
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)

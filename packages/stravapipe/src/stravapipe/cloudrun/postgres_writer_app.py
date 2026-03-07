@@ -17,17 +17,17 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
-from stravapipe.cfutils.constants import (
-    ResponseField,
-    ResponseStatus,
-    SkipReason,
-)
-from stravapipe.cfutils.logging import setup_logging
-from stravapipe.cfutils.metrics import record_duration, setup_metrics
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_postgres_writer_config
 from stravapipe.domain.activity import StandardActivity
 from stravapipe.domain.geometry import decode_polyline_to_geojson
+from stravapipe.shared.constants import (
+    ResponseField,
+    ResponseStatus,
+    SkipReason,
+)
+from stravapipe.shared.logging import setup_logging
+from stravapipe.shared.metrics import record_duration, setup_metrics
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)

@@ -33,11 +33,11 @@ from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
 from stravapipe.application.deletion import BQUserDeletionService
-from stravapipe.cfutils.constants import ResponseField, ResponseStatus
-from stravapipe.cfutils.logging import setup_logging
-from stravapipe.cfutils.metrics import record_duration, setup_metrics
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_deletion_service_config
+from stravapipe.shared.constants import ResponseField, ResponseStatus
+from stravapipe.shared.logging import setup_logging
+from stravapipe.shared.metrics import record_duration, setup_metrics
 
 logger = setup_logging(__name__)
 
