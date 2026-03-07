@@ -45,7 +45,8 @@ type Handler struct {
 }
 
 // NewHandler creates a new OAuth auth handler.
-// Returns an error if FrontendURL is not a valid URL.
+// Returns an error if FrontendURL or RedirectURI are not valid URLs.
+// In production (non-empty Environment), both must use HTTPS.
 func NewHandler(cfg *HandlerConfig) (*Handler, error) {
 	frontendURL, err := url.Parse(cfg.FrontendURL)
 	if err != nil {
@@ -57,6 +58,18 @@ func NewHandler(cfg *HandlerConfig) (*Handler, error) {
 	if cfg.Environment != "" && frontendURL.Scheme != "https" {
 		return nil, fmt.Errorf("frontend URL %q must use HTTPS in production (would leak Firebase token)", cfg.FrontendURL)
 	}
+
+	redirectURL, err := url.Parse(cfg.RedirectURI)
+	if err != nil {
+		return nil, fmt.Errorf("invalid redirect URI %q: %w", cfg.RedirectURI, err)
+	}
+	if redirectURL.Scheme == "" || redirectURL.Host == "" {
+		return nil, fmt.Errorf("redirect URI %q must have scheme and host", cfg.RedirectURI)
+	}
+	if cfg.Environment != "" && redirectURL.Scheme != "https" {
+		return nil, fmt.Errorf("redirect URI %q must use HTTPS in production (would leak authorization code)", cfg.RedirectURI)
+	}
+
 	return &Handler{
 		strava:      cfg.Strava,
 		tokens:      cfg.Tokens,
