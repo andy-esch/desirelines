@@ -115,6 +115,46 @@ func newTestHandler(
 	return h
 }
 
+// --- NewHandler validation tests ---
+
+func TestNewHandler_FrontendURLValidation(t *testing.T) {
+	baseCfg := HandlerConfig{
+		Strava:      &mockStravaOAuth{},
+		Tokens:      &mockTokenStore{},
+		Allowlist:   &mockAllowlist{},
+		Firebase:    &mockFirebase{},
+		StateSecret: []byte("test-secret-key-32-bytes-long!!!"),
+		ClientID:    "test-client-id",
+		RedirectURI: "https://api.example.com/auth/callback",
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	tests := []struct {
+		name        string
+		frontendURL string
+		environment string
+		wantErr     bool
+	}{
+		{"https in production", "https://app.example.com", "production", false},
+		{"http in local dev", "http://localhost:5173", "", false},
+		{"http in production rejected", "http://app.example.com", "production", true},
+		{"missing scheme rejected", "app.example.com", "", true},
+		{"empty URL rejected", "", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := baseCfg
+			cfg.FrontendURL = tt.frontendURL
+			cfg.Environment = tt.environment
+			_, err := NewHandler(&cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewHandler() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // --- HandleInitiate tests ---
 
 func TestHandleInitiate(t *testing.T) {

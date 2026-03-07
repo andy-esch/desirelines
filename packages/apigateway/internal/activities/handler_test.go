@@ -3,6 +3,9 @@ package activities
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +13,7 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
+	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
@@ -21,7 +25,8 @@ import (
 // For handler integration tests with actual repository interactions, see the
 // more complete mockActivityRepository in handler_test.go (root package).
 type mockRepo struct {
-	err error
+	err    error
+	routes []repository.NormalizedRoute
 }
 
 func (m *mockRepo) Ping(ctx context.Context) error { return nil }
@@ -48,16 +53,21 @@ func (m *mockRepo) ListActivities(ctx context.Context, filter repository.Activit
 	return nil, m.err
 }
 func (m *mockRepo) GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]repository.NormalizedRoute, error) {
-	return nil, m.err
+	return m.routes, m.err
 }
 
 func newTestHandler(t *testing.T) *Handler {
+	t.Helper()
+	return newTestHandlerWithRepo(t, &mockRepo{})
+}
+
+func newTestHandlerWithRepo(t *testing.T, repo *mockRepo) *Handler {
 	t.Helper()
 	sportConfig, err := config.LoadSportConfig("")
 	if err != nil {
 		t.Fatalf("failed to load sport config: %v", err)
 	}
-	return NewHandler(&mockRepo{}, sportConfig, slog.Default())
+	return NewHandler(repo, sportConfig, slog.Default())
 }
 
 func TestDecodeCursor(t *testing.T) {
@@ -376,5 +386,182 @@ func TestNewHandler(t *testing.T) {
 	}
 	if handler.logger == nil {
 		t.Error("Handler.logger is nil")
+	}
+}
+
+func TestHandleRoutes(t *testing.T) {
+	sampleRoutes := []repository.NormalizedRoute{
+		{
+			ActivityID: 1001,
+			Name:       "Morning Ride",
+			Sport:      "Ride",
+			Distance:   15000.5,
+			Date:       "2024-06-15",
+			Coords:     [][]float64{{0.1, 0.2}, {0.3, 0.4}},
+		},
+		{
+			ActivityID: 1002,
+			Name:       "Evening Run",
+			Sport:      "Run",
+			Distance:   5000.0,
+			Date:       "2024-06-16",
+			Coords:     [][]float64{{0.0, 0.0}, {0.1, 0.1}},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		url        string
+		userID     string
+		mock       *mockRepo
+		wantStatus int
+		wantLen    int // expected number of routes in response; -1 to skip check
+	}{
+		{
+			name:       "happy path with default limit",
+			url:        "/activities/routes",
+			userID:     "user-123",
+			mock:       &mockRepo{routes: sampleRoutes},
+			wantStatus: http.StatusOK,
+			wantLen:    2,
+		},
+		{
+			name:       "happy path with explicit limit",
+			url:        "/activities/routes?limit=100",
+			userID:     "user-123",
+			mock:       &mockRepo{routes: sampleRoutes},
+			wantStatus: http.StatusOK,
+			wantLen:    2,
+		},
+		{
+			name:       "empty results",
+			url:        "/activities/routes",
+			userID:     "user-123",
+			mock:       &mockRepo{routes: []repository.NormalizedRoute{}},
+			wantStatus: http.StatusOK,
+			wantLen:    0,
+		},
+		{
+			name:       "limit too high",
+			url:        fmt.Sprintf("/activities/routes?limit=%d", repository.MaxRoutesLimit+1),
+			userID:     "user-123",
+			mock:       &mockRepo{},
+			wantStatus: http.StatusBadRequest,
+			wantLen:    -1,
+		},
+		{
+			name:       "limit zero",
+			url:        "/activities/routes?limit=0",
+			userID:     "user-123",
+			mock:       &mockRepo{},
+			wantStatus: http.StatusBadRequest,
+			wantLen:    -1,
+		},
+		{
+			name:       "limit negative",
+			url:        "/activities/routes?limit=-5",
+			userID:     "user-123",
+			mock:       &mockRepo{},
+			wantStatus: http.StatusBadRequest,
+			wantLen:    -1,
+		},
+		{
+			name:       "limit not a number",
+			url:        "/activities/routes?limit=abc",
+			userID:     "user-123",
+			mock:       &mockRepo{},
+			wantStatus: http.StatusBadRequest,
+			wantLen:    -1,
+		},
+		{
+			name:       "missing user ID",
+			url:        "/activities/routes",
+			userID:     "",
+			mock:       &mockRepo{},
+			wantStatus: http.StatusInternalServerError,
+			wantLen:    -1,
+		},
+		{
+			name:       "database error",
+			url:        "/activities/routes",
+			userID:     "user-123",
+			mock:       &mockRepo{err: errors.New("connection refused")},
+			wantStatus: http.StatusInternalServerError,
+			wantLen:    -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := newTestHandlerWithRepo(t, tt.mock)
+
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			if tt.userID != "" {
+				req = req.WithContext(middleware.WithUserID(req.Context(), tt.userID))
+			}
+			w := httptest.NewRecorder()
+
+			handler.HandleRoutes(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+
+			if tt.wantLen >= 0 {
+				var routes []repository.NormalizedRoute
+				if err := json.Unmarshal(w.Body.Bytes(), &routes); err != nil {
+					t.Fatalf("failed to unmarshal response: %v", err)
+				}
+				if len(routes) != tt.wantLen {
+					t.Errorf("got %d routes, want %d", len(routes), tt.wantLen)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleRoutes_CacheHeader(t *testing.T) {
+	handler := newTestHandlerWithRepo(t, &mockRepo{
+		routes: []repository.NormalizedRoute{},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/activities/routes", nil)
+	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
+	w := httptest.NewRecorder()
+
+	handler.HandleRoutes(w, req)
+
+	if cc := w.Header().Get("Cache-Control"); cc != "private, max-age=3600" {
+		t.Errorf("Cache-Control = %q, want %q", cc, "private, max-age=3600")
+	}
+}
+
+func TestHandleRoutes_SportCategoryMapping(t *testing.T) {
+	handler := newTestHandlerWithRepo(t, &mockRepo{
+		routes: []repository.NormalizedRoute{
+			{ActivityID: 1, Sport: "Ride", Coords: [][]float64{{0, 0}}},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/activities/routes", nil)
+	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
+	w := httptest.NewRecorder()
+
+	handler.HandleRoutes(w, req)
+
+	var routes []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &routes); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 route, got %d", len(routes))
+	}
+	// "Ride" is a Strava type that maps to the "cycling" category
+	sport, _ := routes[0]["sport"].(string)
+	if sport == "Ride" {
+		t.Error("sport should be mapped to category name, not raw Strava type")
+	}
+	if sport == "" {
+		t.Error("sport category should not be empty")
 	}
 }

@@ -331,6 +331,7 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 		FrontendURL: cfg.FrontendURL,
 		ClientID:    stravaClientID,
 		RedirectURI: cfg.AuthCallbackURL,
+		Environment: cfg.Environment,
 		Logger:      log,
 	})
 	if err != nil {

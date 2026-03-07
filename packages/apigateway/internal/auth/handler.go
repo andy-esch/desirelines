@@ -27,6 +27,7 @@ type HandlerConfig struct {
 	FrontendURL string
 	ClientID    string // Strava client ID (for authorize URL)
 	RedirectURI string // AUTH_CALLBACK_URL
+	Environment string // Deployment environment (non-empty = production)
 	Logger      *slog.Logger
 }
 
@@ -52,6 +53,9 @@ func NewHandler(cfg *HandlerConfig) (*Handler, error) {
 	}
 	if frontendURL.Scheme == "" || frontendURL.Host == "" {
 		return nil, fmt.Errorf("frontend URL %q must have scheme and host", cfg.FrontendURL)
+	}
+	if cfg.Environment != "" && frontendURL.Scheme != "https" {
+		return nil, fmt.Errorf("frontend URL %q must use HTTPS in production (would leak Firebase token)", cfg.FrontendURL)
 	}
 	return &Handler{
 		strava:      cfg.Strava,
