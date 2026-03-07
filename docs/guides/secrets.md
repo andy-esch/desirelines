@@ -21,6 +21,7 @@ Infisical (source of truth)
 | `/backend/config` | Application config | Terraform reads at deploy time, passed as environment variables |
 | `/frontend` | Web app config | `deploy-web.sh` exports to `.env` files for Vite build |
 | `/local` | Local development | Used with `infisical run` or `just setup-secrets` |
+| `/ci/deploy` | CI/CD credentials | Terraform authentication (Universal Auth) |
 
 ## Secret Naming Convention
 

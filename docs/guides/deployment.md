@@ -57,8 +57,8 @@ For manual control, work from a cloned `desirelines-deploy`:
 
 ```bash
 cd desirelines-deploy/environments/dev
-infisical run --env=dev --path=/ci/secrets -- terraform plan
-infisical run --env=dev --path=/ci/secrets -- terraform apply
+infisical run --env=dev --path=/ci/deploy -- terraform plan
+infisical run --env=dev --path=/ci/deploy -- terraform apply
 ```
 
 ### Verify Deployment
