@@ -1,99 +1,65 @@
 """Tests for DeleteActivityService"""
 
-from unittest.mock import Mock
+from unittest.mock import MagicMock
 
 import pytest
 
 from stravapipe.application.bq_inserter.delete_service import DeleteActivityService
+from stravapipe.exceptions import BigQueryError
+
+
+def _make_service(client=None):
+    if client is None:
+        client = MagicMock()
+    return DeleteActivityService(client=client, dataset_id="test_dataset"), client
 
 
 def test_delete_activity_success():
     """Test successful activity deletion"""
-    # Mock BigQuery client
-    bq_client = Mock()
+    service, client = _make_service()
 
-    # Mock INSERT query result
-    insert_job = Mock()
-    insert_job.result.return_value = None
-    insert_job.num_dml_affected_rows = 1  # One row inserted
+    # First DML call (archive) returns 1 row, second (delete) returns 1 row
+    client.execute_dml_query.side_effect = [1, 1]
 
-    # Mock DELETE query result
-    delete_job = Mock()
-    delete_job.result.return_value = None
-
-    # Set up side effects for both queries
-    bq_client.query.side_effect = [insert_job, delete_job]
-
-    # Create service
-    service = DeleteActivityService(
-        bq_client=bq_client, project_id="test-project", dataset_id="test_dataset"
-    )
-
-    # Run deletion
     result = service.run(
         activity_id=123456,
         correlation_id="test-123",
         event_time=1696176000,
     )
 
-    # Verify result
     assert result["status"] == "processed"
     assert result["action"] == "deleted"
     assert result["activity_id"] == 123456
-
-    # Verify BigQuery calls
-    assert bq_client.query.call_count == 2  # INSERT and DELETE
+    assert client.execute_dml_query.call_count == 2
 
 
 def test_delete_activity_not_found():
     """Test deletion when activity doesn't exist"""
-    # Mock BigQuery client
-    bq_client = Mock()
+    service, client = _make_service()
 
-    # Mock INSERT query result with no rows affected
-    insert_job = Mock()
-    insert_job.result.return_value = None
-    insert_job.num_dml_affected_rows = 0  # No rows inserted (activity not found)
-    bq_client.query.return_value = insert_job
+    # Archive returns 0 rows — activity not found
+    client.execute_dml_query.return_value = 0
 
-    # Create service
-    service = DeleteActivityService(
-        bq_client=bq_client, project_id="test-project", dataset_id="test_dataset"
-    )
-
-    # Run deletion
     result = service.run(
         activity_id=999999,
         correlation_id="test-456",
         event_time=1696176000,
     )
 
-    # Verify result
     assert result["status"] == "skipped"
     assert result["reason"] == "activity_not_found"
     assert result["activity_id"] == 999999
-
-    # Should only run INSERT query (which returns 0 rows), not DELETE
-    assert bq_client.query.call_count == 1
+    # Should only run archive query, not delete
+    assert client.execute_dml_query.call_count == 1
 
 
 def test_delete_activity_insert_error():
     """Test deletion when archive insert fails"""
-    # Mock BigQuery client
-    bq_client = Mock()
+    service, client = _make_service()
 
-    # Mock INSERT query failure
-    insert_job = Mock()
-    insert_job.result.side_effect = Exception("BigQuery insert failed")
-    bq_client.query.return_value = insert_job
+    client.execute_dml_query.side_effect = BigQueryError("BigQuery insert failed")
 
-    # Create service
-    service = DeleteActivityService(
-        bq_client=bq_client, project_id="test-project", dataset_id="test_dataset"
-    )
-
-    # Run deletion - should raise exception
-    with pytest.raises(Exception, match="BigQuery insert failed"):
+    with pytest.raises(BigQueryError, match="BigQuery insert failed"):
         service.run(
             activity_id=123456,
             correlation_id="test-789",
@@ -102,28 +68,16 @@ def test_delete_activity_insert_error():
 
 
 def test_delete_activity_delete_error():
-    """Test deletion when delete query fails after successful insert"""
-    # Mock BigQuery client
-    bq_client = Mock()
+    """Test deletion when delete query fails after successful archive"""
+    service, client = _make_service()
 
-    # Mock successful INSERT
-    insert_job = Mock()
-    insert_job.result.return_value = None
-    insert_job.num_dml_affected_rows = 1
+    # Archive succeeds (1 row), delete fails
+    client.execute_dml_query.side_effect = [
+        1,
+        BigQueryError("BigQuery delete failed"),
+    ]
 
-    # Mock failed DELETE
-    delete_job = Mock()
-    delete_job.result.side_effect = Exception("BigQuery delete failed")
-
-    bq_client.query.side_effect = [insert_job, delete_job]
-
-    # Create service
-    service = DeleteActivityService(
-        bq_client=bq_client, project_id="test-project", dataset_id="test_dataset"
-    )
-
-    # Run deletion - should raise exception
-    with pytest.raises(Exception, match="BigQuery delete failed"):
+    with pytest.raises(BigQueryError, match="BigQuery delete failed"):
         service.run(
             activity_id=123456,
             correlation_id="test-abc",

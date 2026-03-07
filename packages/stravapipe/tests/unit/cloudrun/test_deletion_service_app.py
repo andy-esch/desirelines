@@ -49,7 +49,7 @@ def client(mock_deletion_config, mock_services):
         patch(
             "stravapipe.cloudrun.deletion_service_app.create_session_factory"
         ) as mock_factory,
-        patch("stravapipe.cloudrun.deletion_service_app.bigquery.Client"),
+        patch("stravapipe.cloudrun.deletion_service_app.BigQueryClientWrapper"),
         patch("stravapipe.cloudrun.deletion_service_app.FirestoreClient"),
         patch(
             "stravapipe.cloudrun.deletion_service_app.BQUserDeletionService"

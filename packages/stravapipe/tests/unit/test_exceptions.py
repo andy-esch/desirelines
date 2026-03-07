@@ -57,11 +57,13 @@ class TestStravaRateLimitError:
         error = StravaRateLimitError("Rate limited")
         assert str(error) == "Rate limited"
         assert error.retry_after is None
+        assert error.status_code == 429
 
     def test_strava_rate_limit_error_with_retry_after(self):
         error = StravaRateLimitError("Rate limited", retry_after=300)
         assert str(error) == "Rate limited"
         assert error.retry_after == 300
+        assert error.status_code == 429
 
 
 class TestActivityNotFoundError:

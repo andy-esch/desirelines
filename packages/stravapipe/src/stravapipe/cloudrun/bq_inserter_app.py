@@ -15,7 +15,10 @@ from fastapi import FastAPI, Request
 from opentelemetry.metrics import Histogram
 
 from stravapipe.adapters.gcp import make_write_activities
-from stravapipe.application.bq_inserter import make_delete_service
+from stravapipe.application.bq_inserter import (
+    DeleteActivityService,
+    make_delete_service,
+)
 from stravapipe.cfutils.constants import (
     ResponseField,
     ResponseStatus,
@@ -41,6 +44,9 @@ async def lifespan(app: FastAPI):
 
         app.state.writer = make_write_activities(config)
         logger.info("BigQuery writer initialized")
+
+        app.state.delete_service = make_delete_service(config)
+        logger.info("BigQuery delete service initialized")
 
         # Initialize OTel metrics
         meter = setup_metrics("desirelines-bq-inserter")
@@ -76,6 +82,7 @@ async def health():
 async def handle_pubsub(request: Request):
     """Handle Pub/Sub CloudEvent from Eventarc."""
     writer = request.app.state.writer
+    delete_service = request.app.state.delete_service
     bq_hist = request.app.state.bq_histogram
     webhook_counter = request.app.state.webhook_counter
     return await handle_webhook_cloudevent(
@@ -84,7 +91,9 @@ async def handle_pubsub(request: Request):
         on_create=lambda event, event_data, cid: _handle_create(
             event, event_data, cid, writer, bq_hist
         ),
-        on_delete=lambda event, event_data, cid: _handle_delete(event, cid, bq_hist),
+        on_delete=lambda event, event_data, cid: _handle_delete(
+            event, cid, delete_service, bq_hist
+        ),
         webhook_counter=webhook_counter,
     )
 
@@ -143,6 +152,7 @@ async def _handle_create(
 async def _handle_delete(
     event: pb.WebhookEvent,
     correlation_id: str,
+    service: DeleteActivityService,
     bq_histogram: Histogram | None = None,
 ) -> dict:
     """Handle DELETE events - archive and remove from BigQuery."""
@@ -151,8 +161,6 @@ async def _handle_delete(
         event.object_id,
         extra={"correlation_id": correlation_id},
     )
-
-    service = make_delete_service()
 
     with record_duration(bq_histogram, {"operation": "dml"}):
         result = service.run(

@@ -195,20 +195,41 @@ class TestRetryOnFailure:
             actual_calls = [call[0][0] for call in mock_sleep.call_args_list]
             assert actual_calls == expected_calls
 
-    def test_custom_retry_status_codes(self):
-        """Test custom retry status codes."""
+    @pytest.mark.parametrize("status_code", [500, 502, 503, 504])
+    def test_all_5xx_errors_are_retried(self, status_code):
+        """Test that all 5xx status codes trigger retries."""
+        call_count = 0
 
-        @retry_on_failure(max_attempts=2, retry_on_status=(502, 503))
-        def custom_retry_func():
+        @retry_on_failure(max_attempts=2, backoff_seconds=0.01)
+        def server_error_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                response = Mock()
+                response.status_code = status_code
+                error = requests.exceptions.HTTPError(f"{status_code} error")
+                error.response = response
+                raise error
+            return "success"
+
+        result = server_error_func()
+        assert result == "success"
+        assert call_count == 2
+
+    @pytest.mark.parametrize("status_code", [400, 401, 403, 404, 422])
+    def test_4xx_errors_not_retried(self, status_code):
+        """Test that 4xx errors (except 429) are not retried."""
+
+        @retry_on_failure(max_attempts=3)
+        def client_error_func():
             response = Mock()
-            response.status_code = 504  # Not in retry_on_status
-            error = requests.exceptions.HTTPError("Gateway timeout")
+            response.status_code = status_code
+            error = requests.exceptions.HTTPError(f"{status_code} error")
             error.response = response
             raise error
 
-        # Should not retry 504 since it's not in custom retry_on_status
         with pytest.raises(requests.exceptions.HTTPError):
-            custom_retry_func()
+            client_error_func()
 
     def test_http_error_without_response(self):
         """Test HTTP error without response object."""

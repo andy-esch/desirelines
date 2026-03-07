@@ -4,8 +4,7 @@ Activity data is now provided inline by the dispatcher's enriched events.
 The SyncService (which fetched from Strava API) is no longer used.
 """
 
-from google.cloud import bigquery
-
+from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.application.bq_inserter.delete_service import DeleteActivityService
 from stravapipe.config import BQInserterConfig, load_bq_inserter_config
 
@@ -30,12 +29,11 @@ def make_delete_service(
     if config is None:
         config = load_bq_inserter_config()
 
-    bq_client = bigquery.Client(project=config.gcp_project_id)
+    client = BigQueryClientWrapper(project_id=config.project_id)
 
     return DeleteActivityService(
-        bq_client=bq_client,
-        project_id=config.gcp_project_id,
-        dataset_id=config.gcp_bigquery_dataset,
+        client=client,
+        dataset_id=config.bq_dataset,
     )
 
 

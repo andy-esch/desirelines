@@ -291,18 +291,26 @@ class StravaApiClient:
         _token_refresh_count: int,
     ) -> list[dict[str, Any]]:
         """Internal: list activities with 401 retry logic."""
-        endpoint = f"{self._api_config.api_base_url}/athlete/activities"
-        resp = requests.get(
-            url=endpoint,
-            headers=self._get_headers(),
-            params={
-                "before": before,
-                "after": after,
-                "page": page,
-                "per_page": per_page,
-            },
-            timeout=self._api_config.request_timeout,
+
+        @retry_on_failure(
+            max_attempts=self._api_config.activity_retry_attempts,
+            backoff_seconds=self._api_config.activity_retry_backoff,
         )
+        def _fetch():
+            endpoint = f"{self._api_config.api_base_url}/athlete/activities"
+            return requests.get(
+                url=endpoint,
+                headers=self._get_headers(),
+                params={
+                    "before": before,
+                    "after": after,
+                    "page": page,
+                    "per_page": per_page,
+                },
+                timeout=self._api_config.request_timeout,
+            )
+
+        resp = _fetch()
 
         if not resp.ok:
             # Handle 401 with retry
