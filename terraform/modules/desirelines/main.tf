@@ -629,6 +629,41 @@ resource "google_project_iam_member" "api_gateway_firestore" {
   member  = "serviceAccount:${google_service_account.api_gateway.email}"
 }
 
+# API Gateway needs monitoring.metricWriter for OTel metrics export
+resource "google_project_iam_member" "api_gateway_monitoring" {
+  project = var.gcp_project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.api_gateway.email}"
+}
+
+# Dispatcher needs monitoring.metricWriter for OTel metrics export
+resource "google_project_iam_member" "dispatcher_monitoring" {
+  project = var.gcp_project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.dispatcher.email}"
+}
+
+# BQ Inserter needs monitoring.metricWriter for OTel metrics export
+resource "google_project_iam_member" "bq_inserter_monitoring" {
+  project = var.gcp_project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.bq_inserter.email}"
+}
+
+# PostgreSQL Writer needs monitoring.metricWriter for OTel metrics export
+resource "google_project_iam_member" "postgres_writer_monitoring" {
+  project = var.gcp_project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.postgres_writer.email}"
+}
+
+# Deletion Service needs monitoring.metricWriter for OTel metrics export
+resource "google_project_iam_member" "deletion_service_monitoring" {
+  project = var.gcp_project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.deletion_service.email}"
+}
+
 # Dispatcher needs Firestore access to read/write Strava OAuth tokens
 resource "google_project_iam_member" "dispatcher_firestore" {
   project = var.gcp_project_id
