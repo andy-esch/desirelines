@@ -10,6 +10,9 @@ import { getUserSettings } from "../utils/units";
 import { ROUTES_LIMIT } from "../api/routes";
 import { Link } from "@tanstack/react-router";
 
+/** Must match the rendered header height (see also sidebar top offset in tailwind.css) */
+const HEADER_HEIGHT = 48;
+
 function StatusMessage({ children }: { children: React.ReactNode }) {
   return <div className="flex grow items-center justify-center">{children}</div>;
 }
@@ -103,9 +106,7 @@ export default function RoutesPage() {
   // URL update helpers
   const updateSearch = useCallback(
     (sports: Set<string>, years: Set<number>) => {
-      const allSportsStr = sportInfos.map((s) => s.sport);
-      const allSportsEnabled =
-        sports.size === allSportsStr.length && allSportsStr.every((s) => sports.has(s));
+      const allSportsEnabled = sports.size === sportInfos.length;
       const allYearsEnabled = years.size === allYears.length && allYears.every((y) => years.has(y));
 
       navigate({
@@ -213,7 +214,7 @@ export default function RoutesPage() {
 
   return (
     <PageLayout background="routes">
-      <div className="fixed inset-x-0 bottom-0 bg-bg-body" style={{ top: 48 }}>
+      <div className="fixed inset-x-0 bottom-0 bg-bg-body" style={{ top: HEADER_HEIGHT }}>
         <div className="relative w-full h-full">
           {noMatchingRoutes ? (
             <div className="flex items-center justify-center h-full">

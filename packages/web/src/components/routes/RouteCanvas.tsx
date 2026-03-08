@@ -118,14 +118,11 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
     // Dark: additive blending for neon glow; Light: standard blending for saturated strokes
     ctx.globalCompositeOperation = isDark ? "lighter" : "source-over";
 
-    const alpha =
-      routes.length > HIGH_DENSITY_THRESHOLD
-        ? isDark
-          ? DARK_HIGH_DENSITY_ALPHA
-          : LIGHT_HIGH_DENSITY_ALPHA
-        : isDark
-          ? DARK_LOW_DENSITY_ALPHA
-          : LIGHT_LOW_DENSITY_ALPHA;
+    const isHighDensity = routes.length > HIGH_DENSITY_THRESHOLD;
+    const [highAlpha, lowAlpha] = isDark
+      ? [DARK_HIGH_DENSITY_ALPHA, DARK_LOW_DENSITY_ALPHA]
+      : [LIGHT_HIGH_DENSITY_ALPHA, LIGHT_LOW_DENSITY_ALPHA];
+    const alpha = isHighDensity ? highAlpha : lowAlpha;
 
     for (const route of routes) {
       if (route.coords.length < 2) continue;

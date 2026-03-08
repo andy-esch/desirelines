@@ -133,6 +133,11 @@ export default function RouteLegend({
         : `${years[years.length - 1]}-${years[0]}`
       : "";
 
+  const glassPanelStyle = {
+    background: isDark ? "rgba(15, 23, 36, 0.8)" : "rgba(240, 244, 248, 0.85)",
+    backdropFilter: "blur(8px)",
+  };
+
   if (!expanded) {
     return (
       <div className="absolute top-3 left-3 z-10">
@@ -140,10 +145,7 @@ export default function RouteLegend({
           type="button"
           onClick={() => setExpanded(true)}
           className="glass-panel px-2.5 py-1.5 text-xs flex items-center gap-1.5"
-          style={{
-            background: isDark ? "rgba(15, 23, 36, 0.8)" : "rgba(240, 244, 248, 0.85)",
-            backdropFilter: "blur(8px)",
-          }}
+          style={glassPanelStyle}
         >
           <span style={{ opacity: 0.6 }}>
             {shownCount} routes · {formattedDistance} {distanceLabel}
@@ -155,13 +157,7 @@ export default function RouteLegend({
   }
 
   return (
-    <div
-      className="absolute top-3 left-3 right-3 z-10 glass-panel"
-      style={{
-        background: isDark ? "rgba(15, 23, 36, 0.8)" : "rgba(240, 244, 248, 0.85)",
-        backdropFilter: "blur(8px)",
-      }}
-    >
+    <div className="absolute top-3 left-3 right-3 z-10 glass-panel" style={glassPanelStyle}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
         {/* Sport pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
