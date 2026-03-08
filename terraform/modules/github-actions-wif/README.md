@@ -15,20 +15,26 @@ Terraform module to set up Workload Identity Federation for GitHub Actions, enab
 ### In your environment (e.g., `desirelines-deploy/environments/dev/main.tf`)
 
 ```hcl
-# Full deploy SA (default — grants all project-level roles)
+# Terraform-applying SA — default build-deploy roles + infrastructure roles
 module "ci_deploy" {
-  source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/github-actions-wif?ref=tf-3"
+  source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/github-actions-wif?ref=tf-N"
 
   project_id        = var.gcp_project_id
   environment       = "dev"
   github_repository = "andy-esch/desirelines-deploy"
 
   service_account_id = "ci-deploy"
+
+  additional_project_roles = [
+    "roles/secretmanager.admin",
+    "roles/resourcemanager.projectIamAdmin",
+    # ... other roles needed for terraform apply
+  ]
 }
 
 # Build-only SA (no project-level roles)
 module "github_actions" {
-  source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/github-actions-wif?ref=tf-3"
+  source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/github-actions-wif?ref=tf-N"
 
   project_id          = var.gcp_project_id
   environment         = "dev"
@@ -67,52 +73,80 @@ infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_service
     service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 ```
 
-## Variables
+<!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.12 |
+| <a name="requirement_google"></a> [google](#requirement\_google) | ~> 7.22 |
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_google"></a> [google](#provider\_google) | 7.22.0 |
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [google_iam_workload_identity_pool.github_actions](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool) | resource |
+| [google_iam_workload_identity_pool_provider.github](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool_provider) | resource |
+| [google_project_iam_member.additional_roles](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_project_iam_member.artifact_registry_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_project_iam_member.firebase_hosting_admin](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_project_iam_member.run_developer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_project_iam_member.service_account_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_project_iam_member.viewer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_service_account.github_actions_deploy](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account) | resource |
+| [google_service_account_iam_member.workload_identity_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
+
+## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|----------|
-| `project_id` | GCP project ID | `string` | - | yes |
-| `environment` | Environment name (dev, prod) | `string` | - | yes |
-| `github_repository` | GitHub repository (format: owner/repo) | `string` | - | yes |
-| `github_repository_owner` | GitHub org/user (auto-extracted if not provided) | `string` | `""` | no |
-| `pool_id` | Workload Identity Pool ID | `string` | `"github-actions"` | no |
-| `provider_id` | Workload Identity Provider ID | `string` | `"github-oidc"` | no |
-| `service_account_id` | Service account ID | `string` | `"github-actions-deploy"` | no |
-| `service_account_display_name` | Display name for service account | `string` | `"GitHub Actions Deployment"` | no |
-| `pool_display_name` | Display name for Workload Identity Pool | `string` | `"GitHub Actions Pool"` | no |
-| `provider_display_name` | Display name for Workload Identity Provider | `string` | `"GitHub OIDC Provider"` | no |
-| `grant_default_roles` | Grant the default set of project-level IAM roles (set `false` for build-only SAs) | `bool` | `true` | no |
-| `create_pool` | Whether to create the WIF pool and provider (set `false` to reuse existing) | `bool` | `true` | no |
-| `workload_identity_pool_name` | Full resource name of existing WIF pool (required when `create_pool=false`) | `string` | `""` | no |
-| `additional_project_roles` | Additional project-level IAM roles to grant | `list(string)` | `[]` | no |
+|------|-------------|------|---------|:--------:|
+| <a name="input_environment"></a> [environment](#input\_environment) | Environment name (dev, prod, etc.) | `string` | n/a | yes |
+| <a name="input_github_repository"></a> [github\_repository](#input\_github\_repository) | GitHub repository in format 'owner/repo' (e.g., 'andy-esch/desirelines') | `string` | n/a | yes |
+| <a name="input_project_id"></a> [project\_id](#input\_project\_id) | GCP project ID | `string` | n/a | yes |
+| <a name="input_additional_project_roles"></a> [additional\_project\_roles](#input\_additional\_project\_roles) | Additional project-level IAM roles to grant the service account | `list(string)` | `[]` | no |
+| <a name="input_create_pool"></a> [create\_pool](#input\_create\_pool) | Whether to create the WIF pool and provider (set false to reuse existing) | `bool` | `true` | no |
+| <a name="input_github_repository_owner"></a> [github\_repository\_owner](#input\_github\_repository\_owner) | GitHub repository owner (extracted from github\_repository if not provided) | `string` | `""` | no |
+| <a name="input_grant_default_roles"></a> [grant\_default\_roles](#input\_grant\_default\_roles) | Whether to grant the default set of project-level IAM roles (set false for build-only SAs) | `bool` | `true` | no |
+| <a name="input_pool_display_name"></a> [pool\_display\_name](#input\_pool\_display\_name) | Display name for Workload Identity Pool | `string` | `"GitHub Actions Pool"` | no |
+| <a name="input_pool_id"></a> [pool\_id](#input\_pool\_id) | Workload Identity Pool ID | `string` | `"github-actions"` | no |
+| <a name="input_provider_display_name"></a> [provider\_display\_name](#input\_provider\_display\_name) | Display name for Workload Identity Provider | `string` | `"GitHub OIDC Provider"` | no |
+| <a name="input_provider_id"></a> [provider\_id](#input\_provider\_id) | Workload Identity Provider ID | `string` | `"github-oidc"` | no |
+| <a name="input_service_account_display_name"></a> [service\_account\_display\_name](#input\_service\_account\_display\_name) | Display name for deployment service account | `string` | `"GitHub Actions Deployment"` | no |
+| <a name="input_service_account_id"></a> [service\_account\_id](#input\_service\_account\_id) | Service account ID for GitHub Actions deployments | `string` | `"github-actions-deploy"` | no |
+| <a name="input_workload_identity_pool_name"></a> [workload\_identity\_pool\_name](#input\_workload\_identity\_pool\_name) | Full resource name of existing WIF pool (required when create\_pool=false) | `string` | `""` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| `wif_provider` | Workload Identity Provider resource name (for GitHub secret) |
-| `wif_service_account` | Service account email (for GitHub secret) |
-| `workload_identity_pool_id` | Workload Identity Pool ID |
-| `service_account_id` | Service account ID |
-| `github_secrets_instructions` | Step-by-step setup instructions |
+| <a name="output_github_secrets_instructions"></a> [github\_secrets\_instructions](#output\_github\_secrets\_instructions) | Instructions for adding GitHub secrets |
+| <a name="output_service_account_id"></a> [service\_account\_id](#output\_service\_account\_id) | Service account ID |
+| <a name="output_service_account_unique_id"></a> [service\_account\_unique\_id](#output\_service\_account\_unique\_id) | Service account unique ID |
+| <a name="output_wif_provider"></a> [wif\_provider](#output\_wif\_provider) | Workload Identity Provider resource name (add as GitHub secret: WIF\_PROVIDER) |
+| <a name="output_wif_service_account"></a> [wif\_service\_account](#output\_wif\_service\_account) | Service account email for deployments (add as GitHub secret: WIF\_SERVICE\_ACCOUNT) |
+| <a name="output_workload_identity_pool_id"></a> [workload\_identity\_pool\_id](#output\_workload\_identity\_pool\_id) | Workload Identity Pool ID |
+| <a name="output_workload_identity_pool_name"></a> [workload\_identity\_pool\_name](#output\_workload\_identity\_pool\_name) | Workload Identity Pool full resource name |
+<!-- END_TF_DOCS -->
 
 ## Permissions Granted
 
-When `grant_default_roles = true` (the default), the service account receives these project-level roles:
+When `grant_default_roles = true` (the default), the service account receives these build-deploy roles:
 
 - `roles/run.developer` - Deploy Cloud Run services
 - `roles/artifactregistry.writer` - Push Docker images
-- `roles/storage.objectAdmin` - Terraform state and assets
 - `roles/iam.serviceAccountUser` - Deploy as other service accounts
-- `roles/secretmanager.secretAccessor` - Read secrets
 - `roles/viewer` - Verify deployments
-- `roles/pubsub.admin` - Manage Pub/Sub resources
-- `roles/bigquery.admin` - Terraform state refresh
-- `roles/iam.securityReviewer` - Terraform state refresh
-- `roles/iam.serviceAccountAdmin` - Manage SA IAM bindings
 - `roles/firebasehosting.admin` - Deploy web frontend
 
 When `grant_default_roles = false`, **no project-level roles** are granted. Use this for build-only service accounts that only need cross-project Artifact Registry access (granted separately).
+
+For Terraform-applying SAs (e.g., `ci-deploy`), add infrastructure roles via `additional_project_roles`.
 
 ## Security Considerations
 

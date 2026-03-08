@@ -238,18 +238,3 @@ resource "google_pubsub_subscription" "deletion_service_dlq" {
 
   depends_on = [google_project_service.required_apis]
 }
-
-# ==============================================================================
-# Outputs for subscription names (useful for CLI commands and debugging)
-# ==============================================================================
-output "pubsub_subscription_names" {
-  description = "Names of Pub/Sub subscriptions for event processing"
-  value = {
-    bq_inserter          = google_pubsub_subscription.bq_inserter.name
-    postgres_writer      = google_pubsub_subscription.postgres_writer.name
-    deletion_service     = google_pubsub_subscription.deletion_service.name
-    bq_inserter_dlq      = google_pubsub_subscription.bq_inserter_dlq.name
-    postgres_writer_dlq  = google_pubsub_subscription.postgres_writer_dlq.name
-    deletion_service_dlq = google_pubsub_subscription.deletion_service_dlq.name
-  }
-}

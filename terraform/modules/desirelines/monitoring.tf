@@ -321,7 +321,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "resource.type=\"pubsub_topic\" AND resource.labels.topic_id=\"desirelines_activity_events\" AND metric.type=\"pubsub.googleapis.com/topic/send_request_count\""
+                    filter = "resource.type=\"pubsub_topic\" AND resource.labels.topic_id=\"${google_pubsub_topic.activity_events.name}\" AND metric.type=\"pubsub.googleapis.com/topic/send_request_count\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_RATE"

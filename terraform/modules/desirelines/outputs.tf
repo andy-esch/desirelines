@@ -74,7 +74,6 @@ output "service_accounts" {
 output "cloud_run_urls" {
   description = "Cloud Run service URLs (stable, do not change on redeploy)"
   value = {
-    deployment_version  = var.deployment_version
     dispatcher_url      = google_cloud_run_v2_service.dispatcher.uri
     api_gateway_url     = google_cloud_run_v2_service.api_gateway.uri
     bq_inserter_url     = google_cloud_run_v2_service.bq_inserter.uri
@@ -93,25 +92,26 @@ output "service_names" {
   }
 }
 
-# Artifact Registry outputs
-output "container_image_base_url" {
-  description = "Base URL for container images in Artifact Registry"
-  value       = var.external_artifact_registry
-}
-
 # Deployment information
 output "deployment_info" {
-  description = "Information needed for CI/CD deployment"
+  description = "Deployment provenance: image registry and version tag"
   value = {
     image_base_url     = var.external_artifact_registry
     deployment_version = var.deployment_version
   }
 }
 
-# Deployed version tag (for code provenance and observability)
-output "deployed_version" {
-  description = "Version tag for all deployed code (Cloud Run images and Cloud Function source packages)"
-  value       = var.deployment_version
+# Pub/Sub subscription names (useful for CLI commands and debugging)
+output "pubsub_subscription_names" {
+  description = "Names of Pub/Sub subscriptions for event processing"
+  value = {
+    bq_inserter          = google_pubsub_subscription.bq_inserter.name
+    postgres_writer      = google_pubsub_subscription.postgres_writer.name
+    deletion_service     = google_pubsub_subscription.deletion_service.name
+    bq_inserter_dlq      = google_pubsub_subscription.bq_inserter_dlq.name
+    postgres_writer_dlq  = google_pubsub_subscription.postgres_writer_dlq.name
+    deletion_service_dlq = google_pubsub_subscription.deletion_service_dlq.name
+  }
 }
 
 # Firebase Hosting outputs

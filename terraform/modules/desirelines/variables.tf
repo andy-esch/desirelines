@@ -76,13 +76,17 @@ variable "deployment_version" {
 }
 
 variable "external_artifact_registry" {
-  description = "External Artifact Registry URL to use instead of creating one (for cross-project image sharing). Format: REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME"
+  description = "Artifact Registry URL for container images. Format: REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME"
   type        = string
-  default     = null
+
+  validation {
+    condition     = can(regex("^[a-z0-9-]+-docker\\.pkg\\.dev/.+/.+$", var.external_artifact_registry))
+    error_message = "external_artifact_registry is required and must match REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME format."
+  }
 }
 
 variable "api_gateway_allowed_origins" {
-  description = "Comma-separated list of allowed CORS origins for API Gateway (e.g., 'https://example.com,http://localhost:5173')"
+  description = "Comma-separated list of allowed CORS origins for API Gateway"
   type        = string
   default     = ""
 }

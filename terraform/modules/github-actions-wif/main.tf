@@ -8,7 +8,7 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "~> 7.0"
+      version = "~> 7.22"
     }
   }
 }
@@ -91,7 +91,8 @@ resource "google_service_account_iam_member" "workload_identity_user" {
 # SECURITY PRINCIPLE: CI/CD deploys applications, NOT infrastructure
 # - GitHub Actions can deploy new code versions
 # - GitHub Actions CANNOT modify IAM policies or create resources
-# - Infrastructure changes require manual terraform apply by admin
+# - Infrastructure changes require Terraform apply via the deploy repo's
+#   ci-deploy SA, which gets broader roles via additional_project_roles
 # ==============================================================================
 
 # Cloud Run Developer - Deploy new revisions of existing services
@@ -110,14 +111,6 @@ resource "google_project_iam_member" "artifact_registry_writer" {
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
 
-# Storage Object Admin - Terraform state and assets
-resource "google_project_iam_member" "storage_object_admin" {
-  count   = var.grant_default_roles ? 1 : 0
-  project = var.project_id
-  role    = "roles/storage.objectAdmin"
-  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
-}
-
 # Service Account User - Required to deploy services that run as other SAs
 resource "google_project_iam_member" "service_account_user" {
   count   = var.grant_default_roles ? 1 : 0
@@ -131,56 +124,6 @@ resource "google_project_iam_member" "viewer" {
   count   = var.grant_default_roles ? 1 : 0
   project = var.project_id
   role    = "roles/viewer"
-  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
-}
-
-# ==============================================================================
-# Additional Read Permissions for Terraform State Refresh
-# Terraform needs to read current state of all resources before applying changes
-# ==============================================================================
-
-# Secret Manager Secret Accessor - Read secrets (Terraform data sources)
-resource "google_project_iam_member" "secret_accessor" {
-  count   = var.grant_default_roles ? 1 : 0
-  project = var.project_id
-  role    = "roles/secretmanager.secretAccessor"
-  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
-}
-
-# Pub/Sub Admin - Manage Pub/Sub topics, subscriptions, and their IAM policies
-# Required for Terraform to manage dead letter topic IAM bindings
-resource "google_project_iam_member" "pubsub_admin" {
-  count   = var.grant_default_roles ? 1 : 0
-  project = var.project_id
-  role    = "roles/pubsub.admin"
-  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
-}
-
-# BigQuery Admin - Manage datasets, tables, and data (needed for Terraform state refresh)
-# Note: Terraform refreshes all resources in state, even with -target flags
-# Requires 'admin' role because updating dataset metadata needs bigquery.datasets.update
-resource "google_project_iam_member" "bigquery_admin" {
-  count   = var.grant_default_roles ? 1 : 0
-  project = var.project_id
-  role    = "roles/bigquery.admin"
-  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
-}
-
-# Security Reviewer - Read IAM policies without modifying them
-# Required for Terraform to refresh state of IAM bindings
-resource "google_project_iam_member" "security_reviewer" {
-  count   = var.grant_default_roles ? 1 : 0
-  project = var.project_id
-  role    = "roles/iam.securityReviewer"
-  member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
-}
-
-# Service Account Admin - Manage IAM policies on service accounts
-# Required for Terraform to manage service account IAM bindings (e.g., infisical sync)
-resource "google_project_iam_member" "service_account_admin" {
-  count   = var.grant_default_roles ? 1 : 0
-  project = var.project_id
-  role    = "roles/iam.serviceAccountAdmin"
   member  = "serviceAccount:${google_service_account.github_actions_deploy.email}"
 }
 
