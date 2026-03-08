@@ -3,7 +3,6 @@ package gcplog
 import (
 	"bytes"
 	"context"
-	"io"
 	"log/slog"
 	"sync"
 )
@@ -11,7 +10,7 @@ import (
 // NewNoOpLogger returns a logger that discards all output.
 // Useful for tests to avoid polluting test output.
 func NewNoOpLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return slog.New(slog.DiscardHandler)
 }
 
 // CapturedLog represents a single log entry captured by the CaptureLogger.

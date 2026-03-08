@@ -3,8 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +11,7 @@ import (
 	"time"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -107,7 +106,7 @@ func newTestHandler(
 		FrontendURL: "https://app.example.com",
 		ClientID:    "test-client-id",
 		RedirectURI: "https://api.example.com/auth/callback",
-		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:      gcplog.NewNoOpLogger(),
 	})
 	if err != nil {
 		t.Fatalf("newTestHandler: %v", err)
@@ -127,7 +126,7 @@ func TestNewHandler_URLValidation(t *testing.T) {
 		ClientID:    "test-client-id",
 		FrontendURL: "https://app.example.com",
 		RedirectURI: "https://api.example.com/auth/callback",
-		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:      gcplog.NewNoOpLogger(),
 	}
 
 	tests := []struct {

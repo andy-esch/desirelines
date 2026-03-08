@@ -367,6 +367,8 @@ jobs:
         uses: terraform-linters/setup-tflint@v6
 
       - name: Lint Terraform
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           for dir in terraform/modules/desirelines terraform/modules/github-actions-wif terraform/environments/artifacts; do
             echo "Linting $dir..."

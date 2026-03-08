@@ -2,14 +2,13 @@ package sports
 
 import (
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
 // validConfigJSON is a minimal but realistic sport config matching the actual schema.
@@ -38,7 +37,7 @@ const validConfigJSON = `{
 }`
 
 func TestHandler_HandleConfig(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := gcplog.NewNoOpLogger()
 
 	// Create a temporary config file
 	tmpFile, err := os.CreateTemp("", "sport_config_*.json")
