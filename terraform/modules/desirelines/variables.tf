@@ -80,7 +80,7 @@ variable "external_artifact_registry" {
   type        = string
 
   validation {
-    condition     = can(regex("^[a-z]+-docker\\.pkg\\.dev/.+/.+$", var.external_artifact_registry))
+    condition     = can(regex("^[a-z0-9-]+-docker\\.pkg\\.dev/.+/.+$", var.external_artifact_registry))
     error_message = "external_artifact_registry is required and must match REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME format."
   }
 }
