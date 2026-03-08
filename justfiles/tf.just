@@ -19,9 +19,9 @@ tf-validate-all:
 # Lint Terraform files with TFLint
 tf-lint:
     @echo "🔍 Linting Terraform files..."
-    (cd terraform/modules/desirelines && tflint --config=../../.tflint.hcl --init && tflint --config=../../.tflint.hcl)
-    (cd terraform/modules/github-actions-wif && tflint --config=../../.tflint.hcl --init && tflint --config=../../.tflint.hcl)
-    (cd terraform/environments/artifacts && tflint --config=../../.tflint.hcl --init && tflint --config=../../.tflint.hcl)
+    (cd terraform/modules/desirelines && tflint --init --config=../../.tflint.hcl && tflint --config=../../.tflint.hcl)
+    (cd terraform/modules/github-actions-wif && tflint --init --config=../../.tflint.hcl && tflint --config=../../.tflint.hcl)
+    (cd terraform/environments/artifacts && tflint --init --config=../../.tflint.hcl && tflint --config=../../.tflint.hcl)
     @echo "✅ All Terraform files pass linting!"
 
 # Generate Terraform module documentation

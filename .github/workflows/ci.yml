@@ -371,7 +371,7 @@ jobs:
           for dir in terraform/modules/desirelines terraform/modules/github-actions-wif terraform/environments/artifacts; do
             echo "Linting $dir..."
             cd "$dir"
-            tflint --config="$(git rev-parse --show-toplevel)/terraform/.tflint.hcl" --init
+            tflint --init --config="$(git rev-parse --show-toplevel)/terraform/.tflint.hcl"
             tflint --config="$(git rev-parse --show-toplevel)/terraform/.tflint.hcl"
             cd "$(git rev-parse --show-toplevel)"
           done
