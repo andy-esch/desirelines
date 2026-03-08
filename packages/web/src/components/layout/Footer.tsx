@@ -35,7 +35,7 @@ export function Footer() {
         fontSize: "0.85rem",
       }}
     >
-      <div className="container flex justify-center items-center gap-2 flex-wrap">
+      <div className="container mx-auto flex justify-center items-center gap-2 flex-wrap">
         <Link
           to="/origins"
           className="text-slate-light hover:text-accent-cyan min-h-[44px] inline-flex items-center"

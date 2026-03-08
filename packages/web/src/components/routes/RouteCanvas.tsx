@@ -1,22 +1,45 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { NormalizedRoute } from "../../api/routes";
+import { useTheme } from "../../contexts/ThemeContext";
 
-/** Neon color palette keyed by sport category */
-const SPORT_COLORS: Record<string, string> = {
+/** Dark mode: neon palette with additive blending */
+export const DARK_SPORT_COLORS: Record<string, string> = {
   cycling: "0, 255, 255",
   running: "0, 255, 128",
   swimming: "180, 0, 255",
+  walking: "255, 200, 0",
+  hiking: "255, 128, 0",
 };
-const DEFAULT_COLOR = "255, 0, 255";
+const DARK_DEFAULT_COLOR = "255, 0, 255";
+
+/** Light mode: darker saturated colors with standard blending */
+export const LIGHT_SPORT_COLORS: Record<string, string> = {
+  cycling: "0, 120, 200",
+  running: "20, 140, 60",
+  swimming: "120, 0, 200",
+  walking: "180, 140, 0",
+  hiking: "180, 80, 0",
+};
+const LIGHT_DEFAULT_COLOR = "160, 0, 140";
 
 const CANVAS_PADDING = 40;
 /** Routes above this count get lower opacity to avoid blowing out with additive blending */
 const HIGH_DENSITY_THRESHOLD = 200;
-const HIGH_DENSITY_ALPHA = 0.05;
-const LOW_DENSITY_ALPHA = 0.08;
 
-function getColorForSport(sport: string): string {
-  return SPORT_COLORS[sport] ?? DEFAULT_COLOR;
+const DARK_HIGH_DENSITY_ALPHA = 0.05;
+const DARK_LOW_DENSITY_ALPHA = 0.08;
+const LIGHT_HIGH_DENSITY_ALPHA = 0.25;
+const LIGHT_LOW_DENSITY_ALPHA = 0.35;
+
+export function getColorForSport(sport: string, isDark: boolean): string {
+  if (isDark) {
+    return DARK_SPORT_COLORS[sport] ?? DARK_DEFAULT_COLOR;
+  }
+  return LIGHT_SPORT_COLORS[sport] ?? LIGHT_DEFAULT_COLOR;
+}
+
+export interface RouteCanvasHandle {
+  getCanvas: () => HTMLCanvasElement | null;
 }
 
 interface RouteCanvasProps {
@@ -24,8 +47,17 @@ interface RouteCanvasProps {
   className?: string;
 }
 
-export default function RouteCanvas({ routes, className = "" }: RouteCanvasProps) {
+const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function RouteCanvas(
+  { routes, className = "" },
+  ref
+) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  useImperativeHandle(ref, () => ({
+    getCanvas: () => canvasRef.current,
+  }));
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -79,19 +111,26 @@ export default function RouteCanvas({ routes, className = "" }: RouteCanvasProps
     const projectX = (x: number) => centerX + (x - dataCenterX) * scale;
     const projectY = (y: number) => centerY - (y - dataCenterY) * scale;
 
-    // Fill dark background
+    // Fill background with theme-appropriate color
     ctx.fillStyle = getComputedStyle(canvas).getPropertyValue("--color-bg-body");
     ctx.fillRect(0, 0, width, height);
 
-    // Additive blending for glow effect
-    ctx.globalCompositeOperation = "lighter";
+    // Dark: additive blending for neon glow; Light: standard blending for saturated strokes
+    ctx.globalCompositeOperation = isDark ? "lighter" : "source-over";
 
-    const alpha = routes.length > HIGH_DENSITY_THRESHOLD ? HIGH_DENSITY_ALPHA : LOW_DENSITY_ALPHA;
+    const alpha =
+      routes.length > HIGH_DENSITY_THRESHOLD
+        ? isDark
+          ? DARK_HIGH_DENSITY_ALPHA
+          : LIGHT_HIGH_DENSITY_ALPHA
+        : isDark
+          ? DARK_LOW_DENSITY_ALPHA
+          : LIGHT_LOW_DENSITY_ALPHA;
 
     for (const route of routes) {
       if (route.coords.length < 2) continue;
 
-      const rgb = getColorForSport(route.sport);
+      const rgb = getColorForSport(route.sport, isDark);
       ctx.strokeStyle = `rgba(${rgb}, ${alpha})`;
       ctx.lineWidth = 1.5;
       ctx.lineJoin = "round";
@@ -106,7 +145,7 @@ export default function RouteCanvas({ routes, className = "" }: RouteCanvasProps
 
       ctx.stroke();
     }
-  }, [routes]);
+  }, [routes, isDark]);
 
   return (
     <canvas
@@ -115,4 +154,6 @@ export default function RouteCanvas({ routes, className = "" }: RouteCanvasProps
       style={{ width: "100%", height: "100%", display: "block" }}
     />
   );
-}
+});
+
+export default RouteCanvas;

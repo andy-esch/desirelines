@@ -1,6 +1,9 @@
 import getClient from "./client";
 import { throwApiError } from "./errors";
 
+/** Backend default limit for route fetching (matches repository.DefaultRoutesLimit) */
+export const ROUTES_LIMIT = 500;
+
 export interface NormalizedRoute {
   activityId: number;
   name: string;
