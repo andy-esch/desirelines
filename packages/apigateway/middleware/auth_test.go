@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -23,7 +22,7 @@ func (m *MockTokenVerifier) VerifyIDToken(ctx context.Context, idToken string) (
 }
 
 func TestAuthMiddleware(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	tests := []struct {
 		name           string
@@ -93,7 +92,7 @@ func TestAuthMiddleware(t *testing.T) {
 }
 
 func TestAuthMiddleware_InjectsUserID(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	verifier := &MockTokenVerifier{
 		Token: &auth.Token{

@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -107,7 +106,7 @@ func newTestHandler(
 		FrontendURL: "https://app.example.com",
 		ClientID:    "test-client-id",
 		RedirectURI: "https://api.example.com/auth/callback",
-		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:      slog.New(slog.DiscardHandler),
 	})
 	if err != nil {
 		t.Fatalf("newTestHandler: %v", err)
@@ -127,7 +126,7 @@ func TestNewHandler_URLValidation(t *testing.T) {
 		ClientID:    "test-client-id",
 		FrontendURL: "https://app.example.com",
 		RedirectURI: "https://api.example.com/auth/callback",
-		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:      slog.New(slog.DiscardHandler),
 	}
 
 	tests := []struct {

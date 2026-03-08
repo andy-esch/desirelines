@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +23,7 @@ func (m *mockPinger) Ping(ctx context.Context) error {
 }
 
 func TestHandler_Handle(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	tests := []struct {
 		name           string
@@ -89,7 +88,7 @@ func TestHandler_Handle(t *testing.T) {
 // TestHandler_Handle_JSONOmitEmpty verifies that the Database field is omitted
 // from JSON output when empty (nil pinger case). This tests the `omitempty` tag.
 func TestHandler_Handle_JSONOmitEmpty(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	h := NewHandler(nil, logger)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -113,7 +112,7 @@ func TestHandler_Handle_JSONOmitEmpty(t *testing.T) {
 // TestHandler_Handle_HTTPMethods verifies the handler responds to various HTTP methods.
 // Health endpoints typically accept any method (especially GET and HEAD).
 func TestHandler_Handle_HTTPMethods(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	h := NewHandler(&mockPinger{pingErr: nil}, logger)
 
 	methods := []string{
@@ -138,7 +137,7 @@ func TestHandler_Handle_HTTPMethods(t *testing.T) {
 
 // TestHandler_Handle_ContentType verifies the response has correct Content-Type header.
 func TestHandler_Handle_ContentType(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	h := NewHandler(&mockPinger{pingErr: nil}, logger)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)

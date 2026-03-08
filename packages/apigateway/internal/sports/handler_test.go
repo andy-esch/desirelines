@@ -2,7 +2,6 @@ package sports
 
 import (
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -38,7 +37,7 @@ const validConfigJSON = `{
 }`
 
 func TestHandler_HandleConfig(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	// Create a temporary config file
 	tmpFile, err := os.CreateTemp("", "sport_config_*.json")

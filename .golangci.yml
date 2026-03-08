@@ -25,6 +25,7 @@ linters:
     - prealloc        # Finds slice declarations that could be pre-allocated
     - nolintlint      # clean up stale //nolint directives
     - whitespace      # Tool for detection of leading and trailing whitespace
+    - sloglint        # Enforce slog best practices
 
   settings:
     errcheck:
