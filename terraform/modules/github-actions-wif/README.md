@@ -75,65 +75,65 @@ infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_service
 
 <!-- BEGIN_TF_DOCS -->
 
-
 ## Requirements
 
-| Name | Version |
-|------|---------|
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.12 |
-| <a name="requirement_google"></a> [google](#requirement\_google) | ~> 7.22 |
+| Name                                                                     | Version |
+| ------------------------------------------------------------------------ | ------- |
+| <a name="requirement_terraform"></a> [terraform](#requirement_terraform) | >= 1.12 |
+| <a name="requirement_google"></a> [google](#requirement_google)          | ~> 7.22 |
 
 ## Providers
 
-| Name | Version |
-|------|---------|
-| <a name="provider_google"></a> [google](#provider\_google) | 7.22.0 |
+| Name                                                      | Version |
+| --------------------------------------------------------- | ------- |
+| <a name="provider_google"></a> [google](#provider_google) | 7.22.0  |
 
 ## Resources
 
-| Name | Type |
-|------|------|
-| [google_iam_workload_identity_pool.github_actions](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool) | resource |
+| Name                                                                                                                                                                    | Type     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| [google_iam_workload_identity_pool.github_actions](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool)           | resource |
 | [google_iam_workload_identity_pool_provider.github](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool_provider) | resource |
-| [google_project_iam_member.additional_roles](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
-| [google_project_iam_member.artifact_registry_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
-| [google_project_iam_member.firebase_hosting_admin](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
-| [google_project_iam_member.run_developer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
-| [google_project_iam_member.service_account_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
-| [google_project_iam_member.viewer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
-| [google_service_account.github_actions_deploy](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account) | resource |
-| [google_service_account_iam_member.workload_identity_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
+| [google_project_iam_member.additional_roles](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member)                         | resource |
+| [google_project_iam_member.artifact_registry_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member)                 | resource |
+| [google_project_iam_member.firebase_hosting_admin](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member)                   | resource |
+| [google_project_iam_member.run_developer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member)                            | resource |
+| [google_project_iam_member.service_account_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member)                     | resource |
+| [google_project_iam_member.viewer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member)                                   | resource |
+| [google_service_account.github_actions_deploy](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account)                          | resource |
+| [google_service_account_iam_member.workload_identity_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member)   | resource |
 
 ## Inputs
 
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| <a name="input_environment"></a> [environment](#input\_environment) | Environment name (dev, prod, etc.) | `string` | n/a | yes |
-| <a name="input_github_repository"></a> [github\_repository](#input\_github\_repository) | GitHub repository in format 'owner/repo' (e.g., 'andy-esch/desirelines') | `string` | n/a | yes |
-| <a name="input_project_id"></a> [project\_id](#input\_project\_id) | GCP project ID | `string` | n/a | yes |
-| <a name="input_additional_project_roles"></a> [additional\_project\_roles](#input\_additional\_project\_roles) | Additional project-level IAM roles to grant the service account | `list(string)` | `[]` | no |
-| <a name="input_create_pool"></a> [create\_pool](#input\_create\_pool) | Whether to create the WIF pool and provider (set false to reuse existing) | `bool` | `true` | no |
-| <a name="input_github_repository_owner"></a> [github\_repository\_owner](#input\_github\_repository\_owner) | GitHub repository owner (extracted from github\_repository if not provided) | `string` | `""` | no |
-| <a name="input_grant_default_roles"></a> [grant\_default\_roles](#input\_grant\_default\_roles) | Whether to grant the default set of project-level IAM roles (set false for build-only SAs) | `bool` | `true` | no |
-| <a name="input_pool_display_name"></a> [pool\_display\_name](#input\_pool\_display\_name) | Display name for Workload Identity Pool | `string` | `"GitHub Actions Pool"` | no |
-| <a name="input_pool_id"></a> [pool\_id](#input\_pool\_id) | Workload Identity Pool ID | `string` | `"github-actions"` | no |
-| <a name="input_provider_display_name"></a> [provider\_display\_name](#input\_provider\_display\_name) | Display name for Workload Identity Provider | `string` | `"GitHub OIDC Provider"` | no |
-| <a name="input_provider_id"></a> [provider\_id](#input\_provider\_id) | Workload Identity Provider ID | `string` | `"github-oidc"` | no |
-| <a name="input_service_account_display_name"></a> [service\_account\_display\_name](#input\_service\_account\_display\_name) | Display name for deployment service account | `string` | `"GitHub Actions Deployment"` | no |
-| <a name="input_service_account_id"></a> [service\_account\_id](#input\_service\_account\_id) | Service account ID for GitHub Actions deployments | `string` | `"github-actions-deploy"` | no |
-| <a name="input_workload_identity_pool_name"></a> [workload\_identity\_pool\_name](#input\_workload\_identity\_pool\_name) | Full resource name of existing WIF pool (required when create\_pool=false) | `string` | `""` | no |
+| Name                                                                                                                  | Description                                                                                | Type           | Default                       | Required |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------- | ----------------------------- | :------: |
+| <a name="input_environment"></a> [environment](#input_environment)                                                    | Environment name (dev, prod, etc.)                                                         | `string`       | n/a                           |   yes    |
+| <a name="input_github_repository"></a> [github_repository](#input_github_repository)                                  | GitHub repository in format 'owner/repo' (e.g., 'andy-esch/desirelines')                   | `string`       | n/a                           |   yes    |
+| <a name="input_project_id"></a> [project_id](#input_project_id)                                                       | GCP project ID                                                                             | `string`       | n/a                           |   yes    |
+| <a name="input_additional_project_roles"></a> [additional_project_roles](#input_additional_project_roles)             | Additional project-level IAM roles to grant the service account                            | `list(string)` | `[]`                          |    no    |
+| <a name="input_create_pool"></a> [create_pool](#input_create_pool)                                                    | Whether to create the WIF pool and provider (set false to reuse existing)                  | `bool`         | `true`                        |    no    |
+| <a name="input_github_repository_owner"></a> [github_repository_owner](#input_github_repository_owner)                | GitHub repository owner (extracted from github_repository if not provided)                 | `string`       | `""`                          |    no    |
+| <a name="input_grant_default_roles"></a> [grant_default_roles](#input_grant_default_roles)                            | Whether to grant the default set of project-level IAM roles (set false for build-only SAs) | `bool`         | `true`                        |    no    |
+| <a name="input_pool_display_name"></a> [pool_display_name](#input_pool_display_name)                                  | Display name for Workload Identity Pool                                                    | `string`       | `"GitHub Actions Pool"`       |    no    |
+| <a name="input_pool_id"></a> [pool_id](#input_pool_id)                                                                | Workload Identity Pool ID                                                                  | `string`       | `"github-actions"`            |    no    |
+| <a name="input_provider_display_name"></a> [provider_display_name](#input_provider_display_name)                      | Display name for Workload Identity Provider                                                | `string`       | `"GitHub OIDC Provider"`      |    no    |
+| <a name="input_provider_id"></a> [provider_id](#input_provider_id)                                                    | Workload Identity Provider ID                                                              | `string`       | `"github-oidc"`               |    no    |
+| <a name="input_service_account_display_name"></a> [service_account_display_name](#input_service_account_display_name) | Display name for deployment service account                                                | `string`       | `"GitHub Actions Deployment"` |    no    |
+| <a name="input_service_account_id"></a> [service_account_id](#input_service_account_id)                               | Service account ID for GitHub Actions deployments                                          | `string`       | `"github-actions-deploy"`     |    no    |
+| <a name="input_workload_identity_pool_name"></a> [workload_identity_pool_name](#input_workload_identity_pool_name)    | Full resource name of existing WIF pool (required when create_pool=false)                  | `string`       | `""`                          |    no    |
 
 ## Outputs
 
-| Name | Description |
-|------|-------------|
-| <a name="output_github_secrets_instructions"></a> [github\_secrets\_instructions](#output\_github\_secrets\_instructions) | Instructions for adding GitHub secrets |
-| <a name="output_service_account_id"></a> [service\_account\_id](#output\_service\_account\_id) | Service account ID |
-| <a name="output_service_account_unique_id"></a> [service\_account\_unique\_id](#output\_service\_account\_unique\_id) | Service account unique ID |
-| <a name="output_wif_provider"></a> [wif\_provider](#output\_wif\_provider) | Workload Identity Provider resource name (add as GitHub secret: WIF\_PROVIDER) |
-| <a name="output_wif_service_account"></a> [wif\_service\_account](#output\_wif\_service\_account) | Service account email for deployments (add as GitHub secret: WIF\_SERVICE\_ACCOUNT) |
-| <a name="output_workload_identity_pool_id"></a> [workload\_identity\_pool\_id](#output\_workload\_identity\_pool\_id) | Workload Identity Pool ID |
-| <a name="output_workload_identity_pool_name"></a> [workload\_identity\_pool\_name](#output\_workload\_identity\_pool\_name) | Workload Identity Pool full resource name |
+| Name                                                                                                                 | Description                                                                       |
+| -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| <a name="output_github_secrets_instructions"></a> [github_secrets_instructions](#output_github_secrets_instructions) | Instructions for adding GitHub secrets                                            |
+| <a name="output_service_account_id"></a> [service_account_id](#output_service_account_id)                            | Service account ID                                                                |
+| <a name="output_service_account_unique_id"></a> [service_account_unique_id](#output_service_account_unique_id)       | Service account unique ID                                                         |
+| <a name="output_wif_provider"></a> [wif_provider](#output_wif_provider)                                              | Workload Identity Provider resource name (add as GitHub secret: WIF_PROVIDER)     |
+| <a name="output_wif_service_account"></a> [wif_service_account](#output_wif_service_account)                         | Service account email for deployments (add as GitHub secret: WIF_SERVICE_ACCOUNT) |
+| <a name="output_workload_identity_pool_id"></a> [workload_identity_pool_id](#output_workload_identity_pool_id)       | Workload Identity Pool ID                                                         |
+| <a name="output_workload_identity_pool_name"></a> [workload_identity_pool_name](#output_workload_identity_pool_name) | Workload Identity Pool full resource name                                         |
+
 <!-- END_TF_DOCS -->
 
 ## Permissions Granted
