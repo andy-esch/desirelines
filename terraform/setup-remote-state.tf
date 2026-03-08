@@ -32,10 +32,12 @@ resource "google_storage_bucket" "terraform_state" {
   # Uniform bucket-level access
   uniform_bucket_level_access = true
 
-  # Lifecycle management
+  # Lifecycle: clean up old noncurrent versions, keep 5 for rollback
   lifecycle_rule {
     condition {
-      age = 30
+      age                = 30
+      with_state         = "NONCURRENT"
+      num_newer_versions = 5
     }
     action {
       type = "Delete"
