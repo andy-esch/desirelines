@@ -1,0 +1,30 @@
+formatter: markdown table
+
+sections:
+  show:
+    - requirements
+    - providers
+    - inputs
+    - outputs
+    - resources
+
+content: |-
+  {{ .Header }}
+
+  {{ .Requirements }}
+
+  {{ .Providers }}
+
+  {{ .Resources }}
+
+  {{ .Inputs }}
+
+  {{ .Outputs }}
+
+output:
+  file: README.md
+  mode: inject
+
+sort:
+  enabled: true
+  by: required

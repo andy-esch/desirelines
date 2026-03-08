@@ -53,7 +53,7 @@ terraform output github_wif_provider
 terraform output github_wif_service_account
 
 # Get step-by-step instructions
-terraform output github_secrets_setup
+terraform output github_secrets_instructions
 ```
 
 ### 4. Add GitHub Repository Secrets
@@ -90,16 +90,18 @@ infisical run --env=prod --path=/ci/deploy -- terraform apply
 
 ## Permissions Granted
 
-When `grant_default_roles = true` (the default), the module grants 11 project-level IAM roles for full deployment capability. See `terraform/modules/github-actions-wif/README.md` for the complete list.
+When `grant_default_roles = true` (the default), the module grants 5 build-deploy IAM roles (Cloud Run developer, AR writer, SA user, viewer, Firebase Hosting admin). See `terraform/modules/github-actions-wif/README.md` for the complete list.
 
 When `grant_default_roles = false`, no project-level roles are granted — suitable for build-only SAs that only push images to Artifact Registry (with cross-project AR access granted separately).
+
+For Terraform-applying SAs, add infrastructure roles (pubsub.admin, bigquery.admin, etc.) via `additional_project_roles`.
 
 ### Two-SA Architecture
 
 | Repo | SA | `grant_default_roles` | Purpose |
 |------|----|-----------------------|---------|
 | `desirelines` (public) | `github-actions-deploy` | `false` | Build & push images only |
-| `desirelines-deploy` (private) | `ci-deploy` | `true` + additional roles | Full Terraform deploy |
+| `desirelines-deploy` (private) | `ci-deploy` | `true` + `additional_project_roles` | Full Terraform deploy |
 
 ## Manual Setup (Not Recommended)
 

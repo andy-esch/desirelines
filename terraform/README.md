@@ -22,11 +22,13 @@ This repo contains **modules** and the **artifacts** environment only. Deploymen
 
 ```
 terraform/
-├── .terraform-version     # Pinned version
+├── .terraform-version      # Pinned version
+├── .tflint.hcl             # TFLint configuration (Google ruleset)
+├── .terraform-docs.yml     # terraform-docs configuration
 ├── environments/
-│   └── artifacts/         # Shared artifact registry (desirelines-artifacts project)
+│   └── artifacts/          # Shared artifact registry (desirelines-artifacts project)
 └── modules/
-    ├── desirelines/       # Main infrastructure module
+    ├── desirelines/        # Main infrastructure module
     └── github-actions-wif/ # Workload Identity Federation
 ```
 
@@ -60,24 +62,19 @@ terraform apply
 
 ## CI/CD
 
-- **CI validation**: `terraform fmt -check` and `terraform validate` on PRs (artifacts environment + modules)
+- **CI validation**: `terraform fmt -check`, `terraform validate`, TFLint, and terraform-docs checks on PRs
 - **Deployment**: Handled by `desirelines-deploy` repo
 
 See [docs/guides/ci.md](../docs/guides/ci.md) for details.
 
-## Pre-commit Hooks
+## Local Tooling
 
-Terraform validation runs automatically on commit when `.tf` files are staged:
-
-```yaml
-# .pre-commit-config.yaml
-- repo: https://github.com/antonbabenko/pre-commit-terraform
-  hooks:
-  - id: terraform_fmt
-  - id: terraform_validate
+```bash
+just tf-fmt            # Format all .tf files
+just tf-validate-all   # Validate all environments and modules
+just tf-lint           # Lint with TFLint (Google ruleset)
+just tf-docs           # Regenerate module documentation
 ```
-
-Install: `pre-commit install`
 
 ## Security
 
