@@ -60,7 +60,7 @@ function SportPill({
         opacity: enabled ? 1 : 0.35,
         border: `1px solid rgba(${rgb}, ${enabled ? 0.6 : 0.2})`,
         background: enabled ? `rgba(${rgb}, 0.12)` : "transparent",
-        color: isDark ? `rgb(${rgb})` : `rgb(${rgb})`,
+        color: `rgb(${rgb})`,
       }}
     >
       <span

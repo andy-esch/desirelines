@@ -14,10 +14,21 @@ function StatusMessage({ children }: { children: React.ReactNode }) {
   return <div className="flex grow items-center justify-center">{children}</div>;
 }
 
-/** Parse comma-separated string into a Set, or null if absent */
+/** Parse comma-separated string into a Set. Returns null if absent (all enabled), empty Set if empty string. */
 function parseCommaSeparated<T>(value: string | undefined, parse: (s: string) => T): Set<T> | null {
-  if (!value) return null;
-  return new Set(value.split(",").map(parse));
+  if (value === undefined) return null;
+  if (value === "") return new Set<T>();
+  return new Set(
+    value
+      .split(",")
+      .filter((s) => s !== "")
+      .map(parse)
+  );
+}
+
+/** Extract year from ISO date string (e.g. "2024-01-15") without Date constructor timezone issues */
+function getYearFromDate(dateStr: string): number {
+  return parseInt(dateStr, 10);
 }
 
 export default function RoutesPage() {
@@ -37,7 +48,7 @@ export default function RoutesPage() {
 
     for (const route of routes) {
       sportCounts.set(route.sport, (sportCounts.get(route.sport) ?? 0) + 1);
-      const year = new Date(route.date).getFullYear();
+      const year = getYearFromDate(route.date);
       if (!isNaN(year)) yearSet.add(year);
     }
 
@@ -65,7 +76,7 @@ export default function RoutesPage() {
   const filteredRoutes = useMemo(() => {
     return routes.filter((route) => {
       if (!enabledSports.has(route.sport)) return false;
-      const year = new Date(route.date).getFullYear();
+      const year = getYearFromDate(route.date);
       if (!enabledYears.has(year)) return false;
       return true;
     });
@@ -159,7 +170,9 @@ export default function RoutesPage() {
     const activeYears =
       enabledYears.size === allYears.length
         ? "all-years"
-        : Array.from(enabledYears).sort().join("-");
+        : Array.from(enabledYears)
+            .sort((a, b) => a - b)
+            .join("-");
     const filename = `desirelines-${activeSports}-${activeYears}.png`;
 
     const link = document.createElement("a");
@@ -173,7 +186,7 @@ export default function RoutesPage() {
 
   if (!authLoading && !user) {
     statusContent = (
-      <p className="text-white/50">
+      <p className="text-slate-light">
         <Link to="/" className="text-accent-cyan no-underline">
           Sign in
         </Link>{" "}
@@ -181,11 +194,11 @@ export default function RoutesPage() {
       </p>
     );
   } else if (isLoading) {
-    statusContent = <p className="text-white/50">Loading routes...</p>;
+    statusContent = <p className="text-slate-light">Loading routes...</p>;
   } else if (error) {
-    statusContent = <p className="text-red-400">Failed to load routes. Please try again later.</p>;
+    statusContent = <p className="text-danger">Failed to load routes. Please try again later.</p>;
   } else if (routes.length === 0) {
-    statusContent = <p className="text-white/50">No routes yet. Go record some activities!</p>;
+    statusContent = <p className="text-slate-light">No routes yet. Go record some activities!</p>;
   }
 
   if (statusContent) {
