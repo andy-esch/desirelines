@@ -3,12 +3,12 @@ package middleware
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
 // MockTokenVerifier implements TokenVerifier interface
@@ -22,7 +22,7 @@ func (m *MockTokenVerifier) VerifyIDToken(ctx context.Context, idToken string) (
 }
 
 func TestAuthMiddleware(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
+	logger := gcplog.NewNoOpLogger()
 
 	tests := []struct {
 		name           string
@@ -92,7 +92,7 @@ func TestAuthMiddleware(t *testing.T) {
 }
 
 func TestAuthMiddleware_InjectsUserID(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
+	logger := gcplog.NewNoOpLogger()
 
 	verifier := &MockTokenVerifier{
 		Token: &auth.Token{

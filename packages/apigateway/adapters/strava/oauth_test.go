@@ -3,17 +3,17 @@ package strava
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 )
 
 func newTestOAuthClient(serverURL string) *OAuthClient {
 	noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
-	client := NewOAuthClient("test-client-id", "test-client-secret", slog.New(slog.DiscardHandler), http.DefaultClient, noopHist)
+	client := NewOAuthClient("test-client-id", "test-client-secret", gcplog.NewNoOpLogger(), http.DefaultClient, noopHist)
 	client.tokenURL = serverURL
 	return client
 }
