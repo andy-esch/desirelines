@@ -29,8 +29,6 @@ module "desirelines" {
 ```
 
 <!-- BEGIN_TF_DOCS -->
-
-
 ## Requirements
 
 | Name | Version |
@@ -162,7 +160,7 @@ module "desirelines" {
 | <a name="input_gcp_project_id"></a> [gcp\_project\_id](#input\_gcp\_project\_id) | Google Cloud Project ID | `string` | n/a | yes |
 | <a name="input_gcp_project_number"></a> [gcp\_project\_number](#input\_gcp\_project\_number) | Google Cloud Project Number (needed for service account IAM) | `string` | n/a | yes |
 | <a name="input_infisical_project_id"></a> [infisical\_project\_id](#input\_infisical\_project\_id) | Infisical Project ID (used as suffix for integration Service Account) | `string` | n/a | yes |
-| <a name="input_api_gateway_allowed_origins"></a> [api\_gateway\_allowed\_origins](#input\_api\_gateway\_allowed\_origins) | Comma-separated list of allowed CORS origins for API Gateway (e.g., 'https://example.com,http://localhost:5173') | `string` | `""` | no |
+| <a name="input_api_gateway_allowed_origins"></a> [api\_gateway\_allowed\_origins](#input\_api\_gateway\_allowed\_origins) | Comma-separated list of allowed CORS origins for API Gateway | `string` | `""` | no |
 | <a name="input_app_config"></a> [app\_config](#input\_app\_config) | Application configuration values from Infisical | <pre>object({<br/>    log_level         = string<br/>    frontend_url      = optional(string, "")<br/>    auth_callback_url = optional(string, "")<br/>  })</pre> | <pre>{<br/>  "log_level": "INFO"<br/>}</pre> | no |
 | <a name="input_bigquery_location"></a> [bigquery\_location](#input\_bigquery\_location) | BigQuery dataset location | `string` | `"US"` | no |
 | <a name="input_deployment_version"></a> [deployment\_version](#input\_deployment\_version) | Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest') | `string` | `"latest"` | no |

@@ -9,8 +9,6 @@ sections:
     - resources
 
 content: |-
-  {{ .Header }}
-
   {{ .Requirements }}
 
   {{ .Providers }}

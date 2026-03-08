@@ -86,7 +86,7 @@ variable "external_artifact_registry" {
 }
 
 variable "api_gateway_allowed_origins" {
-  description = "Comma-separated list of allowed CORS origins for API Gateway (e.g., 'https://example.com,http://localhost:5173')"
+  description = "Comma-separated list of allowed CORS origins for API Gateway"
   type        = string
   default     = ""
 }
