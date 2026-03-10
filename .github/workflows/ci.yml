@@ -180,7 +180,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.11.2
+          version: v2.11.3
           working-directory: packages/${{ matrix.package }}
           args: --timeout=5m
 
