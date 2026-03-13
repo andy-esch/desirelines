@@ -15,11 +15,10 @@ export function useRouteData(): UseRouteDataResult {
     queryKey: ["routes", user?.uid],
     queryFn: ({ signal }) => fetchRoutes({ signal }),
     enabled: !authLoading && !!user,
-    staleTime: 5 * 60 * 1000,
   });
 
   return {
-    routes: data ?? [],
+    routes: data?.routes ?? [],
     isLoading: authLoading || isLoading,
     error: error as Error | null,
   };

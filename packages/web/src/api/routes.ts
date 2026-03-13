@@ -13,12 +13,21 @@ export interface NormalizedRoute {
   coords: number[][];
 }
 
+export interface RouteRing {
+  radiusMeters: number;
+  coords: number[][];
+}
+
+interface RoutesResponse {
+  routes: NormalizedRoute[];
+}
+
 export interface FetchRoutesOptions {
   limit?: number;
   signal?: AbortSignal;
 }
 
-export const fetchRoutes = async (options: FetchRoutesOptions = {}): Promise<NormalizedRoute[]> => {
+export const fetchRoutes = async (options: FetchRoutesOptions = {}): Promise<RoutesResponse> => {
   const params = new URLSearchParams();
   if (options.limit) {
     params.set("limit", options.limit.toString());
@@ -28,10 +37,10 @@ export const fetchRoutes = async (options: FetchRoutesOptions = {}): Promise<Nor
   const url = `activities/routes${query ? `?${query}` : ""}`;
 
   try {
-    const { data } = await getClient().get<NormalizedRoute[]>(url, {
+    const { data } = await getClient().get<RoutesResponse>(url, {
       signal: options.signal,
     });
-    return data ?? [];
+    return data ?? { routes: [] };
   } catch (err: unknown) {
     throwApiError(err, "fetchRoutes");
   }

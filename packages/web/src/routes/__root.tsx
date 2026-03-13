@@ -21,11 +21,14 @@ const TanStackRouterDevtools = lazy(() =>
   }))
 );
 
+const FOOTERLESS_ROUTES = ["/routes"];
+
 function RootLayout() {
   const scrolled = useScrolled(4);
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const isFirstRender = useRef(true);
+  const hideFooter = FOOTERLESS_ROUTES.includes(location.pathname);
 
   useEffect(() => {
     // Skip initial mount — only focus on subsequent navigations
@@ -57,7 +60,7 @@ function RootLayout() {
           </PageTransition>
         </Suspense>
       </main>
-      <Footer />
+      {!hideFooter && <Footer />}
 
       {/* Devtools — only in development */}
       {import.meta.env.DEV && (

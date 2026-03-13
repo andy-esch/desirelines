@@ -35,6 +35,11 @@ type NormalizedRoute struct {
 	Coords     [][]float64 `json:"coords"`
 }
 
+// RoutesResponse wraps normalized routes for the visualization endpoint.
+type RoutesResponse struct {
+	Routes []NormalizedRoute `json:"routes"`
+}
+
 // DefaultRoutesLimit is the default number of routes to return.
 const DefaultRoutesLimit = 500
 

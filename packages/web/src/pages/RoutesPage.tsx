@@ -1,13 +1,24 @@
 import { useMemo, useCallback, useRef } from "react";
 import { useSearch, useNavigate } from "@tanstack/react-router";
 import { useRouteData } from "../hooks/useRouteData";
-import RouteCanvas, { type RouteCanvasHandle } from "../components/routes/RouteCanvas";
+import RouteCanvas, {
+  type RouteCanvasHandle,
+  buildSportColorMap,
+} from "../components/routes/RouteCanvas";
 import RouteLegend from "../components/routes/RouteLegend";
 import { PageLayout } from "../components/layout/PageLayout";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme } from "../contexts/ThemeContext";
 import { useUserConfig } from "../hooks/useUserConfig";
-import { getUserSettings } from "../utils/units";
-import { ROUTES_LIMIT } from "../api/routes";
+import {
+  getUserSettings,
+  getDistanceLabel,
+  convertDistance,
+  MILES_TO_METERS,
+  KM_TO_METERS,
+} from "../utils/units";
+import type { DistanceUnit } from "../utils/units";
+import { ROUTES_LIMIT, type RouteRing } from "../api/routes";
 import { Link } from "@tanstack/react-router";
 
 /** Must match the rendered header height (see also sidebar top offset in tailwind.css) */
@@ -34,15 +45,80 @@ function getYearFromDate(dateStr: string): number {
   return parseInt(dateStr, 10);
 }
 
+/** "Nice" step sizes in display units, ordered smallest to largest. */
+const NICE_STEPS_MI = [0.5, 1, 2, 5, 10, 15, 25, 50];
+const NICE_STEPS_KM = [1, 2, 5, 10, 20, 30, 50, 100];
+const RING_COUNT = 3;
+
+/**
+ * Compute ring intervals that fit the data extent.
+ * Picks the smallest "nice" step where RING_COUNT rings cover the max reach,
+ * estimated as half the longest route distance (out-and-back heuristic).
+ */
+function computeRingMeters(maxRouteDistanceMeters: number, unit: DistanceUnit): number[] {
+  // Estimate max reach from center: half the longest route (out-and-back assumption)
+  const maxReachMeters = maxRouteDistanceMeters / 2;
+  const maxReachDisplay = convertDistance(maxReachMeters, unit);
+
+  const niceSteps = unit === "miles" ? NICE_STEPS_MI : NICE_STEPS_KM;
+  const toMeters = unit === "miles" ? MILES_TO_METERS : KM_TO_METERS;
+
+  // Find smallest step where RING_COUNT * step >= maxReach
+  const step =
+    niceSteps.find((s) => s * RING_COUNT >= maxReachDisplay) ?? niceSteps[niceSteps.length - 1];
+
+  return Array.from({ length: RING_COUNT }, (_, i) => Math.round((i + 1) * step * toMeters));
+}
+
+/** Format a ring radius for display: e.g. "10 mi" or "20 km" */
+function formatRingLabel(radiusMeters: number, unit: DistanceUnit): string {
+  const value = convertDistance(radiusMeters, unit);
+  return `${Math.round(value)} ${getDistanceLabel(unit)}`;
+}
+
+const RING_SEGMENTS = 64;
+/** Approximate meters per degree (used to place rings in the same degree-offset space as routes) */
+const METERS_PER_DEGREE = 111_320;
+
+/** Generate circle coordinates centered at (0, 0) in degree-offset space. */
+function generateCircleCoords(radiusMeters: number): number[][] {
+  const radiusDeg = radiusMeters / METERS_PER_DEGREE;
+  const coords: number[][] = [];
+  for (let i = 0; i <= RING_SEGMENTS; i++) {
+    const angle = (2 * Math.PI * i) / RING_SEGMENTS;
+    coords.push([radiusDeg * Math.cos(angle), radiusDeg * Math.sin(angle)]);
+  }
+  return coords;
+}
+
+/** Build rings as client-side circles. For the empty state, uses default radii. */
+function buildRings(ringMeters: number[]): RouteRing[] {
+  return ringMeters.map((radiusMeters) => ({
+    radiusMeters,
+    coords: generateCircleCoords(radiusMeters),
+  }));
+}
+
+/** Default ring radii for the empty-routes welcome state. */
+function defaultRingMeters(unit: DistanceUnit): number[] {
+  const step = unit === "miles" ? 5 * MILES_TO_METERS : 10 * KM_TO_METERS;
+  return [1, 2, 3].map((n) => Math.round(n * step));
+}
+
 export default function RoutesPage() {
   const { user, loading: authLoading } = useAuth();
-  const { routes, isLoading, error } = useRouteData();
   const search = useSearch({ from: "/routes" });
   const navigate = useNavigate();
   const canvasRef = useRef<RouteCanvasHandle>(null);
 
   const { data: preferences } = useUserConfig("preferences");
   const userSettings = getUserSettings(preferences);
+  const { resolvedTheme } = useTheme();
+
+  // Ring state: "on" in URL means rings are visible
+  const showRings = search.rings === "on";
+
+  const { routes, isLoading, error } = useRouteData();
 
   // Derive available sports and years from all routes
   const { sportInfos, allYears } = useMemo(() => {
@@ -63,6 +139,16 @@ export default function RoutesPage() {
 
     return { sportInfos, allYears };
   }, [routes]);
+
+  // Build color map: assign maximally-contrasting colors based on sport count order
+  const sportColors = useMemo(
+    () =>
+      buildSportColorMap(
+        sportInfos.map((s) => s.sport),
+        resolvedTheme === "dark"
+      ),
+    [sportInfos, resolvedTheme]
+  );
 
   // Parse URL params into filter sets (null = "all enabled")
   const urlSports = useMemo(() => parseCommaSeparated(search.sports, (s) => s), [search.sports]);
@@ -103,22 +189,34 @@ export default function RoutesPage() {
     [filteredRoutes]
   );
 
+  // Compute rings client-side, scaled to the data extent
+  const maxRouteDistance = useMemo(
+    () => routes.reduce((max, r) => Math.max(max, r.distance), 0),
+    [routes]
+  );
+  const rings = useMemo(() => {
+    if (routes.length === 0) return buildRings(defaultRingMeters(userSettings.distanceUnit));
+    return buildRings(computeRingMeters(maxRouteDistance, userSettings.distanceUnit));
+  }, [routes.length, maxRouteDistance, userSettings.distanceUnit]);
+
   // URL update helpers
   const updateSearch = useCallback(
-    (sports: Set<string>, years: Set<number>) => {
+    (sports: Set<string>, years: Set<number>, ringsOn?: boolean) => {
       const allSportsEnabled = sports.size === sportInfos.length;
       const allYearsEnabled = years.size === allYears.length && allYears.every((y) => years.has(y));
+      const ringsValue = ringsOn !== undefined ? ringsOn : showRings;
 
       navigate({
         to: "/routes",
         search: {
           sports: allSportsEnabled ? undefined : Array.from(sports).join(","),
           years: allYearsEnabled ? undefined : Array.from(years).join(","),
+          rings: ringsValue ? "on" : undefined,
         },
         replace: true,
       });
     },
-    [navigate, sportInfos, allYears]
+    [navigate, sportInfos, allYears, showRings]
   );
 
   const handleToggleSport = useCallback(
@@ -163,6 +261,15 @@ export default function RoutesPage() {
     [allYears, enabledSports, updateSearch]
   );
 
+  const ringLabelFormatter = useCallback(
+    (radiusMeters: number) => formatRingLabel(radiusMeters, userSettings.distanceUnit),
+    [userSettings.distanceUnit]
+  );
+
+  const handleToggleRings = useCallback(() => {
+    updateSearch(enabledSports, enabledYears, !showRings);
+  }, [enabledSports, enabledYears, showRings, updateSearch]);
+
   const handleSaveImage = useCallback(() => {
     const canvas = canvasRef.current?.getCanvas();
     if (!canvas) return;
@@ -176,41 +283,56 @@ export default function RoutesPage() {
             .join("-");
     const filename = `desirelines-${activeSports}-${activeYears}.png`;
 
+    const dataUrl = canvas.toDataURL("image/png");
     const link = document.createElement("a");
     link.download = filename;
-    link.href = canvas.toDataURL("image/png");
+    link.href = dataUrl;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
   }, [enabledSports, enabledYears, allYears]);
 
-  // Status states
-  let statusContent: React.ReactNode = null;
-
+  // Early-return status states (auth, loading, error)
   if (!authLoading && !user) {
-    statusContent = (
-      <p className="text-slate-light">
-        <Link to="/" className="text-accent-cyan no-underline">
-          Sign in
-        </Link>{" "}
-        to view your route art.
-      </p>
-    );
-  } else if (isLoading) {
-    statusContent = <p className="text-slate-light">Loading routes...</p>;
-  } else if (error) {
-    statusContent = <p className="text-danger">Failed to load routes. Please try again later.</p>;
-  } else if (routes.length === 0) {
-    statusContent = <p className="text-slate-light">No routes yet. Go record some activities!</p>;
-  }
-
-  if (statusContent) {
     return (
       <PageLayout background="routes">
-        <StatusMessage>{statusContent}</StatusMessage>
+        <StatusMessage>
+          <p className="text-slate-light">
+            <Link to="/" className="text-accent-cyan no-underline">
+              Sign in
+            </Link>{" "}
+            to view your route art.
+          </p>
+        </StatusMessage>
       </PageLayout>
     );
   }
 
-  const noMatchingRoutes = filteredRoutes.length === 0 && routes.length > 0;
+  if (isLoading) {
+    return (
+      <PageLayout background="routes">
+        <StatusMessage>
+          <p className="text-slate-light">Loading routes...</p>
+        </StatusMessage>
+      </PageLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <PageLayout background="routes">
+        <StatusMessage>
+          <p className="text-danger">Failed to load routes. Please try again later.</p>
+        </StatusMessage>
+      </PageLayout>
+    );
+  }
+
+  const isEmpty = routes.length === 0;
+  const noMatchingRoutes = !isEmpty && filteredRoutes.length === 0;
+
+  // Rings: always shown for empty state, toggled for routes
+  const displayRings = isEmpty || showRings ? rings : undefined;
 
   return (
     <PageLayout background="routes">
@@ -221,25 +343,42 @@ export default function RoutesPage() {
               <p className="text-slate-light text-sm">No routes match your filters</p>
             </div>
           ) : (
-            <RouteCanvas ref={canvasRef} routes={filteredRoutes} />
+            <RouteCanvas
+              ref={canvasRef}
+              routes={filteredRoutes}
+              sportColors={sportColors}
+              rings={displayRings}
+              formatRingLabel={ringLabelFormatter}
+            />
           )}
 
-          <RouteLegend
-            sports={filteredSportInfos}
-            years={allYears}
-            enabledSports={enabledSports}
-            enabledYears={enabledYears}
-            shownCount={filteredRoutes.length}
-            shownDistanceMeters={totalDistanceMeters}
-            atLimit={routes.length >= ROUTES_LIMIT}
-            limit={ROUTES_LIMIT}
-            distanceUnit={userSettings.distanceUnit}
-            onToggleSport={handleToggleSport}
-            onToggleYear={handleToggleYear}
-            onToggleAllSports={handleToggleAllSports}
-            onToggleAllYears={handleToggleAllYears}
-            onSaveImage={handleSaveImage}
-          />
+          {isEmpty && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <p className="text-slate-light text-sm">No routes yet. Go record some activities!</p>
+            </div>
+          )}
+
+          {!isEmpty && (
+            <RouteLegend
+              sports={filteredSportInfos}
+              years={allYears}
+              enabledSports={enabledSports}
+              enabledYears={enabledYears}
+              sportColors={sportColors}
+              shownCount={filteredRoutes.length}
+              shownDistanceMeters={totalDistanceMeters}
+              atLimit={routes.length >= ROUTES_LIMIT}
+              limit={ROUTES_LIMIT}
+              distanceUnit={userSettings.distanceUnit}
+              onToggleSport={handleToggleSport}
+              onToggleYear={handleToggleYear}
+              onToggleAllSports={handleToggleAllSports}
+              onToggleAllYears={handleToggleAllYears}
+              showRings={showRings}
+              onToggleRings={handleToggleRings}
+              onSaveImage={handleSaveImage}
+            />
+          )}
         </div>
       </div>
     </PageLayout>

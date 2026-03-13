@@ -50,6 +50,10 @@ func (h *Handler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 		routes[i].Sport = h.sportConfig.GetCategoryForStravaType(routes[i].Sport)
 	}
 
-	w.Header().Set("Cache-Control", "private, max-age=3600")
-	server.RespondJSON(w, r, http.StatusOK, routes, h.logger)
+	resp := repository.RoutesResponse{
+		Routes: routes,
+	}
+
+	w.Header().Set("Cache-Control", "private, max-age=300, must-revalidate")
+	server.RespondJSON(w, r, http.StatusOK, resp, h.logger)
 }

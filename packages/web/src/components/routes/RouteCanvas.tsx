@@ -1,26 +1,44 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import type { NormalizedRoute } from "../../api/routes";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
+import type { NormalizedRoute, RouteRing } from "../../api/routes";
 import { useTheme } from "../../contexts/ThemeContext";
 
-/** Dark mode: neon palette with additive blending */
-export const DARK_SPORT_COLORS: Record<string, string> = {
-  cycling: "0, 255, 255",
-  running: "0, 255, 128",
-  swimming: "180, 0, 255",
-  walking: "255, 200, 0",
-  hiking: "255, 128, 0",
-};
-const DARK_DEFAULT_COLOR = "255, 0, 255";
+/**
+ * Color palettes ordered for maximum perceptual contrast.
+ * With 2 sports → cyan vs magenta. With 3 → cyan, magenta, yellow. Etc.
+ * Colors are assigned by sport index (sorted by route count), not sport name.
+ */
+const DARK_PALETTE = [
+  "0, 255, 255", // Cyan
+  "255, 0, 255", // Magenta
+  "255, 200, 0", // Yellow
+  "0, 255, 128", // Green
+  "255, 128, 0", // Orange
+  "180, 0, 255", // Purple
+];
 
-/** Light mode: darker saturated colors with standard blending */
-export const LIGHT_SPORT_COLORS: Record<string, string> = {
-  cycling: "0, 120, 200",
-  running: "20, 140, 60",
-  swimming: "120, 0, 200",
-  walking: "180, 140, 0",
-  hiking: "180, 80, 0",
-};
-const LIGHT_DEFAULT_COLOR = "160, 0, 140";
+const LIGHT_PALETTE = [
+  "0, 120, 200", // Deep blue
+  "180, 0, 140", // Deep magenta
+  "160, 130, 0", // Dark yellow
+  "20, 140, 60", // Forest green
+  "180, 80, 0", // Dark orange
+  "120, 0, 200", // Deep purple
+];
+
+export type SportColorMap = Map<string, string>;
+
+/**
+ * Build a color map assigning maximally-contrasting colors to sports.
+ * Sports should be passed in display order (e.g. sorted by route count desc).
+ */
+export function buildSportColorMap(sports: string[], isDark: boolean): SportColorMap {
+  const palette = isDark ? DARK_PALETTE : LIGHT_PALETTE;
+  const map = new Map<string, string>();
+  for (let i = 0; i < sports.length; i++) {
+    map.set(sports[i], palette[i % palette.length]);
+  }
+  return map;
+}
 
 const CANVAS_PADDING = 40;
 /** Routes above this count get lower opacity to avoid blowing out with additive blending */
@@ -31,24 +49,21 @@ const DARK_LOW_DENSITY_ALPHA = 0.08;
 const LIGHT_HIGH_DENSITY_ALPHA = 0.25;
 const LIGHT_LOW_DENSITY_ALPHA = 0.35;
 
-export function getColorForSport(sport: string, isDark: boolean): string {
-  if (isDark) {
-    return DARK_SPORT_COLORS[sport] ?? DARK_DEFAULT_COLOR;
-  }
-  return LIGHT_SPORT_COLORS[sport] ?? LIGHT_DEFAULT_COLOR;
-}
-
 export interface RouteCanvasHandle {
   getCanvas: () => HTMLCanvasElement | null;
 }
 
 interface RouteCanvasProps {
   routes: NormalizedRoute[];
+  sportColors: SportColorMap;
+  rings?: RouteRing[];
+  /** Label formatter for ring distances, e.g. "10 mi" or "20 km" */
+  formatRingLabel?: (radiusMeters: number) => string;
   className?: string;
 }
 
 const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function RouteCanvas(
-  { routes, className = "" },
+  { routes, sportColors, rings, formatRingLabel, className = "" },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -59,9 +74,11 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
     getCanvas: () => canvasRef.current,
   }));
 
-  useEffect(() => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || routes.length === 0) return;
+    const hasRoutes = routes.length > 0;
+    const hasRings = rings && rings.length > 0;
+    if (!canvas || (!hasRoutes && !hasRings)) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -77,7 +94,7 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
     const height = rect.height;
     const padding = CANVAS_PADDING;
 
-    // Compute bounding box across all routes
+    // Compute bounding box across all routes and rings
     let minX = Infinity;
     let maxX = -Infinity;
     let minY = Infinity;
@@ -90,6 +107,19 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
+      }
+    }
+
+    // Include ring coords in bounding box (ensures rings are visible, especially when routes are empty)
+    if (hasRings) {
+      for (const ring of rings) {
+        for (const coord of ring.coords) {
+          const [x, y] = coord;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
       }
     }
 
@@ -112,8 +142,63 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
     const projectY = (y: number) => centerY - (y - dataCenterY) * scale;
 
     // Fill background with theme-appropriate color
-    ctx.fillStyle = getComputedStyle(canvas).getPropertyValue("--color-bg-body");
+    ctx.fillStyle =
+      getComputedStyle(canvas).getPropertyValue("--color-bg-body").trim() ||
+      (isDark ? "#0f1724" : "#f0f4f8");
     ctx.fillRect(0, 0, width, height);
+
+    // Draw distance rings (before routes so they appear behind)
+    if (hasRings) {
+      // Slightly more visible when rings are the only element on screen
+      const ringAlpha = hasRoutes ? (isDark ? 0.15 : 0.12) : isDark ? 0.25 : 0.2;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.setLineDash([4, 8]);
+      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = isDark
+        ? `rgba(255, 255, 255, ${ringAlpha})`
+        : `rgba(0, 0, 0, ${ringAlpha})`;
+
+      for (const ring of rings) {
+        if (ring.coords.length < 2) continue;
+
+        ctx.beginPath();
+        ctx.moveTo(projectX(ring.coords[0][0]), projectY(ring.coords[0][1]));
+        for (let i = 1; i < ring.coords.length; i++) {
+          ctx.lineTo(projectX(ring.coords[i][0]), projectY(ring.coords[i][1]));
+        }
+        ctx.closePath();
+        ctx.stroke();
+
+        // Draw distance label at the top of the ring
+        if (formatRingLabel) {
+          // Find the topmost point (highest projected Y = lowest canvas Y)
+          let topIdx = 0;
+          let topY = Infinity;
+          for (let i = 0; i < ring.coords.length; i++) {
+            const py = projectY(ring.coords[i][1]);
+            if (py < topY) {
+              topY = py;
+              topIdx = i;
+            }
+          }
+
+          const labelX = projectX(ring.coords[topIdx][0]);
+          const labelY = topY;
+
+          ctx.save();
+          ctx.setLineDash([]);
+          ctx.font = "10px system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillStyle = isDark ? "rgba(255, 255, 255, 0.35)" : "rgba(0, 0, 0, 0.3)";
+          ctx.fillText(formatRingLabel(ring.radiusMeters), labelX, labelY - 4);
+          ctx.restore();
+        }
+      }
+
+      ctx.restore();
+    }
 
     // Dark: additive blending for neon glow; Light: standard blending for saturated strokes
     ctx.globalCompositeOperation = isDark ? "lighter" : "source-over";
@@ -124,10 +209,13 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
       : [LIGHT_HIGH_DENSITY_ALPHA, LIGHT_LOW_DENSITY_ALPHA];
     const alpha = isHighDensity ? highAlpha : lowAlpha;
 
+    // Fallback color for sports not in the map (shouldn't happen normally)
+    const fallbackRgb = isDark ? "255, 255, 255" : "100, 100, 100";
+
     for (const route of routes) {
       if (route.coords.length < 2) continue;
 
-      const rgb = getColorForSport(route.sport, isDark);
+      const rgb = sportColors.get(route.sport) ?? fallbackRgb;
       ctx.strokeStyle = `rgba(${rgb}, ${alpha})`;
       ctx.lineWidth = 1.5;
       ctx.lineJoin = "round";
@@ -142,7 +230,24 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
 
       ctx.stroke();
     }
-  }, [routes, isDark]);
+  }, [routes, sportColors, rings, formatRingLabel, isDark]);
+
+  // Draw on data/theme change
+  useEffect(() => {
+    draw();
+  }, [draw]);
+
+  // Redraw on container resize
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const observer = new ResizeObserver(() => {
+      draw();
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [draw]);
 
   return (
     <canvas
