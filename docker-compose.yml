@@ -227,7 +227,7 @@ services:
         condition: service_healthy
     command: >
       sh -c '
-        curl -s -X POST "http://firebase-emulators:9099/identitytoolkit.googleapis.com/v1/projects/desirelines-local/accounts:batchCreate" \
+        curl -sf -X POST "http://firebase-emulators:9099/identitytoolkit.googleapis.com/v1/projects/desirelines-local/accounts:batchCreate?key=fake-api-key" \
           -H "Content-Type: application/json" \
           -d "{\"users\":[{\"localId\":\"123456789\",\"email\":\"peach.olive.405@example.com\",\"displayName\":\"Peach Olive\"}]}" \
         && echo "✓ Pre-baked dev user: peach.olive.405@example.com (UID: 123456789)"

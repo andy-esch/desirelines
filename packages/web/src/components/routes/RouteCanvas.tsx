@@ -110,7 +110,7 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
       }
     }
 
-    // Include ring coords in bounding box (needed when routes are empty)
+    // Include ring coords in bounding box (ensures rings are visible, especially when routes are empty)
     if (hasRings) {
       for (const ring of rings) {
         for (const coord of ring.coords) {

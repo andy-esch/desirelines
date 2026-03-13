@@ -48,9 +48,6 @@ type RoutesResponse struct {
 	Rings  []RouteRing       `json:"rings,omitempty"`
 }
 
-// DefaultRingIntervals are the default distance ring radii in meters.
-var DefaultRingIntervals = []int{10000, 20000, 30000, 40000, 50000}
-
 // DefaultRoutesLimit is the default number of routes to return.
 const DefaultRoutesLimit = 500
 

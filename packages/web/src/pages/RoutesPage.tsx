@@ -45,13 +45,28 @@ function getYearFromDate(dateStr: string): number {
   return parseInt(dateStr, 10);
 }
 
+/** "Nice" step sizes in display units, ordered smallest to largest. */
+const NICE_STEPS_MI = [0.5, 1, 2, 5, 10, 15, 25, 50];
+const NICE_STEPS_KM = [1, 2, 5, 10, 20, 30, 50, 100];
+const RING_COUNT = 3;
+
 /**
- * Compute "nice" ring intervals in meters based on the user's distance unit.
- * Returns evenly-spaced round numbers: e.g. [5, 10, 15, 20, 25] mi or [10, 20, 30, 40, 50] km.
+ * Compute ring intervals that fit the data extent.
+ * Picks the smallest "nice" step where RING_COUNT rings cover the max reach,
+ * estimated as half the longest route distance (out-and-back heuristic).
  */
-function computeRingMeters(unit: DistanceUnit): number[] {
-  const step = unit === "miles" ? 5 * MILES_TO_METERS : 10 * KM_TO_METERS;
-  return [1, 2, 3, 4, 5].map((n) => Math.round(n * step));
+function computeRingMeters(maxRouteDistanceMeters: number, unit: DistanceUnit): number[] {
+  // Estimate max reach from center: half the longest route (out-and-back assumption)
+  const maxReachMeters = maxRouteDistanceMeters / 2;
+  const maxReachDisplay = convertDistance(maxReachMeters, unit);
+
+  const niceSteps = unit === "miles" ? NICE_STEPS_MI : NICE_STEPS_KM;
+  const toMeters = unit === "miles" ? MILES_TO_METERS : KM_TO_METERS;
+
+  // Find smallest step where RING_COUNT * step >= maxReach
+  const step = niceSteps.find((s) => s * RING_COUNT >= maxReachDisplay) ?? niceSteps[niceSteps.length - 1];
+
+  return Array.from({ length: RING_COUNT }, (_, i) => Math.round((i + 1) * step * toMeters));
 }
 
 /** Format a ring radius for display: e.g. "10 mi" or "20 km" */
@@ -61,24 +76,32 @@ function formatRingLabel(radiusMeters: number, unit: DistanceUnit): string {
 }
 
 const RING_SEGMENTS = 64;
+/** Approximate meters per degree (used to place rings in the same degree-offset space as routes) */
+const METERS_PER_DEGREE = 111_320;
 
-/** Generate circle coordinates centered at (0, 0) for a given radius in meters. */
+/** Generate circle coordinates centered at (0, 0) in degree-offset space. */
 function generateCircleCoords(radiusMeters: number): number[][] {
+  const radiusDeg = radiusMeters / METERS_PER_DEGREE;
   const coords: number[][] = [];
   for (let i = 0; i <= RING_SEGMENTS; i++) {
     const angle = (2 * Math.PI * i) / RING_SEGMENTS;
-    coords.push([radiusMeters * Math.cos(angle), radiusMeters * Math.sin(angle)]);
+    coords.push([radiusDeg * Math.cos(angle), radiusDeg * Math.sin(angle)]);
   }
   return coords;
 }
 
-/** Build default rings (client-side circles) for the empty-routes welcome state. */
-function buildDefaultRings(unit: DistanceUnit): RouteRing[] {
+/** Build rings as client-side circles. For the empty state, uses default radii. */
+function buildRings(ringMeters: number[]): RouteRing[] {
+  return ringMeters.map((radiusMeters) => ({
+    radiusMeters,
+    coords: generateCircleCoords(radiusMeters),
+  }));
+}
+
+/** Default ring radii for the empty-routes welcome state. */
+function defaultRingMeters(unit: DistanceUnit): number[] {
   const step = unit === "miles" ? 5 * MILES_TO_METERS : 10 * KM_TO_METERS;
-  return [1, 2, 3].map((n) => {
-    const radiusMeters = Math.round(n * step);
-    return { radiusMeters, coords: generateCircleCoords(radiusMeters) };
-  });
+  return [1, 2, 3].map((n) => Math.round(n * step));
 }
 
 export default function RoutesPage() {
@@ -93,12 +116,8 @@ export default function RoutesPage() {
 
   // Ring state: "on" in URL means rings are visible
   const showRings = search.rings === "on";
-  const ringMeters = useMemo(
-    () => (showRings ? computeRingMeters(userSettings.distanceUnit) : undefined),
-    [showRings, userSettings.distanceUnit]
-  );
 
-  const { routes, rings, isLoading, error } = useRouteData({ ringMeters });
+  const { routes, isLoading, error } = useRouteData();
 
   // Derive available sports and years from all routes
   const { sportInfos, allYears } = useMemo(() => {
@@ -168,6 +187,16 @@ export default function RoutesPage() {
     () => filteredRoutes.reduce((sum, r) => sum + r.distance, 0),
     [filteredRoutes]
   );
+
+  // Compute rings client-side, scaled to the data extent
+  const maxRouteDistance = useMemo(
+    () => routes.reduce((max, r) => Math.max(max, r.distance), 0),
+    [routes]
+  );
+  const rings = useMemo(() => {
+    if (routes.length === 0) return buildRings(defaultRingMeters(userSettings.distanceUnit));
+    return buildRings(computeRingMeters(maxRouteDistance, userSettings.distanceUnit));
+  }, [routes.length, maxRouteDistance, userSettings.distanceUnit]);
 
   // URL update helpers
   const updateSearch = useCallback(
@@ -262,12 +291,6 @@ export default function RoutesPage() {
     document.body.removeChild(link);
   }, [enabledSports, enabledYears, allYears]);
 
-  // Default rings for the empty welcome state (generated client-side, no backend needed)
-  const defaultRings = useMemo(
-    () => buildDefaultRings(userSettings.distanceUnit),
-    [userSettings.distanceUnit]
-  );
-
   // Early-return status states (auth, loading, error)
   if (!authLoading && !user) {
     return (
@@ -307,9 +330,8 @@ export default function RoutesPage() {
   const isEmpty = routes.length === 0;
   const noMatchingRoutes = !isEmpty && filteredRoutes.length === 0;
 
-  // Rings to display: when routes exist, use backend rings (if toggled on).
-  // When empty, always show default client-side rings as a welcome visual.
-  const displayRings = isEmpty ? defaultRings : showRings ? rings : undefined;
+  // Rings: always shown for empty state, toggled for routes
+  const displayRings = isEmpty || showRings ? rings : undefined;
 
   return (
     <PageLayout background="routes">

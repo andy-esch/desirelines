@@ -18,15 +18,12 @@ export interface RouteRing {
   coords: number[][];
 }
 
-export interface RoutesResponse {
+interface RoutesResponse {
   routes: NormalizedRoute[];
-  rings?: RouteRing[];
 }
 
 export interface FetchRoutesOptions {
   limit?: number;
-  /** Ring radii in meters. If provided, rings are computed by the backend. */
-  ringMeters?: number[];
   signal?: AbortSignal;
 }
 
@@ -34,9 +31,6 @@ export const fetchRoutes = async (options: FetchRoutesOptions = {}): Promise<Rou
   const params = new URLSearchParams();
   if (options.limit) {
     params.set("limit", options.limit.toString());
-  }
-  if (options.ringMeters && options.ringMeters.length > 0) {
-    params.set("rings", options.ringMeters.join(","));
   }
 
   const query = params.toString();
