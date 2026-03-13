@@ -27,6 +27,7 @@ import (
 type mockRepo struct {
 	err    error
 	routes []repository.NormalizedRoute
+	rings  []repository.RouteRing
 }
 
 func (m *mockRepo) Ping(ctx context.Context) error { return nil }
@@ -54,6 +55,9 @@ func (m *mockRepo) ListActivities(ctx context.Context, filter repository.Activit
 }
 func (m *mockRepo) GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]repository.NormalizedRoute, error) {
 	return m.routes, m.err
+}
+func (m *mockRepo) GetRouteRings(ctx context.Context, userID string, ringMeters []int) ([]repository.RouteRing, error) {
+	return m.rings, m.err
 }
 
 func newTestHandler(t *testing.T) *Handler {
@@ -508,12 +512,12 @@ func TestHandleRoutes(t *testing.T) {
 			}
 
 			if tt.wantLen >= 0 {
-				var routes []repository.NormalizedRoute
-				if err := json.Unmarshal(w.Body.Bytes(), &routes); err != nil {
+				var resp repository.RoutesResponse
+				if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 					t.Fatalf("failed to unmarshal response: %v", err)
 				}
-				if len(routes) != tt.wantLen {
-					t.Errorf("got %d routes, want %d", len(routes), tt.wantLen)
+				if len(resp.Routes) != tt.wantLen {
+					t.Errorf("got %d routes, want %d", len(resp.Routes), tt.wantLen)
 				}
 			}
 		})
@@ -531,8 +535,8 @@ func TestHandleRoutes_CacheHeader(t *testing.T) {
 
 	handler.HandleRoutes(w, req)
 
-	if cc := w.Header().Get("Cache-Control"); cc != "private, max-age=3600" {
-		t.Errorf("Cache-Control = %q, want %q", cc, "private, max-age=3600")
+	if cc := w.Header().Get("Cache-Control"); cc != "private, max-age=300, must-revalidate" {
+		t.Errorf("Cache-Control = %q, want %q", cc, "private, max-age=300, must-revalidate")
 	}
 }
 
@@ -549,15 +553,17 @@ func TestHandleRoutes_SportCategoryMapping(t *testing.T) {
 
 	handler.HandleRoutes(w, req)
 
-	var routes []map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &routes); err != nil {
+	var resp struct {
+		Routes []map[string]any `json:"routes"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
-	if len(routes) != 1 {
-		t.Fatalf("expected 1 route, got %d", len(routes))
+	if len(resp.Routes) != 1 {
+		t.Fatalf("expected 1 route, got %d", len(resp.Routes))
 	}
 	// "Ride" is a Strava type that maps to the "cycling" category
-	sport, ok := routes[0]["sport"].(string)
+	sport, ok := resp.Routes[0]["sport"].(string)
 	if !ok {
 		t.Fatal("sport field missing or not a string")
 	}

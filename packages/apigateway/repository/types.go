@@ -35,6 +35,22 @@ type NormalizedRoute struct {
 	Coords     [][]float64 `json:"coords"`
 }
 
+// RouteRing represents a distance ring centered at (0,0) in the same coordinate
+// space as normalized routes. Used for distance reference on the routes visualization.
+type RouteRing struct {
+	RadiusMeters int         `json:"radiusMeters"`
+	Coords       [][]float64 `json:"coords"`
+}
+
+// RoutesResponse wraps routes with optional distance rings.
+type RoutesResponse struct {
+	Routes []NormalizedRoute `json:"routes"`
+	Rings  []RouteRing       `json:"rings,omitempty"`
+}
+
+// DefaultRingIntervals are the default distance ring radii in meters.
+var DefaultRingIntervals = []int{10000, 20000, 30000, 40000, 50000}
+
 // DefaultRoutesLimit is the default number of routes to return.
 const DefaultRoutesLimit = 500
 
