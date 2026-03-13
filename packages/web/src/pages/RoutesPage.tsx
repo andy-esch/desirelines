@@ -64,7 +64,8 @@ function computeRingMeters(maxRouteDistanceMeters: number, unit: DistanceUnit): 
   const toMeters = unit === "miles" ? MILES_TO_METERS : KM_TO_METERS;
 
   // Find smallest step where RING_COUNT * step >= maxReach
-  const step = niceSteps.find((s) => s * RING_COUNT >= maxReachDisplay) ?? niceSteps[niceSteps.length - 1];
+  const step =
+    niceSteps.find((s) => s * RING_COUNT >= maxReachDisplay) ?? niceSteps[niceSteps.length - 1];
 
   return Array.from({ length: RING_COUNT }, (_, i) => Math.round((i + 1) * step * toMeters));
 }
