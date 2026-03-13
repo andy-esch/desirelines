@@ -27,7 +27,6 @@ import (
 type mockRepo struct {
 	err    error
 	routes []repository.NormalizedRoute
-	rings  []repository.RouteRing
 }
 
 func (m *mockRepo) Ping(ctx context.Context) error { return nil }
@@ -55,9 +54,6 @@ func (m *mockRepo) ListActivities(ctx context.Context, filter repository.Activit
 }
 func (m *mockRepo) GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]repository.NormalizedRoute, error) {
 	return m.routes, m.err
-}
-func (m *mockRepo) GetRouteRings(ctx context.Context, userID string, ringMeters []int) ([]repository.RouteRing, error) {
-	return m.rings, m.err
 }
 
 func newTestHandler(t *testing.T) *Handler {

@@ -35,17 +35,9 @@ type NormalizedRoute struct {
 	Coords     [][]float64 `json:"coords"`
 }
 
-// RouteRing represents a distance ring centered at (0,0) in the same coordinate
-// space as normalized routes. Used for distance reference on the routes visualization.
-type RouteRing struct {
-	RadiusMeters int         `json:"radiusMeters"`
-	Coords       [][]float64 `json:"coords"`
-}
-
-// RoutesResponse wraps routes with optional distance rings.
+// RoutesResponse wraps normalized routes for the visualization endpoint.
 type RoutesResponse struct {
 	Routes []NormalizedRoute `json:"routes"`
-	Rings  []RouteRing       `json:"rings,omitempty"`
 }
 
 // DefaultRoutesLimit is the default number of routes to return.

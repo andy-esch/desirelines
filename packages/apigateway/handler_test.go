@@ -97,10 +97,6 @@ func (m *mockActivityRepository) GetNormalizedRoutes(ctx context.Context, userID
 	return nil, nil
 }
 
-func (m *mockActivityRepository) GetRouteRings(ctx context.Context, userID string, ringMeters []int) ([]repository.RouteRing, error) {
-	return nil, nil
-}
-
 // Compile-time interface verification
 var _ repository.ActivityRepository = (*mockActivityRepository)(nil)
 

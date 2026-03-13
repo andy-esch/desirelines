@@ -61,10 +61,4 @@ type ActivityRepository interface {
 	// Each route's start point is translated to the origin for overlaid visualization.
 	// Used by: GET /activities/routes
 	GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]NormalizedRoute, error)
-
-	// GetRouteRings returns distance rings centered at (0,0) in the same coordinate
-	// space as normalized routes. Uses the average start latitude for geographically
-	// accurate distance calculations via PostGIS geography type.
-	// Used by: GET /activities/routes (rings field in response)
-	GetRouteRings(ctx context.Context, userID string, ringMeters []int) ([]RouteRing, error)
 }
