@@ -27,6 +27,6 @@ tf-lint:
 # Generate Terraform module documentation
 tf-docs:
     @echo "📝 Generating Terraform docs..."
-    terraform-docs terraform/modules/desirelines
-    terraform-docs terraform/modules/github-actions-wif
+    terraform-docs --config terraform/.terraform-docs.yml terraform/modules/desirelines
+    terraform-docs --config terraform/.terraform-docs.yml terraform/modules/github-actions-wif
     @echo "✅ Terraform docs generated!"

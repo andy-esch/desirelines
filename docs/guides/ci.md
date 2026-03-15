@@ -147,6 +147,8 @@ just tf-validate-all
 - `terraform fmt -check` - Format validation
 - `terraform init -backend=false` - Configuration loading
 - `terraform validate` - Syntax and consistency
+- TFLint - Google Cloud ruleset linting
+- `terraform-docs --output-check` - Module README docs are up to date
 
 **Validated:** `environments/artifacts` and all modules. Dev/prod environments are in the private `desirelines-deploy` repo.
 
@@ -251,6 +253,20 @@ go_binary(name="bin")
 ```bash
 pants tailor ::
 ```
+
+### Terraform: terraform-docs Check Fails
+
+**Error:** `"Check terraform-docs"` step fails with output mismatch.
+
+**Fix:** Regenerate the module READMEs:
+
+```bash
+just tf-docs
+```
+
+This updates the auto-generated sections (between `<!-- BEGIN_TF_DOCS -->` / `<!-- END_TF_DOCS -->` markers) in each module's README. Commit the updated READMEs.
+
+**Why:** When you add, remove, or change variables, outputs, or resources in a module, the README's generated documentation becomes stale. CI runs `terraform-docs --output-check` which fails if the README doesn't match.
 
 ### CI Passes Locally But Fails in GitHub Actions
 
