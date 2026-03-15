@@ -85,7 +85,7 @@ infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_service
 
 | Name | Version |
 |------|---------|
-| <a name="provider_google"></a> [google](#provider\_google) | 7.22.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | 7.23.0 |
 
 ## Resources
 
