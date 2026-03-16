@@ -31,10 +31,14 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 // Mock RouteCanvas to avoid canvas rendering in tests
-vi.mock("../components/routes/RouteCanvas", () => ({
-  __esModule: true,
-  default: vi.fn().mockReturnValue(null),
-}));
+vi.mock("../components/routes/RouteCanvas", async () => {
+  const actual = await vi.importActual("../components/routes/RouteCanvas");
+  return {
+    ...actual,
+    __esModule: true,
+    default: vi.fn().mockReturnValue(null),
+  };
+});
 
 // Mock RouteLegend
 vi.mock("../components/routes/RouteLegend", () => ({

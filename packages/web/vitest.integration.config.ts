@@ -25,10 +25,6 @@ export default defineConfig({
     css: true,
     // Sequential execution for integration tests (avoid emulator conflicts)
     pool: "forks",
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
   },
 });

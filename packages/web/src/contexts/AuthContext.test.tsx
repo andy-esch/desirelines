@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import React from "react";
+import React, { useRef } from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { AuthProvider, AuthContext, TestAuthProvider } from "./AuthContext";
 import { TestServiceProvider } from "./ServiceContext";
@@ -138,10 +138,10 @@ describe("AuthProvider", () => {
     const user1 = MockAuthService.createMockUser({ uid: "u1" });
     mockAuthService = new MockAuthService(user1);
 
-    const renderCount = { value: 0 };
     function CountingHook() {
-      renderCount.value++;
-      return useAuthContext();
+      const renderCount = useRef(0);
+      renderCount.current++;
+      return { ...useAuthContext(), renderCount };
     }
 
     const { result } = renderHook(() => CountingHook(), {
@@ -149,14 +149,14 @@ describe("AuthProvider", () => {
     });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    const countAfterInit = renderCount.value;
+    const countAfterInit = result.current.renderCount.current;
 
     // Set a new object with the same values — should not cause re-render
     act(() => {
       mockAuthService.setCurrentUser({ ...user1 });
     });
 
-    expect(renderCount.value).toBe(countAfterInit);
+    expect(result.current.renderCount.current).toBe(countAfterInit);
   });
 });
 
