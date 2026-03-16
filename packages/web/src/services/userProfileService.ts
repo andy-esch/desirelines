@@ -3,6 +3,7 @@ import type { AuthService } from "./auth/AuthService";
 import type { DatabaseService } from "./database/DatabaseService";
 import { FirebaseAuthService } from "./auth/FirebaseAuthService";
 import { FirestoreService } from "./database/FirestoreService";
+import { logger } from "../lib/logger";
 
 /**
  * Zod schema for Firestore Timestamp objects.
@@ -59,7 +60,7 @@ export class UserProfileService {
         schema: AthleteProfileSchema,
       });
     } catch (error) {
-      console.error("Error fetching user profile:", error);
+      logger.error("Error fetching user profile:", error);
       return null;
     }
   }
@@ -78,7 +79,7 @@ export class UserProfileService {
       this.getProfilePath(user.uid),
       callback,
       (error) => {
-        console.error("Error in profile subscription:", error);
+        logger.error("Error in profile subscription:", error);
         callback(null);
       },
       { schema: AthleteProfileSchema }

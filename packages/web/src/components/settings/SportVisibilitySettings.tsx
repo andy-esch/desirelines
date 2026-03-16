@@ -4,6 +4,7 @@ import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { CheckIcon, CloseIcon, EyeIcon, EyeSlashIcon } from "../icons";
 import NeonSpinner from "../NeonSpinner";
 import { InlineAlert } from "../InlineAlert";
+import { logger } from "../../lib/logger";
 
 /** Duration to show "Saved" indicator */
 const SAVE_SUCCESS_DURATION = 2000;
@@ -304,7 +305,7 @@ export function SportVisibilitySettings() {
       } catch (err) {
         // Rollback ref on error so retry is possible
         lastSyncedRef.current = null;
-        console.error("Failed to auto-save visible sports:", err);
+        logger.error("Failed to auto-save visible sports:", err);
       }
     }, AUTO_SAVE_DELAY);
 

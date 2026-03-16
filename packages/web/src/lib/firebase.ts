@@ -12,6 +12,7 @@ import { initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, onAuthStateChanged, type Auth } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
 import { getConfig } from "./config";
+import { logger } from "./logger";
 
 // Get validated configuration
 const config = getConfig();
@@ -34,16 +35,15 @@ export const db: Firestore = getFirestore(app, databaseId);
 
 // Connect to Firebase emulators (config validation prevents this in production)
 if (config.emulators.enabled) {
-  /* eslint-disable no-console */
   const { authHost, authPort, firestoreHost, firestorePort } = config.emulators;
 
   // Connect Auth emulator
   if (authHost && authPort) {
     try {
       connectAuthEmulator(auth, `http://${authHost}:${authPort}`, { disableWarnings: true });
-      console.log(`🔐 Auth emulator connected: ${authHost}:${authPort}`);
+      logger.info(`Auth emulator connected: ${authHost}:${authPort}`);
     } catch {
-      console.warn(`⚠️ Auth emulator not available at ${authHost}:${authPort}`);
+      logger.warn(`Auth emulator not available at ${authHost}:${authPort}`);
     }
   }
 
@@ -51,14 +51,13 @@ if (config.emulators.enabled) {
   if (firestoreHost && firestorePort) {
     try {
       connectFirestoreEmulator(db, firestoreHost, firestorePort);
-      console.log(
-        `🔥 Firestore emulator connected: ${firestoreHost}:${firestorePort} (database: ${databaseId})`
+      logger.info(
+        `Firestore emulator connected: ${firestoreHost}:${firestorePort} (database: ${databaseId})`
       );
     } catch {
-      console.warn(`⚠️ Firestore emulator not available at ${firestoreHost}:${firestorePort}`);
+      logger.warn(`Firestore emulator not available at ${firestoreHost}:${firestorePort}`);
     }
   }
-  /* eslint-enable no-console */
 }
 
 // Promise that resolves when initial auth state is determined

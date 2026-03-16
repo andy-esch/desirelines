@@ -1,5 +1,6 @@
 import axios, { type AxiosError } from "axios";
 import { getConfig } from "../lib/config";
+import { logger } from "../lib/logger";
 import type { AuthService } from "../services/auth/AuthService";
 import { isInternalRequest } from "./url";
 
@@ -91,7 +92,7 @@ export function configureClientAuth(authService: AuthService): void {
           const authPromise = authService.waitForAuthReady().then(() => true as const);
           return await Promise.race([authPromise, timeoutPromise]);
         } catch (e) {
-          console.error(
+          logger.error(
             "Auth initialization failed:",
             e instanceof Error ? e.message : "unknown error"
           );
@@ -102,7 +103,7 @@ export function configureClientAuth(authService: AuthService): void {
 
     const ready = await authInitPromise;
     if (!ready) {
-      console.error(
+      logger.error(
         `Auth initialization timed out after ${AUTH_READY_TIMEOUT_MS}ms. ` +
           "Request will proceed without auth token and likely receive 401."
       );
@@ -122,7 +123,7 @@ export function configureClientAuth(authService: AuthService): void {
           config.headers.Authorization = `Bearer ${token}`;
         }
       } catch (error) {
-        console.error(
+        logger.error(
           "Failed to get ID token for request:",
           error instanceof Error ? error.message : "unknown error"
         );
@@ -169,7 +170,7 @@ export function configureClientAuth(authService: AuthService): void {
           return instance(originalRequest);
         }
       } catch (refreshError) {
-        console.error(
+        logger.error(
           "Token refresh failed during 401 retry:",
           refreshError instanceof Error ? refreshError.message : "unknown error"
         );

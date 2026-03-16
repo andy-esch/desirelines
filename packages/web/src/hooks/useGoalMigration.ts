@@ -5,6 +5,7 @@ import {
   isGoalUnitMigrated,
 } from "../utils/migration";
 import type { GoalsForYear } from "../services/userConfigService";
+import { logger } from "../lib/logger";
 
 /**
  * One-time migration hook: converts goals from legacy miles format to meters.
@@ -53,7 +54,7 @@ export function useGoalMigration(
           .catch((error) => {
             // Error is surfaced by useUserConfig; don't mark as migrated so it retries.
 
-            console.error(`Failed to save migrated goals for ${year}/${sport}:`, error);
+            logger.error(`Failed to save migrated goals for ${year}/${sport}:`, error);
           });
       } else {
         markGoalUnitMigrated(userId, year, sport);

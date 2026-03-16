@@ -12,6 +12,7 @@
  */
 
 import axios from "axios";
+import { logger } from "../lib/logger";
 
 /**
  * Check if an error is a request cancellation.
@@ -105,7 +106,7 @@ export function logApiError(err: unknown, context: string): void {
   }
 
   const message = err instanceof Error ? err.message : String(err);
-  console.error(`${context}:`, message);
+  logger.error(`${context}:`, message);
 }
 
 /**

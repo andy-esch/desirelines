@@ -9,6 +9,7 @@
  */
 
 import { z } from "zod";
+import { logger } from "./logger";
 
 // ============================================================================
 // Zod Schemas
@@ -185,18 +186,16 @@ export function getConfig(): AppConfig {
 
     // Log configuration summary in development only (without sensitive values)
     if (configInstance.isDevelopment) {
-      /* eslint-disable no-console */
-      console.log("✓ Configuration loaded successfully");
-      console.log(`  Environment: ${configInstance.isProduction ? "production" : "development"}`);
-      console.log(`  Firebase project: ${configInstance.firebase.projectId}`);
-      console.log(`  API Gateway: ${configInstance.apiGatewayUrl || "not configured"}`);
+      logger.info("Configuration loaded successfully");
+      logger.info(`  Environment: ${configInstance.isProduction ? "production" : "development"}`);
+      logger.info(`  Firebase project: ${configInstance.firebase.projectId}`);
+      logger.info(`  API Gateway: ${configInstance.apiGatewayUrl || "not configured"}`);
       if (configInstance.emulators.enabled) {
-        console.log(
+        logger.info(
           `  Emulators: enabled (Auth: ${configInstance.emulators.authHost}:${configInstance.emulators.authPort}, ` +
             `Firestore: ${configInstance.emulators.firestoreHost}:${configInstance.emulators.firestorePort})`
         );
       }
-      /* eslint-enable no-console */
     }
   }
 
