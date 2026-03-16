@@ -9,8 +9,12 @@ import { isInternalRequest } from "./url";
  * Auth is configured once by AuthProvider via configureClientAuth(),
  * which registers a request interceptor that injects Firebase ID tokens.
  * The auth service is captured in the interceptor closure — no global mutable refs.
+ *
+ * Module-level state is encapsulated behind getClient/configureClientAuth/resetClient.
+ * resetClient() allows test isolation and HMR re-initialization.
  */
 let client: ReturnType<typeof axios.create> | null = null;
+let configured = false;
 
 function getClient() {
   if (!client) {
@@ -43,15 +47,31 @@ function getClient() {
   return client;
 }
 
+/**
+ * Reset the API client and auth configuration.
+ *
+ * Clears the cached axios instance and the configured flag so that
+ * configureClientAuth() can be called again. This is essential for:
+ * - **Test isolation**: prevents interceptor state from leaking between tests
+ * - **HMR**: allows re-configuration when modules are hot-replaced in development
+ *
+ * @internal — intended for tests and HMR; not for production application code.
+ */
+export function resetClient(): void {
+  client = null;
+  configured = false;
+}
+
 const AUTH_READY_TIMEOUT_MS = 5000;
 
 /**
  * Configure the API client with an auth service.
  * Registers a request interceptor that waits for auth readiness and injects tokens.
  * Called once by AuthProvider — the auth service is captured in the interceptor closure.
+ *
+ * Safe to call multiple times — subsequent calls are no-ops unless resetClient()
+ * is called first (which clears both the client instance and the configured flag).
  */
-let configured = false;
-
 export function configureClientAuth(authService: AuthService): void {
   if (configured) return;
   configured = true;
