@@ -5,6 +5,15 @@ import { FirebaseAuthService } from "./auth/FirebaseAuthService";
 import { FirestoreService } from "./database/FirestoreService";
 
 /**
+ * Zod schema for Firestore Timestamp objects.
+ * Validates the shape ({ seconds, nanoseconds }) without importing the Firestore SDK.
+ */
+const FirestoreTimestampSchema = z.object({
+  seconds: z.number(),
+  nanoseconds: z.number(),
+});
+
+/**
  * Athlete Profile schema matching Firestore 'private/profile' document
  */
 export const AthleteProfileSchema = z.object({
@@ -12,7 +21,7 @@ export const AthleteProfileSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
   profile_url: z.string().optional().nullable(),
-  created_at: z.any().optional(), // Firestore Timestamp
+  created_at: FirestoreTimestampSchema.optional().nullable(),
 });
 
 export type AthleteProfile = z.infer<typeof AthleteProfileSchema>;
