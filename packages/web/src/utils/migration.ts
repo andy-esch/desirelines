@@ -1,4 +1,5 @@
 import { MILES_TO_METERS } from "./units";
+import { logger } from "../lib/logger";
 import type { GoalsForYear } from "../services/userConfigService";
 
 /**
@@ -93,8 +94,7 @@ export function migrateGoalUnitsIfNeeded(
   // Safety heuristic: if any goal value > 50,000, assume already in meters
   // This prevents double-migration if localStorage flag was lost
   if (isLikelyAlreadyMeters(goals)) {
-    // eslint-disable-next-line no-console
-    console.log(
+    logger.info(
       `[Migration] Goals for ${year}/${sport} appear to already be in meters (value > ${METERS_HEURISTIC_THRESHOLD}), skipping conversion`
     );
     // Mark as migrated so we don't check again
@@ -105,8 +105,7 @@ export function migrateGoalUnitsIfNeeded(
   // Not migrated - convert from miles to meters
   const convertedGoals = convertGoalsFromMilesToMeters(goals);
 
-  // eslint-disable-next-line no-console
-  console.log(`[Migration] Converting goals for ${year}/${sport} from miles to meters`);
+  logger.info(`[Migration] Converting goals for ${year}/${sport} from miles to meters`);
 
   return { goals: convertedGoals, needsSave: true };
 }

@@ -1,5 +1,6 @@
 import axios, { type AxiosError } from "axios";
 import { getConfig } from "../lib/config";
+import { logger } from "../lib/logger";
 import type { AuthService } from "../services/auth/AuthService";
 import { isInternalRequest } from "./url";
 
@@ -9,8 +10,12 @@ import { isInternalRequest } from "./url";
  * Auth is configured once by AuthProvider via configureClientAuth(),
  * which registers a request interceptor that injects Firebase ID tokens.
  * The auth service is captured in the interceptor closure — no global mutable refs.
+ *
+ * Module-level state is encapsulated behind getClient/configureClientAuth/resetClient.
+ * resetClient() allows test isolation and HMR re-initialization.
  */
 let client: ReturnType<typeof axios.create> | null = null;
+let configured = false;
 
 function getClient() {
   if (!client) {
@@ -43,15 +48,31 @@ function getClient() {
   return client;
 }
 
+/**
+ * Reset the API client and auth configuration.
+ *
+ * Clears the cached axios instance and the configured flag so that
+ * configureClientAuth() can be called again. This is essential for:
+ * - **Test isolation**: prevents interceptor state from leaking between tests
+ * - **HMR**: allows re-configuration when modules are hot-replaced in development
+ *
+ * @internal — intended for tests and HMR; not for production application code.
+ */
+export function resetClient(): void {
+  client = null;
+  configured = false;
+}
+
 const AUTH_READY_TIMEOUT_MS = 5000;
 
 /**
  * Configure the API client with an auth service.
  * Registers a request interceptor that waits for auth readiness and injects tokens.
  * Called once by AuthProvider — the auth service is captured in the interceptor closure.
+ *
+ * Safe to call multiple times — subsequent calls are no-ops unless resetClient()
+ * is called first (which clears both the client instance and the configured flag).
  */
-let configured = false;
-
 export function configureClientAuth(authService: AuthService): void {
   if (configured) return;
   configured = true;
@@ -71,7 +92,7 @@ export function configureClientAuth(authService: AuthService): void {
           const authPromise = authService.waitForAuthReady().then(() => true as const);
           return await Promise.race([authPromise, timeoutPromise]);
         } catch (e) {
-          console.error(
+          logger.error(
             "Auth initialization failed:",
             e instanceof Error ? e.message : "unknown error"
           );
@@ -82,7 +103,7 @@ export function configureClientAuth(authService: AuthService): void {
 
     const ready = await authInitPromise;
     if (!ready) {
-      console.error(
+      logger.error(
         `Auth initialization timed out after ${AUTH_READY_TIMEOUT_MS}ms. ` +
           "Request will proceed without auth token and likely receive 401."
       );
@@ -102,7 +123,7 @@ export function configureClientAuth(authService: AuthService): void {
           config.headers.Authorization = `Bearer ${token}`;
         }
       } catch (error) {
-        console.error(
+        logger.error(
           "Failed to get ID token for request:",
           error instanceof Error ? error.message : "unknown error"
         );
@@ -149,7 +170,7 @@ export function configureClientAuth(authService: AuthService): void {
           return instance(originalRequest);
         }
       } catch (refreshError) {
-        console.error(
+        logger.error(
           "Token refresh failed during 401 retry:",
           refreshError instanceof Error ? refreshError.message : "unknown error"
         );

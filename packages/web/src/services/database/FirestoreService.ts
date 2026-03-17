@@ -14,6 +14,7 @@ import {
   type DocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { logger } from "../../lib/logger";
 import type {
   DatabaseService,
   GetDocumentOptions,
@@ -67,7 +68,7 @@ export class FirestoreService implements DatabaseService {
     if (options?.schema) {
       const result = options.schema.safeParse(data);
       if (!result.success) {
-        console.error("Firestore data validation failed:", result.error);
+        logger.error("Firestore data validation failed:", result.error);
         throw new Error(`Data validation failed for document at ${path}: ${result.error.message}`);
       }
       return result.data;
@@ -115,7 +116,7 @@ export class FirestoreService implements DatabaseService {
       if (options?.schema) {
         const result = options.schema.safeParse(data);
         if (!result.success) {
-          console.error("Firestore subscription data validation failed:", result.error);
+          logger.error("Firestore subscription data validation failed:", result.error);
           if (onError) {
             onError(
               new Error(`Data validation failed for document at ${path}: ${result.error.message}`)
@@ -139,7 +140,7 @@ export class FirestoreService implements DatabaseService {
         const delay = getRetryDelay(retryCount);
         retryCount++;
 
-        console.warn(
+        logger.warn(
           `Firestore subscription error (attempt ${retryCount}/${SUBSCRIPTION_RETRY_CONFIG.maxRetries}), ` +
             `retrying in ${delay}ms:`,
           error.code || error.message
@@ -156,7 +157,7 @@ export class FirestoreService implements DatabaseService {
         if (onError) {
           onError(error);
         } else {
-          console.error("Firestore subscription error (not retrying):", error);
+          logger.error("Firestore subscription error (not retrying):", error);
         }
       }
     };

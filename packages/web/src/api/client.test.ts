@@ -26,17 +26,20 @@ const mockAuthService: AuthService = {
 };
 
 // Import after mocks are set up
-import getClient, { configureClientAuth } from "./client";
+import getClient, { configureClientAuth, resetClient } from "./client";
 
-const client = getClient();
-
-// Register interceptors once — mirrors how the app calls this at startup.
-configureClientAuth(mockAuthService);
+let client: ReturnType<typeof getClient>;
 
 describe("401 response interceptor", () => {
-  const originalAdapter = client.defaults.adapter;
+  let originalAdapter: ReturnType<typeof getClient>["defaults"]["adapter"];
 
   beforeEach(() => {
+    // Reset client state for full test isolation — each test gets a fresh
+    // axios instance with its own interceptor chain.
+    resetClient();
+    client = getClient();
+    configureClientAuth(mockAuthService);
+    originalAdapter = client.defaults.adapter;
     vi.mocked(mockAuthService.getIdToken).mockReset().mockResolvedValue("original-token");
   });
 

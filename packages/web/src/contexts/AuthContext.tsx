@@ -13,6 +13,7 @@ import { useAuthService } from "./ServiceContext";
 import { useToast } from "./ToastContext";
 import type { User } from "../services/auth/AuthService";
 import { configureClientAuth } from "../api/client";
+import { logger } from "../lib/logger";
 
 export type { User };
 
@@ -74,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authService.signIn();
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Sign in failed");
-      console.error("Sign in error:", error);
+      logger.error("Sign in error:", error);
       setError(error);
       throw error;
     }
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authService.signOut();
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Sign out failed");
-      console.error("Sign out error:", error);
+      logger.error("Sign out error:", error);
       setError(error);
       throw error;
     }

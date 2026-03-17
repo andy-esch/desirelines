@@ -101,13 +101,9 @@ export default defineConfig(({ mode }) => {
       // Memory optimization: limit parallel workers to reduce memory pressure
       // Each worker spawns its own JSDOM environment which is memory-intensive
       pool: "forks",
-      poolOptions: {
-        forks: {
-          maxForks: 3, // Limit to 3 workers (adjust based on available RAM)
-          minForks: 1,
-          isolate: true, // Isolate tests for cleaner memory
-        },
-      },
+      maxWorkers: 3, // Limit to 3 workers (adjust based on available RAM)
+      minWorkers: 1,
+      isolate: true, // Isolate tests for cleaner memory
       // Reduce memory by not keeping test results in memory
       reporters: ["default"],
       // Fail fast on memory issues

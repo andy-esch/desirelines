@@ -3,6 +3,7 @@ import type { DatabaseService } from "./database/DatabaseService";
 import { FirebaseAuthService } from "./auth/FirebaseAuthService";
 import { FirestoreService } from "./database/FirestoreService";
 import { isDatabaseError } from "./database/DatabaseService";
+import { logger } from "../lib/logger";
 import type {
   UserConfig,
   SportGoalsForYear,
@@ -151,12 +152,12 @@ export class UserConfigService {
    */
   private validateSchemaVersion(config: UserConfig): void {
     if (!config.schemaVersion) {
-      console.warn(`⚠️ User config is missing schema version. Expected: ${CURRENT_SCHEMA_VERSION}`);
+      logger.warn(`⚠️ User config is missing schema version. Expected: ${CURRENT_SCHEMA_VERSION}`);
       return;
     }
 
     if (config.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-      console.warn(
+      logger.warn(
         `⚠️ Schema version mismatch! Config has: ${config.schemaVersion}, Code expects: ${CURRENT_SCHEMA_VERSION}. ` +
           `Data will be auto-upgraded on next write.`
       );
@@ -175,7 +176,7 @@ export class UserConfigService {
       }
       return config;
     } catch (error) {
-      console.error("Error fetching user config:", error);
+      logger.error("Error fetching user config:", error);
       throw createUserFriendlyError(error, "load your settings");
     }
   }
@@ -331,7 +332,7 @@ export class UserConfigService {
       // Use merge to avoid overwriting other fields
       await this.databaseService.setDocument(this.getDocPath(), config, { merge: true });
     } catch (error) {
-      console.error("Error updating user config:", error);
+      logger.error("Error updating user config:", error);
       throw createUserFriendlyError(error, "save your changes");
     }
   }
@@ -343,7 +344,7 @@ export class UserConfigService {
     try {
       await this.databaseService.deleteDocument(this.getDocPath());
     } catch (error) {
-      console.error("Error deleting user config:", error);
+      logger.error("Error deleting user config:", error);
       throw createUserFriendlyError(error, "delete your settings");
     }
   }
@@ -362,7 +363,7 @@ export class UserConfigService {
         callback(config);
       },
       (error) => {
-        console.error("Error in config subscription:", error);
+        logger.error("Error in config subscription:", error);
         callback(null);
       }
     );

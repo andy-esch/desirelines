@@ -2,6 +2,7 @@ import { useMemo, useCallback } from "react";
 import { useUserConfig } from "./useUserConfig";
 import { useAuth } from "./useAuth";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
+import { logger } from "../lib/logger";
 
 /**
  * Default visible sports when user hasn't set preferences.
@@ -92,7 +93,7 @@ export function useVisibleSports(knownSports?: string[]) {
       // prevents this case by disabling the "Hide" button on the last sport.
       // This is a defensive check, not a user-facing validation.
       if (validSports.length === 0) {
-        console.warn("At least one sport must be visible, keeping current selection");
+        logger.warn("At least one sport must be visible, keeping current selection");
         return;
       }
 

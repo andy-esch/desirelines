@@ -6,9 +6,10 @@ import { ErrorBoundary } from "react-error-boundary";
 import { PageErrorFallback } from "./components/PageErrorFallback";
 import { loadConfig } from "./lib/config";
 import { createAppRouter } from "./router";
+import { logger } from "./lib/logger";
 
 // Log version for debugging
-console.log(
+logger.info(
   `%c Desirelines %c ${__COMMIT_HASH__} `,
   "background: #35495e; color: #fff; border-radius: 3px 0 0 3px; padding: 2px 5px;",
   "background: #41b883; color: #fff; border-radius: 0 3px 3px 0; padding: 2px 5px;"
@@ -23,7 +24,7 @@ try {
   loadConfig();
 } catch (error) {
   // Configuration is invalid - show error to user
-  console.error("Failed to load application configuration:", error);
+  logger.error("Failed to load application configuration:", error);
 
   const root = document.getElementById("root");
   if (root) {

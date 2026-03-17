@@ -3,6 +3,16 @@ import type { AuthService } from "./auth/AuthService";
 import type { DatabaseService } from "./database/DatabaseService";
 import { FirebaseAuthService } from "./auth/FirebaseAuthService";
 import { FirestoreService } from "./database/FirestoreService";
+import { logger } from "../lib/logger";
+
+/**
+ * Zod schema for Firestore Timestamp objects.
+ * Validates the shape ({ seconds, nanoseconds }) without importing the Firestore SDK.
+ */
+const FirestoreTimestampSchema = z.object({
+  seconds: z.number(),
+  nanoseconds: z.number(),
+});
 
 /**
  * Athlete Profile schema matching Firestore 'private/profile' document
@@ -12,7 +22,7 @@ export const AthleteProfileSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
   profile_url: z.string().optional().nullable(),
-  created_at: z.any().optional(), // Firestore Timestamp
+  created_at: FirestoreTimestampSchema.optional().nullable(),
 });
 
 export type AthleteProfile = z.infer<typeof AthleteProfileSchema>;
@@ -50,7 +60,7 @@ export class UserProfileService {
         schema: AthleteProfileSchema,
       });
     } catch (error) {
-      console.error("Error fetching user profile:", error);
+      logger.error("Error fetching user profile:", error);
       return null;
     }
   }
@@ -69,7 +79,7 @@ export class UserProfileService {
       this.getProfilePath(user.uid),
       callback,
       (error) => {
-        console.error("Error in profile subscription:", error);
+        logger.error("Error in profile subscription:", error);
         callback(null);
       },
       { schema: AthleteProfileSchema }
