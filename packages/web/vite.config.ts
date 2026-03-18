@@ -77,15 +77,22 @@ export default defineConfig(({ mode }) => {
       sourcemap: mode === "production" ? "hidden" : true,
       rollupOptions: {
         output: {
-          manualChunks: {
+          manualChunks(id) {
             // Vendor chunks — cached separately from app code.
             // Each group contains libraries that update on a similar cadence.
-            "react-vendor": ["react", "react-dom", "@tanstack/react-router"],
-            "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
-            "chart-vendor": ["recharts"],
-            "query-vendor": ["@tanstack/react-query"],
-            "headlessui-vendor": ["@headlessui/react"],
-            "zod-vendor": ["zod"],
+            const chunks: Record<string, string[]> = {
+              "react-vendor": ["react", "react-dom", "@tanstack/react-router"],
+              "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
+              "chart-vendor": ["recharts"],
+              "query-vendor": ["@tanstack/react-query"],
+              "headlessui-vendor": ["@headlessui/react"],
+              "zod-vendor": ["zod"],
+            };
+            for (const [chunk, deps] of Object.entries(chunks)) {
+              if (deps.some((dep) => id.includes(`node_modules/${dep}`))) {
+                return chunk;
+              }
+            }
           },
         },
       },
