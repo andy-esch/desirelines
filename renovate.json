@@ -30,6 +30,12 @@
       "groupName": "go version"
     },
     {
+      "description": "Group Vite ecosystem so peer-dep-coupled major bumps land in one PR",
+      "matchPackageNames": ["vite"],
+      "matchPackagePatterns": ["^@vitejs/", "^@tailwindcss/vite$"],
+      "groupName": "vite"
+    },
+    {
       "description": "Group all Terraform updates into one PR",
       "matchManagers": ["terraform", "terraform-version"],
       "groupName": "terraform updates"
