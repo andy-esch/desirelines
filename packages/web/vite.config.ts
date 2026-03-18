@@ -57,7 +57,7 @@ export default defineConfig(({ mode }) => {
 
   // Vendor chunks — cached separately from app code.
   // Each group contains libraries that update on a similar cadence.
-  const vendorChunks: Record<string, string[]> = {
+  const vendorChunks: Record<string, readonly string[]> = {
     "react-vendor": ["react", "react-dom", "@tanstack/react-router"],
     "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
     "chart-vendor": ["recharts"],
@@ -65,6 +65,7 @@ export default defineConfig(({ mode }) => {
     "headlessui-vendor": ["@headlessui/react"],
     "zod-vendor": ["zod"],
   };
+  const vendorChunkEntries = Object.entries(vendorChunks);
 
   return {
     define: {
@@ -89,7 +90,7 @@ export default defineConfig(({ mode }) => {
       rolldownOptions: {
         output: {
           manualChunks(id) {
-            for (const [chunk, deps] of Object.entries(vendorChunks)) {
+            for (const [chunk, deps] of vendorChunkEntries) {
               if (
                 deps.some((dep) => {
                   const segment = `node_modules/${dep}`;
