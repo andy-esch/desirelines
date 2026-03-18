@@ -30,6 +30,11 @@
       "groupName": "go version"
     },
     {
+      "description": "Pin @vitejs/plugin-react to v5 until Babel → @rolldown/plugin-babel migration",
+      "matchPackageNames": ["@vitejs/plugin-react"],
+      "allowedVersions": "5.x"
+    },
+    {
       "description": "Group Vite ecosystem so peer-dep-coupled major bumps land in one PR",
       "matchPackageNames": ["vite"],
       "matchPackagePatterns": ["^@vitejs/", "^@tailwindcss/vite$"],

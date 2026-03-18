@@ -75,7 +75,7 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "build", // Keep same output dir for compatibility
       sourcemap: mode === "production" ? "hidden" : true,
-      rollupOptions: {
+      rolldownOptions: {
         output: {
           manualChunks(id) {
             // Vendor chunks — cached separately from app code.
