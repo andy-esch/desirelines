@@ -747,8 +747,7 @@ func TestNewHandler_WithConfig(t *testing.T) {
 	errResp := parseErrorResponse(w.Body.String())
 	if errResp == nil {
 		t.Fatalf("expected JSON error response, got non-JSON: %q", w.Body.String())
-	}
-	if errResp.Code != ErrCodeReadFailed {
+	} else if errResp.Code != ErrCodeReadFailed {
 		t.Errorf("expected error code %q, got %q", ErrCodeReadFailed, errResp.Code)
 	}
 }
