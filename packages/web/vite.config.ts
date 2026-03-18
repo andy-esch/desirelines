@@ -55,6 +55,17 @@ export default defineConfig(({ mode }) => {
   // Allow overriding via env var (useful for CI)
   const version = env.VITE_GIT_COMMIT || commitHash;
 
+  // Vendor chunks — cached separately from app code.
+  // Each group contains libraries that update on a similar cadence.
+  const vendorChunks: Record<string, string[]> = {
+    "react-vendor": ["react", "react-dom", "@tanstack/react-router"],
+    "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
+    "chart-vendor": ["recharts"],
+    "query-vendor": ["@tanstack/react-query"],
+    "headlessui-vendor": ["@headlessui/react"],
+    "zod-vendor": ["zod"],
+  };
+
   return {
     define: {
       __COMMIT_HASH__: JSON.stringify(version),
@@ -78,17 +89,7 @@ export default defineConfig(({ mode }) => {
       rolldownOptions: {
         output: {
           manualChunks(id) {
-            // Vendor chunks — cached separately from app code.
-            // Each group contains libraries that update on a similar cadence.
-            const chunks: Record<string, string[]> = {
-              "react-vendor": ["react", "react-dom", "@tanstack/react-router"],
-              "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
-              "chart-vendor": ["recharts"],
-              "query-vendor": ["@tanstack/react-query"],
-              "headlessui-vendor": ["@headlessui/react"],
-              "zod-vendor": ["zod"],
-            };
-            for (const [chunk, deps] of Object.entries(chunks)) {
+            for (const [chunk, deps] of Object.entries(vendorChunks)) {
               if (
                 deps.some((dep) => {
                   const segment = `node_modules/${dep}`;
