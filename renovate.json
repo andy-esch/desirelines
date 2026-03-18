@@ -8,6 +8,7 @@
     "monorepo:tanstack-query",
     "monorepo:tanstack-router"
   ],
+  "postUpdateOptions": ["gomodTidy"],
   "terraform": {
     "enabled": true
   },
