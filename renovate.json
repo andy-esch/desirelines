@@ -23,9 +23,8 @@
     },
     {
       "description": "Pin Go to 1.25.x across all managers (Go modules, GitHub Actions, Docker)",
+      "matchDatasources": ["golang-version", "docker"],
       "matchPackagePatterns": ["^go$", "^golang$"],
-      "matchManagers": ["gomod", "github-actions", "dockerfile"],
-      "matchDatasources": ["go", "golang-version", "docker"],
       "allowedVersions": "1.25.x",
       "groupName": "go version"
     },
