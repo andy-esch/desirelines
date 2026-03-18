@@ -89,7 +89,15 @@ export default defineConfig(({ mode }) => {
               "zod-vendor": ["zod"],
             };
             for (const [chunk, deps] of Object.entries(chunks)) {
-              if (deps.some((dep) => id.includes(`node_modules/${dep}`))) {
+              if (
+                deps.some((dep) => {
+                  const segment = `node_modules/${dep}`;
+                  const i = id.indexOf(segment);
+                  if (i === -1) return false;
+                  const next = id[i + segment.length];
+                  return next === "/" || next === undefined;
+                })
+              ) {
                 return chunk;
               }
             }
