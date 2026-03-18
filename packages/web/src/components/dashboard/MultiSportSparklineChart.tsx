@@ -45,7 +45,7 @@ interface TooltipPayloadItem {
 
 interface UnifiedSparklineTooltipProps {
   active?: boolean;
-  payload?: TooltipPayloadItem[];
+  payload?: readonly TooltipPayloadItem[];
   label?: string;
   sportMeta: SportMetaItem[];
   distanceUnit: DistanceUnit;
@@ -259,7 +259,7 @@ export default function MultiSportSparklineChart({
               content={({ active, payload, label }) => (
                 <UnifiedSparklineTooltip
                   active={active}
-                  payload={payload as TooltipPayloadItem[] | undefined}
+                  payload={payload as readonly TooltipPayloadItem[] | undefined}
                   label={label as string | undefined}
                   sportMeta={sportMeta}
                   distanceUnit={distanceUnit}

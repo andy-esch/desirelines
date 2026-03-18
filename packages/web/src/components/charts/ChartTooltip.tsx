@@ -2,13 +2,13 @@ export interface ChartTooltipProps {
   /** Whether the tooltip is active (hovered) */
   active?: boolean;
   /** Payload data from Recharts */
-  payload?: Array<{
+  payload?: readonly {
     name?: string;
     value?: number | string;
     stroke?: string;
     color?: string;
     dataKey?: string;
-  }>;
+  }[];
   /** X-axis label (typically a date string) */
   label?: string | number;
   /** Unit to display after values (e.g., "mi", "mi/day") */
@@ -203,11 +203,11 @@ export const ChartTooltip = ({
         {payload.map(
           (
             entry: {
-              stroke?: string;
-              color?: string;
-              value?: number | string;
-              name?: string;
-              dataKey?: string;
+              readonly stroke?: string;
+              readonly color?: string;
+              readonly value?: number | string;
+              readonly name?: string;
+              readonly dataKey?: string;
             },
             index: number
           ) => {
