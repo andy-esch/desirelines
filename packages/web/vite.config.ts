@@ -55,6 +55,18 @@ export default defineConfig(({ mode }) => {
   // Allow overriding via env var (useful for CI)
   const version = env.VITE_GIT_COMMIT || commitHash;
 
+  // Vendor chunks — cached separately from app code.
+  // Each group contains libraries that update on a similar cadence.
+  const vendorChunks: Record<string, readonly string[]> = {
+    "react-vendor": ["react", "react-dom", "@tanstack/react-router"],
+    "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
+    "chart-vendor": ["recharts"],
+    "query-vendor": ["@tanstack/react-query"],
+    "headlessui-vendor": ["@headlessui/react"],
+    "zod-vendor": ["zod"],
+  };
+  const vendorChunkEntries = Object.entries(vendorChunks);
+
   return {
     define: {
       __COMMIT_HASH__: JSON.stringify(version),
@@ -75,17 +87,22 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "build", // Keep same output dir for compatibility
       sourcemap: mode === "production" ? "hidden" : true,
-      rollupOptions: {
+      rolldownOptions: {
         output: {
-          manualChunks: {
-            // Vendor chunks — cached separately from app code.
-            // Each group contains libraries that update on a similar cadence.
-            "react-vendor": ["react", "react-dom", "@tanstack/react-router"],
-            "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
-            "chart-vendor": ["recharts"],
-            "query-vendor": ["@tanstack/react-query"],
-            "headlessui-vendor": ["@headlessui/react"],
-            "zod-vendor": ["zod"],
+          manualChunks(id) {
+            for (const [chunk, deps] of vendorChunkEntries) {
+              if (
+                deps.some((dep) => {
+                  const segment = `node_modules/${dep}`;
+                  const i = id.indexOf(segment);
+                  if (i === -1) return false;
+                  const next = id[i + segment.length];
+                  return next === "/" || next === undefined;
+                })
+              ) {
+                return chunk;
+              }
+            }
           },
         },
       },
