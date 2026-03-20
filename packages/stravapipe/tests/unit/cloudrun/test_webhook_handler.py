@@ -12,6 +12,8 @@ from fastapi.testclient import TestClient
 import pytest
 
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
+from stravapipe.shared.constants import ResponseStatus
+from stravapipe.shared.responses import WebhookResponse
 
 from .conftest import make_cloudevent_headers, make_pubsub_body, make_webhook_payload
 
@@ -104,7 +106,9 @@ class TestAspectRouting:
     """Tests for routing to aspect-specific callbacks."""
 
     def test_create_event_routes_to_on_create(self, app_with_callbacks):
-        on_create = AsyncMock(return_value={"status": "created"})
+        on_create = AsyncMock(
+            return_value=WebhookResponse(status=ResponseStatus.CREATED)
+        )
         client = app_with_callbacks(on_create=on_create)
 
         response = client.post(
@@ -122,7 +126,9 @@ class TestAspectRouting:
         assert isinstance(correlation_id, str)
 
     def test_update_event_routes_to_on_update(self, app_with_callbacks):
-        on_update = AsyncMock(return_value={"status": "updated"})
+        on_update = AsyncMock(
+            return_value=WebhookResponse(status=ResponseStatus.UPDATED)
+        )
         client = app_with_callbacks(on_update=on_update)
 
         response = client.post(
@@ -136,7 +142,9 @@ class TestAspectRouting:
         on_update.assert_called_once()
 
     def test_delete_event_routes_to_on_delete(self, app_with_callbacks):
-        on_delete = AsyncMock(return_value={"status": "deleted"})
+        on_delete = AsyncMock(
+            return_value=WebhookResponse(status=ResponseStatus.DELETED)
+        )
         client = app_with_callbacks(on_delete=on_delete)
 
         response = client.post(
@@ -167,7 +175,9 @@ class TestAspectRouting:
 
     def test_only_registered_callbacks_are_invoked(self, app_with_callbacks):
         """Update event doesn't invoke create callback."""
-        on_create = AsyncMock(return_value={"status": "created"})
+        on_create = AsyncMock(
+            return_value=WebhookResponse(status=ResponseStatus.CREATED)
+        )
         client = app_with_callbacks(on_create=on_create)
 
         response = client.post(
@@ -202,7 +212,7 @@ class TestErrorHandling:
 
         async def capture_cid(event, event_data, cid):
             correlation_ids.append(cid)
-            return {"status": "ok"}
+            return WebhookResponse(status=ResponseStatus.PROCESSED)
 
         client = app_with_callbacks(on_create=capture_cid)
 

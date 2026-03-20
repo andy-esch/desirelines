@@ -21,38 +21,13 @@ from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_postgres_writer_config
 from stravapipe.domain.activity import StandardActivity
 from stravapipe.domain.geometry import decode_polyline_to_geojson
-from stravapipe.shared.constants import (
-    ResponseField,
-    ResponseStatus,
-    SkipReason,
-)
+from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics
+from stravapipe.shared.responses import HealthResponse, WebhookResponse
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
-
-
-# =============================================================================
-# Response Helpers
-# =============================================================================
-
-
-def _response(
-    status: str,
-    activity_id: int,
-    correlation_id: str,
-    reason: str | None = None,
-) -> dict:
-    """Build a standard webhook response dict."""
-    resp = {
-        ResponseField.STATUS: status,
-        ResponseField.ACTIVITY_ID: activity_id,
-        ResponseField.CORRELATION_ID: correlation_id,
-    }
-    if reason:
-        resp[ResponseField.REASON] = reason
-    return resp
 
 
 @asynccontextmanager
@@ -95,7 +70,7 @@ app = FastAPI(
 @app.get("/health")
 async def health():
     """Health check endpoint for Cloud Run."""
-    return {ResponseField.STATUS: ResponseStatus.HEALTHY}
+    return HealthResponse(status=ResponseStatus.HEALTHY)
 
 
 @app.post("/")
@@ -126,7 +101,7 @@ async def _handle_create(
     correlation_id: str,
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
-) -> dict:
+) -> WebhookResponse:
     """Handle CREATE events - insert new activity to PostgreSQL.
 
     Activity data is provided inline from the dispatcher's enriched event.
@@ -143,10 +118,10 @@ async def _handle_create(
                 "activity_id": activity_id,
             },
         )
-        return _response(
-            ResponseStatus.SKIPPED,
-            activity_id,
-            correlation_id,
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
             reason=SkipReason.ACTIVITY_NOT_FOUND,
         )
 
@@ -172,17 +147,21 @@ async def _handle_create(
                 "user_id": activity.user_id,
             },
         )
-        return _response(ResponseStatus.CREATED, activity_id, correlation_id)
+        return WebhookResponse(
+            status=ResponseStatus.CREATED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
+        )
 
     logger.warning(
         "Activity %s already exists (duplicate CREATE)",
         activity_id,
         extra={"correlation_id": correlation_id},
     )
-    return _response(
-        ResponseStatus.SKIPPED,
-        activity_id,
-        correlation_id,
+    return WebhookResponse(
+        status=ResponseStatus.SKIPPED,
+        activity_id=activity_id,
+        correlation_id=correlation_id,
         reason=SkipReason.ALREADY_EXISTS,
     )
 
@@ -192,7 +171,7 @@ async def _handle_update(
     correlation_id: str,
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
-) -> dict:
+) -> WebhookResponse:
     """Handle UPDATE events - update metadata if activity exists."""
     activity_id = event.object_id
     updates = event.updates
@@ -213,10 +192,10 @@ async def _handle_update(
                 "has_private_update": updates.HasField("private"),
             },
         )
-        return _response(
-            ResponseStatus.SKIPPED,
-            activity_id,
-            correlation_id,
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
             reason=SkipReason.NO_RELEVANT_UPDATES,
         )
 
@@ -237,10 +216,10 @@ async def _handle_update(
             activity_id,
             extra={"correlation_id": correlation_id},
         )
-        return _response(
-            ResponseStatus.SKIPPED,
-            activity_id,
-            correlation_id,
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
             reason=SkipReason.NOT_FOUND,
         )
 
@@ -250,12 +229,16 @@ async def _handle_update(
             activity_id,
             extra={"correlation_id": correlation_id, "updates": relevant_updates},
         )
-        return _response(ResponseStatus.UPDATED, activity_id, correlation_id)
+        return WebhookResponse(
+            status=ResponseStatus.UPDATED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
+        )
 
-    return _response(
-        ResponseStatus.SKIPPED,
-        activity_id,
-        correlation_id,
+    return WebhookResponse(
+        status=ResponseStatus.SKIPPED,
+        activity_id=activity_id,
+        correlation_id=correlation_id,
         reason=SkipReason.NOT_FOUND,
     )
 
@@ -265,7 +248,7 @@ async def _handle_delete(
     correlation_id: str,
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
-) -> dict:
+) -> WebhookResponse:
     """Handle DELETE events - remove activity from PostgreSQL."""
     activity_id = event.object_id
     uow = SqlAlchemyUnitOfWork(session_factory)
@@ -281,16 +264,20 @@ async def _handle_delete(
             activity_id,
             extra={"correlation_id": correlation_id},
         )
-        return _response(ResponseStatus.DELETED, activity_id, correlation_id)
+        return WebhookResponse(
+            status=ResponseStatus.DELETED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
+        )
 
     logger.info(
         "Activity %s not found in PostgreSQL (already deleted or never synced)",
         activity_id,
         extra={"correlation_id": correlation_id},
     )
-    return _response(
-        ResponseStatus.SKIPPED,
-        activity_id,
-        correlation_id,
+    return WebhookResponse(
+        status=ResponseStatus.SKIPPED,
+        activity_id=activity_id,
+        correlation_id=correlation_id,
         reason=SkipReason.NOT_FOUND,
     )

@@ -35,9 +35,10 @@ from stravapipe.adapters.postgres._unit_of_work import create_session_factory
 from stravapipe.application.deletion import BQUserDeletionService
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_deletion_service_config
-from stravapipe.shared.constants import ResponseField, ResponseStatus
+from stravapipe.shared.constants import ResponseStatus
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics
+from stravapipe.shared.responses import HealthResponse, UserDeletionResponse
 
 logger = setup_logging(__name__)
 
@@ -151,7 +152,7 @@ app = FastAPI(
 @app.get("/health")
 async def health():
     """Health check endpoint for Cloud Run."""
-    return {ResponseField.STATUS: ResponseStatus.HEALTHY}
+    return HealthResponse(status=ResponseStatus.HEALTHY)
 
 
 @app.post("/")
@@ -293,14 +294,14 @@ async def handle_deauth_event(request: Request):
             },
         )
 
-        return {
-            ResponseField.STATUS: ResponseStatus.DELETED,
-            ResponseField.CORRELATION_ID: correlation_id,
-            "user_id": user_id,
-            "pg_deleted": result.pg_deleted,
-            "bq_activities_deleted": result.bq_activities_deleted,
-            "bq_staging_deleted": result.bq_staging_deleted,
-        }
+        return UserDeletionResponse(
+            status=ResponseStatus.DELETED,
+            correlation_id=correlation_id,
+            user_id=user_id,
+            pg_deleted=result.pg_deleted,
+            bq_activities_deleted=result.bq_activities_deleted,
+            bq_staging_deleted=result.bq_staging_deleted,
+        )
 
     except HTTPException:
         raise
