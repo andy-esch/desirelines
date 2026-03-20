@@ -186,6 +186,25 @@ func TestIntegration_SecretReload(t *testing.T) {
 	if rr3.Code != http.StatusCreated {
 		t.Errorf("expected 201 with new secret, got %d (body: %s)", rr3.Code, rr3.Body.String())
 	}
+
+	// Verify token rotation works on the verification endpoint too.
+	// Old token should be rejected.
+	req4 := httptest.NewRequest("GET", "/webhook?hub.mode=subscribe&hub.challenge=test-challenge&hub.verify_token=initial-token", nil)
+	rr4 := httptest.NewRecorder()
+	router.ServeHTTP(rr4, req4)
+
+	if rr4.Code != http.StatusUnauthorized {
+		t.Errorf("old verify token: expected 401, got %d", rr4.Code)
+	}
+
+	// New token should succeed.
+	req5 := httptest.NewRequest("GET", "/webhook?hub.mode=subscribe&hub.challenge=test-challenge&hub.verify_token=updated-token", nil)
+	rr5 := httptest.NewRecorder()
+	router.ServeHTTP(rr5, req5)
+
+	if rr5.Code != http.StatusOK {
+		t.Errorf("new verify token: expected 200, got %d", rr5.Code)
+	}
 }
 
 // TestIntegration_ConcurrentVerification tests concurrent verification requests.
