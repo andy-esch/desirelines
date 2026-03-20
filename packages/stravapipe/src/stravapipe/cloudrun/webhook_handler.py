@@ -18,16 +18,18 @@ from stravapipe.adapters.proto import dict_to_webhook_event
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.shared.constants import (
     DEFAULT_UNKNOWN,
-    ResponseField,
     ResponseStatus,
     SkipReason,
     WebhookField,
 )
+from stravapipe.shared.responses import WebhookResponse
 from stravapipe.types.generated import webhook_pb2 as pb
 
 # Callback type for aspect handlers.
-# Receives (event, event_data, correlation_id) and returns a response dict.
-AspectCallback = Callable[[pb.WebhookEvent, dict[str, Any], str], Awaitable[dict]]
+# Receives (event, event_data, correlation_id) and returns a WebhookResponse.
+AspectCallback = Callable[
+    [pb.WebhookEvent, dict[str, Any], str], Awaitable[WebhookResponse]
+]
 
 
 async def handle_webhook_cloudevent(
@@ -38,7 +40,7 @@ async def handle_webhook_cloudevent(
     on_update: AspectCallback | None = None,
     on_delete: AspectCallback | None = None,
     webhook_counter: Counter | None = None,
-) -> dict:
+) -> WebhookResponse:
     """Parse a Pub/Sub CloudEvent and route to aspect-specific callbacks.
 
     Handles correlation ID generation, CloudEvent parsing, webhook validation,
@@ -52,7 +54,7 @@ async def handle_webhook_cloudevent(
         on_delete: Callback for ASPECT_TYPE_DELETE events
 
     Returns:
-        dict with status and details
+        WebhookResponse with status and details
 
     Raises:
         HTTPException: On parsing/validation errors (4xx) or unexpected errors (5xx)
@@ -134,12 +136,12 @@ async def handle_webhook_cloudevent(
             aspect_name,
             extra={"correlation_id": correlation_id},
         )
-        return {
-            ResponseField.STATUS: ResponseStatus.SKIPPED,
-            ResponseField.REASON: SkipReason.NOT_IMPLEMENTED,
-            ResponseField.DETAILS: f"Event type '{aspect_name}' not implemented for this service",
-            ResponseField.CORRELATION_ID: correlation_id,
-        }
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            reason=SkipReason.NOT_IMPLEMENTED,
+            details=f"Event type '{aspect_name}' not implemented for this service",
+            correlation_id=correlation_id,
+        )
 
     except HTTPException:
         raise

@@ -23,13 +23,10 @@ from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_bq_inserter_config
 from stravapipe.domain.activity import DetailedStravaActivity
 from stravapipe.ports.out.write import WriteActivities
-from stravapipe.shared.constants import (
-    ResponseField,
-    ResponseStatus,
-    SkipReason,
-)
+from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics
+from stravapipe.shared.responses import HealthResponse, WebhookResponse
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
@@ -75,7 +72,7 @@ app = FastAPI(
 @app.get("/health")
 async def health():
     """Health check endpoint for Cloud Run."""
-    return {ResponseField.STATUS: ResponseStatus.HEALTHY}
+    return HealthResponse(status=ResponseStatus.HEALTHY)
 
 
 @app.post("/")
@@ -104,7 +101,7 @@ async def _handle_create(
     correlation_id: str,
     writer: WriteActivities,
     bq_histogram: Histogram | None = None,
-) -> dict:
+) -> WebhookResponse:
     """Handle CREATE events - write activity to BigQuery.
 
     Activity data is provided inline from the dispatcher's enriched event.
@@ -120,12 +117,12 @@ async def _handle_create(
                 "activity_id": event.object_id,
             },
         )
-        return {
-            ResponseField.STATUS: ResponseStatus.SKIPPED,
-            ResponseField.REASON: SkipReason.ACTIVITY_NOT_FOUND,
-            ResponseField.ACTIVITY_ID: event.object_id,
-            ResponseField.CORRELATION_ID: correlation_id,
-        }
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            reason=SkipReason.ACTIVITY_NOT_FOUND,
+            activity_id=event.object_id,
+            correlation_id=correlation_id,
+        )
 
     # Construct DetailedStravaActivity from raw Strava API JSON
     activity = DetailedStravaActivity.model_validate(raw_activity)
@@ -142,11 +139,11 @@ async def _handle_create(
             "execution_time_ms": stats.get("execution_time_ms"),
         },
     )
-    return {
-        ResponseField.STATUS: ResponseStatus.CREATED,
-        ResponseField.ACTIVITY_ID: event.object_id,
-        ResponseField.CORRELATION_ID: correlation_id,
-    }
+    return WebhookResponse(
+        status=ResponseStatus.CREATED,
+        activity_id=event.object_id,
+        correlation_id=correlation_id,
+    )
 
 
 async def _handle_delete(
@@ -154,7 +151,7 @@ async def _handle_delete(
     correlation_id: str,
     service: DeleteActivityService,
     bq_histogram: Histogram | None = None,
-) -> dict:
+) -> WebhookResponse:
     """Handle DELETE events - archive and remove from BigQuery."""
     logger.info(
         "Processing delete event for activity %s",

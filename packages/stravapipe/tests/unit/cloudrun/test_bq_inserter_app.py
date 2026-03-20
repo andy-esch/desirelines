@@ -12,6 +12,9 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 import pytest
 
+from stravapipe.shared.constants import ResponseStatus
+from stravapipe.shared.responses import WebhookResponse
+
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
     make_cloudevent_headers,
@@ -206,14 +209,12 @@ class TestDeleteEventHandling:
 
     def test_delete_event_success(self, client):
         """DELETE event successfully archives and removes activity."""
-        expected_result = {
-            "status": "deleted",
-            "activity_id": 12345678,
-            "correlation_id": "test-correlation-id",
-        }
-
         mock_service = client.app.state.delete_service
-        mock_service.run.return_value = expected_result
+        mock_service.run.return_value = WebhookResponse(
+            status=ResponseStatus.DELETED,
+            activity_id=12345678,
+            correlation_id="test-correlation-id",
+        )
 
         webhook = make_webhook_payload(aspect_type="delete")
         response = client.post(
