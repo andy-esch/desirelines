@@ -153,12 +153,6 @@ async def _handle_delete(
     bq_histogram: Histogram | None = None,
 ) -> WebhookResponse:
     """Handle DELETE events - archive and remove from BigQuery."""
-    logger.info(
-        "Processing delete event for activity %s",
-        event.object_id,
-        extra={"correlation_id": correlation_id},
-    )
-
     with record_duration(bq_histogram, {"operation": "dml"}):
         result = service.run(
             activity_id=event.object_id,

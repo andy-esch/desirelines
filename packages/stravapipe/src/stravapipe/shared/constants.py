@@ -15,20 +15,7 @@ class ResponseStatus(StrEnum):
     UPDATED = "updated"
     DELETED = "deleted"
     SKIPPED = "skipped"
-    FAILED = "failed"
     HEALTHY = "healthy"
-
-
-class ResponseField(StrEnum):
-    """Field names for API response dictionaries."""
-
-    STATUS = "status"
-    ACTION = "action"
-    REASON = "reason"
-    ERROR = "error"
-    DETAILS = "details"
-    ACTIVITY_ID = "activity_id"
-    CORRELATION_ID = "correlation_id"
 
 
 class SkipReason(StrEnum):
@@ -38,16 +25,7 @@ class SkipReason(StrEnum):
     ALREADY_EXISTS = "already_exists"
     NOT_FOUND = "not_found"
     NO_RELEVANT_UPDATES = "no_relevant_updates"
-    UNKNOWN_ASPECT_TYPE = "unknown_aspect_type"
     NOT_IMPLEMENTED = "not_implemented"
-
-
-class ErrorType(StrEnum):
-    """Error type identifiers for failed responses."""
-
-    MESSAGE_DECODE_FAILED = "message_decode_failed"
-    VALIDATION_FAILED = "validation_failed"
-    WEBHOOK_PARSE_FAILED = "webhook_parse_failed"
 
 
 class CloudEventField(StrEnum):
