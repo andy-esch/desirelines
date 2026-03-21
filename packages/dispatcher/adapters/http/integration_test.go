@@ -188,22 +188,26 @@ func TestIntegration_SecretReload(t *testing.T) {
 	}
 
 	// Verify token rotation works on the verification endpoint too.
-	// Old token should be rejected.
-	req4 := httptest.NewRequest("GET", "/webhook?hub.mode=subscribe&hub.challenge=test-challenge&hub.verify_token=initial-token", nil)
-	rr4 := httptest.NewRecorder()
-	router.ServeHTTP(rr4, req4)
-
-	if rr4.Code != http.StatusUnauthorized {
-		t.Errorf("old verify token: expected 401, got %d", rr4.Code)
+	verificationTests := []struct {
+		name           string
+		token          string
+		expectedStatus int
+	}{
+		{name: "Old token should be rejected", token: "initial-token", expectedStatus: http.StatusUnauthorized},
+		{name: "New token should succeed", token: "updated-token", expectedStatus: http.StatusOK},
 	}
 
-	// New token should succeed.
-	req5 := httptest.NewRequest("GET", "/webhook?hub.mode=subscribe&hub.challenge=test-challenge&hub.verify_token=updated-token", nil)
-	rr5 := httptest.NewRecorder()
-	router.ServeHTTP(rr5, req5)
+	for _, tt := range verificationTests {
+		t.Run(tt.name, func(t *testing.T) {
+			url := fmt.Sprintf("/webhook?hub.mode=subscribe&hub.challenge=test-challenge&hub.verify_token=%s", tt.token)
+			req := httptest.NewRequest("GET", url, nil)
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
 
-	if rr5.Code != http.StatusOK {
-		t.Errorf("new verify token: expected 200, got %d", rr5.Code)
+			if rr.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, rr.Code)
+			}
+		})
 	}
 }
 
