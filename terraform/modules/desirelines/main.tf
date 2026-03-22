@@ -668,6 +668,34 @@ resource "google_project_iam_member" "deletion_service_monitoring" {
   member  = "serviceAccount:${google_service_account.deletion_service.email}"
 }
 
+# Dispatcher needs cloudtrace.agent for OTel trace export
+resource "google_project_iam_member" "dispatcher_tracing" {
+  project = var.gcp_project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.dispatcher.email}"
+}
+
+# BQ Inserter needs cloudtrace.agent for OTel trace export
+resource "google_project_iam_member" "bq_inserter_tracing" {
+  project = var.gcp_project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.bq_inserter.email}"
+}
+
+# PostgreSQL Writer needs cloudtrace.agent for OTel trace export
+resource "google_project_iam_member" "postgres_writer_tracing" {
+  project = var.gcp_project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.postgres_writer.email}"
+}
+
+# Deletion Service needs cloudtrace.agent for OTel trace export
+resource "google_project_iam_member" "deletion_service_tracing" {
+  project = var.gcp_project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.deletion_service.email}"
+}
+
 # Dispatcher needs Firestore access to read/write Strava OAuth tokens
 resource "google_project_iam_member" "dispatcher_firestore" {
   project = var.gcp_project_id
