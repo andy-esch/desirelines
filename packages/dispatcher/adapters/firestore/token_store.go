@@ -43,10 +43,10 @@ func NewTokenStore(client *firestore.Client, logger *slog.Logger, histogram metr
 
 // GetTokens reads Strava tokens for the given athlete from Firestore.
 // Returns ports.ErrTokenNotFound if no tokens exist for this athlete.
-func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatoken.Data, error) {
+func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (_ *stravatoken.Data, err error) {
 	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.GetTokens",
 		attribute.Int64("athlete_id", athleteID))
-	defer func() { spanDone(nil) }()
+	defer func() { spanDone(err) }()
 
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "get_tokens"))
 	doc, err := s.tokensRef(athleteID).Get(ctx)

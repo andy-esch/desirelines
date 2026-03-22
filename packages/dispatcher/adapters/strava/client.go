@@ -103,12 +103,12 @@ func NewClient(clientID, clientSecret string, tokenStore ports.TokenStore, logge
 // FetchActivity retrieves the raw JSON for a Strava activity.
 // Reads the owner's tokens from the TokenStore, retries on transient errors,
 // and refreshes + persists tokens on 401.
-func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) ([]byte, error) {
+func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (_ []byte, err error) {
 	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.FetchActivity",
 		attribute.Int64("strava.owner_id", ownerID),
 		attribute.Int64("strava.activity_id", activityID),
 	)
-	defer func() { spanDone(nil) }()
+	defer func() { spanDone(err) }()
 
 	tokens, err := c.tokenStore.GetTokens(ctx, ownerID)
 	if err != nil {
