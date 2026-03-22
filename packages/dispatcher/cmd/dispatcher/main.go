@@ -29,6 +29,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/andy-esch/desirelines/packages/shared/secrets"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -62,11 +63,11 @@ func run(log *slog.Logger) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Initialize OTel metrics (warn and continue with no-op on failure)
-	meter, otelShutdown, otelErr := otel.Setup(context.Background(), log, "desirelines-dispatcher")
+	// Initialize OTel metrics + tracing (warn and continue with no-ops on failure)
+	providers, otelShutdown, otelErr := otel.Setup(context.Background(), log, "desirelines-dispatcher")
 	if otelErr != nil {
-		log.Warn("OTel metrics disabled, using no-op meter", "error", otelErr)
-		meter = otel.NoopMeter()
+		log.Warn("OTel disabled, using no-op providers", "error", otelErr)
+		providers = otel.NoopProviders()
 	} else {
 		defer func() {
 			if shutdownErr := otelShutdown(context.Background()); shutdownErr != nil {
@@ -76,7 +77,7 @@ func run(log *slog.Logger) error {
 	}
 
 	// Initialize all dependencies
-	deps, err := initDependencies(cfg, log, meter)
+	deps, err := initDependencies(cfg, log, providers.Meter, providers.Tracer)
 	if err != nil {
 		return fmt.Errorf("failed to initialize dependencies: %w", err)
 	}
@@ -155,7 +156,7 @@ func (d *Dependencies) Close() {
 
 // initDependencies creates and wires all application dependencies.
 // This is the composition root following hexagonal architecture.
-func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) (*Dependencies, error) {
+func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, tracer trace.Tracer) (*Dependencies, error) {
 	startupCtx, cancel := context.WithTimeout(context.Background(), startupTimeout)
 	defer cancel()
 
@@ -188,12 +189,12 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 	}
 
 	// 2. Initialize infrastructure adapters
-	publisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubTopicID, log, pubsubHist)
+	publisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubTopicID, log, pubsubHist, tracer)
 	if err != nil {
 		return nil, fmt.Errorf("pubsub publisher: %w", err)
 	}
 
-	deauthPublisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubDeauthTopicID, log, pubsubHist)
+	deauthPublisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubDeauthTopicID, log, pubsubHist, tracer)
 	if err != nil {
 		return nil, fmt.Errorf("pubsub deauth publisher: %w", err)
 	}
@@ -204,7 +205,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 	}
 	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
 
-	tokenStore := firestoreadapter.NewTokenStore(firestoreClient, log, firestoreHist)
+	tokenStore := firestoreadapter.NewTokenStore(firestoreClient, log, firestoreHist, tracer)
 
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 
@@ -217,7 +218,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter) 
 		return nil, fmt.Errorf("strava client_secret: %w", err)
 	}
 
-	stravaClient := strava.NewClient(stravaClientID, stravaClientSecret, tokenStore, log, stravaHist)
+	stravaClient := strava.NewClient(stravaClientID, stravaClientSecret, tokenStore, log, stravaHist, tracer)
 
 	// Rate limiter: 5 req/s, burst 10 (Strava sends a few events/day normally)
 	// Uses Background context (not startupCtx) because the cleanup goroutine must

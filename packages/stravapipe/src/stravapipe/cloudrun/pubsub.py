@@ -24,6 +24,7 @@ class PubSubMessage(BaseModel):
     data: str  # base64 encoded
     message_id: str = Field(alias="messageId")
     publish_time: str = Field(alias="publishTime")
+    attributes: dict[str, str] = Field(default_factory=dict)
 
 
 class PubSubEnvelope(BaseModel):
@@ -55,14 +56,14 @@ _VALID_CONTENT_TYPES = frozenset(
 
 async def parse_pubsub_cloudevent(
     request: Request,
-) -> tuple[CloudEventContext, dict[str, Any]]:
+) -> tuple[CloudEventContext, dict[str, Any], dict[str, str]]:
     """Parse CloudEvent from Eventarc Pub/Sub trigger.
 
     Args:
         request: FastAPI request object
 
     Returns:
-        Tuple of (CloudEventContext, decoded message data as dict)
+        Tuple of (CloudEventContext, decoded message data, message attributes)
 
     Raises:
         HTTPException: If parsing fails (400) or validation fails (422)
@@ -121,4 +122,4 @@ async def parse_pubsub_cloudevent(
             status_code=400, detail=f"Failed to decode message data: {err}"
         ) from err
 
-    return context, data
+    return context, data, envelope.message.attributes

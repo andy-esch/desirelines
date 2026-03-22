@@ -45,8 +45,9 @@ func newTestStore(t *testing.T) *TokenStore {
 		}
 	})
 
-	noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
-	return NewTokenStore(client, gcplog.NewNoOpLogger(), noopHist)
+	noopProviders := otel.NoopProviders()
+	noopHist, _ := noopProviders.Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
+	return NewTokenStore(client, gcplog.NewNoOpLogger(), noopHist, noopProviders.Tracer)
 }
 
 // seedTokens writes a full token document directly via Set, simulating what

@@ -15,6 +15,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -24,37 +25,46 @@ type TokenStore struct {
 	client    *firestore.Client
 	logger    *slog.Logger
 	histogram metric.Float64Histogram
+	tracer    trace.Tracer
 }
 
 // Compile-time check that TokenStore implements ports.TokenStore.
 var _ ports.TokenStore = (*TokenStore)(nil)
 
 // NewTokenStore creates a new Firestore-backed token store.
-func NewTokenStore(client *firestore.Client, logger *slog.Logger, histogram metric.Float64Histogram) *TokenStore {
+func NewTokenStore(client *firestore.Client, logger *slog.Logger, histogram metric.Float64Histogram, tracer trace.Tracer) *TokenStore {
 	return &TokenStore{
 		client:    client,
 		logger:    logger,
 		histogram: histogram,
+		tracer:    tracer,
 	}
 }
 
 // GetTokens reads Strava tokens for the given athlete from Firestore.
 // Returns ports.ErrTokenNotFound if no tokens exist for this athlete.
-func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatoken.Data, error) {
+func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (_ *stravatoken.Data, err error) {
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.GetTokens",
+		attribute.Int64("athlete_id", athleteID))
+	defer func() { spanDone(err) }()
+
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "get_tokens"))
 	doc, err := s.tokensRef(athleteID).Get(ctx)
 	if err != nil {
 		done(err)
 		if grpcstatus.Code(err) == codes.NotFound {
-			return nil, ports.ErrTokenNotFound
+			err = ports.ErrTokenNotFound
+			return nil, err
 		}
-		return nil, fmt.Errorf("get tokens for athlete %d: %w", athleteID, err)
+		err = fmt.Errorf("get tokens for athlete %d: %w", athleteID, err)
+		return nil, err
 	}
 	done(nil)
 
 	var tokens stravatoken.Data
 	if decodeErr := doc.DataTo(&tokens); decodeErr != nil {
-		return nil, fmt.Errorf("decode tokens for athlete %d: %w", athleteID, decodeErr)
+		err = fmt.Errorf("decode tokens for athlete %d: %w", athleteID, decodeErr)
+		return nil, err
 	}
 
 	return &tokens, nil
@@ -63,14 +73,18 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 // WriteTokensIfUnmodified atomically writes tokens only if last_refreshed matches
 // the expected value (optimistic concurrency). Returns ports.ErrTokenConflict if
 // another goroutine has already refreshed the tokens since they were read.
-func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) error {
+func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (err error) {
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.WriteTokens",
+		attribute.Int64("athlete_id", athleteID))
+	defer func() { spanDone(err) }()
+
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "write_tokens"))
 	ref := s.tokensRef(athleteID)
 
 	// Capture timestamp before the transaction so retries use a consistent value.
 	now := time.Now()
 
-	err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+	err = s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
 		snap, getErr := tx.Get(ref)
 		if getErr != nil {
 			return fmt.Errorf("read tokens in transaction: %w", getErr)
@@ -97,21 +111,28 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 	done(err)
 	if err != nil {
 		if errors.Is(err, ports.ErrTokenConflict) {
-			return ports.ErrTokenConflict
+			err = ports.ErrTokenConflict
+			return err
 		}
-		return fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
+		err = fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
+		return err
 	}
 	return nil
 }
 
 // DeleteTokens removes all stored tokens for the given athlete.
 // Returns nil if the tokens do not exist (Firestore Delete is idempotent).
-func (s *TokenStore) DeleteTokens(ctx context.Context, athleteID int64) error {
+func (s *TokenStore) DeleteTokens(ctx context.Context, athleteID int64) (err error) {
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.DeleteTokens",
+		attribute.Int64("athlete_id", athleteID))
+	defer func() { spanDone(err) }()
+
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "delete_tokens"))
-	_, err := s.tokensRef(athleteID).Delete(ctx)
+	_, err = s.tokensRef(athleteID).Delete(ctx)
 	done(err)
 	if err != nil {
-		return fmt.Errorf("delete tokens for athlete %d: %w", athleteID, err)
+		err = fmt.Errorf("delete tokens for athlete %d: %w", athleteID, err)
+		return err
 	}
 	return nil
 }

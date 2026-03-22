@@ -13,6 +13,7 @@ import uuid
 
 from fastapi import HTTPException, Request
 from opentelemetry.metrics import Counter
+from opentelemetry.trace import Tracer
 
 from stravapipe.adapters.proto import dict_to_webhook_event
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
@@ -23,6 +24,7 @@ from stravapipe.shared.constants import (
     WebhookField,
 )
 from stravapipe.shared.responses import WebhookResponse
+from stravapipe.shared.tracing import extract_context_from_attributes, record_span
 from stravapipe.types.generated import webhook_pb2 as pb
 
 # Callback type for aspect handlers.
@@ -40,11 +42,13 @@ async def handle_webhook_cloudevent(
     on_update: AspectCallback | None = None,
     on_delete: AspectCallback | None = None,
     webhook_counter: Counter | None = None,
+    tracer: Tracer | None = None,
 ) -> WebhookResponse:
     """Parse a Pub/Sub CloudEvent and route to aspect-specific callbacks.
 
-    Handles correlation ID generation, CloudEvent parsing, webhook validation,
-    object type checks, and error wrapping consistently across services.
+    Handles correlation ID extraction/generation, CloudEvent parsing, webhook
+    validation, object type checks, and error wrapping consistently across
+    services.
 
     Args:
         request: FastAPI request object
@@ -52,6 +56,8 @@ async def handle_webhook_cloudevent(
         on_create: Callback for ASPECT_TYPE_CREATE events
         on_update: Callback for ASPECT_TYPE_UPDATE events
         on_delete: Callback for ASPECT_TYPE_DELETE events
+        webhook_counter: Optional OTel counter for webhook events
+        tracer: Optional OTel tracer for distributed tracing
 
     Returns:
         WebhookResponse with status and details
@@ -62,7 +68,13 @@ async def handle_webhook_cloudevent(
     correlation_id = str(uuid.uuid4())
 
     try:
-        context, event_data = await parse_pubsub_cloudevent(request)
+        context, event_data, message_attributes = await parse_pubsub_cloudevent(request)
+
+        # Prefer dispatcher's correlation_id over the pre-generated fallback.
+        correlation_id = message_attributes.get("correlation_id") or correlation_id
+
+        # Extract W3C trace context from dispatcher's traceparent header.
+        parent_context = extract_context_from_attributes(message_attributes)
 
         logger.info(
             "Received CloudEvent",
@@ -121,15 +133,25 @@ async def handle_webhook_cloudevent(
             },
         )
 
-        callbacks = {
-            pb.ASPECT_TYPE_CREATE: on_create,
-            pb.ASPECT_TYPE_UPDATE: on_update,
-            pb.ASPECT_TYPE_DELETE: on_delete,
-        }
+        with record_span(
+            tracer,
+            "webhook.process",
+            attributes={
+                "correlation_id": correlation_id,
+                "aspect_type": aspect_name,
+                "object_id": event.object_id,
+            },
+            parent_context=parent_context,
+        ):
+            callbacks = {
+                pb.ASPECT_TYPE_CREATE: on_create,
+                pb.ASPECT_TYPE_UPDATE: on_update,
+                pb.ASPECT_TYPE_DELETE: on_delete,
+            }
 
-        callback = callbacks.get(event.aspect_type)
-        if callback is not None:
-            return await callback(event, event_data, correlation_id)
+            callback = callbacks.get(event.aspect_type)
+            if callback is not None:
+                return await callback(event, event_data, correlation_id)
 
         logger.info(
             "Skipping event type: %s",

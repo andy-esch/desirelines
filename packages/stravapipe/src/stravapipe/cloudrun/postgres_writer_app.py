@@ -13,6 +13,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from opentelemetry.metrics import Histogram
+from opentelemetry.trace import Tracer
 from sqlalchemy.orm import Session, sessionmaker
 
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
@@ -23,8 +24,9 @@ from stravapipe.domain.activity import StandardActivity
 from stravapipe.domain.geometry import decode_polyline_to_geojson
 from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.logging import setup_logging
-from stravapipe.shared.metrics import record_duration, setup_metrics
+from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
 from stravapipe.shared.responses import HealthResponse, WebhookResponse
+from stravapipe.shared.tracing import record_span, setup_tracing, shutdown_tracing
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
@@ -54,10 +56,15 @@ async def lifespan(app: FastAPI):
             "desirelines.io/webhook/events",
             description="Webhook events processed",
         )
+
+        # Initialize OTel tracing
+        app.state.tracer = setup_tracing("desirelines-postgres-writer")
     except Exception as e:
         logger.error("Startup initialization failed: %s", e)
         raise
     yield
+    shutdown_metrics()
+    shutdown_tracing()
 
 
 app = FastAPI(
@@ -79,19 +86,21 @@ async def handle_pubsub(request: Request):
     session_factory = request.app.state.session_factory
     pg_hist = request.app.state.pg_histogram
     webhook_counter = request.app.state.webhook_counter
+    tracer = request.app.state.tracer
     return await handle_webhook_cloudevent(
         request,
         logger,
         on_create=lambda event, event_data, cid: _handle_create(
-            event, event_data, cid, session_factory, pg_hist
+            event, event_data, cid, session_factory, pg_hist, tracer
         ),
         on_update=lambda event, event_data, cid: _handle_update(
-            event, cid, session_factory, pg_hist
+            event, cid, session_factory, pg_hist, tracer
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
-            event, cid, session_factory, pg_hist
+            event, cid, session_factory, pg_hist, tracer
         ),
         webhook_counter=webhook_counter,
+        tracer=tracer,
     )
 
 
@@ -101,6 +110,7 @@ async def _handle_create(
     correlation_id: str,
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
+    tracer: Tracer | None = None,
 ) -> WebhookResponse:
     """Handle CREATE events - insert new activity to PostgreSQL.
 
@@ -130,13 +140,14 @@ async def _handle_create(
 
     # Insert to PostgreSQL within transaction (no Strava API call needed)
     uow = SqlAlchemyUnitOfWork(session_factory)
-    with record_duration(pg_histogram, {"operation": "insert"}):
-        with uow:
-            inserted = uow.activities.insert(activity)
-            if inserted and activity.map and activity.map.polyline:
-                if geojson := decode_polyline_to_geojson(activity.map.polyline):
-                    uow.activities.insert_route(activity.id, geojson)
-            uow.commit()
+    with record_span(tracer, "postgres.insert", {"activity_id": activity_id}):
+        with record_duration(pg_histogram, {"operation": "insert"}):
+            with uow:
+                inserted = uow.activities.insert(activity)
+                if inserted and activity.map and activity.map.polyline:
+                    if geojson := decode_polyline_to_geojson(activity.map.polyline):
+                        uow.activities.insert_route(activity.id, geojson)
+                uow.commit()
 
     if inserted:
         logger.info(
@@ -171,6 +182,7 @@ async def _handle_update(
     correlation_id: str,
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
+    tracer: Tracer | None = None,
 ) -> WebhookResponse:
     """Handle UPDATE events - update metadata if activity exists."""
     activity_id = event.object_id
@@ -200,15 +212,18 @@ async def _handle_update(
         )
 
     uow = SqlAlchemyUnitOfWork(session_factory)
-    with record_duration(pg_histogram, {"operation": "update_metadata"}):
-        with uow:
-            # If activity doesn't exist, skip with warning
-            # (going forward, CREATEs always carry data so backfill is not needed)
-            if not uow.activities.exists(activity_id):
-                updated = None
-            else:
-                updated = uow.activities.update_metadata(activity_id, relevant_updates)
-                uow.commit()
+    with record_span(tracer, "postgres.update_metadata", {"activity_id": activity_id}):
+        with record_duration(pg_histogram, {"operation": "update_metadata"}):
+            with uow:
+                # If activity doesn't exist, skip with warning
+                # (going forward, CREATEs always carry data so backfill is not needed)
+                if not uow.activities.exists(activity_id):
+                    updated = None
+                else:
+                    updated = uow.activities.update_metadata(
+                        activity_id, relevant_updates
+                    )
+                    uow.commit()
 
     if updated is None:
         logger.warning(
@@ -248,15 +263,17 @@ async def _handle_delete(
     correlation_id: str,
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
+    tracer: Tracer | None = None,
 ) -> WebhookResponse:
     """Handle DELETE events - remove activity from PostgreSQL."""
     activity_id = event.object_id
     uow = SqlAlchemyUnitOfWork(session_factory)
 
-    with record_duration(pg_histogram, {"operation": "delete"}):
-        with uow:
-            deleted = uow.activities.delete(activity_id)
-            uow.commit()
+    with record_span(tracer, "postgres.delete", {"activity_id": activity_id}):
+        with record_duration(pg_histogram, {"operation": "delete"}):
+            with uow:
+                deleted = uow.activities.delete(activity_id)
+                uow.commit()
 
     if deleted:
         logger.info(

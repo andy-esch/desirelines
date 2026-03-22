@@ -13,7 +13,11 @@ import (
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
+	otelglobal "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -43,6 +47,7 @@ type Publisher struct {
 	publisher *pubsub.Publisher
 	logger    *slog.Logger
 	histogram metric.Float64Histogram
+	tracer    trace.Tracer
 
 	mu     sync.RWMutex
 	closed bool
@@ -73,7 +78,7 @@ func ValidateTopicID(topicID string) error {
 // NewPublisher creates a new Pub/Sub publisher adapter.
 // Returns an error if projectID or topicID have invalid format.
 // The histogram parameter is optional — pass nil to disable duration recording.
-func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.Logger, histogram metric.Float64Histogram) (*Publisher, error) {
+func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.Logger, histogram metric.Float64Histogram, tracer trace.Tracer) (*Publisher, error) {
 	if err := ValidateProjectID(projectID); err != nil {
 		return nil, err
 	}
@@ -95,13 +100,14 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 		publisher: publisher,
 		logger:    logger,
 		histogram: histogram,
+		tracer:    tracer,
 	}, nil
 }
 
 // Publish sends an enriched webhook event to the configured Pub/Sub topic.
 // Returns ErrPublisherClosed if called after Close.
 // If the context has no deadline, a default timeout of 30s is applied.
-func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) error {
+func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) (err error) {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -116,6 +122,11 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 		defer cancel()
 	}
 
+	ctx, spanDone := otel.StartSpan(ctx, p.tracer, "pubsub.Publish",
+		attribute.String("correlation_id", correlationID),
+	)
+	defer func() { spanDone(err) }()
+
 	// Use ToEnrichedJSON to serialize with string enums ("create", "activity")
 	// and include raw_activity as a nested JSON object.
 	data, err := webhookproto.ToEnrichedJSON(enriched)
@@ -123,11 +134,16 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 		return fmt.Errorf("failed to marshal enriched event: %w", err)
 	}
 
+	// Inject W3C traceparent into message attributes so downstream Python
+	// consumers can continue the distributed trace.
+	attrs := map[string]string{
+		"correlation_id": correlationID,
+	}
+	otelglobal.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(attrs))
+
 	result := p.publisher.Publish(ctx, &pubsub.Message{
-		Data: data,
-		Attributes: map[string]string{
-			"correlation_id": correlationID,
-		},
+		Data:       data,
+		Attributes: attrs,
 	})
 
 	// Get blocks until the message is published or context is canceled.

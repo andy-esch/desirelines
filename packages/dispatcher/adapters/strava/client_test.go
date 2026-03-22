@@ -13,6 +13,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
@@ -26,6 +27,8 @@ const (
 
 // newTestClient creates a Client pointing at the given test server with a token store.
 func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client {
+	noopProviders := otel.NoopProviders()
+	noopHist, _ := noopProviders.Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
 	return &Client{
 		httpClient:   server.Client(),
 		clientID:     "test-id",
@@ -34,6 +37,8 @@ func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client
 		tokenURL:     server.URL + testTokenPath,
 		apiBase:      server.URL + "/api/v3",
 		logger:       gcplog.NewNoOpLogger(),
+		histogram:    noopHist,
+		tracer:       noopProviders.Tracer,
 	}
 }
 
