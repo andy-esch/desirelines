@@ -17,6 +17,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -88,7 +89,10 @@ var _ ports.StravaClient = (*Client)(nil)
 // Per-user tokens are read from the TokenStore on each request.
 func NewClient(clientID, clientSecret string, tokenStore ports.TokenStore, logger *slog.Logger, histogram metric.Float64Histogram, tracer trace.Tracer) *Client {
 	return &Client{
-		httpClient:   &http.Client{Timeout: httpClientTimeout},
+		httpClient: &http.Client{
+			Timeout:   httpClientTimeout,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		},
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		tokenStore:   tokenStore,
