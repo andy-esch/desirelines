@@ -23,60 +23,76 @@ import type {
  * with new fields added to the proto before the schema is updated.
  */
 
-const ChartDefaultsSchema = z.object({
-  showAverage: z.boolean(),
-  showGoals: z.boolean(),
-});
+const ChartDefaultsSchema = z
+  .object({
+    showAverage: z.boolean(),
+    showGoals: z.boolean(),
+  })
+  .passthrough();
 
-const PreferencesSchema = z.object({
-  theme: z.string(),
-  defaultYear: z.number(),
-  chartDefaults: ChartDefaultsSchema.optional(),
-  distanceUnit: z.string(),
-  elevationUnit: z.string(),
-  defaultSport: z.string(),
-  timezone: z.string(),
-  visibleSports: z.array(z.string()),
-});
+const PreferencesSchema = z
+  .object({
+    theme: z.string(),
+    defaultYear: z.number(),
+    chartDefaults: ChartDefaultsSchema.optional(),
+    distanceUnit: z.string(),
+    elevationUnit: z.string(),
+    defaultSport: z.string(),
+    timezone: z.string(),
+    visibleSports: z.array(z.string()),
+  })
+  .passthrough();
 
-const MetadataSchema = z.object({
-  createdAt: z.string(),
-  lastSyncedDevice: z.string(),
-  configTypes: z.array(z.string()),
-});
+const MetadataSchema = z
+  .object({
+    createdAt: z.string(),
+    lastSyncedDevice: z.string(),
+    configTypes: z.array(z.string()),
+  })
+  .passthrough();
 
-const GoalSchema = z.object({
-  id: z.string(),
-  value: z.number(),
-  label: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  metric: z.string(),
-});
+const GoalSchema = z
+  .object({
+    id: z.string(),
+    value: z.number(),
+    label: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    metric: z.string(),
+  })
+  .passthrough();
 
-const GoalsForYearSchema = z.object({
-  goals: z.array(GoalSchema),
-});
+const GoalsForYearSchema = z
+  .object({
+    goals: z.array(GoalSchema),
+  })
+  .passthrough();
 
-const SportGoalsForYearSchema = z.object({
-  sports: z.record(z.string(), GoalsForYearSchema),
-});
+const SportGoalsForYearSchema = z
+  .object({
+    sports: z.record(z.string(), GoalsForYearSchema),
+  })
+  .passthrough();
 
-const AnnotationSchema = z.object({
-  id: z.string(),
-  startDate: z.string(),
-  endDate: z.string(),
-  label: z.string(),
-  description: z.string(),
-  stravaActivityId: z.string(),
-  type: z.number(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
+const AnnotationSchema = z
+  .object({
+    id: z.string(),
+    startDate: z.string(),
+    endDate: z.string(),
+    label: z.string(),
+    description: z.string(),
+    stravaActivityId: z.string(),
+    type: z.number().int(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .passthrough();
 
-const AnnotationsForYearSchema = z.object({
-  annotations: z.array(AnnotationSchema),
-});
+const AnnotationsForYearSchema = z
+  .object({
+    annotations: z.array(AnnotationSchema),
+  })
+  .passthrough();
 
 export const UserConfigSchema = z
   .object({
