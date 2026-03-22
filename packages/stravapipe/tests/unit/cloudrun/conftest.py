@@ -52,16 +52,19 @@ def make_cloudevent_headers(
     }
 
 
-def make_pubsub_body(webhook_data: dict) -> dict:
+def make_pubsub_body(
+    webhook_data: dict, attributes: dict[str, str] | None = None
+) -> dict:
     """Create a Pub/Sub message body with base64-encoded webhook data."""
     encoded_data = base64.b64encode(json.dumps(webhook_data).encode()).decode()
-    return {
-        "message": {
-            "data": encoded_data,
-            "messageId": "test-message-123",
-            "publishTime": "2024-01-01T00:00:00Z",
-        }
+    msg: dict = {
+        "data": encoded_data,
+        "messageId": "test-message-123",
+        "publishTime": "2024-01-01T00:00:00Z",
     }
+    if attributes:
+        msg["attributes"] = attributes
+    return {"message": msg}
 
 
 def make_webhook_payload(

@@ -37,8 +37,14 @@ from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_deletion_service_config
 from stravapipe.shared.constants import ResponseStatus
 from stravapipe.shared.logging import setup_logging
-from stravapipe.shared.metrics import record_duration, setup_metrics
+from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
 from stravapipe.shared.responses import HealthResponse, UserDeletionResponse
+from stravapipe.shared.tracing import (
+    extract_context_from_attributes,
+    record_span,
+    setup_tracing,
+    shutdown_tracing,
+)
 
 logger = setup_logging(__name__)
 
@@ -136,10 +142,15 @@ async def lifespan(app: FastAPI):
             "desirelines.io/deletion/events",
             description="User deletion events processed",
         )
+
+        # Initialize OTel tracing
+        app.state.tracer = setup_tracing("desirelines-deletion-service")
     except Exception as e:
         logger.error("Startup initialization failed: %s", e)
         raise
     yield
+    shutdown_metrics()
+    shutdown_tracing()
 
 
 app = FastAPI(
@@ -167,7 +178,14 @@ async def handle_deauth_event(request: Request):
     correlation_id = str(uuid.uuid4())
 
     try:
-        context, event_data = await parse_pubsub_cloudevent(request)
+        context, event_data, message_attributes = await parse_pubsub_cloudevent(request)
+
+        # Prefer dispatcher's correlation_id over the pre-generated fallback.
+        correlation_id = message_attributes.get("correlation_id") or correlation_id
+
+        # Extract W3C trace context from dispatcher's traceparent header.
+        parent_context = extract_context_from_attributes(message_attributes)
+        tracer = request.app.state.tracer
 
         logger.info(
             "Received deauth CloudEvent",
@@ -195,71 +213,85 @@ async def handle_deauth_event(request: Request):
         firestore_client: FirestoreClient = request.app.state.firestore_client
         deletion_hist = request.app.state.deletion_histogram
 
-        # 1. Delete from PostgreSQL
-        try:
-            with record_duration(deletion_hist, {"store": "postgres"}):
-                uow = SqlAlchemyUnitOfWork(session_factory)
-                with uow:
-                    result.pg_deleted = uow.activities.delete_by_user(user_id)
-                    uow.commit()
-            logger.info(
-                "Deleted %d activities from PostgreSQL for user %s",
-                result.pg_deleted,
-                user_id,
-                extra={"correlation_id": correlation_id},
-            )
-        except Exception as e:
-            result.errors.append(f"postgres: {e}")
-            logger.error(
-                "PostgreSQL deletion failed for user %s: %s",
-                user_id,
-                e,
-                extra={"correlation_id": correlation_id},
-            )
-
-        # 2. Delete from BigQuery
-        try:
-            with record_duration(deletion_hist, {"store": "bigquery"}):
-                bq_result = bq_service.run(user_id, correlation_id, event_time)
-            result.bq_activities_deleted = bq_result.activities_deleted
-            result.bq_staging_deleted = bq_result.staging_deleted
-        except Exception as e:
-            result.errors.append(f"bigquery: {e}")
-            logger.error(
-                "BigQuery deletion failed for user %s: %s",
-                user_id,
-                e,
-                extra={"correlation_id": correlation_id},
-            )
-
-        # 3. Delete Firestore tokens (backup to dispatcher's best-effort delete)
-        try:
-            with record_duration(deletion_hist, {"store": "firestore_tokens"}):
-                token_store.delete_tokens(user_id)
-            result.firestore_tokens_deleted = True
-        except Exception as e:
-            result.errors.append(f"firestore_tokens: {e}")
-            logger.error(
-                "Firestore token deletion failed for user %s: %s",
-                user_id,
-                e,
-                extra={"correlation_id": correlation_id},
-            )
-
-        # 4. Delete remaining Firestore user documents
-        try:
-            with record_duration(deletion_hist, {"store": "firestore_docs"}):
-                result.firestore_user_docs_deleted = _delete_firestore_user_docs(
-                    firestore_client, user_id
+        with record_span(
+            tracer,
+            "deletion.process",
+            attributes={"user_id": user_id},
+            parent_context=parent_context,
+        ):
+            # 1. Delete from PostgreSQL
+            try:
+                with record_span(tracer, "deletion.postgres", {"user_id": user_id}):
+                    with record_duration(deletion_hist, {"store": "postgres"}):
+                        uow = SqlAlchemyUnitOfWork(session_factory)
+                        with uow:
+                            result.pg_deleted = uow.activities.delete_by_user(user_id)
+                            uow.commit()
+                logger.info(
+                    "Deleted %d activities from PostgreSQL for user %s",
+                    result.pg_deleted,
+                    user_id,
+                    extra={"correlation_id": correlation_id},
                 )
-        except Exception as e:
-            result.errors.append(f"firestore_docs: {e}")
-            logger.error(
-                "Firestore document deletion failed for user %s: %s",
-                user_id,
-                e,
-                extra={"correlation_id": correlation_id},
-            )
+            except Exception as e:
+                result.errors.append(f"postgres: {e}")
+                logger.error(
+                    "PostgreSQL deletion failed for user %s: %s",
+                    user_id,
+                    e,
+                    extra={"correlation_id": correlation_id},
+                )
+
+            # 2. Delete from BigQuery
+            try:
+                with record_span(tracer, "deletion.bigquery", {"user_id": user_id}):
+                    with record_duration(deletion_hist, {"store": "bigquery"}):
+                        bq_result = bq_service.run(user_id, correlation_id, event_time)
+                result.bq_activities_deleted = bq_result.activities_deleted
+                result.bq_staging_deleted = bq_result.staging_deleted
+            except Exception as e:
+                result.errors.append(f"bigquery: {e}")
+                logger.error(
+                    "BigQuery deletion failed for user %s: %s",
+                    user_id,
+                    e,
+                    extra={"correlation_id": correlation_id},
+                )
+
+            # 3. Delete Firestore tokens (backup to dispatcher's best-effort delete)
+            try:
+                with record_span(
+                    tracer, "deletion.firestore_tokens", {"user_id": user_id}
+                ):
+                    with record_duration(deletion_hist, {"store": "firestore_tokens"}):
+                        token_store.delete_tokens(user_id)
+                result.firestore_tokens_deleted = True
+            except Exception as e:
+                result.errors.append(f"firestore_tokens: {e}")
+                logger.error(
+                    "Firestore token deletion failed for user %s: %s",
+                    user_id,
+                    e,
+                    extra={"correlation_id": correlation_id},
+                )
+
+            # 4. Delete remaining Firestore user documents
+            try:
+                with record_span(
+                    tracer, "deletion.firestore_docs", {"user_id": user_id}
+                ):
+                    with record_duration(deletion_hist, {"store": "firestore_docs"}):
+                        result.firestore_user_docs_deleted = (
+                            _delete_firestore_user_docs(firestore_client, user_id)
+                        )
+            except Exception as e:
+                result.errors.append(f"firestore_docs: {e}")
+                logger.error(
+                    "Firestore document deletion failed for user %s: %s",
+                    user_id,
+                    e,
+                    extra={"correlation_id": correlation_id},
+                )
 
         # Record metric
         if request.app.state.deletion_counter:

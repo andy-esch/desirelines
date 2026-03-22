@@ -224,3 +224,69 @@ class TestErrorHandling:
             )
 
         assert len(set(correlation_ids)) == 3
+
+
+class TestCorrelationIdFromAttributes:
+    """Tests for extracting correlation_id from PubSub message attributes."""
+
+    def test_uses_correlation_id_from_attributes(self, app_with_callbacks):
+        """Correlation ID from dispatcher's PubSub attributes is preferred."""
+        captured_cid = []
+
+        async def capture_cid(event, event_data, cid):
+            captured_cid.append(cid)
+            return WebhookResponse(status=ResponseStatus.PROCESSED)
+
+        client = app_with_callbacks(on_create=capture_cid)
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(
+                make_webhook_payload(aspect_type="create"),
+                attributes={"correlation_id": "dispatcher-cid-123"},
+            ),
+        )
+
+        assert response.status_code == 200
+        assert captured_cid[0] == "dispatcher-cid-123"
+
+    def test_generates_correlation_id_when_not_in_attributes(self, app_with_callbacks):
+        """Falls back to generated UUID when attributes lack correlation_id."""
+        captured_cid = []
+
+        async def capture_cid(event, event_data, cid):
+            captured_cid.append(cid)
+            return WebhookResponse(status=ResponseStatus.PROCESSED)
+
+        client = app_with_callbacks(on_create=capture_cid)
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(make_webhook_payload(aspect_type="create")),
+        )
+
+        assert response.status_code == 200
+        # Should be a valid UUID string (36 chars with hyphens)
+        assert len(captured_cid[0]) == 36
+
+    def test_generates_correlation_id_when_attributes_empty(self, app_with_callbacks):
+        """Falls back to generated UUID when attributes have empty correlation_id."""
+        captured_cid = []
+
+        async def capture_cid(event, event_data, cid):
+            captured_cid.append(cid)
+            return WebhookResponse(status=ResponseStatus.PROCESSED)
+
+        client = app_with_callbacks(on_create=capture_cid)
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(
+                make_webhook_payload(aspect_type="create"),
+                attributes={"correlation_id": ""},
+            ),
+        )
+
+        assert response.status_code == 200
+        # Empty string is falsy, should fall back to UUID
+        assert len(captured_cid[0]) == 36

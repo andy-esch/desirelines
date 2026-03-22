@@ -13,6 +13,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from opentelemetry.metrics import Histogram
+from opentelemetry.trace import Tracer
 
 from stravapipe.adapters.gcp import make_write_activities
 from stravapipe.application.bq_inserter import (
@@ -25,8 +26,9 @@ from stravapipe.domain.activity import DetailedStravaActivity
 from stravapipe.ports.out.write import WriteActivities
 from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.logging import setup_logging
-from stravapipe.shared.metrics import record_duration, setup_metrics
+from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
 from stravapipe.shared.responses import HealthResponse, WebhookResponse
+from stravapipe.shared.tracing import record_span, setup_tracing, shutdown_tracing
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
@@ -56,10 +58,15 @@ async def lifespan(app: FastAPI):
             "desirelines.io/webhook/events",
             description="Webhook events processed",
         )
+
+        # Initialize OTel tracing
+        app.state.tracer = setup_tracing("desirelines-bq-inserter")
     except Exception as e:
         logger.error("Startup initialization failed: %s", e)
         raise
     yield
+    shutdown_metrics()
+    shutdown_tracing()
 
 
 app = FastAPI(
@@ -82,16 +89,18 @@ async def handle_pubsub(request: Request):
     delete_service = request.app.state.delete_service
     bq_hist = request.app.state.bq_histogram
     webhook_counter = request.app.state.webhook_counter
+    tracer = request.app.state.tracer
     return await handle_webhook_cloudevent(
         request,
         logger,
         on_create=lambda event, event_data, cid: _handle_create(
-            event, event_data, cid, writer, bq_hist
+            event, event_data, cid, writer, bq_hist, tracer
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
-            event, cid, delete_service, bq_hist
+            event, cid, delete_service, bq_hist, tracer
         ),
         webhook_counter=webhook_counter,
+        tracer=tracer,
     )
 
 
@@ -101,6 +110,7 @@ async def _handle_create(
     correlation_id: str,
     writer: WriteActivities,
     bq_histogram: Histogram | None = None,
+    tracer: Tracer | None = None,
 ) -> WebhookResponse:
     """Handle CREATE events - write activity to BigQuery.
 
@@ -127,8 +137,9 @@ async def _handle_create(
     # Construct DetailedStravaActivity from raw Strava API JSON
     activity = DetailedStravaActivity.model_validate(raw_activity)
 
-    with record_duration(bq_histogram, {"operation": "insert_rows"}):
-        stats = writer.write_activity(activity)
+    with record_span(tracer, "bigquery.insert_rows", {"activity_id": event.object_id}):
+        with record_duration(bq_histogram, {"operation": "insert_rows"}):
+            stats = writer.write_activity(activity)
 
     logger.info(
         "Activity upserted to BigQuery",
@@ -151,13 +162,15 @@ async def _handle_delete(
     correlation_id: str,
     service: DeleteActivityService,
     bq_histogram: Histogram | None = None,
+    tracer: Tracer | None = None,
 ) -> WebhookResponse:
     """Handle DELETE events - archive and remove from BigQuery."""
-    with record_duration(bq_histogram, {"operation": "dml"}):
-        result = service.run(
-            activity_id=event.object_id,
-            correlation_id=correlation_id,
-            event_time=event.event_time,
-        )
+    with record_span(tracer, "bigquery.dml", {"activity_id": event.object_id}):
+        with record_duration(bq_histogram, {"operation": "dml"}):
+            result = service.run(
+                activity_id=event.object_id,
+                correlation_id=correlation_id,
+                event_time=event.event_time,
+            )
 
     return result

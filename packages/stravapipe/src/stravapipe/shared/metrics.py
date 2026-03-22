@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 # Export interval matching Cloud Monitoring's minimum resolution
 _EXPORT_INTERVAL_MS = 60_000
 
+# Module-level reference for shutdown.
+_meter_provider: MeterProvider | None = None
+
 
 def setup_metrics(service_name: str) -> Meter:
     """Initialize OTel metrics with GCP Cloud Monitoring exporter.
@@ -36,6 +39,8 @@ def setup_metrics(service_name: str) -> Meter:
     Returns a Meter for creating instruments. If ENABLE_OTEL_METRICS is not
     set to "true", or if initialization fails, returns a no-op meter.
     """
+    global _meter_provider
+
     if os.environ.get("ENABLE_OTEL_METRICS", "").lower() != "true":
         logger.info("OTel metrics disabled (ENABLE_OTEL_METRICS != true)")
         return get_meter("desirelines.io")
@@ -58,6 +63,7 @@ def setup_metrics(service_name: str) -> Meter:
 
         provider = MeterProvider(resource=resource, metric_readers=[reader])
         set_meter_provider(provider)
+        _meter_provider = provider
 
         logger.info(
             "OTel metrics initialized",
@@ -74,6 +80,14 @@ def setup_metrics(service_name: str) -> Meter:
             exc_info=True,
         )
         return get_meter("desirelines.io")
+
+
+def shutdown_metrics() -> None:
+    """Flush pending metrics and shut down the meter provider."""
+    global _meter_provider
+    if _meter_provider is not None:
+        _meter_provider.shutdown()
+        _meter_provider = None
 
 
 @contextmanager
