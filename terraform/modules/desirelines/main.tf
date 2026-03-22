@@ -52,6 +52,7 @@ resource "google_project_service" "required_apis" {
     "cloudbuild.googleapis.com",
     "firestore.googleapis.com",
     "iamcredentials.googleapis.com",
+    "cloudtrace.googleapis.com",
   ]) : []
 
   project = var.gcp_project_id
@@ -666,6 +667,13 @@ resource "google_project_iam_member" "deletion_service_monitoring" {
   project = var.gcp_project_id
   role    = "roles/monitoring.metricWriter"
   member  = "serviceAccount:${google_service_account.deletion_service.email}"
+}
+
+# API Gateway needs cloudtrace.agent for OTel trace export
+resource "google_project_iam_member" "api_gateway_tracing" {
+  project = var.gcp_project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.api_gateway.email}"
 }
 
 # Dispatcher needs cloudtrace.agent for OTel trace export
