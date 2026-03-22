@@ -116,14 +116,16 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 
 	tokens, err := c.tokenStore.GetTokens(ctx, ownerID)
 	if err != nil {
-		return nil, fmt.Errorf("get tokens for athlete %d: %w", ownerID, err)
+		err = fmt.Errorf("get tokens for athlete %d: %w", ownerID, err)
+		return nil, err
 	}
 
 	// If no access token, refresh first
 	if tokens.AccessToken == "" {
 		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens)
 		if refreshErr != nil {
-			return nil, fmt.Errorf("%w: initial token refresh failed: %w", ErrStravaAuth, refreshErr)
+			err = fmt.Errorf("%w: initial token refresh failed: %w", ErrStravaAuth, refreshErr)
+			return nil, err
 		}
 		tokens = refreshedTokens
 	}
@@ -140,7 +142,8 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 
 		// 404 is not retryable
 		if errors.Is(fetchErr, ErrActivityNotFound) {
-			return nil, fetchErr
+			err = fetchErr
+			return nil, err
 		}
 
 		// 401: refresh token once and retry. A second 401 after refresh
@@ -148,12 +151,14 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 		// both Strava's token endpoint and Firestore.
 		if isAuthError(fetchErr) {
 			if authRefreshed {
-				return nil, fmt.Errorf("%w: still unauthorized after token refresh", ErrStravaAuth)
+				err = fmt.Errorf("%w: still unauthorized after token refresh", ErrStravaAuth)
+				return nil, err
 			}
 			c.logger.Warn("Strava 401, refreshing token", "activity_id", activityID, "owner_id", ownerID)
 			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens)
 			if refreshErr != nil {
-				return nil, fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
+				err = fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
+				return nil, err
 			}
 			tokens = refreshedTokens
 			authRefreshed = true
@@ -172,13 +177,15 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 			)
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				err = ctx.Err()
+				return nil, err
 			case <-time.After(backoff):
 			}
 		}
 	}
 
-	return nil, fmt.Errorf("%w: %w", ErrStravaAPI, lastErr)
+	err = fmt.Errorf("%w: %w", ErrStravaAPI, lastErr)
+	return nil, err
 }
 
 // doFetchActivity performs a single GET request to the Strava activities endpoint.
@@ -254,11 +261,13 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 					c.logger.Warn("Token refresh race detected, using competing thread's tokens", "owner_id", ownerID)
 					winner, getErr := c.tokenStore.GetTokens(ctx, ownerID)
 					if getErr != nil {
-						return nil, fmt.Errorf("re-read tokens after conflict for athlete %d: %w", ownerID, getErr)
+						err = fmt.Errorf("re-read tokens after conflict for athlete %d: %w", ownerID, getErr)
+						return nil, err
 					}
 					return winner, nil
 				}
-				return nil, fmt.Errorf("write-back tokens for athlete %d: %w", ownerID, writeErr)
+				err = fmt.Errorf("write-back tokens for athlete %d: %w", ownerID, writeErr)
+				return nil, err
 			}
 
 			c.logger.Info("Strava access token refreshed", "owner_id", ownerID)
@@ -274,12 +283,14 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 			)
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				err = ctx.Err()
+				return nil, err
 			case <-time.After(backoff):
 			}
 		}
 	}
-	return nil, fmt.Errorf("token refresh failed after %d attempts: %w", tokenRetryAttempts, lastErr)
+	err = fmt.Errorf("token refresh failed after %d attempts: %w", tokenRetryAttempts, lastErr)
+	return nil, err
 }
 
 // doRefreshToken performs a single token refresh request and returns the new tokens.

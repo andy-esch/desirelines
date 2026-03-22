@@ -53,15 +53,18 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (_ *stravat
 	if err != nil {
 		done(err)
 		if grpcstatus.Code(err) == codes.NotFound {
-			return nil, ports.ErrTokenNotFound
+			err = ports.ErrTokenNotFound
+			return nil, err
 		}
-		return nil, fmt.Errorf("get tokens for athlete %d: %w", athleteID, err)
+		err = fmt.Errorf("get tokens for athlete %d: %w", athleteID, err)
+		return nil, err
 	}
 	done(nil)
 
 	var tokens stravatoken.Data
 	if decodeErr := doc.DataTo(&tokens); decodeErr != nil {
-		return nil, fmt.Errorf("decode tokens for athlete %d: %w", athleteID, decodeErr)
+		err = fmt.Errorf("decode tokens for athlete %d: %w", athleteID, decodeErr)
+		return nil, err
 	}
 
 	return &tokens, nil
@@ -108,9 +111,11 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 	done(err)
 	if err != nil {
 		if errors.Is(err, ports.ErrTokenConflict) {
-			return ports.ErrTokenConflict
+			err = ports.ErrTokenConflict
+			return err
 		}
-		return fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
+		err = fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
+		return err
 	}
 	return nil
 }
@@ -126,7 +131,8 @@ func (s *TokenStore) DeleteTokens(ctx context.Context, athleteID int64) (err err
 	_, err = s.tokensRef(athleteID).Delete(ctx)
 	done(err)
 	if err != nil {
-		return fmt.Errorf("delete tokens for athlete %d: %w", athleteID, err)
+		err = fmt.Errorf("delete tokens for athlete %d: %w", athleteID, err)
+		return err
 	}
 	return nil
 }
