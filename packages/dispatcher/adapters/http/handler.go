@@ -19,6 +19,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -121,7 +122,9 @@ func (h *Handler) RegisterRoutes() http.Handler {
 	r.Get("/webhook", h.handleVerification)
 	r.Post("/webhook", h.handleEvent)
 
-	return r
+	// Wrap the entire router with otelhttp for automatic HTTP span creation.
+	// This creates a root span for each request with method, route, and status.
+	return otelhttp.NewHandler(r, "dispatcher")
 }
 
 func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {

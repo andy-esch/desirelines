@@ -61,11 +61,11 @@ func run(log *slog.Logger) error {
 
 	ctx := context.Background()
 
-	// Initialize OTel metrics (warn and continue with no-op on failure)
-	meter, otelShutdown, otelErr := otel.Setup(ctx, log, "desirelines-api-gateway")
+	// Initialize OTel metrics + tracing (warn and continue with no-ops on failure)
+	providers, otelShutdown, otelErr := otel.Setup(ctx, log, "desirelines-api-gateway")
 	if otelErr != nil {
-		log.Warn("OTel metrics disabled, using no-op meter", "error", otelErr)
-		meter = otel.NoopMeter()
+		log.Warn("OTel disabled, using no-op providers", "error", otelErr)
+		providers = otel.NoopProviders()
 	} else {
 		defer func() {
 			if shutdownErr := otelShutdown(context.Background()); shutdownErr != nil {
@@ -75,7 +75,7 @@ func run(log *slog.Logger) error {
 	}
 
 	// Initialize all dependencies
-	deps, err := initDependencies(ctx, cfg, log, meter)
+	deps, err := initDependencies(ctx, cfg, log, providers.Meter)
 	if err != nil {
 		return fmt.Errorf("failed to initialize dependencies: %w", err)
 	}

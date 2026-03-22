@@ -47,7 +47,7 @@ func TestNewActivityRepository(t *testing.T) {
 		constructor := NewActivityRepository
 
 		// Verify nil pool handling (defensive - shouldn't happen in practice)
-		noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
+		noopHist, _ := otel.NoopProviders().Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
 		repo := constructor(nil, noopHist)
 		if repo.pool != nil {
 			t.Error("expected nil pool to be stored as nil")

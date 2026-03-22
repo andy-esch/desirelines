@@ -53,7 +53,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create wrapped pool: %v", err)
 		}
-		noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
+		noopHist, _ := otel.NoopProviders().Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
 		repo := postgres.NewActivityRepository(wrappedPool, noopHist)
 		defer repo.Close()
 

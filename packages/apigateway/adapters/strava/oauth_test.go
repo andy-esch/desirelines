@@ -12,7 +12,7 @@ import (
 )
 
 func newTestOAuthClient(serverURL string) *OAuthClient {
-	noopHist, _ := otel.NoopMeter().Float64Histogram("test") //nolint:errcheck // no-op meter never fails
+	noopHist, _ := otel.NoopProviders().Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
 	client := NewOAuthClient("test-client-id", "test-client-secret", gcplog.NewNoOpLogger(), http.DefaultClient, noopHist)
 	client.tokenURL = serverURL
 	return client
