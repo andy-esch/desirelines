@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { AuthService } from "./auth/AuthService";
 import type { DatabaseService } from "./database/DatabaseService";
 import { FirebaseAuthService } from "./auth/FirebaseAuthService";
@@ -14,6 +15,80 @@ import type {
   Goal,
   Annotation,
 } from "../types/generated/user_config";
+
+/**
+ * Zod schemas for runtime validation of Firestore UserConfig documents.
+ * Mirrors the proto-generated types in types/generated/user_config.ts.
+ * Uses passthrough() on the top-level schema for forward compatibility
+ * with new fields added to the proto before the schema is updated.
+ */
+
+const ChartDefaultsSchema = z.object({
+  showAverage: z.boolean(),
+  showGoals: z.boolean(),
+});
+
+const PreferencesSchema = z.object({
+  theme: z.string(),
+  defaultYear: z.number(),
+  chartDefaults: ChartDefaultsSchema.optional(),
+  distanceUnit: z.string(),
+  elevationUnit: z.string(),
+  defaultSport: z.string(),
+  timezone: z.string(),
+  visibleSports: z.array(z.string()),
+});
+
+const MetadataSchema = z.object({
+  createdAt: z.string(),
+  lastSyncedDevice: z.string(),
+  configTypes: z.array(z.string()),
+});
+
+const GoalSchema = z.object({
+  id: z.string(),
+  value: z.number(),
+  label: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  metric: z.string(),
+});
+
+const GoalsForYearSchema = z.object({
+  goals: z.array(GoalSchema),
+});
+
+const SportGoalsForYearSchema = z.object({
+  sports: z.record(z.string(), GoalsForYearSchema),
+});
+
+const AnnotationSchema = z.object({
+  id: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
+  label: z.string(),
+  description: z.string(),
+  stravaActivityId: z.string(),
+  type: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const AnnotationsForYearSchema = z.object({
+  annotations: z.array(AnnotationSchema),
+});
+
+export const UserConfigSchema = z
+  .object({
+    schemaVersion: z.string(),
+    userId: z.string(),
+    lastUpdated: z.string(),
+    goals: z.record(z.string(), SportGoalsForYearSchema),
+    annotations: z.record(z.string(), AnnotationsForYearSchema),
+    preferences: PreferencesSchema.optional(),
+    metadata: MetadataSchema.optional(),
+  })
+  .passthrough();
 
 /**
  * Convert database errors to user-friendly error messages
@@ -169,7 +244,9 @@ export class UserConfigService {
    */
   async getConfig(): Promise<UserConfig | null> {
     try {
-      const config = await this.databaseService.getDocument<UserConfig>(this.getDocPath());
+      const config = await this.databaseService.getDocument<UserConfig>(this.getDocPath(), {
+        schema: UserConfigSchema,
+      });
 
       if (config) {
         this.validateSchemaVersion(config);
@@ -365,7 +442,8 @@ export class UserConfigService {
       (error) => {
         logger.error("Error in config subscription:", error);
         callback(null);
-      }
+      },
+      { schema: UserConfigSchema }
     );
   }
 
