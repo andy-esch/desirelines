@@ -27,6 +27,7 @@ import uuid
 
 from fastapi import FastAPI, HTTPException, Request
 from google.cloud.firestore_v1 import Client as FirestoreClient
+from opentelemetry.trace import get_current_span
 
 from stravapipe.adapters.firestore import FirestoreTokenStore
 from stravapipe.adapters.gcp import BigQueryClientWrapper
@@ -187,38 +188,47 @@ async def handle_deauth_event(request: Request):
         parent_context = extract_context_from_attributes(message_attributes)
         tracer = request.app.state.tracer
 
-        logger.info(
-            "Received deauth CloudEvent",
-            extra={
-                "correlation_id": correlation_id,
-                "event_type": context.event_type,
-                "event_id": context.event_id,
-            },
-        )
-
-        owner_id = event_data.get("owner_id")
-        if not owner_id:
-            raise HTTPException(
-                status_code=422,
-                detail="Missing owner_id in deauth event",
-            )
-
-        user_id = str(owner_id)
-        event_time = event_data.get("event_time", 0)
-        result = DeletionResult(user_id=user_id)
-
-        session_factory = request.app.state.session_factory
-        bq_service: BQUserDeletionService = request.app.state.bq_deletion_service
-        token_store: FirestoreTokenStore = request.app.state.token_store
-        firestore_client: FirestoreClient = request.app.state.firestore_client
-        deletion_hist = request.app.state.deletion_histogram
-
+        # IMPORTANT: The span must wrap ALL log statements below. The
+        # google-cloud-logging library reads the active OTel span and
+        # populates trace/spanId/traceSampled on each log entry. Logs
+        # emitted outside this block will not be linked to the trace in
+        # Cloud Trace and will be invisible when viewing "Show logs" on
+        # a trace. If you add new log lines, keep them inside this span.
         with record_span(
             tracer,
             "deletion.process",
-            attributes={"user_id": user_id},
+            attributes={"correlation_id": correlation_id},
             parent_context=parent_context,
         ):
+            logger.info(
+                "Received deauth CloudEvent",
+                extra={
+                    "correlation_id": correlation_id,
+                    "event_type": context.event_type,
+                    "event_id": context.event_id,
+                },
+            )
+
+            owner_id = event_data.get("owner_id")
+            if not owner_id:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Missing owner_id in deauth event",
+                )
+
+            user_id = str(owner_id)
+            event_time = event_data.get("event_time", 0)
+            result = DeletionResult(user_id=user_id)
+
+            # Set user_id on span now that we know it.
+            get_current_span().set_attribute("user_id", user_id)
+
+            session_factory = request.app.state.session_factory
+            bq_service: BQUserDeletionService = request.app.state.bq_deletion_service
+            token_store: FirestoreTokenStore = request.app.state.token_store
+            firestore_client: FirestoreClient = request.app.state.firestore_client
+            deletion_hist = request.app.state.deletion_histogram
+
             # 1. Delete from PostgreSQL
             try:
                 with record_span(tracer, "deletion.postgres", {"user_id": user_id}):
@@ -293,47 +303,47 @@ async def handle_deauth_event(request: Request):
                     extra={"correlation_id": correlation_id},
                 )
 
-        # Record metric
-        if request.app.state.deletion_counter:
-            request.app.state.deletion_counter.add(
-                1,
-                {
-                    "result": "partial_failure" if result.has_errors else "success",
+            # Record metric
+            if request.app.state.deletion_counter:
+                request.app.state.deletion_counter.add(
+                    1,
+                    {
+                        "result": "partial_failure" if result.has_errors else "success",
+                    },
+                )
+
+            if result.has_errors:
+                logger.error(
+                    "User deletion partially failed for user %s: %s",
+                    user_id,
+                    result.errors,
+                    extra={"correlation_id": correlation_id},
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Partial deletion failure: {result.errors}",
+                )
+
+            logger.info(
+                "User deletion complete for user %s",
+                user_id,
+                extra={
+                    "correlation_id": correlation_id,
+                    "pg_deleted": result.pg_deleted,
+                    "bq_activities_deleted": result.bq_activities_deleted,
+                    "bq_staging_deleted": result.bq_staging_deleted,
+                    "firestore_docs_deleted": result.firestore_user_docs_deleted,
                 },
             )
 
-        if result.has_errors:
-            logger.error(
-                "User deletion partially failed for user %s: %s",
-                user_id,
-                result.errors,
-                extra={"correlation_id": correlation_id},
+            return UserDeletionResponse(
+                status=ResponseStatus.DELETED,
+                correlation_id=correlation_id,
+                user_id=user_id,
+                pg_deleted=result.pg_deleted,
+                bq_activities_deleted=result.bq_activities_deleted,
+                bq_staging_deleted=result.bq_staging_deleted,
             )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Partial deletion failure: {result.errors}",
-            )
-
-        logger.info(
-            "User deletion complete for user %s",
-            user_id,
-            extra={
-                "correlation_id": correlation_id,
-                "pg_deleted": result.pg_deleted,
-                "bq_activities_deleted": result.bq_activities_deleted,
-                "bq_staging_deleted": result.bq_staging_deleted,
-                "firestore_docs_deleted": result.firestore_user_docs_deleted,
-            },
-        )
-
-        return UserDeletionResponse(
-            status=ResponseStatus.DELETED,
-            correlation_id=correlation_id,
-            user_id=user_id,
-            pg_deleted=result.pg_deleted,
-            bq_activities_deleted=result.bq_activities_deleted,
-            bq_staging_deleted=result.bq_staging_deleted,
-        )
 
     except HTTPException:
         raise

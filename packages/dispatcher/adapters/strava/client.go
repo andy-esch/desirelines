@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -114,6 +115,8 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 	)
 	defer func() { spanDone(err) }()
 
+	cid := gcplog.CorrelationIDFromContext(ctx)
+
 	tokens, err := c.tokenStore.GetTokens(ctx, ownerID)
 	if err != nil {
 		err = fmt.Errorf("get tokens for athlete %d: %w", ownerID, err)
@@ -154,7 +157,8 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 				err = fmt.Errorf("%w: still unauthorized after token refresh", ErrStravaAuth)
 				return nil, err
 			}
-			c.logger.Warn("Strava 401, refreshing token", "activity_id", activityID, "owner_id", ownerID)
+			c.logger.Warn("Strava 401, refreshing token",
+				"correlation_id", cid, "activity_id", activityID, "owner_id", ownerID)
 			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens)
 			if refreshErr != nil {
 				err = fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
@@ -170,6 +174,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 		if attempt < activityRetryAttempts-1 {
 			backoff := min(activityRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
 			c.logger.Warn("Strava fetch retry",
+				"correlation_id", cid,
 				"activity_id", activityID,
 				"attempt", attempt+1,
 				"backoff", backoff,
@@ -205,7 +210,8 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			c.logger.Error("Failed to close response body", "error", closeErr)
+			c.logger.Error("Failed to close response body",
+				"correlation_id", gcplog.CorrelationIDFromContext(ctx), "error", closeErr)
 		}
 	}()
 
@@ -238,6 +244,8 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 	)
 	defer func() { spanDone(err) }()
 
+	cid := gcplog.CorrelationIDFromContext(ctx)
+
 	// Capture the version stamp before calling the external API.
 	versionBefore := tokens.LastRefreshed
 
@@ -258,7 +266,8 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 			if writeErr != nil {
 				if errors.Is(writeErr, ports.ErrTokenConflict) {
 					// Another goroutine won the race. Re-read their tokens.
-					c.logger.Warn("Token refresh race detected, using competing thread's tokens", "owner_id", ownerID)
+					c.logger.Warn("Token refresh race detected, using competing thread's tokens",
+						"correlation_id", cid, "owner_id", ownerID)
 					winner, getErr := c.tokenStore.GetTokens(ctx, ownerID)
 					if getErr != nil {
 						err = fmt.Errorf("re-read tokens after conflict for athlete %d: %w", ownerID, getErr)
@@ -270,13 +279,15 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 				return nil, err
 			}
 
-			c.logger.Info("Strava access token refreshed", "owner_id", ownerID)
+			c.logger.Info("Strava access token refreshed",
+				"correlation_id", cid, "owner_id", ownerID)
 			return newTokens, nil
 		}
 		lastErr = err
 		if attempt < tokenRetryAttempts-1 {
 			backoff := min(tokenRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
 			c.logger.Warn("Token refresh retry",
+				"correlation_id", cid,
 				"attempt", attempt+1,
 				"backoff", backoff,
 				"error", err,
@@ -314,7 +325,8 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			c.logger.Error("Failed to close response body", "error", closeErr)
+			c.logger.Error("Failed to close response body",
+				"correlation_id", gcplog.CorrelationIDFromContext(ctx), "error", closeErr)
 		}
 	}()
 

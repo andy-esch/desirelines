@@ -255,9 +255,14 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate correlation ID early so all logs in this request carry it.
+	correlationID := chiMiddleware.GetReqID(r.Context())
+	ctx := gcplog.WithCorrelationID(r.Context(), correlationID)
+	r = r.WithContext(ctx)
+
 	// Record webhook event metric
 	if h.webhookCounter != nil {
-		h.webhookCounter.Add(r.Context(), 1,
+		h.webhookCounter.Add(ctx, 1,
 			metric.WithAttributes(
 				attribute.String("aspect_type", webhookproto.AspectTypeToString(webhook.AspectType)),
 				attribute.String("object_type", webhookproto.ObjectTypeToString(webhook.ObjectType)),
@@ -267,7 +272,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Handle athlete events (deauthorization) separately from activity events.
 	if webhook.ObjectType == generated.ObjectType_OBJECT_TYPE_ATHLETE {
-		h.handleAthleteEvent(r.Context(), w, r, webhook, bodyBytes)
+		h.handleAthleteEvent(ctx, w, r, webhook, bodyBytes)
 		return
 	}
 
@@ -281,11 +286,12 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	// For CREATE events, fetch the activity from Strava API
 	if webhook.AspectType == generated.AspectType_ASPECT_TYPE_CREATE {
-		rawActivity, fetchErr := h.stravaClient.FetchActivity(r.Context(), webhook.OwnerId, webhook.ObjectId)
+		rawActivity, fetchErr := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
 		if fetchErr != nil {
 			if errors.Is(fetchErr, ports.ErrActivityNotFound) {
 				// Activity was deleted before we could fetch it - publish without activity data
 				h.logger.Warn("Activity not found in Strava, publishing without activity data",
+					"correlation_id", correlationID,
 					"object_id", webhook.ObjectId)
 			} else {
 				// Other Strava errors — return 500 so Strava retries (up to 3 total attempts per spec)
@@ -303,8 +309,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	correlationID := chiMiddleware.GetReqID(r.Context())
-	if publishErr := h.publisher.Publish(r.Context(), enriched, correlationID); publishErr != nil {
+	if publishErr := h.publisher.Publish(ctx, enriched, correlationID); publishErr != nil {
 		apiErr := gcplog.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to publish event",
@@ -325,6 +330,8 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 // updates={"authorized":"false"}. We also handle aspect_type=delete
 // defensively in case Strava sends that form.
 func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, body []byte) {
+	correlationID := gcplog.CorrelationIDFromContext(ctx)
+
 	var isDeauth bool
 	switch webhook.AspectType {
 	case generated.AspectType_ASPECT_TYPE_DELETE:
@@ -337,6 +344,7 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			h.logger.Warn("Failed to unmarshal athlete update payload",
+				"correlation_id", correlationID,
 				"error", err,
 				"owner_id", webhook.OwnerId,
 			)
@@ -354,7 +362,6 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	correlationID := chiMiddleware.GetReqID(ctx)
 	h.logger.Info("Athlete deauthorization received",
 		"owner_id", webhook.OwnerId,
 		"correlation_id", correlationID,
@@ -364,6 +371,7 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	// Best-effort token deletion — the downstream deletion job will clean up on failure.
 	if deleteErr := h.tokenStore.DeleteTokens(ctx, webhook.OwnerId); deleteErr != nil {
 		h.logger.Warn("Failed to delete tokens during deauth (will be cleaned up by deletion job)",
+			"correlation_id", correlationID,
 			"owner_id", webhook.OwnerId,
 			"error", deleteErr,
 		)
