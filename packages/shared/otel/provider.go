@@ -20,6 +20,7 @@ import (
 
 	mexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric"
 	texporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
+	gcppropagator "github.com/GoogleCloudPlatform/opentelemetry-operations-go/propagator"
 	"go.opentelemetry.io/contrib/detectors/gcp"
 	otelglobal "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
@@ -88,7 +89,33 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 
 	// Register globally so otelhttp and propagation.Inject/Extract work.
 	otelglobal.SetTracerProvider(tp)
-	otelglobal.SetTextMapPropagator(propagation.TraceContext{})
+
+	// Composite propagator: ensures a single trace_id flows from Cloud Run's
+	// X-Cloud-Trace-Context header through OTel spans, Go logs, and downstream
+	// Python services.
+	//
+	// CloudTraceOneWayPropagator (extract-only) reads the GCP trace context
+	// from the incoming X-Cloud-Trace-Context header injected by Cloud Run.
+	// It is listed first so that when an incoming request carries BOTH headers,
+	// TraceContext (W3C) extracts second and takes precedence — this is the
+	// correct behavior for service-to-service calls that already propagate
+	// traceparent. For the dispatcher's entry point (called by Strava), only
+	// X-Cloud-Trace-Context is present, so the GCP propagator supplies the
+	// trace_id that OTel adopts. This makes the OTel trace_id match the one
+	// that gcplog.WithCloudTraceContext writes into structured log fields,
+	// so Cloud Trace's "Show logs" feature works correctly.
+	//
+	// TraceContext (W3C) handles outgoing propagation via traceparent, which
+	// downstream Python services extract to join the same trace.
+	//
+	// Baggage is included for future use (e.g., propagating correlation_id).
+	otelglobal.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			gcppropagator.CloudTraceOneWayPropagator{},
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
 
 	logger.Info("OTel initialized",
 		"service", serviceName,
