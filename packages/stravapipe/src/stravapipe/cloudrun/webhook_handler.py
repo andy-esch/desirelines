@@ -13,7 +13,7 @@ import uuid
 
 from fastapi import HTTPException, Request
 from opentelemetry.metrics import Counter
-from opentelemetry.trace import Tracer
+from opentelemetry.trace import Tracer, get_current_span
 
 from stravapipe.adapters.proto import dict_to_webhook_event
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
@@ -76,73 +76,80 @@ async def handle_webhook_cloudevent(
         # Extract W3C trace context from dispatcher's traceparent header.
         parent_context = extract_context_from_attributes(message_attributes)
 
-        logger.info(
-            "Received CloudEvent",
-            extra={
-                "correlation_id": correlation_id,
-                "event_type": context.event_type,
-                "event_id": context.event_id,
-            },
-        )
-
-        try:
-            event = dict_to_webhook_event(event_data)
-        except ValueError as err:
-            logger.error(
-                "Webhook parsing failed: %s",
-                err,
-                extra={"correlation_id": correlation_id},
-            )
-            raise HTTPException(
-                status_code=422, detail=f"Invalid webhook: {err}"
-            ) from err
-
-        if event.object_type != pb.OBJECT_TYPE_ACTIVITY:
-            obj_name = pb.ObjectType.Name(event.object_type)
-            logger.info(
-                "Skipping non-activity webhook",
-                extra={
-                    "correlation_id": correlation_id,
-                    "object_type": obj_name,
-                },
-            )
-            raise HTTPException(
-                status_code=422,
-                detail=f"Unsupported object_type: {obj_name}. Only 'activity' is supported",
-            )
-
-        aspect_name = event_data.get(WebhookField.ASPECT_TYPE, DEFAULT_UNKNOWN)
-
-        # Record webhook event metric
-        if webhook_counter is not None:
-            webhook_counter.add(
-                1,
-                {
-                    "aspect_type": aspect_name,
-                    "object_type": "activity",
-                },
-            )
-
-        logger.info(
-            "Processing webhook",
-            extra={
-                "correlation_id": correlation_id,
-                "aspect_type": aspect_name,
-                "object_type": "activity",
-                "object_id": event.object_id,
-            },
-        )
-
+        # IMPORTANT: The span must wrap ALL log statements below. The
+        # google-cloud-logging library reads the active OTel span and
+        # populates trace/spanId/traceSampled on each log entry. Logs
+        # emitted outside this block will not be linked to the trace in
+        # Cloud Trace and will be invisible when viewing "Show logs" on
+        # a trace. If you add new log lines, keep them inside this span.
         with record_span(
             tracer,
             "webhook.process",
-            attributes={
-                "correlation_id": correlation_id,
-                "aspect_type": aspect_name,
-                "object_id": event.object_id,
-            },
+            attributes={"correlation_id": correlation_id},
             parent_context=parent_context,
         ):
+            logger.info(
+                "Received CloudEvent",
+                extra={
+                    "correlation_id": correlation_id,
+                    "event_type": context.event_type,
+                    "event_id": context.event_id,
+                },
+            )
+
+            try:
+                event = dict_to_webhook_event(event_data)
+            except ValueError as err:
+                logger.error(
+                    "Webhook parsing failed: %s",
+                    err,
+                    extra={"correlation_id": correlation_id},
+                )
+                raise HTTPException(
+                    status_code=422, detail=f"Invalid webhook: {err}"
+                ) from err
+
+            if event.object_type != pb.OBJECT_TYPE_ACTIVITY:
+                obj_name = pb.ObjectType.Name(event.object_type)
+                logger.info(
+                    "Skipping non-activity webhook",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "object_type": obj_name,
+                    },
+                )
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unsupported object_type: {obj_name}. Only 'activity' is supported",
+                )
+
+            aspect_name = event_data.get(WebhookField.ASPECT_TYPE, DEFAULT_UNKNOWN)
+
+            # Set span attributes now that we know the event details.
+            span = get_current_span()
+            span.set_attribute("aspect_type", aspect_name)
+            span.set_attribute("object_id", event.object_id)
+
+            # Record webhook event metric
+            if webhook_counter is not None:
+                webhook_counter.add(
+                    1,
+                    {
+                        "aspect_type": aspect_name,
+                        "object_type": "activity",
+                    },
+                )
+
+            logger.info(
+                "Processing webhook",
+                extra={
+                    "correlation_id": correlation_id,
+                    "aspect_type": aspect_name,
+                    "object_type": "activity",
+                    "object_id": event.object_id,
+                },
+            )
+
             callbacks = {
                 pb.ASPECT_TYPE_CREATE: on_create,
                 pb.ASPECT_TYPE_UPDATE: on_update,
@@ -153,17 +160,17 @@ async def handle_webhook_cloudevent(
             if callback is not None:
                 return await callback(event, event_data, correlation_id)
 
-        logger.info(
-            "Skipping event type: %s",
-            aspect_name,
-            extra={"correlation_id": correlation_id},
-        )
-        return WebhookResponse(
-            status=ResponseStatus.SKIPPED,
-            reason=SkipReason.NOT_IMPLEMENTED,
-            details=f"Event type '{aspect_name}' not implemented for this service",
-            correlation_id=correlation_id,
-        )
+            logger.info(
+                "Skipping event type: %s",
+                aspect_name,
+                extra={"correlation_id": correlation_id},
+            )
+            return WebhookResponse(
+                status=ResponseStatus.SKIPPED,
+                reason=SkipReason.NOT_IMPLEMENTED,
+                details=f"Event type '{aspect_name}' not implemented for this service",
+                correlation_id=correlation_id,
+            )
 
     except HTTPException:
         raise
