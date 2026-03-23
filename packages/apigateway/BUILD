@@ -33,6 +33,15 @@ docker_image(
         "{build_args.GIT_COMMIT}",  # Interpolated from GIT_COMMIT build arg
     ],
     extra_build_args=["GIT_COMMIT"],  # Pass as Docker build arg (value from env var)
+    cache_from=[{
+        "type": "registry",
+        "ref": "us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/apigateway:buildcache",
+    }],
+    cache_to={
+        "type": "registry",
+        "ref": "us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/apigateway:buildcache",
+        "mode": "max",
+    },
     # Repository configured in pants.toml [docker] section
     # Output: us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/apigateway:latest
 )

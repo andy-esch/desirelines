@@ -41,4 +41,13 @@ docker_image(
         "{build_args.GIT_COMMIT}",
     ],
     extra_build_args=["GIT_COMMIT"],
+    cache_from=[{
+        "type": "registry",
+        "ref": "us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/stravapipe:buildcache",
+    }],
+    cache_to={
+        "type": "registry",
+        "ref": "us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/stravapipe:buildcache",
+        "mode": "max",
+    },
 )

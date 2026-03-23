@@ -22,8 +22,18 @@ jobs:
   # - apigateway (Go) - API for web frontend
   # - stravapipe (Python) - Mono-image for bq-inserter, postgres-writer, backfill
   build-images:
-    name: Build & Publish Docker Images
+    name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: dispatcher
+            target: packages/dispatcher:dispatcher
+          - image: apigateway
+            target: packages/apigateway:apigateway
+          - image: stravapipe
+            target: packages/stravapipe:stravapipe
     outputs:
       git_sha: ${{ steps.metadata.outputs.git_sha }}
 
@@ -55,7 +65,7 @@ jobs:
       - name: Set up Pants
         uses: pantsbuild/actions/init-pants@v10
         with:
-          gha-cache-key: v1-go1.25-py3.14-docker
+          gha-cache-key: v1-go1.25-py3.14-${{ matrix.image }}
           named-caches-hash: ${{ hashFiles('packages/*/go.sum', 'packages/stravapipe/uv.lock', 'go.work.sum', 'pants.toml') }}
           cache-lmdb-store: true
           base-branch: main
@@ -72,12 +82,10 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker us-central1-docker.pkg.dev
 
-      - name: Build and publish Docker images
+      - name: Build and publish ${{ matrix.image }}
         run: |
           GIT_COMMIT=${{ steps.metadata.outputs.git_sha }} pants publish \
-            packages/dispatcher:dispatcher \
-            packages/apigateway:apigateway \
-            packages/stravapipe:stravapipe
+            ${{ matrix.target }}
 
   # ===========================================================================
   # Job 2: Trigger Deploy Repo
