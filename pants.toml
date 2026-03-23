@@ -180,8 +180,8 @@ output_dir = "{distdir}/coverage/python"  # Coverage reports go to dist/coverage
 # Note: Registry address is added by [docker.registries] config below
 default_repository = "desirelines-artifacts/desirelines-services/{name}"
 
-# Build arguments (inline cache for better layer reuse)
-build_args = ["BUILDKIT_INLINE_CACHE=1"]
+# Build arguments
+build_args = []
 
 # Verbose output for debugging
 build_verbose = false

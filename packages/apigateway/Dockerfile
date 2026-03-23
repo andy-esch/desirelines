@@ -13,9 +13,8 @@ COPY packages/apigateway/go.mod packages/apigateway/go.sum* ./packages/apigatewa
 
 WORKDIR /app/packages/apigateway
 
-# Download dependencies
+# Download dependencies (go.sum provides checksum verification)
 RUN go mod download
-RUN go mod verify
 
 # Mirror source code structure to resolve '../shared' at compile time.
 COPY packages/shared/ ../shared/

@@ -13,9 +13,8 @@ COPY packages/dispatcher/go.mod packages/dispatcher/go.sum* ./packages/dispatche
 
 WORKDIR /app/packages/dispatcher
 
-# Download dependencies
+# Download dependencies (go.sum provides checksum verification)
 RUN go mod download
-RUN go mod verify
 
 # Mirror source code structure to resolve '../shared' at compile time.
 COPY packages/shared/ ../shared/
