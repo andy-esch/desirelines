@@ -308,9 +308,7 @@ async def handle_deauth_event(request: Request):
                 request.app.state.deletion_counter.add(
                     1,
                     {
-                        "result": "partial_failure"
-                        if result.has_errors
-                        else "success",
+                        "result": "partial_failure" if result.has_errors else "success",
                     },
                 )
 
