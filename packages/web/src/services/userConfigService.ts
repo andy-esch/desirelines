@@ -58,7 +58,7 @@ const GoalSchema = z
     label: z.string(),
     createdAt: z.string(),
     updatedAt: z.string(),
-    metric: z.string(),
+    metric: z.union([z.string(), z.number()]).transform(String),
   })
   .passthrough();
 
