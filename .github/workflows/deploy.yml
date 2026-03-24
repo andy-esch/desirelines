@@ -15,9 +15,9 @@ concurrency:
 
 jobs:
   # ===========================================================================
-  # Job 1: Build and Publish Docker Images (Go + Python)
+  # Job 1: Build and Push Docker Images
   # ===========================================================================
-  # Builds all Cloud Run services and jobs:
+  # Builds all Cloud Run services in parallel via matrix:
   # - dispatcher (Go) - Webhook receiver
   # - apigateway (Go) - API for web frontend
   # - stravapipe (Python) - Mono-image for bq-inserter, postgres-writer, backfill
@@ -29,11 +29,14 @@ jobs:
       matrix:
         include:
           - image: dispatcher
-            target: packages/dispatcher:dispatcher
+            context: .
+            dockerfile: packages/dispatcher/Dockerfile
           - image: apigateway
-            target: packages/apigateway:apigateway
+            context: .
+            dockerfile: packages/apigateway/Dockerfile
           - image: stravapipe
-            target: packages/stravapipe:stravapipe
+            context: packages/stravapipe
+            dockerfile: packages/stravapipe/Dockerfile
     outputs:
       git_sha: ${{ steps.metadata.outputs.git_sha }}
 
@@ -41,6 +44,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
+
+    env:
+      REGISTRY: us-central1-docker.pkg.dev
+      REPOSITORY: desirelines-artifacts/desirelines-services
 
     steps:
       - name: Checkout code
@@ -51,25 +58,6 @@ jobs:
         run: |
           echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: "1.25"
-          cache-dependency-path: go.work.sum
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.14"
-
-      - name: Set up Pants
-        uses: pantsbuild/actions/init-pants@v10
-        with:
-          gha-cache-key: v1-go1.25-py3.14-${{ matrix.image }}
-          named-caches-hash: ${{ hashFiles('packages/*/go.sum', 'packages/stravapipe/uv.lock', 'go.work.sum', 'pants.toml') }}
-          cache-lmdb-store: true
-          base-branch: main
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
@@ -79,19 +67,23 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
-
       - name: Docker login to Artifact Registry
-        run: gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://us-central1-docker.pkg.dev
+        run: gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://${{ env.REGISTRY }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and publish ${{ matrix.image }}
-        run: |
-          GIT_COMMIT=${{ steps.metadata.outputs.git_sha }} pants publish \
-            ${{ matrix.target }}
+      - name: Build and push ${{ matrix.image }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:latest
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:${{ steps.metadata.outputs.git_sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:buildcache,mode=max
 
   # ===========================================================================
   # Job 2: Trigger Deploy Repo

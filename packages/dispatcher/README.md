@@ -100,11 +100,9 @@ go test ./...
 
 ## Deployment
 
-Built and deployed via Pants:
-
 ```bash
-# Build and publish
-GIT_COMMIT=$(git rev-parse --short HEAD) pants publish packages/dispatcher:dispatcher
+# Build and publish all images
+just build-publish
 
 # Deploy by merging to main (triggers CI → deploy repo)
 # Or manually from desirelines-deploy repo
