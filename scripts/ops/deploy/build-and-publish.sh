@@ -37,6 +37,8 @@ for service in "${!SERVICES[@]}"; do
 		--tag "${image}:${SHA}" \
 		--tag "${image}:latest" \
 		--push \
+		--cache-from "type=registry,ref=${image}:buildcache" \
+		--cache-to "type=registry,ref=${image}:buildcache,mode=max" \
 		"$context"
 	echo ""
 done
