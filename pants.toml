@@ -174,9 +174,6 @@ output_dir = "{distdir}/coverage/python"  # Coverage reports go to dist/coverage
 # ==========================================
 
 [docker]
-# Enable BuildKit via buildx (required for registry cache)
-use_buildx = true
-
 # Default registry for docker_image targets
 # All artifacts (dev + prod) stored in desirelines-artifacts Artifact Registry
 # Terraform uses deployment_version variable to pull correct image tag

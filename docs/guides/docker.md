@@ -1,6 +1,6 @@
 # Docker Build Guide
 
-Docker images for Desirelines services, built and published via Pants.
+Docker images for Desirelines Cloud Run services.
 
 ## Dockerfile Locations
 
@@ -20,44 +20,41 @@ local-dev/containers/
     └── Dockerfile                  # Firebase Auth + Firestore emulators
 ```
 
-## Building with Pants (Recommended)
-
-Pants is the recommended build system for CI/CD and production deployments.
+## Building and Publishing
 
 ### Build and Publish All Images
-
-```bash
-# Build and publish to Artifact Registry with git SHA tag
-GIT_COMMIT=$(git rev-parse --short HEAD) pants publish \
-  packages/dispatcher:dispatcher \
-  packages/apigateway:apigateway \
-  packages/stravapipe:stravapipe
-```
-
-Or use the Just recipe:
 
 ```bash
 just build-publish
 ```
 
+Or with a specific tag:
+
+```bash
+just build-publish abc1234
+```
+
 This:
 
-- Builds all Docker images
+- Builds all Docker images with `docker buildx build`
 - Tags with git SHA and `latest`
 - Pushes to Artifact Registry
 
-### Build Without Publishing
+### Build a Single Image Locally
 
 ```bash
-pants package packages/dispatcher:dispatcher
-pants package packages/stravapipe:stravapipe
+# Go services (build context is repo root for shared package access)
+docker build -f packages/apigateway/Dockerfile -t apigateway:local .
+docker build -f packages/dispatcher/Dockerfile -t dispatcher:local .
+
+# Python service (build context is packages/stravapipe)
+docker build -t stravapipe:local packages/stravapipe
 ```
 
-### View Available Targets
+### CI/CD
 
-```bash
-pants list packages/stravapipe::
-```
+CI uses `docker/build-push-action` with matrix builds and registry-based layer caching.
+See `.github/workflows/deploy.yml` for details.
 
 ## Local Development with docker-compose
 
@@ -127,4 +124,3 @@ FROM python:3.14-slim
 
 - [Deployment Guide](./deployment.md) - Full deployment workflow
 - [Local Testing](./local-testing.md) - Local development setup
-- [Pants Documentation](https://www.pantsbuild.org/docs)

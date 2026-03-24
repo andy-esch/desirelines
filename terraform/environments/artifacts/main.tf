@@ -29,8 +29,10 @@ resource "google_artifact_registry_repository" "services" {
   description   = "Container registry for desirelines Cloud Run services (shared across all environments)"
   format        = "DOCKER"
 
-  # Cleanup policy: keep only last 5 versions of each image, delete all others
+  # Cleanup policies: manage image and build cache retention
   cleanup_policy_dry_run = false
+
+  # Keep last 5 tagged versions of each service image
   cleanup_policies {
     id     = "keep-recent-versions"
     action = "KEEP"
@@ -38,12 +40,25 @@ resource "google_artifact_registry_repository" "services" {
       keep_count = 5
     }
   }
+
+  # Delete untagged image manifests older than 7 days
   cleanup_policies {
     id     = "delete-old-images"
     action = "DELETE"
     condition {
-      tag_state  = "ANY"
+      tag_state  = "UNTAGGED"
       older_than = "604800s" # 7 days
+    }
+  }
+
+  # Delete build cache manifests older than 14 days
+  # Registry-based layer cache (buildcache tags) from docker/build-push-action
+  cleanup_policies {
+    id     = "delete-old-buildcache"
+    action = "DELETE"
+    condition {
+      tag_prefixes = ["buildcache"]
+      older_than   = "1209600s" # 14 days
     }
   }
 

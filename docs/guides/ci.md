@@ -371,8 +371,8 @@ The `deploy.yml` workflow handles build and deploy triggering:
 
 **Steps:**
 
-1. Build Docker images with Pants
-2. Push to Artifact Registry
+1. Build Docker images with `docker/build-push-action` (matrix: dispatcher, apigateway, stravapipe)
+2. Push to Artifact Registry with registry-based layer caching
 3. Send `repository_dispatch` to `desirelines-deploy` via GitHub App token
 4. Deploy repo handles terraform apply, service verification, web deploy, and state tracking
 
@@ -383,4 +383,3 @@ Terraform operations, drift detection, and deployment state tracking all live in
 - [Deployment Guide](./deployment.md) - Manual deployment procedures
 - [Testing Guide](../testing-guide.md) - Detailed testing documentation
 - [Terraform README](../../terraform/README.md) - Terraform operations
-- [Pants Documentation](https://www.pantsbuild.org/docs) - Official Pants docs

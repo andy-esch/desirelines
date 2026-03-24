@@ -209,14 +209,9 @@ See `openapi.yaml` for the API specification.
 
 ### Build and Publish
 
-Build and publish via Pants:
-
 ```bash
-# Build all services
+# Build and publish all images
 just build-publish
-
-# Build only apigateway
-GIT_COMMIT=$(git rev-parse --short HEAD) pants publish packages/apigateway:apigateway
 ```
 
 ### Deploy to Cloud Run
