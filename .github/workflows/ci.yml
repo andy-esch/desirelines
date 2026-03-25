@@ -66,6 +66,10 @@ jobs:
       - name: Lint proto files
         run: just proto-lint
 
+      - name: Check proto breaking changes
+        if: github.event_name == 'pull_request'
+        run: just proto-breaking
+
       # --- Slow check last (~4 min) ---
 
       - name: Set up Go

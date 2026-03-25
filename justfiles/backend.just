@@ -128,6 +128,11 @@ proto-lint:
     @echo "🔍 Linting protobuf files..."
     buf lint schemas/proto
 
+# Check protobuf files for breaking changes against main
+proto-breaking:
+    @echo "🔍 Checking for breaking protobuf changes..."
+    buf breaking schemas/proto --against '.git#branch=main,subdir=schemas/proto'
+
 # Format protobuf files using 'buf'
 proto-fmt:
     @echo "🎨 Formatting protobuf files..."

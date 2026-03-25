@@ -138,16 +138,3 @@ message GetActivityResponse {
   Activity activity = 1;
 }
 
-// =============================================================================
-// Service Definition (for documentation/future gRPC)
-// =============================================================================
-
-// ActivityService defines the Activities API contract.
-// Currently used for code generation; may become gRPC service later.
-service ActivityService {
-  // List activities with optional filters and pagination.
-  rpc ListActivities(ListActivitiesRequest) returns (ListActivitiesResponse);
-
-  // Get a single activity by ID.
-  rpc GetActivity(GetActivityRequest) returns (GetActivityResponse);
-}
