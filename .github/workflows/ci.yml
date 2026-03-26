@@ -86,7 +86,7 @@ jobs:
           python-version: "3.14"
 
       - name: Set up Pants
-        uses: pantsbuild/actions/init-pants@v10
+        uses: pantsbuild/actions/init-pants@v11
         with:
           gha-cache-key: v1-validation
           named-caches-hash: ${{ hashFiles('packages/*/go.sum', 'packages/stravapipe/uv.lock', 'go.work.sum', 'pants.toml') }}
@@ -119,7 +119,7 @@ jobs:
           cache-dependency-path: go.work.sum
 
       - name: Set up Pants
-        uses: pantsbuild/actions/init-pants@v10
+        uses: pantsbuild/actions/init-pants@v11
         with:
           gha-cache-key: v1-ci-python
           named-caches-hash: ${{ hashFiles('packages/stravapipe/uv.lock', 'pants.toml') }}
