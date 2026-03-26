@@ -130,7 +130,7 @@ jobs:
         run: "pants --tag='-integration' test --use-coverage packages/stravapipe::"
 
       - name: Upload Python coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./dist/coverage/python/coverage.xml
@@ -175,7 +175,7 @@ jobs:
           go test -v -race -coverprofile=coverage.out ./...
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/${{ matrix.package }}/coverage.out
@@ -237,7 +237,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/web/coverage/lcov.info
