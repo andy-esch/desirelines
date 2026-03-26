@@ -4,9 +4,18 @@ lint:
   use:
     - STANDARD
 
-# Buf linting configuration for Desirelines protobuf schemas
+breaking:
+  use:
+    - WIRE_JSON
+
+# Buf configuration for Desirelines protobuf schemas
 #
-# STANDARD includes:
+# Lint (STANDARD) includes:
 #   - MINIMAL: Critical rules (e.g., valid syntax, no name conflicts)
 #   - BASIC: Common best practices (e.g., field naming conventions)
 #   - DEFAULT: Documentation and style requirements
+#
+# Breaking (WIRE_JSON) detects changes that break:
+#   - Wire format compatibility (field numbers, types, wire types)
+#   - JSON serialization compatibility (field names, enum value names)
+#   All three languages (Go, Python, TypeScript) use JSON marshaling.
