@@ -19,92 +19,120 @@ import type {
 /**
  * Zod schemas for runtime validation of Firestore UserConfig documents.
  * Mirrors the proto-generated types in types/generated/user_config.ts.
- * Uses passthrough() on the top-level schema for forward compatibility
- * with new fields added to the proto before the schema is updated.
+ *
+ * Firestore is schemaless — documents written before a proto field was added
+ * won't have that field. These helpers apply proto default semantics so missing
+ * fields resolve to the same default value the proto would assign, while still
+ * validating types when the field is present.
+ *
+ * All object schemas use .passthrough() so unknown fields survive the
+ * read-modify-write cycle in updateConfigSection without silent data loss.
  */
+
+// Proto-default-aware field helpers: missing → proto default, present → type-checked
+const proto = {
+  string: () => z.string().optional().default(""),
+  number: () => z.number().optional().default(0),
+  int: () => z.number().int().optional().default(0),
+  boolean: () => z.boolean().optional().default(false),
+  stringArray: () => z.array(z.string()).optional().default([]),
+};
 
 const ChartDefaultsSchema = z
   .object({
-    showAverage: z.boolean(),
-    showGoals: z.boolean(),
+    showAverage: proto.boolean(),
+    showGoals: proto.boolean(),
   })
   .passthrough();
 
 const PreferencesSchema = z
   .object({
-    theme: z.string(),
-    defaultYear: z.number(),
+    theme: proto.string(),
+    defaultYear: proto.number(),
     chartDefaults: ChartDefaultsSchema.optional(),
-    distanceUnit: z.string(),
-    elevationUnit: z.string(),
-    defaultSport: z.string(),
-    timezone: z.string(),
-    visibleSports: z.array(z.string()),
+    distanceUnit: proto.string(),
+    elevationUnit: proto.string(),
+    defaultSport: proto.string(),
+    timezone: proto.string(),
+    visibleSports: proto.stringArray(),
   })
   .passthrough();
 
 const MetadataSchema = z
   .object({
-    createdAt: z.string(),
-    lastSyncedDevice: z.string(),
-    configTypes: z.array(z.string()),
+    createdAt: proto.string(),
+    lastSyncedDevice: proto.string(),
+    configTypes: proto.stringArray(),
   })
   .passthrough();
 
 const GoalSchema = z
   .object({
-    id: z.string(),
-    value: z.number(),
-    label: z.string(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-    metric: z.union([z.string(), z.number()]).transform(String),
+    id: proto.string(),
+    value: proto.number(),
+    label: proto.string(),
+    createdAt: proto.string(),
+    updatedAt: proto.string(),
+    metric: proto.string(),
   })
   .passthrough();
 
 const GoalsForYearSchema = z
   .object({
-    goals: z.array(GoalSchema),
+    goals: z.array(GoalSchema).optional().default([]),
   })
   .passthrough();
 
 const SportGoalsForYearSchema = z
   .object({
-    sports: z.record(z.string(), GoalsForYearSchema),
+    sports: z.record(z.string(), GoalsForYearSchema).optional().default({}),
   })
   .passthrough();
 
 const AnnotationSchema = z
   .object({
-    id: z.string(),
-    startDate: z.string(),
-    endDate: z.string(),
-    label: z.string(),
-    description: z.string(),
-    stravaActivityId: z.string(),
-    type: z.number().int(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    id: proto.string(),
+    startDate: proto.string(),
+    endDate: proto.string(),
+    label: proto.string(),
+    description: proto.string(),
+    stravaActivityId: proto.string(),
+    type: proto.int(),
+    createdAt: proto.string(),
+    updatedAt: proto.string(),
   })
   .passthrough();
 
 const AnnotationsForYearSchema = z
   .object({
-    annotations: z.array(AnnotationSchema),
+    annotations: z.array(AnnotationSchema).optional().default([]),
   })
   .passthrough();
 
 export const UserConfigSchema = z
   .object({
-    schemaVersion: z.string(),
-    userId: z.string(),
-    lastUpdated: z.string(),
-    goals: z.record(z.string(), SportGoalsForYearSchema),
-    annotations: z.record(z.string(), AnnotationsForYearSchema),
+    schemaVersion: proto.string(),
+    userId: proto.string(),
+    lastUpdated: proto.string(),
+    goals: z.record(z.string(), SportGoalsForYearSchema).optional().default({}),
+    annotations: z.record(z.string(), AnnotationsForYearSchema).optional().default({}),
     preferences: PreferencesSchema.optional(),
     metadata: MetadataSchema.optional(),
   })
   .passthrough();
+
+/**
+ * Compile-time drift guard: tsc will error here if the Zod schema's output
+ * type diverges from the proto-generated UserConfig (e.g., proto adds a
+ * required field that the schema doesn't produce).
+ *
+ * If this line fails to compile after running `just proto-gen`, update the
+ * schemas above to match the new proto fields.
+ */
+function _assertSchemaMatchesProto(_output: z.output<typeof UserConfigSchema>): UserConfig {
+  return _output;
+}
+void _assertSchemaMatchesProto;
 
 /**
  * Convert database errors to user-friendly error messages
