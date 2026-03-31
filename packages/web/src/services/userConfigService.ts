@@ -48,7 +48,7 @@ const ChartDefaultsSchema = z
 const PreferencesSchema = z
   .object({
     theme: proto.string(),
-    defaultYear: proto.number(),
+    defaultYear: proto.int(),
     chartDefaults: ChartDefaultsSchema.optional(),
     distanceUnit: proto.string(),
     elevationUnit: proto.string(),
@@ -69,7 +69,7 @@ const MetadataSchema = z
 const GoalSchema = z
   .object({
     id: proto.string(),
-    value: proto.number(),
+    value: proto.int(),
     label: proto.string(),
     createdAt: proto.string(),
     updatedAt: proto.string(),
