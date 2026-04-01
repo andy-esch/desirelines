@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	cloud.google.com/go/firestore v1.21.0
-	cloud.google.com/go/pubsub/v2 v2.5.0
+	cloud.google.com/go/pubsub/v2 v2.5.1
 	github.com/andy-esch/desirelines/packages/shared v0.0.0
 	github.com/go-chi/chi/v5 v5.2.5
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0
