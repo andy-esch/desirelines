@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
@@ -87,7 +88,7 @@ func TestOverLimit(t *testing.T) {
 	}
 
 	// Verify JSON error body
-	var errResp gcplog.ErrorResponse
+	var errResp apierrors.ErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}

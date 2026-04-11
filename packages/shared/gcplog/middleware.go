@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"go.opentelemetry.io/otel/attribute"
@@ -268,6 +269,19 @@ func CloudRunRealIP(next http.Handler) http.Handler {
 			if ip := strings.TrimSpace(parts[len(parts)-1]); ip != "" {
 				r.RemoteAddr = ip
 			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// BridgeRequestID is middleware that copies chi's request ID into the apierrors
+// context key, allowing WriteError to read it without importing chi directly.
+// Place this after chi's middleware.RequestID in the middleware stack.
+func BridgeRequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if id := middleware.GetReqID(r.Context()); id != "" {
+			ctx := apierrors.WithRequestID(r.Context(), id)
+			r = r.WithContext(ctx)
 		}
 		next.ServeHTTP(w, r)
 	})

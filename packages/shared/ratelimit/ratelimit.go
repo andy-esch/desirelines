@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"golang.org/x/time/rate"
 )
 
@@ -89,7 +89,7 @@ func New(ctx context.Context, cfg Config, logger *slog.Logger) *Limiter {
 }
 
 // Middleware returns chi-compatible middleware that rejects requests exceeding the rate limit.
-// It expects gcplog.CloudRunRealIP to have already run so that r.RemoteAddr contains the real client IP.
+// It expects apierrors.CloudRunRealIP to have already run so that r.RemoteAddr contains the real client IP.
 func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := stripPort(r.RemoteAddr)
@@ -97,7 +97,7 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 		limiter := l.getLimiter(ip)
 		if limiter == nil {
 			w.Header().Set("Retry-After", "60")
-			gcplog.WriteError(w, r, gcplog.ErrRateLimited, l.logger)
+			apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
 			return
 		}
 
@@ -123,7 +123,7 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 		}
 
 		w.Header().Set("Retry-After", retryAfter)
-		gcplog.WriteError(w, r, gcplog.ErrRateLimited, l.logger)
+		apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
 	})
 }
 

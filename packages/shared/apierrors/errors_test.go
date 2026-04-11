@@ -1,15 +1,12 @@
-package gcplog
+package apierrors
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 func TestAPIError_Error(t *testing.T) {
@@ -138,6 +135,7 @@ func TestPredefinedErrors(t *testing.T) {
 		{"ErrInternalServer", ErrInternalServer, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR"},
 		{"ErrUnauthorized", ErrUnauthorized, http.StatusUnauthorized, "UNAUTHORIZED"},
 		{"ErrForbidden", ErrForbidden, http.StatusForbidden, "FORBIDDEN"},
+		{"ErrRateLimited", ErrRateLimited, http.StatusTooManyRequests, "RATE_LIMITED"},
 	}
 
 	for _, tt := range tests {
@@ -165,15 +163,13 @@ func TestWriteError(t *testing.T) {
 		err := ErrBadRequest
 		WriteError(w, req, err, logger)
 
-		// Check status code
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
 		}
 
-		// Check response body
 		var response ErrorResponse
-		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-			t.Fatalf("failed to unmarshal response: %v", err)
+		if jsonErr := json.Unmarshal(w.Body.Bytes(), &response); jsonErr != nil {
+			t.Fatalf("failed to unmarshal response: %v", jsonErr)
 		}
 		if response.Error != err.Message {
 			t.Errorf("response.Error = %q, want %q", response.Error, err.Message)
@@ -185,8 +181,7 @@ func TestWriteError(t *testing.T) {
 
 	t.Run("includes request ID from context", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		// Manually set request ID in context (simulating middleware)
-		ctx := context.WithValue(req.Context(), middleware.RequestIDKey, "test-req-id")
+		ctx := WithRequestID(req.Context(), "test-req-id")
 		req = req.WithContext(ctx)
 		w := httptest.NewRecorder()
 
@@ -218,8 +213,8 @@ func TestWriteError(t *testing.T) {
 		}
 
 		var response ErrorResponse
-		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-			t.Fatalf("failed to unmarshal response: %v", err)
+		if jsonErr := json.Unmarshal(w.Body.Bytes(), &response); jsonErr != nil {
+			t.Fatalf("failed to unmarshal response: %v", jsonErr)
 		}
 		if response.Error != "Internal server error" {
 			t.Errorf("response.Error = %q, want public message", response.Error)
@@ -238,10 +233,24 @@ func TestErrorResponse_JSONFormat(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	// Should produce {"error":"Test error message","code":"TEST_CODE"}
-	// Note: RequestID and Details omitted because they are empty
 	want := `{"error":"Test error message","code":"TEST_CODE"}`
 	if string(data) != want {
 		t.Errorf("JSON = %s, want %s", string(data), want)
 	}
+}
+
+func TestRequestIDFromContext(t *testing.T) {
+	t.Run("returns empty when not set", func(t *testing.T) {
+		ctx := t.Context()
+		if got := RequestIDFromContext(ctx); got != "" {
+			t.Errorf("RequestIDFromContext() = %q, want empty", got)
+		}
+	})
+
+	t.Run("returns ID when set", func(t *testing.T) {
+		ctx := WithRequestID(t.Context(), "req-123")
+		if got := RequestIDFromContext(ctx); got != "req-123" {
+			t.Errorf("RequestIDFromContext() = %q, want %q", got, "req-123")
+		}
+	})
 }

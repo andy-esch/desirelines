@@ -1,12 +1,8 @@
-package gcplog
+// Package apierrors provides standardized API error types and response writing
+// for HTTP services. It is decoupled from any specific router or logging framework.
+package apierrors
 
-import (
-	"encoding/json"
-	"log/slog"
-	"net/http"
-
-	"github.com/go-chi/chi/v5/middleware"
-)
+import "net/http"
 
 // APIError represents a standardized API error with HTTP status and message.
 type APIError struct {
@@ -34,15 +30,7 @@ func (e APIError) IsZero() bool {
 	return e.Status == 0 && e.Message == ""
 }
 
-// ErrorResponse is the JSON structure returned to clients for errors.
-type ErrorResponse struct {
-	Error     string         `json:"error"`
-	Code      string         `json:"code,omitempty"`
-	RequestID string         `json:"request_id,omitempty"`
-	Details   map[string]any `json:"details,omitempty"`
-}
-
-// Common API errors with standardized messages
+// Common API errors with standardized messages.
 var (
 	ErrNotFound = APIError{
 		Status:  http.StatusNotFound,
@@ -102,45 +90,5 @@ func NewAPIErrorWithLog(status int, message, logMessage string) APIError {
 		Status:     status,
 		Message:    message,
 		LogMessage: logMessage,
-	}
-}
-
-// WriteError writes an error response with proper HTTP headers.
-func WriteError(w http.ResponseWriter, r *http.Request, err APIError, logger *slog.Logger) {
-	requestID := middleware.GetReqID(r.Context())
-
-	// Log error with context
-	logAttrs := []any{
-		"path", r.URL.Path,
-		"method", r.Method,
-		"status", err.Status,
-		"request_id", requestID,
-	}
-	if err.Code != "" {
-		logAttrs = append(logAttrs, "code", err.Code)
-	}
-
-	msg := err.LogMessage
-	if msg == "" {
-		msg = err.Message
-	}
-
-	if err.Status >= 500 {
-		logger.Error("API Internal Error", append(logAttrs, "error", msg)...)
-	} else {
-		logger.Warn("API Request Error", append(logAttrs, "error", msg)...)
-	}
-
-	// Write JSON error response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(err.Status)
-
-	response := ErrorResponse{
-		Error:     err.Message,
-		Code:      err.Code,
-		RequestID: requestID,
-	}
-	if encErr := json.NewEncoder(w).Encode(response); encErr != nil {
-		logger.Error("Failed to encode error response", "error", encErr, "request_id", requestID)
 	}
 }

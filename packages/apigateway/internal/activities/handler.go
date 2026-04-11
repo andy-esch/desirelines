@@ -46,7 +46,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
-	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -88,8 +88,8 @@ func (h *Handler) getUserID(w http.ResponseWriter, r *http.Request) (string, boo
 	userID := middleware.GetUserID(r.Context())
 	if userID == "" {
 		h.logger.Error("Auth: user ID missing from request context (middleware misconfiguration)")
-		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return "", false
 	}
 	return userID, true
@@ -114,11 +114,11 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	metadata, err := h.repo.GetYearMetadata(ctx, userID, year)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "year", year)
-		apiErr := gcplog.NewAPIError(
+		apiErr := apierrors.NewAPIError(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
 		)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -172,14 +172,14 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 	toStr := r.URL.Query().Get("to")
 
 	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
 	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, year); errMsg != "" {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
@@ -215,15 +215,15 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 
 	sportsStr := r.URL.Query().Get("sports")
 	if sportsStr == "" {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Missing 'sports' query parameter")
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Missing 'sports' query parameter")
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
 	categories := strings.Split(sportsStr, ",")
 	if len(categories) > MaxMultiSportCount {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Too many sports (max %d)", MaxMultiSportCount))
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Too many sports (max %d)", MaxMultiSportCount))
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
@@ -234,22 +234,22 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 			continue
 		}
 		if errMsg := validate.Sport(cat); errMsg != "" {
-			apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
-			gcplog.WriteError(w, r, apiErr, h.logger)
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+			apierrors.WriteError(w, r, apiErr, h.logger)
 			return nil
 		}
 		stravaTypes := h.sportConfig.GetStravaTypes(cat)
 		if stravaTypes == nil {
-			apiErr := gcplog.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport in sports list: %s", cat))
-			gcplog.WriteError(w, r, apiErr, h.logger)
+			apiErr := apierrors.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport in sports list: %s", cat))
+			apierrors.WriteError(w, r, apiErr, h.logger)
 			return nil
 		}
 		sportCategories[cat] = stravaTypes
 	}
 
 	if len(sportCategories) == 0 {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "No valid sports provided")
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "No valid sports provided")
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
@@ -257,14 +257,14 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 	toStr := r.URL.Query().Get("to")
 
 	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
 	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, year); errMsg != "" {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil
 	}
 
@@ -312,11 +312,11 @@ func (h *Handler) logAndRespondDBError(w http.ResponseWriter, r *http.Request, e
 	} else {
 		h.logger.Error("Database query failed", "error", err, "year", params.year, "sportTypes", params.sportTypes)
 	}
-	apiErr := gcplog.NewAPIError(
+	apiErr := apierrors.NewAPIError(
 		http.StatusInternalServerError,
 		errMsgInternalServerError,
 	)
-	gcplog.WriteError(w, r, apiErr, h.logger)
+	apierrors.WriteError(w, r, apiErr, h.logger)
 }
 
 // HandleMetrics serves sport-specific metrics data from PostgreSQL.
@@ -398,8 +398,8 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 	}
 	if err != nil {
 		h.logger.Error("Database query failed during multi-sport metrics fetch", "error", err)
-		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -489,8 +489,8 @@ func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		h.logger.Error("Database query failed during multi-sport source fetch", "error", err)
-		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -532,8 +532,8 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid activity ID format")
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid activity ID format")
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -543,17 +543,17 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	activity, err := h.repo.GetActivityByID(ctx, userID, id)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "activityId", id)
-		apiErr := gcplog.NewAPIError(
+		apiErr := apierrors.NewAPIError(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
 		)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	if activity == nil {
-		apiErr := gcplog.NewAPIError(http.StatusNotFound, "Activity not found")
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusNotFound, "Activity not found")
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -573,7 +573,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 
 	filter, apiErr := h.parseListActivitiesFilter(r)
 	if !apiErr.IsZero() {
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 	filter.UserID = userID
@@ -584,11 +584,11 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	result, err := h.repo.ListActivities(ctx, *filter)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err)
-		apiErr = gcplog.NewAPIError(
+		apiErr = apierrors.NewAPIError(
 			http.StatusInternalServerError,
 			errMsgInternalServerError,
 		)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -602,7 +602,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 
 // parseListActivitiesFilter parses and validates query parameters for ListActivities.
 // Returns a zero-value APIError (Status=0) on success.
-func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.ActivityListFilter, gcplog.APIError) {
+func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.ActivityListFilter, apierrors.APIError) {
 	query := r.URL.Query()
 	filter := repository.ActivityListFilter{
 		Limit: repository.DefaultListLimit,
@@ -611,7 +611,7 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 	// Parse 'from' date
 	if fromStr := query.Get("from"); fromStr != "" {
 		if !validate.Date(fromStr) {
-			return nil, gcplog.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
 		}
 		filter.From = &fromStr
 	}
@@ -619,7 +619,7 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 	// Parse 'to' date
 	if toStr := query.Get("to"); toStr != "" {
 		if !validate.Date(toStr) {
-			return nil, gcplog.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
 		}
 		filter.To = &toStr
 	}
@@ -627,11 +627,11 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 	// Parse 'sport' (optional) - maps to Strava sport types
 	if sport := query.Get("sport"); sport != "" {
 		if errMsg := validate.Sport(sport); errMsg != "" {
-			return nil, gcplog.NewAPIError(http.StatusBadRequest, errMsg)
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, errMsg)
 		}
 		stravaTypes := h.sportConfig.GetStravaTypes(sport)
 		if stravaTypes == nil {
-			return nil, gcplog.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport: %s", sport))
+			return nil, apierrors.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport: %s", sport))
 		}
 		filter.SportTypes = stravaTypes
 	}
@@ -640,7 +640,7 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 	if limitStr := query.Get("limit"); limitStr != "" {
 		limit, err := strconv.Atoi(limitStr)
 		if err != nil || limit < 1 || limit > repository.MaxListLimit {
-			return nil, gcplog.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid 'limit' (must be 1-%d)", repository.MaxListLimit))
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Invalid 'limit' (must be 1-%d)", repository.MaxListLimit))
 		}
 		filter.Limit = limit
 	}
@@ -648,16 +648,16 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 	// Parse 'cursor' for pagination
 	if cursorStr := query.Get("cursor"); cursorStr != "" {
 		if errMsg := validate.Cursor(cursorStr); errMsg != "" {
-			return nil, gcplog.NewAPIError(http.StatusBadRequest, errMsg)
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, errMsg)
 		}
 		cursor, err := decodeCursor(cursorStr)
 		if err != nil {
-			return nil, gcplog.NewAPIError(http.StatusBadRequest, "Invalid cursor")
+			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid cursor")
 		}
 		filter.Cursor = cursor
 	}
 
-	return &filter, gcplog.APIError{}
+	return &filter, apierrors.APIError{}
 }
 
 // validateAndGetYear extracts and validates the year path parameter.
@@ -665,8 +665,8 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (int, bool) {
 	year, ok := validate.ParseYear(chi.URLParam(r, "year"))
 	if !ok {
-		err := gcplog.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		gcplog.WriteError(w, r, err, h.logger)
+		err := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
+		apierrors.WriteError(w, r, err, h.logger)
 		return 0, false
 	}
 	return year, true
@@ -679,22 +679,22 @@ func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (in
 func (h *Handler) validateAndGetSportTypes(w http.ResponseWriter, r *http.Request) ([]string, bool) {
 	sport := r.URL.Query().Get("sport")
 	if sport == "" {
-		err := gcplog.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
-		gcplog.WriteError(w, r, err, h.logger)
+		err := apierrors.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
+		apierrors.WriteError(w, r, err, h.logger)
 		return nil, false
 	}
 
 	// Validate length to prevent oversized inputs
 	if errMsg := validate.Sport(sport); errMsg != "" {
-		err := gcplog.NewAPIError(http.StatusBadRequest, errMsg)
-		gcplog.WriteError(w, r, err, h.logger)
+		err := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+		apierrors.WriteError(w, r, err, h.logger)
 		return nil, false
 	}
 
 	stravaTypes := h.sportConfig.GetStravaTypes(sport)
 	if stravaTypes == nil {
-		err := gcplog.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport: %s", sport))
-		gcplog.WriteError(w, r, err, h.logger)
+		err := apierrors.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport: %s", sport))
+		apierrors.WriteError(w, r, err, h.logger)
 		return nil, false
 	}
 
