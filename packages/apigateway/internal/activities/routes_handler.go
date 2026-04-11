@@ -8,7 +8,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
-	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 )
 
 // routesDBTimeout is the timeout for the spatial routes query, which is heavier
@@ -27,8 +27,8 @@ func (h *Handler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		parsed, err := strconv.Atoi(limitStr)
 		if err != nil || parsed < 1 || parsed > repository.MaxRoutesLimit {
-			apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-"+strconv.Itoa(repository.MaxRoutesLimit)+")")
-			gcplog.WriteError(w, r, apiErr, h.logger)
+			apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'limit' (must be 1-"+strconv.Itoa(repository.MaxRoutesLimit)+")")
+			apierrors.WriteError(w, r, apiErr, h.logger)
 			return
 		}
 		limit = parsed
@@ -40,8 +40,8 @@ func (h *Handler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 	routes, err := h.repo.GetNormalizedRoutes(ctx, userID, limit)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "operation", "get_normalized_routes")
-		apiErr := gcplog.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 

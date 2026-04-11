@@ -15,6 +15,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
@@ -99,6 +100,7 @@ func (h *Handler) RegisterRoutes() http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(chiMiddleware.RequestID)
+	r.Use(gcplog.BridgeRequestID)
 	r.Use(gcplog.CloudRunRealIP)
 	if h.rateLimiter != nil {
 		r.Use(h.rateLimiter.Middleware)
@@ -133,40 +135,40 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("hub.verify_token")
 
 	if mode != "subscribe" {
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"invalid hub.mode",
 			fmt.Sprintf("Invalid hub.mode provided in verification request: %s", mode),
 		)
 		apiErr.Code = ErrCodeInvalidHubMode
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	if challenge == "" || len(challenge) > maxChallengeLength {
-		apiErr := gcplog.NewAPIError(http.StatusBadRequest, "Invalid hub.challenge")
+		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid hub.challenge")
 		apiErr.Code = ErrCodeInvalidChallenge
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	// Get current verify token from secret provider
 	verifyToken, _, err := h.secretProvider.GetSecrets()
 	if err != nil {
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Configuration error",
 			fmt.Sprintf("Failed to get verify token: %v", err),
 		)
 		apiErr.Code = ErrCodeConfigError
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	if subtle.ConstantTimeCompare([]byte(token), []byte(verifyToken)) != 1 {
-		apiErr := gcplog.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
+		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
 		apiErr.Code = ErrCodeInvalidVerifyToken
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -188,9 +190,9 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// Validate Content-Type header
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
-		apiErr := gcplog.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		apiErr := apierrors.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		apiErr.Code = ErrCodeInvalidContentType
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -199,38 +201,38 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Failed to read request body",
 			fmt.Sprintf("Read failed: %v", err),
 		)
 		apiErr.Code = ErrCodeReadFailed
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	// Parse JSON into Protobuf using adapter
 	webhook, err := webhookproto.ParseStravaWebhook(bodyBytes)
 	if err != nil {
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Invalid JSON payload",
 			fmt.Sprintf("Proto parse failed: %v", err),
 		)
 		apiErr.Code = ErrCodeInvalidJSON
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	// Validate proto event
 	if validateErr := webhookproto.Validate(webhook); validateErr != nil {
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Webhook validation failed",
 			fmt.Sprintf("Validation error: %v", validateErr),
 		)
 		apiErr.Code = ErrCodeValidationFailed
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -238,20 +240,20 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// subscriptionID is already int32, validated at load time
 	_, subscriptionID, err := h.secretProvider.GetSecrets()
 	if err != nil {
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Configuration error",
 			fmt.Sprintf("Failed to get subscription ID: %v", err),
 		)
 		apiErr.Code = ErrCodeConfigError
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
 	if webhook.SubscriptionId != subscriptionID {
-		apiErr := gcplog.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
+		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
 		apiErr.Code = ErrCodeInvalidSubscriptionID
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -295,13 +297,13 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 					"object_id", webhook.ObjectId)
 			} else {
 				// Other Strava errors — return 500 so Strava retries (up to 3 total attempts per spec)
-				apiErr := gcplog.NewAPIErrorWithLog(
+				apiErr := apierrors.NewAPIErrorWithLog(
 					http.StatusInternalServerError,
 					"Failed to fetch activity from Strava",
 					fmt.Sprintf("Strava fetch failed: %v", fetchErr),
 				)
 				apiErr.Code = ErrCodeStravaFetchFailed
-				gcplog.WriteError(w, r, apiErr, h.logger)
+				apierrors.WriteError(w, r, apiErr, h.logger)
 				return
 			}
 		} else {
@@ -310,13 +312,13 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if publishErr := h.publisher.Publish(ctx, enriched, correlationID); publishErr != nil {
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to publish event",
 			fmt.Sprintf("Publish failed: %v", publishErr),
 		)
 		apiErr.Code = ErrCodePublishFailed
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 
@@ -380,13 +382,13 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	// Publish the deauth event to the dedicated deauth topic so downstream consumers can act on it.
 	enriched := &generated.EnrichedEvent{Event: webhook}
 	if publishErr := h.deauthPublisher.Publish(ctx, enriched, correlationID); publishErr != nil {
-		apiErr := gcplog.NewAPIErrorWithLog(
+		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to publish deauth event",
 			fmt.Sprintf("Publish failed: %v", publishErr),
 		)
 		apiErr.Code = ErrCodeDeauthFailed
-		gcplog.WriteError(w, r, apiErr, h.logger)
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
 

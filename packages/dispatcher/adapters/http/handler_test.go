@@ -13,6 +13,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
 
@@ -27,8 +28,8 @@ const (
 
 // parseErrorResponse parses a JSON error response body.
 // Returns nil if parsing fails (e.g., for non-JSON responses).
-func parseErrorResponse(body string) *gcplog.ErrorResponse {
-	var resp gcplog.ErrorResponse
+func parseErrorResponse(body string) *apierrors.ErrorResponse {
+	var resp apierrors.ErrorResponse
 	if err := json.Unmarshal([]byte(body), &resp); err != nil {
 		return nil
 	}

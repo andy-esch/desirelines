@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"firebase.google.com/go/v4/auth"
-	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -77,7 +77,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			m.logger.Warn("Auth: Authentication failed", "reason", "missing_header")
-			gcplog.WriteError(w, r, gcplog.ErrUnauthorized, m.logger)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
 			return
 		}
 
@@ -85,7 +85,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			m.logger.Warn("Auth: Authentication failed", "reason", "invalid_header_format")
-			gcplog.WriteError(w, r, gcplog.ErrUnauthorized, m.logger)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
 			return
 		}
 
@@ -97,7 +97,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		if err != nil {
 			done(err)
 			m.logger.Warn("Auth: Authentication failed", "reason", "token_verification_failed", "error", err)
-			gcplog.WriteError(w, r, gcplog.ErrUnauthorized, m.logger)
+			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
 			return
 		}
 		done(nil)

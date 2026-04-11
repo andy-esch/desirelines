@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"golang.org/x/time/rate"
 )
 
@@ -97,7 +97,7 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 		limiter := l.getLimiter(ip)
 		if limiter == nil {
 			w.Header().Set("Retry-After", "60")
-			gcplog.WriteError(w, r, gcplog.ErrRateLimited, l.logger)
+			apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
 			return
 		}
 
@@ -123,7 +123,7 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 		}
 
 		w.Header().Set("Retry-After", retryAfter)
-		gcplog.WriteError(w, r, gcplog.ErrRateLimited, l.logger)
+		apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
 	})
 }
 
