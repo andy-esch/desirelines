@@ -89,7 +89,7 @@ func New(ctx context.Context, cfg Config, logger *slog.Logger) *Limiter {
 }
 
 // Middleware returns chi-compatible middleware that rejects requests exceeding the rate limit.
-// It expects apierrors.CloudRunRealIP to have already run so that r.RemoteAddr contains the real client IP.
+// It expects gcplog.CloudRunRealIP to have already run so that r.RemoteAddr contains the real client IP.
 func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := stripPort(r.RemoteAddr)
