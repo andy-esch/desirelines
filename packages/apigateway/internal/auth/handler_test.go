@@ -356,7 +356,7 @@ func TestHandleCallback(t *testing.T) {
 			wantLocation: "/auth/complete#token=firebase-custom-token",
 		},
 		{
-			name:  "happy path (scope in query, not in JSON)",
+			name:  "scope missing from JSON (query param ignored)",
 			query: "code=auth-code&state=" + validState + "&scope=activity:read_all",
 			strava: &mockStravaOAuth{resp: &StravaTokenResponse{
 				AccessToken:  "tok",
@@ -368,7 +368,7 @@ func TestHandleCallback(t *testing.T) {
 			allowlist:    &mockAllowlist{allowed: true},
 			firebase:     &mockFirebase{token: "fb-token"},
 			wantStatus:   http.StatusFound,
-			wantLocation: "/auth/complete#token=fb-token",
+			wantLocation: "/auth/error?error=insufficient_scope",
 		},
 		{
 			name:         "insufficient scope (missing from both)",
@@ -381,7 +381,7 @@ func TestHandleCallback(t *testing.T) {
 			wantLocation: "/auth/error?error=insufficient_scope",
 		},
 		{
-			name:  "insufficient scope (missing from query parameter)",
+			name:  "scope empty in JSON (query param not used as fallback)",
 			query: "code=auth-code&state=" + validState + "&scope=read",
 			strava: &mockStravaOAuth{resp: &StravaTokenResponse{
 				AccessToken:  "tok",
