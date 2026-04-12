@@ -63,7 +63,8 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	r.Use(gcplog.HTTPRequestLoggerWithMetrics(logger, cfg.HTTPHistogram))
 	r.Use(chiMiddleware.Recoverer)
 
-	// CORS middleware for all routes
+	// Security and CORS headers for all routes
+	r.Use(SecurityHeaders)
 	r.Use(CORSMiddleware(cfg.CORSHandler))
 
 	// Root-level endpoints (health checks and OAuth flow)
@@ -79,6 +80,7 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 		// Authenticated route group
 		r.Group(func(r chi.Router) {
 			r.Use(cfg.AuthMiddleware.Middleware)
+			r.Use(NoCacheHeaders)
 
 			// Multi-sport endpoints (PostgreSQL backed)
 			r.Get("/activities/{year}/metadata", auth.GetMetadata)

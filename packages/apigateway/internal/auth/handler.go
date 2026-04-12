@@ -162,12 +162,13 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	athleteID := strconv.FormatInt(tokenResp.Athlete.ID, 10)
 
 	// Verify that the user actually granted the required scopes.
-	// Prefer the scope from the token exchange response (server-to-server, trusted)
-	// over the query parameter (user-controlled, untrusted). Fall back to the
-	// query parameter only if the response doesn't include scopes.
+	// Only trust the scope from the token exchange response (server-to-server).
+	// The callback query parameter is user-controlled and must not be used.
 	grantedScope := tokenResp.Scope
 	if grantedScope == "" {
-		grantedScope = r.URL.Query().Get("scope")
+		h.logger.Warn("Token exchange response missing scope", "athlete_id", athleteID)
+		h.redirectError(w, r, "insufficient_scope")
+		return
 	}
 
 	hasRequiredScope := false
