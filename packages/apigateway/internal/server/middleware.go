@@ -63,11 +63,14 @@ func StripOptionalPrefix(prefix string, h http.Handler) http.Handler {
 		return h
 	}
 	stripped := http.StripPrefix(prefix, h)
+	// Pre-compute the prefix+"/" string once at init so the per-request
+	// hot path avoids an allocation on every non-matching request.
+	prefixSlash := prefix + "/"
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Only strip when the prefix is followed by a path segment boundary
 		// ("/api/..." or exactly "/api"). This avoids rewriting paths like
 		// "/apistuff" that merely share a prefix string.
-		if strings.HasPrefix(r.URL.Path, prefix+"/") || r.URL.Path == prefix {
+		if r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefixSlash) {
 			stripped.ServeHTTP(w, r)
 			return
 		}
