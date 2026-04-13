@@ -3,6 +3,7 @@ package server
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 )
@@ -44,5 +45,32 @@ func NoCacheHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)
+	})
+}
+
+// StripOptionalPrefix returns a handler that strips the given prefix from the
+// request URL path if present, then delegates to the inner handler. Unlike
+// http.StripPrefix, paths without the prefix are passed through unchanged
+// instead of returning 404.
+//
+// This supports serving the API under two path spaces simultaneously: requests
+// to /v1/... route directly, and requests to /api/v1/... have /api stripped
+// before routing. This is used behind Firebase Hosting Cloud Run rewrites,
+// which forward the full original path (including the rewrite prefix) to the
+// backend.
+func StripOptionalPrefix(prefix string, h http.Handler) http.Handler {
+	if prefix == "" {
+		return h
+	}
+	stripped := http.StripPrefix(prefix, h)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only strip when the prefix is followed by a path segment boundary
+		// ("/api/..." or exactly "/api"). This avoids rewriting paths like
+		// "/apistuff" that merely share a prefix string.
+		if strings.HasPrefix(r.URL.Path, prefix+"/") || r.URL.Path == prefix {
+			stripped.ServeHTTP(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
 	})
 }

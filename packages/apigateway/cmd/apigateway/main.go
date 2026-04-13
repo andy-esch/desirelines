@@ -81,8 +81,11 @@ func run(log *slog.Logger) error {
 	}
 	defer deps.Close()
 
-	// Build router with all routes
-	router := buildRouter(deps)
+	// Build router with all routes. Wrap with StripOptionalPrefix so requests
+	// proxied through Firebase Hosting at /api/... route to the same handlers
+	// as direct /... requests. Both path spaces are served simultaneously
+	// during the transition to the Firebase Hosting proxy.
+	router := server.StripOptionalPrefix("/api", buildRouter(deps))
 
 	// Start server with configurable timeouts
 	port := config.GetEnvOrDefault("PORT", "8080")

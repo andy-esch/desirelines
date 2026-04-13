@@ -677,6 +677,10 @@ func (r *ActivityRepository) GetNormalizedRoutes(ctx context.Context, userID str
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_normalized_routes"))
 	defer func() { done(retErr) }()
 
+	if limit <= 0 || limit > repository.MaxRoutesLimit {
+		limit = repository.MaxRoutesLimit
+	}
+
 	query := `
 		SELECT
 			a.id,
