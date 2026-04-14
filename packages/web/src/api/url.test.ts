@@ -73,4 +73,39 @@ describe("isInternalRequest", () => {
     expect(isInternalRequest("https://api.example.com/v1/", baseURLWithSlash)).toBe(true);
     expect(isInternalRequest("https://api.example.com/v1/users", baseURLWithSlash)).toBe(true);
   });
+
+  describe("same-origin relative baseURL (Firebase Hosting proxy)", () => {
+    // When VITE_API_GATEWAY_URL is "/api", client.ts constructs baseURL = "/api/v1".
+    // These cases verify same-origin routing through the Firebase Hosting proxy.
+    const relativeBase = "/api/v1";
+
+    it("should treat relative request URLs as internal under the subpath", () => {
+      expect(isInternalRequest("activities", relativeBase)).toBe(true);
+      expect(isInternalRequest("activities/123/metrics", relativeBase)).toBe(true);
+    });
+
+    it("should treat absolute-path request URLs under the subpath as internal", () => {
+      expect(isInternalRequest("/api/v1/activities", relativeBase)).toBe(true);
+      expect(isInternalRequest("/api/v1", relativeBase)).toBe(true);
+    });
+
+    it("should treat absolute-path request URLs outside the subpath as external", () => {
+      // "/users" resolves to "https://app.example.com/users" which is outside "/api/v1"
+      expect(isInternalRequest("/users", relativeBase)).toBe(false);
+      expect(isInternalRequest("/v1/users", relativeBase)).toBe(false);
+    });
+
+    it("should treat cross-origin absolute URLs as external", () => {
+      expect(isInternalRequest("https://api.example.com/api/v1/activities", relativeBase)).toBe(
+        false
+      );
+      expect(isInternalRequest("https://attacker.com/api/v1", relativeBase)).toBe(false);
+    });
+
+    it("should treat same-origin absolute URLs under the subpath as internal", () => {
+      expect(isInternalRequest("https://app.example.com/api/v1/activities", relativeBase)).toBe(
+        true
+      );
+    });
+  });
 });
