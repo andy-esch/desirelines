@@ -53,8 +53,28 @@ const AppConfigSchema = z.object({
   isDevelopment: z.boolean(),
   isProduction: z.boolean(),
 
-  // API configuration
-  apiGatewayUrl: z.string().url().optional(),
+  // API configuration.
+  // Accepts either an absolute URL (e.g. "http://localhost:8084" for local dev)
+  // or a same-origin relative path (e.g. "/api" when routing through Firebase
+  // Hosting rewrites to Cloud Run). The axios client appends "/v1" to this value.
+  apiGatewayUrl: z
+    .string()
+    .refine(
+      (val) => {
+        if (val.startsWith("/")) return true;
+        try {
+          new URL(val);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message:
+          "Must be an absolute URL (e.g. http://localhost:8084) or a same-origin path starting with '/' (e.g. /api)",
+      }
+    )
+    .optional(),
 
   // Firebase configuration
   firebase: FirebaseConfigSchema,
