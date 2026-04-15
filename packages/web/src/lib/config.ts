@@ -53,8 +53,36 @@ const AppConfigSchema = z.object({
   isDevelopment: z.boolean(),
   isProduction: z.boolean(),
 
-  // API configuration
-  apiGatewayUrl: z.string().url().optional(),
+  // API configuration.
+  // Accepts either an absolute URL (e.g. "http://localhost:8084" for local dev)
+  // or a same-origin relative path (e.g. "/api" when routing through Firebase
+  // Hosting rewrites to Cloud Run). The axios client appends "/v1" to this value.
+  //
+  // Protocol-relative URLs ("//example.com/...") are explicitly rejected: they
+  // start with "/" but are NOT same-origin paths — the browser would resolve
+  // them against the current scheme and target a different host, which would
+  // silently leak auth tokens to a third party.
+  apiGatewayUrl: z
+    .string()
+    .refine(
+      (val) => {
+        // Same-origin path: single leading slash, not protocol-relative.
+        if (val.startsWith("/") && !val.startsWith("//")) return true;
+        // Absolute URL with scheme.
+        try {
+          new URL(val);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message:
+          "Must be an absolute URL (e.g. http://localhost:8084) or a same-origin path starting with '/' (e.g. /api). " +
+          "Protocol-relative URLs (starting with '//') are not allowed.",
+      }
+    )
+    .optional(),
 
   // Firebase configuration
   firebase: FirebaseConfigSchema,
