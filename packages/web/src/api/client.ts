@@ -30,15 +30,19 @@ function getClient() {
       timeout: 30_000,
     });
 
-    // Dev-only guard: URLs starting with "/" resolve against the origin root,
-    // bypassing the /v1 base path. This silently breaks isInternalRequest()
-    // and drops the auth token. Catch this mistake early in development.
+    // Dev-only style guard: enforce the convention that call-site URLs are
+    // written without a leading slash (e.g. "activities", not "/activities").
+    // Axios's combineURLs strips leading slashes and would combine both forms
+    // identically, and `isInternalRequest` mirrors that — but consistent style
+    // makes the code easier to scan and signals REST-ful intent ("activities"
+    // is a resource under the configured baseURL).
     if (!config.isProduction) {
       client.interceptors.request.use((reqConfig) => {
         if (reqConfig.url?.startsWith("/")) {
           throw new Error(
-            `[API Client] URL "${reqConfig.url}" starts with "/" which bypasses the /v1 base path. ` +
-              `Use a relative URL instead (e.g., "activities" not "/activities").`
+            `[API Client] URL "${reqConfig.url}" starts with "/". ` +
+              `Use a relative URL instead (e.g., "activities" not "/activities") ` +
+              `for consistency with the codebase style.`
           );
         }
         return reqConfig;

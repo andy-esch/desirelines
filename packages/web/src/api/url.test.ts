@@ -35,9 +35,12 @@ describe("isInternalRequest", () => {
     expect(isInternalRequest("/v1/users", subpathBase)).toBe(true);
   });
 
-  it("should return false for relative URLs that escape the subpath baseURL", () => {
-    // "/users" resolves to "https://api.example.com/users", which is OUTSIDE "/v1"
-    expect(isInternalRequest("/users", subpathBase)).toBe(false);
+  it("should treat leading-slash request URLs as combined with baseURL (matches axios combineURLs)", () => {
+    // Axios's combineURLs strips the leading slash from "/users" and appends to
+    // baseURL, sending the request to "https://api.example.com/v1/users".
+    // isInternalRequest must match that behavior — see url.ts header comment.
+    expect(isInternalRequest("/users", subpathBase)).toBe(true);
+    expect(isInternalRequest("/activities/123", subpathBase)).toBe(true);
   });
 
   it("should return true for absolute URLs matching the baseURL", () => {
@@ -84,15 +87,18 @@ describe("isInternalRequest", () => {
       expect(isInternalRequest("activities/123/metrics", relativeBase)).toBe(true);
     });
 
-    it("should treat absolute-path request URLs under the subpath as internal", () => {
-      expect(isInternalRequest("/api/v1/activities", relativeBase)).toBe(true);
-      expect(isInternalRequest("/api/v1", relativeBase)).toBe(true);
+    it("should treat leading-slash request URLs as combined with baseURL", () => {
+      // Axios combineURLs strips the leading slash and concatenates, so
+      // `client.get("/activities")` with baseURL `/api/v1` sends to
+      // `/api/v1/activities`. Match that behavior.
+      expect(isInternalRequest("/activities", relativeBase)).toBe(true);
+      expect(isInternalRequest("/users", relativeBase)).toBe(true);
+      expect(isInternalRequest("/v1/users", relativeBase)).toBe(true);
     });
 
-    it("should treat absolute-path request URLs outside the subpath as external", () => {
-      // "/users" resolves to "https://app.example.com/users" which is outside "/api/v1"
-      expect(isInternalRequest("/users", relativeBase)).toBe(false);
-      expect(isInternalRequest("/v1/users", relativeBase)).toBe(false);
+    it("should treat already-prefixed leading-slash URLs as internal", () => {
+      expect(isInternalRequest("/api/v1/activities", relativeBase)).toBe(true);
+      expect(isInternalRequest("/api/v1", relativeBase)).toBe(true);
     });
 
     it("should treat cross-origin absolute URLs as external", () => {
@@ -100,6 +106,13 @@ describe("isInternalRequest", () => {
         false
       );
       expect(isInternalRequest("https://attacker.com/api/v1", relativeBase)).toBe(false);
+    });
+
+    it("should treat protocol-relative URLs to other origins as external", () => {
+      // "//attacker.com/foo" is absolute per axios isAbsoluteURL. The browser
+      // resolves it to "<current-scheme>://attacker.com/foo", which is
+      // cross-origin and must NOT receive the auth token.
+      expect(isInternalRequest("//attacker.com/api/v1/foo", relativeBase)).toBe(false);
     });
 
     it("should treat same-origin absolute URLs under the subpath as internal", () => {
