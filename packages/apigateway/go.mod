@@ -3,7 +3,7 @@ module github.com/andy-esch/desirelines/packages/apigateway
 go 1.25.1
 
 require (
-	cloud.google.com/go/firestore v1.21.0
+	cloud.google.com/go/firestore v1.22.0
 	firebase.google.com/go/v4 v4.19.0
 	github.com/andy-esch/desirelines/packages/shared v0.0.0
 	github.com/go-chi/chi/v5 v5.2.5
