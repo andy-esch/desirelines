@@ -35,20 +35,27 @@ import { logger } from "./logger";
  * Exported for direct unit testing independently of the full config schema.
  */
 export function isValidApiGatewayUrl(val: string): boolean {
-  // Same-origin path: single leading slash, not protocol-relative.
-  if (val.startsWith("/") && !val.startsWith("//")) return true;
-  // Absolute URL with scheme.
+  // Same-origin path: must start with "/" but NOT "//" (protocol-relative),
+  // and must have at least one path character after the slash. A bare "/"
+  // would produce "//v1" when the client appends "/v1", creating a
+  // protocol-relative URL that leaks auth tokens to host "v1".
+  if (val.startsWith("/")) {
+    return !val.startsWith("//") && val.length > 1;
+  }
+  // Absolute URL: must parse and use http or https. Non-HTTP schemes (file:,
+  // javascript:, ftp:, etc.) are syntactically valid but would fail at the
+  // axios transport layer — reject at boot for a clear error.
   try {
-    new URL(val);
-    return true;
+    const url = new URL(val);
+    return url.protocol === "http:" || url.protocol === "https:";
   } catch {
     return false;
   }
 }
 
 const API_GATEWAY_URL_VALIDATION_MESSAGE =
-  "Must be an absolute URL (e.g. http://localhost:8084) or a same-origin path starting with '/' (e.g. /api). " +
-  "Protocol-relative URLs (starting with '//') are not allowed.";
+  "Must be an http(s) URL (e.g. http://localhost:8084) or a same-origin path with " +
+  "at least two characters (e.g. /api). Protocol-relative URLs (//) and bare '/' are not allowed.";
 
 // ============================================================================
 // Zod Schemas
