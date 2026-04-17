@@ -162,26 +162,9 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	athleteID := strconv.FormatInt(tokenResp.Athlete.ID, 10)
 
 	// Verify that the user actually granted the required scopes.
-	// Only trust the scope from the token exchange response (server-to-server).
-	// The callback query parameter is user-controlled and must not be used.
-	grantedScope := tokenResp.Scope
-	if grantedScope == "" {
-		h.logger.Warn("Token exchange response missing scope", "athlete_id", athleteID)
-		h.redirectError(w, r, "insufficient_scope")
-		return
-	}
-
-	hasRequiredScope := false
-	for _, scope := range strings.Split(grantedScope, ",") {
-		if strings.TrimSpace(scope) == "activity:read_all" {
-			hasRequiredScope = true
-			break
-		}
-	}
-	if !hasRequiredScope {
-		h.logger.Warn("Insufficient scopes granted", "granted", grantedScope, "required", "activity:read_all", "athlete_id", athleteID)
-		h.redirectError(w, r, "insufficient_scope")
-		return
+	grantedScope, err := h.validateScope(w, r, tokenResp, athleteID)
+	if err != nil {
+		return // already redirected to error page
 	}
 
 	// Timeout for Firestore/Firebase operations
@@ -268,6 +251,37 @@ func (h *Handler) syncFirebaseProfile(ctx context.Context, athleteID string, ath
 	if _, err := h.firebase.UpdateUser(ctx, athleteID, userUpdate); err != nil {
 		h.logger.Warn("Failed to update Firebase user profile", "error", err, "athlete_id", athleteID)
 	}
+}
+
+// validateScope checks that the OAuth response includes the required activity:read_all scope.
+// Prefers the scope from the token exchange response (server-to-server), but falls back to the
+// callback query parameter. Strava's POST /oauth/token response does NOT include a "scope" field
+// (despite our struct having the tag), so the query parameter is typically the only source.
+// The query param is set by Strava's redirect — a user could tamper with it, but the real
+// enforcement is at Strava's API: a token without activity:read_all will fail at call time.
+//
+// Returns the granted scope string and a non-nil error (and redirects to the error page) if
+// scope validation fails.
+func (h *Handler) validateScope(w http.ResponseWriter, r *http.Request, tokenResp *StravaTokenResponse, athleteID string) (string, error) {
+	grantedScope := tokenResp.Scope
+	if grantedScope == "" {
+		grantedScope = r.URL.Query().Get("scope")
+	}
+	if grantedScope == "" {
+		h.logger.Warn("No scope in token response or callback query", "athlete_id", athleteID)
+		h.redirectError(w, r, "insufficient_scope")
+		return "", fmt.Errorf("missing scope")
+	}
+
+	for _, scope := range strings.Split(grantedScope, ",") {
+		if strings.TrimSpace(scope) == "activity:read_all" {
+			return grantedScope, nil
+		}
+	}
+
+	h.logger.Warn("Insufficient scopes granted", "granted", grantedScope, "required", "activity:read_all", "athlete_id", athleteID)
+	h.redirectError(w, r, "insufficient_scope")
+	return "", fmt.Errorf("insufficient scope: %s", grantedScope)
 }
 
 // redirectError redirects the user to the frontend error page with an error code.
