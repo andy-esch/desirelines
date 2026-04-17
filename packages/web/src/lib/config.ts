@@ -12,6 +12,52 @@ import { z } from "zod";
 import { logger } from "./logger";
 
 // ============================================================================
+// Validators
+// ============================================================================
+
+/**
+ * Validates `VITE_API_GATEWAY_URL` shape.
+ *
+ * Accepts either:
+ * - An absolute URL with scheme (e.g. `http://localhost:8084`,
+ *   `https://api.example.com`) — used for local dev and the pre-proxy Cloud
+ *   Run URL rollback scenario.
+ * - A same-origin relative path starting with a single slash (e.g. `/api`,
+ *   `/api/v1`) — used when routing through Firebase Hosting rewrites to
+ *   Cloud Run. The axios client appends `/v1` to this value.
+ *
+ * Rejects protocol-relative URLs (`//example.com/...`): they start with `/`
+ * but are NOT same-origin paths — the browser resolves them against the
+ * current scheme and targets a different host, which would silently leak
+ * auth tokens to a third party. Also rejects empty strings and arbitrary
+ * non-URL strings.
+ *
+ * Exported for direct unit testing independently of the full config schema.
+ */
+export function isValidApiGatewayUrl(val: string): boolean {
+  // Same-origin path: must start with "/" but NOT "//" (protocol-relative),
+  // and must have at least one path character after the slash. A bare "/"
+  // would produce "//v1" when the client appends "/v1", creating a
+  // protocol-relative URL that leaks auth tokens to host "v1".
+  if (val.startsWith("/")) {
+    return !val.startsWith("//") && val.length > 1;
+  }
+  // Absolute URL: must parse and use http or https. Non-HTTP schemes (file:,
+  // javascript:, ftp:, etc.) are syntactically valid but would fail at the
+  // axios transport layer — reject at boot for a clear error.
+  try {
+    const url = new URL(val);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+const API_GATEWAY_URL_VALIDATION_MESSAGE =
+  "Must be an http(s) URL (e.g. http://localhost:8084) or a same-origin path with " +
+  "at least two characters (e.g. /api). Protocol-relative URLs (//) and bare '/' are not allowed.";
+
+// ============================================================================
 // Zod Schemas
 // ============================================================================
 
@@ -53,35 +99,10 @@ const AppConfigSchema = z.object({
   isDevelopment: z.boolean(),
   isProduction: z.boolean(),
 
-  // API configuration.
-  // Accepts either an absolute URL (e.g. "http://localhost:8084" for local dev)
-  // or a same-origin relative path (e.g. "/api" when routing through Firebase
-  // Hosting rewrites to Cloud Run). The axios client appends "/v1" to this value.
-  //
-  // Protocol-relative URLs ("//example.com/...") are explicitly rejected: they
-  // start with "/" but are NOT same-origin paths — the browser would resolve
-  // them against the current scheme and target a different host, which would
-  // silently leak auth tokens to a third party.
+  // API configuration — see isValidApiGatewayUrl for the accepted shapes.
   apiGatewayUrl: z
     .string()
-    .refine(
-      (val) => {
-        // Same-origin path: single leading slash, not protocol-relative.
-        if (val.startsWith("/") && !val.startsWith("//")) return true;
-        // Absolute URL with scheme.
-        try {
-          new URL(val);
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      {
-        message:
-          "Must be an absolute URL (e.g. http://localhost:8084) or a same-origin path starting with '/' (e.g. /api). " +
-          "Protocol-relative URLs (starting with '//') are not allowed.",
-      }
-    )
+    .refine(isValidApiGatewayUrl, { message: API_GATEWAY_URL_VALIDATION_MESSAGE })
     .optional(),
 
   // Firebase configuration
