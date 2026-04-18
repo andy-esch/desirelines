@@ -213,7 +213,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
 
       startup_probe {
         http_get {
-          path = "/health"
+          path = "/api/health"
         }
         initial_delay_seconds = 0
         period_seconds        = 3
