@@ -157,7 +157,7 @@ resource "google_cloud_run_v2_service_iam_member" "dispatcher_public_access" {
 resource "google_cloud_run_v2_service" "api_gateway" {
   name     = "${var.project_name}-api-gateway"
   location = var.gcp_region
-  ingress  = "INGRESS_TRAFFIC_ALL" # Public web access
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_AND_CLOUD_LOAD_BALANCING" # Firebase Hosting proxy only
 
   labels = local.common_labels
 
