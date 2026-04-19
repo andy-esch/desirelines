@@ -81,6 +81,16 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 		return nil, nil, fmt.Errorf("create GCP trace exporter: %w", err)
 	}
 
+	// Sampler: AlwaysSample is intentional. Request volume across dispatcher
+	// and apigateway is currently low enough that Cloud Trace ingestion cost
+	// is negligible, and 100% sampling gives us full trace fidelity for
+	// debugging — every user-reported bug has a trace, every error path is
+	// captured. Revisit if monthly ingestion starts showing in billing or
+	// if Cloud Trace search latency degrades. When that day comes, the
+	// right replacement is ParentBased(TraceIDRatioBased(X)) with the
+	// error path force-sampled via a custom sampler (so failures are never
+	// dropped). Do not silently lower this to a ratio without pairing it
+	// with error-path force-sampling.
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExp),
 		sdktrace.WithResource(res),
@@ -105,8 +115,18 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 	// that gcplog.WithCloudTraceContext writes into structured log fields,
 	// so Cloud Trace's "Show logs" feature works correctly.
 	//
-	// TraceContext (W3C) handles outgoing propagation via traceparent, which
-	// downstream Python services extract to join the same trace.
+	// TraceContext (W3C) handles outgoing propagation via traceparent. The
+	// dispatcher injects it into PubSub message attributes at
+	// packages/dispatcher/adapters/pubsub/publisher.go (see the Inject call
+	// after the attrs map is constructed). Python workers extract it via
+	// packages/stravapipe/src/stravapipe/shared/tracing.py's
+	// extract_context_from_attributes(), which the shared
+	// handle_webhook_cloudevent() helper (webhook_handler.py) then threads
+	// into record_span(parent_context=...). deletion_service_app.py has its
+	// own parse+extract path but uses the same helper function. Result:
+	// Python spans in bq_inserter, postgres_writer, and deletion_service
+	// appear as children of the dispatcher's pubsub.Publish span in Cloud
+	// Trace, with a single unified trace_id across services.
 	//
 	// Baggage is included for future use (e.g., propagating correlation_id).
 	otelglobal.SetTextMapPropagator(
