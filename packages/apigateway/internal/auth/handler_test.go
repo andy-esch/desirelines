@@ -371,7 +371,7 @@ func TestHandleCallback(t *testing.T) {
 			wantLocation: "/auth/complete#token=fb-token",
 		},
 		{
-			name:         "insufficient scope (missing from both JSON and query)",
+			name:         "insufficient scope in JSON, no query param",
 			query:        "code=auth-code&state=" + validState,
 			strava:       &mockStravaOAuth{resp: insufficientScopeResp},
 			tokens:       &mockTokenStore{},

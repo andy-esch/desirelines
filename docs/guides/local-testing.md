@@ -70,10 +70,10 @@ just start-frontend
 
 ```bash
 # Health check
-curl http://localhost:8084/health
+curl http://localhost:8084/api/health
 
 # Sport config (public)
-curl http://localhost:8084/sports/config
+curl http://localhost:8084/api/sports/config
 ```
 
 See [frontend-local-dev.md](./frontend-local-dev.md) for authenticated testing.

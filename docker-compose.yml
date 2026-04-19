@@ -319,7 +319,7 @@ services:
       - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulators:9099
       - GCP_PROJECT_ID=desirelines-local
       - FRONTEND_URL=http://localhost:3000
-      - AUTH_CALLBACK_URL=http://localhost:8084/auth/callback
+      - AUTH_CALLBACK_URL=http://localhost:8084/api/auth/callback
       - POSTGRES_CONNECTION_STRING=postgresql://${POSTGRES_USER_LOCAL}:${POSTGRES_PASSWORD_LOCAL}@postgres:5432/${POSTGRES_DB_LOCAL}?application_name=apigateway
     env_file:
       - .env.local
