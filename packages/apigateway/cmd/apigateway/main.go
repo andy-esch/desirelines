@@ -95,9 +95,24 @@ func run(log *slog.Logger) error {
 	// Skip /api/health: Cloud Run polls it constantly and the spans add noise
 	// and export cost without diagnostic value. Path matches the public URL
 	// because otelhttp sits outside StripPrefix.
+	//
+	// WithPublicEndpointFn: apigateway is internet-facing via Firebase
+	// Hosting, so callers can inject arbitrary traceparent /
+	// X-Cloud-Trace-Context headers. Without this option otelhttp would
+	// *continue* that trace, letting a user pollute our trace tree or
+	// collide their request with a real internal trace_id. This option
+	// creates a fresh root span per request and *links* the caller's span
+	// context, preserving the correlation handle without trusting the ID
+	// for our tree. Returning true unconditionally is correct here because
+	// every path served by this handler is reached from the public
+	// internet via Firebase Hosting. (otelhttp deprecated the no-arg
+	// WithPublicEndpoint in favor of this function variant.) Dispatcher
+	// does NOT need this — it's authenticated by Cloud Run IAM and receives
+	// only trusted internal callers (PubSub push, Cloud Scheduler).
 	router := otelhttp.NewHandler(
 		http.StripPrefix("/api", buildRouter(deps)),
 		"apigateway",
+		otelhttp.WithPublicEndpointFn(func(_ *http.Request) bool { return true }),
 		otelhttp.WithFilter(func(r *http.Request) bool {
 			return r.URL.Path != "/api/health"
 		}),

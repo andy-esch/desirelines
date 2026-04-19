@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestAPIError_Error(t *testing.T) {
@@ -220,6 +222,60 @@ func TestWriteError(t *testing.T) {
 			t.Errorf("response.Error = %q, want public message", response.Error)
 		}
 	})
+}
+
+func TestWriteError_IncludesTraceIDWhenSpanActive(t *testing.T) {
+	logger := slog.Default()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	// Build a valid SpanContext with a known trace_id and attach to the
+	// request context. Using ContextWithSpanContext avoids needing a full
+	// TracerProvider; WriteError only reads SpanContextFromContext.
+	traceID, err := trace.TraceIDFromHex("0af7651916cd43dd8448eb211c80319c")
+	if err != nil {
+		t.Fatalf("TraceIDFromHex: %v", err)
+	}
+	spanID, err := trace.SpanIDFromHex("b7ad6b7169203331")
+	if err != nil {
+		t.Fatalf("SpanIDFromHex: %v", err)
+	}
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     spanID,
+		TraceFlags: trace.FlagsSampled,
+	})
+	req = req.WithContext(trace.ContextWithSpanContext(req.Context(), sc))
+	w := httptest.NewRecorder()
+
+	WriteError(w, req, ErrInternalServer, logger)
+
+	var response ErrorResponse
+	if jsonErr := json.Unmarshal(w.Body.Bytes(), &response); jsonErr != nil {
+		t.Fatalf("failed to unmarshal response: %v", jsonErr)
+	}
+	want := "0af7651916cd43dd8448eb211c80319c"
+	if response.TraceID != want {
+		t.Errorf("response.TraceID = %q, want %q", response.TraceID, want)
+	}
+	if strings.Contains(response.TraceID, "projects/") {
+		t.Errorf("response.TraceID = %q should be raw hex, not resource-name form", response.TraceID)
+	}
+}
+
+func TestWriteError_OmitsTraceIDWhenNoSpan(t *testing.T) {
+	logger := slog.Default()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+
+	WriteError(w, req, ErrBadRequest, logger)
+
+	// With omitempty and no span, the field should be absent from JSON
+	// (not present as an empty string). Check the raw body, not the
+	// unmarshaled struct (which would show "" either way).
+	body := w.Body.String()
+	if strings.Contains(body, "trace_id") {
+		t.Errorf("response body should omit trace_id when no span: %s", body)
+	}
 }
 
 func TestErrorResponse_JSONFormat(t *testing.T) {
