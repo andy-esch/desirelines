@@ -483,12 +483,12 @@ func TestHTTPRequestLogger_IncludesTraceContext(t *testing.T) {
 	log := logs[0]
 
 	// Check trace fields are present
-	trace, ok := log.Attrs["logging.googleapis.com/trace"].(string)
+	traceField, ok := log.Attrs["logging.googleapis.com/trace"].(string)
 	if !ok {
 		t.Fatalf("expected trace to be string, got %T", log.Attrs["logging.googleapis.com/trace"])
 	}
-	if trace != "abc123" {
-		t.Errorf("trace = %q, want %q", trace, "abc123")
+	if traceField != "abc123" {
+		t.Errorf("trace = %q, want %q", traceField, "abc123")
 	}
 
 	spanID, ok := log.Attrs["logging.googleapis.com/spanId"].(string)
@@ -508,10 +508,28 @@ func TestHTTPRequestLogger_IncludesTraceContext(t *testing.T) {
 	}
 }
 
+func mustTraceID(t *testing.T, hex string) trace.TraceID {
+	t.Helper()
+	id, err := trace.TraceIDFromHex(hex)
+	if err != nil {
+		t.Fatalf("TraceIDFromHex(%q): %v", hex, err)
+	}
+	return id
+}
+
+func mustSpanID(t *testing.T, hex string) trace.SpanID {
+	t.Helper()
+	id, err := trace.SpanIDFromHex(hex)
+	if err != nil {
+		t.Fatalf("SpanIDFromHex(%q): %v", hex, err)
+	}
+	return id
+}
+
 func TestWithCloudTraceContext_OTelSpan(t *testing.T) {
 	// Create a valid span context
-	traceID, _ := trace.TraceIDFromHex("0af7651916cd43dd8448eb211c80319c")
-	spanID, _ := trace.SpanIDFromHex("b7ad6b7169203331")
+	traceID := mustTraceID(t, "0af7651916cd43dd8448eb211c80319c")
+	spanID := mustSpanID(t, "b7ad6b7169203331")
 	sc := trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID:    traceID,
 		SpanID:     spanID,
@@ -549,8 +567,8 @@ func TestWithCloudTraceContext_OTelSpan(t *testing.T) {
 
 func TestWithCloudTraceContext_OTelPrecedence(t *testing.T) {
 	// Create a valid OTel span context
-	otelTraceID, _ := trace.TraceIDFromHex("0af7651916cd43dd8448eb211c80319c")
-	otelSpanID, _ := trace.SpanIDFromHex("b7ad6b7169203331")
+	otelTraceID := mustTraceID(t, "0af7651916cd43dd8448eb211c80319c")
+	otelSpanID := mustSpanID(t, "b7ad6b7169203331")
 	sc := trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID: otelTraceID,
 		SpanID:  otelSpanID,
@@ -590,7 +608,7 @@ func TestWithCloudTraceContext_OTelPrecedence(t *testing.T) {
 func TestWithCloudTraceContext_OTelWithProjectID(t *testing.T) {
 	t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
 
-	traceID, _ := trace.TraceIDFromHex("0af7651916cd43dd8448eb211c80319c")
+	traceID := mustTraceID(t, "0af7651916cd43dd8448eb211c80319c")
 	sc := trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID: traceID,
 		SpanID:  trace.SpanID{1, 2, 3, 4, 5, 6, 7, 8},
@@ -624,12 +642,12 @@ func TestWithCloudTraceContext_OTelWithProjectID(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		w := httptest.NewRecorder()
-		fallbackHandler.ServeHTTP(w, req)
+		fallbackW := httptest.NewRecorder()
+		fallbackHandler.ServeHTTP(fallbackW, req)
 
-		expected := "projects/test-fallback-project/traces/0af7651916cd43dd8448eb211c80319c"
-		if capturedTC.TraceID != expected {
-			t.Errorf("traceID (GCP_PROJECT) = %q, want %q", capturedTC.TraceID, expected)
+		wantTrace := "projects/test-fallback-project/traces/0af7651916cd43dd8448eb211c80319c"
+		if capturedTC.TraceID != wantTrace {
+			t.Errorf("traceID (GCP_PROJECT) = %q, want %q", capturedTC.TraceID, wantTrace)
 		}
 	})
 }
