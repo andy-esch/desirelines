@@ -17,13 +17,9 @@ info:
     url: https://github.com/andy-esch/desirelines
 
 servers:
-  - url: https://api-gateway-{hash}-uc.a.run.app
-    description: Production (Cloud Run)
-    variables:
-      hash:
-        default: unknown
-        description: Cloud Run revision hash
-  - url: http://localhost:8080
+  - url: https://desirelines.andyes.ch/api
+    description: Production (via Firebase Hosting proxy)
+  - url: http://localhost:8080/api
     description: Local development
 
 tags:

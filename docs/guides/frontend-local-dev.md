@@ -55,11 +55,11 @@ The Firebase Emulator UI is available at <http://localhost:4000> for managing te
 
 ### Use Deployed Dev API
 
-For simplest setup, point to the deployed dev API:
+For simplest setup, point to the deployed dev API via Firebase Hosting:
 
 ```bash
 # In packages/web/.env.development.local:
-VITE_API_GATEWAY_URL=https://api-gateway-xxxxx.run.app
+VITE_API_GATEWAY_URL=https://desirelines-dev.web.app/api
 ```
 
 No local backend setup needed.

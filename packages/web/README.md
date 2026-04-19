@@ -109,7 +109,7 @@ src/
 | Issue                  | Solution                                                                          |
 | ---------------------- | --------------------------------------------------------------------------------- |
 | `auth/invalid-api-key` | Check `.env.*.local` exists with correct Firebase credentials                     |
-| CORS errors            | Use stable Cloud Run URL (format: `https://[function]-[number].[region].run.app`) |
+| CORS errors            | Use `http://localhost:8084` for local dev or `/api` for deployed environments     |
 | Env vars not updating  | Restart dev server or delete `build/` and rebuild                                 |
 | Missing `.env.*.local` | Deploy script will fail — create from the committed `.env.{mode}` template        |
 
