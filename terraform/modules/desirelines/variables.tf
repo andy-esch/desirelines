@@ -55,6 +55,12 @@ variable "developer_email" {
   default     = null
 }
 
+variable "slack_notification_channel_id" {
+  description = "Full resource ID of an externally-managed Slack notification channel (format: projects/<project>/notificationChannels/<id>). Created once via GCP Console → Monitoring → Notification Channels → Slack OAuth flow; the channel is not managed by Terraform because the OAuth token is issued through the Console and kept out of state. Leave null to skip Slack notifications for this environment."
+  type        = string
+  default     = null
+}
+
 # Optional variables with sensible defaults
 
 variable "enable_apis" {
