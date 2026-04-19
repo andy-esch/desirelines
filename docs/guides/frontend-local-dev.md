@@ -74,8 +74,8 @@ VITE_FIREBASE_API_KEY=your-api-key
 VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=your-project-id
 
-# Optional: Override API Gateway URL (defaults to http://localhost:8084)
-VITE_API_GATEWAY_URL=http://localhost:8084
+# Optional: Override API Gateway URL (defaults to http://localhost:8084/api)
+VITE_API_GATEWAY_URL=http://localhost:8084/api
 
 # Firebase emulators are enabled by default in .env.development.
 # Set to false here to use real Firebase instead:
@@ -87,7 +87,7 @@ VITE_API_GATEWAY_URL=http://localhost:8084
 | Service | URL | Notes |
 |---------|-----|-------|
 | Web UI | <http://localhost:3000> | Vite dev server |
-| API Gateway | <http://localhost:8084> | When running locally |
+| API Gateway | <http://localhost:8084/api> | When running locally |
 | Firebase Emulator UI | <http://localhost:4000> | Manage test users |
 | Auth Emulator | localhost:9099 | When emulators enabled |
 | Firestore Emulator | localhost:8089 | When emulators enabled |
