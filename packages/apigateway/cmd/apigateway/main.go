@@ -91,9 +91,16 @@ func run(log *slog.Logger) error {
 	// request and the gcplog middleware adopts its trace_id for log correlation.
 	// Span names are refined to "METHOD /route/pattern" by SpanNameFromChiRoute
 	// middleware inside the chi stack (see server/router.go).
+	//
+	// Skip /api/health: Cloud Run polls it constantly and the spans add noise
+	// and export cost without diagnostic value. Path matches the public URL
+	// because otelhttp sits outside StripPrefix.
 	router := otelhttp.NewHandler(
 		http.StripPrefix("/api", buildRouter(deps)),
 		"apigateway",
+		otelhttp.WithFilter(func(r *http.Request) bool {
+			return r.URL.Path != "/api/health"
+		}),
 	)
 
 	// Start server with configurable timeouts
