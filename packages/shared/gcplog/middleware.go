@@ -182,13 +182,8 @@ func extractTraceContext(r *http.Request, projectID string) *TraceContext {
 		spanID := sc.SpanID().String()
 		traceSampled := sc.IsSampled()
 
-		fullTraceID := traceID
-		if projectID != "" {
-			fullTraceID = fmt.Sprintf("projects/%s/traces/%s", projectID, traceID)
-		}
-
 		return &TraceContext{
-			TraceID:      fullTraceID,
+			TraceID:      formatTraceID(traceID, projectID),
 			SpanID:       spanID,
 			TraceSampled: traceSampled,
 		}
@@ -240,14 +235,8 @@ func parseCloudTraceContext(header, projectID string) *TraceContext {
 		spanID = idParts[1]
 	}
 
-	// Format trace ID as resource name if project ID is available
-	fullTraceID := traceID
-	if projectID != "" {
-		fullTraceID = fmt.Sprintf("projects/%s/traces/%s", projectID, traceID)
-	}
-
 	return &TraceContext{
-		TraceID:      fullTraceID,
+		TraceID:      formatTraceID(traceID, projectID),
 		SpanID:       spanID,
 		TraceSampled: traceSampled,
 	}
@@ -268,17 +257,22 @@ func parseTraceparent(header, projectID string) *TraceContext {
 	// Check if sampled (last bit of flags)
 	traceSampled := flags != "" && (flags[len(flags)-1] == '1')
 
-	// Format trace ID as resource name if project ID is available
-	fullTraceID := traceID
-	if projectID != "" {
-		fullTraceID = fmt.Sprintf("projects/%s/traces/%s", projectID, traceID)
-	}
-
 	return &TraceContext{
-		TraceID:      fullTraceID,
+		TraceID:      formatTraceID(traceID, projectID),
 		SpanID:       spanID,
 		TraceSampled: traceSampled,
 	}
+}
+
+// formatTraceID returns the trace ID in GCP resource-name form
+// ("projects/<id>/traces/<trace>") when projectID is set, otherwise the raw
+// trace ID. Cloud Logging's logging.googleapis.com/trace field expects the
+// resource-name form for log/trace correlation in the Cloud Console.
+func formatTraceID(traceID, projectID string) string {
+	if projectID == "" {
+		return traceID
+	}
+	return fmt.Sprintf("projects/%s/traces/%s", projectID, traceID)
 }
 
 // CloudRunRealIP is middleware that sets r.RemoteAddr to the real client IP.
