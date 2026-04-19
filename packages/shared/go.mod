@@ -12,6 +12,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.43.0
 	go.opentelemetry.io/otel/sdk v1.43.0
 	go.opentelemetry.io/otel/sdk/metric v1.43.0
+	go.opentelemetry.io/otel/trace v1.43.0
 )
 
 require (
@@ -39,7 +40,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.21.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0 // indirect
-	go.opentelemetry.io/otel/trace v1.43.0
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect

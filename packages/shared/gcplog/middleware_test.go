@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestHTTPRequestLogger_LogsRequest(t *testing.T) {
@@ -482,12 +483,12 @@ func TestHTTPRequestLogger_IncludesTraceContext(t *testing.T) {
 	log := logs[0]
 
 	// Check trace fields are present
-	trace, ok := log.Attrs["logging.googleapis.com/trace"].(string)
+	traceField, ok := log.Attrs["logging.googleapis.com/trace"].(string)
 	if !ok {
 		t.Fatalf("expected trace to be string, got %T", log.Attrs["logging.googleapis.com/trace"])
 	}
-	if trace != "abc123" {
-		t.Errorf("trace = %q, want %q", trace, "abc123")
+	if traceField != "abc123" {
+		t.Errorf("trace = %q, want %q", traceField, "abc123")
 	}
 
 	spanID, ok := log.Attrs["logging.googleapis.com/spanId"].(string)
@@ -504,5 +505,173 @@ func TestHTTPRequestLogger_IncludesTraceContext(t *testing.T) {
 	}
 	if !sampled {
 		t.Error("expected trace_sampled to be true")
+	}
+}
+
+func mustTraceID(t *testing.T, hex string) trace.TraceID {
+	t.Helper()
+	id, err := trace.TraceIDFromHex(hex)
+	if err != nil {
+		t.Fatalf("TraceIDFromHex(%q): %v", hex, err)
+	}
+	return id
+}
+
+func mustSpanID(t *testing.T, hex string) trace.SpanID {
+	t.Helper()
+	id, err := trace.SpanIDFromHex(hex)
+	if err != nil {
+		t.Fatalf("SpanIDFromHex(%q): %v", hex, err)
+	}
+	return id
+}
+
+func TestWithCloudTraceContext_OTelSpan(t *testing.T) {
+	// Create a valid span context
+	traceID := mustTraceID(t, "0af7651916cd43dd8448eb211c80319c")
+	spanID := mustSpanID(t, "b7ad6b7169203331")
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     spanID,
+		TraceFlags: trace.FlagsSampled,
+	})
+
+	var capturedTC *TraceContext
+
+	handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTC = GetTraceContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Create request with OTel span in context
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	ctx := trace.ContextWithSpanContext(req.Context(), sc)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if capturedTC == nil {
+		t.Fatal("expected trace context to be captured from OTel span")
+	}
+	if capturedTC.TraceID != "0af7651916cd43dd8448eb211c80319c" {
+		t.Errorf("traceID = %q, want %q", capturedTC.TraceID, "0af7651916cd43dd8448eb211c80319c")
+	}
+	if capturedTC.SpanID != "b7ad6b7169203331" {
+		t.Errorf("spanID = %q, want %q", capturedTC.SpanID, "b7ad6b7169203331")
+	}
+	if !capturedTC.TraceSampled {
+		t.Error("expected traceSampled to be true from OTel flags")
+	}
+}
+
+func TestWithCloudTraceContext_OTelPrecedence(t *testing.T) {
+	// Create a valid OTel span context
+	otelTraceID := mustTraceID(t, "0af7651916cd43dd8448eb211c80319c")
+	otelSpanID := mustSpanID(t, "b7ad6b7169203331")
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: otelTraceID,
+		SpanID:  otelSpanID,
+	})
+
+	var capturedTC *TraceContext
+	handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTC = GetTraceContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	// Add OTel span to context
+	ctx := trace.ContextWithSpanContext(req.Context(), sc)
+	req = req.WithContext(ctx)
+	// Add competing header
+	req.Header.Set("X-Cloud-Trace-Context", "f457651916cd43dd8448eb211c80319d/1;o=1")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if capturedTC == nil {
+		t.Fatal("expected trace context to be captured")
+	}
+	// OTel must win
+	if capturedTC.TraceID != "0af7651916cd43dd8448eb211c80319c" {
+		t.Errorf("traceID = %q, want OTel trace %q", capturedTC.TraceID, "0af7651916cd43dd8448eb211c80319c")
+	}
+	if capturedTC.SpanID != "b7ad6b7169203331" {
+		t.Errorf("spanID = %q, want OTel span %q", capturedTC.SpanID, "b7ad6b7169203331")
+	}
+	if capturedTC.TraceSampled {
+		t.Error("expected traceSampled to be false from OTel context, but it was true (likely leaked from header)")
+	}
+}
+
+func TestWithCloudTraceContext_OTelWithProjectID(t *testing.T) {
+	t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+
+	traceID := mustTraceID(t, "0af7651916cd43dd8448eb211c80319c")
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: traceID,
+		SpanID:  trace.SpanID{1, 2, 3, 4, 5, 6, 7, 8},
+	})
+
+	var capturedTC *TraceContext
+	handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTC = GetTraceContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	ctx := trace.ContextWithSpanContext(req.Context(), sc)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	expected := "projects/test-project/traces/0af7651916cd43dd8448eb211c80319c"
+	if capturedTC.TraceID != expected {
+		t.Errorf("traceID (GOOGLE_CLOUD_PROJECT) = %q, want %q", capturedTC.TraceID, expected)
+	}
+
+	t.Run("GCP_PROJECT fallback", func(t *testing.T) {
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
+		t.Setenv("GCP_PROJECT", "test-fallback-project")
+
+		// Rebuild handler so projectID is captured at construction time with the new env.
+		fallbackHandler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedTC = GetTraceContext(r.Context())
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		fallbackW := httptest.NewRecorder()
+		fallbackHandler.ServeHTTP(fallbackW, req)
+
+		wantTrace := "projects/test-fallback-project/traces/0af7651916cd43dd8448eb211c80319c"
+		if capturedTC.TraceID != wantTrace {
+			t.Errorf("traceID (GCP_PROJECT) = %q, want %q", capturedTC.TraceID, wantTrace)
+		}
+	})
+}
+
+func TestWithCloudTraceContext_InvalidOTelSpan(t *testing.T) {
+	var capturedTC *TraceContext
+	handler := WithCloudTraceContext(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTC = GetTraceContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	// Invalid span (empty) in context should trigger fallback
+	ctx := trace.ContextWithSpanContext(req.Context(), trace.SpanContext{})
+	req = req.WithContext(ctx)
+	req.Header.Set("X-Cloud-Trace-Context", "abc12345678901234567890123456789/1;o=1")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if capturedTC == nil {
+		t.Fatal("expected trace context to be captured from header fallback")
+	}
+	if capturedTC.TraceID != "abc12345678901234567890123456789" {
+		t.Errorf("traceID = %q, want header trace %q", capturedTC.TraceID, "abc12345678901234567890123456789")
 	}
 }

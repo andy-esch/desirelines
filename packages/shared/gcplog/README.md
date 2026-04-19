@@ -32,7 +32,7 @@ For HTTP services, use both middleware in this order:
 
 ```go
 r := chi.NewRouter()
-r.Use(gcplog.WithCloudTraceContext)    // 1. Extract trace headers
+r.Use(gcplog.WithCloudTraceContext)    // 1. Extract trace context (OTel or headers)
 r.Use(gcplog.HTTPRequestLogger(logger)) // 2. Log requests
 ```
 
@@ -46,7 +46,7 @@ The `HTTPRequestLogger` middleware outputs an `httpRequest` field that GCP recog
 
 ### Trace Correlation
 
-When requests include trace headers (`X-Cloud-Trace-Context` or `traceparent`), logs automatically include trace IDs. In Cloud Trace, you can view all logs associated with a specific trace.
+When requests include trace headers (`X-Cloud-Trace-Context` or `traceparent`), or are wrapped with OpenTelemetry (`otelhttp.NewHandler`), logs automatically include trace IDs. `WithCloudTraceContext` prefers the active OTel span for maximum consistency and falls back to manual header parsing when no span is present. In Cloud Trace, you can view all logs associated with a specific trace.
 
 ### Severity-Based Log Levels
 

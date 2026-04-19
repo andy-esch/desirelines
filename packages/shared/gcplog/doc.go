@@ -45,7 +45,7 @@
 // The package provides Chi-compatible middleware for HTTP request logging:
 //
 //	r := chi.NewRouter()
-//	r.Use(gcplog.WithCloudTraceContext)  // Extract trace headers
+//	r.Use(gcplog.WithCloudTraceContext)  // Extract trace context
 //	r.Use(gcplog.HTTPRequestLogger(logger))
 //
 // [HTTPRequestLogger] outputs the httpRequest field in GCP's expected format,
@@ -53,9 +53,9 @@
 // log levels based on response status (5xx=ERROR, 4xx=WARNING, others=INFO).
 //
 // [WithCloudTraceContext] extracts trace correlation IDs from incoming requests,
-// supporting both GCP's X-Cloud-Trace-Context and W3C's traceparent headers.
-// These IDs are automatically included in logs, enabling correlation with
-// Cloud Trace.
+// preferring an active OpenTelemetry span and falling back to GCP's
+// X-Cloud-Trace-Context or W3C's traceparent headers. These IDs are
+// automatically included in logs, enabling correlation with Cloud Trace.
 //
 // # Testing
 //
