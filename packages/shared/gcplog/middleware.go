@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // traceContextKey is the context key for trace information.
@@ -129,7 +130,10 @@ func requestLogger(logger *slog.Logger, histogram metric.Float64Histogram) func(
 // WithCloudTraceContext is middleware that extracts trace context from incoming
 // requests and adds it to the request context for log correlation.
 //
-// It supports both GCP's X-Cloud-Trace-Context header and W3C's traceparent header.
+// It prefers the active OpenTelemetry span so logs carry the same trace_id that
+// OTel propagates to downstream services. If no span is present it falls back to
+// parsing the X-Cloud-Trace-Context (GCP) or traceparent (W3C) headers directly.
+//
 // The trace context can be retrieved using GetTraceContext and is automatically
 // included in logs when using HTTPRequestLogger.
 func WithCloudTraceContext(next http.Handler) http.Handler {
@@ -163,16 +167,41 @@ func GetTraceContext(ctx context.Context) *TraceContext {
 	return tc
 }
 
-// extractTraceContext parses trace information from request headers.
-// Supports X-Cloud-Trace-Context (GCP) and traceparent (W3C) headers.
+// extractTraceContext parses trace information from the request context or headers.
+//
+// It first checks for an active OpenTelemetry span in the context. If found, it
+// uses that trace and span ID to ensure consistency between OTel and logs.
+//
+// If no OTel span is present, it falls back to manual extraction from
+// X-Cloud-Trace-Context (GCP) or traceparent (W3C) headers.
 func extractTraceContext(r *http.Request, projectID string) *TraceContext {
+	// 1. Try active OTel span first to ensure consistency
+	if span := trace.SpanFromContext(r.Context()); span.SpanContext().IsValid() {
+		sc := span.SpanContext()
+		traceID := sc.TraceID().String()
+		spanID := sc.SpanID().String()
+		traceSampled := sc.IsSampled()
+
+		fullTraceID := traceID
+		if projectID != "" {
+			fullTraceID = fmt.Sprintf("projects/%s/traces/%s", projectID, traceID)
+		}
+
+		return &TraceContext{
+			TraceID:      fullTraceID,
+			SpanID:       spanID,
+			TraceSampled: traceSampled,
+		}
+	}
+
+	// 2. Fall back to manual header extraction if no OTel span exists
 	// Try GCP's X-Cloud-Trace-Context first
 	// Format: TRACE_ID/SPAN_ID;o=TRACE_TRUE
 	if header := r.Header.Get("X-Cloud-Trace-Context"); header != "" {
 		return parseCloudTraceContext(header, projectID)
 	}
 
-	// Fall back to W3C traceparent
+	// 3. Fall back to W3C traceparent
 	// Format: VERSION-TRACE_ID-SPAN_ID-FLAGS
 	if header := r.Header.Get("traceparent"); header != "" {
 		return parseTraceparent(header, projectID)

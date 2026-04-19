@@ -126,7 +126,17 @@ func (h *Handler) RegisterRoutes() http.Handler {
 
 	// Wrap the entire router with otelhttp for automatic HTTP span creation.
 	// This creates a root span for each request with method, route, and status.
-	return otelhttp.NewHandler(r, "dispatcher")
+	// The span name is formatted as "METHOD /path" (e.g. "POST /webhook") so
+	// traces are legible in Cloud Trace rather than all being named "dispatcher".
+	// Dispatcher paths are low-cardinality (/webhook, /health, /), so using the
+	// raw path is safe here.
+	return otelhttp.NewHandler(
+		r,
+		"dispatcher",
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			return r.Method + " " + r.URL.Path
+		}),
+	)
 }
 
 func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
