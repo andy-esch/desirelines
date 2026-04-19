@@ -36,6 +36,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/andy-esch/desirelines/packages/shared/secrets"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	otelmetric "go.opentelemetry.io/otel/metric"
 )
@@ -85,7 +86,22 @@ func run(log *slog.Logger) error {
 	// through Firebase Hosting at /api/... have the prefix removed before
 	// reaching the chi router. All traffic arrives via /api/... (both dev and
 	// prod route through Firebase Hosting rewrites).
-	router := http.StripPrefix("/api", buildRouter(deps))
+	//
+	// Wrap the whole stack with otelhttp so Cloud Trace gets a server span per
+	// request and the gcplog middleware adopts its trace_id for log correlation.
+	// Span names are refined to "METHOD /route/pattern" by SpanNameFromChiRoute
+	// middleware inside the chi stack (see server/router.go).
+	//
+	// Skip /api/health: Cloud Run polls it constantly and the spans add noise
+	// and export cost without diagnostic value. Path matches the public URL
+	// because otelhttp sits outside StripPrefix.
+	router := otelhttp.NewHandler(
+		http.StripPrefix("/api", buildRouter(deps)),
+		"apigateway",
+		otelhttp.WithFilter(func(r *http.Request) bool {
+			return r.URL.Path != "/api/health"
+		}),
+	)
 
 	// Start server with configurable timeouts
 	port := config.GetEnvOrDefault("PORT", "8080")
