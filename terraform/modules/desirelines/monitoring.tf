@@ -831,7 +831,7 @@ resource "google_monitoring_notification_channel" "email_alerts" {
 # as a backup — both fire in parallel so nothing is missed if Slack is muted.
 locals {
   notification_channels = concat(
-    var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : [],
+    google_monitoring_notification_channel.email_alerts[*].id,
     var.slack_notification_channel_id != null ? [var.slack_notification_channel_id] : [],
   )
 }
@@ -1140,6 +1140,15 @@ resource "google_monitoring_uptime_check_config" "frontend_root" {
 
 # Alert when uptime checks fail 2 consecutive times (≈120s). The "count false"
 # reducer over the alignment window is the documented pattern for uptime alerts.
+#
+# Why threshold_value = 1 (not 0):
+# REDUCE_COUNT_FALSE grouped by project_id collapses all probe regions into a
+# single "number of regions currently failing" series. Uptime checks fan out
+# from ~6 regions, and single-region transient failures (network blips, BGP
+# flaps) are a well-known noise source — GCP's own docs recommend requiring
+# multi-region failure to page. `> 1` fires when ≥2 regions fail simultaneously,
+# which is the canonical signal for "the service is actually down" rather than
+# "one probe region had a bad two minutes."
 resource "google_monitoring_alert_policy" "apigateway_uptime" {
   display_name = "🚨 Uptime: API Gateway /api/health failing"
   combiner     = "OR"
@@ -1258,13 +1267,13 @@ resource "google_monitoring_alert_policy" "postgres_pool_exhaustion" {
   }
 
   conditions {
-    display_name = "in_use connections ≥ 4 for 5m"
+    display_name = "in_use connections > 3 for 5m"
 
     condition_threshold {
       filter          = "metric.type=\"custom.googleapis.com/desirelines.io/postgres/pool.connections\" AND resource.type=\"generic_task\" AND metric.labels.state=\"in_use\""
       duration        = "300s"
-      comparison      = "COMPARISON_GTE"
-      threshold_value = 4
+      comparison      = "COMPARISON_GT"
+      threshold_value = 3
 
       aggregations {
         alignment_period     = "60s"
