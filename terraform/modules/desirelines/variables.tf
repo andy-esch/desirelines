@@ -55,6 +55,17 @@ variable "developer_email" {
   default     = null
 }
 
+variable "slack_notification_channel_id" {
+  description = "Full resource ID of an externally-managed Slack notification channel (format: projects/<project>/notificationChannels/<id>). Created once via GCP Console → Monitoring → Notification Channels → Slack OAuth flow; the channel is not managed by Terraform because the OAuth token is issued through the Console and kept out of state. Leave null to skip Slack notifications for this environment."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.slack_notification_channel_id == null || can(regex("^projects/[^/]+/notificationChannels/[0-9]+$", var.slack_notification_channel_id))
+    error_message = "slack_notification_channel_id must be a full resource ID in the format: projects/<project>/notificationChannels/<id>."
+  }
+}
+
 # Optional variables with sensible defaults
 
 variable "enable_apis" {

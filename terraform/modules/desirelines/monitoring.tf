@@ -825,6 +825,17 @@ resource "google_monitoring_notification_channel" "email_alerts" {
   enabled = true
 }
 
+# Combined notification channel list used by every alert policy below. The
+# Slack channel is created outside Terraform (via GCP Console OAuth) so the
+# auth token never enters state; we just reference its ID. Email is kept
+# as a backup — both fire in parallel so nothing is missed if Slack is muted.
+locals {
+  notification_channels = concat(
+    google_monitoring_notification_channel.email_alerts[*].id,
+    var.slack_notification_channel_id != null ? [var.slack_notification_channel_id] : [],
+  )
+}
+
 # ============================================================================
 # Alerting Policies
 # ============================================================================
@@ -865,7 +876,7 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
     }
   }
 
-  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
+  notification_channels = local.notification_channels
 
   alert_strategy {
     auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
@@ -908,7 +919,7 @@ resource "google_monitoring_alert_policy" "dlq_postgres_writer" {
     }
   }
 
-  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
+  notification_channels = local.notification_channels
 
   alert_strategy {
     auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
@@ -963,7 +974,7 @@ resource "google_monitoring_alert_policy" "service_4xx_errors" {
     }
   }
 
-  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
+  notification_channels = local.notification_channels
 
   alert_strategy {
     auto_close = "3600s" # Auto-resolve after 1 hour
@@ -1019,7 +1030,7 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
     }
   }
 
-  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
+  notification_channels = local.notification_channels
 
   alert_strategy {
     auto_close = "3600s" # Auto-resolve after 1 hour
@@ -1064,10 +1075,402 @@ resource "google_monitoring_alert_policy" "old_messages" {
     }
   }
 
-  notification_channels = var.developer_email != null ? [google_monitoring_notification_channel.email_alerts[0].id] : []
+  notification_channels = local.notification_channels
 
   alert_strategy {
     auto_close = "3600s" # Auto-resolve after 1 hour
+  }
+}
+
+# ============================================================================
+# Uptime Checks
+# ============================================================================
+# Two synthetic probes against externally-reachable URLs. These catch outages
+# that don't show up as 4xx/5xx from Cloud Run (e.g., Firebase Hosting is down,
+# DNS issue, SSL expiry). Free tier covers 1M check executions per project per
+# month; each check here runs every 60s from ~6 regions ≈ 260k/month.
+
+resource "google_monitoring_uptime_check_config" "apigateway_health" {
+  display_name = "Desirelines ${title(var.environment)} - API Gateway /api/health"
+  timeout      = "10s"
+  period       = "60s"
+
+  http_check {
+    path         = "/api/health"
+    port         = 443
+    use_ssl      = true
+    validate_ssl = true
+    accepted_response_status_codes {
+      status_class = "STATUS_CLASS_2XX"
+    }
+  }
+
+  monitored_resource {
+    type = "uptime_url"
+    labels = {
+      project_id = var.gcp_project_id
+      host       = "${var.project_name}-${var.environment}.web.app"
+    }
+  }
+}
+
+resource "google_monitoring_uptime_check_config" "frontend_root" {
+  display_name = "Desirelines ${title(var.environment)} - Frontend root"
+  timeout      = "10s"
+  period       = "60s"
+
+  http_check {
+    path         = "/"
+    port         = 443
+    use_ssl      = true
+    validate_ssl = true
+    accepted_response_status_codes {
+      status_class = "STATUS_CLASS_2XX"
+    }
+  }
+
+  monitored_resource {
+    type = "uptime_url"
+    labels = {
+      project_id = var.gcp_project_id
+      host       = "${var.project_name}-${var.environment}.web.app"
+    }
+  }
+}
+
+# Alert when uptime checks fail 2 consecutive times (≈120s). The "count false"
+# reducer over the alignment window is the documented pattern for uptime alerts.
+#
+# Why threshold_value = 1 (not 0):
+# REDUCE_COUNT_FALSE grouped by project_id collapses all probe regions into a
+# single "number of regions currently failing" series. Uptime checks fan out
+# from ~6 regions, and single-region transient failures (network blips, BGP
+# flaps) are a well-known noise source — GCP's own docs recommend requiring
+# multi-region failure to page. `> 1` fires when ≥2 regions fail simultaneously,
+# which is the canonical signal for "the service is actually down" rather than
+# "one probe region had a bad two minutes."
+resource "google_monitoring_alert_policy" "apigateway_uptime" {
+  display_name = "🚨 Uptime: API Gateway /api/health failing"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **CRITICAL**: apigateway `/api/health` uptime check has failed for ≥2 minutes.
+
+      Likely causes:
+      - Cloud Run revision crashed or failed to start
+      - Firebase Hosting rewrite (`/api/*` → Cloud Run) misconfigured
+      - DNS/SSL issue on the hosting site
+
+      **Action**: check the Cloud Run revision's logs and the Firebase Hosting rewrite rules.
+    EOT
+  }
+
+  conditions {
+    display_name = "apigateway /api/health failing"
+
+    condition_threshold {
+      filter          = "resource.type=\"uptime_url\" AND metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.labels.check_id=\"${google_monitoring_uptime_check_config.apigateway_health.uptime_check_id}\""
+      duration        = "120s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 1
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_NEXT_OLDER"
+        cross_series_reducer = "REDUCE_COUNT_FALSE"
+        group_by_fields      = ["resource.labels.project_id"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "frontend_uptime" {
+  display_name = "🚨 Uptime: Frontend root failing"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **CRITICAL**: Firebase Hosting frontend uptime check has failed for ≥2 minutes.
+
+      Likely causes:
+      - Firebase Hosting deployment mid-flight or rolled back
+      - DNS/SSL issue on `${var.project_name}-${var.environment}.web.app`
+
+      **Action**: check Firebase Hosting deploy history in the Console.
+    EOT
+  }
+
+  conditions {
+    display_name = "Frontend root failing"
+
+    condition_threshold {
+      filter          = "resource.type=\"uptime_url\" AND metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.labels.check_id=\"${google_monitoring_uptime_check_config.frontend_root.uptime_check_id}\""
+      duration        = "120s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 1
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_NEXT_OLDER"
+        cross_series_reducer = "REDUCE_COUNT_FALSE"
+        group_by_fields      = ["resource.labels.project_id"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+# ============================================================================
+# Application-metric Alerts (OTel histograms + gauges)
+# ============================================================================
+# Thresholds below are intentionally conservative placeholders — the plan is
+# to observe a week of P99 data in Cloud Monitoring, then tune. If an alert
+# fires repeatedly on normal traffic, loosen the threshold; if it never fires
+# when something clearly went wrong, tighten it. All histograms are emitted
+# with WithUnit("ms"), so threshold_value is in milliseconds.
+
+resource "google_monitoring_alert_policy" "postgres_pool_exhaustion" {
+  display_name = "⚠️ Postgres: Connection pool near exhaustion"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **HIGH**: apigateway's Postgres connection pool has ≥4 connections in use
+      (default max is 5 via `DB_POOL_MAX_CONNS`). Sustained exhaustion causes
+      request queueing and rising `postgres/query.duration` tails.
+
+      **Action**:
+      1. Check `postgres/query.duration` P99 — slow queries hold connections.
+      2. If traffic grew, consider raising `DB_POOL_MAX_CONNS` (Neon pooled endpoint can handle more).
+      3. If no query is slow, look for connection leaks in recent code changes.
+    EOT
+  }
+
+  conditions {
+    display_name = "in_use connections > 3 for 5m"
+
+    condition_threshold {
+      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/postgres/pool.connections\" AND resource.type=\"generic_task\" AND metric.labels.state=\"in_use\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 3
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_MEAN"
+        cross_series_reducer = "REDUCE_MAX"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "strava_api_latency" {
+  display_name = "⚠️ Strava API P99 latency high"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **MEDIUM**: P99 Strava API call duration exceeded 5s placeholder for ≥5 minutes.
+      Strava's own latency dominates here; if this fires often, check Strava's status
+      page before assuming it's us. Tune threshold after observing a week of data.
+    EOT
+  }
+
+  conditions {
+    display_name = "strava/api.duration P99 > 5000ms"
+
+    condition_threshold {
+      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/strava/api.duration\" AND resource.type=\"generic_task\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 5000
+
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_PERCENTILE_99"
+        cross_series_reducer = "REDUCE_MAX"
+        group_by_fields      = ["metric.labels.operation"]
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "http_request_latency" {
+  display_name = "⚠️ HTTP request P99 latency high"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **MEDIUM**: P99 HTTP request duration (across dispatcher + apigateway)
+      exceeded 2s placeholder for ≥5 minutes. Placeholder threshold — tune after
+      a week of observed data.
+    EOT
+  }
+
+  conditions {
+    display_name = "http/request.duration P99 > 2000ms"
+
+    condition_threshold {
+      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/http/request.duration\" AND resource.type=\"generic_task\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 2000
+
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_PERCENTILE_99"
+        cross_series_reducer = "REDUCE_MAX"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "postgres_query_latency" {
+  display_name = "⚠️ Postgres query P99 latency high"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **MEDIUM**: P99 Postgres query duration exceeded 500ms placeholder for ≥5 minutes.
+      Expected queries should be fast (indexed lookups, < 50ms typical). A sustained
+      P99 at 500ms suggests missing index, table bloat, or connection contention.
+      Placeholder threshold — tune after a week of observed data.
+    EOT
+  }
+
+  conditions {
+    display_name = "postgres/query.duration P99 > 500ms"
+
+    condition_threshold {
+      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/postgres/query.duration\" AND resource.type=\"generic_task\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 500
+
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_PERCENTILE_99"
+        cross_series_reducer = "REDUCE_MAX"
+        group_by_fields      = ["metric.labels.operation"]
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "firestore_operation_latency" {
+  display_name = "⚠️ Firestore operation P99 latency high"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **MEDIUM**: P99 Firestore operation duration exceeded 1s placeholder for ≥5 minutes.
+      Placeholder threshold — tune after a week of observed data.
+    EOT
+  }
+
+  conditions {
+    display_name = "firestore/operation.duration P99 > 1000ms"
+
+    condition_threshold {
+      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/firestore/operation.duration\" AND resource.type=\"generic_task\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 1000
+
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_PERCENTILE_99"
+        cross_series_reducer = "REDUCE_MAX"
+        group_by_fields      = ["metric.labels.operation"]
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
+  display_name = "⚠️ PubSub publish P99 latency high"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **MEDIUM**: P99 PubSub publish duration exceeded 1s placeholder for ≥5 minutes.
+      Publish should be sub-100ms typically; sustained slowness here blocks the
+      dispatcher's webhook response path. Placeholder threshold — tune after a
+      week of observed data.
+    EOT
+  }
+
+  conditions {
+    display_name = "pubsub/publish.duration P99 > 1000ms"
+
+    condition_threshold {
+      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/pubsub/publish.duration\" AND resource.type=\"generic_task\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 1000
+
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_PERCENTILE_99"
+        cross_series_reducer = "REDUCE_MAX"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
   }
 }
 
@@ -1081,10 +1484,18 @@ output "monitoring_dashboard_url" {
 output "alert_policy_ids" {
   description = "IDs of created alert policies"
   value = {
-    dlq_bq_inserter     = google_monitoring_alert_policy.dlq_bq_inserter.id
-    dlq_postgres_writer = google_monitoring_alert_policy.dlq_postgres_writer.id
-    service_4xx         = google_monitoring_alert_policy.service_4xx_errors.id
-    service_5xx         = google_monitoring_alert_policy.service_5xx_errors.id
-    old_messages        = google_monitoring_alert_policy.old_messages.id
+    dlq_bq_inserter             = google_monitoring_alert_policy.dlq_bq_inserter.id
+    dlq_postgres_writer         = google_monitoring_alert_policy.dlq_postgres_writer.id
+    service_4xx                 = google_monitoring_alert_policy.service_4xx_errors.id
+    service_5xx                 = google_monitoring_alert_policy.service_5xx_errors.id
+    old_messages                = google_monitoring_alert_policy.old_messages.id
+    apigateway_uptime           = google_monitoring_alert_policy.apigateway_uptime.id
+    frontend_uptime             = google_monitoring_alert_policy.frontend_uptime.id
+    postgres_pool_exhaustion    = google_monitoring_alert_policy.postgres_pool_exhaustion.id
+    strava_api_latency          = google_monitoring_alert_policy.strava_api_latency.id
+    http_request_latency        = google_monitoring_alert_policy.http_request_latency.id
+    postgres_query_latency      = google_monitoring_alert_policy.postgres_query_latency.id
+    firestore_operation_latency = google_monitoring_alert_policy.firestore_operation_latency.id
+    pubsub_publish_latency      = google_monitoring_alert_policy.pubsub_publish_latency.id
   }
 }
