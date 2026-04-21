@@ -72,7 +72,9 @@ def main() -> None:
     strava_repo = create_strava_activities_repo(tokens)
 
     # PostgreSQL
-    db_engine, session_factory = create_session_factory(config.postgres_connection_string)
+    db_engine, session_factory = create_session_factory(
+        config.postgres_connection_string
+    )
 
     def create_uow() -> SqlAlchemyUnitOfWork:
         return SqlAlchemyUnitOfWork(session_factory)
