@@ -1248,8 +1248,17 @@ resource "google_monitoring_alert_policy" "frontend_uptime" {
 # fires repeatedly on normal traffic, loosen the threshold; if it never fires
 # when something clearly went wrong, tighten it. All histograms are emitted
 # with WithUnit("ms"), so threshold_value is in milliseconds.
+#
+# All alerts in this block are gated on var.enable_application_metric_alerts.
+# Cloud Monitoring rejects an alert that references a metric descriptor which
+# doesn't exist yet, and these descriptors are auto-created by the OTel GCP
+# exporter only after the app emits each metric at least once. So: leave the
+# flag false for a first-ever deploy; flip true on a follow-up apply after
+# the services have run long enough for one metrics flush (~60s default).
 
 resource "google_monitoring_alert_policy" "postgres_pool_exhaustion" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
   display_name = "⚠️ Postgres: Connection pool near exhaustion"
   combiner     = "OR"
 
@@ -1291,6 +1300,8 @@ resource "google_monitoring_alert_policy" "postgres_pool_exhaustion" {
 }
 
 resource "google_monitoring_alert_policy" "strava_api_latency" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
   display_name = "⚠️ Strava API P99 latency high"
   combiner     = "OR"
 
@@ -1328,6 +1339,8 @@ resource "google_monitoring_alert_policy" "strava_api_latency" {
 }
 
 resource "google_monitoring_alert_policy" "http_request_latency" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
   display_name = "⚠️ HTTP request P99 latency high"
   combiner     = "OR"
 
@@ -1364,6 +1377,8 @@ resource "google_monitoring_alert_policy" "http_request_latency" {
 }
 
 resource "google_monitoring_alert_policy" "postgres_query_latency" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
   display_name = "⚠️ Postgres query P99 latency high"
   combiner     = "OR"
 
@@ -1402,6 +1417,8 @@ resource "google_monitoring_alert_policy" "postgres_query_latency" {
 }
 
 resource "google_monitoring_alert_policy" "firestore_operation_latency" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
   display_name = "⚠️ Firestore operation P99 latency high"
   combiner     = "OR"
 
@@ -1438,6 +1455,8 @@ resource "google_monitoring_alert_policy" "firestore_operation_latency" {
 }
 
 resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
   display_name = "⚠️ PubSub publish P99 latency high"
   combiner     = "OR"
 
@@ -1491,11 +1510,11 @@ output "alert_policy_ids" {
     old_messages                = google_monitoring_alert_policy.old_messages.id
     apigateway_uptime           = google_monitoring_alert_policy.apigateway_uptime.id
     frontend_uptime             = google_monitoring_alert_policy.frontend_uptime.id
-    postgres_pool_exhaustion    = google_monitoring_alert_policy.postgres_pool_exhaustion.id
-    strava_api_latency          = google_monitoring_alert_policy.strava_api_latency.id
-    http_request_latency        = google_monitoring_alert_policy.http_request_latency.id
-    postgres_query_latency      = google_monitoring_alert_policy.postgres_query_latency.id
-    firestore_operation_latency = google_monitoring_alert_policy.firestore_operation_latency.id
-    pubsub_publish_latency      = google_monitoring_alert_policy.pubsub_publish_latency.id
+    postgres_pool_exhaustion    = one(google_monitoring_alert_policy.postgres_pool_exhaustion[*].id)
+    strava_api_latency          = one(google_monitoring_alert_policy.strava_api_latency[*].id)
+    http_request_latency        = one(google_monitoring_alert_policy.http_request_latency[*].id)
+    postgres_query_latency      = one(google_monitoring_alert_policy.postgres_query_latency[*].id)
+    firestore_operation_latency = one(google_monitoring_alert_policy.firestore_operation_latency[*].id)
+    pubsub_publish_latency      = one(google_monitoring_alert_policy.pubsub_publish_latency[*].id)
   }
 }
