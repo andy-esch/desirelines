@@ -41,7 +41,7 @@ def client(mock_postgres_config):
     with patch(
         "stravapipe.cloudrun.postgres_writer_app.create_session_factory"
     ) as mock_factory:
-        mock_factory.return_value = MagicMock()
+        mock_factory.return_value = (MagicMock(), MagicMock())
         with TestClient(app) as client:
             yield client
 
@@ -453,3 +453,27 @@ class TestErrorHandling:
 
             assert response.status_code == 500
             assert "internal server error" in response.json()["detail"]
+
+
+class TestLifespanCleanup:
+    """Tests for application lifespan cleanup events."""
+
+    def test_engine_disposal_on_shutdown(self, mock_postgres_config):
+        """SQLAlchemy engine is disposed when the app shuts down."""
+        from stravapipe.cloudrun.postgres_writer_app import app
+
+        mock_engine = MagicMock()
+        mock_factory = MagicMock()
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.create_session_factory",
+            return_value=(mock_engine, mock_factory),
+        ):
+            # TestClient context manager triggers startup and shutdown events
+            with TestClient(app):
+                # Startup events have run
+                assert app.state.db_engine == mock_engine
+                mock_engine.dispose.assert_not_called()
+
+            # Shutdown events have run
+            mock_engine.dispose.assert_called_once()

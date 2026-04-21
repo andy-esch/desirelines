@@ -58,7 +58,7 @@ def client(mock_deletion_config, mock_services):
             "stravapipe.cloudrun.deletion_service_app.FirestoreTokenStore"
         ) as mock_ts,
     ):
-        mock_factory.return_value = mock_services["session_factory"]
+        mock_factory.return_value = (MagicMock(), mock_services["session_factory"])
         mock_bq_svc.return_value = mock_services["bq_deletion_service"]
         mock_ts.return_value = mock_services["token_store"]
 
@@ -156,3 +156,37 @@ class TestDeauthEndpoint:
 
         assert response.status_code == 500
         assert "bigquery" in response.json()["detail"]
+
+
+class TestLifespanCleanup:
+    """Tests for application lifespan cleanup events."""
+
+    def test_engine_disposal_on_shutdown(self, mock_deletion_config, mock_services):
+        """SQLAlchemy engine is disposed when the app shuts down."""
+        from stravapipe.cloudrun.deletion_service_app import app
+
+        mock_deletion_config.return_value.project_id = "test-project"
+        mock_deletion_config.return_value.bq_dataset = "test_dataset"
+        mock_deletion_config.return_value.firestore_database = "(default)"
+
+        mock_engine = MagicMock()
+        mock_factory = MagicMock()
+
+        with (
+            patch(
+                "stravapipe.cloudrun.deletion_service_app.create_session_factory",
+                return_value=(mock_engine, mock_factory),
+            ),
+            patch("stravapipe.cloudrun.deletion_service_app.BigQueryClientWrapper"),
+            patch("stravapipe.cloudrun.deletion_service_app.FirestoreClient"),
+            patch("stravapipe.cloudrun.deletion_service_app.FirestoreTokenStore"),
+            patch("stravapipe.cloudrun.deletion_service_app.BQUserDeletionService"),
+        ):
+            # TestClient context manager triggers startup and shutdown events
+            with TestClient(app):
+                # Startup events have run
+                assert app.state.db_engine == mock_engine
+                mock_engine.dispose.assert_not_called()
+
+            # Shutdown events have run
+            mock_engine.dispose.assert_called_once()

@@ -34,13 +34,13 @@ logger = setup_logging(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize shared resources on startup."""
+    """Initialize shared resources on startup and ensure clean shutdown."""
     try:
         config = load_postgres_writer_config()
         logger.info("PostgreSQL Writer configuration validated successfully")
 
         # Create session factory once at startup (connection pool)
-        app.state.session_factory = create_session_factory(
+        app.state.db_engine, app.state.session_factory = create_session_factory(
             config.postgres_connection_string
         )
         logger.info("PostgreSQL session factory initialized")
@@ -59,12 +59,25 @@ async def lifespan(app: FastAPI):
 
         # Initialize OTel tracing
         app.state.tracer = setup_tracing("desirelines-postgres-writer")
+
+        yield
     except Exception as e:
-        logger.error("Startup initialization failed: %s", e)
+        logger.error("Application lifecycle error: %s", e)
         raise
-    yield
-    shutdown_metrics()
-    shutdown_tracing()
+    finally:
+        # Dispose the SQLAlchemy engine so connections are closed cleanly when a
+        # Cloud Run revision is replaced — otherwise pooled connections leak until
+        # the container is torn down.
+        engine = getattr(app.state, "db_engine", None)
+        if engine is not None:
+            engine.dispose()
+            logger.info("PostgreSQL engine disposed")
+
+        # shutdown_metrics and shutdown_tracing are safe to call multiple times
+        # and handle the case where they haven't been initialized (provider is None).
+        shutdown_metrics()
+        shutdown_tracing()
+        logger.info("OTel resources shutdown")
 
 
 app = FastAPI(

@@ -36,7 +36,7 @@ logger = setup_logging(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize shared resources on startup."""
+    """Initialize shared resources on startup and ensure clean shutdown."""
     try:
         config = load_bq_inserter_config()
         logger.info("BQ Inserter configuration validated successfully")
@@ -61,12 +61,17 @@ async def lifespan(app: FastAPI):
 
         # Initialize OTel tracing
         app.state.tracer = setup_tracing("desirelines-bq-inserter")
+
+        yield
     except Exception as e:
-        logger.error("Startup initialization failed: %s", e)
+        logger.error("Application lifecycle error: %s", e)
         raise
-    yield
-    shutdown_metrics()
-    shutdown_tracing()
+    finally:
+        # shutdown_metrics and shutdown_tracing are safe to call multiple times
+        # and handle the case where they haven't been initialized (provider is None).
+        shutdown_metrics()
+        shutdown_tracing()
+        logger.info("OTel resources shutdown")
 
 
 app = FastAPI(

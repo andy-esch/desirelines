@@ -8,6 +8,7 @@ import logging
 from typing import Literal, Self
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool, QueuePool
 
@@ -21,12 +22,15 @@ logger = logging.getLogger(__name__)
 def create_session_factory(
     database_url: str,
     pool_config: PoolConfig | None = None,
-) -> sessionmaker[Session]:
-    """Create a session factory from database URL.
+) -> tuple[Engine, sessionmaker[Session]]:
+    """Create an engine and session factory from a database URL.
 
     Automatically selects pooling strategy based on configuration:
     - External pooler (Neon, PgBouncer): Uses NullPool (no client-side pooling)
     - Internal pooling: Uses QueuePool with conservative settings
+
+    Callers own the engine and must call ``engine.dispose()`` on shutdown
+    to avoid pool leaks across Cloud Run revisions.
 
     Args:
         database_url: PostgreSQL connection string
@@ -35,7 +39,8 @@ def create_session_factory(
             environment variables via PoolConfig.from_env().
 
     Returns:
-        Configured sessionmaker bound to the engine
+        (engine, session_factory) — the engine so callers can dispose it,
+        and a sessionmaker bound to that engine.
     """
     if pool_config is None:
         pool_config = PoolConfig.from_env()
@@ -69,7 +74,7 @@ def create_session_factory(
             pool_pre_ping=pool_config.pool_pre_ping,
         )
 
-    return sessionmaker(bind=engine, expire_on_commit=False)
+    return engine, sessionmaker(bind=engine, expire_on_commit=False)
 
 
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
@@ -79,12 +84,15 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     Repositories share the same session for transaction consistency.
 
     Usage:
-        session_factory = create_session_factory(database_url)
+        engine, session_factory = create_session_factory(database_url)
         uow = SqlAlchemyUnitOfWork(session_factory)
 
-        with uow:
-            uow.activities.upsert(activity)
-            uow.commit()
+        try:
+            with uow:
+                uow.activities.upsert(activity)
+                uow.commit()
+        finally:
+            engine.dispose()
 
     For testing with transaction rollback:
         # In conftest.py fixture
