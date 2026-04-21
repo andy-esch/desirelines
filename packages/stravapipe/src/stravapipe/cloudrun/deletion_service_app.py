@@ -157,6 +157,8 @@ async def lifespan(app: FastAPI):
             engine.dispose()
             logger.info("PostgreSQL engine disposed")
 
+        # shutdown_metrics and shutdown_tracing are safe to call multiple times
+        # and handle the case where they haven't been initialized (provider is None).
         shutdown_metrics()
         shutdown_tracing()
         logger.info("OTel resources shutdown")
