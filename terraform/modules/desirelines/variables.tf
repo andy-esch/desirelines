@@ -74,6 +74,12 @@ variable "enable_apis" {
   default     = true
 }
 
+variable "enable_application_metric_alerts" {
+  description = "Gate for alert policies that reference custom OTel application metrics (postgres pool exhaustion, Strava/HTTP/Postgres/Firestore/PubSub latency tails). These policies target custom.googleapis.com/desirelines.io/* metric descriptors, which are auto-created by the OTel GCP exporter the first time the app emits each metric — so on a first-ever deploy they don't exist yet and `google_monitoring_alert_policy` returns 404 when it tries to bind to them. Leave false on the initial deploy; after the services have run long enough to flush at least one metrics batch (≥ 60s), flip true on a follow-up apply."
+  type        = bool
+  default     = false
+}
+
 # Deployment version tracking for code provenance and observability
 variable "deployment_version" {
   description = "Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest')"
