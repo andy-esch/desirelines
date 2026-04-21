@@ -105,13 +105,13 @@ def _delete_firestore_user_docs(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize shared resources on startup."""
+    """Initialize shared resources on startup and ensure clean shutdown."""
     try:
         config = load_deletion_service_config()
         logger.info("Deletion service configuration validated successfully")
 
         # PostgreSQL
-        app.state.session_factory = create_session_factory(
+        app.state.db_engine, app.state.session_factory = create_session_factory(
             config.postgres_connection_string
         )
         logger.info("PostgreSQL session factory initialized")
@@ -146,12 +146,20 @@ async def lifespan(app: FastAPI):
 
         # Initialize OTel tracing
         app.state.tracer = setup_tracing("desirelines-deletion-service")
+
+        yield
     except Exception as e:
-        logger.error("Startup initialization failed: %s", e)
+        logger.error("Application lifecycle error: %s", e)
         raise
-    yield
-    shutdown_metrics()
-    shutdown_tracing()
+    finally:
+        engine = getattr(app.state, "db_engine", None)
+        if engine is not None:
+            engine.dispose()
+            logger.info("PostgreSQL engine disposed")
+
+        shutdown_metrics()
+        shutdown_tracing()
+        logger.info("OTel resources shutdown")
 
 
 app = FastAPI(

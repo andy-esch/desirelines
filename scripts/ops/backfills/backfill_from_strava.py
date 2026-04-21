@@ -112,11 +112,17 @@ class StravaBackfiller:
         if self._pg_session_factory is None:
             logger.info("Initializing PostgreSQL client...")
             config = self._get_pg_config()
-            self._pg_session_factory = create_session_factory(
+            self._pg_engine, self._pg_session_factory = create_session_factory(
                 config.postgres_connection_string
             )
             logger.info("PostgreSQL session factory initialized")
         return self._pg_session_factory
+
+    def shutdown(self):
+        """Dispose of resources"""
+        if hasattr(self, "_pg_engine") and self._pg_engine:
+            self._pg_engine.dispose()
+            logger.info("PostgreSQL engine disposed")
 
     def fetch_activities_for_year(self, year: int) -> list[SummaryStravaActivity]:
         """
@@ -410,40 +416,43 @@ Examples:
     # Initialize backfiller
     backfiller = StravaBackfiller(dry_run=args.dry_run)
 
-    # Process each year
-    all_stats = []
-    total_bq_inserted = 0
-    total_pg_inserted = 0
-    total_errors = 0
+    try:
+        # Process each year
+        all_stats = []
+        total_bq_inserted = 0
+        total_pg_inserted = 0
+        total_errors = 0
 
-    for year in sorted(args.years):
-        try:
-            stats = backfiller.backfill_year(year)
-            all_stats.append(stats)
-            total_bq_inserted += stats["bq_inserted"]
-            total_pg_inserted += stats["pg_inserted"]
-            total_errors += stats["bq_errors"] + stats["pg_errors"]
-        except Exception as e:
-            logger.error(f"Failed to backfill {year}: {e}")
-            total_errors += 1
-            # Continue with next year
+        for year in sorted(args.years):
+            try:
+                stats = backfiller.backfill_year(year)
+                all_stats.append(stats)
+                total_bq_inserted += stats["bq_inserted"]
+                total_pg_inserted += stats["pg_inserted"]
+                total_errors += stats["bq_errors"] + stats["pg_errors"]
+            except Exception as e:
+                logger.error(f"Failed to backfill {year}: {e}")
+                total_errors += 1
+                # Continue with next year
 
-    # Summary
-    logger.info(f"{'=' * 60}")
-    logger.info("Backfill Summary:")
-    logger.info(f"{'=' * 60}")
-    for stats in all_stats:
+        # Summary
+        logger.info(f"{'=' * 60}")
+        logger.info("Backfill Summary:")
+        logger.info(f"{'=' * 60}")
+        for stats in all_stats:
+            logger.info(
+                f"  {stats['year']}: "
+                f"BQ({stats['bq_inserted']}/{stats['bq_skipped']}/{stats['bq_errors']}) "
+                f"PG({stats['pg_inserted']}/{stats['pg_skipped']}/{stats['pg_errors']}) "
+                f"({stats['duration_seconds']:.1f}s)"
+            )
+        logger.info(f"{'=' * 60}")
         logger.info(
-            f"  {stats['year']}: "
-            f"BQ({stats['bq_inserted']}/{stats['bq_skipped']}/{stats['bq_errors']}) "
-            f"PG({stats['pg_inserted']}/{stats['pg_skipped']}/{stats['pg_errors']}) "
-            f"({stats['duration_seconds']:.1f}s)"
+            f"Total: BQ {total_bq_inserted} inserted, PG {total_pg_inserted} inserted, "
+            f"{total_errors} errors"
         )
-    logger.info(f"{'=' * 60}")
-    logger.info(
-        f"Total: BQ {total_bq_inserted} inserted, PG {total_pg_inserted} inserted, "
-        f"{total_errors} errors"
-    )
+    finally:
+        backfiller.shutdown()
 
     if total_errors > 0:
         logger.warning(f"Completed with {total_errors} errors")

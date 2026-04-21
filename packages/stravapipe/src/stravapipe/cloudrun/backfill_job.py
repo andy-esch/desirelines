@@ -72,7 +72,7 @@ def main() -> None:
     strava_repo = create_strava_activities_repo(tokens)
 
     # PostgreSQL
-    session_factory = create_session_factory(config.postgres_connection_string)
+    db_engine, session_factory = create_session_factory(config.postgres_connection_string)
 
     def create_uow() -> SqlAlchemyUnitOfWork:
         return SqlAlchemyUnitOfWork(session_factory)
@@ -95,10 +95,13 @@ def main() -> None:
         batch_size=config.batch_size,
     )
 
-    result = service.backfill_user(
-        athlete_id=config.athlete_id,
-        years=config.years,
-    )
+    try:
+        result = service.backfill_user(
+            athlete_id=config.athlete_id,
+            years=config.years,
+        )
+    finally:
+        db_engine.dispose()
 
     # --- Exit ---
 
