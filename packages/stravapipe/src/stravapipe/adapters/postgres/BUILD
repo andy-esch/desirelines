@@ -1,1 +1,6 @@
-python_sources(resolve="stravapipe")
+python_sources(
+    resolve="stravapipe",
+    dependencies=[
+        "packages/stravapipe:deps#psycopg",
+    ],
+)
