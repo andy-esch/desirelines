@@ -1,0 +1,44 @@
+{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          { "context": "Validation" },
+          { "context": "Python" },
+          { "context": "Go (apigateway)" },
+          { "context": "Go (dispatcher)" },
+          { "context": "Go (shared)" },
+          { "context": "Web/React" },
+          { "context": "Integration Tests" },
+          { "context": "Terraform" },
+          { "context": "codecov/project" },
+          { "context": "codecov/project/python" },
+          { "context": "codecov/project/go-apigateway" },
+          { "context": "codecov/project/go-dispatcher" },
+          { "context": "codecov/project/go-shared" },
+          { "context": "codecov/project/web" },
+          { "context": "codecov/patch" }
+        ]
+      }
+    }
+  ],
+  "bypass_actors": []
+}

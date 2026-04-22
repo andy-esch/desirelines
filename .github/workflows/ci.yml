@@ -136,7 +136,7 @@ jobs:
           files: ./dist/coverage/python/coverage.xml
           flags: python
           name: python-coverage
-          fail_ci_if_error: false
+          fail_ci_if_error: true
 
       - name: Lint
         run: "pants lint packages/stravapipe::"
@@ -181,7 +181,7 @@ jobs:
           files: ./packages/${{ matrix.package }}/coverage.out
           flags: go-${{ matrix.package }}
           name: go-${{ matrix.package }}-coverage
-          fail_ci_if_error: false
+          fail_ci_if_error: true
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -243,7 +243,7 @@ jobs:
           files: ./packages/web/coverage/lcov.info
           flags: web
           name: web-coverage
-          fail_ci_if_error: false
+          fail_ci_if_error: true
 
       - name: Build
         run: npm run build
