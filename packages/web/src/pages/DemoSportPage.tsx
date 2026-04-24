@@ -71,8 +71,8 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     const stored = localStorage.getItem(storageKey);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored) as { goals?: Goals };
-        if (Array.isArray(parsed.goals)) {
+        const parsed = JSON.parse(stored) as { goals?: Goals } | null;
+        if (Array.isArray(parsed?.goals)) {
           return parsed.goals;
         }
       } catch {
