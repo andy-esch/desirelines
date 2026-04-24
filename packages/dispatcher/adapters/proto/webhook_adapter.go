@@ -164,7 +164,11 @@ func ToStravaJSON(event *pb.WebhookEvent) ([]byte, error) {
 		SubscriptionID: event.SubscriptionId,
 		Updates:        activityUpdatesToMap(event.Updates),
 	}
-	return json.Marshal(raw)
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("marshal strava webhook: %w", err)
+	}
+	return b, nil
 }
 
 // ToEnrichedJSON converts an EnrichedEvent to JSON for PubSub publishing.
@@ -190,7 +194,11 @@ func ToEnrichedJSON(enriched *pb.EnrichedEvent) ([]byte, error) {
 		result.RawActivity = json.RawMessage(enriched.RawActivity)
 	}
 
-	return json.Marshal(result)
+	b, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("marshal enriched event: %w", err)
+	}
+	return b, nil
 }
 
 // activityUpdatesToMap converts typed ActivityUpdates back to map for JSON serialization.

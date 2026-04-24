@@ -26,6 +26,10 @@ linters:
     - nolintlint      # clean up stale //nolint directives
     - whitespace      # Tool for detection of leading and trailing whitespace
     - sloglint        # Enforce slog best practices
+    - wrapcheck       # Require wrapping errors returned from other packages
+    - contextcheck    # Detect non-inherited contexts (loses cancellation/deadline)
+    - exhaustive      # Require exhaustive switch/map on enum-like types
+    - forbidigo       # Ban specific identifiers (fmt.Println, panic outside init/main)
 
   settings:
     errcheck:
@@ -73,6 +77,27 @@ linters:
         - ifElseChain
         - unnamedResult
         - httpNoBody
+    wrapcheck:
+      # Allow returning errors from stdlib `errors` package helpers verbatim
+      # (these are already well-named by the constructor, e.g. errors.New,
+      # errors.Join, errors.Unwrap). Third-party passthroughs still required
+      # to be wrapped so the caller can trace the origin.
+      ignore-sig-regexps:
+        - "\\.Errorf\\("
+      ignore-package-globs:
+        - "errors"
+    forbidigo:
+      forbid:
+        - pattern: "^fmt\\.Print(ln|f)?$"
+          msg: "use the slog logger instead of fmt.Print*"
+        - pattern: "^panic$"
+          msg: "return an error or use log.Fatal in main/init instead of panic"
+      exclude-godoc-examples: true
+      analyze-types: true
+    exhaustive:
+      # Proto-generated enums always have an UNSPECIFIED zero value that legitimately
+      # falls through to `default`. Allow `default` to satisfy exhaustiveness.
+      default-signifies-exhaustive: true
 
 formatters:
   enable:

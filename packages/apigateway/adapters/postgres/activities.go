@@ -101,10 +101,15 @@ func newActivityRepository(db DBQuerier) *ActivityRepository {
 // Ping verifies database connectivity.
 func (r *ActivityRepository) Ping(ctx context.Context) error {
 	if r.pool != nil {
-		return r.pool.Ping(ctx)
+		if err := r.pool.Ping(ctx); err != nil {
+			return fmt.Errorf("postgres ping: %w", err)
+		}
+		return nil
 	}
-	_, err := r.db.Exec(ctx, "SELECT 1")
-	return err
+	if _, err := r.db.Exec(ctx, "SELECT 1"); err != nil {
+		return fmt.Errorf("postgres ping exec: %w", err)
+	}
+	return nil
 }
 
 // Close releases all database resources.
@@ -500,6 +505,7 @@ func (qb *queryBuilder) AddCondition(format string, args ...interface{}) {
 	placeholders := strings.Count(strings.ReplaceAll(format, "%%", ""), "%d")
 
 	if placeholders != len(args) {
+		//nolint:forbidigo // programmer-error guard — a mismatch here means a caller built a malformed query; fail fast rather than return an error that can't be meaningfully handled at runtime
 		panic(fmt.Sprintf("queryBuilder: format %q has %d placeholders but %d args", format, placeholders, len(args)))
 	}
 

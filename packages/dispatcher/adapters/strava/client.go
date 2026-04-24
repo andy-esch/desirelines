@@ -182,8 +182,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 			)
 			select {
 			case <-ctx.Done():
-				err = ctx.Err()
-				return nil, err
+				return nil, fmt.Errorf("strava backoff interrupted: %w", ctx.Err())
 			case <-time.After(backoff):
 			}
 		}
@@ -294,8 +293,7 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 			)
 			select {
 			case <-ctx.Done():
-				err = ctx.Err()
-				return nil, err
+				return nil, fmt.Errorf("strava backoff interrupted: %w", ctx.Err())
 			case <-time.After(backoff):
 			}
 		}

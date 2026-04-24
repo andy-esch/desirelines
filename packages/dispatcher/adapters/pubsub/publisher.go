@@ -184,5 +184,8 @@ func (p *Publisher) Close(_ context.Context) error {
 
 	err := p.client.Close()
 	p.client = nil
-	return err
+	if err != nil {
+		return fmt.Errorf("close pubsub client: %w", err)
+	}
+	return nil
 }

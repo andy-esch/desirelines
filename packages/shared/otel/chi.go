@@ -21,6 +21,7 @@ import (
 // name is left untouched.
 func SpanNameFromChiRoute(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		//nolint:contextcheck // defer deliberately reads the request context to resolve the matched chi route pattern after dispatch; span renaming must happen post-handler and tolerate client-canceled contexts
 		defer func() {
 			span := trace.SpanFromContext(r.Context())
 			if !span.SpanContext().IsValid() {

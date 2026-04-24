@@ -131,6 +131,7 @@ func TestSpanNameFromChiRoute_PanicRecoveredStillRenames(t *testing.T) {
 	r.Use(SpanNameFromChiRoute)
 	r.Use(chiMiddleware.Recoverer)
 	r.Get("/boom/{id}", func(_ http.ResponseWriter, _ *http.Request) {
+		//nolint:forbidigo // deliberate panic to exercise chi middleware recovery path
 		panic("boom")
 	})
 

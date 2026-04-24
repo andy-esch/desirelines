@@ -95,7 +95,11 @@ func parseDate(s string) (time.Time, error) {
 	if len(s) > MaxDateLength {
 		return time.Time{}, fmt.Errorf("date string too long")
 	}
-	return time.Parse(DateFormat, s)
+	t, err := time.Parse(DateFormat, s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse date %q: %w", s, err)
+	}
+	return t, nil
 }
 
 // DateRangeYearOverlap checks that a validated date range overlaps with the given URL year.
@@ -114,10 +118,12 @@ func DateRangeYearOverlap(fromStr, toStr string, year int) string {
 
 	fromDate, err := parseDate(fromStr)
 	if err != nil {
+		//nolint:forbidigo // programmer-error guard — callers must validate dates before calling this helper
 		panic("programmer error: DateRangeYearOverlap called with invalid 'from' date: " + err.Error())
 	}
 	toDate, err := parseDate(toStr)
 	if err != nil {
+		//nolint:forbidigo // programmer-error guard — callers must validate dates before calling this helper
 		panic("programmer error: DateRangeYearOverlap called with invalid 'to' date: " + err.Error())
 	}
 

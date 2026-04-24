@@ -135,15 +135,17 @@ func (c *SecretCache) addFileToHash(h io.Writer, path string) error {
 			_, _ = h.Write([]byte("\x00MISSING\x00")) //nolint:errcheck // Hash.Write never returns error
 			return nil
 		}
-		return err
+		return fmt.Errorf("open secrets file %q: %w", path, err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
 			c.logger.Warn("Failed to close secrets file", "path", path, "error", closeErr)
 		}
 	}()
-	_, err = io.Copy(h, file)
-	return err
+	if _, copyErr := io.Copy(h, file); copyErr != nil {
+		return fmt.Errorf("hash secrets file %q: %w", path, copyErr)
+	}
+	return nil
 }
 
 // loadSecrets reads and parses the secrets files.

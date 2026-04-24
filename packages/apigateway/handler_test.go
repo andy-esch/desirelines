@@ -116,6 +116,7 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 	// Load sport config for tests (uses embedded config)
 	sportConfig, err := config.NewSportConfig("")
 	if err != nil {
+		//nolint:forbidigo // test setup — embedded config failure means the test binary itself is broken, not a runtime error path
 		panic(fmt.Sprintf("failed to load sport config for tests: %v", err))
 	}
 
