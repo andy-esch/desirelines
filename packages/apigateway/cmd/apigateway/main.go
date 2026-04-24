@@ -485,5 +485,9 @@ func getConnectionString(cfg *config.Config) (string, error) {
 		envFallback = "POSTGRES_CONNECTION_STRING"
 	}
 
-	return secrets.LoadFromMount(config.SecretPathPostgresConn, envFallback)
+	conn, err := secrets.LoadFromMount(config.SecretPathPostgresConn, envFallback)
+	if err != nil {
+		return "", fmt.Errorf("load postgres connection string: %w", err)
+	}
+	return conn, nil
 }

@@ -61,6 +61,7 @@ func requestLogger(logger *slog.Logger, histogram metric.Float64Histogram) func(
 			// Wrap the response writer to capture the status code and bytes written
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
+			//nolint:contextcheck // logger/histogram deliberately use the request context inside defer to preserve trace/correlation IDs; cancellation on client disconnect is acceptable for post-request metrics
 			defer func() {
 				status := ww.Status()
 				latency := time.Since(start)
