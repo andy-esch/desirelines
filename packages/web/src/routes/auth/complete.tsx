@@ -21,21 +21,21 @@ function AuthComplete() {
 
     if (!token) {
       signInStarted = false;
-      navigate({ to: "/auth/error", search: { error: "missing_token" } });
+      void navigate({ to: "/auth/error", search: { error: "missing_token" } });
       return;
     }
 
     // Clear fragment from URL immediately (defense in depth — prevent token leakage)
     history.replaceState(null, "", window.location.pathname);
 
-    authService
+    void authService
       .signInWithToken(token)
       .then(() => {
         showToast("Signed in successfully");
-        navigate({ to: "/" });
+        void navigate({ to: "/" });
       })
       .catch(() => {
-        navigate({ to: "/auth/error", search: { error: "sign_in_failed" } });
+        void navigate({ to: "/auth/error", search: { error: "sign_in_failed" } });
       })
       .finally(() => {
         signInStarted = false;

@@ -71,8 +71,8 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     const stored = localStorage.getItem(storageKey);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored);
-        if (parsed && Array.isArray(parsed.goals)) {
+        const parsed = JSON.parse(stored) as { goals?: Goals };
+        if (Array.isArray(parsed.goals)) {
           return parsed.goals;
         }
       } catch {
@@ -101,9 +101,10 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     setGoals(loadGoals());
   }, [loadGoals]);
 
-  const handleGoalsChange = async (newGoals: Goals): Promise<void> => {
+  const handleGoalsChange = (newGoals: Goals): Promise<void> => {
     setGoals(newGoals);
     localStorage.setItem(storageKey, JSON.stringify({ goals: newGoals }));
+    return Promise.resolve();
   };
 
   // Create year context
@@ -156,15 +157,18 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
         availableSports={availableSports}
         sportCounts={sportCounts}
         showAuthButton={false}
-        onSportChange={(newSport) =>
-          navigate({
+        onSportChange={(newSport) => {
+          void navigate({
             to: "/demo/$sport/$year",
             params: { sport: newSport, year: String(currentYear) },
-          })
-        }
-        onYearChange={(newYear) =>
-          navigate({ to: "/demo/$sport/$year", params: { sport, year: String(newYear) } })
-        }
+          });
+        }}
+        onYearChange={(newYear) => {
+          void navigate({
+            to: "/demo/$sport/$year",
+            params: { sport, year: String(newYear) },
+          });
+        }}
         routePrefix="/demo"
         priorYearData={{}}
       />

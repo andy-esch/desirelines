@@ -36,7 +36,9 @@ export function usePublicSportConfig(): UsePublicSportConfigResult {
   return {
     sportConfig: data ?? null,
     isLoading,
-    error: error as Error | null,
-    retry: refetch,
+    error: error,
+    retry: () => {
+      void refetch();
+    },
   };
 }

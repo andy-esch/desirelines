@@ -1,5 +1,5 @@
 import React from "react";
-import { Goals, PACE_THRESHOLDS } from "../utils/goalCalculations";
+import { type Goals, PACE_THRESHOLDS } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
 import { useDangerThresholds } from "../hooks/useDangerThresholds";

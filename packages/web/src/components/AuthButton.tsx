@@ -41,7 +41,7 @@ export default function AuthButton() {
     return (
       <div>
         <button
-          onClick={handleSignOut}
+          onClick={() => void handleSignOut()}
           className="btn btn-sm btn-outline-light"
           disabled={actionLoading}
         >
@@ -59,7 +59,11 @@ export default function AuthButton() {
   // Show Strava connect button for anonymous users
   return (
     <div>
-      <button onClick={handleSignIn} className="btn btn-sm btn-primary" disabled={actionLoading}>
+      <button
+        onClick={() => void handleSignIn()}
+        className="btn btn-sm btn-primary"
+        disabled={actionLoading}
+      >
         {actionLoading ? "Connecting..." : "Connect with Strava"}
       </button>
       {error && (

@@ -39,7 +39,9 @@ export function useSportConfig(): UseSportConfigResult {
   return {
     sportConfig: data ?? null,
     isLoading: isLoading || authLoading, // Consider auth loading as part of total loading
-    error: error as Error | null,
-    retry: refetch,
+    error: error,
+    retry: () => {
+      void refetch();
+    },
   };
 }

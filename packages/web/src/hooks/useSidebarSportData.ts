@@ -61,7 +61,7 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
     availableSports,
     sportCounts,
     isLoading: authLoading || visibleLoading || configLoading || metadataLoading,
-    error: (configError || metadataError) as Error | null,
+    error: (configError || metadataError),
   };
 }
 

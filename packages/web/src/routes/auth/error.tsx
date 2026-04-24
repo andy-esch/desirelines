@@ -25,7 +25,7 @@ function AuthError() {
       <div className="glass-panel p-8 max-w-md text-center">
         <h1 className="text-xl font-semibold text-text-primary mb-4">Sign-In Error</h1>
         <p className="text-text-muted mb-6">{message}</p>
-        <button onClick={() => signIn()} className="btn btn-sm btn-primary">
+        <button onClick={() => void signIn()} className="btn btn-sm btn-primary">
           Try Again
         </button>
       </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
+import { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import type { AuthService } from "../services/auth/AuthService";
 
 // Mock dependencies before importing the module under test

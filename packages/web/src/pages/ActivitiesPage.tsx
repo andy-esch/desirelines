@@ -105,14 +105,14 @@ const ActivitiesPage = () => {
 
   // Update URL when filters change (URL is the single source of truth)
   const handleRangeChange = (range: TimeRange) => {
-    navigate({
+    void navigate({
       to: "/activities",
       search: (prev) => ({ ...prev, range }),
     });
   };
 
   const handleSportChange = (newSport: string) => {
-    navigate({
+    void navigate({
       to: "/activities",
       search: (prev) => ({
         ...prev,

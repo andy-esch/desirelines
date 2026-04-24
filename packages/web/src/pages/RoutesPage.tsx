@@ -206,7 +206,7 @@ export default function RoutesPage() {
       const allYearsEnabled = years.size === allYears.length && allYears.every((y) => years.has(y));
       const ringsValue = ringsOn !== undefined ? ringsOn : showRings;
 
-      navigate({
+      void navigate({
         to: "/routes",
         search: {
           sports: allSportsEnabled ? undefined : Array.from(sports).join(","),

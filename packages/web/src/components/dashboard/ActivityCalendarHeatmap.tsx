@@ -80,7 +80,7 @@ function generateWeeksForRange(startDate: Date, endDate: Date): (Date | null)[][
   const firstDay = startDate.getDay();
 
   // Add padding for days before start date
-  const firstWeek: (Date | null)[] = Array(firstDay).fill(null);
+  const firstWeek: (Date | null)[] = Array<Date | null>(firstDay).fill(null);
 
   // Build weeks
   let currentWeek = firstWeek;

@@ -28,7 +28,9 @@ const EMULATOR_PORTS = {
 
 // Clean up any existing Firebase instances
 const existingApps = getApps();
-existingApps.forEach((app) => deleteApp(app));
+existingApps.forEach((app) => {
+  void deleteApp(app);
+});
 
 // Initialize test Firebase app IMMEDIATELY (before any imports)
 const testApp = initializeApp(EMULATOR_CONFIG);
@@ -51,10 +53,15 @@ try {
 }
 
 beforeAll(() => {
-  console.log("✓ Connected to Firebase emulators");
-  console.log(`  Auth:      http://127.0.0.1:${EMULATOR_PORTS.auth}`);
-  console.log(`  Firestore: http://127.0.0.1:${EMULATOR_PORTS.firestore}`);
-  console.log(`  UI:        http://127.0.0.1:4000`);
+  // eslint-disable-next-line no-console -- test setup diagnostics
+  console.log(
+    [
+      "✓ Connected to Firebase emulators",
+      `  Auth:      http://127.0.0.1:${EMULATOR_PORTS.auth}`,
+      `  Firestore: http://127.0.0.1:${EMULATOR_PORTS.firestore}`,
+      `  UI:        http://127.0.0.1:4000`,
+    ].join("\n")
+  );
 });
 
 afterAll(async () => {

@@ -20,7 +20,7 @@ export class MockAuthService implements AuthService {
     return this.currentUser;
   }
 
-  async signIn(): Promise<void> {
+  signIn(): Promise<void> {
     this.currentUser = {
       uid: "test-user-123",
       email: "test@example.com",
@@ -28,9 +28,10 @@ export class MockAuthService implements AuthService {
       photoURL: null,
     };
     this.notifyListeners();
+    return Promise.resolve();
   }
 
-  async signInWithToken(_customToken: string): Promise<void> {
+  signInWithToken(_customToken: string): Promise<void> {
     this.currentUser = {
       uid: "test-user-123",
       email: null,
@@ -38,11 +39,13 @@ export class MockAuthService implements AuthService {
       photoURL: null,
     };
     this.notifyListeners();
+    return Promise.resolve();
   }
 
-  async signOut(): Promise<void> {
+  signOut(): Promise<void> {
     this.currentUser = null;
     this.notifyListeners();
+    return Promise.resolve();
   }
 
   onAuthStateChanged(callback: (user: User | null) => void): () => void {
@@ -55,9 +58,9 @@ export class MockAuthService implements AuthService {
     };
   }
 
-  async getIdToken(_forceRefresh?: boolean): Promise<string | undefined> {
-    if (!this.currentUser) return undefined;
-    return `mock-token-${this.currentUser.uid}`;
+  getIdToken(_forceRefresh?: boolean): Promise<string | undefined> {
+    if (!this.currentUser) return Promise.resolve(undefined);
+    return Promise.resolve(`mock-token-${this.currentUser.uid}`);
   }
 
   async waitForAuthReady(): Promise<void> {
