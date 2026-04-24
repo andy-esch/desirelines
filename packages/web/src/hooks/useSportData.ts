@@ -58,7 +58,7 @@ export function useSportData(year: number, sport: string): SportDataResult {
     metrics: metrics ?? null,
     sportConfig,
     isLoading: authLoading || metricsLoading || configLoading,
-    error: (metricsError) ?? configError,
+    error: metricsError ?? configError,
     retry: () => {
       if (configError) {
         configRetry();

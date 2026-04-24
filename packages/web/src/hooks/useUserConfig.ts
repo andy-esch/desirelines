@@ -356,12 +356,12 @@ export function useUserConfig(
   return {
     data: data ?? defaultValue ?? null,
     loading: isLoading || authLoading, // Treat auth loading as loading
-    error: (error) || null,
+    error: error || null,
     updateData: async (newData: ConfigData) => {
       await mutation.mutateAsync(newData);
     },
     isSaving: mutation.isPending,
-    saveError: (mutation.error) || null,
+    saveError: mutation.error || null,
     clearSaveError,
   };
 }
@@ -493,7 +493,7 @@ export function useFullUserConfig(
   return {
     config: config ?? null,
     loading: isLoading || authLoading,
-    error: (error) || (mutation.error),
+    error: error || mutation.error,
     updateSection,
   };
 }
