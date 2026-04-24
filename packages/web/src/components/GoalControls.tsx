@@ -1,5 +1,5 @@
 import React from "react";
-import { Goals, validateGoals, generateDefaultGoals } from "../utils/goalCalculations";
+import { type Goals, validateGoals, generateDefaultGoals } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
 import { useGoalManager } from "../hooks/useGoalManager";
@@ -187,7 +187,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
         </button>
         <button
           className="btn btn-sm btn-ghost-slate flex items-center justify-center gap-1"
-          onClick={() => saveGoals(generateDefaultGoals(estimatedYearEnd))}
+          onClick={() => void saveGoals(generateDefaultGoals(estimatedYearEnd))}
           disabled={isSaving}
         >
           <svg

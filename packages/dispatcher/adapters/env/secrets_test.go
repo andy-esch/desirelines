@@ -84,7 +84,10 @@ func TestSecretCache_ReloadsAfterTTL(t *testing.T) {
 	defer cleanup()
 
 	log := gcplog.NewNoOpLogger()
-	cache := env.NewSecretCache(tokenPath, subIDPath, 100*time.Millisecond, log)
+	// Use a longer TTL than most tests — the "within TTL" assertion below races
+	// against initial-load IO + file-write latency. Short TTLs (100ms) make this
+	// flaky on slow CI runners where those operations exceed the window.
+	cache := env.NewSecretCache(tokenPath, subIDPath, 500*time.Millisecond, log)
 
 	// Load initial values
 	_, _, err := cache.GetSecrets()
@@ -107,7 +110,7 @@ func TestSecretCache_ReloadsAfterTTL(t *testing.T) {
 	}
 
 	// Wait for TTL to expire
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(600 * time.Millisecond)
 
 	// Call after TTL should detect change
 	token, subID, err = cache.GetSecrets()

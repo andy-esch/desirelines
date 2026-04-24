@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { useGoalMigration } from "./useGoalMigration";
 import type { GoalsForYear } from "../services/userConfigService";
 

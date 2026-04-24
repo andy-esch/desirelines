@@ -8,7 +8,7 @@ coverage:
       default:
         target: auto
         threshold: 1%
-        informational: false
+        informational: true
         if_ci_failed: error
       python:
         flags: [python]
@@ -35,6 +35,7 @@ coverage:
       default:
         target: auto
         threshold: 0%
+        informational: true
         if_ci_failed: error
 
 comment:

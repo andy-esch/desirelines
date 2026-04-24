@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import axios, { AxiosError } from "axios";
+import axios, { type AxiosError } from "axios";
 import {
   isCancellationError,
   isAuthError,

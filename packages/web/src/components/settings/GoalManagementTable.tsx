@@ -4,7 +4,6 @@ import { useFullUserConfig } from "../../hooks/useUserConfig";
 import { DEMO_SPORT_LABELS, type DemoSport } from "../../constants/demoConfig";
 import NeonSpinner from "../NeonSpinner";
 import { InlineAlert } from "../InlineAlert";
-import type { SportGoalsForYear } from "../../services/userConfigService";
 
 /** Flattened goal row for display */
 interface GoalRow {
@@ -33,7 +32,7 @@ export function GoalManagementTable() {
     // Iterate years
     Object.entries(goals).forEach(([yearStr, sportGoalsForYear]) => {
       const year = parseInt(yearStr, 10);
-      const data = sportGoalsForYear as SportGoalsForYear;
+      const data = sportGoalsForYear;
       if (isNaN(year) || !data?.sports) return;
 
       // Iterate sports

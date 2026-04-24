@@ -7,7 +7,14 @@ const SPORT_SLUG_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 function SportErrorComponent({ error }: { error: Error }) {
   const router = useRouter();
-  return <PageErrorFallback error={error} onReset={() => router.invalidate()} />;
+  return (
+    <PageErrorFallback
+      error={error}
+      onReset={() => {
+        void router.invalidate();
+      }}
+    />
+  );
 }
 
 export const Route = createFileRoute("/$sport")({

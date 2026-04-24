@@ -332,7 +332,7 @@ export function AccountDropdown({
                 role="menuitem"
                 className="transition-colors hover:bg-white/[0.08]"
                 style={menuItemStyle}
-                onClick={handleSignOut}
+                onClick={() => void handleSignOut()}
                 disabled={actionLoading}
               >
                 <SignOutIcon />
@@ -347,7 +347,7 @@ export function AccountDropdown({
                   ...menuItemStyle,
                   color: "var(--color-header-accent)",
                 }}
-                onClick={handleSignIn}
+                onClick={() => void handleSignIn()}
                 disabled={actionLoading}
               >
                 <SignInIcon />

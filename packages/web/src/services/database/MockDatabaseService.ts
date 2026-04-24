@@ -11,12 +11,12 @@ export class MockDatabaseService implements DatabaseService {
   private data = new Map<string, unknown>();
   private listeners = new Map<string, Set<(data: unknown) => void>>();
 
-  async getDocument<T>(path: string): Promise<T | null> {
+  getDocument<T>(path: string): Promise<T | null> {
     const data = this.data.get(path);
-    return (data as T) ?? null;
+    return Promise.resolve((data as T) ?? null);
   }
 
-  async setDocument<T>(path: string, data: T, options?: { merge?: boolean }): Promise<void> {
+  setDocument<T>(path: string, data: T, options?: { merge?: boolean }): Promise<void> {
     if (options?.merge) {
       const existing = this.data.get(path) ?? {};
       this.data.set(path, { ...(existing as object), ...(data as object) });
@@ -24,11 +24,13 @@ export class MockDatabaseService implements DatabaseService {
       this.data.set(path, data);
     }
     this.notifyListeners(path);
+    return Promise.resolve();
   }
 
-  async deleteDocument(path: string): Promise<void> {
+  deleteDocument(path: string): Promise<void> {
     this.data.delete(path);
     this.notifyListeners(path);
+    return Promise.resolve();
   }
 
   subscribeToDocument<T>(

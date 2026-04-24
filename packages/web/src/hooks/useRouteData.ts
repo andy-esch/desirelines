@@ -20,6 +20,6 @@ export function useRouteData(): UseRouteDataResult {
   return {
     routes: data?.routes ?? [],
     isLoading: authLoading || isLoading,
-    error: error as Error | null,
+    error: error,
   };
 }

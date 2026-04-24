@@ -49,12 +49,15 @@ export default function SportPage({ sport, year }: SportPageProps) {
       availableSports={data.availableSports}
       sportCounts={data.sportCounts}
       showAuthButton={true}
-      onSportChange={(newSport) =>
-        navigate({ to: "/$sport/$year", params: { sport: newSport, year: String(currentYear) } })
-      }
-      onYearChange={(newYear) =>
-        navigate({ to: "/$sport/$year", params: { sport, year: String(newYear) } })
-      }
+      onSportChange={(newSport) => {
+        void navigate({
+          to: "/$sport/$year",
+          params: { sport: newSport, year: String(currentYear) },
+        });
+      }}
+      onYearChange={(newYear) => {
+        void navigate({ to: "/$sport/$year", params: { sport, year: String(newYear) } });
+      }}
       routePrefix=""
       availableMetrics={data.availableMetrics}
       activeMetric={data.activeMetric}

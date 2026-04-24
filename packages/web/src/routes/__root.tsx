@@ -83,7 +83,14 @@ function RootErrorComponent({ error }: { error: Error }) {
     // Not a chunk error or reload already attempted — show fallback UI
   }
 
-  return <PageErrorFallback error={error} onReset={() => router.invalidate()} />;
+  return (
+    <PageErrorFallback
+      error={error}
+      onReset={() => {
+        void router.invalidate();
+      }}
+    />
+  );
 }
 
 function NotFoundComponent() {

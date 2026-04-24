@@ -20,9 +20,9 @@ function getSessionDemoActivities(): ActivitySummary[] {
   try {
     const stored = sessionStorage.getItem(DEMO_ACTIVITIES_CACHE_KEY);
     if (stored) {
-      const cached = JSON.parse(stored);
+      const cached = JSON.parse(stored) as { year?: number; activities?: ActivitySummary[] } | null;
       if (cached?.year === currentYear && Array.isArray(cached.activities)) {
-        return cached.activities as ActivitySummary[];
+        return cached.activities;
       }
     }
   } catch {
@@ -112,9 +112,13 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
   return {
     activities,
     isLoading: authLoading || (!!user && isFetching && !isFetchingNextPage && !data),
-    error: error as Error | null,
+    error: error,
     hasMore: !user ? false : !!hasNextPage,
-    loadMore: fetchNextPage,
-    retry: refetch,
+    loadMore: () => {
+      void fetchNextPage();
+    },
+    retry: () => {
+      void refetch();
+    },
   };
 }

@@ -178,7 +178,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   className="btn btn-outline-danger btn-sm"
-                  onClick={handleSignOut}
+                  onClick={() => void handleSignOut()}
                   disabled={signingOut}
                 >
                   {signingOut ? "Signing out..." : "Sign Out"}
@@ -199,7 +199,7 @@ export default function SettingsPage() {
               id={inputId}
               className="form-select form-select-sm"
               value={currentPrefs.distanceUnit || "miles"}
-              onChange={(e) => handlePreferenceChange("distanceUnit", e.target.value)}
+              onChange={(e) => void handlePreferenceChange("distanceUnit", e.target.value)}
               disabled={isSaving}
               aria-describedby={descriptionId}
               style={{ width: "150px" }}
@@ -219,7 +219,7 @@ export default function SettingsPage() {
               id={inputId}
               className="form-select form-select-sm"
               value={currentPrefs.elevationUnit || "feet"}
-              onChange={(e) => handlePreferenceChange("elevationUnit", e.target.value)}
+              onChange={(e) => void handlePreferenceChange("elevationUnit", e.target.value)}
               disabled={isSaving}
               aria-describedby={descriptionId}
               style={{ width: "150px" }}
@@ -239,7 +239,7 @@ export default function SettingsPage() {
               id={inputId}
               className="form-select form-select-sm"
               value={currentPrefs.timezone || ""}
-              onChange={(e) => handlePreferenceChange("timezone", e.target.value)}
+              onChange={(e) => void handlePreferenceChange("timezone", e.target.value)}
               disabled={isSaving}
               aria-describedby={descriptionId}
               style={{ width: "200px" }}

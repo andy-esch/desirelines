@@ -13,7 +13,7 @@ import {
   getSessionFillLevels,
 } from "../utils/demoDataGenerator";
 import { filterValidSports } from "../utils/sportConfig";
-import { getUserSettings } from "../utils/units";
+import { getUserSettings, type DistanceUnit } from "../utils/units";
 import { createYearContext, type YearContext } from "../utils/yearContext";
 import { UserConfigService } from "../services/userConfigService";
 import type { GoalsForYear } from "../types/generated/user_config";
@@ -36,7 +36,7 @@ export type { SportGoalData };
 export function useDashboardGoalData(): {
   sportData: SportGoalData[];
   yearContext: YearContext;
-  distanceUnit: import("../utils/units").DistanceUnit;
+  distanceUnit: DistanceUnit;
   isLoading: boolean;
   error: Error | null;
 } {
@@ -140,6 +140,6 @@ export function useDashboardGoalData(): {
     yearContext,
     distanceUnit: userSettings.distanceUnit,
     isLoading,
-    error: queryError as Error | null,
+    error: queryError,
   };
 }

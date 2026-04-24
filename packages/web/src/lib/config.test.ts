@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type * as ConfigModule from "./config";
 
 // Unmock the config module for these tests - we want to test the real implementation
 vi.unmock("./config");
 
 describe("config", () => {
   // Dynamically import to get the real module after unmocking
-  let loadConfig: typeof import("./config").loadConfig;
-  let resetConfig: typeof import("./config").resetConfig;
-  let isValidApiGatewayUrl: typeof import("./config").isValidApiGatewayUrl;
+  let loadConfig: typeof ConfigModule.loadConfig;
+  let resetConfig: typeof ConfigModule.resetConfig;
+  let isValidApiGatewayUrl: typeof ConfigModule.isValidApiGatewayUrl;
 
   beforeEach(async () => {
     // Stub required Firebase env vars (CI doesn't have these)

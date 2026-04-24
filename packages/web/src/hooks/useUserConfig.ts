@@ -68,9 +68,9 @@ function readFromLocalStorage(
   const stored = localStorage.getItem(key);
   if (stored) {
     try {
-      const parsed = JSON.parse(stored);
+      const parsed = JSON.parse(stored) as unknown;
       if (parsed && typeof parsed === "object") {
-        return parsed;
+        return parsed as ConfigData;
       }
       logApiError(new Error("Invalid storage format"), "Stored config is not an object");
     } catch (err) {
@@ -325,11 +325,11 @@ export function useUserConfig(
 
     if (localDataRaw) {
       try {
-        const localData = JSON.parse(localDataRaw);
+        const localData = JSON.parse(localDataRaw) as unknown;
         if (localData && typeof localData === "object") {
           migrating.current = true;
           mutation
-            .mutateAsync(localData)
+            .mutateAsync(localData as ConfigData)
             .then(() => {
               localStorage.removeItem(key);
             })
@@ -356,12 +356,12 @@ export function useUserConfig(
   return {
     data: data ?? defaultValue ?? null,
     loading: isLoading || authLoading, // Treat auth loading as loading
-    error: (error as Error | null) || null,
+    error: error || null,
     updateData: async (newData: ConfigData) => {
       await mutation.mutateAsync(newData);
     },
     isSaving: mutation.isPending,
-    saveError: (mutation.error as Error | null) || null,
+    saveError: mutation.error || null,
     clearSaveError,
   };
 }
@@ -493,7 +493,7 @@ export function useFullUserConfig(
   return {
     config: config ?? null,
     loading: isLoading || authLoading,
-    error: (error as Error | null) || (mutation.error as Error | null),
+    error: error || mutation.error,
     updateSection,
   };
 }

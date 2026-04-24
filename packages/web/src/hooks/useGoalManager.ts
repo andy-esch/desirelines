@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Goals, Goal, validateGoalValue } from "../utils/goalCalculations";
+import { type Goals, type Goal, validateGoalValue } from "../utils/goalCalculations";
 import { getMetricConfig } from "../config/metricConfig";
 import { logApiError } from "../api/errors";
 
@@ -72,7 +72,7 @@ export function useGoalManager({
     // Round based on sport type (100 for cycling, 10 for running/yoga)
     const rounded = Math.round(value / roundingFactor) * roundingFactor;
     const updated = goals.map((g) => (g.id === id ? { ...g, value: rounded } : g));
-    saveGoals(updated);
+    void saveGoals(updated);
   };
 
   const handleIncrement = (id: string, delta: number) => {
@@ -105,7 +105,7 @@ export function useGoalManager({
 
     // Don't round manual text entry - allow any positive integer
     const updated = goals.map((g) => (g.id === id ? { ...g, value } : g));
-    saveGoals(updated);
+    void saveGoals(updated);
     setEditingId(null);
     setEditValidationError(null);
   };
@@ -114,7 +114,7 @@ export function useGoalManager({
     // Use goalsRef to ensure we work with latest state in async callbacks
     const currentGoals = goalsRef.current;
     const updated = currentGoals.map((g) => (g.id === id ? { ...g, label } : g));
-    saveGoals(updated);
+    void saveGoals(updated);
   };
 
   const handleLabelEdit = (id: string, value: string) => {
@@ -165,12 +165,12 @@ export function useGoalManager({
       value: newValue,
       label: `Goal ${goals.length + 1}`,
     };
-    saveGoals([...goals, newGoal]);
+    void saveGoals([...goals, newGoal]);
   };
 
   const handleRemoveGoal = (id: string) => {
     if (goals.length <= 1) return;
-    saveGoals(goals.filter((g) => g.id !== id));
+    void saveGoals(goals.filter((g) => g.id !== id));
   };
 
   // Cleanup debounce timers on unmount
