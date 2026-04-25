@@ -75,7 +75,7 @@ class SportConfig:
             validate_version: If True, raise ValueError for unsupported versions.
                 Set to False for testing version handling without triggering errors.
         """
-        with open(config_path) as f:
+        with config_path.open() as f:
             data = json.load(f)
 
         # Validate schema with Pydantic

@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pathlib import Path
 from typing import NamedTuple
 
 logger = logging.getLogger(__name__)
@@ -54,9 +55,9 @@ def load_secrets_from_volumes(
     """
     secrets: dict[str, str] = {}
     for name in secret_names:
-        secret_path = f"{base_path}/{name}/value"
+        secret_path = Path(base_path) / name / "value"
         try:
-            with open(secret_path, encoding="utf-8") as f:
+            with secret_path.open(encoding="utf-8") as f:
                 secrets[name] = f.read()
                 logger.info("config: loaded %s from file: %s", name, secret_path)
         except FileNotFoundError:

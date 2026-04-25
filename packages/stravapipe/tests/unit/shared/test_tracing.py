@@ -73,9 +73,11 @@ class TestRecordSpan:
     def test_exception_propagates(self):
         """Exceptions from the body are re-raised."""
         tracer = setup_tracing("test")
-        with pytest.raises(ValueError, match="test error"):
-            with record_span(tracer, "test.operation"):
-                raise ValueError("test error")
+        with (
+            pytest.raises(ValueError, match="test error"),
+            record_span(tracer, "test.operation"),
+        ):
+            raise ValueError("test error")
 
     def test_accepts_parent_context(self):
         """Accepts parent_context without error."""

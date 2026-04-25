@@ -151,26 +151,25 @@ class FirestoreTokenStore:
         try:
             txn = self._client.transaction()
             result = update_in_transaction(txn)
-            if result:
-                logger.info(
-                    "Updated tokens for athlete %s in Firestore",
-                    athlete_id,
-                )
-            else:
-                logger.warning(
-                    "Token write conflict for athlete %s — another process refreshed first",
-                    athlete_id,
-                )
-            return result
         except TokenNotFoundError:
             raise
-        except Exception as e:
-            logger.error(
-                "Failed to write tokens for athlete %s: %s",
+        except Exception:
+            logger.exception(
+                "Failed to write tokens for athlete %s",
                 athlete_id,
-                e,
             )
             raise
+        if result:
+            logger.info(
+                "Updated tokens for athlete %s in Firestore",
+                athlete_id,
+            )
+        else:
+            logger.warning(
+                "Token write conflict for athlete %s — another process refreshed first",
+                athlete_id,
+            )
+        return result
 
     def delete_tokens(self, athlete_id: str) -> None:
         """Delete Strava tokens for the given athlete.

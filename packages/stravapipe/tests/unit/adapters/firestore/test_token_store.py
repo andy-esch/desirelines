@@ -158,7 +158,7 @@ class TestWriteTokensIfUnmodified:
 
         def passthrough_transactional(fn):
             mock_txn_callable = MagicMock()
-            mock_txn_callable.side_effect = lambda txn_obj: fn(txn_obj)
+            mock_txn_callable.side_effect = fn
             return mock_txn_callable
 
         mock_transactional.side_effect = passthrough_transactional
@@ -190,7 +190,7 @@ class TestWriteTokensIfUnmodified:
 
         def passthrough_transactional(fn):
             mock_txn_callable = MagicMock()
-            mock_txn_callable.side_effect = lambda txn_obj: fn(txn_obj)
+            mock_txn_callable.side_effect = fn
             return mock_txn_callable
 
         mock_transactional.side_effect = passthrough_transactional
@@ -218,7 +218,7 @@ class TestWriteTokensIfUnmodified:
 
         def passthrough_transactional(fn):
             mock_txn_callable = MagicMock()
-            mock_txn_callable.side_effect = lambda txn_obj: fn(txn_obj)
+            mock_txn_callable.side_effect = fn
             return mock_txn_callable
 
         mock_transactional.side_effect = passthrough_transactional

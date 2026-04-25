@@ -148,8 +148,8 @@ async def lifespan(app: FastAPI):
         app.state.tracer = setup_tracing("desirelines-deletion-service")
 
         yield
-    except Exception as e:
-        logger.error("Application lifecycle error: %s", e)
+    except Exception:
+        logger.exception("Application lifecycle error")
         raise
     finally:
         engine = getattr(app.state, "db_engine", None)
@@ -178,7 +178,7 @@ async def health():
 
 
 @app.post("/")
-async def handle_deauth_event(request: Request):
+async def handle_deauth_event(request: Request):  # noqa: PLR0915 — orchestrator coordinates 4 independent deletion stores with per-store error handling; splitting would obscure the control flow
     """Handle deauth event from Pub/Sub.
 
     Deletes user data from all stores. Proceeds through all stores even if
@@ -221,7 +221,7 @@ async def handle_deauth_event(request: Request):
 
             owner_id = event_data.get("owner_id")
             if not owner_id:
-                raise HTTPException(
+                raise HTTPException(  # noqa: TRY301 — FastAPI idiom; `except HTTPException: raise` passthrough below preserves status code
                     status_code=422,
                     detail="Missing owner_id in deauth event",
                 )
@@ -241,12 +241,14 @@ async def handle_deauth_event(request: Request):
 
             # 1. Delete from PostgreSQL
             try:
-                with record_span(tracer, "deletion.postgres", {"user_id": user_id}):
-                    with record_duration(deletion_hist, {"store": "postgres"}):
-                        uow = SqlAlchemyUnitOfWork(session_factory)
-                        with uow:
-                            result.pg_deleted = uow.activities.delete_by_user(user_id)
-                            uow.commit()
+                uow = SqlAlchemyUnitOfWork(session_factory)
+                with (
+                    record_span(tracer, "deletion.postgres", {"user_id": user_id}),
+                    record_duration(deletion_hist, {"store": "postgres"}),
+                    uow,
+                ):
+                    result.pg_deleted = uow.activities.delete_by_user(user_id)
+                    uow.commit()
                 logger.info(
                     "Deleted %d activities from PostgreSQL for user %s",
                     result.pg_deleted,
@@ -255,61 +257,63 @@ async def handle_deauth_event(request: Request):
                 )
             except Exception as e:
                 result.errors.append(f"postgres: {e}")
-                logger.error(
-                    "PostgreSQL deletion failed for user %s: %s",
+                logger.exception(
+                    "PostgreSQL deletion failed for user %s",
                     user_id,
-                    e,
                     extra={"correlation_id": correlation_id},
                 )
 
             # 2. Delete from BigQuery
             try:
-                with record_span(tracer, "deletion.bigquery", {"user_id": user_id}):
-                    with record_duration(deletion_hist, {"store": "bigquery"}):
-                        bq_result = bq_service.run(user_id, correlation_id, event_time)
+                with (
+                    record_span(tracer, "deletion.bigquery", {"user_id": user_id}),
+                    record_duration(deletion_hist, {"store": "bigquery"}),
+                ):
+                    bq_result = bq_service.run(user_id, correlation_id, event_time)
                 result.bq_activities_deleted = bq_result.activities_deleted
                 result.bq_staging_deleted = bq_result.staging_deleted
             except Exception as e:
                 result.errors.append(f"bigquery: {e}")
-                logger.error(
-                    "BigQuery deletion failed for user %s: %s",
+                logger.exception(
+                    "BigQuery deletion failed for user %s",
                     user_id,
-                    e,
                     extra={"correlation_id": correlation_id},
                 )
 
             # 3. Delete Firestore tokens (backup to dispatcher's best-effort delete)
             try:
-                with record_span(
-                    tracer, "deletion.firestore_tokens", {"user_id": user_id}
+                with (
+                    record_span(
+                        tracer, "deletion.firestore_tokens", {"user_id": user_id}
+                    ),
+                    record_duration(deletion_hist, {"store": "firestore_tokens"}),
                 ):
-                    with record_duration(deletion_hist, {"store": "firestore_tokens"}):
-                        token_store.delete_tokens(user_id)
+                    token_store.delete_tokens(user_id)
                 result.firestore_tokens_deleted = True
             except Exception as e:
                 result.errors.append(f"firestore_tokens: {e}")
-                logger.error(
-                    "Firestore token deletion failed for user %s: %s",
+                logger.exception(
+                    "Firestore token deletion failed for user %s",
                     user_id,
-                    e,
                     extra={"correlation_id": correlation_id},
                 )
 
             # 4. Delete remaining Firestore user documents
             try:
-                with record_span(
-                    tracer, "deletion.firestore_docs", {"user_id": user_id}
+                with (
+                    record_span(
+                        tracer, "deletion.firestore_docs", {"user_id": user_id}
+                    ),
+                    record_duration(deletion_hist, {"store": "firestore_docs"}),
                 ):
-                    with record_duration(deletion_hist, {"store": "firestore_docs"}):
-                        result.firestore_user_docs_deleted = (
-                            _delete_firestore_user_docs(firestore_client, user_id)
-                        )
+                    result.firestore_user_docs_deleted = _delete_firestore_user_docs(
+                        firestore_client, user_id
+                    )
             except Exception as e:
                 result.errors.append(f"firestore_docs: {e}")
-                logger.error(
-                    "Firestore document deletion failed for user %s: %s",
+                logger.exception(
+                    "Firestore document deletion failed for user %s",
                     user_id,
-                    e,
                     extra={"correlation_id": correlation_id},
                 )
 
@@ -329,7 +333,7 @@ async def handle_deauth_event(request: Request):
                     result.errors,
                     extra={"correlation_id": correlation_id},
                 )
-                raise HTTPException(
+                raise HTTPException(  # noqa: TRY301 — FastAPI idiom; passthrough via `except HTTPException: raise` preserves 500 status
                     status_code=500,
                     detail=f"Partial deletion failure: {result.errors}",
                 )
@@ -358,11 +362,9 @@ async def handle_deauth_event(request: Request):
     except HTTPException:
         raise
     except Exception as err:
-        logger.error(
-            "Unexpected error: %s",
-            err,
+        logger.exception(
+            "Unexpected error",
             extra={"correlation_id": correlation_id},
-            exc_info=True,
         )
         raise HTTPException(
             status_code=500, detail="An internal server error occurred."

@@ -58,10 +58,9 @@ def activity_json():
     fixture_path = (
         Path(__file__).parent.parent.parent.parent / "fixtures" / "activity_1.json"
     )
-    with open(fixture_path, encoding="utf-8") as fin:
-        activity_json = json.load(fin)
-    # NOTE: id = 12345678987654321
-    return activity_json
+    with fixture_path.open(encoding="utf-8") as fin:
+        # NOTE: id = 12345678987654321
+        return json.load(fin)
 
 
 @pytest.fixture

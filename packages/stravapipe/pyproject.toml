@@ -75,25 +75,49 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort (import sorting)
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "DTZ", # flake8-datetimez
-    "N",   # pep8-naming
-    "UP",  # pyupgrade
-    "RUF", # ruff-specific rules
-    "PT",  # flake8-pytest-style
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort (import sorting)
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "DTZ",   # flake8-datetimez
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "RUF",   # ruff-specific rules
+    "PT",    # flake8-pytest-style
+    "SIM",   # flake8-simplify
+    "PERF",  # perflint
+    "TRY",   # tryceratops — exception-handling antipatterns
+    "PTH",   # flake8-use-pathlib — prefer Path over os.path
+    "PL",    # Pylint subset
+    "RET",   # flake8-return — cleaner return patterns
+    "ASYNC", # flake8-async — async-safety checks (FastAPI apps)
+    "PIE",   # flake8-pie — misc cleanup rules
+    # Intentionally skipping TCH — project decision, no TYPE_CHECKING guards
+    # (see memory `feedback_no_type_checking_guard.md`).
 ]
 ignore = [
-    "E501", # line too long (handled by formatter)
+    "E501",   # line too long (handled by formatter)
+    "TRY003", # long exception messages outside exception class — pedantic for Python (tryceratops itself flags this as noisy); prefer readable raise-site messages over one-off exception subclasses
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Magic-value comparisons are idiomatic in test assertions (`assert count == 2`)
+# and refactoring them into named constants adds noise without clarity.
+# Deferred imports inside test functions are required to import modules under
+# test *after* patches are applied (module-level state gets frozen at import).
+"tests/**" = ["PLR2004", "PLC0415"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["stravapipe", "tests"]
 force-sort-within-sections = true
+
+[tool.ruff.lint.pylint]
+# Default max-args is 5 which is too tight for config-heavy FastAPI handlers
+# and dependency-injection constructors. 8 allows the common pattern without
+# being so generous the rule stops catching genuine over-parameterized functions.
+max-args = 8
 
 [tool.ruff.format]
 quote-style = "double"

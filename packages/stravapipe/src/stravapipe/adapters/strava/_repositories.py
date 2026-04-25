@@ -40,6 +40,10 @@ from stravapipe.retry import retry_on_failure
 
 logger = logging.getLogger(__name__)
 
+# HTTP status code constants used by Strava API error handling.
+HTTP_UNAUTHORIZED = 401
+HTTP_NOT_FOUND = 404
+
 
 # =============================================================================
 # Token Layer
@@ -80,14 +84,11 @@ class StravaTokenRepo(ReadStravaToken):
         resp = _refresh()
 
         if not resp.ok:
-            if resp.status_code == 401:
+            if resp.status_code == HTTP_UNAUTHORIZED:
                 raise StravaTokenError(
                     "Token refresh failed - check credentials", resp.status_code
                 )
-            else:
-                raise StravaApiError(
-                    f"Token refresh failed: {resp.text}", resp.status_code
-                )
+            raise StravaApiError(f"Token refresh failed: {resp.text}", resp.status_code)
 
         access_token = resp.json()["access_token"]
         logger.info(
@@ -315,7 +316,7 @@ class StravaApiClient:
         if not resp.ok:
             # Handle 401 with retry
             if (
-                resp.status_code == 401
+                resp.status_code == HTTP_UNAUTHORIZED
                 and _token_refresh_count < self._MAX_TOKEN_REFRESH_RETRIES
             ):
                 logger.warning(
@@ -354,7 +355,7 @@ class StravaApiClient:
         """Handle error responses with 401 retry and exception translation."""
         # Handle 401: refresh token and retry
         if (
-            resp.status_code == 401
+            resp.status_code == HTTP_UNAUTHORIZED
             and token_refresh_count < self._MAX_TOKEN_REFRESH_RETRIES
         ):
             logger.warning(
@@ -387,20 +388,19 @@ class StravaApiClient:
             },
         )
 
-        if resp.status_code == 404:
+        if resp.status_code == HTTP_NOT_FOUND:
             raise ActivityNotFoundError(activity_id)
-        elif resp.status_code == 401:
+        if resp.status_code == HTTP_UNAUTHORIZED:
             raise StravaTokenError(
                 f"Access token expired after {token_refresh_count} refresh attempts",
                 resp.status_code,
                 activity_id,
             )
-        else:
-            raise StravaApiError(
-                f"Failed to fetch activity {activity_id}: {resp.text}",
-                resp.status_code,
-                activity_id,
-            )
+        raise StravaApiError(
+            f"Failed to fetch activity {activity_id}: {resp.text}",
+            resp.status_code,
+            activity_id,
+        )
 
 
 # =============================================================================

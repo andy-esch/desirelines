@@ -7,6 +7,9 @@ import polyline as polyline_codec
 
 logger = logging.getLogger(__name__)
 
+# GeoJSON LineString must have at least two coordinates.
+MIN_LINESTRING_POINTS = 2
+
 
 def decode_polyline_to_geojson(encoded: str) -> str | None:
     """Decode a Google encoded polyline to a GeoJSON LineString string.
@@ -26,6 +29,6 @@ def decode_polyline_to_geojson(encoded: str) -> str | None:
         logger.warning("Failed to decode invalid polyline", exc_info=True)
         return None
 
-    if len(coords) < 2:
+    if len(coords) < MIN_LINESTRING_POINTS:
         return None
     return json.dumps({"type": "LineString", "coordinates": coords})

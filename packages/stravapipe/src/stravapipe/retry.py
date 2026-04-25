@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
+# HTTP status code constants used by retry decisions.
+HTTP_TOO_MANY_REQUESTS = 429
+HTTP_INTERNAL_SERVER_ERROR = 500
+
 
 def retry_on_failure(
     max_attempts: int = 3,
@@ -45,7 +49,7 @@ def retry_on_failure(
                         status_code = e.response.status_code
 
                         # Handle rate limiting specially
-                        if status_code == 429:
+                        if status_code == HTTP_TOO_MANY_REQUESTS:
                             retry_after = int(e.response.headers.get("Retry-After", 60))
                             if attempt == max_attempts - 1:
                                 raise StravaRateLimitError(
@@ -70,7 +74,7 @@ def retry_on_failure(
                             continue
 
                         # Don't retry on client errors (except rate limiting)
-                        if status_code < 500:
+                        if status_code < HTTP_INTERNAL_SERVER_ERROR:
                             raise
 
                         # Retry on server errors (5xx)

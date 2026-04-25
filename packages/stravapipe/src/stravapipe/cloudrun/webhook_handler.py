@@ -100,9 +100,8 @@ async def handle_webhook_cloudevent(
             try:
                 event = dict_to_webhook_event(event_data)
             except ValueError as err:
-                logger.error(
-                    "Webhook parsing failed: %s",
-                    err,
+                logger.exception(
+                    "Webhook parsing failed",
                     extra={"correlation_id": correlation_id},
                 )
                 raise HTTPException(
@@ -118,7 +117,7 @@ async def handle_webhook_cloudevent(
                         "object_type": obj_name,
                     },
                 )
-                raise HTTPException(
+                raise HTTPException(  # noqa: TRY301 — FastAPI idiom; routing logic raises HTTPException, outer `except HTTPException: raise` preserves status code
                     status_code=422,
                     detail=f"Unsupported object_type: {obj_name}. Only 'activity' is supported",
                 )

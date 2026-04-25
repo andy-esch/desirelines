@@ -61,8 +61,8 @@ async def lifespan(app: FastAPI):
         app.state.tracer = setup_tracing("desirelines-postgres-writer")
 
         yield
-    except Exception as e:
-        logger.error("Application lifecycle error: %s", e)
+    except Exception:
+        logger.exception("Application lifecycle error")
         raise
     finally:
         # Dispose the SQLAlchemy engine so connections are closed cleanly when a
@@ -153,14 +153,20 @@ async def _handle_create(
 
     # Insert to PostgreSQL within transaction (no Strava API call needed)
     uow = SqlAlchemyUnitOfWork(session_factory)
-    with record_span(tracer, "postgres.insert", {"activity_id": activity_id}):
-        with record_duration(pg_histogram, {"operation": "insert"}):
-            with uow:
-                inserted = uow.activities.insert(activity)
-                if inserted and activity.map and activity.map.polyline:
-                    if geojson := decode_polyline_to_geojson(activity.map.polyline):
-                        uow.activities.insert_route(activity.id, geojson)
-                uow.commit()
+    with (
+        record_span(tracer, "postgres.insert", {"activity_id": activity_id}),
+        record_duration(pg_histogram, {"operation": "insert"}),
+        uow,
+    ):
+        inserted = uow.activities.insert(activity)
+        if (
+            inserted
+            and activity.map
+            and activity.map.polyline
+            and (geojson := decode_polyline_to_geojson(activity.map.polyline))
+        ):
+            uow.activities.insert_route(activity.id, geojson)
+        uow.commit()
 
     if inserted:
         logger.info(
@@ -225,18 +231,18 @@ async def _handle_update(
         )
 
     uow = SqlAlchemyUnitOfWork(session_factory)
-    with record_span(tracer, "postgres.update_metadata", {"activity_id": activity_id}):
-        with record_duration(pg_histogram, {"operation": "update_metadata"}):
-            with uow:
-                # If activity doesn't exist, skip with warning
-                # (going forward, CREATEs always carry data so backfill is not needed)
-                if not uow.activities.exists(activity_id):
-                    updated = None
-                else:
-                    updated = uow.activities.update_metadata(
-                        activity_id, relevant_updates
-                    )
-                    uow.commit()
+    with (
+        record_span(tracer, "postgres.update_metadata", {"activity_id": activity_id}),
+        record_duration(pg_histogram, {"operation": "update_metadata"}),
+        uow,
+    ):
+        # If activity doesn't exist, skip with warning
+        # (going forward, CREATEs always carry data so backfill is not needed)
+        if not uow.activities.exists(activity_id):
+            updated = None
+        else:
+            updated = uow.activities.update_metadata(activity_id, relevant_updates)
+            uow.commit()
 
     if updated is None:
         logger.warning(
@@ -282,11 +288,13 @@ async def _handle_delete(
     activity_id = event.object_id
     uow = SqlAlchemyUnitOfWork(session_factory)
 
-    with record_span(tracer, "postgres.delete", {"activity_id": activity_id}):
-        with record_duration(pg_histogram, {"operation": "delete"}):
-            with uow:
-                deleted = uow.activities.delete(activity_id)
-                uow.commit()
+    with (
+        record_span(tracer, "postgres.delete", {"activity_id": activity_id}),
+        record_duration(pg_histogram, {"operation": "delete"}),
+        uow,
+    ):
+        deleted = uow.activities.delete(activity_id)
+        uow.commit()
 
     if deleted:
         logger.info(

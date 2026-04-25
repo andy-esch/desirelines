@@ -5,6 +5,7 @@ variables, validates required parameters, and transforms to SQLAlchemy dialect.
 """
 
 import os
+from pathlib import Path
 import re
 from typing import NamedTuple
 from urllib.parse import parse_qs, urlparse
@@ -115,9 +116,9 @@ class PoolConfig(NamedTuple):
         try:
             parsed = urlparse(database_url)
             hostname = parsed.hostname or ""
-            return "-pooler" in hostname
         except Exception:
             return False  # Default to internal pooling if parsing fails
+        return "-pooler" in hostname
 
 
 def load_connection_string() -> str:
@@ -152,8 +153,9 @@ def _read_raw_connection_string() -> str:
         ConnectionStringError: If no connection string found.
     """
     # Try secret mount first (Cloud Run)
-    if os.path.exists(_SECRET_PATH):
-        with open(_SECRET_PATH, encoding="utf-8") as f:
+    secret_path = Path(_SECRET_PATH)
+    if secret_path.exists():
+        with secret_path.open(encoding="utf-8") as f:
             conn_str = f.read().strip()
             if conn_str:
                 return conn_str
