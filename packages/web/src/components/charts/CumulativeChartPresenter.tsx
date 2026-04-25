@@ -87,34 +87,34 @@ export interface CumulativeChartPresenterProps {
 
   // --- Feature Toggles ---
   /** Whether to show achievement markers and legend */
-  showAchievements?: boolean;
+  showAchievements?: boolean | undefined;
   /** Whether line draw-in animation should play (false suppresses re-animation on prop changes) */
-  isAnimationActive?: boolean;
+  isAnimationActive?: boolean | undefined;
 
   // --- Zoom ---
   /** Whether chart is currently zoomed */
-  isZoomed?: boolean;
+  isZoomed?: boolean | undefined;
   /** Left edge of drag selection (timestamp), undefined when not dragging */
-  selectionLeft?: number;
+  selectionLeft?: number | undefined;
   /** Right edge of drag selection (timestamp), undefined when not dragging */
-  selectionRight?: number;
+  selectionRight?: number | undefined;
   /** Mouse down handler for drag-to-zoom */
-  onChartMouseDown?: (e: { activeLabel?: string | number }) => void;
+  onChartMouseDown?: ((e: { activeLabel?: string | number }) => void) | undefined;
   /** Mouse move handler for drag-to-zoom */
-  onChartMouseMove?: (e: { activeLabel?: string | number }) => void;
+  onChartMouseMove?: ((e: { activeLabel?: string | number }) => void) | undefined;
   /** Mouse up handler for drag-to-zoom */
-  onChartMouseUp?: () => void;
+  onChartMouseUp?: (() => void) | undefined;
 
   // --- Prior Year Lines ---
   /** Prior year ghost line metadata (sorted most recent first) */
-  priorYearLines?: PriorYearLine[];
+  priorYearLines?: PriorYearLine[] | undefined;
 
   // --- Danger Zone ---
   /** Configuration for the cumulative danger zone (zone of unachievability) */
   dangerZone?: {
     show: boolean;
     threshold: number;
-  };
+  } | undefined;
 }
 
 // ============================================================================
@@ -273,7 +273,7 @@ export function CumulativeChartPresenter({
           accessibilityLayer
           onMouseDown={onChartMouseDown as never}
           onMouseMove={onChartMouseMove as never}
-          onMouseUp={onChartMouseUp}
+          onMouseUp={onChartMouseUp as never}
         >
           {/* Horizontal gridlines at Y-axis tick values */}
           <CartesianGrid stroke={CHART_CONFIG.grid.stroke} vertical={CHART_CONFIG.grid.vertical} />
@@ -303,7 +303,7 @@ export function CumulativeChartPresenter({
             tick={CHART_CONFIG.tick}
             allowDataOverflow
             domain={isZoomed ? [0, "auto"] : [0, calculateCumulativeYAxisMax]}
-            ticks={isZoomed ? undefined : yAxisTicks}
+            {...(isZoomed ? {} : { ticks: yAxisTicks })}
           />
 
           {/* Tooltip */}
@@ -373,7 +373,7 @@ export function CumulativeChartPresenter({
               key={gl.goal.id}
               type="monotone"
               dataKey={`goal${index}`}
-              stroke={GOAL_COLORS[index % GOAL_COLORS.length]}
+              stroke={GOAL_COLORS[index % GOAL_COLORS.length]!}
               strokeWidth={CHART_CONFIG.strokeWidth.goal}
               dot={false}
               name={`${gl.goal.label || "Goal"}: ${gl.goal.value} ${unitLabel}`}

@@ -227,8 +227,8 @@ describe("useActivities", () => {
       error: null,
     });
 
-    const cyclingActivities = [mockActivities[0]];
-    const runningActivities = [mockActivities[1]];
+    const cyclingActivities = [mockActivities[0]!];
+    const runningActivities = [mockActivities[1]!];
 
     vi.spyOn(activitiesApi, "fetchActivities")
       .mockResolvedValueOnce({ activities: cyclingActivities, hasMore: false })
@@ -262,7 +262,7 @@ describe("useActivities", () => {
     });
 
     vi.spyOn(activitiesApi, "fetchActivities").mockResolvedValue({
-      activities: [mockActivities[0]],
+      activities: [mockActivities[0]!],
       hasMore: false,
     });
 

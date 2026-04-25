@@ -2,14 +2,14 @@ import { Link } from "@tanstack/react-router";
 import type { MetricUnit } from "../utils/units";
 
 interface EmptyStateProps {
-  sport?: string;
-  year?: number;
-  message?: string;
-  unit?: MetricUnit;
+  sport?: string | undefined;
+  year?: number | undefined;
+  message?: string | undefined;
+  unit?: MetricUnit | undefined;
   /** If provided, shows a link to view data from a different year */
-  suggestedYear?: number;
+  suggestedYear?: number | undefined;
   /** Route prefix for links (e.g., "/demo" for demo mode) */
-  linkPrefix?: string;
+  linkPrefix?: string | undefined;
 }
 
 /**

@@ -47,11 +47,9 @@ export function getInterpolatedSpectrumColor(
   const segmentIndex = Math.min(Math.floor(t * numSegments), numSegments - 1);
   const segmentT = t * numSegments - segmentIndex;
 
-  return interpolateColor(
-    SPARKLINE_SPECTRUM[segmentIndex],
-    SPARKLINE_SPECTRUM[segmentIndex + 1],
-    segmentT
-  );
+  const start = SPARKLINE_SPECTRUM[segmentIndex] ?? SPARKLINE_SPECTRUM[0];
+  const end = SPARKLINE_SPECTRUM[segmentIndex + 1] ?? SPARKLINE_SPECTRUM[0];
+  return interpolateColor(start, end, segmentT);
 }
 
 /**

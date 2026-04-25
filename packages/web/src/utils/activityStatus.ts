@@ -34,8 +34,10 @@ export function findLastActivityDate(distanceData: DistanceEntry[]): Date | null
 
   // Scan backwards to find last day with actual activity (distance changed)
   for (let i = distanceData.length - 1; i >= 1; i--) {
-    if (distanceData[i].y !== distanceData[i - 1].y) {
-      return new Date(distanceData[i].x);
+    const curr = distanceData[i];
+    const prev = distanceData[i - 1];
+    if (curr && prev && curr.y !== prev.y) {
+      return new Date(curr.x);
     }
   }
 

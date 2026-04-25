@@ -35,15 +35,15 @@ interface PacingMetricsChartProps {
   /** Error from data fetch, if any */
   error: Error | null;
   /** Whether to show full year or just up to latest data */
-  showFullYear?: boolean;
+  showFullYear?: boolean | undefined;
   /** Hide the header section */
-  hideHeader?: boolean;
+  hideHeader?: boolean | undefined;
   /** Unit for display (miles, kilometers, sessions) */
-  unit?: MetricUnit;
+  unit?: MetricUnit | undefined;
   /** Sport type for empty state and danger zone threshold */
-  sport?: string;
+  sport?: string | undefined;
   /** Callback for retry on error */
-  onRetry?: () => void;
+  onRetry?: (() => void) | undefined;
 }
 
 // ============================================================================

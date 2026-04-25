@@ -12,8 +12,8 @@ import type { DistanceEntry } from "./activity";
  */
 export interface ChartDataPoint {
   date: Date;
-  actual?: number;
-  average?: number;
+  actual?: number | undefined;
+  average?: number | undefined;
   // Dynamic goal keys: goal0, goal1, goal2, etc.
   // TypeScript index signature for goal properties
   [key: `goal${number}`]: number | undefined;
@@ -26,7 +26,7 @@ export interface ChartDataPoint {
  * Extends base with danger boundary for "zone of unachievability".
  */
 export interface CumulativeChartDataPoint extends ChartDataPoint {
-  dangerBoundary?: number;
+  dangerBoundary?: number | undefined;
 }
 
 /**
@@ -42,18 +42,18 @@ export type PacingChartDataPoint = ChartDataPoint;
 export interface CurrentChartValues {
   actual: number;
   goals: Array<{
-    label?: string;
+    label?: string | undefined;
     value: number;
     color: string;
   }>;
-  average?: number;
+  average?: number | undefined;
 }
 
 /** Goal metadata shared between cumulative and pacing charts */
 interface GoalMeta {
   id: string;
   value: number;
-  label?: string;
+  label?: string | undefined;
 }
 
 /**

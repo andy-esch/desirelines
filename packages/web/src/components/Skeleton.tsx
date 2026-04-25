@@ -69,22 +69,22 @@ export default function Skeleton({
   const id = useId();
   const theme = (() => {
     if (dualTheme != null) {
-      return SKELETON_DUAL_THEMES[dualTheme % SKELETON_DUAL_THEMES.length];
+      return SKELETON_DUAL_THEMES[dualTheme % SKELETON_DUAL_THEMES.length] ?? SKELETON_DUAL_THEMES[0];
     }
     const hash = Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-    return SKELETON_THEMES[hash % SKELETON_THEMES.length];
+    return SKELETON_THEMES[hash % SKELETON_THEMES.length] ?? SKELETON_THEMES[0];
   })();
 
   return (
     <SkeletonTheme baseColor={theme.baseColor} highlightColor={theme.highlightColor}>
       <ReactSkeleton
         count={count}
-        height={height}
-        width={width}
         circle={circle}
-        borderRadius={borderRadius}
-        style={style}
-        className={className}
+        {...(height !== undefined && { height })}
+        {...(width !== undefined && { width })}
+        {...(borderRadius !== undefined && { borderRadius })}
+        {...(style !== undefined && { style })}
+        {...(className !== undefined && { className })}
       />
     </SkeletonTheme>
   );

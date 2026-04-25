@@ -220,8 +220,10 @@ describe("useMultiSportChartData", () => {
         const textMatch = meta.textColor.match(/rgb\((\d+), (\d+), (\d+)\)/);
 
         if (mainMatch && textMatch) {
-          const mainSum = parseInt(mainMatch[1]) + parseInt(mainMatch[2]) + parseInt(mainMatch[3]);
-          const textSum = parseInt(textMatch[1]) + parseInt(textMatch[2]) + parseInt(textMatch[3]);
+          const mainSum =
+            parseInt(mainMatch[1]!) + parseInt(mainMatch[2]!) + parseInt(mainMatch[3]!);
+          const textSum =
+            parseInt(textMatch[1]!) + parseInt(textMatch[2]!) + parseInt(textMatch[3]!);
           // Text color should be darker (lower sum of RGB values)
           expect(textSum).toBeLessThanOrEqual(mainSum);
         }
@@ -244,7 +246,7 @@ describe("useMultiSportChartData", () => {
       const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       expect(result.current.sportMeta.length).toBe(1);
-      expect(result.current.sportMeta[0].color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
+      expect(result.current.sportMeta[0]!.color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
     });
 
     it("handles many sports (full spectrum interpolation)", () => {
@@ -268,8 +270,8 @@ describe("useMultiSportChartData", () => {
 
       expect(result.current.sportMeta.length).toBe(4);
       // First should be magenta-ish, last should be orange-ish
-      const firstColor = result.current.sportMeta[0].color;
-      const lastColor = result.current.sportMeta[3].color;
+      const firstColor = result.current.sportMeta[0]!.color;
+      const lastColor = result.current.sportMeta[3]!.color;
       expect(firstColor).not.toBe(lastColor);
     });
   });
@@ -290,7 +292,7 @@ describe("useMultiSportChartData", () => {
       const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       if (result.current.unifiedChartData.length > 0) {
-        const entry = result.current.unifiedChartData[0];
+        const entry = result.current.unifiedChartData[0]!;
         // Should have keys for each sport
         expect("cycling" in entry).toBe(true);
         expect("running" in entry).toBe(true);
@@ -302,7 +304,7 @@ describe("useMultiSportChartData", () => {
       const { result } = renderHook(() => useMultiSportChartData("2weeks"));
 
       if (result.current.unifiedChartData.length > 0) {
-        const entry = result.current.unifiedChartData[0];
+        const entry = result.current.unifiedChartData[0]!;
         // Should have raw value keys
         expect("cycling_raw" in entry).toBe(true);
         expect("running_raw" in entry).toBe(true);
@@ -328,7 +330,7 @@ describe("useMultiSportChartData", () => {
       if (result.current.unifiedChartData.length > 0) {
         // With 3 sports, each lane is ~0.33 height
         // Sports should be in different vertical ranges
-        const entry = result.current.unifiedChartData[0];
+        const entry = result.current.unifiedChartData[0]!;
         const cyclingVal = entry.cycling as number;
         const runningVal = entry.running as number;
         const yogaVal = entry.yoga as number;
@@ -338,8 +340,8 @@ describe("useMultiSportChartData", () => {
         const values = [cyclingVal, runningVal, yogaVal].sort((a, b) => a - b);
         // Adjacent values should have some separation
         // With 3 sports, min gap is ~0.067 (1/3 height * 20% padding), so we check > 0.05
-        expect(values[1] - values[0]).toBeGreaterThan(0.05);
-        expect(values[2] - values[1]).toBeGreaterThan(0.05);
+        expect(values[1]! - values[0]!).toBeGreaterThan(0.05);
+        expect(values[2]! - values[1]!).toBeGreaterThan(0.05);
       }
     });
   });

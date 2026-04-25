@@ -108,9 +108,9 @@ describe("useGoalManager", () => {
     });
 
     expect(onGoalsChange).toHaveBeenCalled();
-    const callArgs = onGoalsChange.mock.calls[0][0];
+    const callArgs = onGoalsChange.mock.calls[0]![0];
     expect(callArgs).toHaveLength(3);
-    expect(callArgs[2].label).toBe("Goal 3");
+    expect(callArgs[2]!.label).toBe("Goal 3");
   });
 
   it("should handle removing a goal", async () => {

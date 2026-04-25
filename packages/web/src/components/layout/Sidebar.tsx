@@ -12,13 +12,13 @@ interface SidebarProps {
   estimatedYearEnd: number;
   /** Current cumulative value (distance in miles/km, or session count) */
   currentValue: number;
-  unit?: MetricUnit;
-  isLoading?: boolean;
+  unit?: MetricUnit | undefined;
+  isLoading?: boolean | undefined;
   // Slots for composed content
   filtersSlot: ReactNode;
   goalsSlot: ReactNode;
   // Whether to show auth button on mobile (false for demo mode)
-  showAuthButton?: boolean;
+  showAuthButton?: boolean | undefined;
 }
 
 interface SidebarSections {

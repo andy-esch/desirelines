@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
 interface InlineAlertProps {
-  variant?: "danger" | "warning" | "info";
-  size?: "sm" | "default";
-  onDismiss?: () => void;
-  onRetry?: () => void;
-  className?: string;
+  variant?: "danger" | "warning" | "info" | undefined;
+  size?: "sm" | "default" | undefined;
+  onDismiss?: (() => void) | undefined;
+  onRetry?: (() => void) | undefined;
+  className?: string | undefined;
   children: ReactNode;
 }
 

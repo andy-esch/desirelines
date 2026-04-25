@@ -65,7 +65,9 @@ export interface MetricConfig {
  * Base metric configurations.
  * These define the core metric types without sport-specific overrides.
  */
-const BASE_METRIC_CONFIGS: Record<string, MetricConfig> = {
+type BaseMetricKey = "distance" | "sessions" | "time" | "elevation";
+
+const BASE_METRIC_CONFIGS: Record<BaseMetricKey, MetricConfig> = {
   distance: {
     id: "distance",
     displayName: "Distance",
@@ -142,7 +144,7 @@ const BASE_METRIC_CONFIGS: Record<string, MetricConfig> = {
  */
 interface SportMetricOverride {
   /** Base metric type to use */
-  metricType: string;
+  metricType: BaseMetricKey;
   /** Properties to override from the base config */
   overrides?: Partial<MetricConfig>;
 }
@@ -309,7 +311,7 @@ export function getChartInterval(maxValue: number, config: MetricConfig): number
     }
   }
   // Fallback (should never reach due to Infinity threshold)
-  return config.chartIntervalThresholds[config.chartIntervalThresholds.length - 1].interval;
+  return config.chartIntervalThresholds.at(-1)?.interval ?? 0;
 }
 
 /** Maximum number of non-zero Y-axis ticks (keeps gridlines clean) */
@@ -386,7 +388,7 @@ export function isTimeMetricSport(sport: string): boolean {
  * Mapping from proto MetricType enum to base config keys.
  * This bridges the cross-language contract (proto) with the frontend config system.
  */
-const METRIC_TYPE_TO_CONFIG_KEY: Record<MetricType, string> = {
+const METRIC_TYPE_TO_CONFIG_KEY: Record<MetricType, BaseMetricKey> = {
   [MetricType.METRIC_TYPE_UNSPECIFIED]: "distance", // fallback
   [MetricType.METRIC_TYPE_DISTANCE_METERS]: "distance",
   [MetricType.METRIC_TYPE_TIME_MINUTES]: "time",

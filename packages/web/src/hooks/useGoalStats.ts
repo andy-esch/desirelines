@@ -43,7 +43,7 @@ export function useGoalStats(
     let nextGoal: Goal | null = null;
     if (goals.length > 0) {
       const goalsAbove = goals.filter((g) => g.value > currentDistance);
-      nextGoal = goalsAbove.length > 0 ? goalsAbove[0] : goals[goals.length - 1];
+      nextGoal = (goalsAbove.length > 0 ? goalsAbove[0] : goals.at(-1)) ?? null;
     }
 
     const nextGoalProgress = nextGoal ? (currentDistance / nextGoal.value) * 100 : 0;

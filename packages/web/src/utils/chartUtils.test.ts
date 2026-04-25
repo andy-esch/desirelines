@@ -142,11 +142,11 @@ describe("chartUtils", () => {
 
       // Yoga is time-based
       const yogaResult = toDailyArray(data, "yoga", mockSportConfig);
-      expect(yogaResult[0].value).toBe(60);
+      expect(yogaResult[0]!.value).toBe(60);
 
       // Cycling is distance-based
       const cyclingResult = toDailyArray(data, "cycling", mockSportConfig);
-      expect(cyclingResult[0].value).toBe(0);
+      expect(cyclingResult[0]!.value).toBe(0);
     });
 
     it("handles single entry", () => {
@@ -169,8 +169,8 @@ describe("chartUtils", () => {
       const result = toDailyArray(data, "cycling", mockSportConfig);
 
       // String comparison sorts correctly for ISO date format
-      expect(result[0].date).toBe("2026-01-01");
-      expect(result[1].date).toBe("2026-12-31");
+      expect(result[0]!.date).toBe("2026-01-01");
+      expect(result[1]!.date).toBe("2026-12-31");
     });
 
     describe("with dateRange parameter (dense array)", () => {
@@ -199,8 +199,8 @@ describe("chartUtils", () => {
 
         expect(result).toHaveLength(3);
         expect(result.every((d) => d.value === 0)).toBe(true);
-        expect(result[0].date).toBe("2026-01-01");
-        expect(result[2].date).toBe("2026-01-03");
+        expect(result[0]!.date).toBe("2026-01-01");
+        expect(result[2]!.date).toBe("2026-01-03");
       });
 
       it("generates single-day range", () => {
@@ -229,9 +229,9 @@ describe("chartUtils", () => {
         });
 
         expect(result).toHaveLength(3);
-        expect(result[0].value).toBe(60);
-        expect(result[1].value).toBe(0); // Missing day
-        expect(result[2].value).toBe(90);
+        expect(result[0]!.value).toBe(60);
+        expect(result[1]!.value).toBe(0); // Missing day
+        expect(result[2]!.value).toBe(90);
       });
 
       it("handles two-week range typical of sparklines", () => {
@@ -247,10 +247,10 @@ describe("chartUtils", () => {
         });
 
         expect(result).toHaveLength(14);
-        expect(result[0].value).toBe(5000); // Jan 1
-        expect(result[1].value).toBe(0); // Jan 2 (no activity)
-        expect(result[6].value).toBe(8000); // Jan 7
-        expect(result[13].value).toBe(6000); // Jan 14
+        expect(result[0]!.value).toBe(5000); // Jan 1
+        expect(result[1]!.value).toBe(0); // Jan 2 (no activity)
+        expect(result[6]!.value).toBe(8000); // Jan 7
+        expect(result[13]!.value).toBe(6000); // Jan 14
       });
     });
   });
@@ -362,9 +362,9 @@ describe("chartUtils", () => {
       const result = normalizeToRange(data);
 
       expect(result).toHaveLength(3);
-      expect(result[0].value).toBe(0.5);
-      expect(result[1].value).toBe(0.5);
-      expect(result[2].value).toBe(0.5);
+      expect(result[0]!.value).toBe(0.5);
+      expect(result[1]!.value).toBe(0.5);
+      expect(result[2]!.value).toBe(0.5);
     });
 
     it("handles single value (returns 0.5)", () => {
@@ -373,7 +373,7 @@ describe("chartUtils", () => {
       const result = normalizeToRange(data);
 
       expect(result).toHaveLength(1);
-      expect(result[0].value).toBe(0.5);
+      expect(result[0]!.value).toBe(0.5);
     });
 
     it("preserves date values", () => {
@@ -384,8 +384,8 @@ describe("chartUtils", () => {
 
       const result = normalizeToRange(data);
 
-      expect(result[0].date).toBe("2026-01-01");
-      expect(result[1].date).toBe("2026-01-02");
+      expect(result[0]!.date).toBe("2026-01-01");
+      expect(result[1]!.date).toBe("2026-01-02");
     });
 
     it("handles zero values correctly", () => {
@@ -396,8 +396,8 @@ describe("chartUtils", () => {
 
       const result = normalizeToRange(data);
 
-      expect(result[0].value).toBe(0); // 0 is min
-      expect(result[1].value).toBe(1); // 100 is max
+      expect(result[0]!.value).toBe(0); // 0 is min
+      expect(result[1]!.value).toBe(1); // 100 is max
     });
 
     it("handles negative values correctly", () => {
@@ -409,9 +409,9 @@ describe("chartUtils", () => {
 
       const result = normalizeToRange(data);
 
-      expect(result[0].value).toBe(0); // -50 is min
-      expect(result[1].value).toBe(1); // 50 is max
-      expect(result[2].value).toBe(0.5); // 0 is middle
+      expect(result[0]!.value).toBe(0); // -50 is min
+      expect(result[1]!.value).toBe(1); // 50 is max
+      expect(result[2]!.value).toBe(0.5); // 0 is middle
     });
 
     it("handles large value ranges", () => {
@@ -422,8 +422,8 @@ describe("chartUtils", () => {
 
       const result = normalizeToRange(data);
 
-      expect(result[0].value).toBe(0);
-      expect(result[1].value).toBe(1);
+      expect(result[0]!.value).toBe(0);
+      expect(result[1]!.value).toBe(1);
     });
 
     it("handles very small differences", () => {
@@ -434,8 +434,8 @@ describe("chartUtils", () => {
 
       const result = normalizeToRange(data);
 
-      expect(result[0].value).toBe(0);
-      expect(result[1].value).toBe(1);
+      expect(result[0]!.value).toBe(0);
+      expect(result[1]!.value).toBe(1);
     });
 
     it("does not mutate input array", () => {

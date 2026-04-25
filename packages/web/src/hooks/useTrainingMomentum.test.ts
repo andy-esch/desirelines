@@ -15,7 +15,7 @@ describe("useTrainingMomentum", () => {
     for (let i = 9; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0], y: 100 + (9 - i) ** 2 });
+      data.push({ x: date.toISOString().split("T")[0]!, y: 100 + (9 - i) ** 2 });
     }
 
     const { result } = renderHook(() => useTrainingMomentum(data, 10));
@@ -35,8 +35,8 @@ describe("useTrainingMomentum", () => {
     for (let i = 9; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0], y: distance });
-      distance += increments[9 - i];
+      data.push({ x: date.toISOString().split("T")[0]!, y: distance });
+      distance += increments[9 - i]!;
     }
 
     const { result } = renderHook(() => useTrainingMomentum(data, 10));
@@ -51,14 +51,14 @@ describe("useTrainingMomentum", () => {
     for (let i = 15; i >= 8; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0], y: 100 + (15 - i) * 10 });
+      data.push({ x: date.toISOString().split("T")[0]!, y: 100 + (15 - i) * 10 });
     }
     // Add extended data (flat-line) for the last 8 days
-    const lastDistance = data[data.length - 1].y;
+    const lastDistance = data.at(-1)!.y;
     for (let i = 7; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0], y: lastDistance });
+      data.push({ x: date.toISOString().split("T")[0]!, y: lastDistance });
     }
 
     const { result } = renderHook(() => useTrainingMomentum(data, 10));
@@ -74,7 +74,7 @@ describe("useTrainingMomentum", () => {
     for (let i = 7; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0], y: 100 + (7 - i) * 10 });
+      data.push({ x: date.toISOString().split("T")[0]!, y: 100 + (7 - i) * 10 });
     }
 
     const { result } = renderHook(() => useTrainingMomentum(data, 10));
@@ -92,7 +92,7 @@ describe("useTrainingMomentum", () => {
     dates.forEach((daysAgo, idx) => {
       const date = new Date(today);
       date.setDate(date.getDate() - daysAgo);
-      data.push({ x: date.toISOString().split("T")[0], y: values[idx] });
+      data.push({ x: date.toISOString().split("T")[0]!, y: values[idx]! });
     });
 
     const { result } = renderHook(() => useTrainingMomentum(data, 10));

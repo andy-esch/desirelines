@@ -16,11 +16,11 @@ import EmptyState from "../EmptyState";
 
 /** Configuration for the empty state display */
 interface EmptyStateConfig {
-  sport?: string;
-  year?: number;
-  unit?: MetricUnit;
-  message?: string;
-  suggestedYear?: number;
+  sport?: string | undefined;
+  year?: number | undefined;
+  unit?: MetricUnit | undefined;
+  message?: string | undefined;
+  suggestedYear?: number | undefined;
 }
 
 interface ChartContainerProps {
@@ -33,19 +33,19 @@ interface ChartContainerProps {
   /** Whether the data array is empty */
   isEmpty: boolean;
   /** Hide the header section (title + controls) */
-  hideHeader?: boolean;
+  hideHeader?: boolean | undefined;
   /** Callback to retry loading data */
-  onRetry?: () => void;
+  onRetry?: (() => void) | undefined;
   /** Optional controls to render in the header (e.g., view toggle buttons) */
-  headerControls?: ReactNode;
+  headerControls?: ReactNode | undefined;
   /** Additional class name for the container */
-  className?: string;
+  className?: string | undefined;
   /** Chart content to render when data is ready */
   children: ReactNode;
   /** Configuration for empty state (sport, year, unit, message, suggestedYear) */
-  emptyStateConfig?: EmptyStateConfig;
+  emptyStateConfig?: EmptyStateConfig | undefined;
   /** Optional info tooltip content shown next to title */
-  infoTooltip?: string;
+  infoTooltip?: string | undefined;
 }
 
 /**
@@ -59,9 +59,9 @@ function ChartHeader({
   simple = false,
 }: {
   title: string;
-  controls?: ReactNode;
-  infoTooltip?: string;
-  simple?: boolean;
+  controls?: ReactNode | undefined;
+  infoTooltip?: string | undefined;
+  simple?: boolean | undefined;
 }) {
   // Simple header for loading/error/empty states
   if (simple) {

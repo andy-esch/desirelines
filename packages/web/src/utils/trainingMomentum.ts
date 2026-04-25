@@ -20,15 +20,18 @@ export function filterActualActivityData(distanceData: DistanceEntry[]): Distanc
   const actualData: DistanceEntry[] = [];
 
   for (let i = 0; i < distanceData.length; i++) {
+    const curr = distanceData[i];
+    if (!curr) continue;
     // Include first point always
     if (i === 0) {
-      actualData.push(distanceData[i]);
+      actualData.push(curr);
       continue;
     }
 
     // Include point if distance changed from previous day (indicates real activity)
-    if (distanceData[i].y !== distanceData[i - 1].y) {
-      actualData.push(distanceData[i]);
+    const prev = distanceData[i - 1];
+    if (prev && curr.y !== prev.y) {
+      actualData.push(curr);
     }
   }
 
@@ -45,14 +48,15 @@ export function calculateDailyPaces(data: DistanceEntry[]): number[] {
   const dailyPaces: number[] = [];
 
   for (let i = 1; i < data.length; i++) {
-    const prevDistance = data[i - 1].y;
-    const currDistance = data[i].y;
-    const prevDate = new Date(data[i - 1].x).getTime();
-    const currDate = new Date(data[i].x).getTime();
+    const prev = data[i - 1];
+    const curr = data[i];
+    if (!prev || !curr) continue;
+    const prevDate = new Date(prev.x).getTime();
+    const currDate = new Date(curr.x).getTime();
     const daysDiff = (currDate - prevDate) / (1000 * 60 * 60 * 24);
 
     if (daysDiff > 0) {
-      dailyPaces.push((currDistance - prevDistance) / daysDiff);
+      dailyPaces.push((curr.y - prev.y) / daysDiff);
     }
   }
 
@@ -78,9 +82,11 @@ export function calculateLinearRegression(values: number[]): {
   let sumX2 = 0;
 
   for (let i = 0; i < n; i++) {
+    const v = values[i];
+    if (v === undefined) continue;
     sumX += i;
-    sumY += values[i];
-    sumXY += i * values[i];
+    sumY += v;
+    sumXY += i * v;
     sumX2 += i * i;
   }
 

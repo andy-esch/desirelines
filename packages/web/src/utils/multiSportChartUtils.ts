@@ -42,7 +42,7 @@ export function processSportSparkline(
   const lastActivityDate =
     activityDates.length > 0 ? activityDates[activityDates.length - 1] : null;
   const lastActivityYear = lastActivityDate
-    ? parseInt(lastActivityDate.split("-")[0], 10)
+    ? parseInt(lastActivityDate.split("-")[0] ?? "", 10)
     : currentYear;
 
   return {

@@ -90,9 +90,9 @@ export const mockSportConfig: SportConfig = {
 export const mockMinimalSportConfig: SportConfig = {
   version: "1.0",
   sportCategories: {
-    cycling: mockSportConfig.sportCategories.cycling,
-    running: mockSportConfig.sportCategories.running,
-    yoga: mockSportConfig.sportCategories.yoga,
+    cycling: mockSportConfig.sportCategories.cycling!,
+    running: mockSportConfig.sportCategories.running!,
+    yoga: mockSportConfig.sportCategories.yoga!,
   },
 };
 

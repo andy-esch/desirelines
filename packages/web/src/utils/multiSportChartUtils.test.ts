@@ -98,7 +98,7 @@ describe("multiSportChartUtils", () => {
       // Lane 1 (Cycling): [0.5, 1.0]
       // Values are padded within lanes (80% data, 10% padding each side)
 
-      const entry = merged[0];
+      const entry = merged[0]!;
       expect(entry.cycling).toBeGreaterThan(0.5);
       expect(entry.yoga).toBeLessThan(0.5);
       expect(entry.cycling_raw).toBe(100);
@@ -132,10 +132,10 @@ describe("multiSportChartUtils", () => {
       const meta = getSportMetadata(data);
 
       expect(meta).toHaveLength(2);
-      expect(meta[0].sport).toBe("cycling");
-      expect(meta[0].color).toBeDefined();
-      expect(meta[1].sport).toBe("yoga");
-      expect(meta[1].color).not.toBe(meta[0].color);
+      expect(meta[0]!.sport).toBe("cycling");
+      expect(meta[0]!.color).toBeDefined();
+      expect(meta[1]!.sport).toBe("yoga");
+      expect(meta[1]!.color).not.toBe(meta[0]!.color);
     });
   });
 });

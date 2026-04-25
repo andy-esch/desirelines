@@ -44,7 +44,11 @@ describe("401 response interceptor", () => {
   });
 
   afterEach(() => {
-    client.defaults.adapter = originalAdapter;
+    if (originalAdapter === undefined) {
+      delete client.defaults.adapter;
+    } else {
+      client.defaults.adapter = originalAdapter;
+    }
   });
 
   it("should retry a 401 response once with a force-refreshed token", async () => {
@@ -137,7 +141,6 @@ function createAxiosError(status: number, config: InternalAxiosRequestConfig): A
     response,
     name: "AxiosError" as const,
     config,
-    code: undefined,
     toJSON: () => ({}),
   }) as AxiosError;
 }

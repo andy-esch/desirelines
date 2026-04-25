@@ -64,8 +64,7 @@ function computeRingMeters(maxRouteDistanceMeters: number, unit: DistanceUnit): 
   const toMeters = unit === "miles" ? MILES_TO_METERS : KM_TO_METERS;
 
   // Find smallest step where RING_COUNT * step >= maxReach
-  const step =
-    niceSteps.find((s) => s * RING_COUNT >= maxReachDisplay) ?? niceSteps[niceSteps.length - 1];
+  const step = niceSteps.find((s) => s * RING_COUNT >= maxReachDisplay) ?? niceSteps.at(-1) ?? 1;
 
   return Array.from({ length: RING_COUNT }, (_, i) => Math.round((i + 1) * step * toMeters));
 }
@@ -81,9 +80,9 @@ const RING_SEGMENTS = 64;
 const METERS_PER_DEGREE = 111_320;
 
 /** Generate circle coordinates centered at (0, 0) in degree-offset space. */
-function generateCircleCoords(radiusMeters: number): number[][] {
+function generateCircleCoords(radiusMeters: number): [number, number][] {
   const radiusDeg = radiusMeters / METERS_PER_DEGREE;
-  const coords: number[][] = [];
+  const coords: [number, number][] = [];
   for (let i = 0; i <= RING_SEGMENTS; i++) {
     const angle = (2 * Math.PI * i) / RING_SEGMENTS;
     coords.push([radiusDeg * Math.cos(angle), radiusDeg * Math.sin(angle)]);

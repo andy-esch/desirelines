@@ -60,7 +60,7 @@ export function parseLocalDate(dateStr: string): Date | null {
     return null;
   }
 
-  const [yearStr, monthStr, dayStr] = dateStr.split("-");
+  const [yearStr, monthStr, dayStr] = dateStr.split("-") as [string, string, string];
   const year = parseInt(yearStr, 10);
   const month = parseInt(monthStr, 10) - 1; // JS months are 0-indexed
   const day = parseInt(dayStr, 10);

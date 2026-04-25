@@ -458,8 +458,8 @@ export function useFullUserConfig(
     }: {
       configType: "goals" | "annotations" | "preferences";
       data: GoalsForYear | AnnotationsForYear | Preferences;
-      year?: number;
-      sport?: string;
+      year?: number | undefined;
+      sport?: string | undefined;
     }) => {
       if (isLocalStorageMode) {
         logApiError(new Error("Fixture mode: Changes not persisted"), "useFullUserConfig");

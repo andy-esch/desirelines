@@ -24,7 +24,7 @@ function getDaysInYear(year: number): number {
 function dayOfYearToDateString(year: number, dayOfYear: number): string {
   // Create date in UTC to avoid local timezone issues
   const utcDate = new Date(Date.UTC(year, 0, dayOfYear));
-  return utcDate.toISOString().split("T")[0];
+  return utcDate.toISOString().split("T")[0] ?? "";
 }
 
 /**
@@ -52,7 +52,7 @@ export function getTargetGoalValue(
   const targetEntry = goals.find((g) => g.label === "Target");
   if (targetEntry) return targetEntry.value;
   const sorted = [...goals].sort((a, b) => a.value - b.value);
-  return sorted[Math.floor(sorted.length / 2)].value;
+  return sorted[Math.floor(sorted.length / 2)]?.value ?? null;
 }
 
 /**

@@ -28,7 +28,7 @@ export interface SportPageContentProps {
   estimatedYearEnd: number;
   isLoading: boolean;
   error: Error | null;
-  onRetry?: () => void;
+  onRetry?: (() => void) | undefined;
 
   // Units
   unit: MetricUnit;
@@ -40,7 +40,7 @@ export interface SportPageContentProps {
   onGoalsChange: (goals: Goals) => Promise<void>;
   isGoalsSaving: boolean;
   goalsSaveError: Error | null;
-  onClearGoalsSaveError?: () => void;
+  onClearGoalsSaveError?: (() => void) | undefined;
 
   // Goal stats (from useGoalStats)
   nextGoal: Goal | null;
@@ -55,7 +55,7 @@ export interface SportPageContentProps {
   // Sidebar
   availableSports: string[];
   sportCounts: Record<string, number>;
-  showAuthButton?: boolean;
+  showAuthButton?: boolean | undefined;
 
   // Navigation
   onSportChange: (sport: string) => void;
@@ -64,14 +64,14 @@ export interface SportPageContentProps {
   routePrefix: string;
 
   // Metric selector (optional — omit for demo / single-metric sports)
-  availableMetrics?: string[];
-  activeMetric?: string;
-  onMetricChange?: (metric: string) => void;
+  availableMetrics?: string[] | undefined;
+  activeMetric?: string | undefined;
+  onMetricChange?: ((metric: string) => void) | undefined;
 
   // Prior years (optional — omit for demo)
-  priorYearData?: Record<number, DistanceEntry[]>;
-  showPriorYears?: boolean;
-  onPriorYearsChange?: (show: boolean) => void;
+  priorYearData?: Record<number, DistanceEntry[]> | undefined;
+  showPriorYears?: boolean | undefined;
+  onPriorYearsChange?: ((show: boolean) => void) | undefined;
 }
 
 export default function SportPageContent({

@@ -4,9 +4,9 @@ import { lazy } from "react";
 const RoutesPage = lazy(() => import("../pages/RoutesPage"));
 
 type RoutesSearch = {
-  sports?: string;
-  years?: string;
-  rings?: string;
+  sports?: string | undefined;
+  years?: string | undefined;
+  rings?: string | undefined;
 };
 
 export const Route = createFileRoute("/routes")({

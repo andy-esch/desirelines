@@ -17,21 +17,21 @@ describe("calculateDesireLine", () => {
     const line = calculateDesireLine(365, 2025, new Date(2025, 0, 3));
 
     expect(line).toHaveLength(3);
-    expect(line[0].x).toBe("2025-01-01");
-    expect(line[0].y).toBeCloseTo(1, 1); // Day 1: 1 mile
-    expect(line[1].y).toBeCloseTo(2, 1); // Day 2: 2 miles
-    expect(line[2].y).toBeCloseTo(3, 1); // Day 3: 3 miles
+    expect(line[0]!.x).toBe("2025-01-01");
+    expect(line[0]!.y).toBeCloseTo(1, 1); // Day 1: 1 mile
+    expect(line[1]!.y).toBeCloseTo(2, 1); // Day 2: 2 miles
+    expect(line[2]!.y).toBeCloseTo(3, 1); // Day 3: 3 miles
   });
 
   it("stops at maxDate", () => {
     const line = calculateDesireLine(3650, 2025, new Date(2025, 0, 5));
     expect(line).toHaveLength(5);
-    expect(line[4].x).toBe("2025-01-05");
+    expect(line[4]!.x).toBe("2025-01-05");
   });
 
   it("scales proportionally for full year", () => {
     const line = calculateDesireLine(1000, 2025, new Date(2025, 11, 31));
-    const lastEntry = line[line.length - 1];
+    const lastEntry = line.at(-1)!;
     // Last day should be close to 1000 miles
     expect(lastEntry.y).toBeCloseTo(1000, 0);
   });
@@ -39,8 +39,8 @@ describe("calculateDesireLine", () => {
   it("handles 0 target distance", () => {
     const line = calculateDesireLine(0, 2025, new Date(2025, 0, 10));
     expect(line).toHaveLength(10);
-    expect(line[0].y).toBe(0);
-    expect(line[9].y).toBe(0);
+    expect(line[0]!.y).toBe(0);
+    expect(line[9]!.y).toBe(0);
   });
 });
 
@@ -62,9 +62,9 @@ describe("calculateCurrentAverageLine", () => {
 
     expect(line.length).toBeGreaterThan(0);
     // Day 1 should be (3650 * 1 / 365) ≈ 10 miles
-    expect(line[0].y).toBeCloseTo(10, 0);
+    expect(line[0]!.y).toBeCloseTo(10, 0);
     // Day 2 should be (3650 * 2 / 365) ≈ 20 miles
-    expect(line[1].y).toBeCloseTo(20, 0);
+    expect(line[1]!.y).toBeCloseTo(20, 0);
   });
 
   it("handles single day of data", () => {
@@ -75,7 +75,7 @@ describe("calculateCurrentAverageLine", () => {
     const line = calculateCurrentAverageLine(distanceTraveled, 2025, new Date(2025, 0, 1));
 
     expect(line).toHaveLength(1);
-    expect(line[0].y).toBeCloseTo(15, 0);
+    expect(line[0]!.y).toBeCloseTo(15, 0);
   });
 });
 

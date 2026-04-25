@@ -596,7 +596,7 @@ describe("UserConfigService", () => {
       await service.updateConfigSection("goals", { goals: [] }, 2025, "cycling");
       const afterUpdate = new Date().toISOString();
 
-      const setDocCall = vi.mocked(firestore.setDoc).mock.calls[0];
+      const setDocCall = vi.mocked(firestore.setDoc).mock.calls[0]!;
       const updatedConfig = setDocCall[1] as UserConfig;
 
       expect(updatedConfig.lastUpdated).toBeDefined();

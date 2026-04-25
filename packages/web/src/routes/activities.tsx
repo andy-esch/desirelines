@@ -4,8 +4,8 @@ import { lazy } from "react";
 const ActivitiesPage = lazy(() => import("../pages/ActivitiesPage"));
 
 type ActivitiesSearch = {
-  range?: string;
-  sport?: string;
+  range?: string | undefined;
+  sport?: string | undefined;
 };
 
 export const Route = createFileRoute("/activities")({

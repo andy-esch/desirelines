@@ -235,8 +235,9 @@ const GENERIC_NAMES: SportNamePool = {
 // Generator
 // =============================================================================
 
-function randomChoice<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+function randomChoice<T>(arr: readonly T[]): T {
+  // Caller is responsible for passing a non-empty array.
+  return arr[Math.floor(Math.random() * arr.length)] as T;
 }
 
 /**

@@ -31,7 +31,7 @@ describe("GoalControls", () => {
       render(<GoalControls {...defaultProps} />);
 
       // Click on first goal to edit
-      const goalInput = screen.getAllByRole("textbox")[1]; // Skip label input
+      const goalInput = screen.getAllByRole("textbox")[1]!; // Skip label input
       fireEvent.focus(goalInput);
 
       // Input should now be editable
@@ -49,7 +49,7 @@ describe("GoalControls", () => {
       render(<GoalControls {...defaultProps} />);
 
       // Enter edit mode
-      const goalInput = screen.getAllByRole("textbox")[1];
+      const goalInput = screen.getAllByRole("textbox")[1]!;
       fireEvent.focus(goalInput);
 
       const editInput = screen.getByDisplayValue("1000");
@@ -72,7 +72,7 @@ describe("GoalControls", () => {
     it("clears error when user presses Escape", () => {
       render(<GoalControls {...defaultProps} />);
 
-      const goalInput = screen.getAllByRole("textbox")[1];
+      const goalInput = screen.getAllByRole("textbox")[1]!;
       fireEvent.focus(goalInput);
 
       const editInput = screen.getByDisplayValue("1000");
@@ -97,7 +97,7 @@ describe("GoalControls", () => {
 
       render(<GoalControls {...defaultProps} />);
 
-      const goalInput = screen.getAllByRole("textbox")[1];
+      const goalInput = screen.getAllByRole("textbox")[1]!;
       fireEvent.focus(goalInput);
 
       const editInput = screen.getByDisplayValue("1000");
@@ -118,7 +118,7 @@ describe("GoalControls", () => {
     it("accepts valid values without showing error", () => {
       render(<GoalControls {...defaultProps} />);
 
-      const goalInput = screen.getAllByRole("textbox")[1];
+      const goalInput = screen.getAllByRole("textbox")[1]!;
       fireEvent.focus(goalInput);
 
       const editInput = screen.getByDisplayValue("1000");
@@ -137,7 +137,7 @@ describe("GoalControls", () => {
     it("keeps error visible and stays in edit mode when validation fails", () => {
       render(<GoalControls {...defaultProps} />);
 
-      const goalInput = screen.getAllByRole("textbox")[1];
+      const goalInput = screen.getAllByRole("textbox")[1]!;
       fireEvent.focus(goalInput);
 
       const editInput = screen.getByDisplayValue("1000");
@@ -159,7 +159,7 @@ describe("GoalControls", () => {
     it("allows editing goal values", () => {
       render(<GoalControls {...defaultProps} />);
 
-      const goalInput = screen.getAllByRole("textbox")[1];
+      const goalInput = screen.getAllByRole("textbox")[1]!;
       fireEvent.focus(goalInput);
 
       const editInput = screen.getByDisplayValue("1000");
@@ -175,7 +175,7 @@ describe("GoalControls", () => {
     it("saves on Enter key", () => {
       render(<GoalControls {...defaultProps} />);
 
-      const goalInput = screen.getAllByRole("textbox")[1];
+      const goalInput = screen.getAllByRole("textbox")[1]!;
       fireEvent.focus(goalInput);
 
       const editInput = screen.getByDisplayValue("1000");
@@ -191,7 +191,7 @@ describe("GoalControls", () => {
 
       render(<GoalControls {...defaultProps} onGoalsChange={onGoalsChange} />);
 
-      const goalInput = screen.getAllByRole("textbox")[1];
+      const goalInput = screen.getAllByRole("textbox")[1]!;
       fireEvent.focus(goalInput);
 
       const editInput = screen.getByDisplayValue("1000");

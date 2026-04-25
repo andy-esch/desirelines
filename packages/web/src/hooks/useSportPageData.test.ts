@@ -79,7 +79,7 @@ describe("useSportPageData", () => {
     expect(result.current.currentValue).toBeCloseTo(10, 1);
     expect(result.current.unit).toBe("miles");
     expect(result.current.chartData).toHaveLength(1);
-    expect(result.current.chartData[0].y).toBeCloseTo(10, 1);
+    expect(result.current.chartData[0]!.y).toBeCloseTo(10, 1);
   });
 
   it("switches units when metric selection changes", async () => {

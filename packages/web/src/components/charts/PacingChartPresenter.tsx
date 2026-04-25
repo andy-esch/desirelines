@@ -268,7 +268,7 @@ export function PacingChartPresenter({
             key={pg.goal.id}
             type="monotone"
             dataKey={`goal${index}`}
-            stroke={GOAL_COLORS[index % GOAL_COLORS.length]}
+            stroke={GOAL_COLORS[index % GOAL_COLORS.length]!}
             strokeWidth={CHART_CONFIG.strokeWidth.goal}
             dot={false}
             name={`${pg.goal.label || "Goal"} Pacing: ${pg.goal.value} ${unitLabel}`}

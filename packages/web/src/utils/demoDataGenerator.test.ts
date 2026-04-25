@@ -79,16 +79,16 @@ describe("generateDemoMetrics", () => {
       const metrics = generateDemoMetrics("cycling", 2024);
 
       for (let i = 1; i < metrics.length; i++) {
-        expect(metrics[i].distance ?? 0).toBeGreaterThanOrEqual(metrics[i - 1].distance ?? 0);
-        expect(metrics[i].time ?? 0).toBeGreaterThanOrEqual(metrics[i - 1].time ?? 0);
-        expect(metrics[i].activities ?? 0).toBeGreaterThanOrEqual(metrics[i - 1].activities ?? 0);
+        expect(metrics[i]!.distance ?? 0).toBeGreaterThanOrEqual(metrics[i - 1]!.distance ?? 0);
+        expect(metrics[i]!.time ?? 0).toBeGreaterThanOrEqual(metrics[i - 1]!.time ?? 0);
+        expect(metrics[i]!.activities ?? 0).toBeGreaterThanOrEqual(metrics[i - 1]!.activities ?? 0);
       }
     });
 
     it("starts from zero on Jan 1", () => {
       // Use override to ensure we get data
       const metrics = generateDemoMetrics("cycling", 2024, "full");
-      const firstEntry = metrics[0];
+      const firstEntry = metrics[0]!;
 
       expect(firstEntry.date).toBe("2024-01-01");
       // First entry might have an activity or not, but should be reasonable
@@ -150,8 +150,8 @@ describe("generateDemoMetrics", () => {
       expect(cyclingMetrics.length).toBe(runningMetrics.length);
 
       // Different totals due to different sport configs
-      const cyclingTotal = cyclingMetrics[cyclingMetrics.length - 1].distance ?? 0;
-      const runningTotal = runningMetrics[runningMetrics.length - 1].distance ?? 0;
+      const cyclingTotal = cyclingMetrics.at(-1)?.distance ?? 0;
+      const runningTotal = runningMetrics.at(-1)?.distance ?? 0;
 
       // Cycling should generally have more distance than running
       // (40km avg vs 8km avg per activity)
@@ -165,7 +165,7 @@ describe("generateDemoMetrics", () => {
         const metrics = generateDemoMetrics("cycling", 2024);
         if (metrics.length === 0) {
           results.push("empty");
-        } else if (metrics.length > 0 && metrics[metrics.length - 1].activities === 0) {
+        } else if (metrics.length > 0 && metrics.at(-1)?.activities === 0) {
           results.push("empty-data");
         } else {
           results.push("has-data");
@@ -182,10 +182,10 @@ describe("generateDemoMetrics", () => {
     it("current year data ends at today or earlier", () => {
       const currentYear = new Date().getFullYear();
       const metrics = generateDemoMetrics("cycling", currentYear);
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toISOString().split("T")[0]!;
 
       if (metrics.length > 0) {
-        const lastDate = metrics[metrics.length - 1].date;
+        const lastDate = metrics.at(-1)!.date;
         expect(lastDate <= today).toBe(true);
       }
     });
@@ -241,7 +241,7 @@ describe("generateDemoActivities", () => {
     it("cycling activities have elevation", () => {
       // Use override to ensure we get data
       const activities = generateDemoActivities("cycling", 2024, 20, "full");
-      const activity = activities[0];
+      const activity = activities[0]!;
 
       expect(activity.elevationMeters).toBeDefined();
       expect(activity.elevationMeters).toBeGreaterThan(0);
@@ -280,8 +280,8 @@ describe("generateDemoActivities", () => {
       const activities = generateDemoActivities("cycling", 2024, 20, "full");
 
       for (let i = 1; i < activities.length; i++) {
-        const prevDate = new Date(activities[i - 1].startDateLocal);
-        const currDate = new Date(activities[i].startDateLocal);
+        const prevDate = new Date(activities[i - 1]!.startDateLocal);
+        const currDate = new Date(activities[i]!.startDateLocal);
         expect(prevDate.getTime()).toBeGreaterThanOrEqual(currDate.getTime());
       }
     });
@@ -299,7 +299,7 @@ describe("generateDemoActivities", () => {
       const partialActivities = generateDemoActivities("cycling", 2024, 50, "partial");
 
       if (partialActivities.length > 0) {
-        const oldest = new Date(partialActivities[partialActivities.length - 1].startDateLocal);
+        const oldest = new Date(partialActivities.at(-1)!.startDateLocal);
         const endOf2024 = new Date(2024, 11, 31);
         const daysDiff = Math.floor(
           (endOf2024.getTime() - oldest.getTime()) / (1000 * 60 * 60 * 24)
@@ -421,7 +421,7 @@ describe("realistic data generation", () => {
   it("cycling generates reasonable yearly totals", () => {
     // Use override to ensure full data
     const metrics = generateDemoMetrics("cycling", 2024, "full");
-    const lastEntry = metrics[metrics.length - 1];
+    const lastEntry = metrics.at(-1)!;
 
     // Cycling: 40km avg * 60% activity rate * 366 days ≈ 8700km = 5400 miles
     // With variance, expect roughly 2000-10000 miles
@@ -433,7 +433,7 @@ describe("realistic data generation", () => {
   it("running generates reasonable yearly totals", () => {
     // Use override to ensure full data
     const metrics = generateDemoMetrics("running", 2024, "full");
-    const lastEntry = metrics[metrics.length - 1];
+    const lastEntry = metrics.at(-1)!;
 
     // Running: 8km avg * 25% activity rate * 366 days ≈ 730km = 450 miles
     // With variance, expect roughly 100-2000 miles
