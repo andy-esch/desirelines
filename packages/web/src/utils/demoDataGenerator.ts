@@ -833,8 +833,8 @@ export function generateDemoDailyData(
   // Parse date range
   const fromParts = fromDate.split("-").map(Number);
   const toParts = toDate.split("-").map(Number);
-  const [fromYear, fromMonth, fromDay] = fromParts as [number, number, number];
-  const [toYear, toMonth, toDay] = toParts as [number, number, number];
+  const [fromYear = 0, fromMonth = 1, fromDay = 1] = fromParts;
+  const [toYear = 0, toMonth = 1, toDay = 1] = toParts;
   const startDate = new Date(fromYear, fromMonth - 1, fromDay);
   const endDate = new Date(toYear, toMonth - 1, toDay);
 

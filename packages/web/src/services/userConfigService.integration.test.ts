@@ -363,7 +363,7 @@ describe("UserConfigService Integration Tests", () => {
 
       // Verify we received updates
       expect(updates.length).toBeGreaterThan(0);
-      const lastUpdate = updates[updates.length - 1] as GoalsForYear;
+      const lastUpdate = updates[updates.length - 1]!;
       expect(lastUpdate).toEqual(testGoals);
     });
   });
