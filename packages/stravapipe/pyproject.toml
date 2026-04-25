@@ -107,7 +107,13 @@ ignore = [
 # and refactoring them into named constants adds noise without clarity.
 # Deferred imports inside test functions are required to import modules under
 # test *after* patches are applied (module-level state gets frozen at import).
+#
+# Two patterns: `tests/**` matches when ruff runs from inside this package
+# (e.g. `just py-lint` via uv, cwd=packages/stravapipe). `**/tests/**` matches
+# when ruff runs from the repo root (e.g. `pants lint`, which passes
+# packages/stravapipe/tests/... paths).
 "tests/**" = ["PLR2004", "PLC0415"]
+"**/tests/**" = ["PLR2004", "PLC0415"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["stravapipe", "tests"]
