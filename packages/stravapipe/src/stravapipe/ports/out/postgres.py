@@ -16,6 +16,7 @@ Error Handling Pattern:
 """
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from stravapipe.domain import StandardActivity
 
@@ -61,7 +62,7 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update_metadata(self, activity_id: int, updates: dict) -> bool | None:
+    def update_metadata(self, activity_id: int, updates: dict[str, Any]) -> bool | None:
         """Update only metadata fields (name, type, sport).
 
         Used for UPDATE webhooks - only updates changed fields.

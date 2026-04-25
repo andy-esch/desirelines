@@ -49,10 +49,10 @@ def setup_metrics(service_name: str) -> Meter:
         # Deferred imports: GCP exporters are optional runtime deps. Importing
         # them lazily inside the feature-flagged branch keeps `setup_metrics`
         # a no-op when the packages aren't installed (e.g. local dev).
-        from opentelemetry.exporter.cloud_monitoring import (  # type: ignore[import-not-found]  # noqa: PLC0415
+        from opentelemetry.exporter.cloud_monitoring import (  # noqa: PLC0415
             CloudMonitoringMetricsExporter,
         )
-        from opentelemetry.resourcedetector.gcp_resource_detector import (  # type: ignore[import-not-found]  # noqa: PLC0415
+        from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
             GoogleCloudResourceDetector,
         )
 

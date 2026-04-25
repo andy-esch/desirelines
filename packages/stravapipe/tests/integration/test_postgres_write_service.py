@@ -32,8 +32,11 @@ def make_activity(
     )
 
 
-def make_mock_strava_reader(activity: StandardActivity) -> ReadStandardActivities:
-    """Create mock Strava reader that returns the given activity."""
+def make_mock_strava_reader(activity: StandardActivity) -> Mock:
+    """Create mock Strava reader (spec'd as ReadStandardActivities) that
+    returns the given activity. Typed as Mock so tests can call
+    ``.assert_called_once_with()`` on the recorded method.
+    """
     mock = Mock(spec=ReadStandardActivities)
     mock.read_standard_activity_by_id.return_value = activity
     return mock

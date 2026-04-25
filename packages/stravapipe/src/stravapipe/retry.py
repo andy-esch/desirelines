@@ -37,8 +37,8 @@ def retry_on_failure(
 
     def decorator(func: F) -> F:
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            last_exception = None
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            last_exception: Exception | None = None
 
             for attempt in range(max_attempts):
                 try:

@@ -1,6 +1,7 @@
 """Custom exceptions for stravapipe package."""
 
 from collections.abc import Sequence
+from typing import Any
 
 
 class StravaPipeError(Exception):
@@ -70,7 +71,7 @@ class ActivityNotFoundError(StravaApiError):
 class BigQueryError(StravaPipeError):
     """Raised when BigQuery operations fail."""
 
-    def __init__(self, message: str, errors: Sequence[dict] | None = None):
+    def __init__(self, message: str, errors: Sequence[dict[str, Any]] | None = None):
         super().__init__(message)
         self.errors = list(errors) if errors else []
 

@@ -20,7 +20,8 @@ import logging
 
 from google.cloud.firestore_v1 import Client as FirestoreClient
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
-from google.cloud.firestore_v1.transaction import transactional
+from google.cloud.firestore_v1.document import DocumentReference
+from google.cloud.firestore_v1.transaction import Transaction, transactional
 
 from stravapipe.exceptions import StravaPipeError
 
@@ -128,7 +129,7 @@ class FirestoreTokenStore:
         now = datetime.now(tz=UTC)
 
         @transactional
-        def update_in_transaction(transaction):
+        def update_in_transaction(transaction: Transaction) -> bool:
             snapshot = ref.get(transaction=transaction)
             if not snapshot.exists:
                 raise TokenNotFoundError(athlete_id)
@@ -150,7 +151,8 @@ class FirestoreTokenStore:
 
         try:
             txn = self._client.transaction()
-            result = update_in_transaction(txn)
+            # @transactional returns Any; the inner function returns bool.
+            result: bool = update_in_transaction(txn)
         except TokenNotFoundError:
             raise
         except Exception:
@@ -185,11 +187,13 @@ class FirestoreTokenStore:
             athlete_id,
         )
 
-    def _tokens_ref(self, athlete_id: str):
+    def _tokens_ref(self, athlete_id: str) -> DocumentReference:
         """Build Firestore document reference for an athlete's tokens."""
-        return (
+        # firestore_v1 chained access loses its typed return; cast at boundary.
+        ref: DocumentReference = (
             self._client.collection(USERS_COLLECTION)
             .document(athlete_id)
             .collection(PRIVATE_COLLECTION)
             .document(TOKENS_DOCUMENT)
         )
+        return ref

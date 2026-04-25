@@ -21,6 +21,7 @@ object_type == ACTIVITY routing. This service handles athlete deauth events
 with a simpler flow: parse event → extract owner_id → delete from all stores.
 """
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 import uuid
@@ -104,7 +105,7 @@ def _delete_firestore_user_docs(
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize shared resources on startup and ensure clean shutdown."""
     try:
         config = load_deletion_service_config()
@@ -172,13 +173,13 @@ app = FastAPI(
 
 
 @app.get("/health")
-async def health():
+async def health() -> HealthResponse:
     """Health check endpoint for Cloud Run."""
     return HealthResponse(status=ResponseStatus.HEALTHY)
 
 
 @app.post("/")
-async def handle_deauth_event(request: Request):  # noqa: PLR0915 — orchestrator coordinates 4 independent deletion stores with per-store error handling; splitting would obscure the control flow
+async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa: PLR0915 — orchestrator coordinates 4 independent deletion stores with per-store error handling; splitting would obscure the control flow
     """Handle deauth event from Pub/Sub.
 
     Deletes user data from all stores. Proceeds through all stores even if

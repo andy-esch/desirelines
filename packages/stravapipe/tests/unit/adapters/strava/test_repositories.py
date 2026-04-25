@@ -36,8 +36,13 @@ from stravapipe.exceptions import (
 
 @pytest.fixture
 def tokenset():
+    # Passes None to simulate "initial state before first refresh"; the domain
+    # type declares access_token: str but the refresh flow is the subject here.
     return StravaTokenSet(
-        client_id=1, client_secret="foo", refresh_token="bar", access_token=None
+        client_id=1,
+        client_secret="foo",
+        refresh_token="bar",
+        access_token=None,  # type: ignore[arg-type]
     )
 
 

@@ -11,7 +11,7 @@ This module provides a layered architecture for Strava API access:
     StravaActivitiesRepo - Domain model conversion
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 import logging
 import threading
@@ -68,7 +68,7 @@ class StravaTokenRepo(ReadStravaToken):
             max_attempts=self._api_config.token_retry_attempts,
             backoff_seconds=self._api_config.token_retry_backoff,
         )
-        def _refresh():
+        def _refresh() -> requests.Response:
             payload = {
                 "client_id": self._tokens.client_id,
                 "client_secret": self._tokens.client_secret,
@@ -226,7 +226,7 @@ class StravaApiClient:
             max_attempts=self._api_config.activity_retry_attempts,
             backoff_seconds=self._api_config.activity_retry_backoff,
         )
-        def _fetch():
+        def _fetch() -> requests.Response:
             endpoint = f"{self._api_config.api_base_url}/activities/{activity_id}"
             return requests.get(
                 url=endpoint,
@@ -254,7 +254,8 @@ class StravaApiClient:
                 "status_code": resp.status_code,
             },
         )
-        return resp.json()
+        data: dict[str, Any] = resp.json()
+        return data
 
     def list_activities(
         self, *, before: int, after: int, page: int, per_page: int = 100
@@ -297,7 +298,7 @@ class StravaApiClient:
             max_attempts=self._api_config.activity_retry_attempts,
             backoff_seconds=self._api_config.activity_retry_backoff,
         )
-        def _fetch():
+        def _fetch() -> requests.Response:
             endpoint = f"{self._api_config.api_base_url}/athlete/activities"
             return requests.get(
                 url=endpoint,
@@ -342,7 +343,8 @@ class StravaApiClient:
                 )
             resp.raise_for_status()
 
-        return resp.json()
+        data: list[dict[str, Any]] = resp.json()
+        return data
 
     def _handle_error_response(
         self,
@@ -350,7 +352,7 @@ class StravaApiClient:
         *,
         activity_id: int,
         token_refresh_count: int,
-        retry_func,
+        retry_func: Callable[[int], dict[str, Any]],
     ) -> dict[str, Any]:
         """Handle error responses with 401 retry and exception translation."""
         # Handle 401: refresh token and retry

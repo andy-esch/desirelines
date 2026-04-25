@@ -3,6 +3,7 @@
 from functools import lru_cache
 import json
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -49,7 +50,7 @@ class SportCategory:
     The DB stores both: column 'type' = Strava type, column 'sport' = Strava sport_type.
     """
 
-    def __init__(self, name: str, config: dict):
+    def __init__(self, name: str, config: dict[str, Any]):
         self.name = name
         self.display_name = config["display_name"]
         self.strava_types = set(config["strava_types"])

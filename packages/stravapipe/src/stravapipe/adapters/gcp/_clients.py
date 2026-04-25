@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 import logging
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from google.cloud.bigquery import (
     ArrayQueryParameter,
@@ -29,7 +29,7 @@ class BigQueryClientWrapper:
         self._client = BigQueryClient(project=project_id)
 
     def insert_rows_json(
-        self, rows: list[dict], *, dataset_name: str, table_name: str
+        self, rows: list[dict[str, Any]], *, dataset_name: str, table_name: str
     ) -> None:
         """Insert each dict in rows as a new row in `dataset.table_name`
         https://cloud.google.com/bigquery/docs/samples/bigquery-table-insert-rows#bigquery_table_insert_rows-python
@@ -48,7 +48,7 @@ class BigQueryClientWrapper:
         query: str,
         query_parameters: Sequence[ScalarQueryParameter | ArrayQueryParameter]
         | None = None,
-    ) -> list:
+    ) -> list[Any]:
         """Execute a SELECT query and return the result rows.
 
         Args:

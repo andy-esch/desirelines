@@ -36,7 +36,7 @@ AspectCallback = Callable[
 
 async def handle_webhook_cloudevent(
     request: Request,
-    logger: logging.Logger | LoggerAdapter,
+    logger: logging.Logger | LoggerAdapter[logging.Logger],
     *,
     on_create: AspectCallback | None = None,
     on_update: AspectCallback | None = None,

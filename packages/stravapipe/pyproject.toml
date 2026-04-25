@@ -170,24 +170,47 @@ mypy_path = ["src"]
 packages = ["stravapipe"]
 explicit_package_bases = true
 namespace_packages = true
+strict = true
 
-# Disable misc errors globally (primarily for protobuf __slots__ false positives)
-# The protoc-generated .pyi stubs show __slots__ = () but fields are dynamically managed
-disable_error_code = ["misc"]
-
-# Ignore import-untyped errors for common untyped libraries
-# disable_error_code = ["import-untyped"]
-
-# Generated protobuf code - disable __slots__ warnings
+# Generated protobuf code — machine-generated, not worth annotating.
+# Disables:
+# - `misc`: protoc stubs declare __slots__ = () but fields are dynamically
+#   managed by the descriptor layer.
+# - `type-arg`: generated stubs reference bare `Mapping` without parameters.
+# - `no-untyped-def`, `no-untyped-call`: accessors/constructors in the
+#   generated stubs are not fully annotated.
 [[tool.mypy.overrides]]
 module = "stravapipe.types.generated.*"
-disable_error_code = ["misc"]
+disable_error_code = ["misc", "type-arg", "no-untyped-def", "no-untyped-call"]
 
-# Ignore missing imports for external libraries
+# Tests: idiomatic pytest (`def test_foo():` without `-> None`), heavy use
+# of Mock/patch which return Any. Keep strict type safety for the bodies
+# (still catches real bugs in test logic) but drop the annotation ceremony
+# around the function and call signatures.
+#
+# `just py-typecheck` scopes to `src/` so this section appears "unused" and
+# mypy emits a note; `pants check` covers tests and needs the relaxation. The
+# `just py-typecheck` recipe passes `--no-warn-unused-configs` to silence the
+# note without masking real unused configs in CI.
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+warn_return_any = false
+
+# Ignore missing imports for external libraries.
+# The opentelemetry-exporter-gcp-* and opentelemetry-resourcedetector-gcp
+# packages are installed in the dev venv but absent from Pants' mypy resolve,
+# so pants reports `import-not-found` while `just py-typecheck` does not.
+# Marking them ignore_missing_imports = true keeps both environments in sync.
 [[tool.mypy.overrides]]
 module = [
     "google.cloud.*",
     "google.auth.*",
     "google.api_core.*",
+    "opentelemetry.exporter.*",
+    "opentelemetry.resourcedetector.*",
 ]
 ignore_missing_imports = true

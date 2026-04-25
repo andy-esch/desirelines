@@ -5,6 +5,7 @@ Manages database sessions and coordinates repository transactions.
 
 from collections.abc import Callable
 import logging
+from types import TracebackType
 from typing import Literal, Self
 
 from sqlalchemy import create_engine
@@ -129,7 +130,12 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.activities = SqlAlchemyActivityRepository(self._session)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> Literal[False]:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> Literal[False]:
         """Clean up session on exit. Rollback if not committed.
 
         Returns:

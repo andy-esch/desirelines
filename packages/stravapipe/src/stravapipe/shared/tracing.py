@@ -48,17 +48,17 @@ def setup_tracing(service_name: str) -> Tracer:
         # Deferred imports: GCP exporters are optional runtime deps. Importing
         # them lazily inside the feature-flagged branch keeps `setup_tracing`
         # a no-op when the packages aren't installed (e.g. local dev).
-        from opentelemetry.exporter.cloud_trace import (  # type: ignore[import-not-found]  # noqa: PLC0415
+        from opentelemetry.exporter.cloud_trace import (  # noqa: PLC0415
             CloudTraceSpanExporter,
         )
-        from opentelemetry.resourcedetector.gcp_resource_detector import (  # type: ignore[import-not-found]  # noqa: PLC0415
+        from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
             GoogleCloudResourceDetector,
         )
 
         gcp_resource = GoogleCloudResourceDetector().detect()
         resource = Resource.create({"service.name": service_name}).merge(gcp_resource)
 
-        exporter = CloudTraceSpanExporter()
+        exporter = CloudTraceSpanExporter()  # type: ignore[no-untyped-call, unused-ignore]
         processor = BatchSpanProcessor(exporter)
 
         provider = TracerProvider(resource=resource)
