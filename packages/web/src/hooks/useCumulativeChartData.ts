@@ -103,8 +103,7 @@ export function useCumulativeChartData({
   const startDate = new Date(Date.UTC(year, 0, 1));
   const endDate = new Date(Date.UTC(year, 11, 31));
   const lastEntry = distanceData.at(-1);
-  const latestDate =
-    lastEntry === undefined ? getCurrentLocalDate() : new Date(lastEntry.x);
+  const latestDate = lastEntry === undefined ? getCurrentLocalDate() : new Date(lastEntry.x);
   const displayEndDate = showFullYear ? endDate : latestDate;
 
   // 2. Metric calculations

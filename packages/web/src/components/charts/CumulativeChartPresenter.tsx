@@ -111,10 +111,12 @@ export interface CumulativeChartPresenterProps {
 
   // --- Danger Zone ---
   /** Configuration for the cumulative danger zone (zone of unachievability) */
-  dangerZone?: {
-    show: boolean;
-    threshold: number;
-  } | undefined;
+  dangerZone?:
+    | {
+        show: boolean;
+        threshold: number;
+      }
+    | undefined;
 }
 
 // ============================================================================
