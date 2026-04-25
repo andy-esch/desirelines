@@ -84,6 +84,7 @@ See [**packages/README.md**](./packages/README.md) for detailed descriptions and
 - [**Strava Webhook**](./docs/guides/strava-webhook.md) - OAuth2 + webhook configuration (required!)
 - [**Deployment Guide**](./docs/guides/deployment.md) - Cloud deployment
 - [**All Guides**](./docs/guides/README.md)
+- [**Project Improvements**](./docs/improvements/README.md) - Prioritized proposals to raise the bar
 
 ## Contributing
 
