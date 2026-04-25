@@ -26,7 +26,7 @@ def activity2():
     fixture_path = (
         Path(__file__).parent.parent.parent.parent / "fixtures" / "activity_2.json"
     )
-    with open(fixture_path, encoding="utf-8") as fin:
+    with fixture_path.open(encoding="utf-8") as fin:
         activity = json.load(fin)
     return DetailedStravaActivity(**activity)
 
@@ -79,7 +79,7 @@ def bigquery_schema():
         / "fixtures"
         / "bigquery_activities_schema.json"
     )
-    with open(schema_path, encoding="utf-8") as f:
+    with schema_path.open(encoding="utf-8") as f:
         return json.load(f)["schema"]
 
 

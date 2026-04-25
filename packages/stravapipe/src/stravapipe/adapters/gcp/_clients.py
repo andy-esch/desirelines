@@ -112,11 +112,10 @@ class BigQueryClientWrapper:
                 },
             )
 
-            return stats
-
         except Exception as e:
-            logger.error("MERGE operation failed: %s", str(e))
+            logger.exception("MERGE operation failed")
             raise BigQueryError(f"Failed to execute MERGE query: {e!s}") from e
+        return stats
 
     def execute_dml_query(
         self,
@@ -141,15 +140,15 @@ class BigQueryClientWrapper:
         try:
             _ = job.result()
             rows_affected = getattr(job, "num_dml_affected_rows", 0)
-            logger.debug(
-                "DML query completed",
-                extra={
-                    "operation": "bigquery_dml",
-                    "rows_affected": rows_affected,
-                    "job_id": job.job_id,
-                },
-            )
-            return int(rows_affected)
         except Exception as e:
-            logger.error("DML query failed: %s", str(e))
+            logger.exception("DML query failed")
             raise BigQueryError(f"Failed to execute DML query: {e!s}") from e
+        logger.debug(
+            "DML query completed",
+            extra={
+                "operation": "bigquery_dml",
+                "rows_affected": rows_affected,
+                "job_id": job.job_id,
+            },
+        )
+        return int(rows_affected)

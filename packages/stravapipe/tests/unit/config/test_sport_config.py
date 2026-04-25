@@ -91,7 +91,7 @@ def test_unsupported_version_fails(tmp_path):
         },
     }
     config_path = tmp_path / "sport_types.json"
-    with open(config_path, "w") as f:
+    with config_path.open("w") as f:
         json.dump(config_data, f)
 
     with pytest.raises(ValueError, match=r"Unsupported sport config version: 99\.0"):
@@ -118,7 +118,7 @@ def test_unsupported_version_can_be_loaded_without_validation(tmp_path):
         },
     }
     config_path = tmp_path / "sport_types.json"
-    with open(config_path, "w") as f:
+    with config_path.open("w") as f:
         json.dump(config_data, f)
 
     # Should not raise when validation is disabled
@@ -135,7 +135,7 @@ def test_invalid_schema_fails(tmp_path):
         "sportCategories": {"cycling": {"displayName": "Cycling"}},
     }
     config_path = tmp_path / "sport_types.json"
-    with open(config_path, "w") as f:
+    with config_path.open("w") as f:
         json.dump(config_data, f)
 
     with pytest.raises(ValueError, match="Invalid sport config schema"):
@@ -159,7 +159,7 @@ def test_empty_strava_types_fails(tmp_path):
         },
     }
     config_path = tmp_path / "sport_types.json"
-    with open(config_path, "w") as f:
+    with config_path.open("w") as f:
         json.dump(config_data, f)
 
     with pytest.raises(ValueError, match="Invalid sport config schema"):

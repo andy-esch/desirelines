@@ -163,12 +163,11 @@ class BackfillService:
                 self._progress.report_year_complete(
                     athlete_id, year, year_stats.activities_found
                 )
-            except Exception as e:
-                logger.error(
-                    "Failed to backfill year %d for athlete %s: %s",
+            except Exception:
+                logger.exception(
+                    "Failed to backfill year %d for athlete %s",
                     year,
                     athlete_id,
-                    e,
                 )
                 result.year_stats.append(YearStats(year=year, pg_errors=1))
                 result.total_errors += 1
@@ -292,9 +291,9 @@ class BackfillService:
                     batch_inserted,
                     batch_skipped,
                 )
-            except Exception as e:
+            except Exception:
                 error_count += len(batch)
-                logger.error("PG batch %d/%d failed: %s", batch_num, total_batches, e)
+                logger.exception("PG batch %d/%d failed", batch_num, total_batches)
 
         return inserted_count, skipped_count, error_count
 
@@ -330,8 +329,8 @@ class BackfillService:
                     total_batches,
                     rows_affected,
                 )
-            except Exception as e:
+            except Exception:
                 error_count += len(batch)
-                logger.error("BQ batch %d/%d failed: %s", batch_num, total_batches, e)
+                logger.exception("BQ batch %d/%d failed", batch_num, total_batches)
 
         return inserted_count, error_count

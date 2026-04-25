@@ -6,13 +6,9 @@ from collections.abc import Sequence
 class StravaPipeError(Exception):
     """Base exception for all stravapipe errors."""
 
-    pass
-
 
 class ConfigurationError(StravaPipeError):
     """Raised when there are application configuration issues."""
-
-    pass
 
 
 class StravaApiError(StravaPipeError):
@@ -31,8 +27,6 @@ class StravaApiError(StravaPipeError):
 
 class StravaTokenError(StravaApiError):
     """Raised when strava token refresh fails."""
-
-    pass
 
 
 class StravaRateLimitError(StravaApiError):
@@ -83,8 +77,6 @@ class BigQueryError(StravaPipeError):
 
 class DataValidationError(StravaPipeError):
     """Raised when data validation fails."""
-
-    pass
 
 
 class SportCategoryError(ConfigurationError):

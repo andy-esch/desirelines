@@ -39,17 +39,20 @@ def setup_metrics(service_name: str) -> Meter:
     Returns a Meter for creating instruments. If ENABLE_OTEL_METRICS is not
     set to "true", or if initialization fails, returns a no-op meter.
     """
-    global _meter_provider
+    global _meter_provider  # noqa: PLW0603 — module-level singleton referenced by shutdown_metrics
 
     if os.environ.get("ENABLE_OTEL_METRICS", "").lower() != "true":
         logger.info("OTel metrics disabled (ENABLE_OTEL_METRICS != true)")
         return get_meter("desirelines.io")
 
     try:
-        from opentelemetry.exporter.cloud_monitoring import (  # type: ignore[import-not-found]
+        # Deferred imports: GCP exporters are optional runtime deps. Importing
+        # them lazily inside the feature-flagged branch keeps `setup_metrics`
+        # a no-op when the packages aren't installed (e.g. local dev).
+        from opentelemetry.exporter.cloud_monitoring import (  # type: ignore[import-not-found]  # noqa: PLC0415
             CloudMonitoringMetricsExporter,
         )
-        from opentelemetry.resourcedetector.gcp_resource_detector import (  # type: ignore[import-not-found]
+        from opentelemetry.resourcedetector.gcp_resource_detector import (  # type: ignore[import-not-found]  # noqa: PLC0415
             GoogleCloudResourceDetector,
         )
 
@@ -84,7 +87,7 @@ def setup_metrics(service_name: str) -> Meter:
 
 def shutdown_metrics() -> None:
     """Flush pending metrics and shut down the meter provider."""
-    global _meter_provider
+    global _meter_provider  # noqa: PLW0603 — clearing the singleton set in setup_metrics
     if _meter_provider is not None:
         _meter_provider.shutdown()
         _meter_provider = None

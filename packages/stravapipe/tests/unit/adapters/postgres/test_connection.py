@@ -69,9 +69,9 @@ class TestReadRawConnectionString:
                 "/nonexistent/path",
             ),
             patch.dict(os.environ, {}, clear=True),
+            pytest.raises(ConnectionStringError) as exc_info,
         ):
-            with pytest.raises(ConnectionStringError) as exc_info:
-                _read_raw_connection_string()
+            _read_raw_connection_string()
 
         assert "No PostgreSQL connection string found" in str(exc_info.value)
 
@@ -194,8 +194,8 @@ class TestLoadConnectionString:
                 "/nonexistent/path",
             ),
             patch.dict(os.environ, {"POSTGRES_CONNECTION_STRING": conn_str}),
+            pytest.raises(ConnectionStringError) as exc_info,
         ):
-            with pytest.raises(ConnectionStringError) as exc_info:
-                load_connection_string()
+            load_connection_string()
 
         assert "application_name" in str(exc_info.value)

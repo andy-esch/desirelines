@@ -63,8 +63,8 @@ async def lifespan(app: FastAPI):
         app.state.tracer = setup_tracing("desirelines-bq-inserter")
 
         yield
-    except Exception as e:
-        logger.error("Application lifecycle error: %s", e)
+    except Exception:
+        logger.exception("Application lifecycle error")
         raise
     finally:
         # shutdown_metrics and shutdown_tracing are safe to call multiple times
@@ -142,9 +142,11 @@ async def _handle_create(
     # Construct DetailedStravaActivity from raw Strava API JSON
     activity = DetailedStravaActivity.model_validate(raw_activity)
 
-    with record_span(tracer, "bigquery.insert_rows", {"activity_id": event.object_id}):
-        with record_duration(bq_histogram, {"operation": "insert_rows"}):
-            stats = writer.write_activity(activity)
+    with (
+        record_span(tracer, "bigquery.insert_rows", {"activity_id": event.object_id}),
+        record_duration(bq_histogram, {"operation": "insert_rows"}),
+    ):
+        stats = writer.write_activity(activity)
 
     logger.info(
         "Activity upserted to BigQuery",
@@ -170,12 +172,12 @@ async def _handle_delete(
     tracer: Tracer | None = None,
 ) -> WebhookResponse:
     """Handle DELETE events - archive and remove from BigQuery."""
-    with record_span(tracer, "bigquery.dml", {"activity_id": event.object_id}):
-        with record_duration(bq_histogram, {"operation": "dml"}):
-            result = service.run(
-                activity_id=event.object_id,
-                correlation_id=correlation_id,
-                event_time=event.event_time,
-            )
-
-    return result
+    with (
+        record_span(tracer, "bigquery.dml", {"activity_id": event.object_id}),
+        record_duration(bq_histogram, {"operation": "dml"}),
+    ):
+        return service.run(
+            activity_id=event.object_id,
+            correlation_id=correlation_id,
+            event_time=event.event_time,
+        )

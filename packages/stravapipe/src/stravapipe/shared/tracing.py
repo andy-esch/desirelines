@@ -38,17 +38,20 @@ def setup_tracing(service_name: str) -> Tracer:
     Returns a Tracer for creating spans. If ENABLE_OTEL_TRACING is not
     set to "true", or if initialization fails, returns a no-op tracer.
     """
-    global _tracer_provider
+    global _tracer_provider  # noqa: PLW0603 — module-level singleton referenced by shutdown_tracing
 
     if os.environ.get("ENABLE_OTEL_TRACING", "").lower() != "true":
         logger.info("OTel tracing disabled (ENABLE_OTEL_TRACING != true)")
         return get_tracer("desirelines.io")
 
     try:
-        from opentelemetry.exporter.cloud_trace import (  # type: ignore[import-not-found]
+        # Deferred imports: GCP exporters are optional runtime deps. Importing
+        # them lazily inside the feature-flagged branch keeps `setup_tracing`
+        # a no-op when the packages aren't installed (e.g. local dev).
+        from opentelemetry.exporter.cloud_trace import (  # type: ignore[import-not-found]  # noqa: PLC0415
             CloudTraceSpanExporter,
         )
-        from opentelemetry.resourcedetector.gcp_resource_detector import (  # type: ignore[import-not-found]
+        from opentelemetry.resourcedetector.gcp_resource_detector import (  # type: ignore[import-not-found]  # noqa: PLC0415
             GoogleCloudResourceDetector,
         )
 
@@ -76,7 +79,7 @@ def setup_tracing(service_name: str) -> Tracer:
 
 def shutdown_tracing() -> None:
     """Flush pending spans and shut down the tracer provider."""
-    global _tracer_provider
+    global _tracer_provider  # noqa: PLW0603 — clearing the singleton set in setup_tracing
     if _tracer_provider is not None:
         _tracer_provider.shutdown()
         _tracer_provider = None
