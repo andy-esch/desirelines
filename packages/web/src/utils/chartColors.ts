@@ -40,15 +40,15 @@ export function getInterpolatedSpectrumColor(
   index: number,
   total: number
 ): { r: number; g: number; b: number } {
-  if (total <= 1) return { ...SPARKLINE_SPECTRUM[0]! };
+  if (total <= 1) return { ...SPARKLINE_SPECTRUM[0] };
 
   const t = index / (total - 1);
   const numSegments = SPARKLINE_SPECTRUM.length - 1;
   const segmentIndex = Math.min(Math.floor(t * numSegments), numSegments - 1);
   const segmentT = t * numSegments - segmentIndex;
 
-  const start = SPARKLINE_SPECTRUM[segmentIndex] ?? SPARKLINE_SPECTRUM[0]!;
-  const end = SPARKLINE_SPECTRUM[segmentIndex + 1] ?? SPARKLINE_SPECTRUM[0]!;
+  const start = SPARKLINE_SPECTRUM[segmentIndex] ?? SPARKLINE_SPECTRUM[0];
+  const end = SPARKLINE_SPECTRUM[segmentIndex + 1] ?? SPARKLINE_SPECTRUM[0];
   return interpolateColor(start, end, segmentT);
 }
 

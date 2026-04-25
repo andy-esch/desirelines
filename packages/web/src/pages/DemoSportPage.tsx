@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCurrentYear } from "../hooks/useCurrentYear";
 import { getUserSettings } from "../utils/units";
@@ -95,11 +95,13 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   }, [storageKey, sport]);
 
   const [goals, setGoals] = useState<Goals>(loadGoals);
+  const [prevStorageKey, setPrevStorageKey] = useState(storageKey);
 
-  // Re-load goals when sport or year changes (storageKey changes)
-  useEffect(() => {
+  // Sync goals when sport or year changes (storageKey changes)
+  if (storageKey !== prevStorageKey) {
+    setPrevStorageKey(storageKey);
     setGoals(loadGoals());
-  }, [loadGoals]);
+  }
 
   const handleGoalsChange = (newGoals: Goals): Promise<void> => {
     setGoals(newGoals);
