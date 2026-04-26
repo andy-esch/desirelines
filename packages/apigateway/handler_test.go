@@ -139,7 +139,8 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 
 	noopHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 	publicRoutes := server.PublicRoutes{
-		Health:       healthHandler.Handle,
+		Health:       healthHandler.HandleLive,
+		Ready:        healthHandler.HandleReady,
 		SportConfig:  sportsHandler.HandleConfig,
 		AuthInitiate: noopHandler,
 		AuthCallback: noopHandler,
@@ -159,10 +160,59 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 
 func TestHandlerHealth(t *testing.T) {
 	logger := slog.Default()
+
+	// /health is liveness-only — never touches the DB. Even with an
+	// "unhealthy" repo it should return 200 with no Database field.
+	cases := []struct {
+		name string
+		repo repository.ActivityRepository
+	}{
+		{"without database", nil},
+		{"with healthy database", &mockActivityRepository{pingErr: nil}},
+		{"with unhealthy database", &mockActivityRepository{pingErr: errors.New("connection refused")}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router := newTestRouterWithDB(tc.repo, []string{}, logger)
+
+			req := httptest.NewRequest(http.MethodGet, "/health", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected status 200, got %d", w.Code)
+			}
+
+			contentType := w.Header().Get("Content-Type")
+			if contentType != "application/json" {
+				t.Errorf("expected Content-Type application/json, got %s", contentType)
+			}
+
+			var response HealthResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+				t.Fatalf("failed to unmarshal response: %v", err)
+			}
+
+			if response.Status != health.StatusHealthy {
+				t.Errorf("expected status %q, got %q", health.StatusHealthy, response.Status)
+			}
+
+			if response.Database != "" {
+				t.Errorf("/health must not include database field (liveness-only), got %q", response.Database)
+			}
+		})
+	}
+}
+
+func TestHandlerReady(t *testing.T) {
+	logger := slog.Default()
+
 	t.Run("without database", func(t *testing.T) {
 		router := newTestRouter([]string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -171,12 +221,6 @@ func TestHandlerHealth(t *testing.T) {
 			t.Errorf("expected status 200, got %d", w.Code)
 		}
 
-		contentType := w.Header().Get("Content-Type")
-		if contentType != "application/json" {
-			t.Errorf("expected Content-Type application/json, got %s", contentType)
-		}
-
-		// Parse response to verify database field is not present
 		var response HealthResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 			t.Fatalf("failed to unmarshal response: %v", err)
@@ -195,7 +239,7 @@ func TestHandlerHealth(t *testing.T) {
 		mockRepo := &mockActivityRepository{pingErr: nil}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -222,12 +266,11 @@ func TestHandlerHealth(t *testing.T) {
 		mockRepo := &mockActivityRepository{pingErr: errors.New("connection refused")}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
 
-		// Health check should return 503 when database is unhealthy
 		if w.Code != http.StatusServiceUnavailable {
 			t.Errorf("expected status 503, got %d", w.Code)
 		}

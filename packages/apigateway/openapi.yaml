@@ -87,13 +87,34 @@ paths:
   /health:
     get:
       tags: [Health]
-      summary: Health check
-      description: Returns service health status including database connectivity
+      summary: Liveness check
+      description: Returns 200 if the process is alive. Does not probe dependencies.
       operationId: getHealth
       security: []
       responses:
         '200':
-          description: Service is healthy
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      description: Returns 200 if the service is ready to serve traffic, including database connectivity. Returns 503 when the database is unreachable.
+      operationId: getReady
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is not ready (e.g., database unreachable)
           content:
             application/json:
               schema:

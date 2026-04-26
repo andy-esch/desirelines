@@ -34,6 +34,7 @@ type RouterConfig struct {
 // PublicRoutes are registered without authentication.
 type PublicRoutes struct {
 	Health       http.HandlerFunc
+	Ready        http.HandlerFunc
 	SportConfig  http.HandlerFunc
 	AuthInitiate http.HandlerFunc // GET /auth/strava
 	AuthCallback http.HandlerFunc // GET /auth/callback
@@ -71,6 +72,7 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 
 	// Root-level endpoints (health checks and OAuth flow)
 	r.Get("/health", public.Health)
+	r.Get("/ready", public.Ready)
 	r.Get("/auth/strava", public.AuthInitiate)
 	r.Get("/auth/callback", public.AuthCallback)
 
