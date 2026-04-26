@@ -7,6 +7,8 @@ from typing import Any
 
 import google.cloud.logging
 
+from stravapipe.shared.correlation import CorrelationFilter
+
 
 class JsonFieldsAdapter(logging.LoggerAdapter[logging.Logger]):
     """LoggerAdapter that wraps extra fields in json_fields for GCP structured logging
@@ -23,6 +25,30 @@ class JsonFieldsAdapter(logging.LoggerAdapter[logging.Logger]):
             # Wrap existing extra dict in json_fields
             kwargs["extra"] = {"json_fields": kwargs["extra"]}
         return msg, kwargs
+
+
+def _install_correlation_filter() -> None:
+    """Prepend CorrelationFilter to every handler attached to the root logger.
+
+    Two subtleties drive the design:
+
+    1. Filters on a Logger only fire for records logged *directly* through
+       that logger — records propagated from child loggers bypass them. So
+       attaching to the root logger does nothing for ``logging.getLogger(__name__)``.
+       Handler-attached filters, by contrast, run for every record the
+       handler emits regardless of which logger produced it.
+    2. ``StructuredLogHandler`` installs ``CloudLoggingFilter`` in its
+       ``__init__`` to populate ``record._trace`` etc. from ``record.trace``.
+       That filter runs in insertion order, so CorrelationFilter must be
+       inserted at position 0 to set ``record.trace`` *before* CloudLoggingFilter
+       reads it. Appending would silently lose trace context in production.
+
+    Idempotent: re-running is a no-op when a CorrelationFilter is already present.
+    """
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        if not any(isinstance(f, CorrelationFilter) for f in handler.filters):
+            handler.filters.insert(0, CorrelationFilter())
 
 
 def setup_logging(logger_name: str) -> logging.LoggerAdapter[logging.Logger]:
@@ -64,6 +90,10 @@ def setup_logging(logger_name: str) -> logging.LoggerAdapter[logging.Logger]:
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
             force=True,
         )
+
+    # Auto-inject correlation_id and trace context into every log record.
+    # Must run after Cloud Logging or basicConfig has installed handlers.
+    _install_correlation_filter()
 
     base_logger = logging.getLogger(logger_name)
     return JsonFieldsAdapter(base_logger, {})

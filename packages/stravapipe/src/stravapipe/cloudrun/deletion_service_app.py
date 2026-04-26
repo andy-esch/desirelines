@@ -24,7 +24,6 @@ with a simpler flow: parse event → extract owner_id → delete from all stores
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-import uuid
 
 from fastapi import FastAPI, HTTPException, Request
 from google.cloud.firestore_v1 import Client as FirestoreClient
@@ -38,6 +37,13 @@ from stravapipe.application.deletion import BQUserDeletionService
 from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_deletion_service_config
 from stravapipe.shared.constants import ResponseStatus
+from stravapipe.shared.correlation import (
+    extract_trace_from_cloud_trace_header,
+    extract_trace_from_pubsub_attributes,
+    new_correlation_id,
+    set_correlation_id,
+    set_trace_context,
+)
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
 from stravapipe.shared.responses import HealthResponse, UserDeletionResponse
@@ -187,16 +193,38 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
     If any deletion fails, raises 500 to trigger Pub/Sub retry.
     """
 
-    correlation_id = str(uuid.uuid4())
+    # Pre-generate a fallback correlation ID and seed the contextvar so any
+    # log emitted before we parse the PubSub body still carries one.
+    correlation_id = new_correlation_id()
+
+    # Best-effort: extract X-Cloud-Trace-Context from the incoming Cloud Run
+    # request. The W3C traceparent from PubSub attributes (set below) is
+    # preferred, but this gives early log lines trace linking too.
+    cloud_trace_header = request.headers.get("X-Cloud-Trace-Context", "")
+    if cloud_trace_header:
+        trace_id, span_id, sampled = extract_trace_from_cloud_trace_header(
+            cloud_trace_header
+        )
+        if trace_id:
+            set_trace_context(trace_id, span_id, sampled)
 
     try:
         context, event_data, message_attributes = await parse_pubsub_cloudevent(request)
 
         # Prefer dispatcher's correlation_id over the pre-generated fallback.
         correlation_id = message_attributes.get("correlation_id") or correlation_id
+        set_correlation_id(correlation_id)
 
-        # Extract W3C trace context from dispatcher's traceparent header.
+        # Extract W3C trace context from dispatcher's traceparent attribute.
+        # This is the cross-service trace and overrides the Cloud Run
+        # request-level X-Cloud-Trace-Context above.
         parent_context = extract_context_from_attributes(message_attributes)
+        trace_id, span_id, sampled = extract_trace_from_pubsub_attributes(
+            message_attributes
+        )
+        if trace_id:
+            set_trace_context(trace_id, span_id, sampled)
+
         tracer = request.app.state.tracer
 
         # IMPORTANT: The span must wrap ALL log statements below. The
@@ -214,7 +242,6 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
             logger.info(
                 "Received deauth CloudEvent",
                 extra={
-                    "correlation_id": correlation_id,
                     "event_type": context.event_type,
                     "event_id": context.event_id,
                 },
@@ -254,15 +281,10 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
                     "Deleted %d activities from PostgreSQL for user %s",
                     result.pg_deleted,
                     user_id,
-                    extra={"correlation_id": correlation_id},
                 )
             except Exception as e:
                 result.errors.append(f"postgres: {e}")
-                logger.exception(
-                    "PostgreSQL deletion failed for user %s",
-                    user_id,
-                    extra={"correlation_id": correlation_id},
-                )
+                logger.exception("PostgreSQL deletion failed for user %s", user_id)
 
             # 2. Delete from BigQuery
             try:
@@ -275,11 +297,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
                 result.bq_staging_deleted = bq_result.staging_deleted
             except Exception as e:
                 result.errors.append(f"bigquery: {e}")
-                logger.exception(
-                    "BigQuery deletion failed for user %s",
-                    user_id,
-                    extra={"correlation_id": correlation_id},
-                )
+                logger.exception("BigQuery deletion failed for user %s", user_id)
 
             # 3. Delete Firestore tokens (backup to dispatcher's best-effort delete)
             try:
@@ -293,11 +311,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
                 result.firestore_tokens_deleted = True
             except Exception as e:
                 result.errors.append(f"firestore_tokens: {e}")
-                logger.exception(
-                    "Firestore token deletion failed for user %s",
-                    user_id,
-                    extra={"correlation_id": correlation_id},
-                )
+                logger.exception("Firestore token deletion failed for user %s", user_id)
 
             # 4. Delete remaining Firestore user documents
             try:
@@ -313,9 +327,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
             except Exception as e:
                 result.errors.append(f"firestore_docs: {e}")
                 logger.exception(
-                    "Firestore document deletion failed for user %s",
-                    user_id,
-                    extra={"correlation_id": correlation_id},
+                    "Firestore document deletion failed for user %s", user_id
                 )
 
             # Record metric
@@ -332,7 +344,6 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
                     "User deletion partially failed for user %s: %s",
                     user_id,
                     result.errors,
-                    extra={"correlation_id": correlation_id},
                 )
                 raise HTTPException(  # noqa: TRY301 — FastAPI idiom; passthrough via `except HTTPException: raise` preserves 500 status
                     status_code=500,
@@ -343,7 +354,6 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
                 "User deletion complete for user %s",
                 user_id,
                 extra={
-                    "correlation_id": correlation_id,
                     "pg_deleted": result.pg_deleted,
                     "bq_activities_deleted": result.bq_activities_deleted,
                     "bq_staging_deleted": result.bq_staging_deleted,
@@ -363,10 +373,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
     except HTTPException:
         raise
     except Exception as err:
-        logger.exception(
-            "Unexpected error",
-            extra={"correlation_id": correlation_id},
-        )
+        logger.exception("Unexpected error")
         raise HTTPException(
             status_code=500, detail="An internal server error occurred."
         ) from err

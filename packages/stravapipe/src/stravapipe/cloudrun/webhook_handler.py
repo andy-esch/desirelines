@@ -9,7 +9,6 @@ from collections.abc import Awaitable, Callable
 import logging
 from logging import LoggerAdapter
 from typing import Any
-import uuid
 
 from fastapi import HTTPException, Request
 from opentelemetry.metrics import Counter
@@ -22,6 +21,13 @@ from stravapipe.shared.constants import (
     ResponseStatus,
     SkipReason,
     WebhookField,
+)
+from stravapipe.shared.correlation import (
+    extract_trace_from_cloud_trace_header,
+    extract_trace_from_pubsub_attributes,
+    new_correlation_id,
+    set_correlation_id,
+    set_trace_context,
 )
 from stravapipe.shared.responses import WebhookResponse
 from stravapipe.shared.tracing import extract_context_from_attributes, record_span
@@ -65,16 +71,40 @@ async def handle_webhook_cloudevent(
     Raises:
         HTTPException: On parsing/validation errors (4xx) or unexpected errors (5xx)
     """
-    correlation_id = str(uuid.uuid4())
+    # Pre-generate a fallback so it's available if parsing fails before we
+    # see the PubSub attributes. set_correlation_id() makes it visible to
+    # CorrelationFilter so any subsequent log call carries it automatically.
+    correlation_id = new_correlation_id()
+
+    # Best-effort: extract X-Cloud-Trace-Context from the incoming Cloud Run
+    # request. Set it now so any log emitted before we parse the PubSub body
+    # already has trace linking. We may overwrite this with the W3C
+    # traceparent from PubSub attributes (preferred — it's the cross-service
+    # trace from the dispatcher) once we've parsed the body.
+    cloud_trace_header = request.headers.get("X-Cloud-Trace-Context", "")
+    if cloud_trace_header:
+        trace_id, span_id, sampled = extract_trace_from_cloud_trace_header(
+            cloud_trace_header
+        )
+        if trace_id:
+            set_trace_context(trace_id, span_id, sampled)
 
     try:
         context, event_data, message_attributes = await parse_pubsub_cloudevent(request)
 
         # Prefer dispatcher's correlation_id over the pre-generated fallback.
         correlation_id = message_attributes.get("correlation_id") or correlation_id
+        set_correlation_id(correlation_id)
 
-        # Extract W3C trace context from dispatcher's traceparent header.
+        # Extract W3C trace context from dispatcher's traceparent attribute.
+        # This is the cross-service trace and should win over the Cloud Run
+        # request-level X-Cloud-Trace-Context header.
         parent_context = extract_context_from_attributes(message_attributes)
+        trace_id, span_id, sampled = extract_trace_from_pubsub_attributes(
+            message_attributes
+        )
+        if trace_id:
+            set_trace_context(trace_id, span_id, sampled)
 
         # IMPORTANT: The span must wrap ALL log statements below. The
         # google-cloud-logging library reads the active OTel span and
@@ -91,7 +121,6 @@ async def handle_webhook_cloudevent(
             logger.info(
                 "Received CloudEvent",
                 extra={
-                    "correlation_id": correlation_id,
                     "event_type": context.event_type,
                     "event_id": context.event_id,
                 },
@@ -100,10 +129,7 @@ async def handle_webhook_cloudevent(
             try:
                 event = dict_to_webhook_event(event_data)
             except ValueError as err:
-                logger.exception(
-                    "Webhook parsing failed",
-                    extra={"correlation_id": correlation_id},
-                )
+                logger.exception("Webhook parsing failed")
                 raise HTTPException(
                     status_code=422, detail=f"Invalid webhook: {err}"
                 ) from err
@@ -112,10 +138,7 @@ async def handle_webhook_cloudevent(
                 obj_name = pb.ObjectType.Name(event.object_type)
                 logger.info(
                     "Skipping non-activity webhook",
-                    extra={
-                        "correlation_id": correlation_id,
-                        "object_type": obj_name,
-                    },
+                    extra={"object_type": obj_name},
                 )
                 raise HTTPException(  # noqa: TRY301 — FastAPI idiom; routing logic raises HTTPException, outer `except HTTPException: raise` preserves status code
                     status_code=422,
@@ -142,7 +165,6 @@ async def handle_webhook_cloudevent(
             logger.info(
                 "Processing webhook",
                 extra={
-                    "correlation_id": correlation_id,
                     "aspect_type": aspect_name,
                     "object_type": "activity",
                     "object_id": event.object_id,
@@ -159,11 +181,7 @@ async def handle_webhook_cloudevent(
             if callback is not None:
                 return await callback(event, event_data, correlation_id)
 
-            logger.info(
-                "Skipping event type: %s",
-                aspect_name,
-                extra={"correlation_id": correlation_id},
-            )
+            logger.info("Skipping event type: %s", aspect_name)
             return WebhookResponse(
                 status=ResponseStatus.SKIPPED,
                 reason=SkipReason.NOT_IMPLEMENTED,
@@ -174,12 +192,7 @@ async def handle_webhook_cloudevent(
     except HTTPException:
         raise
     except Exception as err:
-        logger.error(
-            "Unexpected error: %s",
-            err,
-            extra={"correlation_id": correlation_id},
-            exc_info=True,
-        )
+        logger.error("Unexpected error: %s", err, exc_info=True)
         raise HTTPException(
             status_code=500, detail="An internal server error occurred."
         ) from err
