@@ -19,7 +19,7 @@ export class MockDatabaseService implements DatabaseService {
   setDocument<T>(path: string, data: T, options?: { merge?: boolean }): Promise<void> {
     if (options?.merge) {
       const existing = this.data.get(path) ?? {};
-      this.data.set(path, { ...(existing), ...(data as object) });
+      this.data.set(path, { ...existing, ...(data as object) });
     } else {
       this.data.set(path, data);
     }

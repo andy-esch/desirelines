@@ -204,7 +204,7 @@ export function SportVisibilitySettings() {
 
     if (!hasUnsavedEdits) {
       // Safe to sync - user hasn't made changes
-       
+
       setLocalSelection(new Set(visibleSports));
       lastSyncedRef.current = visibleSports;
       isInitializedRef.current = true;

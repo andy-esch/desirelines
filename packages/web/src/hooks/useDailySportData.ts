@@ -141,6 +141,6 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
   return {
     data,
     isLoading: authLoading || (!!user && query.isLoading),
-    error: (query.error) || null,
+    error: query.error || null,
   };
 }
