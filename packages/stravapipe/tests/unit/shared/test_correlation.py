@@ -224,8 +224,7 @@ class TestCorrelationFilter:
         assert not hasattr(record, "trace")
 
     def test_injects_raw_trace_id_when_no_project(self, monkeypatch):
-        monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
-        monkeypatch.delenv("GCP_PROJECT", raising=False)
+        monkeypatch.setattr(correlation, "_GCP_PROJECT_ID", "")
         set_trace_context("0af7651916cd43dd8448eb211c80319c", "b7ad6b7169203331", True)
         f = CorrelationFilter()
         record = self._make_record()
@@ -235,7 +234,7 @@ class TestCorrelationFilter:
         assert record.trace_sampled is True
 
     def test_injects_resource_name_form_with_project(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
+        monkeypatch.setattr(correlation, "_GCP_PROJECT_ID", "my-project")
         set_trace_context("0af7651916cd43dd8448eb211c80319c", "", False)
         f = CorrelationFilter()
         record = self._make_record()
