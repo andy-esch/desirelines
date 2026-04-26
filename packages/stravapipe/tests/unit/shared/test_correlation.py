@@ -319,9 +319,7 @@ class TestInstallCorrelationFilter:
             _install_correlation_filter()
             _install_correlation_filter()
 
-            count = sum(
-                isinstance(f, CorrelationFilter) for f in handler.filters
-            )
+            count = sum(isinstance(f, CorrelationFilter) for f in handler.filters)
             assert count == 1
         finally:
             for h in list(root.handlers):
