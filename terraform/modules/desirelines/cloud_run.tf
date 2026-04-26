@@ -211,9 +211,13 @@ resource "google_cloud_run_v2_service" "api_gateway" {
         value = google_firestore_database.user_configs.name
       }
 
+      # Startup probe hits /api/ready (not /api/health) so Cloud Run only
+      # routes traffic after the DB pool is reachable. /api/health is now a
+      # cheap process-alive check that cannot detect a broken DB connection.
+      # Startup probes run only during startup, so they don't keep Neon warm.
       startup_probe {
         http_get {
-          path = "/api/health"
+          path = "/api/ready"
         }
         initial_delay_seconds = 0
         period_seconds        = 3

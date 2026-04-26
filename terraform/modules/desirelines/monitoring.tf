@@ -1144,8 +1144,13 @@ resource "google_monitoring_uptime_check_config" "frontend_root" {
   }
 }
 
-# Alert when uptime checks fail 2 consecutive times (≈120s). The "count false"
-# reducer over the alignment window is the documented pattern for uptime alerts.
+# Alert when the uptime check is failing in ≥2 probe regions for ≥120s. The
+# "count false" reducer over the alignment window is the documented pattern
+# for uptime alerts. With the 15-min probe cadence (see uptime check above),
+# detection latency is up to ~15 min from the start of an outage plus the
+# 120s confirmation window — acceptable since the underlying probe is for
+# Cloud Run / Firebase Hosting / DNS / SSL outages, where 5xx alerts and
+# Postgres-query-latency alerts cover faster paths.
 #
 # Why threshold_value = 1 (not 0):
 # REDUCE_COUNT_FALSE grouped by project_id collapses all probe regions into a
@@ -1154,14 +1159,16 @@ resource "google_monitoring_uptime_check_config" "frontend_root" {
 # flaps) are a well-known noise source — GCP's own docs recommend requiring
 # multi-region failure to page. `> 1` fires when ≥2 regions fail simultaneously,
 # which is the canonical signal for "the service is actually down" rather than
-# "one probe region had a bad two minutes."
+# "one probe region had a bad cycle."
 resource "google_monitoring_alert_policy" "apigateway_uptime" {
   display_name = "🚨 Uptime: API Gateway /api/health failing"
   combiner     = "OR"
 
   documentation {
     content = <<-EOT
-      **CRITICAL**: apigateway `/api/health` uptime check has failed for ≥2 minutes.
+      **CRITICAL**: apigateway `/api/health` uptime check is failing across
+      multiple probe regions. Note that the underlying probe runs every 15
+      minutes, so detection of an outage may lag by up to ~17 minutes.
 
       Likely causes:
       - Cloud Run revision crashed or failed to start
@@ -1320,6 +1327,10 @@ resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
       aggregations {
         alignment_period   = "14400s" # 4 hours
         per_series_aligner = "ALIGN_SUM"
+      }
+
+      trigger {
+        count = 1
       }
     }
   }
