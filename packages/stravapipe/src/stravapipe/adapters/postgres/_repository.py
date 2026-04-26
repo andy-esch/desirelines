@@ -225,4 +225,5 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         result = self._session.execute(query, {"user_id": user_id})
         # Session.execute() returns Result[Any]; rowcount lives on CursorResult
         # which is what the underlying DBAPI actually yields for DELETE.
-        return result.rowcount  # type: ignore[attr-defined,no-any-return]
+        rowcount = result.rowcount
+        return rowcount if rowcount is not None else 0  # type: ignore[attr-defined,no-any-return]

@@ -48,7 +48,7 @@ describe("useSportPageData", () => {
     vi.mocked(useAuth).mockReturnValue({ user: { uid: "test-user" } } as any);
     vi.mocked(useSportData).mockReturnValue({
       metrics: [
-        { date: "2026-01-01", distance: 16093.4, time: 60, elevation: 100, activities: 1 } as any,
+        { date: "2026-01-01", distance: 16093.4, time: 60, elevation: 100, activities: 1 },
       ],
       sportConfig: mockSportConfig as any,
       isLoading: false,

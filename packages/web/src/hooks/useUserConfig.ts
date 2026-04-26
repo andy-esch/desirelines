@@ -82,7 +82,7 @@ function readFromLocalStorage(
   if (configType === "goals") {
     return (defaultValue as GoalsForYear) || DEFAULT_GOALS;
   } else if (configType === "annotations") {
-    return (defaultValue as AnnotationsForYear) || ({ annotations: [] } as AnnotationsForYear);
+    return (defaultValue as AnnotationsForYear) || ({ annotations: [] });
   } else if (configType === "preferences") {
     return (
       (defaultValue as Preferences) ||

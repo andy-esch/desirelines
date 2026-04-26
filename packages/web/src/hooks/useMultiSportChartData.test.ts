@@ -137,7 +137,7 @@ describe("useMultiSportChartData", () => {
         data: {},
         isLoading: true,
         error: null,
-      } as any);
+      });
 
       const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.isLoading).toBe(true);
@@ -391,7 +391,7 @@ describe("useMultiSportChartData", () => {
         data: { cycling: {}, running: {}, yoga: {} },
         isLoading: false,
         error: null,
-      } as any);
+      });
 
       const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       expect(result.current.hasAnyData).toBe(false);
@@ -433,7 +433,7 @@ describe("useMultiSportChartData", () => {
         data: { cycling: {}, running: {}, yoga: {} },
         isLoading: false,
         error: null,
-      } as any);
+      });
 
       const { result } = renderHook(() => useMultiSportChartData("2weeks"));
       const currentYear = new Date().getFullYear();
