@@ -128,10 +128,7 @@ async def _handle_create(
     if raw_activity is None:
         logger.warning(
             "CREATE event missing raw_activity, skipping",
-            extra={
-                "correlation_id": correlation_id,
-                "activity_id": event.object_id,
-            },
+            extra={"activity_id": event.object_id},
         )
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
@@ -152,7 +149,6 @@ async def _handle_create(
     logger.info(
         "Activity upserted to BigQuery",
         extra={
-            "correlation_id": correlation_id,
             "activity_id": event.object_id,
             "rows_affected": stats.get("rows_affected", 0),
             "execution_time_ms": stats.get("execution_time_ms"),

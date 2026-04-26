@@ -137,10 +137,7 @@ async def _handle_create(
     if raw_activity is None:
         logger.warning(
             "CREATE event missing raw_activity, skipping",
-            extra={
-                "correlation_id": correlation_id,
-                "activity_id": activity_id,
-            },
+            extra={"activity_id": activity_id},
         )
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
@@ -173,10 +170,7 @@ async def _handle_create(
         logger.info(
             "Created activity %s in PostgreSQL",
             activity_id,
-            extra={
-                "correlation_id": correlation_id,
-                "user_id": activity.user_id,
-            },
+            extra={"user_id": activity.user_id},
         )
         return WebhookResponse(
             status=ResponseStatus.CREATED,
@@ -184,11 +178,7 @@ async def _handle_create(
             correlation_id=correlation_id,
         )
 
-    logger.warning(
-        "Activity %s already exists (duplicate CREATE)",
-        activity_id,
-        extra={"correlation_id": correlation_id},
-    )
+    logger.warning("Activity %s already exists (duplicate CREATE)", activity_id)
     return WebhookResponse(
         status=ResponseStatus.SKIPPED,
         activity_id=activity_id,
@@ -219,7 +209,6 @@ async def _handle_update(
         logger.info(
             "Skipping UPDATE with no relevant changes",
             extra={
-                "correlation_id": correlation_id,
                 "activity_id": activity_id,
                 "has_private_update": updates.HasField("private"),
             },
@@ -249,7 +238,6 @@ async def _handle_update(
         logger.warning(
             "Activity %s not in PostgreSQL, skipping UPDATE (no backfill)",
             activity_id,
-            extra={"correlation_id": correlation_id},
         )
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
@@ -262,7 +250,7 @@ async def _handle_update(
         logger.info(
             "Updated activity %s metadata",
             activity_id,
-            extra={"correlation_id": correlation_id, "updates": relevant_updates},
+            extra={"updates": relevant_updates},
         )
         return WebhookResponse(
             status=ResponseStatus.UPDATED,
@@ -298,11 +286,7 @@ async def _handle_delete(
         uow.commit()
 
     if deleted:
-        logger.info(
-            "Deleted activity %s from PostgreSQL",
-            activity_id,
-            extra={"correlation_id": correlation_id},
-        )
+        logger.info("Deleted activity %s from PostgreSQL", activity_id)
         return WebhookResponse(
             status=ResponseStatus.DELETED,
             activity_id=activity_id,
@@ -312,7 +296,6 @@ async def _handle_delete(
     logger.info(
         "Activity %s not found in PostgreSQL (already deleted or never synced)",
         activity_id,
-        extra={"correlation_id": correlation_id},
     )
     return WebhookResponse(
         status=ResponseStatus.SKIPPED,

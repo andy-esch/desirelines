@@ -193,12 +193,13 @@ disable_error_code = ["misc", "type-arg", "no-untyped-def", "no-untyped-call"]
 # `just py-typecheck` recipe passes `--no-warn-unused-configs` to silence the
 # note without masking real unused configs in CI.
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = ["stravapipe.tests.*", "tests.*"]
 disallow_untyped_defs = false
 disallow_untyped_calls = false
 disallow_incomplete_defs = false
 disallow_any_generics = false
 warn_return_any = false
+disable_error_code = ["attr-defined"]
 
 # Ignore missing imports for external libraries.
 # The opentelemetry-exporter-gcp-* and opentelemetry-resourcedetector-gcp
