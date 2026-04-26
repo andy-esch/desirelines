@@ -269,7 +269,7 @@ export function createAchievement(options: {
     goalLabel,
     goalValue,
     actualValue,
-    goalColor: GOAL_COLORS[goalIndex % GOAL_COLORS.length],
+    goalColor: GOAL_COLORS[goalIndex % GOAL_COLORS.length] ?? "",
     goalIndex,
   };
 }

@@ -35,7 +35,9 @@ export function buildSportColorMap(sports: string[], isDark: boolean): SportColo
   const palette = isDark ? DARK_PALETTE : LIGHT_PALETTE;
   const map = new Map<string, string>();
   for (let i = 0; i < sports.length; i++) {
-    map.set(sports[i], palette[i % palette.length]);
+    const sport = sports[i];
+    const color = palette[i % palette.length];
+    if (sport !== undefined && color !== undefined) map.set(sport, color);
   }
   return map;
 }
@@ -56,10 +58,10 @@ export interface RouteCanvasHandle {
 interface RouteCanvasProps {
   routes: NormalizedRoute[];
   sportColors: SportColorMap;
-  rings?: RouteRing[];
+  rings?: RouteRing[] | undefined;
   /** Label formatter for ring distances, e.g. "10 mi" or "20 km" */
-  formatRingLabel?: (radiusMeters: number) => string;
-  className?: string;
+  formatRingLabel?: ((radiusMeters: number) => string) | undefined;
+  className?: string | undefined;
 }
 
 const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function RouteCanvas(
@@ -161,12 +163,15 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
         : `rgba(0, 0, 0, ${ringAlpha})`;
 
       for (const ring of rings) {
-        if (ring.coords.length < 2) continue;
+        const first = ring.coords[0];
+        if (!first) continue;
 
         ctx.beginPath();
-        ctx.moveTo(projectX(ring.coords[0][0]), projectY(ring.coords[0][1]));
+        ctx.moveTo(projectX(first[0]), projectY(first[1]));
         for (let i = 1; i < ring.coords.length; i++) {
-          ctx.lineTo(projectX(ring.coords[i][0]), projectY(ring.coords[i][1]));
+          const coord = ring.coords[i];
+          if (!coord) continue;
+          ctx.lineTo(projectX(coord[0]), projectY(coord[1]));
         }
         ctx.closePath();
         ctx.stroke();
@@ -174,17 +179,17 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
         // Draw distance label at the top of the ring
         if (formatRingLabel) {
           // Find the topmost point (highest projected Y = lowest canvas Y)
-          let topIdx = 0;
+          let topCoord = first;
           let topY = Infinity;
-          for (let i = 0; i < ring.coords.length; i++) {
-            const py = projectY(ring.coords[i][1]);
+          for (const coord of ring.coords) {
+            const py = projectY(coord[1]);
             if (py < topY) {
               topY = py;
-              topIdx = i;
+              topCoord = coord;
             }
           }
 
-          const labelX = projectX(ring.coords[topIdx][0]);
+          const labelX = projectX(topCoord[0]);
           const labelY = topY;
 
           ctx.save();
@@ -213,7 +218,8 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
     const fallbackRgb = isDark ? "255, 255, 255" : "100, 100, 100";
 
     for (const route of routes) {
-      if (route.coords.length < 2) continue;
+      const first = route.coords[0];
+      if (!first) continue;
 
       const rgb = sportColors.get(route.sport) ?? fallbackRgb;
       ctx.strokeStyle = `rgba(${rgb}, ${alpha})`;
@@ -222,10 +228,12 @@ const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function Rou
       ctx.lineCap = "round";
 
       ctx.beginPath();
-      ctx.moveTo(projectX(route.coords[0][0]), projectY(route.coords[0][1]));
+      ctx.moveTo(projectX(first[0]), projectY(first[1]));
 
       for (let i = 1; i < route.coords.length; i++) {
-        ctx.lineTo(projectX(route.coords[i][0]), projectY(route.coords[i][1]));
+        const coord = route.coords[i];
+        if (!coord) continue;
+        ctx.lineTo(projectX(coord[0]), projectY(coord[1]));
       }
 
       ctx.stroke();

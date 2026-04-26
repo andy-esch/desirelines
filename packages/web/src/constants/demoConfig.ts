@@ -23,7 +23,7 @@ export interface DemoSportConfig {
   /** Variance in duration. Fallback for uniform variance. */
   durationVariance: number;
   /** Average elevation per activity in meters (optional) */
-  avgElevationMeters?: number;
+  avgElevationMeters?: number | undefined;
   /** Demo goal values (in display units: miles for cycling/running, hours for yoga) */
   goals: {
     conservative: number;
@@ -31,17 +31,17 @@ export interface DemoSportConfig {
     stretch: number;
   };
   /** Avg activities per week (Poisson lambda). Falls back to activityRate * 7. */
-  activitiesPerWeek?: number;
+  activitiesPerWeek?: number | undefined;
   /** Log-normal sigma for distance spread (default 0.4) */
-  distanceSigma?: number;
+  distanceSigma?: number | undefined;
   /** Log-normal sigma for duration spread (default 0.3) */
-  durationSigma?: number;
+  durationSigma?: number | undefined;
   /** Weekly volume in display units (miles for distance sports, hours for time sports).
    *  Used by the tuning panel — avgDistanceMeters/avgDurationSeconds are derived from this. */
-  weeklyVolume?: number;
+  weeklyVolume?: number | undefined;
   /** Rest/training cycle pattern. onWeeks active, then offWeeks rest (no activities).
    *  Omit for always-on sports (e.g., yoga). */
-  restPattern?: { onWeeks: number; offWeeks: number };
+  restPattern?: { onWeeks: number; offWeeks: number } | undefined;
 }
 
 /**

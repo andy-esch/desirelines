@@ -1,19 +1,23 @@
 """Logging setup for Cloud Run services."""
 
+from collections.abc import MutableMapping
 import logging
 import os
+from typing import Any
 
 import google.cloud.logging
 
 
-class JsonFieldsAdapter(logging.LoggerAdapter):
+class JsonFieldsAdapter(logging.LoggerAdapter[logging.Logger]):
     """LoggerAdapter that wraps extra fields in json_fields for GCP structured logging
 
     This adapter automatically transforms extra={...} into extra={"json_fields": {...}}
     which is required by Google Cloud Logging to populate jsonPayload fields.
     """
 
-    def process(self, msg, kwargs):
+    def process(
+        self, msg: Any, kwargs: MutableMapping[str, Any]
+    ) -> tuple[Any, MutableMapping[str, Any]]:
         """Wrap extra fields in json_fields for structured logging"""
         if kwargs.get("extra"):
             # Wrap existing extra dict in json_fields
@@ -21,7 +25,7 @@ class JsonFieldsAdapter(logging.LoggerAdapter):
         return msg, kwargs
 
 
-def setup_logging(logger_name: str) -> logging.LoggerAdapter:
+def setup_logging(logger_name: str) -> logging.LoggerAdapter[logging.Logger]:
     """Set up GCP-compatible structured logging using Google Cloud Logging
 
     Uses the official google-cloud-logging library which automatically
@@ -43,8 +47,9 @@ def setup_logging(logger_name: str) -> logging.LoggerAdapter:
 
     if enable_cloud_logging:
         try:
-            client = google.cloud.logging.Client()
-            client.setup_logging(log_level=logging.INFO)
+            # google-cloud-logging ships untyped; ignore the two calls below.
+            client = google.cloud.logging.Client()  # type: ignore[no-untyped-call]
+            client.setup_logging(log_level=logging.INFO)  # type: ignore[no-untyped-call]
         except Exception as e:
             logging.basicConfig(
                 level=logging.INFO,

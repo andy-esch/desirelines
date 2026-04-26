@@ -429,13 +429,10 @@ export class UserConfigService {
         if (!config.goals) {
           config.goals = {};
         }
-        if (!config.goals[year.toString()]) {
-          config.goals[year.toString()] = { sports: {} };
-        }
-        if (!config.goals[year.toString()].sports) {
-          config.goals[year.toString()].sports = {};
-        }
-        config.goals[year.toString()].sports[sport] = data as GoalsForYear;
+        const yearKey = year.toString();
+        const yearGoals = (config.goals[yearKey] ??= { sports: {} });
+        yearGoals.sports ??= {};
+        yearGoals.sports[sport] = data as GoalsForYear;
       } else if (year !== undefined && configType === "annotations") {
         // Annotations with year (no sport dimension)
         if (!config.annotations) {

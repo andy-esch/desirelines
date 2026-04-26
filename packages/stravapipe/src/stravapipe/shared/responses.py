@@ -4,6 +4,9 @@ Replaces ad-hoc dict response construction with validated models.
 FastAPI automatically serializes these in HTTP responses.
 """
 
+from collections.abc import Callable
+from typing import Any
+
 from pydantic import BaseModel, model_serializer
 
 from stravapipe.shared.constants import ResponseStatus, SkipReason
@@ -24,7 +27,7 @@ class WebhookResponse(BaseModel):
     action: ResponseStatus | None = None
 
     @model_serializer(mode="wrap")
-    def _exclude_none(self, handler):
+    def _exclude_none(self, handler: Callable[[Any], dict[str, Any]]) -> dict[str, Any]:
         return {k: v for k, v in handler(self).items() if v is not None}
 
 

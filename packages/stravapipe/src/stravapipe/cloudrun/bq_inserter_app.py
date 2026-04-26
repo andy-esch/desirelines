@@ -8,6 +8,7 @@ Activity data is now provided inline in the enriched event from the dispatcher
 (raw_activity field) rather than fetched from the Strava API by this service.
 """
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -35,7 +36,7 @@ logger = setup_logging(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize shared resources on startup and ensure clean shutdown."""
     try:
         config = load_bq_inserter_config()
@@ -82,13 +83,13 @@ app = FastAPI(
 
 
 @app.get("/health")
-async def health():
+async def health() -> HealthResponse:
     """Health check endpoint for Cloud Run."""
     return HealthResponse(status=ResponseStatus.HEALTHY)
 
 
 @app.post("/")
-async def handle_pubsub(request: Request):
+async def handle_pubsub(request: Request) -> WebhookResponse:
     """Handle Pub/Sub CloudEvent from Eventarc."""
     writer = request.app.state.writer
     delete_service = request.app.state.delete_service

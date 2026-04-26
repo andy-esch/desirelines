@@ -35,7 +35,7 @@ function AuthError() {
 
 export const Route = createFileRoute("/auth/error")({
   component: AuthError,
-  validateSearch: (search: Record<string, unknown>): { error?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { error?: string | undefined } => ({
     error: typeof search.error === "string" ? search.error : undefined,
   }),
 });

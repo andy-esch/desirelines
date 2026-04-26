@@ -14,8 +14,8 @@ import type { TimeRange } from "../../utils/dataNormalization";
 
 interface MultiSportSparklineChartProps {
   timeRange: TimeRange;
-  className?: string;
-  tuningParams?: TuningParams;
+  className?: string | undefined;
+  tuningParams?: TuningParams | undefined;
 }
 
 interface SportMetaItem {
@@ -38,15 +38,15 @@ function formatAxisDate(dateStr: string): string {
 }
 
 interface TooltipPayloadItem {
-  dataKey?: string | number;
-  value?: number;
-  payload?: Record<string, number | string>;
+  dataKey?: string | number | undefined;
+  value?: number | undefined;
+  payload?: Record<string, number | string> | undefined;
 }
 
 interface UnifiedSparklineTooltipProps {
-  active?: boolean;
-  payload?: readonly TooltipPayloadItem[];
-  label?: string;
+  active?: boolean | undefined;
+  payload?: readonly TooltipPayloadItem[] | undefined;
+  label?: string | undefined;
   sportMeta: SportMetaItem[];
   distanceUnit: DistanceUnit;
 }

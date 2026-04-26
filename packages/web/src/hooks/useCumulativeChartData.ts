@@ -42,8 +42,8 @@ interface UseCumulativeChartDataProps {
   goals: Goals;
   distanceData: DistanceEntry[];
   showFullYear: boolean;
-  sport?: string;
-  priorYearData?: Record<number, DistanceEntry[]>;
+  sport?: string | undefined;
+  priorYearData?: Record<number, DistanceEntry[]> | undefined;
 }
 
 /**
@@ -102,15 +102,12 @@ export function useCumulativeChartData({
   // 1. Date range calculations
   const startDate = new Date(Date.UTC(year, 0, 1));
   const endDate = new Date(Date.UTC(year, 11, 31));
-  const latestDate =
-    distanceData.length === 0
-      ? getCurrentLocalDate()
-      : new Date(distanceData[distanceData.length - 1].x);
+  const lastEntry = distanceData.at(-1);
+  const latestDate = lastEntry === undefined ? getCurrentLocalDate() : new Date(lastEntry.x);
   const displayEndDate = showFullYear ? endDate : latestDate;
 
   // 2. Metric calculations
-  const totalDistanceTraveled =
-    distanceData.length === 0 ? 0 : distanceData[distanceData.length - 1].y;
+  const totalDistanceTraveled = lastEntry?.y ?? 0;
   const estimatedYearEnd =
     distanceData.length === 0 ? 0 : estimateYearEndDistance(distanceData, year);
 
@@ -130,18 +127,19 @@ export function useCumulativeChartData({
   goalLines.forEach((gl, index) => {
     // Find first point where actual distance exceeds goal
     for (let i = 1; i < distanceData.length; i++) {
-      const prevActual = distanceData[i - 1].y;
-      const currActual = distanceData[i].y;
+      const prev = distanceData[i - 1];
+      const curr = distanceData[i];
+      if (!prev || !curr) continue;
       const goalValue = gl.goal.value;
 
       // Check if we crossed the goal line (from below to above)
-      if (prevActual < goalValue && currActual >= goalValue) {
+      if (prev.y < goalValue && curr.y >= goalValue) {
         goalAchievements.push({
-          date: new Date(distanceData[i].x),
+          date: new Date(curr.x),
           goalLabel: gl.goal.label || "Goal",
           goalValue: goalValue,
-          actualValue: currActual,
-          goalColor: GOAL_COLORS[index % GOAL_COLORS.length],
+          actualValue: curr.y,
+          goalColor: GOAL_COLORS[index % GOAL_COLORS.length] ?? "",
           goalIndex: index,
         });
         break; // Only track first achievement of each goal
@@ -251,7 +249,7 @@ export function useCumulativeChartData({
       return {
         label: gl.goal.label,
         value: typeof goalValue === "number" ? goalValue : gl.goal.value,
-        color: GOAL_COLORS[index % GOAL_COLORS.length],
+        color: GOAL_COLORS[index % GOAL_COLORS.length] ?? "",
       };
     }),
     average: currentActualData?.average || 0,

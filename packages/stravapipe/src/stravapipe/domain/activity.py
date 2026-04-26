@@ -9,7 +9,7 @@ Note on type: ignore[prop-decorator]:
 
 from datetime import datetime
 import json
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
@@ -136,7 +136,7 @@ class PhotosSummaryPrimary(BaseModel):
 
     @field_validator("urls", mode="before")
     @classmethod
-    def transform_to_json_str(cls, value: dict | str) -> str:
+    def transform_to_json_str(cls, value: dict[str, Any] | str) -> str:
         """Convert urls dict from Strava API to JSON string for storage."""
         if isinstance(value, str):
             return value  # Already converted
@@ -282,7 +282,7 @@ class SummaryStravaActivity(BaseModel):
     # - display_hide_heartrate_option: bool
     # - available_zones: list[str]
 
-    def to_bq_dict(self) -> dict:
+    def to_bq_dict(self) -> dict[str, Any]:
         """Serialize to dict for BigQuery insertion, excluding fields not in the BQ schema."""
         return self.model_dump(mode="json", exclude=self._BQ_EXCLUDE_FIELDS)
 

@@ -79,8 +79,8 @@ describe("usePacingChartData", () => {
       );
 
       expect(result.current.pacingGoals).toHaveLength(2);
-      expect(result.current.pacingGoals[0].goal.value).toBe(3000);
-      expect(result.current.pacingGoals[1].goal.value).toBe(5000);
+      expect(result.current.pacingGoals[0]!.goal.value).toBe(3000);
+      expect(result.current.pacingGoals[1]!.goal.value).toBe(5000);
     });
 
     it("should include pacing data arrays", () => {
@@ -94,8 +94,8 @@ describe("usePacingChartData", () => {
         })
       );
 
-      expect(result.current.pacingGoals[0].pacing.length).toBeGreaterThan(0);
-      expect(result.current.pacingGoals[1].pacing.length).toBeGreaterThan(0);
+      expect(result.current.pacingGoals[0]!.pacing.length).toBeGreaterThan(0);
+      expect(result.current.pacingGoals[1]!.pacing.length).toBeGreaterThan(0);
     });
   });
 

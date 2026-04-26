@@ -170,6 +170,7 @@ def test_sport_category_matches():
     """Test SportCategory.matches() method."""
     config = load_sport_config()
     cycling = config.get_category("cycling")
+    assert cycling is not None
 
     # Should match included types
     assert cycling.matches("Ride") is True

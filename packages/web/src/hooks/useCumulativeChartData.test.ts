@@ -54,6 +54,6 @@ describe("useCumulativeChartData", () => {
     );
 
     expect(result.current.goalLines).toHaveLength(1);
-    expect(result.current.goalLines[0].goal.value).toBe(1000);
+    expect(result.current.goalLines[0]!.goal.value).toBe(1000);
   });
 });

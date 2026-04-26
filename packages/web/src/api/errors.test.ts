@@ -77,7 +77,6 @@ describe("API Error Utilities", () => {
     it("should return false for network errors (no response)", () => {
       const error = Object.assign(new Error("Network Error"), {
         isAxiosError: true,
-        response: undefined,
         name: "AxiosError",
         config: {} as any,
         toJSON: () => ({}),
@@ -90,7 +89,6 @@ describe("API Error Utilities", () => {
     it("should return true for network errors (no response)", () => {
       const error = Object.assign(new Error("Network Error"), {
         isAxiosError: true,
-        response: undefined,
         name: "AxiosError",
         config: {} as any,
         toJSON: () => ({}),

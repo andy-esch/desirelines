@@ -182,9 +182,9 @@ interface CachedActivityCounts {
  */
 export interface GetDemoActivityCountsOptions {
   /** Sports to get counts for (defaults to getDemoSports()) */
-  sports?: string[];
+  sports?: string[] | undefined;
   /** Sport info for generating defaults for unknown sports */
-  sportInfoMap?: Record<string, SportMetricsInfo>;
+  sportInfoMap?: Record<string, SportMetricsInfo> | undefined;
 }
 
 /**
@@ -371,10 +371,16 @@ function generateActivitySchedule(
     // Fisher-Yates shuffle, pick first `count`
     for (let i = weekDays.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [weekDays[i], weekDays[j]] = [weekDays[j], weekDays[i]];
+      const a = weekDays[i];
+      const b = weekDays[j];
+      if (a !== undefined && b !== undefined) {
+        weekDays[i] = b;
+        weekDays[j] = a;
+      }
     }
     for (let i = 0; i < count; i++) {
-      activityDays.add(weekDays[i]);
+      const day = weekDays[i];
+      if (day !== undefined) activityDays.add(day);
     }
 
     weekIndex++;
@@ -484,13 +490,13 @@ function getStravaTypeForSport(sport: string): string {
  */
 export interface GenerateDemoMetricsOptions {
   /** Override fill level (for testing) */
-  overrideFillLevel?: FillLevel;
+  overrideFillLevel?: FillLevel | undefined;
   /** Sport info from API (for generating defaults for unknown sports) */
-  sportInfo?: SportMetricsInfo;
+  sportInfo?: SportMetricsInfo | undefined;
   /** All sports in the session (for coordinated fill levels) */
-  allSports?: string[];
+  allSports?: string[] | undefined;
   /** Tuning overrides for distribution parameters */
-  tuningParams?: TuningParams;
+  tuningParams?: TuningParams | undefined;
 }
 
 /**
@@ -621,13 +627,13 @@ export function generateDemoMetrics(
  */
 export interface GenerateDemoActivitiesOptions {
   /** Number of activities to generate */
-  count?: number;
+  count?: number | undefined;
   /** Override fill level (for testing) */
-  overrideFillLevel?: FillLevel;
+  overrideFillLevel?: FillLevel | undefined;
   /** Sport info from API (for generating defaults for unknown sports) */
-  sportInfo?: SportMetricsInfo;
+  sportInfo?: SportMetricsInfo | undefined;
   /** All sports in the session (for coordinated fill levels) */
-  allSports?: string[];
+  allSports?: string[] | undefined;
 }
 
 /**
@@ -784,13 +790,13 @@ export interface DemoDailyActivity {
  */
 export interface GenerateDemoDailyDataOptions {
   /** Override fill level (for testing) */
-  overrideFillLevel?: FillLevel;
+  overrideFillLevel?: FillLevel | undefined;
   /** Sport info from API (for generating defaults for unknown sports) */
-  sportInfo?: SportMetricsInfo;
+  sportInfo?: SportMetricsInfo | undefined;
   /** All sports in the session (for coordinated fill levels) */
-  allSports?: string[];
+  allSports?: string[] | undefined;
   /** Tuning overrides for distribution parameters */
-  tuningParams?: TuningParams;
+  tuningParams?: TuningParams | undefined;
 }
 
 /**
@@ -825,8 +831,10 @@ export function generateDemoDailyData(
   const result: Record<string, DemoDailyActivity> = {};
 
   // Parse date range
-  const [fromYear, fromMonth, fromDay] = fromDate.split("-").map(Number);
-  const [toYear, toMonth, toDay] = toDate.split("-").map(Number);
+  const fromParts = fromDate.split("-").map(Number);
+  const toParts = toDate.split("-").map(Number);
+  const [fromYear = 0, fromMonth = 1, fromDay = 1] = fromParts;
+  const [toYear = 0, toMonth = 1, toDay = 1] = toParts;
   const startDate = new Date(fromYear, fromMonth - 1, fromDay);
   const endDate = new Date(toYear, toMonth - 1, toDay);
 

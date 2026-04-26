@@ -9,8 +9,8 @@ import NeonSpinner from "../NeonSpinner";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 
 interface ActivityCalendarHeatmapProps {
-  className?: string;
-  tuningParams?: TuningParams;
+  className?: string | undefined;
+  tuningParams?: TuningParams | undefined;
 }
 
 /** Time range option for the heatmap */
@@ -26,7 +26,7 @@ const INTENSITY_COLORS = [
   "rgb(200, 100, 220)", // 2-3 activities - medium purple
   "rgb(220, 60, 255)", // 4-5 activities - bright purple
   "rgb(255, 0, 255)", // 6+ activities - neon magenta
-];
+] as const;
 
 /** Get color for activity count */
 function getIntensityColor(count: number): string {
@@ -130,7 +130,7 @@ function getMonthLabels(
         // Show year when it changes (January or first occurrence of a new year)
         const showYear = year !== lastYear;
         labels.push({
-          label: MONTH_LABELS[month],
+          label: MONTH_LABELS[month] ?? "",
           weekIndex,
           showYear,
           year,

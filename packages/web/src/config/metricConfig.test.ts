@@ -220,7 +220,7 @@ describe("metricConfig", () => {
       const ticks = generateYAxisTicks(7500, config);
 
       // Base interval is 1000, but doubles to 2000 to stay within MAX_Y_TICKS (5)
-      expect(ticks.every((t, i) => i === 0 || t - ticks[i - 1] === 2000)).toBe(true);
+      expect(ticks.every((t, i) => i === 0 || t - ticks[i - 1]! === 2000)).toBe(true);
       // Should have at most 5 non-zero ticks
       expect(ticks.filter((t) => t > 0).length).toBeLessThanOrEqual(5);
     });
@@ -333,14 +333,13 @@ describe("metricConfig", () => {
       const thresholds = config.chartIntervalThresholds;
 
       for (let i = 1; i < thresholds.length; i++) {
-        expect(thresholds[i].max).toBeGreaterThan(thresholds[i - 1].max);
+        expect(thresholds[i]!.max).toBeGreaterThan(thresholds[i - 1]!.max);
       }
     });
 
     it.each(sports)("%s has Infinity as final threshold max", (sport) => {
       const config = getMetricConfig(sport);
-      const lastThreshold =
-        config.chartIntervalThresholds[config.chartIntervalThresholds.length - 1];
+      const lastThreshold = config.chartIntervalThresholds.at(-1)!;
 
       expect(lastThreshold.max).toBe(Infinity);
     });

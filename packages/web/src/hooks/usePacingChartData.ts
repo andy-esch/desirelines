@@ -40,10 +40,8 @@ export function usePacingChartData({
   // 1. Date range calculations
   const startDate = new Date(Date.UTC(year, 0, 1));
   const endDate = new Date(Date.UTC(year, 11, 31));
-  const latestDate =
-    distanceData.length === 0
-      ? getCurrentLocalDate()
-      : new Date(distanceData[distanceData.length - 1].x);
+  const lastEntry = distanceData.at(-1);
+  const latestDate = lastEntry === undefined ? getCurrentLocalDate() : new Date(lastEntry.x);
   const displayEndDate = showFullYear ? endDate : latestDate;
 
   // 2. Calculate actual pacing data
@@ -103,7 +101,7 @@ export function usePacingChartData({
       return {
         label: pg.goal.label,
         value: typeof goalValue === "number" ? goalValue : 0,
-        color: GOAL_COLORS[index % GOAL_COLORS.length],
+        color: GOAL_COLORS[index % GOAL_COLORS.length] ?? "",
       };
     }),
   };

@@ -268,6 +268,7 @@ class TestRetryOnFailure:
             return "result"
 
         assert documented_func.__name__ == "documented_func"
+        assert documented_func.__doc__ is not None
         assert "This function has documentation." in documented_func.__doc__
 
     @patch("stravapipe.retry.logger")

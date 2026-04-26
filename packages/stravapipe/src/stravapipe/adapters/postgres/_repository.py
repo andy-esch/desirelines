@@ -5,7 +5,7 @@ Repository receives Session from Unit of Work - doesn't manage its own connectio
 """
 
 from datetime import UTC, datetime
-from typing import Final
+from typing import Any, Final
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -132,7 +132,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         result = self._session.execute(query, {"activity_id": activity_id})
         return result.fetchone() is not None
 
-    def update_metadata(self, activity_id: int, updates: dict) -> bool | None:
+    def update_metadata(self, activity_id: int, updates: dict[str, Any]) -> bool | None:
         """Update only metadata fields (name, type, sport).
 
         Builds dynamic UPDATE query based on which fields changed.
@@ -159,7 +159,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             )
 
         set_clauses: list[str] = []
-        params: dict = {"activity_id": activity_id}
+        params: dict[str, Any] = {"activity_id": activity_id}
 
         if "title" in updates:
             set_clauses.extend(_ALLOWED_UPDATE_CLAUSES["title"])
@@ -223,4 +223,6 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             WHERE user_id = :user_id
         """)
         result = self._session.execute(query, {"user_id": user_id})
-        return result.rowcount  # type: ignore[attr-defined]
+        # Session.execute() returns Result[Any]; rowcount lives on CursorResult
+        # which is what the underlying DBAPI actually yields for DELETE.
+        return result.rowcount  # type: ignore[attr-defined,no-any-return]

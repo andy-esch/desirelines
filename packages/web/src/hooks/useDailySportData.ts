@@ -49,9 +49,9 @@ export interface UseDailySportDataOptions {
    * Sports to fetch data for.
    * If not provided, defaults to ["cycling", "running", "yoga"] for backwards compatibility.
    */
-  sports?: string[];
+  sports?: string[] | undefined;
   /** Tuning overrides for distribution parameters (demo mode only) */
-  tuningParams?: TuningParams;
+  tuningParams?: TuningParams | undefined;
 }
 
 /**

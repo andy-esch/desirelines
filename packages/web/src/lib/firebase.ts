@@ -17,8 +17,15 @@ import { logger } from "./logger";
 // Get validated configuration
 const config = getConfig();
 
+// Strip undefined values from optional Firebase config fields. Under
+// exactOptionalPropertyTypes, FirebaseOptions disallows explicit `undefined` —
+// omit the keys instead.
+const firebaseOptions = Object.fromEntries(
+  Object.entries(config.firebase).filter(([, v]) => v !== undefined)
+);
+
 // Initialize Firebase app (single instance for entire application)
-export const app: FirebaseApp = initializeApp(config.firebase);
+export const app: FirebaseApp = initializeApp(firebaseOptions);
 
 // CRITICAL: Initialize Auth BEFORE Firestore
 // The Firebase SDK requires Auth to be initialized first so that Firestore

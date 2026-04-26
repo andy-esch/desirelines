@@ -9,12 +9,12 @@ interface GoalControlsProps {
   goals: Goals;
   onGoalsChange: (goals: Goals) => Promise<void>;
   estimatedYearEnd: number;
-  unit?: MetricUnit; // Unit label (e.g., "mi", "km", "sessions")
-  sport?: string; // Sport name (e.g., "cycling", "running", "yoga")
+  unit?: MetricUnit | undefined; // Unit label (e.g., "mi", "km", "sessions")
+  sport?: string | undefined; // Sport name (e.g., "cycling", "running", "yoga")
   // Loading/error state from parent (useUserConfig hook)
-  isSaving?: boolean;
-  saveError?: Error | null;
-  onClearSaveError?: () => void;
+  isSaving?: boolean | undefined;
+  saveError?: Error | null | undefined;
+  onClearSaveError?: (() => void) | undefined;
 }
 
 const GoalControls: React.FC<GoalControlsProps> = ({

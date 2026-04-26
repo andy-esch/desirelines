@@ -9,6 +9,7 @@ via API Gateway.
 """
 
 import logging
+from typing import Any
 
 from stravapipe.ports.out.read import ReadStandardActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
@@ -93,7 +94,9 @@ class PostgresWriteService:
         with self._uow:
             return self._uow.activities.exists(activity_id)
 
-    def update_activity_metadata(self, activity_id: int, updates: dict) -> bool | None:
+    def update_activity_metadata(
+        self, activity_id: int, updates: dict[str, Any]
+    ) -> bool | None:
         """Update only metadata fields from UPDATE webhook.
 
         Does NOT fetch from Strava API - uses updates hash directly.

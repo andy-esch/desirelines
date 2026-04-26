@@ -27,32 +27,32 @@ const FALLBACK_SPORT_OPTIONS = [
 
 function calculateDateRange(range: TimeRange): { from?: string; to?: string } {
   const today = new Date();
-  const toDate = today.toISOString().split("T")[0];
+  const toDate = today.toISOString().split("T")[0]!;
 
   switch (range) {
     case "2w": {
       const from = new Date(today);
       from.setDate(from.getDate() - 14);
-      return { from: from.toISOString().split("T")[0], to: toDate };
+      return { from: from.toISOString().split("T")[0]!, to: toDate };
     }
     case "4w": {
       const from = new Date(today);
       from.setDate(from.getDate() - 28);
-      return { from: from.toISOString().split("T")[0], to: toDate };
+      return { from: from.toISOString().split("T")[0]!, to: toDate };
     }
     case "2m": {
       const from = new Date(today);
       from.setDate(from.getDate() - 60);
-      return { from: from.toISOString().split("T")[0], to: toDate };
+      return { from: from.toISOString().split("T")[0]!, to: toDate };
     }
     case "6m": {
       const from = new Date(today);
       from.setDate(from.getDate() - 180);
-      return { from: from.toISOString().split("T")[0], to: toDate };
+      return { from: from.toISOString().split("T")[0]!, to: toDate };
     }
     case "ytd": {
       const from = new Date(today.getFullYear(), 0, 1);
-      return { from: from.toISOString().split("T")[0], to: toDate };
+      return { from: from.toISOString().split("T")[0]!, to: toDate };
     }
     case "all":
     default:
@@ -114,10 +114,10 @@ const ActivitiesPage = () => {
   const handleSportChange = (newSport: string) => {
     void navigate({
       to: "/activities",
-      search: (prev) => ({
-        ...prev,
-        sport: newSport || undefined,
-      }),
+      search: (prev) => {
+        const { sport: _omit, ...rest } = prev;
+        return newSport ? { ...rest, sport: newSport } : rest;
+      },
     });
   };
 

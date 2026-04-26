@@ -39,7 +39,10 @@ py-typecheck +args='':
         pants check packages/stravapipe::
     else
         echo "🐍 Running Python type checking with mypy (fast)..."
-        cd packages/stravapipe && uv run mypy src/ {{args}}
+        # --no-warn-unused-configs: the `tests.*` override is intentionally
+        # only consumed by `pants check` (which covers tests); this local
+        # run scopes to `src/` and would otherwise emit a benign note.
+        cd packages/stravapipe && uv run mypy --no-warn-unused-configs src/ {{args}}
     fi
 
 # Run Go tests (default: go test, use --pants for Pants)

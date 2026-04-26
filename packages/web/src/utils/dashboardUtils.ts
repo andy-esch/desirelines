@@ -75,8 +75,8 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
 
   // --- 1. Current YTD Value ---
   let currentValue = 0;
-  if (metrics && metrics.length > 0) {
-    const lastEntry = metrics[metrics.length - 1];
+  const lastEntry = metrics?.at(-1);
+  if (lastEntry) {
     const rawValue = lastEntry[fieldName] ?? 0;
     if (isDistance) {
       currentValue = convertDistance(rawValue, userSettings.distanceUnit);

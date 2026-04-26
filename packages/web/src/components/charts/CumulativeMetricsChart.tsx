@@ -36,27 +36,27 @@ interface CumulativeMetricsChartProps {
   /** Error from data fetch, if any */
   error: Error | null;
   /** Whether to show full year or just up to latest data */
-  showFullYear?: boolean;
+  showFullYear?: boolean | undefined;
   /** Callback when view toggle changes */
-  onViewChange?: (showFullYear: boolean) => void;
+  onViewChange?: ((showFullYear: boolean) => void) | undefined;
   /** Whether to show achievement markers */
-  showAchievements?: boolean;
+  showAchievements?: boolean | undefined;
   /** Callback when achievement toggle changes */
-  onAchievementsChange?: (show: boolean) => void;
+  onAchievementsChange?: ((show: boolean) => void) | undefined;
   /** Hide the header section */
-  hideHeader?: boolean;
+  hideHeader?: boolean | undefined;
   /** Unit for display (miles, kilometers, sessions) */
-  unit?: MetricUnit;
+  unit?: MetricUnit | undefined;
   /** Sport type for empty state messaging */
-  sport?: string;
+  sport?: string | undefined;
   /** Callback for retry on error */
-  onRetry?: () => void;
+  onRetry?: (() => void) | undefined;
   /** Prior year chart data keyed by year */
-  priorYearData?: Record<number, DistanceEntry[]>;
+  priorYearData?: Record<number, DistanceEntry[]> | undefined;
   /** Whether prior year ghost lines are visible */
-  showPriorYears?: boolean;
+  showPriorYears?: boolean | undefined;
   /** Callback when prior years toggle changes */
-  onPriorYearsChange?: (show: boolean) => void;
+  onPriorYearsChange?: ((show: boolean) => void) | undefined;
 }
 
 // ============================================================================
@@ -83,12 +83,12 @@ function HeaderControls({
   activeRange: RangePreset;
   onRangeChange: (preset: RangePreset) => void;
   showAchievements: boolean;
-  onAchievementsChange?: (show: boolean) => void;
+  onAchievementsChange?: ((show: boolean) => void) | undefined;
   achievementCount: number;
   isZoomed: boolean;
   onResetZoom: () => void;
-  showPriorYears?: boolean;
-  onPriorYearsChange?: (show: boolean) => void;
+  showPriorYears?: boolean | undefined;
+  onPriorYearsChange?: ((show: boolean) => void) | undefined;
 }) {
   const presets: { key: RangePreset; label: string }[] = [
     { key: "7d", label: "7d" },

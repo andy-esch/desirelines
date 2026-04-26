@@ -97,11 +97,7 @@ def uow(db_session) -> AbstractUnitOfWork:
 
         def __init__(self, session: Session):
             self._session = session
-            self._activities = SqlAlchemyActivityRepository(session)
-
-        @property
-        def activities(self):
-            return self._activities
+            self.activities = SqlAlchemyActivityRepository(session)
 
         def __enter__(self):
             return self

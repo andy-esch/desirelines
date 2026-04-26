@@ -10,12 +10,12 @@ export interface NormalizedRoute {
   sport: string;
   distance: number;
   date: string;
-  coords: number[][];
+  coords: [number, number][];
 }
 
 export interface RouteRing {
   radiusMeters: number;
-  coords: number[][];
+  coords: [number, number][];
 }
 
 interface RoutesResponse {
@@ -37,9 +37,10 @@ export const fetchRoutes = async (options: FetchRoutesOptions = {}): Promise<Rou
   const url = `activities/routes${query ? `?${query}` : ""}`;
 
   try {
-    const { data } = await getClient().get<RoutesResponse>(url, {
-      signal: options.signal,
-    });
+    const { data } = await getClient().get<RoutesResponse>(
+      url,
+      options.signal ? { signal: options.signal } : {}
+    );
     return data ?? { routes: [] };
   } catch (err: unknown) {
     throwApiError(err, "fetchRoutes");

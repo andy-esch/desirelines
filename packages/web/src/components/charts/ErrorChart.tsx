@@ -2,7 +2,7 @@ import { PageErrorFallback } from "../PageErrorFallback";
 
 interface ErrorChartProps {
   error: Error;
-  onRetry?: () => void;
+  onRetry?: (() => void) | undefined;
 }
 
 export default function ErrorChart({ error, onRetry }: ErrorChartProps) {

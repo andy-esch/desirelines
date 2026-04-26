@@ -4,11 +4,11 @@ type ErrorFallbackVariant = "page" | "inline" | "full";
 
 interface PageErrorFallbackProps {
   error: Error;
-  onReset?: () => void;
+  onReset?: (() => void) | undefined;
   /** @default "page" */
-  variant?: ErrorFallbackVariant;
+  variant?: ErrorFallbackVariant | undefined;
   /** Custom heading (defaults vary by variant) */
-  heading?: string;
+  heading?: string | undefined;
 }
 
 const defaultHeadings: Record<ErrorFallbackVariant, string> = {

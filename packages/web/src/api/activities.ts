@@ -76,10 +76,10 @@ export interface SportConfig {
 export interface FetchSportMetricsOptions {
   year: number;
   sport: string;
-  from?: string; // YYYY-MM-DD - if provided with 'to', uses date range query
-  to?: string; // YYYY-MM-DD - if provided with 'from', uses date range query
-  tz?: string; // IANA timezone (e.g., "America/New_York") — caps current-year series at "today" in this timezone
-  signal?: AbortSignal;
+  from?: string | undefined; // YYYY-MM-DD - if provided with 'to', uses date range query
+  to?: string | undefined; // YYYY-MM-DD - if provided with 'from', uses date range query
+  tz?: string | undefined; // IANA timezone (e.g., "America/New_York") — caps current-year series at "today" in this timezone
+  signal?: AbortSignal | undefined;
 }
 
 export const fetchSportMetrics = async (
@@ -96,9 +96,10 @@ export const fetchSportMetrics = async (
   const url = `activities/${options.year}/metrics?${params.toString()}`;
 
   try {
-    const { data } = await getClient().get<SportMetricsProto>(url, {
-      signal: options.signal,
-    });
+    const { data } = await getClient().get<SportMetricsProto>(
+      url,
+      options.signal ? { signal: options.signal } : {}
+    );
     return data.timeseries ?? [];
   } catch (err: unknown) {
     throwApiError(err, "fetchSportMetrics");
@@ -112,9 +113,7 @@ export const fetchYearMetadata = async (
   const url = `activities/${year}/metadata`;
 
   try {
-    const { data } = await getClient().get<YearMetadata>(url, {
-      signal,
-    });
+    const { data } = await getClient().get<YearMetadata>(url, signal ? { signal } : {});
     // Ensure arrays are never null for safe iteration
     return {
       ...data,
@@ -130,9 +129,7 @@ export const fetchSportConfig = async (signal?: AbortSignal): Promise<SportConfi
   const url = `sports/config`;
 
   try {
-    const { data } = await getClient().get<SportConfig>(url, {
-      signal,
-    });
+    const { data } = await getClient().get<SportConfig>(url, signal ? { signal } : {});
     return data;
   } catch (err: unknown) {
     throwApiError(err, "fetchSportConfig");
@@ -147,10 +144,10 @@ export const fetchSportConfig = async (signal?: AbortSignal): Promise<SportConfi
 export interface FetchMultiSportOptions {
   year: number;
   sports: string[];
-  from?: string;
-  to?: string;
-  tz?: string; // IANA timezone (e.g., "America/New_York") — caps current-year series at "today" in this timezone
-  signal?: AbortSignal;
+  from?: string | undefined;
+  to?: string | undefined;
+  tz?: string | undefined; // IANA timezone (e.g., "America/New_York") — caps current-year series at "today" in this timezone
+  signal?: AbortSignal | undefined;
 }
 
 /**
@@ -171,9 +168,10 @@ export const fetchMultiSportDailySummary = async (
   const url = `activities/${options.year}/source?${params.toString()}`;
 
   try {
-    const { data } = await getClient().get<AllSportsDailySummaryProto>(url, {
-      signal: options.signal,
-    });
+    const { data } = await getClient().get<AllSportsDailySummaryProto>(
+      url,
+      options.signal ? { signal: options.signal } : {}
+    );
     return Object.fromEntries(
       Object.entries(data.bySport ?? {}).map(([sport, summary]) => [sport, summary?.daily ?? {}])
     );
@@ -200,9 +198,10 @@ export const fetchMultiSportMetrics = async (
   const url = `activities/${options.year}/metrics?${params.toString()}`;
 
   try {
-    const { data } = await getClient().get<AllSportsMetricsProto>(url, {
-      signal: options.signal,
-    });
+    const { data } = await getClient().get<AllSportsMetricsProto>(
+      url,
+      options.signal ? { signal: options.signal } : {}
+    );
     return Object.fromEntries(
       Object.entries(data.bySport ?? {}).map(([sport, metrics]) => [
         sport,
@@ -221,9 +220,7 @@ export const fetchActivity = async (id: number, signal?: AbortSignal): Promise<A
   const url = `activities/${id}`;
 
   try {
-    const { data } = await getClient().get<Activity>(url, {
-      signal,
-    });
+    const { data } = await getClient().get<Activity>(url, signal ? { signal } : {});
     return data;
   } catch (err: unknown) {
     // 404 means activity not found - return null, not an error
@@ -251,9 +248,7 @@ export const fetchActivities = async (
   const url = `activities?${params.toString()}`;
 
   try {
-    const { data } = await getClient().get<ActivityListResponse>(url, {
-      signal,
-    });
+    const { data } = await getClient().get<ActivityListResponse>(url, signal ? { signal } : {});
     return {
       activities: data.activities ?? [],
       nextCursor: data.nextCursor,
