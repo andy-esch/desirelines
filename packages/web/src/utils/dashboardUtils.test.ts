@@ -29,7 +29,7 @@ describe("dashboardUtils", () => {
       sport: "cycling",
       index: 0,
       totalSports: 1,
-      metrics: [{ date: "2026-01-01", distance: 1609.34 } as any], // 1 mile
+      metrics: [{ date: "2026-01-01", distance: 1609.34 }], // 1 mile
       goalsData: {
         goals: [
           { id: "1", value: 3218.68, label: "Target", createdAt: "", updatedAt: "", metric: "" },

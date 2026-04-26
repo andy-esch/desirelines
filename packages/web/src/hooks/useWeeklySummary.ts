@@ -193,6 +193,7 @@ export function useWeeklySummary(): {
       const weeklyGoal = (yearlyGoal * 7) / daysInYear;
       const achievementPct = weeklyGoal > 0 ? (weeklyTotal / weeklyGoal) * 100 : 0;
 
+      const metricType: MetricType = isDistance ? "distance" : isTime ? "time" : "sessions";
       return {
         sport,
         displayName: getSportDisplayName(sport, sportConfig),
@@ -201,7 +202,7 @@ export function useWeeklySummary(): {
         weeklyGoal,
         achievementPct,
         metricUnit: metricCfg.chartLabel,
-        metricType: (isDistance ? "distance" : isTime ? "time" : "sessions") as MetricType,
+        metricType,
       };
     });
   }, [

@@ -170,7 +170,7 @@ describe("useWeeklySummary", () => {
         data: {},
         isLoading: true,
         error: null,
-      } as any);
+      });
 
       const { result } = renderHook(() => useWeeklySummary(), { wrapper });
       expect(result.current.isLoading).toBe(true);
@@ -323,7 +323,7 @@ describe("useWeeklySummary", () => {
         data: {},
         isLoading: false,
         error: mockError,
-      } as any);
+      });
 
       const { result } = renderHook(() => useWeeklySummary(), { wrapper });
 
@@ -362,7 +362,7 @@ describe("useWeeklySummary", () => {
         data: { cycling: {}, running: {}, yoga: {} },
         isLoading: false,
         error: null,
-      } as any);
+      });
 
       const { result } = renderHook(() => useWeeklySummary(), { wrapper });
 

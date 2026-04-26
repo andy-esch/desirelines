@@ -53,7 +53,7 @@ class LocalStorageMock {
   }
 }
 
-globalThis.localStorage = new LocalStorageMock() as Storage;
+globalThis.localStorage = new LocalStorageMock();
 
 // Clear localStorage before each test
 beforeEach(() => {

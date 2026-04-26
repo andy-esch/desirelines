@@ -54,7 +54,7 @@ describe("SettingsPage", () => {
       observe = vi.fn();
       unobserve = vi.fn();
       disconnect = vi.fn();
-    } as unknown as typeof ResizeObserver;
+    };
   });
 
   it("shows loading spinner while data is loading", async () => {
@@ -79,7 +79,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
-    } as ReturnType<typeof useUserConfig>);
+    });
 
     await renderWithRouter(<SettingsPage />);
 
@@ -114,7 +114,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
-    } as ReturnType<typeof useUserConfig>);
+    });
 
     await renderWithRouter(<SettingsPage />);
 
@@ -145,7 +145,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
-    } as ReturnType<typeof useUserConfig>);
+    });
 
     await renderWithRouter(<SettingsPage />);
 
@@ -176,7 +176,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
-    } as ReturnType<typeof useUserConfig>);
+    });
 
     await renderWithRouter(<SettingsPage />);
 
@@ -208,7 +208,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
-    } as ReturnType<typeof useUserConfig>);
+    });
 
     await renderWithRouter(<SettingsPage />);
 

@@ -188,10 +188,13 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
   } = props;
 
   // Only animate chart lines on first mount — suppress re-animation on goal/range changes.
-  // This one-time gate is intentional: the effect sets false after mount to prevent
-  // Recharts from re-animating lines when goals or range presets change.
+  // Both lint-clean alternatives have tradeoffs: a ref read during render trips
+  // `react-hooks/refs` (purity), and dropping the gate makes Recharts re-animate
+  // every prop change. The set-state-in-effect cost (one extra render at mount)
+  // is acceptable here.
   const [isFirstRender, setIsFirstRender] = useState(true);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional mount-only gate for Recharts animation
     setIsFirstRender(false);
   }, []);
 

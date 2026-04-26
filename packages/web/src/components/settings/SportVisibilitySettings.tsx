@@ -204,7 +204,7 @@ export function SportVisibilitySettings() {
 
     if (!hasUnsavedEdits) {
       // Safe to sync - user hasn't made changes
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing external Firestore state into local state
+
       setLocalSelection(new Set(visibleSports));
       lastSyncedRef.current = visibleSports;
       isInitializedRef.current = true;

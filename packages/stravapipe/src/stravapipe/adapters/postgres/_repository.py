@@ -5,9 +5,10 @@ Repository receives Session from Unit of Work - doesn't manage its own connectio
 """
 
 from datetime import UTC, datetime
-from typing import Any, Final
+from typing import Any, Final, cast
 
 from sqlalchemy import text
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from stravapipe.domain import StandardActivity
@@ -222,7 +223,9 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             DELETE FROM desirelines.activities
             WHERE user_id = :user_id
         """)
-        result = self._session.execute(query, {"user_id": user_id})
-        # Session.execute() returns Result[Any]; rowcount lives on CursorResult
-        # which is what the underlying DBAPI actually yields for DELETE.
-        return result.rowcount  # type: ignore[attr-defined,no-any-return]
+        # Session.execute() is typed as Result[Any], but for DML the runtime
+        # value is CursorResult — that's where rowcount lives.
+        result = cast(
+            CursorResult[Any], self._session.execute(query, {"user_id": user_id})
+        )
+        return result.rowcount if result.rowcount is not None else 0
