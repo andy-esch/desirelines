@@ -1,4 +1,13 @@
-// Package health provides the health check endpoint handler.
+// Package health provides the liveness and readiness endpoint handlers.
+//
+// HandleLive serves /api/health: a cheap process-alive check with no
+// dependency probes. Cloud Run's container probe and the GCP uptime check
+// hit this path.
+//
+// HandleReady serves /api/ready: pings the database via the Pinger interface
+// and returns 503 if the DB is unreachable. Cloud Scheduler hits this path
+// hourly. Splitting it out keeps the high-frequency liveness path off Neon's
+// compute meter — see split-apigateway-health-and-readiness-endpoints.
 package health
 
 import (
@@ -57,9 +66,17 @@ func NewHandlerWithTimeout(pinger Pinger, logger *slog.Logger, timeout time.Dura
 	}
 }
 
-// Handle returns API health status.
+// HandleLive returns process liveness. Always 200 with {"status":"healthy"}.
+// No DB ping, no Pinger call — this path is hit by Cloud Run's probe and the
+// GCP uptime check, which would otherwise keep Neon's compute warm 24/7.
+func (h *Handler) HandleLive(w http.ResponseWriter, r *http.Request) {
+	server.RespondJSON(w, r, http.StatusOK, Response{Status: StatusHealthy}, h.logger)
+}
+
+// HandleReady returns readiness, including database connectivity.
 // Returns 200 OK when healthy, 503 Service Unavailable when database is down.
-func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
+// Hit hourly by Cloud Scheduler.
+func (h *Handler) HandleReady(w http.ResponseWriter, r *http.Request) {
 	response := Response{
 		Status: StatusHealthy,
 	}

@@ -1087,13 +1087,19 @@ resource "google_monitoring_alert_policy" "old_messages" {
 # ============================================================================
 # Two synthetic probes against externally-reachable URLs. These catch outages
 # that don't show up as 4xx/5xx from Cloud Run (e.g., Firebase Hosting is down,
-# DNS issue, SSL expiry). Free tier covers 1M check executions per project per
-# month; each check here runs every 60s from ~6 regions ≈ 260k/month.
+# DNS issue, SSL expiry).
+#
+# Cadence: 15 minutes (the GCP-supported maximum). For this personal project,
+# we want Cloud Run to be allowed to scale to zero between checks — at 60s
+# fan-out across ~6 regions, the service is pinged ~360 times/hour and never
+# gets to idle. /api/health is now liveness-only (no DB ping), so the cost
+# concern is Cloud Run wakeups rather than Neon compute. /api/ready is
+# probed separately on its own hourly Cloud Scheduler cadence (below).
 
 resource "google_monitoring_uptime_check_config" "apigateway_health" {
   display_name = "Desirelines ${title(var.environment)} - API Gateway /api/health"
   timeout      = "10s"
-  period       = "60s"
+  period       = "900s" # 15 min — GCP's max uptime-check cadence
 
   http_check {
     path         = "/api/health"
@@ -1229,6 +1235,91 @@ resource "google_monitoring_alert_policy" "frontend_uptime" {
 
       trigger {
         count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+# ============================================================================
+# Hourly readiness check (Cloud Scheduler → /api/ready)
+# ============================================================================
+# Why this isn't a second uptime check: GCP uptime checks fan out across ~6
+# probe regions and have a max cadence of 15 min. We want a single, hourly,
+# DB-touching probe — Cloud Scheduler hits /api/ready from one location at the
+# desired cadence, so Neon's compute can stay suspended between probes.
+resource "google_cloud_scheduler_job" "apigateway_readiness" {
+  name        = "${var.project_name}-${var.environment}-apigateway-readiness"
+  description = "Hourly DB-touching readiness probe for apigateway"
+  schedule    = "0 * * * *" # top of every hour
+  time_zone   = "UTC"
+  region      = var.gcp_region
+
+  retry_config {
+    retry_count = 0 # one shot; failure is the signal
+  }
+
+  http_target {
+    http_method = "GET"
+    uri         = "https://${var.project_name}-${var.environment}.web.app/api/ready"
+    # No oidc_token / oauth_token: apigateway is fronted by Firebase Hosting
+    # with allUsers run.invoker, so the call is unauthenticated like a real
+    # user request. If the apigateway is later locked down, switch to an
+    # oidc_token block referencing the scheduler service account.
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# Count failed executions of the readiness Scheduler job
+resource "google_logging_metric" "apigateway_readiness_failures" {
+  name        = "${var.project_name}_${var.environment}_apigateway_readiness_failures"
+  description = "Cloud Scheduler readiness probe responses that aren't 2xx"
+  filter      = <<-EOT
+    resource.type="cloud_scheduler_job"
+    resource.labels.job_id="${google_cloud_scheduler_job.apigateway_readiness.name}"
+    httpRequest.status>=400
+  EOT
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+  }
+}
+
+resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
+  display_name = "🚨 apigateway /api/ready failing"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **HIGH**: 3 consecutive hourly readiness probes against
+      `/api/ready` have failed in the last 4 hours. This typically means
+      Postgres (Neon) is down, the connection pool is misconfigured, or
+      apigateway has a bug in the readiness handler.
+
+      **Action**:
+      1. Check Neon dashboard — is the compute suspended? Down?
+      2. Check apigateway logs for `Database health check failed`.
+      3. Test the endpoint directly: `curl https://${var.project_name}-${var.environment}.web.app/api/ready`.
+    EOT
+  }
+
+  conditions {
+    display_name = "Readiness probe failures ≥ 3 in 4h"
+    condition_threshold {
+      filter          = "resource.type=\"cloud_scheduler_job\" AND metric.type=\"logging.googleapis.com/user/${google_logging_metric.apigateway_readiness_failures.name}\""
+      duration        = "0s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 2 # > 2 means ≥3 failures
+      aggregations {
+        alignment_period   = "14400s" # 4 hours
+        per_series_aligner = "ALIGN_SUM"
       }
     }
   }
@@ -1503,18 +1594,19 @@ output "monitoring_dashboard_url" {
 output "alert_policy_ids" {
   description = "IDs of created alert policies"
   value = {
-    dlq_bq_inserter             = google_monitoring_alert_policy.dlq_bq_inserter.id
-    dlq_postgres_writer         = google_monitoring_alert_policy.dlq_postgres_writer.id
-    service_4xx                 = google_monitoring_alert_policy.service_4xx_errors.id
-    service_5xx                 = google_monitoring_alert_policy.service_5xx_errors.id
-    old_messages                = google_monitoring_alert_policy.old_messages.id
-    apigateway_uptime           = google_monitoring_alert_policy.apigateway_uptime.id
-    frontend_uptime             = google_monitoring_alert_policy.frontend_uptime.id
-    postgres_pool_exhaustion    = one(google_monitoring_alert_policy.postgres_pool_exhaustion[*].id)
-    strava_api_latency          = one(google_monitoring_alert_policy.strava_api_latency[*].id)
-    http_request_latency        = one(google_monitoring_alert_policy.http_request_latency[*].id)
-    postgres_query_latency      = one(google_monitoring_alert_policy.postgres_query_latency[*].id)
-    firestore_operation_latency = one(google_monitoring_alert_policy.firestore_operation_latency[*].id)
-    pubsub_publish_latency      = one(google_monitoring_alert_policy.pubsub_publish_latency[*].id)
+    dlq_bq_inserter              = google_monitoring_alert_policy.dlq_bq_inserter.id
+    dlq_postgres_writer          = google_monitoring_alert_policy.dlq_postgres_writer.id
+    service_4xx                  = google_monitoring_alert_policy.service_4xx_errors.id
+    service_5xx                  = google_monitoring_alert_policy.service_5xx_errors.id
+    old_messages                 = google_monitoring_alert_policy.old_messages.id
+    apigateway_uptime            = google_monitoring_alert_policy.apigateway_uptime.id
+    apigateway_readiness_failing = google_monitoring_alert_policy.apigateway_readiness_failing.id
+    frontend_uptime              = google_monitoring_alert_policy.frontend_uptime.id
+    postgres_pool_exhaustion     = one(google_monitoring_alert_policy.postgres_pool_exhaustion[*].id)
+    strava_api_latency           = one(google_monitoring_alert_policy.strava_api_latency[*].id)
+    http_request_latency         = one(google_monitoring_alert_policy.http_request_latency[*].id)
+    postgres_query_latency       = one(google_monitoring_alert_policy.postgres_query_latency[*].id)
+    firestore_operation_latency  = one(google_monitoring_alert_policy.firestore_operation_latency[*].id)
+    pubsub_publish_latency       = one(google_monitoring_alert_policy.pubsub_publish_latency[*].id)
   }
 }

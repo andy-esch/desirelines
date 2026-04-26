@@ -92,9 +92,11 @@ func run(log *slog.Logger) error {
 	// Span names are refined to "METHOD /route/pattern" by SpanNameFromChiRoute
 	// middleware inside the chi stack (see server/router.go).
 	//
-	// Skip /api/health: Cloud Run polls it constantly and the spans add noise
-	// and export cost without diagnostic value. Path matches the public URL
-	// because otelhttp sits outside StripPrefix.
+	// Skip /api/health and /api/ready: Cloud Run probes /api/health on every
+	// container, the GCP uptime check fans it out from multiple regions, and
+	// Cloud Scheduler hits /api/ready hourly. None of these need traces, and
+	// the spans add noise and export cost without diagnostic value. Path
+	// matches the public URL because otelhttp sits outside StripPrefix.
 	//
 	// WithPublicEndpointFn: apigateway is internet-facing via Firebase
 	// Hosting, so callers can inject arbitrary traceparent /
@@ -114,7 +116,8 @@ func run(log *slog.Logger) error {
 		"apigateway",
 		otelhttp.WithPublicEndpointFn(func(_ *http.Request) bool { return true }),
 		otelhttp.WithFilter(func(r *http.Request) bool {
-			return r.URL.Path != "/api/health"
+			p := r.URL.Path
+			return p != "/api/health" && p != "/api/ready"
 		}),
 	)
 
@@ -317,7 +320,8 @@ func buildRouter(deps *Dependencies) http.Handler {
 	}
 
 	publicRoutes := server.PublicRoutes{
-		Health:       healthHandler.Handle,
+		Health:       healthHandler.HandleLive,
+		Ready:        healthHandler.HandleReady,
 		SportConfig:  sportsHandler.HandleConfig,
 		AuthInitiate: authInitiate,
 		AuthCallback: authCallback,

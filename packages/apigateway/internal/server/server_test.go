@@ -216,6 +216,7 @@ func newTestRouter(c *cors.Handler, auth *mockAuthMiddleware, logger *slog.Logge
 		RouterConfig{CORSHandler: c, AuthMiddleware: auth},
 		PublicRoutes{
 			Health:      func(w http.ResponseWriter, r *http.Request) {},
+			Ready:       func(w http.ResponseWriter, r *http.Request) {},
 			SportConfig: func(w http.ResponseWriter, r *http.Request) {},
 		},
 		noopAuthRoutes(),
@@ -234,6 +235,7 @@ func TestNewRouter_RouteRegistration(t *testing.T) {
 		wantAuthCall bool
 	}{
 		{"health endpoint (public)", http.MethodGet, "/health", false},
+		{"ready endpoint (public)", http.MethodGet, "/ready", false},
 		{"sports config (public)", http.MethodGet, "/v1/sports/config", false},
 		{"metadata (auth)", http.MethodGet, "/v1/activities/2024/metadata", true},
 		{"metrics (auth)", http.MethodGet, "/v1/activities/2024/metrics", true},
@@ -274,6 +276,7 @@ func TestNewRouter_AuthBlocking(t *testing.T) {
 		RouterConfig{CORSHandler: c, AuthMiddleware: auth},
 		PublicRoutes{
 			Health:      func(w http.ResponseWriter, r *http.Request) {},
+			Ready:       func(w http.ResponseWriter, r *http.Request) {},
 			SportConfig: func(w http.ResponseWriter, r *http.Request) {},
 		},
 		authRoutes,
@@ -304,6 +307,7 @@ func TestNewRouter_PublicBypassesAuth(t *testing.T) {
 		RouterConfig{CORSHandler: c, AuthMiddleware: auth},
 		PublicRoutes{
 			Health:      func(w http.ResponseWriter, r *http.Request) { healthCalled = true },
+			Ready:       func(w http.ResponseWriter, r *http.Request) {},
 			SportConfig: func(w http.ResponseWriter, r *http.Request) {},
 		},
 		noopAuthRoutes(),
