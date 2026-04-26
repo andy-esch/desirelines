@@ -64,6 +64,11 @@ _TRACEPARENT_RE = re.compile(
     r"(?P<flags>[0-9a-fA-F]{2})$"
 )
 
+# Cache GCP project ID for trace formatting.
+_GCP_PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get(
+    "GCP_PROJECT", ""
+)
+
 
 def get_correlation_id() -> str:
     """Return the current correlation ID, or empty string if not set."""
@@ -160,12 +165,9 @@ def _format_gcp_trace(trace_id: str) -> str:
     Logging requires the resource-name form to link logs to traces in the
     Cloud Console.
     """
-    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get(
-        "GCP_PROJECT", ""
-    )
-    if not project_id:
+    if not _GCP_PROJECT_ID:
         return trace_id
-    return f"projects/{project_id}/traces/{trace_id}"
+    return f"projects/{_GCP_PROJECT_ID}/traces/{trace_id}"
 
 
 class CorrelationFilter(logging.Filter):
@@ -205,6 +207,8 @@ class CorrelationFilter(logging.Filter):
 
         trace_id = _trace_id_var.get()
         if trace_id:
+            # google-cloud-logging reads `record.trace` and emits it as
+            # `logging.googleapis.com/trace` in the structured JSON payload.
             record.trace = _format_gcp_trace(trace_id)
             span_id = _span_id_var.get()
             if span_id:
