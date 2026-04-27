@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import axios, { type AxiosError } from "axios";
+import axios, { AxiosHeaders, type AxiosError } from "axios";
 import {
   isCancellationError,
   isAuthError,
@@ -231,6 +231,34 @@ describe("API Error Utilities", () => {
       const error = createAxiosError(500);
       error.config = undefined as any;
       expect(() => redactAuthorizationHeader(error)).not.toThrow();
+    });
+
+    it("should strip lowercase 'authorization' from plain-object headers", () => {
+      const error = createAxiosError(500);
+      error.config = {
+        headers: { authorization: "Bearer secret-token", "X-Other": "keep" },
+      } as any;
+
+      redactAuthorizationHeader(error);
+
+      expect((error.config?.headers as any)?.authorization).toBeUndefined();
+      expect((error.config?.headers as any)?.["X-Other"]).toBe("keep");
+    });
+
+    it("should strip Authorization from an AxiosHeaders instance regardless of case", () => {
+      const error = createAxiosError(500);
+      const headers = new AxiosHeaders();
+      // Use .set() so AxiosHeaders normalizes the key — the failure mode the
+      // case-insensitive delete is meant to catch.
+      headers.set("Authorization", "Bearer secret-token");
+      headers.set("X-Other", "keep");
+      error.config = { headers } as any;
+
+      redactAuthorizationHeader(error);
+
+      expect((error.config?.headers as AxiosHeaders).get("authorization")).toBeFalsy();
+      expect((error.config?.headers as AxiosHeaders).get("Authorization")).toBeFalsy();
+      expect((error.config?.headers as AxiosHeaders).get("X-Other")).toBe("keep");
     });
   });
 

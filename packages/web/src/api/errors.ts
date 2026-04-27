@@ -11,7 +11,7 @@
  * @see https://tanstack.com/query/latest/docs/react/guides/query-cancellation
  */
 
-import axios from "axios";
+import axios, { AxiosHeaders } from "axios";
 import { logger } from "../lib/logger";
 
 /**
@@ -101,8 +101,16 @@ export function createAuthError(): Error {
  * or error boundaries. Safe to call on non-Axios errors (no-op).
  */
 export function redactAuthorizationHeader(err: unknown): void {
-  if (axios.isAxiosError(err) && err.config?.headers) {
-    delete err.config.headers.Authorization;
+  if (!axios.isAxiosError(err) || !err.config?.headers) return;
+  const headers = err.config.headers;
+  // AxiosHeaders normalizes keys internally — use its case-insensitive .delete().
+  // Plain objects (e.g. test fixtures, hand-built configs) need both casings stripped.
+  if (headers instanceof AxiosHeaders) {
+    headers.delete("Authorization");
+  } else {
+    const raw = headers as Record<string, unknown>;
+    delete raw.Authorization;
+    delete raw.authorization;
   }
 }
 
