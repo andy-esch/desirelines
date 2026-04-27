@@ -94,6 +94,19 @@ export function createAuthError(): Error {
 }
 
 /**
+ * Strip the Authorization header from an Axios error config in place.
+ *
+ * Use this before any logging, re-throwing, or remote reporting of an
+ * error so that bearer tokens never leak into loggers, crash reporters,
+ * or error boundaries. Safe to call on non-Axios errors (no-op).
+ */
+export function redactAuthorizationHeader(err: unknown): void {
+  if (axios.isAxiosError(err) && err.config?.headers) {
+    delete err.config.headers.Authorization;
+  }
+}
+
+/**
  * Log an API error with context, but skip cancellations (expected behavior).
  *
  * @param err - The error to log
@@ -120,9 +133,7 @@ export function logApiError(err: unknown, context: string): void {
 export function throwApiError(err: unknown, context: string): never {
   // Strip Authorization header before any logging or re-throwing
   // to prevent token leakage in error handlers, loggers, or crash reporters
-  if (axios.isAxiosError(err) && err.config?.headers) {
-    delete err.config.headers.Authorization;
-  }
+  redactAuthorizationHeader(err);
   if (isAuthError(err)) {
     logApiError(err, context);
     throw createAuthError();
