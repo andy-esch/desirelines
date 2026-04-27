@@ -1611,7 +1611,7 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
 
   documentation {
     content = <<-EOT
-      **CRITICAL**: No `webhook_events_total` increments observed in
+      **CRITICAL**: No `custom.googleapis.com/desirelines.io/webhook/events` increments observed in
       the last 24 hours. Real failure modes:
 
       1. **Strava OAuth revoked** — user revoked app access, or token
@@ -1659,7 +1659,12 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
   notification_channels = local.notification_channels
 
   alert_strategy {
-    auto_close = "3600s" # auto-resolve once events resume
+    # Must exceed the 24h evaluation window. With duration=0s over a 24h
+    # alignment, sustained silence keeps the condition met; a short auto_close
+    # would close the incident mid-outage and let it re-fire as soon as the
+    # policy re-evaluates, creating notification churn. 7 days gives ample
+    # investigation time without manufacturing a fake "resolved" state.
+    auto_close = "604800s"
   }
 }
 

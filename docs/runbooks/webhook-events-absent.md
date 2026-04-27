@@ -28,7 +28,7 @@
 - Force OAuth token refresh from Firestore (procedure: TBD per
   ops-page Q3).
 
-**If still stuck**: check dispatcher's `webhook_events_total` raw
+**If still stuck**: check dispatcher's `custom.googleapis.com/desirelines.io/webhook/events` raw
 data in Cloud Monitoring metrics explorer — is the metric stream
 present at all? If yes but flat, the dispatcher is receiving and
 parsing webhooks but not incrementing — proto/handler bug. If
