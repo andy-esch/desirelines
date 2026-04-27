@@ -5,7 +5,8 @@
 24h window.
 
 **First place to look**:
-- Strava status page: https://status.strava.com
+
+- Strava status page: <https://status.strava.com>
 - Cloud Logging filter:
   `resource.type="cloud_run_revision"
    resource.labels.service_name="desirelines-dispatcher"
@@ -15,12 +16,14 @@
   or absent.
 
 **Likely causes** (ranked):
+
 1. Strava OAuth revoked or token refresh failure.
 2. Strava webhook subscription dropped server-side.
 3. Dispatcher silently failing in webhook handler.
 4. Strava-side outage.
 
 **Quick mitigations**:
+
 - Manual test: upload an activity to Strava, watch dispatcher logs
   for webhook arrival.
 - Re-create the Strava webhook subscription if missing (see
