@@ -1595,6 +1595,74 @@ resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
   }
 }
 
+# CRITICAL: No webhook events received for 24h. Catches the silent-
+# failure case (Strava down, OAuth revoked, dispatcher crashed-but-
+# healthy) that 5xx/DLQ/latency alerts can't see because they require
+# traffic to fire. 24h window naturally tolerates rest days and short
+# trips; sustained silence past that is the real signal.
+#
+# Not gated on var.enable_application_metric_alerts: the
+# webhook/events counter has been emitted in production for months
+# (it's already on the dashboard), so the descriptor exists and the
+# alert can be created on first apply.
+resource "google_monitoring_alert_policy" "webhook_events_absent" {
+  display_name = "🚨 No Strava webhook events received in 24h"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **CRITICAL**: No `webhook_events_total` increments observed in
+      the last 24 hours. Real failure modes:
+
+      1. **Strava OAuth revoked** — user revoked app access, or token
+         expired and refresh failed silently.
+      2. **Strava webhook subscription dropped** — the subscription
+         registered with Strava no longer points at our dispatcher.
+      3. **Dispatcher healthy but broken** — process running, uptime
+         check passing, but webhook handler is throwing exceptions
+         that don't bubble up as 5xx (e.g. proto deserialization
+         silently no-ops).
+      4. **Strava-side outage** — verify at https://status.strava.com.
+
+      **Action**:
+      1. Check Strava status page first.
+      2. Try a manual activity upload to Strava — does the webhook
+         arrive in dispatcher logs?
+      3. If no webhook: check Strava API webhook subscription is
+         still active (curl Strava's `/push_subscriptions` endpoint).
+      4. If webhook arrives but counter doesn't increment: dispatcher
+         logs will show the failure path.
+
+      **Why this alert exists**: Other alerts fire on bad behavior;
+      this one fires on absence of behavior. See epic 14-observability
+      Q5.
+    EOT
+  }
+
+  conditions {
+    display_name = "webhook_events rate = 0 over 24h"
+
+    condition_threshold {
+      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/events\" AND resource.type=\"generic_task\""
+      duration        = "0s"
+      comparison      = "COMPARISON_LT"
+      threshold_value = 1 # any non-zero count over the window passes
+
+      aggregations {
+        alignment_period     = "86400s" # 24 hours
+        per_series_aligner   = "ALIGN_SUM"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s" # auto-resolve once events resume
+  }
+}
+
 # Output the dashboard URL for easy access
 output "monitoring_dashboard_url" {
   description = "URL to the GCP Monitoring Dashboard"
@@ -1619,5 +1687,6 @@ output "alert_policy_ids" {
     postgres_query_latency       = one(google_monitoring_alert_policy.postgres_query_latency[*].id)
     firestore_operation_latency  = one(google_monitoring_alert_policy.firestore_operation_latency[*].id)
     pubsub_publish_latency       = one(google_monitoring_alert_policy.pubsub_publish_latency[*].id)
+    webhook_events_absent        = google_monitoring_alert_policy.webhook_events_absent.id
   }
 }
