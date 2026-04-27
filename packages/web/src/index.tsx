@@ -7,6 +7,13 @@ import { PageErrorFallback } from "./components/PageErrorFallback";
 import { loadConfig } from "./lib/config";
 import { createAppRouter } from "./router";
 import { logger } from "./lib/logger";
+import { installGlobalErrorHandlers } from "./lib/global-error-handlers";
+import { redactAuthorizationHeader } from "./api/errors";
+
+// Catch errors outside the React tree (timers, non-React scripts,
+// unhandled promise rejections). React-rendering errors are caught
+// by the <ErrorBoundary> below.
+installGlobalErrorHandlers();
 
 // Log version for debugging
 logger.info(
@@ -74,6 +81,13 @@ const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement)
 root.render(
   <React.StrictMode>
     <ErrorBoundary
+      onError={(error, info) => {
+        redactAuthorizationHeader(error);
+        logger.error("React ErrorBoundary caught error", {
+          error,
+          componentStack: info.componentStack,
+        });
+      }}
       fallbackRender={({ error, resetErrorBoundary }) => (
         <PageErrorFallback
           error={error instanceof Error ? error : new Error(String(error))}

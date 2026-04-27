@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import axios, { type AxiosError } from "axios";
+import axios, { AxiosHeaders, type AxiosError } from "axios";
 import {
   isCancellationError,
   isAuthError,
@@ -8,6 +8,7 @@ import {
   createAuthError,
   logApiError,
   throwApiError,
+  redactAuthorizationHeader,
 } from "./errors";
 
 describe("API Error Utilities", () => {
@@ -200,6 +201,64 @@ describe("API Error Utilities", () => {
       const error = createAuthError();
       expect(error).toBeInstanceOf(Error);
       expect(error.message).toBe("Access denied. Please sign in with an authorized account.");
+    });
+  });
+
+  describe("redactAuthorizationHeader", () => {
+    it("should delete the Authorization header from an Axios error config", () => {
+      const error = createAxiosError(500);
+      error.config = {
+        headers: { Authorization: "Bearer secret-token", "X-Other": "keep" },
+      } as any;
+
+      redactAuthorizationHeader(error);
+
+      expect(error.config?.headers?.Authorization).toBeUndefined();
+      expect(error.config?.headers?.["X-Other"]).toBe("keep");
+    });
+
+    it("should be a no-op for non-Axios errors", () => {
+      const error = new Error("not axios");
+      expect(() => redactAuthorizationHeader(error)).not.toThrow();
+    });
+
+    it("should be a no-op for null/undefined", () => {
+      expect(() => redactAuthorizationHeader(null)).not.toThrow();
+      expect(() => redactAuthorizationHeader(undefined)).not.toThrow();
+    });
+
+    it("should be a no-op for Axios errors with no config", () => {
+      const error = createAxiosError(500);
+      error.config = undefined as any;
+      expect(() => redactAuthorizationHeader(error)).not.toThrow();
+    });
+
+    it("should strip lowercase 'authorization' from plain-object headers", () => {
+      const error = createAxiosError(500);
+      error.config = {
+        headers: { authorization: "Bearer secret-token", "X-Other": "keep" },
+      } as any;
+
+      redactAuthorizationHeader(error);
+
+      expect((error.config?.headers as any)?.authorization).toBeUndefined();
+      expect((error.config?.headers as any)?.["X-Other"]).toBe("keep");
+    });
+
+    it("should strip Authorization from an AxiosHeaders instance regardless of case", () => {
+      const error = createAxiosError(500);
+      const headers = new AxiosHeaders();
+      // Use .set() so AxiosHeaders normalizes the key — the failure mode the
+      // case-insensitive delete is meant to catch.
+      headers.set("Authorization", "Bearer secret-token");
+      headers.set("X-Other", "keep");
+      error.config = { headers } as any;
+
+      redactAuthorizationHeader(error);
+
+      expect((error.config?.headers as AxiosHeaders).get("authorization")).toBeFalsy();
+      expect((error.config?.headers as AxiosHeaders).get("Authorization")).toBeFalsy();
+      expect((error.config?.headers as AxiosHeaders).get("X-Other")).toBe("keep");
     });
   });
 
