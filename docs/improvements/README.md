@@ -28,6 +28,12 @@ The project is already well-engineered (hexagonal architecture, comprehensive do
 - Where a step changes app code, the relevant file path is named.
 - References at the end of each doc are authoritative external sources, not blog posts.
 
+## Per-package proposals
+
+Some packages have their own deeper audit:
+
+- **[API Gateway](apigateway/README.md)** — top five for the `packages/apigateway` Go service: repository-layer hardening, OAuth flow, API contract, Cloud Run runtime, config & startup invariants.
+
 ## Status tracking
 
 These are proposals, not commitments. Track adoption by ticking boxes inline in each doc as steps land, or by linking PRs from this index. Suggested convention:
