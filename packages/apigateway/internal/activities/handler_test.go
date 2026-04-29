@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,6 +151,25 @@ func TestDecodeCursor(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestDecodeCursor_RejectsOversizedDecodedPayload verifies that decodeCursor
+// enforces the maxCursorDecodedLength bound on the *decoded* payload, even
+// when the base64 input fits within validate.MaxCursorLength (100 bytes).
+// 80 bytes of "x" base64-encodes to ~108 chars (over MaxCursorLength), so we
+// pick a payload that decodes to 80 bytes to ensure the bound is the decoded
+// cap, not the input cap.
+func TestDecodeCursor_RejectsOversizedDecodedPayload(t *testing.T) {
+	// 80 bytes of "x" — over maxCursorDecodedLength (64) once decoded.
+	payload := strings.Repeat("x", 80)
+	encoded := base64.URLEncoding.EncodeToString([]byte(payload))
+	_, err := decodeCursor(encoded)
+	if err == nil {
+		t.Fatal("expected error for oversized decoded payload, got nil")
+	}
+	if !strings.Contains(err.Error(), "too long") {
+		t.Errorf("expected 'too long' error, got: %v", err)
 	}
 }
 

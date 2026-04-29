@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
@@ -519,6 +520,85 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			runSummary := result["Run"]
 			if runSummary == nil || len(runSummary.Daily) != 1 {
 				t.Fatalf("expected 1 Run daily entry, got %v", runSummary)
+			}
+		})
+	})
+
+	// TestStartDateLocal_NoUTCConversion regression-tests the rule documented
+	// in the activities.go package doc and reinforced by the V0004
+	// COMMENT ON COLUMN migration. An activity stored at 2024-12-31T23:30:00
+	// (athlete-local late-night Dec 31) must be returned by a "2024-12-31"
+	// date-range query — never "2025-01-01" as a UTC conversion would yield.
+	// If this test fails, someone has re-introduced timezone conversion
+	// somewhere along the read or write path.
+	t.Run("StartDateLocal_NoUTCConversion", func(t *testing.T) {
+		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
+			// Insert a single activity at 2024-12-31 23:30:00 athlete-local.
+			// Using time.Date with time.UTC here is a Go-side convenience for
+			// constructing the value; the DB column is TIMESTAMP WITHOUT TIME
+			// ZONE, so what gets stored is the wall-clock "2024-12-31 23:30:00"
+			// — no timezone attached, no conversion.
+			lateNight := time.Date(2024, 12, 31, 23, 30, 0, 0, time.UTC)
+			_, err := tx.Exec(ctx, `
+				INSERT INTO desirelines.activities (
+					id, user_id, name, type, sport, start_date_local, year,
+					distance, moving_time, elapsed_time, total_elevation_gain
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			`,
+				int64(9001), "tz-user", "New Year's Eve Run", "Run", "Run",
+				lateNight, 2024,
+				float64(5000), int32(1500), int32(1600), float64(50),
+			)
+			if err != nil {
+				t.Fatalf("insert late-night activity: %v", err)
+			}
+
+			// Query for from=2024-12-31, to=2024-12-31 — must include it.
+			result, err := repo.GetMultiSportDailySummaryByDateRange(
+				ctx, "tz-user", "2024-12-31", "2024-12-31", []string{"Run"},
+			)
+			if err != nil {
+				t.Fatalf("GetMultiSportDailySummaryByDateRange (Dec 31): %v", err)
+			}
+			runSummary := result["Run"]
+			if runSummary == nil {
+				t.Fatal("expected Run entry in Dec 31 result")
+			}
+			dec31 := runSummary.Daily["2024-12-31"]
+			if dec31 == nil {
+				t.Fatalf("expected 2024-12-31 bucket; got daily=%v", runSummary.Daily)
+			}
+			if len(dec31.ActivityIds) != 1 || dec31.ActivityIds[0] != 9001 {
+				t.Errorf("expected activity 9001 in 2024-12-31 bucket, got %v", dec31.ActivityIds)
+			}
+			if _, leaked := runSummary.Daily["2025-01-01"]; leaked {
+				t.Error("activity leaked into 2025-01-01 bucket — UTC conversion regression")
+			}
+
+			// Query for from=2025-01-01, to=2025-01-01 — must NOT include it.
+			result2, err := repo.GetMultiSportDailySummaryByDateRange(
+				ctx, "tz-user", "2025-01-01", "2025-01-01", []string{"Run"},
+			)
+			if err != nil {
+				t.Fatalf("GetMultiSportDailySummaryByDateRange (Jan 1): %v", err)
+			}
+			if run2 := result2["Run"]; run2 != nil && len(run2.Daily) > 0 {
+				t.Errorf("expected no Run entries on 2025-01-01, got %v", run2.Daily)
+			}
+
+			// Bonus: ListActivities with from/to=2024-12-31 must also return it.
+			from, to := "2024-12-31", "2024-12-31"
+			listResp, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+				UserID: "tz-user",
+				From:   &from,
+				To:     &to,
+				Limit:  10,
+			})
+			if err != nil {
+				t.Fatalf("ListActivities (Dec 31): %v", err)
+			}
+			if len(listResp.Activities) != 1 || listResp.Activities[0].Id != 9001 {
+				t.Errorf("expected activity 9001 in ListActivities Dec 31 result, got %+v", listResp.Activities)
 			}
 		})
 	})
