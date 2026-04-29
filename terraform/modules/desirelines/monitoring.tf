@@ -1601,11 +1601,17 @@ resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
 # traffic to fire. 24h window naturally tolerates rest days and short
 # trips; sustained silence past that is the real signal.
 #
-# Not gated on var.enable_application_metric_alerts: the
-# webhook/events counter has been emitted in production for months
-# (it's already on the dashboard), so the descriptor exists and the
-# alert can be created on first apply.
+# Gated on var.enable_application_metric_alerts (same pattern as the
+# OTel histogram alerts below). The "metric must exist before alert
+# can be created" trap caught us on the first tf-52 deploy: presence
+# of the metric in a dashboard tile does NOT prove the descriptor
+# exists — the descriptor is auto-created only when the dispatcher
+# emits the counter for the first time. Keep this alert gated until a
+# webhook has actually fired in the target environment, then flip
+# enable_application_metric_alerts = true on a follow-up apply.
 resource "google_monitoring_alert_policy" "webhook_events_absent" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
   display_name = "🚨 No Strava webhook events received in 24h"
   combiner     = "OR"
 
@@ -1692,6 +1698,6 @@ output "alert_policy_ids" {
     postgres_query_latency       = one(google_monitoring_alert_policy.postgres_query_latency[*].id)
     firestore_operation_latency  = one(google_monitoring_alert_policy.firestore_operation_latency[*].id)
     pubsub_publish_latency       = one(google_monitoring_alert_policy.pubsub_publish_latency[*].id)
-    webhook_events_absent        = google_monitoring_alert_policy.webhook_events_absent.id
+    webhook_events_absent        = one(google_monitoring_alert_policy.webhook_events_absent[*].id)
   }
 }
