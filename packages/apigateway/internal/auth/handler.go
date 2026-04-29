@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
@@ -277,8 +278,13 @@ func (h *Handler) validateScope(w http.ResponseWriter, r *http.Request, tokenRes
 		return "", fmt.Errorf("missing scope")
 	}
 
-	for _, scope := range strings.Split(grantedScope, ",") {
-		if strings.TrimSpace(scope) == "activity:read_all" {
+	// OAuth2 (RFC 6749 §3.3) defines scope as space-separated. Strava currently uses
+	// comma-separated, but a future spec-compliance change on their end would silently
+	// break every login. Splitting on either keeps us forward-compatible. FieldsFunc
+	// drops empty strings, so the runes between separators are already trimmed tokens.
+	splitScope := func(r rune) bool { return r == ',' || unicode.IsSpace(r) }
+	for _, scope := range strings.FieldsFunc(grantedScope, splitScope) {
+		if scope == "activity:read_all" {
 			return grantedScope, nil
 		}
 	}

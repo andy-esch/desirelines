@@ -25,10 +25,11 @@ type AuthMiddleware interface {
 
 // RouterConfig holds the dependencies needed to configure routes.
 type RouterConfig struct {
-	CORSHandler    *cors.Handler
-	AuthMiddleware AuthMiddleware
-	RateLimiter    *ratelimit.Limiter
-	HTTPHistogram  metric.Float64Histogram
+	CORSHandler     *cors.Handler
+	AuthMiddleware  AuthMiddleware
+	RateLimiter     *ratelimit.Limiter
+	AuthRateLimiter *ratelimit.Limiter // applied only to /auth/*
+	HTTPHistogram   metric.Float64Histogram
 }
 
 // PublicRoutes are registered without authentication.
@@ -70,11 +71,20 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	r.Use(SecurityHeaders)
 	r.Use(CORSMiddleware(cfg.CORSHandler))
 
-	// Root-level endpoints (health checks and OAuth flow)
+	// Root-level endpoints (health checks)
 	r.Get("/health", public.Health)
 	r.Get("/ready", public.Ready)
-	r.Get("/auth/strava", public.AuthInitiate)
-	r.Get("/auth/callback", public.AuthCallback)
+
+	// Auth routes get a stricter per-IP rate limiter on top of the global one.
+	// This is defense-in-depth on the most expensive-per-call endpoints in the
+	// API (Strava API + Firestore + Firebase custom-token mint).
+	r.Route("/auth", func(r chi.Router) {
+		if cfg.AuthRateLimiter != nil {
+			r.Use(cfg.AuthRateLimiter.Middleware)
+		}
+		r.Get("/strava", public.AuthInitiate)
+		r.Get("/callback", public.AuthCallback)
+	})
 
 	// Versioned API routes
 	r.Route("/v1", func(r chi.Router) {

@@ -534,6 +534,74 @@ func TestHandleCallback(t *testing.T) {
 	}
 }
 
+// TestValidateScope_AcceptsBothCommaAndSpaceSeparated drives the OAuth callback flow
+// with a variety of scope formats to confirm the parser handles both Strava's actual
+// comma-separated format and the RFC 6749 §3.3 space-separated format. If Strava ever
+// switches to spec-compliant space-separated scopes, this test guards against silent
+// regressions where every login would fail with "insufficient_scope".
+func TestValidateScope_AcceptsBothCommaAndSpaceSeparated(t *testing.T) {
+	stateSecret := []byte("test-secret-key-32-bytes-long!!!")
+	validState, err := generateState(stateSecret)
+	if err != nil {
+		t.Fatalf("failed to generate state: %v", err)
+	}
+
+	cases := []struct {
+		name         string
+		grantedScope string
+		wantOK       bool
+	}{
+		{"strava-actual-comma", "activity:read_all,activity:write", true},
+		{"rfc6749-space", "activity:read_all activity:write", true},
+		{"comma-with-spaces", "activity:read_all, activity:write", true},
+		{"single-scope", "activity:read_all", true},
+		{"missing-required", "activity:write,profile:read", false},
+		{"empty", "", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenResp := &StravaTokenResponse{
+				AccessToken:  "access-tok",
+				RefreshToken: "refresh-tok",
+				ExpiresAt:    9999999999,
+				Scope:        tc.grantedScope,
+				Athlete:      StravaAthlete{ID: 12345},
+			}
+			h := newTestHandler(t,
+				&mockStravaOAuth{resp: tokenResp},
+				&mockTokenStore{},
+				&mockAllowlist{allowed: true},
+				&mockFirebase{token: "fb-token"},
+			)
+
+			// When Scope is empty in the JSON, validateScope falls back to the
+			// query-param "scope". Drive the test through the empty-query-param
+			// path so the JSON value is the only signal exercised.
+			req := httptest.NewRequest(http.MethodGet,
+				"/auth/callback?code=auth-code&state="+validState, nil)
+			w := httptest.NewRecorder()
+			h.HandleCallback(w, req)
+
+			if w.Code != http.StatusFound {
+				t.Fatalf("status = %d, want %d", w.Code, http.StatusFound)
+			}
+
+			location := w.Header().Get("Location")
+			if tc.wantOK {
+				if strings.Contains(location, "/auth/error") {
+					t.Errorf("expected success redirect, got error redirect: %q", location)
+				}
+				if !strings.Contains(location, "/auth/complete") {
+					t.Errorf("expected /auth/complete redirect, got: %q", location)
+				}
+			} else if !strings.Contains(location, "/auth/error?error=insufficient_scope") {
+				t.Errorf("expected insufficient_scope error redirect, got: %q", location)
+			}
+		})
+	}
+}
+
 func TestHandleCallback_HappyPathVerifiesArguments(t *testing.T) {
 	stateSecret := []byte("test-secret-key-32-bytes-long!!!")
 

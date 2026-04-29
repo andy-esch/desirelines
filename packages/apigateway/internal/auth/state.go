@@ -9,9 +9,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const stateExpiry = 5 * time.Minute
+// stateExpiry is the lifetime of the OAuth state token. 10 minutes is generous enough
+// for slow networks + a distracted user reading Strava's scope grant page, while still
+// keeping the replay window modest. Token is signed; not stored single-use, so the
+// window matters.
+const stateExpiry = 10 * time.Minute
 
-// generateState creates a signed JWT state token with a 5-minute expiry and random nonce.
+// generateState creates a signed JWT state token with a 10-minute expiry and random nonce.
 // Used to prevent CSRF during the Strava OAuth redirect flow.
 func generateState(secret []byte) (string, error) {
 	nonce := make([]byte, 16)
