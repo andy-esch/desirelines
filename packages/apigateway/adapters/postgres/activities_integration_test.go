@@ -586,7 +586,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 				t.Errorf("expected no Run entries on 2025-01-01, got %v", run2.Daily)
 			}
 
-			// Bonus: ListActivities with from/to=2024-12-31 must also return it.
+			// ListActivities must apply the same local-date filter, not UTC.
 			from, to := "2024-12-31", "2024-12-31"
 			listResp, err := repo.ListActivities(ctx, repository.ActivityListFilter{
 				UserID: "tz-user",
