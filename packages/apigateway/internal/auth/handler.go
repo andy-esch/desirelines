@@ -201,13 +201,17 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		ProfileURL:      tokenResp.Athlete.Profile,
 		CreatedAt:       now,
 	}
+	// WriteAuthData is atomic: token + profile commit together. The
+	// syncFirebaseProfile call below is intentionally best-effort —
+	// failing the OAuth callback because a Firebase backfill failed
+	// would orphan the user with a token they can't access.
 	if writeErr := h.tokens.WriteAuthData(ctx, athleteID, tokenData, profile); writeErr != nil {
 		h.logger.Error("Failed to write auth data", "error", writeErr, "athlete_id", athleteID)
 		h.redirectError(w, r, "server_error")
 		return
 	}
 
-	// Sync Strava profile to Firebase user record (non-fatal on failure)
+	// Sync Strava profile to Firebase user record (non-fatal on failure).
 	h.syncFirebaseProfile(ctx, athleteID, tokenResp.Athlete)
 
 	// Create Firebase custom token

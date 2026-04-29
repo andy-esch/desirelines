@@ -701,12 +701,23 @@ func (h *Handler) validateAndGetSportTypes(w http.ResponseWriter, r *http.Reques
 	return stravaTypes, true
 }
 
+// maxCursorDecodedLength caps the length of the base64-decoded cursor
+// payload before any further parsing. Legitimate cursors are
+// "RFC3339-timestamp|int64-id", which fits comfortably in 64 bytes.
+// This is defense-in-depth on top of validate.MaxCursorLength's bound on
+// the base64 input — keeps any unexpectedly large decoded payload from
+// reaching the timestamp/ID parsers.
+const maxCursorDecodedLength = 64
+
 // decodeCursor decodes a base64-encoded cursor string.
 // Cursor format: "timestamp|id" encoded as base64.
 func decodeCursor(s string) (*repository.ActivityCursor, error) {
 	data, err := base64.URLEncoding.DecodeString(s)
 	if err != nil {
 		return nil, fmt.Errorf("decode base64: %w", err)
+	}
+	if len(data) > maxCursorDecodedLength {
+		return nil, fmt.Errorf("cursor decoded payload too long")
 	}
 
 	parts := strings.SplitN(string(data), "|", 2)

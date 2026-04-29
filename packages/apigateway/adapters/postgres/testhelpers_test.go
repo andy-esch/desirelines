@@ -45,6 +45,23 @@ func withTestTxMultiUser(t *testing.T, pool *pgxpool.Pool, fn func(repo *postgre
 	fn(postgres.NewTestActivityRepository(tx))
 }
 
+// withTestTxRaw runs fn inside a database transaction (rolled back on exit) but
+// exposes the raw tx alongside the repo, so tests that need bespoke fixture
+// data can INSERT directly without polluting seedTestData. No standard fixtures
+// are seeded here — the caller is responsible for inserting any rows it needs.
+func withTestTxRaw(t *testing.T, pool *pgxpool.Pool, fn func(tx pgx.Tx, repo *postgres.ActivityRepository)) {
+	t.Helper()
+	ctx := context.Background()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback after test is best-effort
+
+	fn(tx, postgres.NewTestActivityRepository(tx))
+}
+
 // seedOtherUserData inserts a single activity for "other-user" to test isolation.
 //
 // Test data:

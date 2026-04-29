@@ -27,15 +27,18 @@ import (
 //   - DB_POOL_MAX_CONN_LIFETIME_MINUTES: Connection refresh interval (default: 30)
 //   - DB_POOL_MAX_CONN_IDLE_MINUTES: Idle connection timeout (default: 5)
 //   - DB_POOL_HEALTH_CHECK_MINUTES: Health check interval (default: 1)
+//   - DB_SLOW_QUERY_THRESHOLD_MS: Slow-query WARN log threshold in ms
+//     (default: 500). Set to 0 to disable per-query slow logging entirely.
 //
 // Note: MinConns must be <= MaxConns. pgxpool handles violations gracefully
 // (caps at MaxConns) but we validate early for clearer error messages.
 const (
-	defaultMaxConns          = 5                // Low max for Cloud Run + Neon pooler
-	defaultMinConns          = 0                // Scale to zero when idle
-	defaultMaxConnLifetime   = 30 * time.Minute // Refresh connections periodically
-	defaultMaxConnIdleTime   = 5 * time.Minute  // Release idle connections quickly
-	defaultHealthCheckPeriod = 1 * time.Minute
+	defaultMaxConns             = 5                // Low max for Cloud Run + Neon pooler
+	defaultMinConns             = 0                // Scale to zero when idle
+	defaultMaxConnLifetime      = 30 * time.Minute // Refresh connections periodically
+	defaultMaxConnIdleTime      = 5 * time.Minute  // Release idle connections quickly
+	defaultHealthCheckPeriod    = 1 * time.Minute
+	defaultSlowQueryThresholdMs = 500 // Matches existing P99 OTel histogram alert threshold
 )
 
 // Sentinel errors for connection string and pool configuration validation.
@@ -86,9 +89,21 @@ func NewPool(ctx context.Context, connString string, logger *slog.Logger) (*Pool
 		return nil, fmt.Errorf("%w: min=%d, max=%d", ErrInvalidPoolConfig, config.MinConns, config.MaxConns)
 	}
 
+	// Slow-query logging via pgx tracer. Threshold is configurable via
+	// DB_SLOW_QUERY_THRESHOLD_MS; setting it to 0 disables the tracer
+	// entirely (no per-query overhead, no log lines).
+	slowMs := getInt32Env("DB_SLOW_QUERY_THRESHOLD_MS", defaultSlowQueryThresholdMs)
+	if slowMs > 0 {
+		config.ConnConfig.Tracer = newSlowQueryTracer(
+			logger,
+			time.Duration(slowMs)*time.Millisecond,
+		)
+	}
+
 	logger.Info("Creating PostgreSQL connection pool",
 		"max_conns", config.MaxConns,
 		"min_conns", config.MinConns,
+		"slow_query_threshold_ms", slowMs,
 	)
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
