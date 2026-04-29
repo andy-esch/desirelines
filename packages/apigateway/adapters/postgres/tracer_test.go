@@ -152,15 +152,6 @@ func TestSlowQueryTracer_LogsErrorFieldOnFailure(t *testing.T) {
 	}
 }
 
-// TestSlowQueryTracer_ZeroThresholdDisabled documents that wiring in pool.go
-// short-circuits when DB_SLOW_QUERY_THRESHOLD_MS=0 (the tracer is never
-// constructed). This test covers the tracer-level invariant: any non-zero
-// threshold > elapsed produces no log, which is the building block the
-// pool.go branch relies on.
-//
-// The pool.go integration ensures the tracer is not constructed at all when
-// the threshold is 0, so there is no overhead in the disabled case. That
-// branch is exercised indirectly via existing pool tests.
 func TestSlowQueryTracer_NoLogWhenContextMissing(t *testing.T) {
 	// Defensive: TraceQueryEnd must not panic and must not log if it is
 	// called with a context that never went through TraceQueryStart.
