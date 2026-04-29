@@ -172,6 +172,7 @@ type Dependencies struct {
 	corsHandler     *cors.Handler
 	sportConfig     *config.SportConfig
 	rateLimiter     *ratelimit.Limiter
+	authRateLimiter *ratelimit.Limiter
 	firestoreClient *firestore.Client
 	authHandler     *auth.Handler
 	logger          *slog.Logger
@@ -250,10 +251,21 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 		log.Warn("No auth configured — set FIREBASE_AUTH_EMULATOR_HOST for local dev")
 	}
 
-	// 8. Initialize rate limiter (10 req/s, burst 20 — generous for normal browsing)
+	// 8a. Initialize global rate limiter (10 req/s, burst 20 — generous for normal browsing)
 	deps.rateLimiter = ratelimit.New(ctx, ratelimit.Config{
 		Rate:  10,
 		Burst: 20,
+	}, log)
+
+	// 8b. Initialize auth-scoped rate limiter. /auth/* endpoints are the most
+	// expensive per-call in the system (Strava API + Firestore + Firebase custom
+	// token mint), and a legitimate user hits them once per session at most.
+	// 10/min per IP is well above any legitimate pattern and well below probing
+	// rates. Hard-coded for now since it's not security-load-bearing; revisit if
+	// tuning becomes a thing.
+	deps.authRateLimiter = ratelimit.New(ctx, ratelimit.Config{
+		Rate:  10.0 / 60.0, // 10 per minute
+		Burst: 5,           // allow a small burst for retries
 	}, log)
 
 	// 9. Initialize PostgreSQL repository (required dependency)
@@ -300,10 +312,11 @@ func buildRouter(deps *Dependencies) http.Handler {
 
 	// Configure and create router
 	routerCfg := server.RouterConfig{
-		CORSHandler:    deps.corsHandler,
-		AuthMiddleware: deps.authMiddleware,
-		RateLimiter:    deps.rateLimiter,
-		HTTPHistogram:  deps.httpHistogram,
+		CORSHandler:     deps.corsHandler,
+		AuthMiddleware:  deps.authMiddleware,
+		RateLimiter:     deps.rateLimiter,
+		AuthRateLimiter: deps.authRateLimiter,
+		HTTPHistogram:   deps.httpHistogram,
 	}
 
 	// Auth routes — authHandler may be nil if no auth is configured (no emulator, no env)

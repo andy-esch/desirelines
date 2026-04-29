@@ -1,13 +1,17 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
+	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -368,6 +372,133 @@ func TestNewRouter_UndefinedRoutes(t *testing.T) {
 		router.ServeHTTP(w, req)
 		if w.Code != http.StatusNotFound {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+}
+
+// TestNewRouter_AuthRateLimiterScopedToAuth asserts that the auth-scoped rate
+// limiter applies only to /auth/* routes and does NOT additionally gate /v1/*.
+// Built with very low rates so that the second /auth/* hit must be rejected,
+// while same-pattern hits to /v1/sports/config remain allowed.
+func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logger := gcplog.NewNoOpLogger()
+	c := cors.NewHandler([]string{"https://example.com"}, logger)
+	auth := &mockAuthMiddleware{}
+
+	// Auth limiter: 1 req/s, burst 1 — second hit in quick succession is rejected.
+	authLimiter := ratelimit.New(ctx, ratelimit.Config{
+		Rate:            1,
+		Burst:           1,
+		CleanupInterval: time.Hour,
+		TTL:             time.Hour,
+	}, logger)
+
+	// Global limiter: high rate so it doesn't interfere with the test.
+	globalLimiter := ratelimit.New(ctx, ratelimit.Config{
+		Rate:            1000,
+		Burst:           1000,
+		CleanupInterval: time.Hour,
+		TTL:             time.Hour,
+	}, logger)
+
+	router := NewRouter(
+		RouterConfig{
+			CORSHandler:     c,
+			AuthMiddleware:  auth,
+			RateLimiter:     globalLimiter,
+			AuthRateLimiter: authLimiter,
+		},
+		PublicRoutes{
+			Health:       func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			Ready:        func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			SportConfig:  func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			AuthInitiate: func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			AuthCallback: func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+		},
+		noopAuthRoutes(),
+		slog.Default(),
+	)
+
+	const clientIP = "9.9.9.9:5555"
+
+	t.Run("auth limiter gates /auth/strava", func(t *testing.T) {
+		// First request: allowed (within burst).
+		req1 := httptest.NewRequest(http.MethodGet, "/auth/strava", nil)
+		req1.RemoteAddr = clientIP
+		req1.Header.Set("Origin", "https://example.com")
+		w1 := httptest.NewRecorder()
+		router.ServeHTTP(w1, req1)
+		if w1.Code != http.StatusOK {
+			t.Fatalf("first /auth/strava: status = %d, want 200", w1.Code)
+		}
+
+		// Second request in quick succession: rejected with 429.
+		req2 := httptest.NewRequest(http.MethodGet, "/auth/strava", nil)
+		req2.RemoteAddr = clientIP
+		req2.Header.Set("Origin", "https://example.com")
+		w2 := httptest.NewRecorder()
+		router.ServeHTTP(w2, req2)
+		if w2.Code != http.StatusTooManyRequests {
+			t.Errorf("second /auth/strava: status = %d, want 429", w2.Code)
+		}
+	})
+
+	t.Run("auth limiter gates /auth/callback", func(t *testing.T) {
+		// Use a fresh IP so the auth limiter's burst is full for this client.
+		const cbIP = "9.9.9.10:5555"
+
+		req1 := httptest.NewRequest(http.MethodGet, "/auth/callback", nil)
+		req1.RemoteAddr = cbIP
+		req1.Header.Set("Origin", "https://example.com")
+		w1 := httptest.NewRecorder()
+		router.ServeHTTP(w1, req1)
+		if w1.Code != http.StatusOK {
+			t.Fatalf("first /auth/callback: status = %d, want 200", w1.Code)
+		}
+
+		req2 := httptest.NewRequest(http.MethodGet, "/auth/callback", nil)
+		req2.RemoteAddr = cbIP
+		req2.Header.Set("Origin", "https://example.com")
+		w2 := httptest.NewRecorder()
+		router.ServeHTTP(w2, req2)
+		if w2.Code != http.StatusTooManyRequests {
+			t.Errorf("second /auth/callback: status = %d, want 429", w2.Code)
+		}
+	})
+
+	t.Run("auth limiter does NOT gate /v1/sports/config", func(t *testing.T) {
+		// Self-contained: pre-exhaust the auth limiter for a fresh IP, then
+		// assert /v1/* is still reachable from that IP. If the auth limiter
+		// were accidentally applied to /v1/*, the throttled IP would be
+		// rejected here.
+		const v1IP = "9.9.9.11:5555"
+
+		// Burn the auth-limiter burst for v1IP via /auth/strava — first hit
+		// allowed, second 429.
+		for i := range 2 {
+			req := httptest.NewRequest(http.MethodGet, "/auth/strava", nil)
+			req.RemoteAddr = v1IP
+			req.Header.Set("Origin", "https://example.com")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			if i == 1 && w.Code != http.StatusTooManyRequests {
+				t.Fatalf("expected /auth/strava to be throttled for v1IP after first hit, got %d", w.Code)
+			}
+		}
+
+		// Now /v1/sports/config from the same throttled IP must still succeed.
+		for i := range 5 {
+			req := httptest.NewRequest(http.MethodGet, "/v1/sports/config", nil)
+			req.RemoteAddr = v1IP
+			req.Header.Set("Origin", "https://example.com")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Errorf("request %d to /v1/sports/config (auth-throttled IP): status = %d, want 200", i, w.Code)
+			}
 		}
 	})
 }
