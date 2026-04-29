@@ -165,6 +165,14 @@ POSTGRES_CONNECTION_STRING=postgresql://user:pass@host:port/db?application_name=
 # /etc/secrets/INFISICAL_POSTGRES_CONN_APIGATEWAY/value
 # Note: Connection string MUST include application_name parameter for observability
 
+# Database pool tuning (optional - sensible defaults for Cloud Run + Neon)
+# DB_POOL_MAX_CONNS=5                # Maximum connections (default: 5)
+# DB_POOL_MIN_CONNS=0                # Minimum connections to maintain (default: 0)
+# DB_POOL_MAX_CONN_LIFETIME_MINUTES=30  # Connection refresh interval (default: 30)
+# DB_POOL_MAX_CONN_IDLE_MINUTES=5    # Idle connection timeout (default: 5)
+# DB_POOL_HEALTH_CHECK_MINUTES=1     # Health check interval (default: 1)
+# DB_SLOW_QUERY_THRESHOLD_MS=500     # WARN log threshold for slow queries (default: 500, 0 disables)
+
 # Authentication (Firebase)
 GCP_PROJECT_ID=your-project-id     # Google Cloud project ID (or GOOGLE_CLOUD_PROJECT)
 # For local development with Firebase emulator:
