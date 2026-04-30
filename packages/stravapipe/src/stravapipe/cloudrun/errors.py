@@ -39,6 +39,4 @@ def validate_or_422[T: BaseModel](
                 "validation_errors": err.error_count(),
             },
         )
-        raise HTTPException(
-            status_code=422, detail=f"Invalid {context}"
-        ) from err
+        raise HTTPException(status_code=422, detail=f"Invalid {context}") from err
