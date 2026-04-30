@@ -130,24 +130,24 @@ func TestNewHandler_URLValidation(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		frontendURL string
-		redirectURI string
-		environment string
-		wantErr     bool
+		name         string
+		frontendURL  string
+		redirectURI  string
+		requireHTTPS bool
+		wantErr      bool
 	}{
 		// Frontend URL validation
-		{"frontend https in production", "https://app.example.com", "https://api.example.com/auth/callback", "production", false},
-		{"frontend http in local dev", "http://localhost:5173", "http://localhost:8080/auth/callback", "", false},
-		{"frontend http in production rejected", "http://app.example.com", "https://api.example.com/auth/callback", "production", true},
-		{"frontend missing scheme rejected", "app.example.com", "https://api.example.com/auth/callback", "", true},
-		{"frontend empty URL rejected", "", "https://api.example.com/auth/callback", "", true},
+		{"frontend https in production", "https://app.example.com", "https://api.example.com/auth/callback", true, false},
+		{"frontend http in local dev", "http://localhost:5173", "http://localhost:8080/auth/callback", false, false},
+		{"frontend http in production rejected", "http://app.example.com", "https://api.example.com/auth/callback", true, true},
+		{"frontend missing scheme rejected", "app.example.com", "https://api.example.com/auth/callback", false, true},
+		{"frontend empty URL rejected", "", "https://api.example.com/auth/callback", false, true},
 
 		// Redirect URI validation
-		{"redirect https in production", "https://app.example.com", "https://api.example.com/auth/callback", "production", false},
-		{"redirect http in production rejected", "https://app.example.com", "http://api.example.com/auth/callback", "production", true},
-		{"redirect missing scheme rejected", "https://app.example.com", "api.example.com/auth/callback", "production", true},
-		{"redirect empty URI rejected", "https://app.example.com", "", "production", true},
+		{"redirect https in production", "https://app.example.com", "https://api.example.com/auth/callback", true, false},
+		{"redirect http in production rejected", "https://app.example.com", "http://api.example.com/auth/callback", true, true},
+		{"redirect missing scheme rejected", "https://app.example.com", "api.example.com/auth/callback", true, true},
+		{"redirect empty URI rejected", "https://app.example.com", "", true, true},
 	}
 
 	for _, tt := range tests {
@@ -155,7 +155,7 @@ func TestNewHandler_URLValidation(t *testing.T) {
 			cfg := baseCfg
 			cfg.FrontendURL = tt.frontendURL
 			cfg.RedirectURI = tt.redirectURI
-			cfg.Environment = tt.environment
+			cfg.RequireHTTPS = tt.requireHTTPS
 			_, err := NewHandler(&cfg)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewHandler() error = %v, wantErr %v", err, tt.wantErr)

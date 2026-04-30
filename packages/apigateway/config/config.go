@@ -20,6 +20,49 @@ const (
 	DefaultShutdownTimeout = 30 * time.Second
 )
 
+// Environment is the deployment environment. Use the IsLocal /
+// IsProduction predicates instead of comparing strings — those keep
+// callers spelling-typo-free.
+type Environment string
+
+const (
+	// EnvLocal is the local development environment (also returned for empty ENVIRONMENT).
+	EnvLocal Environment = "local"
+	// EnvDev is the Cloud Run dev environment.
+	EnvDev Environment = "dev"
+	// EnvProd is the Cloud Run production environment.
+	EnvProd Environment = "prod"
+)
+
+// IsLocal reports whether the environment is local development.
+// Use this rather than == "" or == "local" so callers don't have
+// to know about the empty-string-as-local lenient parsing rule.
+func (e Environment) IsLocal() bool { return e == EnvLocal }
+
+// IsProduction reports whether the environment is the production
+// Cloud Run service. False for local and dev.
+func (e Environment) IsProduction() bool { return e == EnvProd }
+
+// parseEnvironment validates the ENVIRONMENT env var. Empty string
+// is accepted as EnvLocal to avoid forcing local devs to set the
+// var explicitly. Any other unknown value returns an error so
+// typos like "prouction" fail boot rather than silently behaving
+// as if production.
+func parseEnvironment(s string) (Environment, error) {
+	switch s {
+	case "", string(EnvLocal):
+		return EnvLocal, nil
+	case string(EnvDev):
+		return EnvDev, nil
+	case string(EnvProd):
+		return EnvProd, nil
+	default:
+		return "", fmt.Errorf(
+			"invalid ENVIRONMENT %q (expected one of: %q, %q, %q, or empty)",
+			s, EnvLocal, EnvDev, EnvProd)
+	}
+}
+
 // Config holds non-secret configuration for the API Gateway.
 // Secrets (Strava credentials, database connection, state secret) are loaded
 // separately via secrets.LoadFromMount for Infisical mount support.
@@ -34,8 +77,9 @@ type Config struct {
 	AuthCallbackURL string
 	// AllowedOrigins is the list of allowed CORS origins.
 	AllowedOrigins []string
-	// Environment is the deployment environment (e.g., "production"). Empty in local dev.
-	Environment string
+	// Environment is the deployment environment. Use the IsLocal /
+	// IsProduction predicates rather than direct equality.
+	Environment Environment
 	// ReadTimeout is the HTTP server read timeout.
 	ReadTimeout time.Duration
 	// WriteTimeout is the HTTP server write timeout.
@@ -62,9 +106,12 @@ func LoadConfig() (*Config, error) {
 
 	// FIRESTORE_DATABASE is required in production but optional in local dev
 	// (mock auth store replaces Firestore when ENVIRONMENT is empty).
-	environment := os.Getenv("ENVIRONMENT")
+	environment, err := parseEnvironment(os.Getenv("ENVIRONMENT"))
+	if err != nil {
+		return nil, err
+	}
 	firestoreDatabase := os.Getenv("FIRESTORE_DATABASE")
-	if firestoreDatabase == "" && environment != "" {
+	if firestoreDatabase == "" && !environment.IsLocal() {
 		return nil, fmt.Errorf("required environment variable FIRESTORE_DATABASE is not set")
 	}
 
@@ -170,4 +217,26 @@ func GetEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// LogAttrs returns slog-friendly attributes for boot-time logging.
+// Secrets (Strava credentials, Postgres connection string, OAuth state
+// secret) are loaded separately via secrets.LoadFromMount and are
+// intentionally NOT part of Config — log only the operational fields
+// declared on Config. Returned as []any (slog's variadic shape) rather
+// than via a String() method to avoid creating a fmt.Stringer that
+// future %v formatting could accidentally invoke.
+func (c *Config) LogAttrs() []any {
+	return []any{
+		"environment", string(c.Environment),
+		"gcp_project_id", c.GCPProjectID,
+		"firestore_database", c.FirestoreDatabase,
+		"frontend_url", c.FrontendURL,
+		"auth_callback_url", c.AuthCallbackURL,
+		"allowed_origins_count", len(c.AllowedOrigins),
+		"read_timeout", c.ReadTimeout,
+		"write_timeout", c.WriteTimeout,
+		"read_header_timeout", c.ReadHeaderTimeout,
+		"shutdown_timeout", c.ShutdownTimeout,
+	}
 }

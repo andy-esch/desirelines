@@ -137,7 +137,10 @@ func TestCORSMiddleware(t *testing.T) {
 	logger := slog.Default()
 
 	t.Run("handles OPTIONS preflight", func(t *testing.T) {
-		c := cors.NewHandler([]string{"https://example.com"}, logger)
+		c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+		if err != nil {
+			t.Fatalf("cors.NewHandler: %v", err)
+		}
 		middleware := CORSMiddleware(c)
 
 		nextCalled := false
@@ -160,7 +163,10 @@ func TestCORSMiddleware(t *testing.T) {
 	})
 
 	t.Run("passes through non-OPTIONS requests", func(t *testing.T) {
-		c := cors.NewHandler([]string{"https://example.com"}, logger)
+		c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+		if err != nil {
+			t.Fatalf("cors.NewHandler: %v", err)
+		}
 		middleware := CORSMiddleware(c)
 
 		nextCalled := false
@@ -181,7 +187,10 @@ func TestCORSMiddleware(t *testing.T) {
 	})
 
 	t.Run("sets CORS headers before handler", func(t *testing.T) {
-		c := cors.NewHandler([]string{"https://example.com"}, logger)
+		c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+		if err != nil {
+			t.Fatalf("cors.NewHandler: %v", err)
+		}
 		middleware := CORSMiddleware(c)
 
 		var corsHeaderSet bool
@@ -251,7 +260,10 @@ func TestNewRouter_RouteRegistration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := cors.NewHandler([]string{"https://example.com"}, logger)
+			c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+			if err != nil {
+				t.Fatalf("cors.NewHandler: %v", err)
+			}
 			auth := &mockAuthMiddleware{}
 			router := newTestRouter(c, auth, logger)
 
@@ -270,7 +282,10 @@ func TestNewRouter_RouteRegistration(t *testing.T) {
 // Test auth middleware blocks unauthorized
 func TestNewRouter_AuthBlocking(t *testing.T) {
 	logger := slog.Default()
-	c := cors.NewHandler([]string{"https://example.com"}, logger)
+	c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+	if err != nil {
+		t.Fatalf("cors.NewHandler: %v", err)
+	}
 	auth := &mockAuthMiddleware{blockAccess: true}
 
 	handlerCalled := false
@@ -303,7 +318,10 @@ func TestNewRouter_AuthBlocking(t *testing.T) {
 // Test public endpoints bypass auth
 func TestNewRouter_PublicBypassesAuth(t *testing.T) {
 	logger := slog.Default()
-	c := cors.NewHandler([]string{"https://example.com"}, logger)
+	c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+	if err != nil {
+		t.Fatalf("cors.NewHandler: %v", err)
+	}
 	auth := &mockAuthMiddleware{blockAccess: true}
 
 	healthCalled := false
@@ -331,7 +349,10 @@ func TestNewRouter_PublicBypassesAuth(t *testing.T) {
 // Test CORS preflight handling
 func TestNewRouter_CORSPreflight(t *testing.T) {
 	logger := slog.Default()
-	c := cors.NewHandler([]string{"https://example.com"}, logger)
+	c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+	if err != nil {
+		t.Fatalf("cors.NewHandler: %v", err)
+	}
 	auth := &mockAuthMiddleware{}
 	router := newTestRouter(c, auth, logger)
 
@@ -351,7 +372,10 @@ func TestNewRouter_CORSPreflight(t *testing.T) {
 // Test undefined routes return proper status codes
 func TestNewRouter_UndefinedRoutes(t *testing.T) {
 	logger := slog.Default()
-	c := cors.NewHandler([]string{"https://example.com"}, logger)
+	c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+	if err != nil {
+		t.Fatalf("cors.NewHandler: %v", err)
+	}
 	auth := &mockAuthMiddleware{}
 	router := newTestRouter(c, auth, logger)
 
@@ -385,7 +409,10 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 	defer cancel()
 
 	logger := gcplog.NewNoOpLogger()
-	c := cors.NewHandler([]string{"https://example.com"}, logger)
+	c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+	if err != nil {
+		t.Fatalf("cors.NewHandler: %v", err)
+	}
 	auth := &mockAuthMiddleware{}
 
 	// Auth limiter: 1 req/s, burst 1 — second hit in quick succession is rejected.

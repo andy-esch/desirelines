@@ -12,7 +12,10 @@ func TestNewHandler(t *testing.T) {
 	logger := slog.Default()
 
 	t.Run("no origins configured", func(t *testing.T) {
-		h := NewHandler([]string{}, logger)
+		h, err := NewHandler([]string{}, logger, false)
+		if err != nil {
+			t.Fatalf("NewHandler returned unexpected error: %v", err)
+		}
 
 		if len(h.allowedOrigins) != 0 {
 			t.Errorf("expected 0 allowed origins, got %d", len(h.allowedOrigins))
@@ -20,7 +23,10 @@ func TestNewHandler(t *testing.T) {
 	})
 
 	t.Run("single origin", func(t *testing.T) {
-		h := NewHandler([]string{"https://example.com"}, logger)
+		h, err := NewHandler([]string{"https://example.com"}, logger, false)
+		if err != nil {
+			t.Fatalf("NewHandler returned unexpected error: %v", err)
+		}
 
 		if len(h.allowedOrigins) != 1 {
 			t.Errorf("expected 1 allowed origin, got %d", len(h.allowedOrigins))
@@ -31,10 +37,33 @@ func TestNewHandler(t *testing.T) {
 	})
 
 	t.Run("multiple origins", func(t *testing.T) {
-		h := NewHandler([]string{"https://example.com", "http://localhost:3000", "https://app.example.com"}, logger)
+		h, err := NewHandler([]string{"https://example.com", "http://localhost:3000", "https://app.example.com"}, logger, false)
+		if err != nil {
+			t.Fatalf("NewHandler returned unexpected error: %v", err)
+		}
 
 		if len(h.allowedOrigins) != 3 {
 			t.Errorf("expected 3 allowed origins, got %d", len(h.allowedOrigins))
+		}
+	})
+
+	t.Run("strict mode rejects empty origins", func(t *testing.T) {
+		h, err := NewHandler([]string{}, logger, true)
+		if err == nil {
+			t.Fatalf("expected error in strict mode with empty origins, got handler %+v", h)
+		}
+		if h != nil {
+			t.Errorf("expected nil handler on error, got %+v", h)
+		}
+	})
+
+	t.Run("strict mode accepts non-empty origins", func(t *testing.T) {
+		h, err := NewHandler([]string{"https://example.com"}, logger, true)
+		if err != nil {
+			t.Fatalf("strict mode with non-empty origins should succeed, got error: %v", err)
+		}
+		if h == nil || len(h.allowedOrigins) != 1 {
+			t.Errorf("expected handler with 1 origin, got %+v", h)
 		}
 	})
 }
@@ -120,7 +149,10 @@ func TestHandler_SetHeaders(t *testing.T) {
 			if tt.allowedOrigins != "" {
 				origins = strings.Split(tt.allowedOrigins, ",")
 			}
-			h := NewHandler(origins, logger)
+			h, err := NewHandler(origins, logger, false)
+			if err != nil {
+				t.Fatalf("NewHandler returned unexpected error: %v", err)
+			}
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			if tt.requestOrigin != "" {
@@ -154,7 +186,10 @@ func TestHandler_HandlePreflight(t *testing.T) {
 	logger := slog.Default()
 
 	t.Run("sets all preflight headers", func(t *testing.T) {
-		h := NewHandler([]string{"https://example.com"}, logger)
+		h, err := NewHandler([]string{"https://example.com"}, logger, false)
+		if err != nil {
+			t.Fatalf("NewHandler returned unexpected error: %v", err)
+		}
 
 		req := httptest.NewRequest(http.MethodOptions, "/test", nil)
 		req.Header.Set("Origin", "https://example.com")
@@ -184,7 +219,10 @@ func TestHandler_HandlePreflight(t *testing.T) {
 	})
 
 	t.Run("disallowed origin gets no CORS headers", func(t *testing.T) {
-		h := NewHandler([]string{"https://example.com"}, logger)
+		h, err := NewHandler([]string{"https://example.com"}, logger, false)
+		if err != nil {
+			t.Fatalf("NewHandler returned unexpected error: %v", err)
+		}
 
 		req := httptest.NewRequest(http.MethodOptions, "/test", nil)
 		req.Header.Set("Origin", "https://evil.com")
@@ -215,7 +253,10 @@ func TestHandler_SecurityCases(t *testing.T) {
 	logger := slog.Default()
 
 	t.Run("null origin rejected", func(t *testing.T) {
-		h := NewHandler([]string{"https://example.com"}, logger)
+		h, err := NewHandler([]string{"https://example.com"}, logger, false)
+		if err != nil {
+			t.Fatalf("NewHandler returned unexpected error: %v", err)
+		}
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Origin", "null")
@@ -228,7 +269,10 @@ func TestHandler_SecurityCases(t *testing.T) {
 	})
 
 	t.Run("wildcard not supported", func(t *testing.T) {
-		h := NewHandler([]string{"*"}, logger)
+		h, err := NewHandler([]string{"*"}, logger, false)
+		if err != nil {
+			t.Fatalf("NewHandler returned unexpected error: %v", err)
+		}
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Origin", "https://example.com")
@@ -242,7 +286,10 @@ func TestHandler_SecurityCases(t *testing.T) {
 	})
 
 	t.Run("subdomain not automatically allowed", func(t *testing.T) {
-		h := NewHandler([]string{"https://example.com"}, logger)
+		h, err := NewHandler([]string{"https://example.com"}, logger, false)
+		if err != nil {
+			t.Fatalf("NewHandler returned unexpected error: %v", err)
+		}
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Origin", "https://sub.example.com")
