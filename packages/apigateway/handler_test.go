@@ -121,7 +121,11 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 	}
 
 	// Initialize CORS handler
-	corsHandler := cors.NewHandler(allowedOrigins, logger)
+	corsHandler, err := cors.NewHandler(allowedOrigins, logger, false)
+	if err != nil {
+		//nolint:forbidigo // test setup — empty origins are acceptable in lax mode
+		panic(fmt.Sprintf("failed to create CORS handler for tests: %v", err))
+	}
 
 	// Create a mock auth middleware for testing
 	mockAuth := &mockAuthMiddleware{}

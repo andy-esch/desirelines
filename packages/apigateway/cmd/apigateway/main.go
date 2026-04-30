@@ -60,6 +60,11 @@ func run(log *slog.Logger) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
+	// Boot-time configuration log. Operational fields only — secrets are
+	// loaded out-of-band via secrets.LoadFromMount and intentionally never
+	// touch this struct.
+	log.Info("apigateway boot config", cfg.LogAttrs()...)
+
 	ctx := context.Background()
 
 	// Initialize OTel metrics + tracing (warn and continue with no-ops on failure)
@@ -233,16 +238,22 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	}
 	deps.httpHistogram = httpHist
 
-	// 3. Initialize CORS handler
-	deps.corsHandler = cors.NewHandler(cfg.AllowedOrigins, log)
+	// 3. Initialize CORS handler. Strict in any non-local environment so a
+	// missing ALLOWED_ORIGINS fails the deploy at boot rather than
+	// silently rejecting every cross-origin request after rollout.
+	corsHandler, err := cors.NewHandler(cfg.AllowedOrigins, log, !cfg.Environment.IsLocal())
+	if err != nil {
+		return nil, fmt.Errorf("init CORS: %w", err)
+	}
+	deps.corsHandler = corsHandler
 
 	// 4–7. Auth setup: Firebase (via emulator in local dev) + Strava (mock in local dev)
-	if cfg.Environment == "" && os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" {
+	if cfg.Environment.IsLocal() && os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" {
 		// Local dev: real Firebase auth (via emulator) + mock Strava
 		if authErr := initLocalDevAuth(ctx, cfg, deps, log, authHist); authErr != nil {
 			return nil, authErr
 		}
-	} else if cfg.Environment != "" {
+	} else if !cfg.Environment.IsLocal() {
 		// Production/staging: real Firebase + real Strava
 		if authErr := initFirebaseAuth(ctx, cfg, deps, log, authHist, oauthHist); authErr != nil {
 			return nil, authErr
@@ -280,6 +291,13 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	}
 	deps.repo = postgres.NewActivityRepository(pool, postgresHist)
 	log.Info("Database repository initialized")
+
+	// 9a. Local-only sanity check: warn (don't fail) if MOCK_ATHLETE_ID has
+	// no rows in the seed DB. Saves a "why is the dashboard blank?" debug
+	// session for new contributors. Production envs skip this entirely.
+	if cfg.Environment.IsLocal() {
+		checkMockAthleteSeedData(ctx, pool, log)
+	}
 
 	// 10. Register async pool gauge callback
 	poolGauge, gaugeErr := meter.Int64ObservableGauge("desirelines.io/postgres/pool.connections",
@@ -374,16 +392,16 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 	authStore := firestoreadapter.NewAuthStore(firestoreClient, log)
 
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
-		Strava:      stravaOAuth,
-		Tokens:      authStore,
-		Allowlist:   authStore,
-		Firebase:    authClient,
-		StateSecret: []byte(stateSecret),
-		FrontendURL: cfg.FrontendURL,
-		ClientID:    stravaClientID,
-		RedirectURI: cfg.AuthCallbackURL,
-		Environment: cfg.Environment,
-		Logger:      log,
+		Strava:       stravaOAuth,
+		Tokens:       authStore,
+		Allowlist:    authStore,
+		Firebase:     authClient,
+		StateSecret:  []byte(stateSecret),
+		FrontendURL:  cfg.FrontendURL,
+		ClientID:     stravaClientID,
+		RedirectURI:  cfg.AuthCallbackURL,
+		RequireHTTPS: !cfg.Environment.IsLocal(),
+		Logger:       log,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create auth handler: %w", err)
@@ -493,12 +511,58 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	return nil
 }
 
+// checkMockAthleteSeedData warns (without failing boot) when MOCK_ATHLETE_ID
+// has zero activities in the local database. The check is local-dev-only —
+// callers must gate it on cfg.Environment.IsLocal().
+//
+// A failed query is logged at WARN (the DB might not be reachable yet) but
+// boot continues. A zero-row result hints at the seed-data script. Both
+// outcomes are recoverable: legitimate use of an empty DB (fresh-DB testing)
+// is supported, so this never returns an error.
+func checkMockAthleteSeedData(ctx context.Context, pool *postgres.Pool, log *slog.Logger) {
+	mockAthleteID := int64(123456789)
+	if envID := os.Getenv("MOCK_ATHLETE_ID"); envID != "" {
+		parsed, parseErr := strconv.ParseInt(envID, 10, 64)
+		if parseErr != nil {
+			log.Warn("MOCK_ATHLETE_ID sanity check skipped",
+				"error", parseErr,
+				"value", envID,
+				"hint", "MOCK_ATHLETE_ID must be a base-10 integer")
+			return
+		}
+		mockAthleteID = parsed
+	}
+
+	userID := strconv.FormatInt(mockAthleteID, 10)
+	var count int
+	err := pool.QueryRow(ctx,
+		"SELECT count(*) FROM desirelines.activities WHERE user_id = $1",
+		userID,
+	).Scan(&count)
+	switch {
+	case err != nil:
+		log.Warn("MOCK_ATHLETE_ID sanity check failed",
+			"error", err,
+			"mock_athlete_id", mockAthleteID,
+			"hint", "DB may not be reachable yet")
+	case count == 0:
+		log.Warn("MOCK_ATHLETE_ID has no activities in DB",
+			"mock_athlete_id", mockAthleteID,
+			"hint", "run `just db-migrate-local` to apply seed data, or set MOCK_ATHLETE_ID to match an existing user_id")
+	default:
+		log.Debug("MOCK_ATHLETE_ID has activities in DB",
+			"mock_athlete_id", mockAthleteID,
+			"count", count)
+	}
+}
+
 // getConnectionString reads PostgreSQL connection string from secret mount.
-// In local development (no ENVIRONMENT set), falls back to POSTGRES_CONNECTION_STRING env var.
+// In local development, falls back to POSTGRES_CONNECTION_STRING env var.
 func getConnectionString(cfg *config.Config) (string, error) {
-	// Only allow env var fallback in local development (ENVIRONMENT is always set in Cloud Run)
+	// Only allow env var fallback in local development. Cloud Run always sets
+	// ENVIRONMENT to "dev" or "prod", so this branch is taken only locally.
 	envFallback := ""
-	if cfg.Environment == "" {
+	if cfg.Environment.IsLocal() {
 		envFallback = "POSTGRES_CONNECTION_STRING"
 	}
 

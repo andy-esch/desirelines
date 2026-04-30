@@ -28,8 +28,12 @@ type HandlerConfig struct {
 	FrontendURL string
 	ClientID    string // Strava client ID (for authorize URL)
 	RedirectURI string // AUTH_CALLBACK_URL
-	Environment string // Deployment environment (non-empty = production)
-	Logger      *slog.Logger
+	// RequireHTTPS, when true, requires both FrontendURL and RedirectURI
+	// to use HTTPS. main.go computes this from
+	// !cfg.Environment.IsLocal() so this package stays free of a
+	// dependency on the config package.
+	RequireHTTPS bool
+	Logger       *slog.Logger
 }
 
 // Handler holds dependencies for OAuth auth handlers.
@@ -47,7 +51,7 @@ type Handler struct {
 
 // NewHandler creates a new OAuth auth handler.
 // Returns an error if FrontendURL or RedirectURI are not valid URLs.
-// In production (non-empty Environment), both must use HTTPS.
+// When RequireHTTPS is true (any non-local environment), both must use HTTPS.
 func NewHandler(cfg *HandlerConfig) (*Handler, error) {
 	frontendURL, err := url.Parse(cfg.FrontendURL)
 	if err != nil {
@@ -56,7 +60,7 @@ func NewHandler(cfg *HandlerConfig) (*Handler, error) {
 	if frontendURL.Scheme == "" || frontendURL.Host == "" {
 		return nil, fmt.Errorf("frontend URL %q must have scheme and host", cfg.FrontendURL)
 	}
-	if cfg.Environment != "" && frontendURL.Scheme != "https" {
+	if cfg.RequireHTTPS && frontendURL.Scheme != "https" {
 		return nil, fmt.Errorf("frontend URL %q must use HTTPS in production (would leak Firebase token)", cfg.FrontendURL)
 	}
 
@@ -67,7 +71,7 @@ func NewHandler(cfg *HandlerConfig) (*Handler, error) {
 	if redirectURL.Scheme == "" || redirectURL.Host == "" {
 		return nil, fmt.Errorf("redirect URI %q must have scheme and host", cfg.RedirectURI)
 	}
-	if cfg.Environment != "" && redirectURL.Scheme != "https" {
+	if cfg.RequireHTTPS && redirectURL.Scheme != "https" {
 		return nil, fmt.Errorf("redirect URI %q must use HTTPS in production (would leak authorization code)", cfg.RedirectURI)
 	}
 

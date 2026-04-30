@@ -1,6 +1,7 @@
 package cors
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 )
@@ -12,8 +13,17 @@ type Handler struct {
 }
 
 // NewHandler creates a new CORS handler with provided origins and logger.
-func NewHandler(allowedOrigins []string, logger *slog.Logger) *Handler {
+//
+// In strict mode (any non-local environment), passing an empty
+// allowedOrigins list returns an error so the deploy fails fast rather
+// than silently rejecting every cross-origin request. In lax mode
+// (local dev), an empty list is permitted and logged at WARN — backend
+// -only testing with curl still works.
+func NewHandler(allowedOrigins []string, logger *slog.Logger, strict bool) (*Handler, error) {
 	if len(allowedOrigins) == 0 {
+		if strict {
+			return nil, fmt.Errorf("ALLOWED_ORIGINS must be set in strict (non-local) mode")
+		}
 		logger.Warn("CORS: ALLOWED_ORIGINS not set (or empty), blocking all cross-origin requests")
 	} else {
 		logger.Info("CORS: Configured allowed origins", "count", len(allowedOrigins))
@@ -28,7 +38,7 @@ func NewHandler(allowedOrigins []string, logger *slog.Logger) *Handler {
 	return &Handler{
 		allowedOrigins: originMap,
 		logger:         logger,
-	}
+	}, nil
 }
 
 // SetHeaders sets appropriate CORS headers if the request origin is allowed.

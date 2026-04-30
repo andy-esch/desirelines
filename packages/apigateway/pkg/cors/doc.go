@@ -10,7 +10,10 @@
 // Create a handler with allowed origins:
 //
 //	allowedOrigins := []string{"https://example.com", "https://app.example.com"}
-//	corsHandler := cors.NewHandler(allowedOrigins, logger)
+//	corsHandler, err := cors.NewHandler(allowedOrigins, logger, strict)
+//	if err != nil {
+//	    return fmt.Errorf("init CORS: %w", err)
+//	}
 //
 // Use in your HTTP handlers:
 //
