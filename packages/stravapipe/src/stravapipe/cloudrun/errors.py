@@ -25,9 +25,9 @@ def validate_or_422[T: BaseModel](
     immediately rather than retrying ``max_delivery_attempts`` times before
     sending it to the DLQ.
 
-    The detail is intentionally terse — we log the validation error count
-    at WARNING but do not echo the raw payload back in the HTTP response,
-    since that response may be visible in Cloud Logging.
+    The HTTP response detail is intentionally minimal — error counts and
+    raw payloads stay in the WARNING log, not in a body that may be
+    visible to upstream callers or in Cloud Logging request metadata.
     """
     try:
         return model_cls.model_validate(payload)
@@ -40,6 +40,5 @@ def validate_or_422[T: BaseModel](
             },
         )
         raise HTTPException(
-            status_code=422,
-            detail=f"Invalid {context}: {err.error_count()} validation error(s)",
+            status_code=422, detail=f"Invalid {context}"
         ) from err

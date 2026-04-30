@@ -373,10 +373,6 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
     except HTTPException:
         raise
     except Exception as err:
-        # 500 is correct for transient infra failures (Pub/Sub will retry).
-        # If future code adds payload validation here, wrap it with
-        # ``validate_or_422`` from cloudrun/errors.py so permanent
-        # ValidationErrors return 422 instead of falling through to 500.
         logger.exception("Unexpected error")
         raise HTTPException(
             status_code=500, detail="An internal server error occurred."
