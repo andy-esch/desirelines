@@ -228,7 +228,7 @@ func TestWriteError_IncludesTraceIDWhenSpanActive(t *testing.T) {
 	logger := slog.Default()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
-	// Build a valid SpanContext with a known trace_id and attach to the
+	// Build a valid SpanContext with a known trace ID and attach to the
 	// request context. Using ContextWithSpanContext avoids needing a full
 	// TracerProvider; WriteError only reads SpanContextFromContext.
 	traceID, err := trace.TraceIDFromHex("0af7651916cd43dd8448eb211c80319c")
@@ -273,8 +273,8 @@ func TestWriteError_OmitsTraceIDWhenNoSpan(t *testing.T) {
 	// (not present as an empty string). Check the raw body, not the
 	// unmarshaled struct (which would show "" either way).
 	body := w.Body.String()
-	if strings.Contains(body, "trace_id") {
-		t.Errorf("response body should omit trace_id when no span: %s", body)
+	if strings.Contains(body, "traceId") {
+		t.Errorf("response body should omit traceId when no span: %s", body)
 	}
 }
 

@@ -38,8 +38,8 @@ func RequestIDFromContext(ctx context.Context) string {
 type ErrorResponse struct {
 	Error     string         `json:"error"`
 	Code      string         `json:"code,omitempty"`
-	RequestID string         `json:"request_id,omitempty"`
-	TraceID   string         `json:"trace_id,omitempty"`
+	RequestID string         `json:"requestId,omitempty"`
+	TraceID   string         `json:"traceId,omitempty"`
 	Details   map[string]any `json:"details,omitempty"`
 }
 
