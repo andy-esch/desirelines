@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
+from stravapipe.cloudrun.errors import validate_or_422
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_postgres_writer_config
 from stravapipe.domain.activity import StandardActivity
@@ -146,8 +147,10 @@ async def _handle_create(
             reason=SkipReason.ACTIVITY_NOT_FOUND,
         )
 
-    # Construct StandardActivity from raw Strava API JSON
-    activity = StandardActivity.model_validate(raw_activity)
+    # Construct StandardActivity from raw Strava API JSON.
+    # ValidationError → 422 so Pub/Sub acks immediately; retrying a
+    # malformed payload will fail identically.
+    activity = validate_or_422(StandardActivity, raw_activity, context="raw_activity")
 
     # Insert to PostgreSQL within transaction (no Strava API call needed)
     uow = SqlAlchemyUnitOfWork(session_factory)
