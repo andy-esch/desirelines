@@ -262,3 +262,55 @@ class TestErrorHandling:
 
             assert response.status_code == 500
             assert "internal server error" in response.json()["detail"]
+
+    def test_malformed_raw_activity_returns_422(self, client):
+        """Pydantic ValidationError → 422 so Pub/Sub acks instead of retrying."""
+        webhook = make_webhook_payload(
+            aspect_type="create",
+            raw_activity={"clearly": "not a valid strava activity"},
+        )
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(webhook),
+        )
+
+        assert response.status_code == 422
+        assert "raw_activity" in response.json()["detail"]
+
+
+class TestIdempotency:
+    """Idempotency: redelivery of the same CloudEvent must not corrupt state."""
+
+    def test_create_event_idempotent_on_redelivery(self, client):
+        """Same CloudEvent posted twice succeeds both times.
+
+        BQ MERGE on activity_id makes the underlying write idempotent at
+        the adapter layer. This test asserts the handler delegates to the
+        writer twice without error and returns ``created`` both times.
+        """
+        from stravapipe.cloudrun.bq_inserter_app import app
+
+        mock_writer = MagicMock()
+        mock_writer.write_activity.return_value = {"rows_affected": 1}
+        mock_activity = MagicMock()
+        app.state.writer = mock_writer
+
+        with patch(
+            "stravapipe.cloudrun.bq_inserter_app.DetailedStravaActivity.model_validate",
+            return_value=mock_activity,
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
+            body = make_pubsub_body(webhook)
+            headers = make_cloudevent_headers()
+
+            r1 = client.post("/", headers=headers, json=body)
+            r2 = client.post("/", headers=headers, json=body)
+
+            assert r1.status_code == 200
+            assert r2.status_code == 200
+            assert r1.json()["status"] == "created"
+            assert r2.json()["status"] == "created"
+            assert mock_writer.write_activity.call_count == 2

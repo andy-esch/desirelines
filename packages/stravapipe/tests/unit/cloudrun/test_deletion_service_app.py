@@ -158,6 +158,53 @@ class TestDeauthEndpoint:
         assert "bigquery" in response.json()["detail"]
 
 
+class TestIdempotency:
+    """Idempotency: redelivery of the same deauth event must not corrupt state."""
+
+    def test_deletion_idempotent_on_redelivery(self, client, mock_services):
+        """Second delivery returns 200 with zero counts — nothing left to delete.
+
+        All four stores' delete operations are idempotent: PG/BQ DELETEs of
+        already-deleted rows return 0 rows affected; Firestore .delete() is
+        a no-op on missing documents.
+        """
+        # First call: data exists; second call: nothing left.
+        mock_services["bq_deletion_service"].run.side_effect = [
+            BQDeletionResult(
+                activities_archived=3, activities_deleted=3, staging_deleted=1
+            ),
+            BQDeletionResult(
+                activities_archived=0, activities_deleted=0, staging_deleted=0
+            ),
+        ]
+
+        mock_uow = MagicMock()
+        mock_uow.__enter__ = MagicMock(return_value=mock_uow)
+        mock_uow.__exit__ = MagicMock(return_value=False)
+        mock_uow.activities.delete_by_user.side_effect = [3, 0]
+
+        with patch(
+            "stravapipe.cloudrun.deletion_service_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            body = make_pubsub_body(_make_deauth_payload())
+            headers = make_cloudevent_headers()
+
+            r1 = client.post("/", headers=headers, json=body)
+            r2 = client.post("/", headers=headers, json=body)
+
+        assert r1.status_code == 200
+        assert r1.json()["status"] == "deleted"
+        assert r1.json()["pg_deleted"] == 3
+        assert r1.json()["bq_activities_deleted"] == 3
+
+        assert r2.status_code == 200
+        assert r2.json()["status"] == "deleted"
+        assert r2.json()["pg_deleted"] == 0
+        assert r2.json()["bq_activities_deleted"] == 0
+        assert r2.json()["bq_staging_deleted"] == 0
+
+
 class TestLifespanCleanup:
     """Tests for application lifespan cleanup events."""
 

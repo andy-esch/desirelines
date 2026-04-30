@@ -454,6 +454,94 @@ class TestErrorHandling:
             assert response.status_code == 500
             assert "internal server error" in response.json()["detail"]
 
+    def test_malformed_raw_activity_returns_422(self, client):
+        """Pydantic ValidationError → 422 so Pub/Sub acks instead of retrying."""
+        webhook = make_webhook_payload(
+            aspect_type="create",
+            raw_activity={"clearly": "not a valid strava activity"},
+        )
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(webhook),
+        )
+
+        assert response.status_code == 422
+        assert "raw_activity" in response.json()["detail"]
+
+
+class TestIdempotency:
+    """Idempotency: redelivery of the same CloudEvent must not corrupt state."""
+
+    def test_create_event_idempotent_on_redelivery(self, client):
+        """First delivery returns CREATED, second returns SKIPPED/ALREADY_EXISTS."""
+        mock_uow = MagicMock()
+        # First call inserts (returns True); second call detects duplicate.
+        mock_uow.activities.insert.side_effect = [True, False]
+        mock_activity = MagicMock()
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=mock_activity,
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
+            body = make_pubsub_body(webhook)
+            headers = make_cloudevent_headers()
+
+            r1 = client.post("/", headers=headers, json=body)
+            r2 = client.post("/", headers=headers, json=body)
+
+            assert r1.status_code == 200
+            assert r1.json()["status"] == "created"
+
+            assert r2.status_code == 200
+            assert r2.json()["status"] == "skipped"
+            assert r2.json()["reason"] == "already_exists"
+
+            assert mock_uow.activities.insert.call_count == 2
+
+    def test_update_event_idempotent_on_redelivery(self, client):
+        """Same UPDATE event posted twice succeeds both times with identical args.
+
+        ``update_metadata`` is idempotent at the adapter layer (UPDATE row
+        SET title=X applied twice yields the same state). The handler must
+        not error or change behavior on a redelivery.
+        """
+        webhook = make_webhook_payload(aspect_type="update")
+        webhook["updates"] = {"title": "New Title"}
+
+        mock_uow = MagicMock()
+        mock_uow.activities.exists.return_value = True
+        mock_uow.activities.update_metadata.return_value = True
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            body = make_pubsub_body(webhook)
+            headers = make_cloudevent_headers()
+
+            r1 = client.post("/", headers=headers, json=body)
+            r2 = client.post("/", headers=headers, json=body)
+
+            assert r1.status_code == 200
+            assert r2.status_code == 200
+            assert r1.json()["status"] == "updated"
+            assert r2.json()["status"] == "updated"
+            assert mock_uow.activities.update_metadata.call_count == 2
+
+            for call in mock_uow.activities.update_metadata.call_args_list:
+                assert call.args[0] == 12345678
+                assert call.args[1] == {"title": "New Title"}
+
 
 class TestLifespanCleanup:
     """Tests for application lifespan cleanup events."""

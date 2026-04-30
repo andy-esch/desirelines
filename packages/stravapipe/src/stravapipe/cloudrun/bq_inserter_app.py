@@ -21,6 +21,7 @@ from stravapipe.application.bq_inserter import (
     DeleteActivityService,
     make_delete_service,
 )
+from stravapipe.cloudrun.errors import validate_or_422
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_bq_inserter_config
 from stravapipe.domain.activity import DetailedStravaActivity
@@ -137,8 +138,12 @@ async def _handle_create(
             correlation_id=correlation_id,
         )
 
-    # Construct DetailedStravaActivity from raw Strava API JSON
-    activity = DetailedStravaActivity.model_validate(raw_activity)
+    # Construct DetailedStravaActivity from raw Strava API JSON.
+    # ValidationError → 422 so Pub/Sub acks immediately; retrying a
+    # malformed payload will fail identically.
+    activity = validate_or_422(
+        DetailedStravaActivity, raw_activity, context="raw_activity"
+    )
 
     with (
         record_span(tracer, "bigquery.insert_rows", {"activity_id": event.object_id}),
