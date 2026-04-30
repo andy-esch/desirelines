@@ -388,12 +388,39 @@ components:
   schemas:
     Error:
       type: object
+      description: |
+        Standardized error response envelope returned by all error paths.
+        `error` is the only required field; the rest are added when
+        available (request ID middleware, active OTel span, structured
+        details). All keys are camelCase to match success responses.
       required: [error]
+      additionalProperties: false
       properties:
         error:
           type: string
-          description: Error message
+          description: Human-readable error message.
           example: Invalid year format
+        code:
+          type: string
+          description: Machine-readable error code (see apierrors taxonomy).
+          example: BAD_REQUEST
+        requestId:
+          type: string
+          description: Server-generated request ID for support correlation.
+          example: 01J0X8C0F5H9TZ3K9R8VW3K2QH
+        traceId:
+          type: string
+          description: |
+            Raw hex W3C trace ID of the active OTel span (32 lowercase
+            hex chars). Omitted when no span is active.
+          example: 0af7651916cd43dd8448eb211c80319c
+        details:
+          type: object
+          description: |
+            Optional structured context for the error (e.g. validation
+            field hints, retry timing). Shape varies by error site; do
+            not depend on specific keys.
+          additionalProperties: true
 
     HealthResponse:
       type: object
