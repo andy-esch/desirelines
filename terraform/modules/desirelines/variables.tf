@@ -108,6 +108,12 @@ variable "api_gateway_allowed_origins" {
   default     = ""
 }
 
+variable "readiness_probe_schedule" {
+  description = "Cron schedule (UTC) for the Cloud Scheduler /api/ready probe against apigateway. Default is hourly. Each invocation wakes Neon's compute for the 5-min idle window, so this is the dominant DB-active driver after stealth wakes are removed. NOTE: dropping below hourly requires retuning google_monitoring_alert_policy.apigateway_readiness_failing — its 4h alignment window assumes ≥3 hourly samples per evaluation; reducing cadence balloons alert latency."
+  type        = string
+  default     = "0 * * * *"
+}
+
 variable "infisical_project_id" {
   description = "Infisical Project ID (used as suffix for integration Service Account)"
   type        = string

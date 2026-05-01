@@ -65,6 +65,13 @@ type Pool struct {
 // NewPool creates a PostgreSQL connection pool optimized for serverless environments.
 // Connection string must be provided by the caller.
 // Validates that application_name is present for observability.
+//
+// Connectivity is verified lazily — the pool does not ping at construction
+// time. On Neon's free tier, every cold-start ping wakes a suspended compute
+// for the full 5-minute idle window; with min_instances=0 this would burn the
+// CU-hour budget. The hourly Cloud Scheduler /api/ready probe is the canary
+// that catches a broken connection string or unreachable DB. See the
+// optimize-database-compute-usage task for the full analysis.
 func NewPool(ctx context.Context, connString string, logger *slog.Logger) (*Pool, error) {
 	// Validate connection string format and required parameters
 	if validateErr := validateConnectionString(connString); validateErr != nil {
@@ -110,14 +117,6 @@ func NewPool(ctx context.Context, connString string, logger *slog.Logger) (*Pool
 	if err != nil {
 		return nil, fmt.Errorf("create pool: %w", err)
 	}
-
-	// Verify connectivity
-	if pingErr := pool.Ping(ctx); pingErr != nil {
-		pool.Close()
-		return nil, fmt.Errorf("ping database: %w", pingErr)
-	}
-
-	logger.Info("PostgreSQL connection pool established")
 
 	return &Pool{Pool: pool}, nil
 }
