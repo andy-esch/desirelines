@@ -1262,8 +1262,8 @@ resource "google_monitoring_alert_policy" "frontend_uptime" {
 # desired cadence, so Neon's compute can stay suspended between probes.
 resource "google_cloud_scheduler_job" "apigateway_readiness" {
   name        = "${var.project_name}-${var.environment}-apigateway-readiness"
-  description = "Hourly DB-touching readiness probe for apigateway"
-  schedule    = "0 * * * *" # top of every hour
+  description = "DB-touching readiness probe for apigateway (default hourly)"
+  schedule    = var.readiness_probe_schedule
   time_zone   = "UTC"
   region      = var.gcp_region
 
