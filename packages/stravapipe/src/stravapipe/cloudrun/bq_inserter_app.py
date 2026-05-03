@@ -13,10 +13,11 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
 
-from stravapipe.adapters.gcp import make_write_activities
+from stravapipe.adapters.gcp import make_bigquery_client_wrapper, make_write_activities
 from stravapipe.application.bq_inserter import (
     DeleteActivityService,
     make_delete_service,
@@ -29,6 +30,11 @@ from stravapipe.ports.out.write import WriteActivities
 from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
+from stravapipe.shared.readiness import (
+    build_ready_response,
+    check_bigquery,
+    run_checks,
+)
 from stravapipe.shared.responses import HealthResponse, WebhookResponse
 from stravapipe.shared.tracing import record_span, setup_tracing, shutdown_tracing
 from stravapipe.types.generated import webhook_pb2 as pb
@@ -48,6 +54,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         app.state.delete_service = make_delete_service(config)
         logger.info("BigQuery delete service initialized")
+
+        # Held for /ready dependency probe (get_dataset on the configured dataset).
+        app.state.bq_client = make_bigquery_client_wrapper(config)
+        app.state.bq_dataset = config.bq_dataset
 
         # Initialize OTel metrics
         meter = setup_metrics("desirelines-bq-inserter")
@@ -85,8 +95,19 @@ app = FastAPI(
 
 @app.get("/health")
 async def health() -> HealthResponse:
-    """Health check endpoint for Cloud Run."""
+    """Liveness probe — process-alive only, no dependency checks."""
     return HealthResponse(status=ResponseStatus.HEALTHY)
+
+
+@app.get("/ready")
+async def ready(request: Request) -> JSONResponse:
+    """Readiness probe — verifies BigQuery is reachable. Hit hourly by Cloud Scheduler."""
+    bq_client = request.app.state.bq_client
+    dataset_id = request.app.state.bq_dataset
+    checks = await run_checks(
+        {"bigquery": lambda: check_bigquery(bq_client, dataset_id)}
+    )
+    return build_ready_response(checks)
 
 
 @app.post("/")

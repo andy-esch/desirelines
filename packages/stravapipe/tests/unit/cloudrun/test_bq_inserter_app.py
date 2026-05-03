@@ -37,6 +37,7 @@ def client(mock_bq_config):
     mock_writer.write_activity.return_value = {"rows_affected": 0}
 
     mock_delete_service = MagicMock()
+    mock_bq_client = MagicMock()
 
     with (
         patch(
@@ -46,6 +47,10 @@ def client(mock_bq_config):
         patch(
             "stravapipe.cloudrun.bq_inserter_app.make_delete_service",
             return_value=mock_delete_service,
+        ),
+        patch(
+            "stravapipe.cloudrun.bq_inserter_app.make_bigquery_client_wrapper",
+            return_value=mock_bq_client,
         ),
     ):
         from stravapipe.cloudrun.bq_inserter_app import app
@@ -63,6 +68,69 @@ class TestHealthEndpoint:
 
         assert response.status_code == 200
         assert response.json() == {"status": "healthy"}
+
+
+class TestReadyEndpoint:
+    """Tests for /ready endpoint — exercises BigQuery dependency probe."""
+
+    def test_ready_returns_200_when_bigquery_reachable(self, client):
+        """Successful get_dataset call returns 200 with healthy components."""
+        from stravapipe.cloudrun.bq_inserter_app import app
+
+        mock_bq_client = MagicMock()
+        mock_bq_client.get_dataset.return_value = MagicMock()
+        app.state.bq_client = mock_bq_client
+        app.state.bq_dataset = "test_dataset"
+
+        response = client.get("/ready")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "healthy"
+        assert body["components"] == {"bigquery": "healthy"}
+        mock_bq_client.get_dataset.assert_called_once_with("test_dataset")
+
+    def test_ready_returns_503_when_bigquery_errors(self, client):
+        """get_dataset raising returns 503 with error string."""
+        from stravapipe.cloudrun.bq_inserter_app import app
+
+        mock_bq_client = MagicMock()
+        mock_bq_client.get_dataset.side_effect = RuntimeError("dataset not found")
+        app.state.bq_client = mock_bq_client
+        app.state.bq_dataset = "test_dataset"
+
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["status"] == "unhealthy"
+        assert body["components"] == {"bigquery": "unhealthy"}
+        assert "dataset not found" in body["errors"]["bigquery"]
+
+    def test_ready_returns_503_on_timeout(self, client):
+        """A probe that exceeds the timeout returns 503 with timeout marker."""
+        from stravapipe.cloudrun.bq_inserter_app import app
+
+        # asyncio.to_thread on a slow blocking call → wait_for cancels with TimeoutError.
+        def _block(_dataset):
+            import time
+
+            time.sleep(0.5)
+
+        mock_bq_client = MagicMock()
+        mock_bq_client.get_dataset.side_effect = _block
+        app.state.bq_client = mock_bq_client
+        app.state.bq_dataset = "test_dataset"
+
+        with patch(
+            "stravapipe.shared.readiness.DEFAULT_READINESS_TIMEOUT_S", 0.01
+        ):
+            response = client.get("/ready")
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["status"] == "unhealthy"
+        assert "timeout" in body["errors"]["bigquery"]
 
 
 class TestPostEndpointValidation:

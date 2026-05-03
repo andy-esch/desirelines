@@ -57,6 +57,67 @@ class TestHealthEndpoint:
         assert response.json() == {"status": "healthy"}
 
 
+class TestReadyEndpoint:
+    """Tests for /ready endpoint — exercises Postgres dependency probe."""
+
+    def test_ready_returns_200_when_postgres_reachable(self, client):
+        """Successful SELECT 1 returns 200 with healthy components."""
+        from stravapipe.cloudrun.postgres_writer_app import app
+
+        mock_session = MagicMock()
+        mock_session.__enter__.return_value = mock_session
+        mock_session.__exit__.return_value = False
+        mock_session_factory = MagicMock(return_value=mock_session)
+        app.state.session_factory = mock_session_factory
+
+        response = client.get("/ready")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "healthy"
+        assert body["components"] == {"postgres": "healthy"}
+        mock_session.execute.assert_called_once()
+
+    def test_ready_returns_503_when_postgres_errors(self, client):
+        """Connection error returns 503 with error string."""
+        from stravapipe.cloudrun.postgres_writer_app import app
+
+        mock_session_factory = MagicMock(
+            side_effect=RuntimeError("connection refused")
+        )
+        app.state.session_factory = mock_session_factory
+
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["status"] == "unhealthy"
+        assert body["components"] == {"postgres": "unhealthy"}
+        assert "connection refused" in body["errors"]["postgres"]
+
+    def test_ready_returns_503_on_timeout(self, client):
+        """A probe that exceeds the timeout returns 503 with timeout marker."""
+        import time
+
+        from stravapipe.cloudrun.postgres_writer_app import app
+
+        def _slow_factory():
+            time.sleep(0.5)
+            return MagicMock()
+
+        app.state.session_factory = _slow_factory
+
+        with patch(
+            "stravapipe.shared.readiness.DEFAULT_READINESS_TIMEOUT_S", 0.01
+        ):
+            response = client.get("/ready")
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["status"] == "unhealthy"
+        assert "timeout" in body["errors"]["postgres"]
+
+
 class TestPostEndpointValidation:
     """Tests for POST / endpoint - validation and error handling."""
 
