@@ -46,7 +46,7 @@ This file is synced to three packages via `just sync-schemas`. Each consumer dep
 | `has_distance` | Returned via `GetCategory()` | Loaded | — |
 | `has_elevation` | Returned via `GetCategory()` | Loaded | — |
 
-**Note:** The apigateway also serves the entire config as raw JSON via `/sports/config`, so the web frontend receives all fields even if it only actively uses a subset.
+**Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web package's demo fixture (`packages/web/src/data/fixtures/index.ts`) must be updated **manually** to match this file.
 
 ### Source files
 
