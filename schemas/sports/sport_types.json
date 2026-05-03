@@ -144,15 +144,6 @@
       "metrics": ["distance_meters", "time_minutes", "activities", "activity_ids"],
       "hasDistance": true,
       "hasElevation": false
-    },
-    "other": {
-      "displayName": "Other",
-      "stravaTypes": [],
-      "excludedTypes": [],
-      "primaryMetric": "time_minutes",
-      "metrics": ["time_minutes", "activities", "activity_ids"],
-      "hasDistance": false,
-      "hasElevation": false
     }
   }
 }
