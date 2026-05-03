@@ -13,9 +13,13 @@ from stravapipe.shared.correlation import (
     extract_trace_from_pubsub_attributes,
     extract_trace_from_traceparent,
     get_correlation_id,
+    get_delivery_attempt,
+    get_pubsub_message_id,
     get_trace_id,
     new_correlation_id,
     set_correlation_id,
+    set_delivery_attempt,
+    set_pubsub_message_id,
     set_trace_context,
 )
 
@@ -29,9 +33,13 @@ def _reset_contextvars():
     """
     set_correlation_id("")
     set_trace_context("", "", False)
+    set_pubsub_message_id("")
+    set_delivery_attempt(None)
     yield
     set_correlation_id("")
     set_trace_context("", "", False)
+    set_pubsub_message_id("")
+    set_delivery_attempt(None)
 
 
 class TestCorrelationIdContextVar:
@@ -325,3 +333,88 @@ class TestInstallCorrelationFilter:
                 root.removeHandler(h)
             for h in original_handlers:
                 root.addHandler(h)
+
+
+class TestPubSubMessageIDContextVar:
+    def test_default_is_empty_string(self):
+        assert get_pubsub_message_id() == ""
+
+    def test_set_and_get(self):
+        set_pubsub_message_id("msg-123")
+        assert get_pubsub_message_id() == "msg-123"
+
+
+class TestDeliveryAttemptContextVar:
+    def test_default_is_none(self):
+        assert get_delivery_attempt() is None
+
+    def test_set_and_get_int(self):
+        set_delivery_attempt(3)
+        assert get_delivery_attempt() == 3
+
+    def test_set_and_get_none(self):
+        set_delivery_attempt(2)
+        set_delivery_attempt(None)
+        assert get_delivery_attempt() is None
+
+
+class TestCorrelationFilterPubSubFields:
+    def _make_record(self) -> logging.LogRecord:
+        return logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="hello",
+            args=(),
+            exc_info=None,
+        )
+
+    def test_mirrors_pubsub_message_id_into_json_fields(self):
+        set_pubsub_message_id("msg-abc")
+        f = CorrelationFilter()
+        record = self._make_record()
+        f.filter(record)
+        assert record.json_fields == {"pubsub_message_id": "msg-abc"}
+
+    def test_mirrors_delivery_attempt_into_json_fields(self):
+        set_delivery_attempt(3)
+        f = CorrelationFilter()
+        record = self._make_record()
+        f.filter(record)
+        assert record.json_fields == {"delivery_attempt": 3}
+
+    def test_omits_delivery_attempt_when_none(self):
+        # First-delivery / no-DLQ case: field should not appear in payload at all.
+        set_pubsub_message_id("msg-abc")
+        f = CorrelationFilter()
+        record = self._make_record()
+        f.filter(record)
+        assert "delivery_attempt" not in record.json_fields
+
+    def test_includes_all_three_when_set(self):
+        set_correlation_id("cid-1")
+        set_pubsub_message_id("msg-abc")
+        set_delivery_attempt(2)
+        f = CorrelationFilter()
+        record = self._make_record()
+        f.filter(record)
+        assert record.json_fields == {
+            "correlation_id": "cid-1",
+            "pubsub_message_id": "msg-abc",
+            "delivery_attempt": 2,
+        }
+
+    def test_does_not_overwrite_caller_supplied_pubsub_fields(self):
+        set_pubsub_message_id("cv-msg")
+        set_delivery_attempt(1)
+        f = CorrelationFilter()
+        record = self._make_record()
+        record.json_fields = {
+            "pubsub_message_id": "explicit-msg",
+            "delivery_attempt": 5,
+        }
+        f.filter(record)
+        # setdefault semantics — explicit values win.
+        assert record.json_fields["pubsub_message_id"] == "explicit-msg"
+        assert record.json_fields["delivery_attempt"] == 5

@@ -24,6 +24,7 @@ with a simpler flow: parse event → extract owner_id → delete from all stores
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from google.cloud.firestore_v1 import Client as FirestoreClient
@@ -42,6 +43,8 @@ from stravapipe.shared.correlation import (
     extract_trace_from_pubsub_attributes,
     new_correlation_id,
     set_correlation_id,
+    set_delivery_attempt,
+    set_pubsub_message_id,
     set_trace_context,
 )
 from stravapipe.shared.logging import setup_logging
@@ -185,7 +188,7 @@ async def health() -> HealthResponse:
 
 
 @app.post("/")
-async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa: PLR0915 — orchestrator coordinates 4 independent deletion stores with per-store error handling; splitting would obscure the control flow
+async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa: PLR0912, PLR0915 — orchestrator coordinates 4 independent deletion stores with per-store error handling; splitting would obscure the control flow
     """Handle deauth event from Pub/Sub.
 
     Deletes user data from all stores. Proceeds through all stores even if
@@ -215,6 +218,13 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
         correlation_id = message_attributes.get("correlation_id") or correlation_id
         set_correlation_id(correlation_id)
 
+        # Surface the broker-side message identifiers on the contextvar so
+        # CorrelationFilter mirrors them into every subsequent log record's
+        # jsonPayload. Essential for diagnosing redelivery — see
+        # https://cloud.google.com/pubsub/docs/handling-failures#track_delivery_attempts
+        set_pubsub_message_id(context.pubsub_message_id)
+        set_delivery_attempt(context.delivery_attempt)
+
         # Extract W3C trace context from dispatcher's traceparent attribute.
         # This is the cross-service trace and overrides the Cloud Run
         # request-level X-Cloud-Trace-Context above.
@@ -227,6 +237,16 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
 
         tracer = request.app.state.tracer
 
+        # Build span attributes; include delivery_attempt only when the broker
+        # set it, so `pubsub.delivery_attempt > 1` searches in Cloud Trace
+        # cleanly distinguish retries from first-delivery messages.
+        span_attrs: dict[str, Any] = {
+            "correlation_id": correlation_id,
+            "pubsub.message_id": context.pubsub_message_id,
+        }
+        if context.delivery_attempt is not None:
+            span_attrs["pubsub.delivery_attempt"] = context.delivery_attempt
+
         # IMPORTANT: The span must wrap ALL log statements below. The
         # google-cloud-logging library reads the active OTel span and
         # populates trace/spanId/traceSampled on each log entry. Logs
@@ -236,7 +256,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
         with record_span(
             tracer,
             "deletion.process",
-            attributes={"correlation_id": correlation_id},
+            attributes=span_attrs,
             parent_context=parent_context,
         ):
             logger.info(
@@ -244,6 +264,8 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
                 extra={
                     "event_type": context.event_type,
                     "event_id": context.event_id,
+                    "pubsub_message_id": context.pubsub_message_id,
+                    "delivery_attempt": context.delivery_attempt,
                 },
             )
 
