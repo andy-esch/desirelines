@@ -33,6 +33,7 @@ import contextvars
 import logging
 import os
 import re
+from typing import Any
 import uuid
 
 # Module-level ContextVars. Default to empty string so the filter can
@@ -149,6 +150,38 @@ def set_delivery_attempt(attempt: int | None) -> contextvars.Token[int | None]:
 def get_delivery_attempt() -> int | None:
     """Return the current delivery attempt, or None if unset / first delivery."""
     return _delivery_attempt_var.get()
+
+
+def apply_pubsub_request_context(
+    correlation_id: str,
+    pubsub_message_id: str,
+    delivery_attempt: int | None,
+) -> dict[str, Any]:
+    """Wire request-scoped Pub/Sub identifiers and return matching span attrs.
+
+    Centralizes the "set 3 contextvars + build span_attrs dict" pattern shared
+    by every Pub/Sub-consuming Cloud Run handler in stravapipe. After this
+    returns, ``CorrelationFilter`` will mirror all three values into every
+    subsequent log record's ``json_fields``, and the returned dict is in the
+    shape that ``record_span(attributes=...)`` expects.
+
+    Takes primitives (not ``CloudEventContext``) so this module stays free of
+    a dependency on ``cloudrun.pubsub``.
+
+    ``delivery_attempt`` is omitted from the returned dict when ``None`` so a
+    Cloud Trace filter ``pubsub.delivery_attempt > 1`` cleanly distinguishes
+    retried deliveries from first-delivery messages.
+    """
+    set_correlation_id(correlation_id)
+    set_pubsub_message_id(pubsub_message_id)
+    set_delivery_attempt(delivery_attempt)
+    attrs: dict[str, str | int] = {
+        "correlation_id": correlation_id,
+        "pubsub.message_id": pubsub_message_id,
+    }
+    if delivery_attempt is not None:
+        attrs["pubsub.delivery_attempt"] = delivery_attempt
+    return attrs
 
 
 def extract_trace_from_cloud_trace_header(header: str) -> tuple[str, str, bool]:

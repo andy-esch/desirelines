@@ -9,6 +9,7 @@ import pytest
 from stravapipe.shared import correlation
 from stravapipe.shared.correlation import (
     CorrelationFilter,
+    apply_pubsub_request_context,
     extract_trace_from_cloud_trace_header,
     extract_trace_from_pubsub_attributes,
     extract_trace_from_traceparent,
@@ -418,3 +419,30 @@ class TestCorrelationFilterPubSubFields:
         # setdefault semantics — explicit values win.
         assert record.json_fields["pubsub_message_id"] == "explicit-msg"
         assert record.json_fields["delivery_attempt"] == 5
+
+
+class TestApplyPubSubRequestContext:
+    def test_sets_all_three_contextvars(self):
+        apply_pubsub_request_context("cid-1", "msg-2", 3)
+        assert get_correlation_id() == "cid-1"
+        assert get_pubsub_message_id() == "msg-2"
+        assert get_delivery_attempt() == 3
+
+    def test_returns_span_attrs_with_delivery_attempt_when_set(self):
+        attrs = apply_pubsub_request_context("cid-1", "msg-2", 3)
+        assert attrs == {
+            "correlation_id": "cid-1",
+            "pubsub.message_id": "msg-2",
+            "pubsub.delivery_attempt": 3,
+        }
+
+    def test_omits_delivery_attempt_when_none(self):
+        # First-delivery / no-DLQ case: must not appear in span attrs at all
+        # so a Cloud Trace `pubsub.delivery_attempt > 1` filter cleanly
+        # distinguishes retries from first-delivery messages.
+        attrs = apply_pubsub_request_context("cid-1", "msg-2", None)
+        assert "pubsub.delivery_attempt" not in attrs
+        assert attrs == {"correlation_id": "cid-1", "pubsub.message_id": "msg-2"}
+        # Contextvar still gets explicitly set to None so a leaked previous
+        # value from another test/request doesn't bleed into log fields.
+        assert get_delivery_attempt() is None
