@@ -289,3 +289,50 @@ func TestStampRequestID_NoActiveSpanIsNoOp(t *testing.T) {
 		t.Errorf("status = %d, want 200", w.Code)
 	}
 }
+
+func TestAddChiURLParamsAs_RemapsParamNameToAttribute(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	tr := tp.Tracer("test")
+
+	r := chi.NewRouter()
+	r.Get("/v1/activities/{id}", func(_ http.ResponseWriter, req *http.Request) {
+		AddChiURLParamsAs(req, map[string]string{"id": "activity_id"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/activities/42", nil)
+	ctx, span := tr.Start(req.Context(), "test")
+	req = req.WithContext(ctx)
+
+	r.ServeHTTP(httptest.NewRecorder(), req)
+	span.End()
+
+	ended := sr.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("expected 1 ended span, got %d", len(ended))
+	}
+	got, ok := findAttr(ended[0].Attributes(), "desirelines.activity_id")
+	if !ok || got.Value.AsString() != "42" {
+		t.Errorf("desirelines.activity_id = %v (ok=%v), want 42", got.Value, ok)
+	}
+	// The chi param name `id` must NOT also appear — caller asked for the
+	// alias and only the alias should be set.
+	if _, exists := findAttr(ended[0].Attributes(), "desirelines.id"); exists {
+		t.Errorf("desirelines.id should not be set — caller asked for activity_id alias")
+	}
+}
+
+func TestAddChiURLParamsAs_NoActiveSpanIsNoOp(t *testing.T) {
+	r := chi.NewRouter()
+	r.Get("/v1/activities/{id}", func(_ http.ResponseWriter, req *http.Request) {
+		AddChiURLParamsAs(req, map[string]string{"id": "activity_id"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/activities/42", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}

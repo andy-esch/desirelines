@@ -529,8 +529,11 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse activity ID from path
-	otel.AddChiURLParams(r, "id")
+	// Parse activity ID from path. Span attribute uses `activity_id` (not the
+	// chi param `id`) so a Cloud Trace filter `desirelines.activity_id=<id>`
+	// matches the same attribute the dispatcher stamps in
+	// stampWebhookIDsOnSpan.
+	otel.AddChiURLParamsAs(r, map[string]string{"id": "activity_id"})
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
