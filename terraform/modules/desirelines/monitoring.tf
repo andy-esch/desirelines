@@ -1357,8 +1357,12 @@ resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
 # dedicated SA that holds roles/run.invoker on each target.
 #
 # Adding a fourth Python service later: add one entry to
-# local.python_readiness_targets and re-apply — the for_each + label
-# extractor on the shared metric handle the rest. No new alert resource.
+# local.python_readiness_targets and re-apply — the for_each on IAM and
+# scheduler resources, plus the keys()-interpolated regex on the shared
+# metric, all derive from that single map. No new alert resource. The only
+# manual step is adding a runbook bullet in the alert documentation under
+# "Likely causes" (the failure modes are per-service so they can't be
+# auto-generated).
 
 resource "google_service_account" "scheduler" {
   account_id   = "${var.project_name}-scheduler"
@@ -1367,24 +1371,29 @@ resource "google_service_account" "scheduler" {
 }
 
 locals {
+  # Single source of truth for Python readiness targets — store the full
+  # service objects so downstream resources can derive both `.name` (for IAM)
+  # and `.uri` (for scheduler target + OIDC audience) from one entry. Adding
+  # a fourth Python service really is one new line here, no other edits.
+  #
+  # Keys use dashes (matching the URL-safe Cloud Run service names that land
+  # in scheduler `name` and the `service` metric label); the right-hand-side
+  # TF resource references use underscores per Terraform identifier
+  # conventions. Not a typo — the asymmetry is intentional.
   python_readiness_targets = {
-    bq-inserter      = google_cloud_run_v2_service.bq_inserter.uri
-    postgres-writer  = google_cloud_run_v2_service.postgres_writer.uri
-    deletion-service = google_cloud_run_v2_service.deletion_service.uri
+    bq-inserter      = google_cloud_run_v2_service.bq_inserter
+    postgres-writer  = google_cloud_run_v2_service.postgres_writer
+    deletion-service = google_cloud_run_v2_service.deletion_service
   }
 }
 
 # Allow the scheduler SA to invoke each Python Cloud Run service.
 resource "google_cloud_run_v2_service_iam_member" "scheduler_python_invoker" {
-  for_each = {
-    bq-inserter      = google_cloud_run_v2_service.bq_inserter.name
-    postgres-writer  = google_cloud_run_v2_service.postgres_writer.name
-    deletion-service = google_cloud_run_v2_service.deletion_service.name
-  }
+  for_each = local.python_readiness_targets
 
   project  = var.gcp_project_id
   location = var.gcp_region
-  name     = each.value
+  name     = each.value.name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.scheduler.email}"
 }
@@ -1404,14 +1413,14 @@ resource "google_cloud_scheduler_job" "python_readiness" {
 
   http_target {
     http_method = "GET"
-    uri         = "${each.value}/ready"
+    uri         = "${each.value.uri}/ready"
 
     # Python services are private Cloud Run (INGRESS_TRAFFIC_INTERNAL_ONLY)
     # — caller needs roles/run.invoker via OIDC. The audience must equal the
     # service URI for Cloud Run to accept the token.
     oidc_token {
       service_account_email = google_service_account.scheduler.email
-      audience              = each.value
+      audience              = each.value.uri
     }
   }
 
@@ -1427,9 +1436,14 @@ resource "google_cloud_scheduler_job" "python_readiness" {
 resource "google_logging_metric" "python_readiness_failures" {
   name        = "${var.project_name}_${var.environment}_python_readiness_failures"
   description = "Cloud Scheduler readiness probe responses that aren't 2xx (Python services)"
-  filter      = <<-EOT
+  # Filter is interpolated from local.python_readiness_targets so adding a
+  # service auto-extends the metric. The regex is intentionally pinned to
+  # the known service slugs (rather than a wildcard `.*-readiness`) so a
+  # future unrelated job named `<project>-<env>-foo-readiness` doesn't
+  # silently get bucketed in and fire false positives.
+  filter = <<-EOT
     resource.type="cloud_scheduler_job"
-    resource.labels.job_id=~".*-(bq-inserter|postgres-writer|deletion-service)-readiness$"
+    resource.labels.job_id=~"^${var.project_name}-${var.environment}-(${join("|", keys(local.python_readiness_targets))})-readiness$"
     httpRequest.status>=400
   EOT
   metric_descriptor {
@@ -1439,11 +1453,11 @@ resource "google_logging_metric" "python_readiness_failures" {
     labels {
       key         = "service"
       value_type  = "STRING"
-      description = "Python service slug (bq-inserter | postgres-writer | deletion-service)"
+      description = "Python service slug (${join(" | ", keys(local.python_readiness_targets))})"
     }
   }
   label_extractors = {
-    "service" = "REGEXP_EXTRACT(resource.labels.job_id, \"(bq-inserter|postgres-writer|deletion-service)-readiness$\")"
+    "service" = "REGEXP_EXTRACT(resource.labels.job_id, \"(${join("|", keys(local.python_readiness_targets))})-readiness$\")"
   }
 }
 
@@ -1456,8 +1470,10 @@ resource "google_monitoring_alert_policy" "python_readiness_failing" {
     content = <<-EOT
       **HIGH**: 3 consecutive hourly readiness probes against a Python
       service `/ready` have failed in the last 4 hours. The `service` label
-      on the alert tells you which one (bq-inserter / postgres-writer /
-      deletion-service). Likely causes:
+      on the alert tells you which one (${join(" / ", keys(local.python_readiness_targets))}).
+
+      Likely causes (add a bullet here when adding a new service to
+      local.python_readiness_targets):
       - postgres-writer: Neon down, pool exhausted
       - bq-inserter: BigQuery permissions drift, dataset missing
       - deletion-service: BigQuery or Firestore credential expired
