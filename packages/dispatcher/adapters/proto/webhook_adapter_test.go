@@ -404,12 +404,6 @@ func TestAspectTypeRoundtrip(t *testing.T) {
 	}
 }
 
-const (
-	aspectCreate   = "create"
-	aspectDelete   = "delete"
-	objectActivity = "activity"
-)
-
 func TestToEnrichedJSON_WithRawActivity(t *testing.T) {
 	rawActivity := []byte(`{"id":12345,"name":"Morning Run","distance":5000}`)
 	enriched := &pb.EnrichedEvent{

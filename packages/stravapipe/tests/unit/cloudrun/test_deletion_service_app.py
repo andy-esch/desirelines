@@ -237,3 +237,56 @@ class TestLifespanCleanup:
 
             # Shutdown events have run
             mock_engine.dispose.assert_called_once()
+
+
+class TestTryDeleteStep:
+    """Cover the per-store error-tolerance contract that _try_delete_step
+    exists to provide: a failing store records its error on DeletionResult
+    and the orchestrator continues to the next store. A regression that
+    drops the try/except (or re-raises) would silently flip
+    partial-success-then-500 to immediate-500 — important to pin down."""
+
+    def test_records_failure_on_result_and_does_not_raise(self):
+        from stravapipe.cloudrun.deletion_service_app import (
+            DeletionResult,
+            _try_delete_step,
+        )
+
+        result = DeletionResult(user_id="user-123")
+
+        def boom() -> None:
+            raise RuntimeError("connection refused")
+
+        _try_delete_step(
+            result,
+            tracer=None,
+            deletion_hist=None,
+            store_name="postgres",
+            work=boom,
+        )
+
+        assert result.errors == ["postgres: connection refused"]
+        assert result.has_errors is True
+
+    def test_success_path_leaves_errors_empty(self):
+        from stravapipe.cloudrun.deletion_service_app import (
+            DeletionResult,
+            _try_delete_step,
+        )
+
+        result = DeletionResult(user_id="user-123")
+        called = []
+
+        def work() -> None:
+            called.append(True)
+
+        _try_delete_step(
+            result,
+            tracer=None,
+            deletion_hist=None,
+            store_name="postgres",
+            work=work,
+        )
+
+        assert called == [True]
+        assert result.errors == []

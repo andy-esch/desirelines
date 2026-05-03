@@ -1,3 +1,4 @@
+// Package httpadapter provides an HTTP adapter for the dispatcher.
 package httpadapter
 
 import (
@@ -40,6 +41,15 @@ const (
 	ErrCodeStravaFetchFailed     = "STRAVA_FETCH_FAILED"
 	ErrCodeInvalidChallenge      = "INVALID_CHALLENGE"
 	ErrCodeDeauthFailed          = "DEAUTH_FAILED"
+)
+
+// Internal constants for recurring strings
+const (
+	hubModeSubscribe    = "subscribe"
+	hubChallenge        = "hub.challenge"
+	contentTypeJSON     = "application/json"
+	webhookPublished    = "published"
+	webhookAcknowledged = "acknowledged"
 )
 
 // maxChallengeLength is the maximum allowed length for hub.challenge.
@@ -134,10 +144,10 @@ func (h *Handler) RegisterRoutes() http.Handler {
 
 func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	mode := r.URL.Query().Get("hub.mode")
-	challenge := r.URL.Query().Get("hub.challenge")
+	challenge := r.URL.Query().Get(hubChallenge)
 	token := r.URL.Query().Get("hub.verify_token")
 
-	if mode != "subscribe" {
+	if mode != hubModeSubscribe {
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"invalid hub.mode",
@@ -175,8 +185,9 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge}); encodeErr != nil {
+	if encodeErr := json.NewEncoder(w).Encode(map[string]string{hubChallenge: challenge}); encodeErr != nil {
 		h.logger.Error("Failed to encode response", "error", encodeErr)
 	}
 }
@@ -195,6 +206,8 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 // keeps it under golangci-lint's gocyclo cap and makes the operational
 // pipeline scannable at a glance.
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	body, ok := h.readAndValidateBody(w, r)
 	if !ok {
 		return
@@ -209,14 +222,14 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stampWebhookIDsOnSpan(r.Context(), webhook.ObjectId, webhook.OwnerId)
+	stampWebhookIDsOnSpan(ctx, webhook)
 
-	ctx, correlationID := h.startCorrelatedRequest(r)
-	r = r.WithContext(ctx)
+	correlationID := chiMiddleware.GetReqID(ctx)
+	ctx = gcplog.WithCorrelationID(ctx, correlationID)
 
 	h.recordWebhookMetric(ctx, webhook)
 
-	h.routeWebhookEvent(ctx, w, r, webhook, body, correlationID)
+	h.routeWebhookEvent(ctx, w, r.WithContext(ctx), webhook, body, correlationID)
 }
 
 // readAndValidateBody enforces the Content-Type contract and reads the body
@@ -224,7 +237,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 // the appropriate 4xx error and returns (nil, false).
 func (h *Handler) readAndValidateBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || mediaType != "application/json" {
+	if err != nil || mediaType != contentTypeJSON {
 		apiErr := apierrors.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		apiErr.Code = ErrCodeInvalidContentType
 		apierrors.WriteError(w, r, apiErr, h.logger)
@@ -299,17 +312,7 @@ func (h *Handler) checkSubscriptionID(w http.ResponseWriter, r *http.Request, we
 	return true
 }
 
-// startCorrelatedRequest derives a correlation ID from chi's request ID and
-// stamps it on the request context so downstream log lines share it. Returns
-// the enriched context and the correlation ID for direct use by callers
-// (publish, etc).
-func (h *Handler) startCorrelatedRequest(r *http.Request) (context.Context, string) {
-	correlationID := chiMiddleware.GetReqID(r.Context())
-	ctx := gcplog.WithCorrelationID(r.Context(), correlationID)
-	return ctx, correlationID
-}
-
-// recordWebhookMetric increments the webhook-events counter labelled by
+// recordWebhookMetric increments the webhook-events counter labeled by
 // aspect_type and object_type. No-op when no counter is configured.
 func (h *Handler) recordWebhookMetric(ctx context.Context, webhook *generated.WebhookEvent) {
 	if h.webhookCounter == nil {
@@ -464,9 +467,9 @@ type webhookResponse struct {
 // accepts any 2xx, but if retries are observed this should be changed to 200.
 // We use 201 to distinguish "published to Pub/Sub" from "acknowledged but ignored".
 func (h *Handler) writeSuccess(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: "published"}); err != nil {
+	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: webhookPublished}); err != nil {
 		h.logger.Error("Failed to encode success response", "error", err)
 	}
 }
@@ -475,32 +478,43 @@ func (h *Handler) writeSuccess(w http.ResponseWriter) {
 // Used for events that are received but need no further processing
 // (e.g., non-deauth athlete events) and for successfully handled deauth events.
 func (h *Handler) writeAcknowledged(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: "acknowledged"}); err != nil {
+	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: webhookAcknowledged}); err != nil {
 		h.logger.Error("Failed to encode acknowledged response", "error", err)
 	}
 }
 
-// stampWebhookIDsOnSpan attaches the parsed activity/athlete identifiers to the
-// active OTel server span. Pulled out of handleEvent so the latter stays under
-// the cyclomatic-complexity limit.
+// stampWebhookIDsOnSpan attaches the parsed identifiers to the active OTel
+// server span. Pulled out of handleEvent so the latter stays under the
+// cyclomatic-complexity limit.
 //
-// Attribute names match apigateway's HandleGetActivity span attribute (set via
-// otel.AddChiURLParamsAs(r, {"id": "activity_id"})) so a single Cloud Trace
-// filter `desirelines.activity_id=<id>` matches spans from BOTH services for
-// the same activity. `enduser.id` is reserved for authenticated end-users; the
-// dispatcher only handles Strava webhooks and does not authenticate end-users,
-// so the athlete ID is namespaced under `desirelines.*` instead.
+// `OwnerId` is the Strava athlete ID across all object types and is always
+// stamped. `ObjectId` ONLY represents an activity ID when the event is
+// `OBJECT_TYPE_ACTIVITY`; for athlete (deauth) events `ObjectId` is the
+// athlete ID, so stamping it as `desirelines.activity_id` would silently
+// misclassify the trace and break the cross-service convention. Hence
+// activity_id is gated on ObjectType.
+//
+// Attribute names match apigateway's HandleGetActivity span attribute (set
+// via otel.AddChiURLParamsAs(r, {"id": "activity_id"})) so a single Cloud
+// Trace filter `desirelines.activity_id=<id>` matches spans from BOTH
+// services for the same activity. `enduser.id` is reserved for authenticated
+// end-users; the dispatcher only handles Strava webhooks and does not
+// authenticate end-users, so the athlete ID is namespaced under
+// `desirelines.*` instead.
 //
 // No-op when no valid span is on the context.
-func stampWebhookIDsOnSpan(ctx context.Context, activityID, athleteID int64) {
+func stampWebhookIDsOnSpan(ctx context.Context, webhook *generated.WebhookEvent) {
 	span := trace.SpanFromContext(ctx)
 	if !span.SpanContext().IsValid() {
 		return
 	}
-	span.SetAttributes(
-		attribute.Int64("desirelines.activity_id", activityID),
-		attribute.Int64("desirelines.athlete_id", athleteID),
-	)
+	attrs := []attribute.KeyValue{
+		attribute.Int64("desirelines.athlete_id", webhook.OwnerId),
+	}
+	if webhook.ObjectType == generated.ObjectType_OBJECT_TYPE_ACTIVITY {
+		attrs = append(attrs, attribute.Int64("desirelines.activity_id", webhook.ObjectId))
+	}
+	span.SetAttributes(attrs...)
 }

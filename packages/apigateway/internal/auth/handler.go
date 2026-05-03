@@ -18,6 +18,18 @@ import (
 // defaultExternalTimeout is the timeout for external service calls (Firestore, Firebase Auth).
 const defaultExternalTimeout = 10 * time.Second
 
+const (
+	scopeActivityReadAll = "activity:read_all"
+	paramClientID        = "client_id"
+	paramRedirectURI     = "redirect_uri"
+	paramResponseType    = "response_type"
+	paramScope           = "scope"
+	paramApprovalPrompt  = "approval_prompt"
+	approvalPromptAuto   = "auto"
+	paramState           = "state"
+	paramCode            = "code"
+)
+
 // HandlerConfig holds configuration for the OAuth auth handler.
 type HandlerConfig struct {
 	Strava      StravaOAuthClient
@@ -99,12 +111,12 @@ func (h *Handler) HandleInitiate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := url.Values{
-		"client_id":       {h.clientID},
-		"redirect_uri":    {h.redirectURI},
-		"response_type":   {"code"},
-		"scope":           {"activity:read_all"},
-		"state":           {state},
-		"approval_prompt": {"auto"},
+		paramClientID:       {h.clientID},
+		paramRedirectURI:    {h.redirectURI},
+		paramResponseType:   {paramCode},
+		paramScope:          {scopeActivityReadAll},
+		paramState:          {state},
+		paramApprovalPrompt: {approvalPromptAuto},
 	}
 
 	u, parseErr := url.Parse(h.strava.AuthorizeURL())
@@ -135,7 +147,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate state token
-	state := r.URL.Query().Get("state")
+	state := r.URL.Query().Get(paramState)
 	if err := validateState(state, h.stateSecret); err != nil {
 		h.logger.Warn("Invalid state token", "error", err)
 		h.redirectError(w, r, "invalid_state")
@@ -143,7 +155,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate code parameter
-	code := r.URL.Query().Get("code")
+	code := r.URL.Query().Get(paramCode)
 	if code == "" || len(code) > 256 {
 		h.logger.Warn("Missing or invalid code parameter in callback", "code_len", len(code))
 		h.redirectError(w, r, "missing_code")
@@ -274,7 +286,7 @@ func (h *Handler) syncFirebaseProfile(ctx context.Context, athleteID string, ath
 func (h *Handler) validateScope(w http.ResponseWriter, r *http.Request, tokenResp *StravaTokenResponse, athleteID string) (string, error) {
 	grantedScope := tokenResp.Scope
 	if grantedScope == "" {
-		grantedScope = r.URL.Query().Get("scope")
+		grantedScope = r.URL.Query().Get(paramScope)
 	}
 	if grantedScope == "" {
 		h.logger.Warn("No scope in token response or callback query", "athlete_id", athleteID)
@@ -288,12 +300,12 @@ func (h *Handler) validateScope(w http.ResponseWriter, r *http.Request, tokenRes
 	// drops empty strings, so the runes between separators are already trimmed tokens.
 	splitScope := func(r rune) bool { return r == ',' || unicode.IsSpace(r) }
 	for _, scope := range strings.FieldsFunc(grantedScope, splitScope) {
-		if scope == "activity:read_all" {
+		if scope == scopeActivityReadAll {
 			return grantedScope, nil
 		}
 	}
 
-	h.logger.Warn("Insufficient scopes granted", "granted", grantedScope, "required", "activity:read_all", "athlete_id", athleteID)
+	h.logger.Warn("Insufficient scopes granted", "granted", grantedScope, "required", scopeActivityReadAll, "athlete_id", athleteID)
 	h.redirectError(w, r, "insufficient_scope")
 	return "", fmt.Errorf("insufficient scope: %s", grantedScope)
 }
