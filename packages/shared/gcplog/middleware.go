@@ -107,8 +107,19 @@ func requestLogger(logger *slog.Logger, histogram metric.Float64Histogram) func(
 					logger.Info("HTTP Request", attrs...)
 				}
 
-				// Record OTel histogram if provided
-				if histogram != nil {
+				// Record OTel histogram if provided.
+				//
+				// Skip /health and /ready: GCP uptime checks (multi-region,
+				// every 60s) and Cloud Scheduler readiness probes hit these
+				// paths constantly. Their sub-1ms latencies would drag the
+				// histogram P50 down and pollute bucket distribution without
+				// telling us anything diagnostic. Mirrors the OTel trace
+				// filter at packages/apigateway/cmd/apigateway/main.go (see
+				// otelhttp.WithFilter call) — note that filter sees the
+				// public path (/api/health) while this one runs inside chi
+				// after http.StripPrefix("/api", ...) and sees the bare path
+				// (/health, /ready).
+				if histogram != nil && !isProbePath(r.URL.Path) {
 					route := "unknown"
 					if rctx := chi.RouteContext(r.Context()); rctx != nil && rctx.RoutePattern() != "" {
 						route = rctx.RoutePattern()
@@ -315,4 +326,12 @@ func BridgeRequestID(next http.Handler) http.Handler {
 // GCP expects format like "0.123s" or "1.5s".
 func formatLatency(d time.Duration) string {
 	return fmt.Sprintf("%.9fs", d.Seconds())
+}
+
+// isProbePath reports whether the path is a Cloud Run / GCP uptime probe
+// endpoint that we want to exclude from the request-duration histogram. The
+// paths are post-StripPrefix ("/health", "/ready") because this middleware
+// runs inside chi.
+func isProbePath(path string) bool {
+	return path == "/health" || path == "/ready"
 }

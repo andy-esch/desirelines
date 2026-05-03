@@ -27,8 +27,6 @@ present) ``logging.googleapis.com/trace`` automatically — no need to pass
 ``extra={"correlation_id": ...}`` on each call.
 """
 
-from __future__ import annotations
-
 import contextvars
 import logging
 import os

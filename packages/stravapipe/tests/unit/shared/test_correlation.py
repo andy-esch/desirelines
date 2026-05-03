@@ -1,7 +1,5 @@
 """Unit tests for the correlation ID + trace context propagation module."""
 
-from __future__ import annotations
-
 import logging
 
 import pytest

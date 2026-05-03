@@ -27,6 +27,30 @@ class JsonFieldsAdapter(logging.LoggerAdapter[logging.Logger]):
         return msg, kwargs
 
 
+def _parse_log_level() -> int:
+    """Parse the LOG_LEVEL env var into a logging level constant.
+
+    Accepts standard Python level names (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    case-insensitively. Empty / unset / unrecognized values fall back to INFO.
+
+    Mirrors the Go side's LOG_LEVEL handling (packages/dispatcher/config.ParseLogLevel
+    and packages/apigateway/config) so operators can adjust verbosity at runtime
+    via Cloud Run env-var update without redeploying the container image.
+    """
+    # `or "INFO"` (rather than the dict default) treats an explicitly-empty
+    # LOG_LEVEL="" as the same as unset — that's the idiomatic Unix
+    # convention and avoids a spurious "Invalid LOG_LEVEL" warning when an
+    # operator clears the var to fall back to the default.
+    name = (os.environ.get("LOG_LEVEL") or "INFO").upper()
+    level = logging.getLevelNamesMapping().get(name)
+    if level is None:
+        # Use logging directly here — the call happens before our handler is
+        # installed, so we cannot rely on the filtered logger yet.
+        logging.warning("Invalid LOG_LEVEL %r, defaulting to INFO", name)
+        return logging.INFO
+    return level
+
+
 def _install_correlation_filter() -> None:
     """Prepend CorrelationFilter to every handler attached to the root logger.
 
@@ -70,23 +94,29 @@ def setup_logging(logger_name: str) -> logging.LoggerAdapter[logging.Logger]:
         Configured LoggerAdapter instance that handles json_fields transformation
     """
     enable_cloud_logging = os.environ.get("ENABLE_CLOUD_LOGGING", "").lower() == "true"
+    log_level = _parse_log_level()
 
     if enable_cloud_logging:
         try:
             # google-cloud-logging ships untyped; ignore the two calls below.
             client = google.cloud.logging.Client()  # type: ignore[no-untyped-call]
-            client.setup_logging(log_level=logging.INFO)  # type: ignore[no-untyped-call]
+            client.setup_logging(log_level=log_level)  # type: ignore[no-untyped-call]
         except Exception as e:
+            # force=True so this overrides any default handler installed by an
+            # earlier logging call (e.g. _parse_log_level's invalid-value
+            # warning, or the implicit logger setup from importing google
+            # libraries before the try block ran).
             logging.basicConfig(
-                level=logging.INFO,
+                level=log_level,
                 format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                force=True,
             )
             logging.getLogger(logger_name).warning(
                 "Cloud Logging unavailable, using standard logging: %s", str(e)
             )
     else:
         logging.basicConfig(
-            level=logging.INFO,
+            level=log_level,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
             force=True,
         )
