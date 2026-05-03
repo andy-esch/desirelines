@@ -7,6 +7,14 @@ import (
 	pb "github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 )
 
+const (
+	aspectCreate   = "create"
+	aspectUpdate   = "update"
+	aspectDelete   = "delete"
+	objectActivity = "activity"
+	objectAthlete  = "athlete"
+)
+
 // StravaWebhookJSON represents the raw JSON structure from Strava webhooks.
 // Strava sends string enums ("create", "activity") while proto uses int enums.
 //
@@ -90,11 +98,11 @@ func parseActivityUpdates(updates map[string]string) *pb.ActivityUpdates {
 // parseAspectType converts Strava's string aspect_type to proto enum.
 func parseAspectType(s string) (pb.AspectType, error) {
 	switch s {
-	case "create":
+	case aspectCreate:
 		return pb.AspectType_ASPECT_TYPE_CREATE, nil
-	case "update":
+	case aspectUpdate:
 		return pb.AspectType_ASPECT_TYPE_UPDATE, nil
-	case "delete":
+	case aspectDelete:
 		return pb.AspectType_ASPECT_TYPE_DELETE, nil
 	default:
 		return pb.AspectType_ASPECT_TYPE_UNSPECIFIED, fmt.Errorf("invalid aspect_type: %s", s)
@@ -104,9 +112,9 @@ func parseAspectType(s string) (pb.AspectType, error) {
 // parseObjectType converts Strava's string object_type to proto enum.
 func parseObjectType(s string) (pb.ObjectType, error) {
 	switch s {
-	case "activity":
+	case objectActivity:
 		return pb.ObjectType_OBJECT_TYPE_ACTIVITY, nil
-	case "athlete":
+	case objectAthlete:
 		return pb.ObjectType_OBJECT_TYPE_ATHLETE, nil
 	default:
 		return pb.ObjectType_OBJECT_TYPE_UNSPECIFIED, fmt.Errorf("invalid object_type: %s", s)
@@ -117,11 +125,11 @@ func parseObjectType(s string) (pb.ObjectType, error) {
 func AspectTypeToString(at pb.AspectType) string {
 	switch at {
 	case pb.AspectType_ASPECT_TYPE_CREATE:
-		return "create"
+		return aspectCreate
 	case pb.AspectType_ASPECT_TYPE_UPDATE:
-		return "update"
+		return aspectUpdate
 	case pb.AspectType_ASPECT_TYPE_DELETE:
-		return "delete"
+		return aspectDelete
 	default:
 		return ""
 	}
@@ -131,9 +139,9 @@ func AspectTypeToString(at pb.AspectType) string {
 func ObjectTypeToString(ot pb.ObjectType) string {
 	switch ot {
 	case pb.ObjectType_OBJECT_TYPE_ACTIVITY:
-		return "activity"
+		return objectActivity
 	case pb.ObjectType_OBJECT_TYPE_ATHLETE:
-		return "athlete"
+		return objectAthlete
 	default:
 		return ""
 	}

@@ -33,6 +33,7 @@ import contextvars
 import logging
 import os
 import re
+from typing import Any
 import uuid
 
 # Module-level ContextVars. Default to empty string so the filter can
@@ -48,6 +49,15 @@ _span_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
 )
 _trace_sampled_var: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "trace_sampled", default=False
+)
+# Pub/Sub broker-side identifiers — see set_pubsub_message_id /
+# set_delivery_attempt for usage. Both default to empty / None so the filter
+# can read them unconditionally without LookupError.
+_pubsub_message_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "pubsub_message_id", default=""
+)
+_delivery_attempt_var: contextvars.ContextVar[int | None] = contextvars.ContextVar(
+    "delivery_attempt", default=None
 )
 
 # Matches GCP's X-Cloud-Trace-Context header: TRACE_ID/SPAN_ID;o=TRACE_TRUE
@@ -107,6 +117,71 @@ def set_trace_context(
 def get_trace_id() -> str:
     """Return the current raw trace ID, or empty string if not set."""
     return _trace_id_var.get()
+
+
+def set_pubsub_message_id(message_id: str) -> contextvars.Token[str]:
+    """Set the broker-assigned Pub/Sub message_id for the current request.
+
+    The value is auto-attached to every subsequent log record by
+    ``CorrelationFilter`` so a single Cloud Logging filter
+    ``jsonPayload.pubsub_message_id="..."`` returns every log line for one
+    specific delivery — essential for diagnosing redelivery patterns.
+    """
+    return _pubsub_message_id_var.set(message_id)
+
+
+def get_pubsub_message_id() -> str:
+    """Return the current Pub/Sub message_id, or empty string if not set."""
+    return _pubsub_message_id_var.get()
+
+
+def set_delivery_attempt(attempt: int | None) -> contextvars.Token[int | None]:
+    """Set the Pub/Sub `deliveryAttempt` for the current request.
+
+    Pass ``None`` for first-delivery / no-DLQ messages where the field is
+    absent on the envelope; the filter then omits it from log payloads. Pass
+    an int (typically ≥ 1) when the envelope carried the field — the same
+    int is logged on every record for the request, so a Cloud Logging filter
+    ``jsonPayload.delivery_attempt > 1`` surfaces only retried deliveries.
+    """
+    return _delivery_attempt_var.set(attempt)
+
+
+def get_delivery_attempt() -> int | None:
+    """Return the current delivery attempt, or None if unset / first delivery."""
+    return _delivery_attempt_var.get()
+
+
+def apply_pubsub_request_context(
+    correlation_id: str,
+    pubsub_message_id: str,
+    delivery_attempt: int | None,
+) -> dict[str, Any]:
+    """Wire request-scoped Pub/Sub identifiers and return matching span attrs.
+
+    Centralizes the "set 3 contextvars + build span_attrs dict" pattern shared
+    by every Pub/Sub-consuming Cloud Run handler in stravapipe. After this
+    returns, ``CorrelationFilter`` will mirror all three values into every
+    subsequent log record's ``json_fields``, and the returned dict is in the
+    shape that ``record_span(attributes=...)`` expects.
+
+    Takes primitives (not ``CloudEventContext``) so this module stays free of
+    a dependency on ``cloudrun.pubsub``.
+
+    ``delivery_attempt`` is omitted from the returned dict when ``None`` so a
+    Cloud Trace filter ``pubsub.delivery_attempt > 1`` cleanly distinguishes
+    retried deliveries from first-delivery messages.
+    """
+    set_correlation_id(correlation_id)
+    set_pubsub_message_id(pubsub_message_id)
+    set_delivery_attempt(delivery_attempt)
+    attrs: dict[str, str | int] = {
+        "correlation_id": correlation_id,
+        "pubsub.message_id": pubsub_message_id,
+    }
+    if delivery_attempt is not None:
+        attrs["pubsub.delivery_attempt"] = delivery_attempt
+    return attrs
 
 
 def extract_trace_from_cloud_trace_header(header: str) -> tuple[str, str, bool]:
@@ -198,12 +273,19 @@ class CorrelationFilter(logging.Filter):
         # they appear in the emitted jsonPayload. JsonFieldsAdapter creates
         # `json_fields` when the caller passes `extra=`; we lazily create it
         # otherwise so callers without `extra=` still get a tagged record.
-        if correlation_id:
+        pubsub_message_id = _pubsub_message_id_var.get()
+        delivery_attempt = _delivery_attempt_var.get()
+        if correlation_id or pubsub_message_id or delivery_attempt is not None:
             existing = getattr(record, "json_fields", None)
-            if isinstance(existing, dict):
+            if not isinstance(existing, dict):
+                existing = {}
+                record.json_fields = existing
+            if correlation_id:
                 existing.setdefault("correlation_id", correlation_id)
-            else:
-                record.json_fields = {"correlation_id": correlation_id}
+            if pubsub_message_id:
+                existing.setdefault("pubsub_message_id", pubsub_message_id)
+            if delivery_attempt is not None:
+                existing.setdefault("delivery_attempt", delivery_attempt)
 
         trace_id = _trace_id_var.get()
         if trace_id:

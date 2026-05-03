@@ -1,3 +1,4 @@
+// Package httpadapter provides an HTTP adapter for the dispatcher.
 package httpadapter
 
 import (
@@ -17,12 +18,13 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	sharedotel "github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Error codes
@@ -39,6 +41,15 @@ const (
 	ErrCodeStravaFetchFailed     = "STRAVA_FETCH_FAILED"
 	ErrCodeInvalidChallenge      = "INVALID_CHALLENGE"
 	ErrCodeDeauthFailed          = "DEAUTH_FAILED"
+)
+
+// Internal constants for recurring strings
+const (
+	hubModeSubscribe    = "subscribe"
+	hubChallenge        = "hub.challenge"
+	contentTypeJSON     = "application/json"
+	webhookPublished    = "published"
+	webhookAcknowledged = "acknowledged"
 )
 
 // maxChallengeLength is the maximum allowed length for hub.challenge.
@@ -95,7 +106,10 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 	}
 }
 
-// RegisterRoutes configures the router with essential middleware and registers endpoints.
+// RegisterRoutes configures the router with essential middleware and registers
+// endpoints. The returned router assumes the caller wraps it in
+// otelhttp.NewHandler so the OTel-dependent middleware (sharedotel.StampRequestID)
+// has an active server span. See cmd/dispatcher/main.go.
 func (h *Handler) RegisterRoutes() http.Handler {
 	r := chi.NewRouter()
 
@@ -106,6 +120,7 @@ func (h *Handler) RegisterRoutes() http.Handler {
 		r.Use(h.rateLimiter.Middleware)
 	}
 	r.Use(gcplog.WithCloudTraceContext)
+	r.Use(sharedotel.StampRequestID)
 	r.Use(gcplog.HTTPRequestLoggerWithMetrics(h.logger, h.httpHistogram))
 	r.Use(chiMiddleware.Recoverer)
 
@@ -124,27 +139,15 @@ func (h *Handler) RegisterRoutes() http.Handler {
 	r.Get("/webhook", h.handleVerification)
 	r.Post("/webhook", h.handleEvent)
 
-	// Wrap the entire router with otelhttp for automatic HTTP span creation.
-	// This creates a root span for each request with method, route, and status.
-	// The span name is formatted as "METHOD /path" (e.g. "POST /webhook") so
-	// traces are legible in Cloud Trace rather than all being named "dispatcher".
-	// Dispatcher paths are low-cardinality (/webhook, /health, /), so using the
-	// raw path is safe here.
-	return otelhttp.NewHandler(
-		r,
-		"dispatcher",
-		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-			return r.Method + " " + r.URL.Path
-		}),
-	)
+	return r
 }
 
 func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	mode := r.URL.Query().Get("hub.mode")
-	challenge := r.URL.Query().Get("hub.challenge")
+	challenge := r.URL.Query().Get(hubChallenge)
 	token := r.URL.Query().Get("hub.verify_token")
 
-	if mode != "subscribe" {
+	if mode != hubModeSubscribe {
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"invalid hub.mode",
@@ -182,8 +185,9 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(map[string]string{"hub.challenge": challenge}); encodeErr != nil {
+	if encodeErr := json.NewEncoder(w).Encode(map[string]string{hubChallenge: challenge}); encodeErr != nil {
 		h.logger.Error("Failed to encode response", "error", encodeErr)
 	}
 }
@@ -196,20 +200,52 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 //   - Activity updates contain: title, type, private
 //   - Athlete deauth contains: updates={"authorized":"false"}
 //   - Must respond 200 OK within 2 seconds; retried up to 3 total attempts on failure
+//
+// The orchestration is intentionally a flat sequence of "validate → enrich →
+// route" stages, each in its own helper. Keeping handleEvent itself short
+// keeps it under golangci-lint's gocyclo cap and makes the operational
+// pipeline scannable at a glance.
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
-	// Validate Content-Type header
-	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || mediaType != "application/json" {
-		apiErr := apierrors.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
-		apiErr.Code = ErrCodeInvalidContentType
-		apierrors.WriteError(w, r, apiErr, h.logger)
+	ctx := r.Context()
+
+	body, ok := h.readAndValidateBody(w, r)
+	if !ok {
 		return
 	}
 
-	// Limit request body size to prevent memory exhaustion
-	r.Body = http.MaxBytesReader(w, r.Body, h.maxRequestBodySize)
+	webhook, ok := h.parseAndValidateWebhook(w, r, body)
+	if !ok {
+		return
+	}
 
-	bodyBytes, err := io.ReadAll(r.Body)
+	if !h.checkSubscriptionID(w, r, webhook) {
+		return
+	}
+
+	stampWebhookIDsOnSpan(ctx, webhook)
+
+	correlationID := chiMiddleware.GetReqID(ctx)
+	ctx = gcplog.WithCorrelationID(ctx, correlationID)
+
+	h.recordWebhookMetric(ctx, webhook)
+
+	h.routeWebhookEvent(ctx, w, r.WithContext(ctx), webhook, body, correlationID)
+}
+
+// readAndValidateBody enforces the Content-Type contract and reads the body
+// behind a MaxBytesReader. Returns (body, true) on success; on failure writes
+// the appropriate 4xx error and returns (nil, false).
+func (h *Handler) readAndValidateBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != contentTypeJSON {
+		apiErr := apierrors.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		apiErr.Code = ErrCodeInvalidContentType
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return nil, false
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, h.maxRequestBodySize)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
@@ -218,11 +254,16 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		)
 		apiErr.Code = ErrCodeReadFailed
 		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
+		return nil, false
 	}
+	return body, true
+}
 
-	// Parse JSON into Protobuf using adapter
-	webhook, err := webhookproto.ParseStravaWebhook(bodyBytes)
+// parseAndValidateWebhook deserializes the JSON body into the proto type and
+// runs proto-level validation. Returns (webhook, true) on success; on failure
+// writes the appropriate 400 error and returns (nil, false).
+func (h *Handler) parseAndValidateWebhook(w http.ResponseWriter, r *http.Request, body []byte) (*generated.WebhookEvent, bool) {
+	webhook, err := webhookproto.ParseStravaWebhook(body)
 	if err != nil {
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
@@ -231,10 +272,8 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		)
 		apiErr.Code = ErrCodeInvalidJSON
 		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
+		return nil, false
 	}
-
-	// Validate proto event
 	if validateErr := webhookproto.Validate(webhook); validateErr != nil {
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
@@ -243,11 +282,16 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		)
 		apiErr.Code = ErrCodeValidationFailed
 		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
+		return nil, false
 	}
+	return webhook, true
+}
 
-	// Get current subscription ID from secret provider
-	// subscriptionID is already int32, validated at load time
+// checkSubscriptionID looks up the configured Strava subscription ID and
+// rejects any webhook that doesn't match. Returns true if the subscription
+// matches; on mismatch or secret-fetch failure, writes the appropriate 4xx/5xx
+// error and returns false.
+func (h *Handler) checkSubscriptionID(w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent) bool {
 	_, subscriptionID, err := h.secretProvider.GetSecrets()
 	if err != nil {
 		apiErr := apierrors.NewAPIErrorWithLog(
@@ -257,67 +301,73 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		)
 		apiErr.Code = ErrCodeConfigError
 		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
+		return false
 	}
-
 	if webhook.SubscriptionId != subscriptionID {
 		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
 		apiErr.Code = ErrCodeInvalidSubscriptionID
 		apierrors.WriteError(w, r, apiErr, h.logger)
+		return false
+	}
+	return true
+}
+
+// recordWebhookMetric increments the webhook-events counter labeled by
+// aspect_type and object_type. No-op when no counter is configured.
+func (h *Handler) recordWebhookMetric(ctx context.Context, webhook *generated.WebhookEvent) {
+	if h.webhookCounter == nil {
 		return
 	}
+	h.webhookCounter.Add(ctx, 1,
+		metric.WithAttributes(
+			attribute.String("aspect_type", webhookproto.AspectTypeToString(webhook.AspectType)),
+			attribute.String("object_type", webhookproto.ObjectTypeToString(webhook.ObjectType)),
+		),
+	)
+}
 
-	// Generate correlation ID early so all logs in this request carry it.
-	correlationID := chiMiddleware.GetReqID(r.Context())
-	ctx := gcplog.WithCorrelationID(r.Context(), correlationID)
-	r = r.WithContext(ctx)
-
-	// Record webhook event metric
-	if h.webhookCounter != nil {
-		h.webhookCounter.Add(ctx, 1,
-			metric.WithAttributes(
-				attribute.String("aspect_type", webhookproto.AspectTypeToString(webhook.AspectType)),
-				attribute.String("object_type", webhookproto.ObjectTypeToString(webhook.ObjectType)),
-			),
-		)
-	}
-
-	// Handle athlete events (deauthorization) separately from activity events.
-	if webhook.ObjectType == generated.ObjectType_OBJECT_TYPE_ATHLETE {
-		h.handleAthleteEvent(ctx, w, r, webhook, bodyBytes)
-		return
-	}
-
-	if webhook.ObjectType != generated.ObjectType_OBJECT_TYPE_ACTIVITY {
+// routeWebhookEvent dispatches by object_type. Athlete events go to the deauth
+// path; activity events flow through enrich + publish; everything else is
+// acknowledged without further work.
+func (h *Handler) routeWebhookEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, body []byte, correlationID string) {
+	switch webhook.ObjectType {
+	case generated.ObjectType_OBJECT_TYPE_ATHLETE:
+		h.handleAthleteEvent(ctx, w, r, webhook, body)
+	case generated.ObjectType_OBJECT_TYPE_ACTIVITY:
+		h.handleActivityEvent(ctx, w, r, webhook, correlationID)
+	default:
 		h.writeAcknowledged(w)
-		return
 	}
+}
 
-	// Build enriched event wrapping the webhook
+// handleActivityEvent enriches CREATE events with the full Strava activity
+// payload (best-effort if the activity was already deleted) and publishes the
+// resulting EnrichedEvent. Other aspect types publish the bare webhook.
+func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, correlationID string) {
 	enriched := &generated.EnrichedEvent{Event: webhook}
 
-	// For CREATE events, fetch the activity from Strava API
 	if webhook.AspectType == generated.AspectType_ASPECT_TYPE_CREATE {
 		rawActivity, fetchErr := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
-		if fetchErr != nil {
-			if errors.Is(fetchErr, ports.ErrActivityNotFound) {
-				// Activity was deleted before we could fetch it - publish without activity data
-				h.logger.Warn("Activity not found in Strava, publishing without activity data",
-					"correlation_id", correlationID,
-					"object_id", webhook.ObjectId)
-			} else {
-				// Other Strava errors — return 500 so Strava retries (up to 3 total attempts per spec)
-				apiErr := apierrors.NewAPIErrorWithLog(
-					http.StatusInternalServerError,
-					"Failed to fetch activity from Strava",
-					fmt.Sprintf("Strava fetch failed: %v", fetchErr),
-				)
-				apiErr.Code = ErrCodeStravaFetchFailed
-				apierrors.WriteError(w, r, apiErr, h.logger)
-				return
-			}
-		} else {
+		switch {
+		case fetchErr == nil:
 			enriched.RawActivity = rawActivity
+		case errors.Is(fetchErr, ports.ErrActivityNotFound):
+			// Activity was deleted before we could fetch it — publish without
+			// activity data so downstream knows the deletion happened.
+			h.logger.Warn("Activity not found in Strava, publishing without activity data",
+				"correlation_id", correlationID,
+				"object_id", webhook.ObjectId)
+		default:
+			// Other Strava errors — return 500 so Strava retries (up to 3
+			// total attempts per spec).
+			apiErr := apierrors.NewAPIErrorWithLog(
+				http.StatusInternalServerError,
+				"Failed to fetch activity from Strava",
+				fmt.Sprintf("Strava fetch failed: %v", fetchErr),
+			)
+			apiErr.Code = ErrCodeStravaFetchFailed
+			apierrors.WriteError(w, r, apiErr, h.logger)
+			return
 		}
 	}
 
@@ -417,9 +467,9 @@ type webhookResponse struct {
 // accepts any 2xx, but if retries are observed this should be changed to 200.
 // We use 201 to distinguish "published to Pub/Sub" from "acknowledged but ignored".
 func (h *Handler) writeSuccess(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: "published"}); err != nil {
+	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: webhookPublished}); err != nil {
 		h.logger.Error("Failed to encode success response", "error", err)
 	}
 }
@@ -428,9 +478,43 @@ func (h *Handler) writeSuccess(w http.ResponseWriter) {
 // Used for events that are received but need no further processing
 // (e.g., non-deauth athlete events) and for successfully handled deauth events.
 func (h *Handler) writeAcknowledged(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: "acknowledged"}); err != nil {
+	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: webhookAcknowledged}); err != nil {
 		h.logger.Error("Failed to encode acknowledged response", "error", err)
 	}
+}
+
+// stampWebhookIDsOnSpan attaches the parsed identifiers to the active OTel
+// server span. Pulled out of handleEvent so the latter stays under the
+// cyclomatic-complexity limit.
+//
+// `OwnerId` is the Strava athlete ID across all object types and is always
+// stamped. `ObjectId` ONLY represents an activity ID when the event is
+// `OBJECT_TYPE_ACTIVITY`; for athlete (deauth) events `ObjectId` is the
+// athlete ID, so stamping it as `desirelines.activity_id` would silently
+// misclassify the trace and break the cross-service convention. Hence
+// activity_id is gated on ObjectType.
+//
+// Attribute names match apigateway's HandleGetActivity span attribute (set
+// via otel.AddChiURLParamsAs(r, {"id": "activity_id"})) so a single Cloud
+// Trace filter `desirelines.activity_id=<id>` matches spans from BOTH
+// services for the same activity. `enduser.id` is reserved for authenticated
+// end-users; the dispatcher only handles Strava webhooks and does not
+// authenticate end-users, so the athlete ID is namespaced under
+// `desirelines.*` instead.
+//
+// No-op when no valid span is on the context.
+func stampWebhookIDsOnSpan(ctx context.Context, webhook *generated.WebhookEvent) {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		attribute.Int64("desirelines.athlete_id", webhook.OwnerId),
+	}
+	if webhook.ObjectType == generated.ObjectType_OBJECT_TYPE_ACTIVITY {
+		attrs = append(attrs, attribute.Int64("desirelines.activity_id", webhook.ObjectId))
+	}
+	span.SetAttributes(attrs...)
 }

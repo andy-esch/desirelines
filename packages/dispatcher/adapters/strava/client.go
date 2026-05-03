@@ -58,6 +58,12 @@ const (
 	// Token responses are a few hundred bytes; 64KB is more than enough.
 	maxActivityResponseBytes = 5 << 20  // 5 MB
 	maxTokenResponseBytes    = 64 << 10 // 64 KB
+
+	paramClientID     = "client_id"
+	paramClientSecret = "client_secret"
+	paramRefreshToken = "refresh_token"
+	paramGrantType    = "grant_type"
+	grantTypeRefresh  = "refresh_token"
 )
 
 // tokenResponse represents the JSON response from Strava's OAuth token endpoint.
@@ -250,7 +256,7 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 
 	var lastErr error
 	for attempt := range tokenRetryAttempts {
-		done := otel.RecordDuration(ctx, c.histogram, attribute.String("operation", "refresh_token"))
+		done := otel.RecordDuration(ctx, c.histogram, attribute.String("operation", grantTypeRefresh))
 		var newTokens *stravatoken.Data
 		newTokens, err = c.doRefreshToken(ctx, tokens.RefreshToken)
 		done(err)
@@ -305,10 +311,10 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 // doRefreshToken performs a single token refresh request and returns the new tokens.
 func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stravatoken.Data, error) {
 	form := url.Values{
-		"client_id":     {c.clientID},
-		"client_secret": {c.clientSecret},
-		"refresh_token": {refreshToken},
-		"grant_type":    {"refresh_token"},
+		paramClientID:     {c.clientID},
+		paramClientSecret: {c.clientSecret},
+		paramRefreshToken: {refreshToken},
+		paramGrantType:    {grantTypeRefresh},
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.tokenURL, strings.NewReader(form.Encode()))

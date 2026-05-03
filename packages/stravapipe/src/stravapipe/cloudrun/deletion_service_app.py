@@ -21,13 +21,15 @@ object_type == ACTIVITY routing. This service handles athlete deauth events
 with a simpler flow: parse event → extract owner_id → delete from all stores.
 """
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
 from fastapi import FastAPI, HTTPException, Request
 from google.cloud.firestore_v1 import Client as FirestoreClient
-from opentelemetry.trace import get_current_span
+from opentelemetry.metrics import Histogram
+from opentelemetry.trace import Tracer, get_current_span
+from sqlalchemy.orm import Session, sessionmaker
 
 from stravapipe.adapters.firestore import FirestoreTokenStore
 from stravapipe.adapters.gcp import BigQueryClientWrapper
@@ -38,10 +40,10 @@ from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
 from stravapipe.config import load_deletion_service_config
 from stravapipe.shared.constants import ResponseStatus
 from stravapipe.shared.correlation import (
+    apply_pubsub_request_context,
     extract_trace_from_cloud_trace_header,
     extract_trace_from_pubsub_attributes,
     new_correlation_id,
-    set_correlation_id,
     set_trace_context,
 )
 from stravapipe.shared.logging import setup_logging
@@ -75,6 +77,106 @@ class DeletionResult:
     @property
     def has_errors(self) -> bool:
         return len(self.errors) > 0
+
+
+def _try_delete_step(
+    result: DeletionResult,
+    tracer: Tracer | None,
+    deletion_hist: Histogram | None,
+    store_name: str,
+    work: Callable[[], None],
+) -> None:
+    """Run one per-store deletion step with the shared span/duration/error frame.
+
+    Each store deletion follows the same shape: open a span tagged with
+    `deletion.<store>`, time it on the deletion histogram, run the store-
+    specific work, and on failure record the error onto the shared
+    DeletionResult so downstream stores still get a chance to run. Pulled out
+    of handle_deauth_event so the orchestrator stays under ruff's branch /
+    statement caps and per-store logic is unit-testable in isolation.
+    """
+    try:
+        with (
+            record_span(tracer, f"deletion.{store_name}", {"user_id": result.user_id}),
+            record_duration(deletion_hist, {"store": store_name}),
+        ):
+            work()
+    except Exception as e:
+        result.errors.append(f"{store_name}: {e}")
+        logger.exception("%s deletion failed for user %s", store_name, result.user_id)
+
+
+@dataclass
+class _DeletionDeps:
+    """Bundles the per-store clients + telemetry handles needed by
+    _delete_all_stores. Exists only to keep the orchestrator's signature
+    short — there's no behavior here."""
+
+    session_factory: sessionmaker[Session]
+    bq_service: BQUserDeletionService
+    token_store: FirestoreTokenStore
+    firestore_client: FirestoreClient
+    tracer: Tracer | None
+    deletion_hist: Histogram | None
+
+
+def _delete_all_stores(
+    result: DeletionResult,
+    deps: _DeletionDeps,
+    correlation_id: str,
+    event_time: int,
+) -> None:
+    """Run the four per-store deletion steps in order, mutating `result`.
+
+    Each step is independent and idempotent — failures are recorded on
+    `result.errors` and the next step still runs. Splitting this out of
+    handle_deauth_event keeps the orchestrator under ruff's PLR0915 cap
+    while leaving the operational sequence (postgres → bigquery → tokens →
+    docs) plainly visible.
+    """
+    user_id = result.user_id
+
+    def _do_postgres() -> None:
+        uow = SqlAlchemyUnitOfWork(deps.session_factory)
+        with uow:
+            result.pg_deleted = uow.activities.delete_by_user(user_id)
+            uow.commit()
+        logger.info(
+            "Deleted %d activities from PostgreSQL for user %s",
+            result.pg_deleted,
+            user_id,
+        )
+
+    def _do_bigquery() -> None:
+        bq_result = deps.bq_service.run(user_id, correlation_id, event_time)
+        result.bq_activities_deleted = bq_result.activities_deleted
+        result.bq_staging_deleted = bq_result.staging_deleted
+
+    def _do_firestore_tokens() -> None:
+        deps.token_store.delete_tokens(user_id)
+        result.firestore_tokens_deleted = True
+
+    def _do_firestore_docs() -> None:
+        result.firestore_user_docs_deleted = _delete_firestore_user_docs(
+            deps.firestore_client, user_id
+        )
+
+    _try_delete_step(result, deps.tracer, deps.deletion_hist, "postgres", _do_postgres)
+    _try_delete_step(result, deps.tracer, deps.deletion_hist, "bigquery", _do_bigquery)
+    _try_delete_step(
+        result,
+        deps.tracer,
+        deps.deletion_hist,
+        "firestore_tokens",
+        _do_firestore_tokens,
+    )
+    _try_delete_step(
+        result,
+        deps.tracer,
+        deps.deletion_hist,
+        "firestore_docs",
+        _do_firestore_docs,
+    )
 
 
 def _delete_firestore_user_docs(
@@ -185,7 +287,7 @@ async def health() -> HealthResponse:
 
 
 @app.post("/")
-async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa: PLR0915 — orchestrator coordinates 4 independent deletion stores with per-store error handling; splitting would obscure the control flow
+async def handle_deauth_event(request: Request) -> UserDeletionResponse:
     """Handle deauth event from Pub/Sub.
 
     Deletes user data from all stores. Proceeds through all stores even if
@@ -211,9 +313,16 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
     try:
         context, event_data, message_attributes = await parse_pubsub_cloudevent(request)
 
-        # Prefer dispatcher's correlation_id over the pre-generated fallback.
+        # Prefer dispatcher's correlation_id over the pre-generated fallback,
+        # then wire request-scoped Pub/Sub identifiers onto contextvars so
+        # CorrelationFilter mirrors them into every subsequent log record's
+        # jsonPayload. The returned dict is the matching span_attrs map.
         correlation_id = message_attributes.get("correlation_id") or correlation_id
-        set_correlation_id(correlation_id)
+        span_attrs = apply_pubsub_request_context(
+            correlation_id,
+            context.pubsub_message_id,
+            context.delivery_attempt,
+        )
 
         # Extract W3C trace context from dispatcher's traceparent attribute.
         # This is the cross-service trace and overrides the Cloud Run
@@ -236,7 +345,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
         with record_span(
             tracer,
             "deletion.process",
-            attributes={"correlation_id": correlation_id},
+            attributes=span_attrs,
             parent_context=parent_context,
         ):
             logger.info(
@@ -244,6 +353,8 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
                 extra={
                     "event_type": context.event_type,
                     "event_id": context.event_id,
+                    "pubsub_message_id": context.pubsub_message_id,
+                    "delivery_attempt": context.delivery_attempt,
                 },
             )
 
@@ -261,74 +372,15 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:  # noqa
             # Set user_id on span now that we know it.
             get_current_span().set_attribute("user_id", user_id)
 
-            session_factory = request.app.state.session_factory
-            bq_service: BQUserDeletionService = request.app.state.bq_deletion_service
-            token_store: FirestoreTokenStore = request.app.state.token_store
-            firestore_client: FirestoreClient = request.app.state.firestore_client
-            deletion_hist = request.app.state.deletion_histogram
-
-            # 1. Delete from PostgreSQL
-            try:
-                uow = SqlAlchemyUnitOfWork(session_factory)
-                with (
-                    record_span(tracer, "deletion.postgres", {"user_id": user_id}),
-                    record_duration(deletion_hist, {"store": "postgres"}),
-                    uow,
-                ):
-                    result.pg_deleted = uow.activities.delete_by_user(user_id)
-                    uow.commit()
-                logger.info(
-                    "Deleted %d activities from PostgreSQL for user %s",
-                    result.pg_deleted,
-                    user_id,
-                )
-            except Exception as e:
-                result.errors.append(f"postgres: {e}")
-                logger.exception("PostgreSQL deletion failed for user %s", user_id)
-
-            # 2. Delete from BigQuery
-            try:
-                with (
-                    record_span(tracer, "deletion.bigquery", {"user_id": user_id}),
-                    record_duration(deletion_hist, {"store": "bigquery"}),
-                ):
-                    bq_result = bq_service.run(user_id, correlation_id, event_time)
-                result.bq_activities_deleted = bq_result.activities_deleted
-                result.bq_staging_deleted = bq_result.staging_deleted
-            except Exception as e:
-                result.errors.append(f"bigquery: {e}")
-                logger.exception("BigQuery deletion failed for user %s", user_id)
-
-            # 3. Delete Firestore tokens (backup to dispatcher's best-effort delete)
-            try:
-                with (
-                    record_span(
-                        tracer, "deletion.firestore_tokens", {"user_id": user_id}
-                    ),
-                    record_duration(deletion_hist, {"store": "firestore_tokens"}),
-                ):
-                    token_store.delete_tokens(user_id)
-                result.firestore_tokens_deleted = True
-            except Exception as e:
-                result.errors.append(f"firestore_tokens: {e}")
-                logger.exception("Firestore token deletion failed for user %s", user_id)
-
-            # 4. Delete remaining Firestore user documents
-            try:
-                with (
-                    record_span(
-                        tracer, "deletion.firestore_docs", {"user_id": user_id}
-                    ),
-                    record_duration(deletion_hist, {"store": "firestore_docs"}),
-                ):
-                    result.firestore_user_docs_deleted = _delete_firestore_user_docs(
-                        firestore_client, user_id
-                    )
-            except Exception as e:
-                result.errors.append(f"firestore_docs: {e}")
-                logger.exception(
-                    "Firestore document deletion failed for user %s", user_id
-                )
+            deps = _DeletionDeps(
+                session_factory=request.app.state.session_factory,
+                bq_service=request.app.state.bq_deletion_service,
+                token_store=request.app.state.token_store,
+                firestore_client=request.app.state.firestore_client,
+                tracer=tracer,
+                deletion_hist=request.app.state.deletion_histogram,
+            )
+            _delete_all_stores(result, deps, correlation_id, event_time)
 
             # Record metric
             if request.app.state.deletion_counter:

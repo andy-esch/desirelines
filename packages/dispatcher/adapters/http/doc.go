@@ -8,7 +8,11 @@
 //	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, logger, &httpadapter.HandlerConfig{
 //	    MaxRequestBodySize: 1 << 20, // 1MB
 //	})
-//	router := handler.RegisterRoutes()
+//
+//	// Wrap in otelhttp at the composition root so trace spans wrap each request
+//	// and the chain's StampRequestID middleware has a span to stamp. See
+//	// cmd/dispatcher/main.go for the production wiring.
+//	router := otelhttp.NewHandler(handler.RegisterRoutes(), "dispatcher")
 //
 //	server := &http.Server{
 //	    Addr:    ":8080",

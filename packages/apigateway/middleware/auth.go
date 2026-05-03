@@ -9,7 +9,9 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	otelTrace "go.opentelemetry.io/otel/trace"
 )
 
 // contextKey is an unexported type for context keys to avoid collisions.
@@ -106,6 +108,14 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// The UID is the Strava athlete ID (as string), matching the
 		// PostgreSQL user_id column.
 		ctx := WithUserID(r.Context(), token.UID)
+
+		// Stamp the verified user ID onto the active OTel server span so Cloud
+		// Trace can filter "all traces for user X". Uses the OTel semantic-
+		// convention key `enduser.id`. No-op if there's no active span.
+		if span := otelTrace.SpanFromContext(ctx); span.SpanContext().IsValid() {
+			span.SetAttributes(attribute.String("enduser.id", token.UID))
+		}
+
 		m.logger.Debug("Auth: Request authorized successfully", "uid", token.UID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

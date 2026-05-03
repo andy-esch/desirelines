@@ -26,8 +26,9 @@ import (
 // For handler integration tests with actual repository interactions, see the
 // more complete mockActivityRepository in handler_test.go (root package).
 type mockRepo struct {
-	err    error
-	routes []repository.NormalizedRoute
+	err      error
+	routes   []repository.NormalizedRoute
+	activity *activitiesv1.Activity
 }
 
 func (m *mockRepo) Ping(ctx context.Context) error { return nil }
@@ -48,7 +49,7 @@ func (m *mockRepo) GetMultiSportDailySummaryByDateRange(ctx context.Context, use
 	return nil, m.err
 }
 func (m *mockRepo) GetActivityByID(ctx context.Context, userID string, id int64) (*activitiesv1.Activity, error) {
-	return nil, m.err
+	return m.activity, m.err
 }
 func (m *mockRepo) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
 	return nil, m.err
@@ -588,5 +589,72 @@ func TestHandleRoutes_SportCategoryMapping(t *testing.T) {
 	}
 	if sport == "" {
 		t.Error("sport category should not be empty")
+	}
+}
+
+func TestHandleGetActivity(t *testing.T) {
+	// HandleGetActivity is the GET /activities/{id} endpoint. Coverage was at
+	// 0% before this test — adding even one happy-path test pins down the
+	// basic contract (parse id, query repo, map sport, respond 200) and
+	// covers the otel.AddChiURLParamsAs call site that stamps
+	// `desirelines.activity_id` on the active span.
+	tests := []struct {
+		name       string
+		idParam    string
+		mock       *mockRepo
+		wantStatus int
+	}{
+		{
+			name:    "happy path returns 200",
+			idParam: "12345",
+			mock: &mockRepo{
+				activity: &activitiesv1.Activity{Id: 12345, Sport: "Ride"},
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "invalid id format returns 400",
+			idParam:    "not-a-number",
+			mock:       &mockRepo{},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "negative id returns 400",
+			idParam:    "-1",
+			mock:       &mockRepo{},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "repository error returns 500",
+			idParam:    "12345",
+			mock:       &mockRepo{err: errors.New("db down")},
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "missing activity returns 404",
+			idParam:    "12345",
+			mock:       &mockRepo{activity: nil},
+			wantStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := newTestHandlerWithRepo(t, tt.mock)
+
+			req := httptest.NewRequest(http.MethodGet, "/activities/"+tt.idParam, nil)
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", tt.idParam)
+			ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+			ctx = middleware.WithUserID(ctx, "user-123")
+			req = req.WithContext(ctx)
+
+			w := httptest.NewRecorder()
+			handler.HandleGetActivity(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d (body: %s)", w.Code, tt.wantStatus, w.Body.String())
+			}
+		})
 	}
 }

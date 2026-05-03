@@ -28,6 +28,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/andy-esch/desirelines/packages/shared/secrets"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -83,8 +84,23 @@ func run(log *slog.Logger) error {
 	}
 	defer deps.Close()
 
-	// Build router
-	router := deps.handler.RegisterRoutes()
+	// Build router. Wrap with otelhttp at the composition root so Cloud Trace
+	// gets a server span per request and the gcplog middleware adopts its
+	// trace_id for log correlation. Span name is formatted as "METHOD /path"
+	// (e.g. "POST /webhook") — dispatcher paths are low-cardinality
+	// (/webhook, /health, /), so using the raw path is safe and avoids the
+	// chi-route-pattern lookup apigateway needs.
+	//
+	// Unlike apigateway, dispatcher does NOT use WithPublicEndpointFn —
+	// callers are trusted (PubSub push, Cloud Scheduler) gated by Cloud Run
+	// IAM, so propagating the caller's traceparent is correct.
+	router := otelhttp.NewHandler(
+		deps.handler.RegisterRoutes(),
+		"dispatcher",
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			return r.Method + " " + r.URL.Path
+		}),
+	)
 
 	port := config.GetEnvOrDefault("PORT", "8080")
 	log.Info("Server listening", "port", port)
