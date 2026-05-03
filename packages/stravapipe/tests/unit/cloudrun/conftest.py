@@ -53,9 +53,16 @@ def make_cloudevent_headers(
 
 
 def make_pubsub_body(
-    webhook_data: dict, attributes: dict[str, str] | None = None
+    webhook_data: dict,
+    attributes: dict[str, str] | None = None,
+    delivery_attempt: int | None = None,
 ) -> dict:
-    """Create a Pub/Sub message body with base64-encoded webhook data."""
+    """Create a Pub/Sub message body with base64-encoded webhook data.
+
+    Pass `delivery_attempt=N` to simulate a redelivered message (Pub/Sub sets
+    this on the envelope when DLQ is configured). Omit it to mimic the
+    first-delivery / no-DLQ shape where the field is absent.
+    """
     encoded_data = base64.b64encode(json.dumps(webhook_data).encode()).decode()
     msg: dict = {
         "data": encoded_data,
@@ -64,6 +71,8 @@ def make_pubsub_body(
     }
     if attributes:
         msg["attributes"] = attributes
+    if delivery_attempt is not None:
+        msg["deliveryAttempt"] = delivery_attempt
     return {"message": msg}
 
 

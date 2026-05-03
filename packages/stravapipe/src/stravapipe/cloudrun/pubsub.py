@@ -17,7 +17,14 @@ from pydantic import BaseModel, Field, ValidationError
 
 
 class PubSubMessage(BaseModel):
-    """Pub/Sub message structure from Eventarc."""
+    """Pub/Sub message structure from Eventarc.
+
+    `delivery_attempt` is set by Pub/Sub on the envelope when a dead-letter
+    policy is configured: 1 on first delivery, incremented on each retry. The
+    field is absent on first delivery (or when DLQ is not configured), so it is
+    optional and callers must default to 1 when displaying.
+    Reference: https://cloud.google.com/pubsub/docs/handling-failures#track_delivery_attempts
+    """
 
     model_config = {"populate_by_name": True}
 
@@ -25,6 +32,7 @@ class PubSubMessage(BaseModel):
     message_id: str = Field(alias="messageId")
     publish_time: str = Field(alias="publishTime")
     attributes: dict[str, str] = Field(default_factory=dict)
+    delivery_attempt: int | None = Field(alias="deliveryAttempt", default=None)
 
 
 class PubSubEnvelope(BaseModel):
@@ -35,12 +43,21 @@ class PubSubEnvelope(BaseModel):
 
 @dataclass
 class CloudEventContext:
-    """CloudEvent metadata from headers."""
+    """CloudEvent metadata from headers, plus broker-side message identifiers.
+
+    `pubsub_message_id` and `delivery_attempt` are pulled from the Pub/Sub
+    envelope (not CloudEvent headers) and surfaced here so handlers don't need
+    a second tuple-unpack. Both are essential for diagnosing redelivery in
+    Cloud Logging — `delivery_attempt > 1` distinguishes a poison-pill from a
+    fresh message.
+    """
 
     event_type: str
     event_id: str
     source: str
     time: str | None = None
+    pubsub_message_id: str = ""
+    delivery_attempt: int | None = None
 
 
 # Valid content types for CloudEvents
@@ -92,13 +109,6 @@ async def parse_pubsub_cloudevent(
             detail="Missing required CloudEvent headers (ce-type, ce-id, ce-source)",
         )
 
-    context = CloudEventContext(
-        event_type=ce_type,
-        event_id=ce_id,
-        source=ce_source,
-        time=ce_time,
-    )
-
     # Parse body
     try:
         body = await request.json()
@@ -111,6 +121,15 @@ async def parse_pubsub_cloudevent(
         raise HTTPException(
             status_code=422, detail=f"Invalid Pub/Sub message: {err}"
         ) from err
+
+    context = CloudEventContext(
+        event_type=ce_type,
+        event_id=ce_id,
+        source=ce_source,
+        time=ce_time,
+        pubsub_message_id=envelope.message.message_id,
+        delivery_attempt=envelope.message.delivery_attempt,
+    )
 
     # Decode base64 message data
     try:

@@ -27,6 +27,8 @@ from stravapipe.shared.correlation import (
     extract_trace_from_pubsub_attributes,
     new_correlation_id,
     set_correlation_id,
+    set_delivery_attempt,
+    set_pubsub_message_id,
     set_trace_context,
 )
 from stravapipe.shared.responses import WebhookResponse
@@ -96,6 +98,13 @@ async def handle_webhook_cloudevent(
         correlation_id = message_attributes.get("correlation_id") or correlation_id
         set_correlation_id(correlation_id)
 
+        # Surface the broker-side message identifiers on the contextvar so
+        # CorrelationFilter mirrors them into every subsequent log record's
+        # jsonPayload. Essential for diagnosing redelivery — see
+        # https://cloud.google.com/pubsub/docs/handling-failures#track_delivery_attempts
+        set_pubsub_message_id(context.pubsub_message_id)
+        set_delivery_attempt(context.delivery_attempt)
+
         # Extract W3C trace context from dispatcher's traceparent attribute.
         # This is the cross-service trace and should win over the Cloud Run
         # request-level X-Cloud-Trace-Context header.
@@ -106,6 +115,16 @@ async def handle_webhook_cloudevent(
         if trace_id:
             set_trace_context(trace_id, span_id, sampled)
 
+        # Build span attributes; include delivery_attempt only when the broker
+        # set it, so `pubsub.delivery_attempt > 1` searches in Cloud Trace
+        # cleanly distinguish retries from first-delivery messages.
+        span_attrs: dict[str, Any] = {
+            "correlation_id": correlation_id,
+            "pubsub.message_id": context.pubsub_message_id,
+        }
+        if context.delivery_attempt is not None:
+            span_attrs["pubsub.delivery_attempt"] = context.delivery_attempt
+
         # IMPORTANT: The span must wrap ALL log statements below. The
         # google-cloud-logging library reads the active OTel span and
         # populates trace/spanId/traceSampled on each log entry. Logs
@@ -115,7 +134,7 @@ async def handle_webhook_cloudevent(
         with record_span(
             tracer,
             "webhook.process",
-            attributes={"correlation_id": correlation_id},
+            attributes=span_attrs,
             parent_context=parent_context,
         ):
             logger.info(
@@ -123,6 +142,8 @@ async def handle_webhook_cloudevent(
                 extra={
                     "event_type": context.event_type,
                     "event_id": context.event_id,
+                    "pubsub_message_id": context.pubsub_message_id,
+                    "delivery_attempt": context.delivery_attempt,
                 },
             )
 
