@@ -3,6 +3,11 @@ import type { SportConfig } from "../../api/activities";
 /**
  * Sport configuration fixture matching API format: SportConfig
  *
+ * SOURCE OF TRUTH: schemas/sports/sport_types.json
+ * If you update this fixture, ensure the source of truth is updated as well.
+ * The backend packages are synced automatically via 'just sync-sport-config',
+ * but this TypeScript fixture must be updated manually.
+ *
  * This defines the sport categories and their properties.
  * Used by both authenticated (API) and demo (generated) data paths.
  */
@@ -65,7 +70,13 @@ export const FIXTURE_SPORT_CONFIG: SportConfig = {
     },
     workout: {
       displayName: "Workout",
-      stravaTypes: ["WeightTraining", "Crossfit", "Workout", "HIIT"],
+      stravaTypes: [
+        "WeightTraining",
+        "Crossfit",
+        "Workout",
+        "HIIT",
+        "HighIntensityIntervalTraining",
+      ],
       excludedTypes: [],
       primaryMetric: "time_minutes",
       metrics: ["time_minutes", "activities", "activity_ids"],

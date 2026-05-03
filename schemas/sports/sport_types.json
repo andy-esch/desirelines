@@ -66,7 +66,7 @@
     },
     "workout": {
       "displayName": "Workout",
-      "stravaTypes": ["WeightTraining", "Crossfit", "Workout", "Pilates", "Elliptical", "StairStepper", "HIIT"],
+      "stravaTypes": ["WeightTraining", "Crossfit", "Workout", "Pilates", "Elliptical", "StairStepper", "HIIT", "HighIntensityIntervalTraining"],
       "excludedTypes": [],
       "primaryMetric": "time_minutes",
       "metrics": ["time_minutes", "activities", "activity_ids"],
@@ -75,7 +75,7 @@
     },
     "watersports": {
       "displayName": "Water Sports",
-      "stravaTypes": ["Rowing", "Kayaking", "Canoeing", "StandUpPaddling", "Surfing", "Kitesurfing", "Windsurfing", "Sailing"],
+      "stravaTypes": ["Rowing", "Kayaking", "Canoeing", "StandUpPaddling", "Surfing", "Kitesurfing", "Windsurfing", "Sailing", "VirtualRow"],
       "excludedTypes": [],
       "primaryMetric": "distance_meters",
       "metrics": ["distance_meters", "time_minutes", "activities", "activity_ids"],
@@ -102,7 +102,7 @@
     },
     "racket_sports": {
       "displayName": "Racket Sports",
-      "stravaTypes": ["Tennis", "Pickleball", "Badminton", "Squash", "Racquetball", "TableTennis"],
+      "stravaTypes": ["Tennis", "Pickleball", "Badminton", "Squash", "Racquetball", "TableTennis", "Padel"],
       "excludedTypes": [],
       "primaryMetric": "time_minutes",
       "metrics": ["time_minutes", "activities", "activity_ids"],
@@ -111,7 +111,7 @@
     },
     "team_sports": {
       "displayName": "Team Sports",
-      "stravaTypes": ["Soccer", "Football", "Basketball", "Hockey", "Lacrosse", "Rugby", "Volleyball"],
+      "stravaTypes": ["Soccer", "Football", "Basketball", "Hockey", "Lacrosse", "Rugby", "Volleyball", "Cricket"],
       "excludedTypes": [],
       "primaryMetric": "time_minutes",
       "metrics": ["time_minutes", "activities", "activity_ids"],
