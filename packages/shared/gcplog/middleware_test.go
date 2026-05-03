@@ -9,6 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -673,5 +675,93 @@ func TestWithCloudTraceContext_InvalidOTelSpan(t *testing.T) {
 	}
 	if capturedTC.TraceID != "abc12345678901234567890123456789" {
 		t.Errorf("traceID = %q, want header trace %q", capturedTC.TraceID, "abc12345678901234567890123456789")
+	}
+}
+
+func TestHTTPRequestLoggerWithMetrics_SkipsProbePaths(t *testing.T) {
+	// Pins down the signal-quality fix: GCP uptime checks (/health) and
+	// Cloud Scheduler probes (/ready) hit constantly with sub-1ms latencies
+	// that would drag the histogram P50 down. They MUST NOT contribute to
+	// http/request.duration. Mirrors the trace-filter rationale at
+	// cmd/apigateway/main.go:117-121 (otelhttp.WithFilter).
+	cases := []struct {
+		name       string
+		path       string
+		wantRecord bool
+	}{
+		{"records non-probe path", "/v1/foo", true},
+		{"skips /health probe", "/health", false},
+		{"skips /ready probe", "/ready", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := sdkmetric.NewManualReader()
+			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+			meter := provider.Meter("test")
+			hist, err := meter.Float64Histogram("test.http.request.duration")
+			if err != nil {
+				t.Fatalf("create histogram: %v", err)
+			}
+
+			logger, _ := NewCaptureLogger()
+			r := chi.NewRouter()
+			r.Use(HTTPRequestLoggerWithMetrics(logger, hist))
+			r.Get("/v1/foo", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+			r.Get("/health", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+			r.Get("/ready", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			var rm metricdata.ResourceMetrics
+			if collectErr := reader.Collect(context.Background(), &rm); collectErr != nil {
+				t.Fatalf("collect: %v", collectErr)
+			}
+
+			recorded := histogramRecordCount(rm)
+			switch {
+			case tc.wantRecord && recorded != 1:
+				t.Errorf("expected 1 histogram record for %s, got %d", tc.path, recorded)
+			case !tc.wantRecord && recorded != 0:
+				t.Errorf("expected 0 histogram records for %s (probe path), got %d", tc.path, recorded)
+			}
+		})
+	}
+}
+
+// histogramRecordCount sums the count fields across all histogram data
+// points in the collected ResourceMetrics. Returns 0 when no histogram
+// has been recorded against.
+func histogramRecordCount(rm metricdata.ResourceMetrics) uint64 {
+	var total uint64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			h, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				continue
+			}
+			for _, dp := range h.DataPoints {
+				total += dp.Count
+			}
+		}
+	}
+	return total
+}
+
+func TestIsProbePath(t *testing.T) {
+	cases := map[string]bool{
+		"/health":      true,
+		"/ready":       true,
+		"/v1/health":   false, // a route that contains "health" but isn't the probe path
+		"/healthcheck": false,
+		"":             false,
+		"/":            false,
+	}
+	for path, want := range cases {
+		if got := isProbePath(path); got != want {
+			t.Errorf("isProbePath(%q) = %v, want %v", path, got, want)
+		}
 	}
 }
