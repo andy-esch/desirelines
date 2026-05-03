@@ -170,9 +170,7 @@ class TestReadyEndpoint:
         app.state.bq_dataset = "test_dataset"
         app.state.firestore_client = mock_fs
 
-        with patch(
-            "stravapipe.shared.readiness.DEFAULT_READINESS_TIMEOUT_S", 0.01
-        ):
+        with patch("stravapipe.shared.readiness.DEFAULT_READINESS_TIMEOUT_S", 0.01):
             response = client.get("/ready")
 
         assert response.status_code == 503

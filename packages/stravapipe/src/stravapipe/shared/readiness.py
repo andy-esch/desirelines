@@ -73,15 +73,10 @@ async def run_checks(
     timeout: float | None = None,  # noqa: ASYNC109 — distributes the same timeout across all probes; pushing timeout responsibility to the FastAPI handler would force the same wait_for boilerplate at every call site
 ) -> dict[str, str | None]:
     """Run probes concurrently with the same timeout. Returns name -> error|None."""
-    effective_timeout = (
-        timeout if timeout is not None else DEFAULT_READINESS_TIMEOUT_S
-    )
+    effective_timeout = timeout if timeout is not None else DEFAULT_READINESS_TIMEOUT_S
     names = list(probes.keys())
     results = await asyncio.gather(
-        *(
-            _run_with_timeout(name, probes[name], effective_timeout)
-            for name in names
-        ),
+        *(_run_with_timeout(name, probes[name], effective_timeout) for name in names),
         return_exceptions=False,
     )
     return dict(zip(names, results, strict=True))

@@ -109,9 +109,7 @@ async def ready(request: Request) -> JSONResponse:
     by the hour, so each ping wakes the database.
     """
     session_factory = request.app.state.session_factory
-    checks = await run_checks(
-        {"postgres": lambda: check_postgres(session_factory)}
-    )
+    checks = await run_checks({"postgres": lambda: check_postgres(session_factory)})
     return build_ready_response(checks)
 
 

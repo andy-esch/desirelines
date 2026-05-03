@@ -82,9 +82,7 @@ class TestReadyEndpoint:
         """Connection error returns 503 with error string."""
         from stravapipe.cloudrun.postgres_writer_app import app
 
-        mock_session_factory = MagicMock(
-            side_effect=RuntimeError("connection refused")
-        )
+        mock_session_factory = MagicMock(side_effect=RuntimeError("connection refused"))
         app.state.session_factory = mock_session_factory
 
         response = client.get("/ready")
@@ -107,9 +105,7 @@ class TestReadyEndpoint:
 
         app.state.session_factory = _slow_factory
 
-        with patch(
-            "stravapipe.shared.readiness.DEFAULT_READINESS_TIMEOUT_S", 0.01
-        ):
+        with patch("stravapipe.shared.readiness.DEFAULT_READINESS_TIMEOUT_S", 0.01):
             response = client.get("/ready")
 
         assert response.status_code == 503
