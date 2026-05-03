@@ -37,7 +37,11 @@ def _parse_log_level() -> int:
     and packages/apigateway/config) so operators can adjust verbosity at runtime
     via Cloud Run env-var update without redeploying the container image.
     """
-    name = os.environ.get("LOG_LEVEL", "INFO").upper()
+    # `or "INFO"` (rather than the dict default) treats an explicitly-empty
+    # LOG_LEVEL="" as the same as unset — that's the idiomatic Unix
+    # convention and avoids a spurious "Invalid LOG_LEVEL" warning when an
+    # operator clears the var to fall back to the default.
+    name = (os.environ.get("LOG_LEVEL") or "INFO").upper()
     level = logging.getLevelNamesMapping().get(name)
     if level is None:
         # Use logging directly here — the call happens before our handler is
@@ -98,9 +102,14 @@ def setup_logging(logger_name: str) -> logging.LoggerAdapter[logging.Logger]:
             client = google.cloud.logging.Client()  # type: ignore[no-untyped-call]
             client.setup_logging(log_level=log_level)  # type: ignore[no-untyped-call]
         except Exception as e:
+            # force=True so this overrides any default handler installed by an
+            # earlier logging call (e.g. _parse_log_level's invalid-value
+            # warning, or the implicit logger setup from importing google
+            # libraries before the try block ran).
             logging.basicConfig(
                 level=log_level,
                 format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                force=True,
             )
             logging.getLogger(logger_name).warning(
                 "Cloud Logging unavailable, using standard logging: %s", str(e)

@@ -49,9 +49,11 @@ class TestParseLogLevel:
         # fallback would mask deploy-time misconfiguration.
         assert any("Invalid LOG_LEVEL" in r.message for r in caplog.records)
 
-    def test_empty_string_defaults_to_info(self, monkeypatch):
-        # Empty env var is an idiomatic "unset" — treat as INFO without warning.
+    def test_empty_string_defaults_to_info_silently(self, monkeypatch, caplog):
+        # Empty env var is the idiomatic Unix "unset" — treat as INFO and
+        # do NOT warn. An operator who sets LOG_LEVEL="" to clear the var
+        # shouldn't see a misconfiguration warning.
         monkeypatch.setenv("LOG_LEVEL", "")
-        # Empty string upper() is still "" which won't be in the mapping; this
-        # asserts the documented contract (warns and returns INFO).
-        assert _parse_log_level() == logging.INFO
+        with caplog.at_level(logging.WARNING):
+            assert _parse_log_level() == logging.INFO
+        assert not any("Invalid LOG_LEVEL" in r.message for r in caplog.records)
