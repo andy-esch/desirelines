@@ -2,6 +2,7 @@ package httpadapter
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -15,6 +16,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // Test constants for webhook event data.
@@ -796,4 +799,90 @@ func TestHandler_Health(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStampWebhookIDsOnSpan(t *testing.T) {
+	// Pins down the type-aware stamping rule: athlete_id is always meaningful
+	// (OwnerId is always the Strava athlete ID), but activity_id is ONLY
+	// meaningful when the event is OBJECT_TYPE_ACTIVITY. For athlete/deauth
+	// events, ObjectId == OwnerId, so stamping it as desirelines.activity_id
+	// would silently misclassify the trace.
+	tests := []struct {
+		name           string
+		objectType     generated.ObjectType
+		objectID       int64
+		ownerID        int64
+		wantActivityID int64 // 0 means "must NOT be set"
+		wantAthleteID  int64
+	}{
+		{
+			name:           "activity event stamps both ids",
+			objectType:     generated.ObjectType_OBJECT_TYPE_ACTIVITY,
+			objectID:       1234567890,
+			ownerID:        98765,
+			wantActivityID: 1234567890,
+			wantAthleteID:  98765,
+		},
+		{
+			name:           "athlete event stamps only athlete_id",
+			objectType:     generated.ObjectType_OBJECT_TYPE_ATHLETE,
+			objectID:       98765, // Strava sends athlete_id as ObjectId for athlete events
+			ownerID:        98765,
+			wantActivityID: 0, // must not be present on the span
+			wantAthleteID:  98765,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sr := tracetest.NewSpanRecorder()
+			tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+			ctx, span := tp.Tracer("test").Start(context.Background(), "test")
+
+			stampWebhookIDsOnSpan(ctx, &generated.WebhookEvent{
+				ObjectType: tt.objectType,
+				ObjectId:   tt.objectID,
+				OwnerId:    tt.ownerID,
+			})
+			span.End()
+
+			ended := sr.Ended()
+			if len(ended) != 1 {
+				t.Fatalf("expected 1 ended span, got %d", len(ended))
+			}
+			attrs := ended[0].Attributes()
+
+			var gotActivityID, gotAthleteID int64
+			var sawActivityAttr bool
+			for _, a := range attrs {
+				switch string(a.Key) {
+				case "desirelines.activity_id":
+					sawActivityAttr = true
+					gotActivityID = a.Value.AsInt64()
+				case "desirelines.athlete_id":
+					gotAthleteID = a.Value.AsInt64()
+				}
+			}
+
+			if tt.wantActivityID == 0 {
+				if sawActivityAttr {
+					t.Errorf("desirelines.activity_id set to %d on %v event; should be omitted", gotActivityID, tt.objectType)
+				}
+			} else if !sawActivityAttr || gotActivityID != tt.wantActivityID {
+				t.Errorf("desirelines.activity_id = %d (set=%v), want %d", gotActivityID, sawActivityAttr, tt.wantActivityID)
+			}
+			if gotAthleteID != tt.wantAthleteID {
+				t.Errorf("desirelines.athlete_id = %d, want %d", gotAthleteID, tt.wantAthleteID)
+			}
+		})
+	}
+}
+
+func TestStampWebhookIDsOnSpan_NoActiveSpanIsNoOp(t *testing.T) {
+	// Defensive: must not panic when called with a context that has no span.
+	stampWebhookIDsOnSpan(context.Background(), &generated.WebhookEvent{
+		ObjectType: generated.ObjectType_OBJECT_TYPE_ACTIVITY,
+		ObjectId:   1,
+		OwnerId:    2,
+	})
 }

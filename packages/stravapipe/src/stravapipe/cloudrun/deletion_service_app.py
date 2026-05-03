@@ -161,12 +161,8 @@ def _delete_all_stores(
             deps.firestore_client, user_id
         )
 
-    _try_delete_step(
-        result, deps.tracer, deps.deletion_hist, "postgres", _do_postgres
-    )
-    _try_delete_step(
-        result, deps.tracer, deps.deletion_hist, "bigquery", _do_bigquery
-    )
+    _try_delete_step(result, deps.tracer, deps.deletion_hist, "postgres", _do_postgres)
+    _try_delete_step(result, deps.tracer, deps.deletion_hist, "bigquery", _do_bigquery)
     _try_delete_step(
         result,
         deps.tracer,
