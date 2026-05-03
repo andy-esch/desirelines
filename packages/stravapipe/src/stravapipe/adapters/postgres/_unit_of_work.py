@@ -33,6 +33,14 @@ def create_session_factory(
     Callers own the engine and must call ``engine.dispose()`` on shutdown
     to avoid pool leaks across Cloud Run revisions.
 
+    **Cold-start cost invariant**: this function MUST NOT open a connection
+    to Postgres. SQLAlchemy ``create_engine()`` is lazy by default, and
+    NullPool (used for Neon) never pre-opens. Do NOT add a "verify
+    connectivity" call here — every Cloud Run cold start would then wake
+    Neon's compute for the full 5-min idle window, exactly the trap that
+    `packages/apigateway/adapters/postgres/pool.go:69-74` calls out. The
+    hourly Cloud Scheduler ``/ready`` probe is the canary; rely on it.
+
     Args:
         database_url: PostgreSQL connection string
             e.g., "postgresql+psycopg://user:pass@host:port/dbname"

@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
 from sqlalchemy.orm import Session, sessionmaker
@@ -27,6 +28,11 @@ from stravapipe.domain.geometry import decode_polyline_to_geojson
 from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
+from stravapipe.shared.readiness import (
+    build_ready_response,
+    check_postgres,
+    run_checks,
+)
 from stravapipe.shared.responses import HealthResponse, WebhookResponse
 from stravapipe.shared.tracing import record_span, setup_tracing, shutdown_tracing
 from stravapipe.types.generated import webhook_pb2 as pb
@@ -91,8 +97,20 @@ app = FastAPI(
 
 @app.get("/health")
 async def health() -> HealthResponse:
-    """Health check endpoint for Cloud Run."""
+    """Liveness probe — process-alive only, no dependency checks."""
     return HealthResponse(status=ResponseStatus.HEALTHY)
+
+
+@app.get("/ready")
+async def ready(request: Request) -> JSONResponse:
+    """Readiness probe — verifies Postgres is reachable. Hit hourly by Cloud Scheduler.
+
+    Avoid wiring this to high-frequency Cloud Run probes: Neon bills compute
+    by the hour, so each ping wakes the database.
+    """
+    session_factory = request.app.state.session_factory
+    checks = await run_checks({"postgres": lambda: check_postgres(session_factory)})
+    return build_ready_response(checks)
 
 
 @app.post("/")

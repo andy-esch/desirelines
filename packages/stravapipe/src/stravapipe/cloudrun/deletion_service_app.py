@@ -26,6 +26,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from google.cloud.firestore_v1 import Client as FirestoreClient
 from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer, get_current_span
@@ -48,6 +49,12 @@ from stravapipe.shared.correlation import (
 )
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
+from stravapipe.shared.readiness import (
+    build_ready_response,
+    check_bigquery,
+    check_firestore,
+    run_checks,
+)
 from stravapipe.shared.responses import HealthResponse, UserDeletionResponse
 from stravapipe.shared.tracing import (
     extract_context_from_attributes,
@@ -227,6 +234,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         # BigQuery
         bq_client = BigQueryClientWrapper(project_id=config.project_id)
+        app.state.bq_client = bq_client
+        app.state.bq_dataset = config.bq_dataset
         app.state.bq_deletion_service = BQUserDeletionService(
             bq_client, dataset_id=config.bq_dataset
         )
@@ -282,8 +291,23 @@ app = FastAPI(
 
 @app.get("/health")
 async def health() -> HealthResponse:
-    """Health check endpoint for Cloud Run."""
+    """Liveness probe — process-alive only, no dependency checks."""
     return HealthResponse(status=ResponseStatus.HEALTHY)
+
+
+@app.get("/ready")
+async def ready(request: Request) -> JSONResponse:
+    """Readiness probe — verifies BigQuery and Firestore. Hit hourly by Cloud Scheduler."""
+    bq_client = request.app.state.bq_client
+    dataset_id = request.app.state.bq_dataset
+    firestore_client = request.app.state.firestore_client
+    checks = await run_checks(
+        {
+            "bigquery": lambda: check_bigquery(bq_client, dataset_id),
+            "firestore": lambda: check_firestore(firestore_client),
+        }
+    )
+    return build_ready_response(checks)
 
 
 @app.post("/")

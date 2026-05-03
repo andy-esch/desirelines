@@ -28,6 +28,10 @@ class BigQueryClientWrapper:
         self.project_id = project_id
         self._client = BigQueryClient(project=project_id)
 
+    def get_dataset(self, dataset_id: str) -> Any:
+        """Fetch dataset metadata. Used as a lightweight readiness probe."""
+        return self._client.get_dataset(dataset_id)
+
     def insert_rows_json(
         self, rows: list[dict[str, Any]], *, dataset_name: str, table_name: str
     ) -> None:

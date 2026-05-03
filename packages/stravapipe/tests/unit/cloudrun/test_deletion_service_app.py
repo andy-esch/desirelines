@@ -80,6 +80,105 @@ class TestHealthEndpoint:
         assert response.json() == {"status": "healthy"}
 
 
+class TestReadyEndpoint:
+    """Tests for /ready endpoint — probes BigQuery + Firestore."""
+
+    def test_ready_returns_200_when_all_reachable(self, client):
+        """Both probes succeed → 200 with both components healthy."""
+        from stravapipe.cloudrun.deletion_service_app import app
+
+        mock_bq = MagicMock()
+        mock_bq.get_dataset.return_value = MagicMock()
+        mock_fs = MagicMock()
+        mock_fs.collection.return_value.limit.return_value.get.return_value = []
+
+        app.state.bq_client = mock_bq
+        app.state.bq_dataset = "test_dataset"
+        app.state.firestore_client = mock_fs
+
+        response = client.get("/ready")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "healthy"
+        assert body["components"] == {
+            "bigquery": "healthy",
+            "firestore": "healthy",
+        }
+        mock_bq.get_dataset.assert_called_once_with("test_dataset")
+
+    def test_ready_returns_503_when_bigquery_fails(self, client):
+        """BigQuery probe error → 503 even if Firestore is fine."""
+        from stravapipe.cloudrun.deletion_service_app import app
+
+        mock_bq = MagicMock()
+        mock_bq.get_dataset.side_effect = RuntimeError("bq down")
+        mock_fs = MagicMock()
+        mock_fs.collection.return_value.limit.return_value.get.return_value = []
+
+        app.state.bq_client = mock_bq
+        app.state.bq_dataset = "test_dataset"
+        app.state.firestore_client = mock_fs
+
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["status"] == "unhealthy"
+        assert body["components"]["bigquery"] == "unhealthy"
+        assert body["components"]["firestore"] == "healthy"
+        assert "bq down" in body["errors"]["bigquery"]
+
+    def test_ready_returns_503_when_firestore_fails(self, client):
+        """Firestore probe error → 503 even if BigQuery is fine."""
+        from stravapipe.cloudrun.deletion_service_app import app
+
+        mock_bq = MagicMock()
+        mock_bq.get_dataset.return_value = MagicMock()
+        mock_fs = MagicMock()
+        mock_fs.collection.return_value.limit.return_value.get.side_effect = (
+            RuntimeError("firestore unavailable")
+        )
+
+        app.state.bq_client = mock_bq
+        app.state.bq_dataset = "test_dataset"
+        app.state.firestore_client = mock_fs
+
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["status"] == "unhealthy"
+        assert body["components"]["firestore"] == "unhealthy"
+        assert "firestore unavailable" in body["errors"]["firestore"]
+
+    def test_ready_returns_503_on_timeout(self, client):
+        """A probe that exceeds the timeout returns 503 with timeout marker."""
+        import time
+
+        from stravapipe.cloudrun.deletion_service_app import app
+
+        def _block(_dataset):
+            time.sleep(0.5)
+
+        mock_bq = MagicMock()
+        mock_bq.get_dataset.side_effect = _block
+        mock_fs = MagicMock()
+        mock_fs.collection.return_value.limit.return_value.get.return_value = []
+
+        app.state.bq_client = mock_bq
+        app.state.bq_dataset = "test_dataset"
+        app.state.firestore_client = mock_fs
+
+        with patch("stravapipe.shared.readiness.DEFAULT_READINESS_TIMEOUT_S", 0.01):
+            response = client.get("/ready")
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["status"] == "unhealthy"
+        assert "timeout" in body["errors"]["bigquery"]
+
+
 class TestDeauthEndpoint:
     def test_successful_deletion(self, client, mock_services):
         """Full deletion across all stores returns 200."""
