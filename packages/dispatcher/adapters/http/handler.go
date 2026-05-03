@@ -17,12 +17,14 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	sharedotel "github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Error codes
@@ -106,6 +108,7 @@ func (h *Handler) RegisterRoutes() http.Handler {
 		r.Use(h.rateLimiter.Middleware)
 	}
 	r.Use(gcplog.WithCloudTraceContext)
+	r.Use(sharedotel.StampRequestID)
 	r.Use(gcplog.HTTPRequestLoggerWithMetrics(h.logger, h.httpHistogram))
 	r.Use(chiMiddleware.Recoverer)
 
@@ -266,6 +269,8 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
 	}
+
+	stampWebhookIDsOnSpan(r.Context(), webhook.ObjectId, webhook.OwnerId)
 
 	// Generate correlation ID early so all logs in this request carry it.
 	correlationID := chiMiddleware.GetReqID(r.Context())
@@ -433,4 +438,21 @@ func (h *Handler) writeAcknowledged(w http.ResponseWriter) {
 	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: "acknowledged"}); err != nil {
 		h.logger.Error("Failed to encode acknowledged response", "error", err)
 	}
+}
+
+// stampWebhookIDsOnSpan attaches the parsed activity/athlete identifiers to the
+// active OTel server span. Pulled out of handleEvent so the latter stays under
+// the cyclomatic-complexity limit. Uses the `desirelines.*` namespace to mirror
+// the apigateway route-param convention; `enduser.id` is reserved for
+// authenticated users (the dispatcher does not authenticate end-users).
+// No-op when no valid span is on the context.
+func stampWebhookIDsOnSpan(ctx context.Context, activityID, athleteID int64) {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
+		return
+	}
+	span.SetAttributes(
+		attribute.Int64("desirelines.activity_id", activityID),
+		attribute.Int64("desirelines.athlete_id", athleteID),
+	)
 }
