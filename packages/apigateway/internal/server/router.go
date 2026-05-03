@@ -52,6 +52,14 @@ type AuthenticatedRoutes struct {
 }
 
 // NewRouter creates a configured chi router with all routes registered.
+//
+// The returned router assumes the caller wraps it in otelhttp.NewHandler so
+// the OTel-dependent middleware (otel.SpanNameFromChiRoute, otel.StampRequestID)
+// has an active server span — without that wrap they silently no-op and traces
+// disappear. The wrap lives at the composition root (cmd/apigateway/main.go)
+// rather than here because it must sit OUTSIDE http.StripPrefix("/api", ...)
+// so otelhttp's WithFilter can match the public path (/api/health, /api/ready)
+// before chi sees the stripped path.
 func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, logger *slog.Logger) chi.Router {
 	r := chi.NewRouter()
 

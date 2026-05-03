@@ -21,7 +21,6 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -97,7 +96,10 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 	}
 }
 
-// RegisterRoutes configures the router with essential middleware and registers endpoints.
+// RegisterRoutes configures the router with essential middleware and registers
+// endpoints. The returned router assumes the caller wraps it in
+// otelhttp.NewHandler so the OTel-dependent middleware (sharedotel.StampRequestID)
+// has an active server span. See cmd/dispatcher/main.go.
 func (h *Handler) RegisterRoutes() http.Handler {
 	r := chi.NewRouter()
 
@@ -127,19 +129,7 @@ func (h *Handler) RegisterRoutes() http.Handler {
 	r.Get("/webhook", h.handleVerification)
 	r.Post("/webhook", h.handleEvent)
 
-	// Wrap the entire router with otelhttp for automatic HTTP span creation.
-	// This creates a root span for each request with method, route, and status.
-	// The span name is formatted as "METHOD /path" (e.g. "POST /webhook") so
-	// traces are legible in Cloud Trace rather than all being named "dispatcher".
-	// Dispatcher paths are low-cardinality (/webhook, /health, /), so using the
-	// raw path is safe here.
-	return otelhttp.NewHandler(
-		r,
-		"dispatcher",
-		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-			return r.Method + " " + r.URL.Path
-		}),
-	)
+	return r
 }
 
 func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
