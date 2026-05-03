@@ -51,10 +51,14 @@ func SpanNameFromChiRoute(next http.Handler) http.Handler {
 // param), and a no-op if there is no active span — so callers can invoke this
 // unconditionally from a handler without a span guard.
 //
+// Use AddChiURLParamsAs when the chi param name should not be the attribute
+// suffix (e.g. route param `{id}` → attribute `desirelines.activity_id` so a
+// single Cloud Trace filter matches across services that name the same
+// concept differently).
+//
 // Usage in a handler:
 //
 //	otel.AddChiURLParams(r, "year")        // /v1/activities/{year}/metadata
-//	otel.AddChiURLParams(r, "id")          // /v1/activities/{id}
 func AddChiURLParams(r *http.Request, params ...string) {
 	span := trace.SpanFromContext(r.Context())
 	if !span.SpanContext().IsValid() {
@@ -67,6 +71,39 @@ func AddChiURLParams(r *http.Request, params ...string) {
 			continue
 		}
 		attrs = append(attrs, attribute.String(chiURLParamPrefix+p, v))
+	}
+	if len(attrs) > 0 {
+		span.SetAttributes(attrs...)
+	}
+}
+
+// AddChiURLParamsAs reads the keyed chi URL params and stamps each non-empty
+// value on the active span as `desirelines.<value-of-aliases-map>`. Use this
+// when the chi route param name is part of the public URL contract but the
+// span attribute should follow a cross-service naming convention.
+//
+// Convention reminder: dispatcher stamps webhook fields as
+// `desirelines.activity_id` and `desirelines.athlete_id` — apigateway should
+// match those names so a Cloud Trace filter like `desirelines.activity_id=42`
+// finds spans from both services.
+//
+// Usage in a handler:
+//
+//	// /v1/activities/{id} — `{id}` is the public URL surface, but we want the
+//	// span attribute to be `desirelines.activity_id` (matches dispatcher).
+//	otel.AddChiURLParamsAs(r, map[string]string{"id": "activity_id"})
+func AddChiURLParamsAs(r *http.Request, aliases map[string]string) {
+	span := trace.SpanFromContext(r.Context())
+	if !span.SpanContext().IsValid() {
+		return
+	}
+	attrs := make([]attribute.KeyValue, 0, len(aliases))
+	for param, alias := range aliases {
+		v := chi.URLParam(r, param)
+		if v == "" {
+			continue
+		}
+		attrs = append(attrs, attribute.String(chiURLParamPrefix+alias, v))
 	}
 	if len(attrs) > 0 {
 		span.SetAttributes(attrs...)
