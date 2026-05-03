@@ -178,8 +178,23 @@ async def _handle_delete(
         record_span(tracer, "bigquery.dml", {"activity_id": event.object_id}),
         record_duration(bq_histogram, {"operation": "dml"}),
     ):
-        return service.run(
+        result = service.run(
             activity_id=event.object_id,
             correlation_id=correlation_id,
             event_time=event.event_time,
         )
+
+    if result.rows_archived == 0:
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            reason=SkipReason.ACTIVITY_NOT_FOUND,
+            activity_id=result.activity_id,
+            correlation_id=correlation_id,
+        )
+
+    return WebhookResponse(
+        status=ResponseStatus.PROCESSED,
+        action=ResponseStatus.DELETED,
+        activity_id=result.activity_id,
+        correlation_id=correlation_id,
+    )

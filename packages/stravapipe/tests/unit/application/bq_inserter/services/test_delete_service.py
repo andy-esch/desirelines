@@ -27,9 +27,9 @@ def test_delete_activity_success():
         event_time=1696176000,
     )
 
-    assert result.status == "processed"
-    assert result.action == "deleted"
     assert result.activity_id == 123456
+    assert result.rows_archived == 1
+    assert result.rows_deleted == 1
     assert client.execute_dml_query.call_count == 2
 
 
@@ -46,9 +46,9 @@ def test_delete_activity_not_found():
         event_time=1696176000,
     )
 
-    assert result.status == "skipped"
-    assert result.reason == "activity_not_found"
     assert result.activity_id == 999999
+    assert result.rows_archived == 0
+    assert result.rows_deleted == 0
     # Should only run archive query, not delete
     assert client.execute_dml_query.call_count == 1
 

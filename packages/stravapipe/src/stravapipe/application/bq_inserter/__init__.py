@@ -5,7 +5,10 @@ The SyncService (which fetched from Strava API) is no longer used.
 """
 
 from stravapipe.adapters.gcp import BigQueryClientWrapper
-from stravapipe.application.bq_inserter.delete_service import DeleteActivityService
+from stravapipe.application.bq_inserter.delete_service import (
+    BQActivityDeletionResult,
+    DeleteActivityService,
+)
 from stravapipe.config import BQInserterConfig, load_bq_inserter_config
 
 
@@ -38,6 +41,7 @@ def make_delete_service(
 
 
 __all__ = [
+    "BQActivityDeletionResult",
     "DeleteActivityService",
     "make_delete_service",
 ]

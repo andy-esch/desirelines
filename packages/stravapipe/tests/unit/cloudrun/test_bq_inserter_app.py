@@ -12,8 +12,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 import pytest
 
-from stravapipe.shared.constants import ResponseStatus
-from stravapipe.shared.responses import WebhookResponse
+from stravapipe.application.bq_inserter import BQActivityDeletionResult
 
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
@@ -210,10 +209,10 @@ class TestDeleteEventHandling:
     def test_delete_event_success(self, client):
         """DELETE event successfully archives and removes activity."""
         mock_service = client.app.state.delete_service
-        mock_service.run.return_value = WebhookResponse(
-            status=ResponseStatus.DELETED,
+        mock_service.run.return_value = BQActivityDeletionResult(
             activity_id=12345678,
-            correlation_id="test-correlation-id",
+            rows_archived=1,
+            rows_deleted=1,
         )
 
         webhook = make_webhook_payload(aspect_type="delete")
@@ -225,7 +224,9 @@ class TestDeleteEventHandling:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "deleted"
+        assert data["status"] == "processed"
+        assert data["action"] == "deleted"
+        assert data["activity_id"] == 12345678
 
         # Verify service was called with correct arguments
         mock_service.run.assert_called_once()
@@ -233,6 +234,27 @@ class TestDeleteEventHandling:
         assert call_kwargs["activity_id"] == 12345678
         assert call_kwargs["event_time"] == webhook["event_time"]
         assert "correlation_id" in call_kwargs
+
+    def test_delete_event_activity_not_found(self, client):
+        """DELETE event for missing activity returns skipped response."""
+        mock_service = client.app.state.delete_service
+        mock_service.run.return_value = BQActivityDeletionResult(
+            activity_id=12345678,
+            rows_archived=0,
+            rows_deleted=0,
+        )
+
+        webhook = make_webhook_payload(aspect_type="delete")
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(webhook),
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        assert data["reason"] == "activity_not_found"
 
 
 class TestErrorHandling:

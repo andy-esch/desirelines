@@ -1,14 +1,22 @@
 """Service for archiving deleted activities to BigQuery"""
 
+from dataclasses import dataclass
 import logging
 
 from google.cloud.bigquery import ScalarQueryParameter
 
 from stravapipe.adapters.gcp import BigQueryClientWrapper
-from stravapipe.shared.constants import ResponseStatus, SkipReason
-from stravapipe.shared.responses import WebhookResponse
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class BQActivityDeletionResult:
+    """Result of archiving a single deleted activity to BigQuery."""
+
+    activity_id: int
+    rows_archived: int
+    rows_deleted: int
 
 
 class DeleteActivityService:
@@ -32,7 +40,7 @@ class DeleteActivityService:
         activity_id: int,
         correlation_id: str,
         event_time: int,
-    ) -> WebhookResponse:
+    ) -> BQActivityDeletionResult:
         """Archive deleted activity from activities to deleted_activities table.
 
         Process:
@@ -47,7 +55,9 @@ class DeleteActivityService:
             event_time: Strava webhook event_time.
 
         Returns:
-            WebhookResponse with status and metadata.
+            BQActivityDeletionResult with row counts. ``rows_archived == 0``
+            indicates the activity was not found (and ``rows_deleted`` will
+            also be 0 because the DELETE step is skipped).
 
         Raises:
             BigQueryError: If archiving fails (will trigger retry via DLQ).
@@ -85,11 +95,10 @@ class DeleteActivityService:
                 activity_id,
                 extra={"correlation_id": correlation_id},
             )
-            return WebhookResponse(
-                status=ResponseStatus.SKIPPED,
-                reason=SkipReason.ACTIVITY_NOT_FOUND,
+            return BQActivityDeletionResult(
                 activity_id=activity_id,
-                correlation_id=correlation_id,
+                rows_archived=0,
+                rows_deleted=0,
             )
 
         # Delete from activities table
@@ -98,7 +107,7 @@ class DeleteActivityService:
         WHERE id = @activity_id
         """
 
-        self._client.execute_dml_query(
+        rows_deleted = self._client.execute_dml_query(
             delete_query,
             [ScalarQueryParameter("activity_id", "INT64", activity_id)],
         )
@@ -113,9 +122,8 @@ class DeleteActivityService:
             },
         )
 
-        return WebhookResponse(
-            status=ResponseStatus.PROCESSED,
-            action=ResponseStatus.DELETED,
+        return BQActivityDeletionResult(
             activity_id=activity_id,
-            correlation_id=correlation_id,
+            rows_archived=rows_archived,
+            rows_deleted=rows_deleted,
         )
