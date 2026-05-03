@@ -64,6 +64,7 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	}
 	r.Use(gcplog.WithCloudTraceContext)
 	r.Use(otel.SpanNameFromChiRoute)
+	r.Use(otel.StampRequestID)
 	r.Use(gcplog.HTTPRequestLoggerWithMetrics(logger, cfg.HTTPHistogram))
 	r.Use(chiMiddleware.Recoverer)
 

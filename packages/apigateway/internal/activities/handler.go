@@ -47,6 +47,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
+	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -529,6 +530,7 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse activity ID from path
+	otel.AddChiURLParams(r, "id")
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
@@ -663,6 +665,7 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 // validateAndGetYear extracts and validates the year path parameter.
 // Returns the parsed year and true if valid, or writes an error response and returns false.
 func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (int, bool) {
+	otel.AddChiURLParams(r, "year")
 	year, ok := validate.ParseYear(chi.URLParam(r, "year"))
 	if !ok {
 		err := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
