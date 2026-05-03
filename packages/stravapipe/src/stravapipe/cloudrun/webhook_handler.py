@@ -23,12 +23,10 @@ from stravapipe.shared.constants import (
     WebhookField,
 )
 from stravapipe.shared.correlation import (
+    apply_pubsub_request_context,
     extract_trace_from_cloud_trace_header,
     extract_trace_from_pubsub_attributes,
     new_correlation_id,
-    set_correlation_id,
-    set_delivery_attempt,
-    set_pubsub_message_id,
     set_trace_context,
 )
 from stravapipe.shared.responses import WebhookResponse
@@ -94,16 +92,16 @@ async def handle_webhook_cloudevent(
     try:
         context, event_data, message_attributes = await parse_pubsub_cloudevent(request)
 
-        # Prefer dispatcher's correlation_id over the pre-generated fallback.
-        correlation_id = message_attributes.get("correlation_id") or correlation_id
-        set_correlation_id(correlation_id)
-
-        # Surface the broker-side message identifiers on the contextvar so
+        # Prefer dispatcher's correlation_id over the pre-generated fallback,
+        # then wire request-scoped Pub/Sub identifiers onto contextvars so
         # CorrelationFilter mirrors them into every subsequent log record's
-        # jsonPayload. Essential for diagnosing redelivery — see
-        # https://cloud.google.com/pubsub/docs/handling-failures#track_delivery_attempts
-        set_pubsub_message_id(context.pubsub_message_id)
-        set_delivery_attempt(context.delivery_attempt)
+        # jsonPayload. The returned dict is the matching span_attrs map.
+        correlation_id = message_attributes.get("correlation_id") or correlation_id
+        span_attrs = apply_pubsub_request_context(
+            correlation_id,
+            context.pubsub_message_id,
+            context.delivery_attempt,
+        )
 
         # Extract W3C trace context from dispatcher's traceparent attribute.
         # This is the cross-service trace and should win over the Cloud Run
@@ -114,16 +112,6 @@ async def handle_webhook_cloudevent(
         )
         if trace_id:
             set_trace_context(trace_id, span_id, sampled)
-
-        # Build span attributes; include delivery_attempt only when the broker
-        # set it, so `pubsub.delivery_attempt > 1` searches in Cloud Trace
-        # cleanly distinguish retries from first-delivery messages.
-        span_attrs: dict[str, Any] = {
-            "correlation_id": correlation_id,
-            "pubsub.message_id": context.pubsub_message_id,
-        }
-        if context.delivery_attempt is not None:
-            span_attrs["pubsub.delivery_attempt"] = context.delivery_attempt
 
         # IMPORTANT: The span must wrap ALL log statements below. The
         # google-cloud-logging library reads the active OTel span and
