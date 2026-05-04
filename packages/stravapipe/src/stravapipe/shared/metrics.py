@@ -22,6 +22,7 @@ from opentelemetry.metrics import (
 )
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.view import DropAggregation, View
 from opentelemetry.sdk.resources import Resource
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,19 @@ def setup_metrics(service_name: str) -> Meter:
             exporter, export_interval_millis=_EXPORT_INTERVAL_MS
         )
 
-        provider = MeterProvider(resource=resource, metric_readers=[reader])
+        # Drop OTel SDK self-monitoring metrics (otel.sdk.processor.span.*).
+        # They're emitted by BatchSpanProcessor in opentelemetry-sdk >= 1.41,
+        # and Cloud Monitoring's create_metric_descriptor times out on them
+        # without adding actionable observability for our use case.
+        sdk_self_metrics_view = View(
+            meter_name="opentelemetry-sdk", aggregation=DropAggregation()
+        )
+
+        provider = MeterProvider(
+            resource=resource,
+            metric_readers=[reader],
+            views=[sdk_self_metrics_view],
+        )
         set_meter_provider(provider)
         _meter_provider = provider
 
