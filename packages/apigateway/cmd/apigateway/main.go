@@ -33,6 +33,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
@@ -173,6 +174,16 @@ func run(log *slog.Logger) error {
 
 // Dependencies holds all initialized dependencies for the application.
 type Dependencies struct {
+	repo             repository.ActivityRepository
+	authMiddleware   server.AuthMiddleware
+	corsHandler      *cors.Handler
+	sportConfig      *config.SportConfig
+	rateLimiter      *ratelimit.Limiter
+	authRateLimiter  *ratelimit.Limiter
+	firestoreClient  *firestore.Client
+	authHandler      *auth.Handler
+	logger           *slog.Logger
+	httpHistogram    otelmetric.Float64Histogram
 	readinessTimeout time.Duration
 }
 
@@ -383,11 +394,12 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 
 	stravaOAuth := stravaadapter.NewOAuthClient(stravaClientID, stravaClientSecret, log, nil, oauthHist)
 	authStore := firestoreadapter.NewAuthStore(firestoreClient, log)
+	allowChecker := allowlist.NewFirestoreChecker(firestoreClient, log)
 
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
 		Strava:       stravaOAuth,
 		Tokens:       authStore,
-		Allowlist:    authStore,
+		Allowlist:    allowChecker,
 		Firebase:     authClient,
 		StateSecret:  []byte(stateSecret),
 		FrontendURL:  cfg.FrontendURL,
@@ -481,13 +493,14 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 		"Athlete", // last name
 	)
 
-	// Mock auth store: always allows, discards token writes
+	// Mock auth store + allowlist checker: always allows, discards token writes
 	mockStore := mockadapter.NewAuthStore(log)
+	mockAllowlist := mockadapter.NewAllowlistChecker(log)
 
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
 		Strava:      mockStrava,
 		Tokens:      mockStore,
-		Allowlist:   mockStore,
+		Allowlist:   mockAllowlist,
 		Firebase:    authClient,
 		StateSecret: []byte(stateSecret),
 		FrontendURL: cfg.FrontendURL,

@@ -13,17 +13,16 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// AuthStore implements auth.AllowlistChecker and auth.TokenStore using Firestore.
+// AuthStore implements auth.TokenStore using Firestore.
+// The allowlist concern is handled separately by allowlist.FirestoreChecker
+// in packages/shared/allowlist.
 type AuthStore struct {
 	client *firestore.Client
 	logger *slog.Logger
 }
 
-// Compile-time checks.
-var (
-	_ auth.AllowlistChecker = (*AuthStore)(nil)
-	_ auth.TokenStore       = (*AuthStore)(nil)
-)
+// Compile-time check.
+var _ auth.TokenStore = (*AuthStore)(nil)
 
 // NewAuthStore creates a new Firestore-backed auth store.
 func NewAuthStore(client *firestore.Client, logger *slog.Logger) *AuthStore {
@@ -31,18 +30,6 @@ func NewAuthStore(client *firestore.Client, logger *slog.Logger) *AuthStore {
 		client: client,
 		logger: logger,
 	}
-}
-
-// IsAllowed checks whether the given athlete ID exists in the allowlist collection.
-func (s *AuthStore) IsAllowed(ctx context.Context, athleteID string) (bool, error) {
-	_, err := s.client.Collection(stravatoken.AllowlistCollection).Doc(athleteID).Get(ctx)
-	if err != nil {
-		if status.Code(err) == codes.NotFound {
-			return false, nil
-		}
-		return false, fmt.Errorf("check allowlist: %w", err)
-	}
-	return true, nil
 }
 
 // WriteAuthData atomically writes both Strava tokens and athlete profile.

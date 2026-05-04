@@ -11,6 +11,7 @@ import (
 	"time"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"github.com/golang-jwt/jwt/v5"
@@ -93,14 +94,14 @@ func newTestHandler(
 	t *testing.T,
 	strava StravaOAuthClient,
 	tokens TokenStore,
-	allowlist AllowlistChecker,
+	allow allowlist.Checker,
 	firebase FirebaseAuthClient,
 ) *Handler {
 	t.Helper()
 	h, err := NewHandler(&HandlerConfig{
 		Strava:      strava,
 		Tokens:      tokens,
-		Allowlist:   allowlist,
+		Allowlist:   allow,
 		Firebase:    firebase,
 		StateSecret: []byte("test-secret-key-32-bytes-long!!!"),
 		FrontendURL: "https://app.example.com",

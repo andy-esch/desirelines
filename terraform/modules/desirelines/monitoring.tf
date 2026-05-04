@@ -797,6 +797,44 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
             }
           }
+        },
+
+        # Webhook Owner Allowlist Check - Row 64
+        # Plots the four owner-check outcomes:
+        #   allowed  — happy path; matches the webhook/events rate
+        #   stray    — not allowlisted; expected, ack'd silently
+        #   orphan   — allowlisted but no Firestore tokens; alerts
+        #   error    — allowlist read failed; alerts at >1/min
+        {
+          yPos   = 64
+          width  = 12
+          height = 4
+          widget = {
+            title = "Webhook Owner Check Outcomes (per minute)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_RATE"
+                      crossSeriesReducer = "REDUCE_SUM"
+                      groupByFields      = ["metric.labels.result"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.result}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Events/min"
+                scale = "LINEAR"
+              }
+            }
+          }
         }
       ]
     }
@@ -1845,6 +1883,127 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
   }
 }
 
+# HIGH: Orphan tokens — an allowlisted athlete's webhook arrived but the
+# dispatcher had no Firestore tokens for them. This indicates real data loss
+# (Firestore wipe, deauth/re-auth race, partial migration) rather than the
+# expected stray-webhook case. Distinct from STRAVA_FETCH_FAILED 5xx alerts
+# because the dispatcher acks orphans with 200 to stop Strava retries — the
+# orphan condition is ONLY visible via this counter label.
+#
+# Stray (`result=stray`) is intentionally NOT alerted — those are routine
+# byproducts of cross-env or post-deauth Strava grants, ack'd silently.
+#
+# Gated on enable_application_metric_alerts for the same reason as the other
+# OTel-derived alerts: the metric descriptor must exist before the alert can
+# be created.
+resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
+  display_name = "🚨 Webhook for allowlisted athlete with no tokens (orphan)"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **HIGH**: Dispatcher received a webhook for an athlete who IS on the
+      allowlist but has no Firestore tokens. The event was acked (Strava will
+      not retry) but nothing else happened. Possible causes:
+
+      1. **Firestore tokens were deleted** — accidental delete, partial
+         migration, or a deauth event that wasn't followed by re-auth.
+      2. **Deauth/re-auth race** — narrow window between
+         `tokenStore.DeleteTokens` and the user's re-auth callback writing
+         new tokens. Self-resolves on the next event after re-auth.
+      3. **Token write race** — concurrent token refreshes lost a write.
+         Should not happen given the optimistic-concurrency guard, but
+         worth investigating if it recurs.
+
+      **Action**:
+      1. Identify the affected athlete from the dispatcher log line:
+         `Orphan tokens — allowlisted athlete has no tokens`.
+      2. Check Firestore at `users/{athleteID}/private/strava_tokens` —
+         is the document missing or stale?
+      3. If genuinely missing, ask the user to re-authorize via the app's
+         OAuth flow. Webhooks resume on the next event.
+      4. If it recurs without an obvious cause, suspect a deletion bug
+         (search recent commits to `dispatcher/adapters/firestore/`).
+    EOT
+  }
+
+  conditions {
+    display_name = "owner_check{result=orphan} rate > 0 for 5m"
+
+    condition_threshold {
+      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\" AND metric.labels.result=\"orphan\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+# MEDIUM: The allowlist read itself is failing. Dispatcher fail-closes with
+# 500 in this case so Strava retries up to 3× — bounded blast radius — but a
+# sustained allowlist outage means legitimate webhooks are getting dropped
+# after Strava gives up. This catches Firestore-side trouble that's specific
+# to the allowlist read path (the broader firestore/operation.duration alert
+# would also fire, but only on latency, not hard errors).
+resource "google_monitoring_alert_policy" "webhook_owner_check_error" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
+  display_name = "⚠️ Allowlist read errors elevated"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **MEDIUM**: Dispatcher's allowlist check is returning errors at >1/min
+      sustained. The handler fail-closes with 500 (Strava retries up to 3×),
+      but past the retry cap legitimate events are dropped.
+
+      **Action**:
+      1. Check Firestore status (https://status.cloud.google.com).
+      2. Verify the dispatcher's service account still has
+         `roles/datastore.user` on the user-configs database.
+      3. Inspect dispatcher logs for the `ALLOWLIST_CHECK_FAILED` error code —
+         the wrapped error names the specific Firestore failure.
+    EOT
+  }
+
+  conditions {
+    display_name = "owner_check{result=error} rate > 1/min for 10m"
+
+    condition_threshold {
+      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\" AND metric.labels.result=\"error\""
+      duration        = "600s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 1
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
 # Output the dashboard URL for easy access
 output "monitoring_dashboard_url" {
   description = "URL to the GCP Monitoring Dashboard"
@@ -1871,5 +2030,7 @@ output "alert_policy_ids" {
     firestore_operation_latency  = one(google_monitoring_alert_policy.firestore_operation_latency[*].id)
     pubsub_publish_latency       = one(google_monitoring_alert_policy.pubsub_publish_latency[*].id)
     webhook_events_absent        = one(google_monitoring_alert_policy.webhook_events_absent[*].id)
+    webhook_owner_check_orphan   = one(google_monitoring_alert_policy.webhook_owner_check_orphan[*].id)
+    webhook_owner_check_error    = one(google_monitoring_alert_policy.webhook_owner_check_error[*].id)
   }
 }

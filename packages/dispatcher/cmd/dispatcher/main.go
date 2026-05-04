@@ -24,6 +24,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/pubsub"
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
+	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
@@ -198,6 +199,11 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	if err != nil {
 		log.Warn("Failed to create webhook counter", "error", err)
 	}
+	ownerCheckCounter, err := meter.Int64Counter("desirelines.io/webhook/owner_check",
+		metric.WithDescription("Webhook owner allowlist check outcomes (allowed/stray/orphan/error)"))
+	if err != nil {
+		log.Warn("Failed to create owner_check counter", "error", err)
+	}
 	httpHist, err := meter.Float64Histogram("desirelines.io/http/request.duration",
 		metric.WithUnit("ms"), metric.WithDescription("HTTP request duration"))
 	if err != nil {
@@ -222,6 +228,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
 
 	tokenStore := firestoreadapter.NewTokenStore(firestoreClient, log, firestoreHist, tracer)
+	allowChecker := allowlist.NewFirestoreChecker(firestoreClient, log)
 
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 
@@ -244,10 +251,11 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		Burst: 10,
 	}, log)
 
-	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, log, &httpadapter.HandlerConfig{
+	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, allowChecker, log, &httpadapter.HandlerConfig{
 		MaxRequestBodySize: cfg.MaxRequestBodySize,
 		RateLimiter:        rateLimiter,
 		WebhookCounter:     webhookCounter,
+		OwnerCheckCounter:  ownerCheckCounter,
 		HTTPHistogram:      httpHist,
 	})
 

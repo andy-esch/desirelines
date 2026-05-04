@@ -11,11 +11,13 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"strconv"
 
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	sharedotel "github.com/andy-esch/desirelines/packages/shared/otel"
@@ -41,6 +43,15 @@ const (
 	ErrCodeStravaFetchFailed     = "STRAVA_FETCH_FAILED"
 	ErrCodeInvalidChallenge      = "INVALID_CHALLENGE"
 	ErrCodeDeauthFailed          = "DEAUTH_FAILED"
+	ErrCodeAllowlistCheckFailed  = "ALLOWLIST_CHECK_FAILED"
+)
+
+// Owner-allowlist check outcomes (label values for the owner_check counter).
+const (
+	ownerCheckAllowed = "allowed"
+	ownerCheckStray   = "stray"
+	ownerCheckOrphan  = "orphan"
+	ownerCheckError   = "error"
 )
 
 // Internal constants for recurring strings
@@ -63,10 +74,12 @@ type Handler struct {
 	deauthPublisher    ports.Publisher
 	stravaClient       ports.StravaClient
 	tokenStore         ports.TokenStore
+	allowlist          allowlist.Checker
 	logger             *slog.Logger
 	rateLimiter        *ratelimit.Limiter
 	maxRequestBodySize int64
 	webhookCounter     metric.Int64Counter
+	ownerCheckCounter  metric.Int64Counter
 	httpHistogram      metric.Float64Histogram
 }
 
@@ -75,21 +88,24 @@ type HandlerConfig struct {
 	MaxRequestBodySize int64
 	RateLimiter        *ratelimit.Limiter
 	WebhookCounter     metric.Int64Counter
+	OwnerCheckCounter  metric.Int64Counter
 	HTTPHistogram      metric.Float64Histogram
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
-func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, logger *slog.Logger, cfg *HandlerConfig) *Handler {
+func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, allowChecker allowlist.Checker, logger *slog.Logger, cfg *HandlerConfig) *Handler {
 	maxBodySize := config.DefaultMaxRequestBodySize
 	if cfg != nil && cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
 	}
 	var rateLimiter *ratelimit.Limiter
 	var webhookCounter metric.Int64Counter
+	var ownerCheckCounter metric.Int64Counter
 	var httpHistogram metric.Float64Histogram
 	if cfg != nil {
 		rateLimiter = cfg.RateLimiter
 		webhookCounter = cfg.WebhookCounter
+		ownerCheckCounter = cfg.OwnerCheckCounter
 		httpHistogram = cfg.HTTPHistogram
 	}
 	return &Handler{
@@ -98,10 +114,12 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		deauthPublisher:    deauthPublisher,
 		stravaClient:       stravaClient,
 		tokenStore:         tokenStore,
+		allowlist:          allowChecker,
 		logger:             logger,
 		rateLimiter:        rateLimiter,
 		maxRequestBodySize: maxBodySize,
 		webhookCounter:     webhookCounter,
+		ownerCheckCounter:  ownerCheckCounter,
 		httpHistogram:      httpHistogram,
 	}
 }
@@ -326,6 +344,21 @@ func (h *Handler) recordWebhookMetric(ctx context.Context, webhook *generated.We
 	)
 }
 
+// recordOwnerCheck increments the owner-allowlist-check counter labeled by
+// the outcome (allowed / stray / orphan / error). No-op when no counter is
+// configured. Used to drive a dashboard tile and the orphan-rate alert.
+func (h *Handler) recordOwnerCheck(ctx context.Context, webhook *generated.WebhookEvent, result string) {
+	if h.ownerCheckCounter == nil {
+		return
+	}
+	h.ownerCheckCounter.Add(ctx, 1,
+		metric.WithAttributes(
+			attribute.String("result", result),
+			attribute.String("aspect_type", webhookproto.AspectTypeToString(webhook.AspectType)),
+		),
+	)
+}
+
 // routeWebhookEvent dispatches by object_type. Athlete events go to the deauth
 // path; activity events flow through enrich + publish; everything else is
 // acknowledged without further work.
@@ -343,8 +376,52 @@ func (h *Handler) routeWebhookEvent(ctx context.Context, w http.ResponseWriter, 
 // handleActivityEvent enriches CREATE events with the full Strava activity
 // payload (best-effort if the activity was already deleted) and publishes the
 // resulting EnrichedEvent. Other aspect types publish the bare webhook.
+//
+// Two-stage owner check:
+//
+//  1. Allowlist guard — drop strays before any Strava API call. Non-allowlisted
+//     athletes can still hold a Strava OAuth grant against this app (the
+//     apigateway rejects the callback but Strava retains the grant), and
+//     their webhooks will keep arriving until they revoke at strava.com.
+//  2. Token presence — if the athlete is allowlisted but has no Firestore
+//     tokens, that's an orphan: real bug worth alerting on.
+//
+// Any deauth/re-auth race may briefly land in the orphan branch while tokens
+// are being rewritten; we ack so Strava stops retrying and the next event
+// processes normally once the new tokens are written.
 func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, correlationID string) {
 	enriched := &generated.EnrichedEvent{Event: webhook}
+
+	ownerIDStr := strconv.FormatInt(webhook.OwnerId, 10)
+	allowed, allowErr := h.allowlist.IsAllowed(ctx, ownerIDStr)
+	switch {
+	case allowErr != nil:
+		// Fail-closed on transient allowlist errors: 500 so Strava retries.
+		// Strava's 3-attempt cap bounds the damage; better than silently
+		// dropping a legitimate user's event because Firestore had a hiccup.
+		h.recordOwnerCheck(ctx, webhook, ownerCheckError)
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Allowlist check failed",
+			fmt.Sprintf("Allowlist read failed for owner %d: %v", webhook.OwnerId, allowErr),
+		)
+		apiErr.Code = ErrCodeAllowlistCheckFailed
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
+	case !allowed:
+		// Stray webhook — non-allowlisted athlete still has an active Strava
+		// OAuth grant. Expected; ack quietly without calling Strava.
+		h.recordOwnerCheck(ctx, webhook, ownerCheckStray)
+		h.logger.Info("Stray webhook for non-allowlisted owner, acknowledging",
+			"correlation_id", correlationID,
+			"owner_id", webhook.OwnerId,
+			"object_id", webhook.ObjectId,
+			"aspect_type", webhook.AspectType.String(),
+		)
+		h.writeAcknowledged(w)
+		return
+	}
+	h.recordOwnerCheck(ctx, webhook, ownerCheckAllowed)
 
 	if webhook.AspectType == generated.AspectType_ASPECT_TYPE_CREATE {
 		rawActivity, fetchErr := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
@@ -357,6 +434,18 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 			h.logger.Warn("Activity not found in Strava, publishing without activity data",
 				"correlation_id", correlationID,
 				"object_id", webhook.ObjectId)
+		case errors.Is(fetchErr, ports.ErrTokenNotFound):
+			// Orphan: athlete is allowlisted but has no Firestore tokens.
+			// This is a real bug (Firestore wipe, deauth/re-auth race, etc.).
+			// Ack so Strava stops retrying, but log ERROR so the alert fires.
+			h.recordOwnerCheck(ctx, webhook, ownerCheckOrphan)
+			h.logger.Error("Orphan tokens — allowlisted athlete has no tokens, dropping event",
+				"correlation_id", correlationID,
+				"owner_id", webhook.OwnerId,
+				"object_id", webhook.ObjectId,
+			)
+			h.writeAcknowledged(w)
+			return
 		default:
 			// Other Strava errors — return 500 so Strava retries (up to 3
 			// total attempts per spec).

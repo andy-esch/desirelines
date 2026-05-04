@@ -47,45 +47,6 @@ func newTestAuthStore(t *testing.T) *AuthStore {
 	return NewAuthStore(client, gcplog.NewNoOpLogger())
 }
 
-// seedAllowlist writes a document to the allowlist collection for the given athlete ID.
-func seedAllowlist(t *testing.T, store *AuthStore, athleteID string) {
-	t.Helper()
-	ctx := context.Background()
-	if _, err := store.client.Collection(stravatoken.AllowlistCollection).Doc(athleteID).Set(ctx, map[string]any{
-		"added_at": time.Now(),
-	}); err != nil {
-		t.Fatalf("seedAllowlist() error = %v", err)
-	}
-}
-
-func TestAuthStore_IsAllowed_Exists(t *testing.T) {
-	store := newTestAuthStore(t)
-	ctx := context.Background()
-
-	seedAllowlist(t, store, "111111")
-
-	allowed, err := store.IsAllowed(ctx, "111111")
-	if err != nil {
-		t.Fatalf("IsAllowed() error = %v", err)
-	}
-	if !allowed {
-		t.Error("IsAllowed() = false, want true for seeded athlete")
-	}
-}
-
-func TestAuthStore_IsAllowed_NotFound(t *testing.T) {
-	store := newTestAuthStore(t)
-	ctx := context.Background()
-
-	allowed, err := store.IsAllowed(ctx, "999999")
-	if err != nil {
-		t.Fatalf("IsAllowed() error = %v", err)
-	}
-	if allowed {
-		t.Error("IsAllowed() = true, want false for non-existent athlete")
-	}
-}
-
 func TestAuthStore_WriteAuthData_HappyPath(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
