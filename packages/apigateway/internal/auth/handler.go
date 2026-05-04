@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
@@ -34,7 +35,7 @@ const (
 type HandlerConfig struct {
 	Strava      StravaOAuthClient
 	Tokens      TokenStore
-	Allowlist   AllowlistChecker
+	Allowlist   allowlist.Checker
 	Firebase    FirebaseAuthClient
 	StateSecret []byte
 	FrontendURL string
@@ -52,7 +53,7 @@ type HandlerConfig struct {
 type Handler struct {
 	strava      StravaOAuthClient
 	tokens      TokenStore
-	allowlist   AllowlistChecker
+	allowlist   allowlist.Checker
 	firebase    FirebaseAuthClient
 	stateSecret []byte
 	frontendURL *url.URL

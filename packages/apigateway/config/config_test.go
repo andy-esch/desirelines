@@ -77,6 +77,7 @@ func TestConfig_LogAttrs_OmitsSecrets(t *testing.T) {
 		WriteTimeout:      30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
 		ShutdownTimeout:   30 * time.Second,
+		ReadinessTimeout:  10 * time.Second,
 	}
 
 	attrs := cfg.LogAttrs()

@@ -27,7 +27,7 @@ func setupBenchHandler(b *testing.B) http.Handler {
 	}
 	log := gcplog.NewNoOpLogger()
 
-	handler := NewHandler(mockPub, mockDeauthPub, mockSecrets, mockStrava, &portstest.MockTokenStore{}, log, nil)
+	handler := NewHandler(mockPub, mockDeauthPub, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
 	return handler.RegisterRoutes()
 }
 

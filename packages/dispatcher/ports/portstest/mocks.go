@@ -174,3 +174,42 @@ func (m *MockTokenStore) DeletedCount() int {
 	defer m.mu.Unlock()
 	return len(m.DeletedAthleteIDs)
 }
+
+// MockAllowlist is a mock implementation of allowlist.Checker for testing.
+// The zero value denies (Allowed=false); construct with
+// NewAllowAllMockAllowlist() for the common allowed=true case, or set
+// Allowed/Err explicitly. Safe for concurrent use.
+type MockAllowlist struct {
+	mu sync.Mutex
+	// Allowed is the answer returned by IsAllowed when Err is nil.
+	Allowed bool
+	// Err is returned by IsAllowed (overrides Allowed). Set during test setup.
+	Err error
+	// CalledWith records the athlete IDs IsAllowed was called with.
+	CalledWith []string
+}
+
+// NewAllowAllMockAllowlist returns a MockAllowlist preconfigured to allow
+// every athlete. Most tests want this default; non-allowlist concerns are
+// being exercised.
+func NewAllowAllMockAllowlist() *MockAllowlist {
+	return &MockAllowlist{Allowed: true}
+}
+
+// IsAllowed implements allowlist.Checker.
+func (m *MockAllowlist) IsAllowed(_ context.Context, athleteID string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.CalledWith = append(m.CalledWith, athleteID)
+	if m.Err != nil {
+		return false, m.Err
+	}
+	return m.Allowed, nil
+}
+
+// CalledCount returns the number of IsAllowed calls made.
+func (m *MockAllowlist) CalledCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.CalledWith)
+}

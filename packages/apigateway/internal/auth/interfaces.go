@@ -20,11 +20,6 @@ type TokenStore interface {
 	WriteAuthData(ctx context.Context, athleteID string, tokens *stravatoken.Data, profile *AthleteProfile) error
 }
 
-// AllowlistChecker verifies if an athlete ID is in the allowlist.
-type AllowlistChecker interface {
-	IsAllowed(ctx context.Context, athleteID string) (bool, error)
-}
-
 // FirebaseAuthClient creates Firebase Custom Auth tokens and manages user profiles.
 // firebase.google.com/go/v4/auth.Client satisfies this interface directly.
 type FirebaseAuthClient interface {

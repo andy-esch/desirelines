@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
@@ -32,6 +33,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
@@ -172,16 +174,17 @@ func run(log *slog.Logger) error {
 
 // Dependencies holds all initialized dependencies for the application.
 type Dependencies struct {
-	repo            repository.ActivityRepository
-	authMiddleware  server.AuthMiddleware
-	corsHandler     *cors.Handler
-	sportConfig     *config.SportConfig
-	rateLimiter     *ratelimit.Limiter
-	authRateLimiter *ratelimit.Limiter
-	firestoreClient *firestore.Client
-	authHandler     *auth.Handler
-	logger          *slog.Logger
-	httpHistogram   otelmetric.Float64Histogram
+	repo             repository.ActivityRepository
+	authMiddleware   server.AuthMiddleware
+	corsHandler      *cors.Handler
+	sportConfig      *config.SportConfig
+	rateLimiter      *ratelimit.Limiter
+	authRateLimiter  *ratelimit.Limiter
+	firestoreClient  *firestore.Client
+	authHandler      *auth.Handler
+	logger           *slog.Logger
+	httpHistogram    otelmetric.Float64Histogram
+	readinessTimeout time.Duration
 }
 
 // Close releases all dependency resources.
@@ -204,7 +207,8 @@ func (d *Dependencies) Close() {
 //nolint:gocyclo // Composition root — wiring complexity is inherent.
 func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger, meter otelmetric.Meter) (*Dependencies, error) {
 	deps := &Dependencies{
-		logger: log,
+		logger:           log,
+		readinessTimeout: cfg.ReadinessTimeout,
 	}
 
 	// 1. Load sport configuration (embedded in binary via go:embed)
@@ -324,7 +328,7 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 // buildRouter creates the HTTP router with all handlers wired up.
 func buildRouter(deps *Dependencies) http.Handler {
 	// Create feature handlers with their dependencies
-	healthHandler := health.NewHandler(deps.repo, deps.logger)
+	healthHandler := health.NewHandlerWithTimeout(deps.repo, deps.logger, deps.readinessTimeout)
 	sportsHandler := sports.NewHandler(deps.logger, deps.sportConfig)
 	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig, deps.logger)
 
@@ -390,11 +394,12 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 
 	stravaOAuth := stravaadapter.NewOAuthClient(stravaClientID, stravaClientSecret, log, nil, oauthHist)
 	authStore := firestoreadapter.NewAuthStore(firestoreClient, log)
+	allowChecker := allowlist.NewFirestoreChecker(firestoreClient, log)
 
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
 		Strava:       stravaOAuth,
 		Tokens:       authStore,
-		Allowlist:    authStore,
+		Allowlist:    allowChecker,
 		Firebase:     authClient,
 		StateSecret:  []byte(stateSecret),
 		FrontendURL:  cfg.FrontendURL,
@@ -488,13 +493,14 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 		"Athlete", // last name
 	)
 
-	// Mock auth store: always allows, discards token writes
+	// Mock auth store + allowlist checker: always allows, discards token writes
 	mockStore := mockadapter.NewAuthStore(log)
+	mockAllowlist := mockadapter.NewAllowlistChecker(log)
 
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
 		Strava:      mockStrava,
 		Tokens:      mockStore,
-		Allowlist:   mockStore,
+		Allowlist:   mockAllowlist,
 		Firebase:    authClient,
 		StateSecret: []byte(stateSecret),
 		FrontendURL: cfg.FrontendURL,
