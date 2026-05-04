@@ -26,7 +26,11 @@ const (
 	StatusUnhealthy = "unhealthy"
 
 	// DefaultHealthCheckTimeout is the default timeout for database health checks.
-	DefaultHealthCheckTimeout = 2 * time.Second
+	// Sized for Neon cold-starts: the hourly Cloud Scheduler /api/ready probe
+	// almost always lands on a suspended compute (5-min idle window), and the
+	// wake routinely takes several seconds. A tighter budget here flags every
+	// cold wake as "unhealthy" even when the DB is fine.
+	DefaultHealthCheckTimeout = 10 * time.Second
 )
 
 // Pinger is a minimal interface for health checking database connectivity.

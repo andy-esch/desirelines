@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
@@ -172,16 +173,7 @@ func run(log *slog.Logger) error {
 
 // Dependencies holds all initialized dependencies for the application.
 type Dependencies struct {
-	repo            repository.ActivityRepository
-	authMiddleware  server.AuthMiddleware
-	corsHandler     *cors.Handler
-	sportConfig     *config.SportConfig
-	rateLimiter     *ratelimit.Limiter
-	authRateLimiter *ratelimit.Limiter
-	firestoreClient *firestore.Client
-	authHandler     *auth.Handler
-	logger          *slog.Logger
-	httpHistogram   otelmetric.Float64Histogram
+	readinessTimeout time.Duration
 }
 
 // Close releases all dependency resources.
@@ -204,7 +196,8 @@ func (d *Dependencies) Close() {
 //nolint:gocyclo // Composition root — wiring complexity is inherent.
 func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger, meter otelmetric.Meter) (*Dependencies, error) {
 	deps := &Dependencies{
-		logger: log,
+		logger:           log,
+		readinessTimeout: cfg.ReadinessTimeout,
 	}
 
 	// 1. Load sport configuration (embedded in binary via go:embed)
@@ -324,7 +317,7 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 // buildRouter creates the HTTP router with all handlers wired up.
 func buildRouter(deps *Dependencies) http.Handler {
 	// Create feature handlers with their dependencies
-	healthHandler := health.NewHandler(deps.repo, deps.logger)
+	healthHandler := health.NewHandlerWithTimeout(deps.repo, deps.logger, deps.readinessTimeout)
 	sportsHandler := sports.NewHandler(deps.logger, deps.sportConfig)
 	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig, deps.logger)
 

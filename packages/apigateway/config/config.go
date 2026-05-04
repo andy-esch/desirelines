@@ -18,6 +18,10 @@ const (
 	DefaultReadHeaderTimeout = 10 * time.Second
 	// DefaultShutdownTimeout is the default shutdown timeout for the server.
 	DefaultShutdownTimeout = 30 * time.Second
+	// DefaultReadinessTimeout is the default timeout for the /api/ready DB
+	// probe. Must accommodate Neon cold-start latency since the hourly Cloud
+	// Scheduler probe almost always wakes a suspended compute.
+	DefaultReadinessTimeout = 10 * time.Second
 )
 
 // Environment is the deployment environment. Use the IsLocal /
@@ -88,6 +92,8 @@ type Config struct {
 	ReadHeaderTimeout time.Duration
 	// ShutdownTimeout is the maximum time for graceful shutdown.
 	ShutdownTimeout time.Duration
+	// ReadinessTimeout is the timeout applied to the /api/ready DB probe.
+	ReadinessTimeout time.Duration
 }
 
 // LoadConfig loads non-secret configuration from environment variables.
@@ -145,6 +151,11 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	readinessTimeout, err := parseDurationEnvSeconds("READINESS_TIMEOUT_SECONDS", DefaultReadinessTimeout)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		GCPProjectID:      gcpProjectID,
 		FirestoreDatabase: firestoreDatabase,
@@ -156,6 +167,7 @@ func LoadConfig() (*Config, error) {
 		WriteTimeout:      writeTimeout,
 		ReadHeaderTimeout: readHeaderTimeout,
 		ShutdownTimeout:   shutdownTimeout,
+		ReadinessTimeout:  readinessTimeout,
 	}, nil
 }
 
@@ -238,5 +250,6 @@ func (c *Config) LogAttrs() []any {
 		"write_timeout", c.WriteTimeout,
 		"read_header_timeout", c.ReadHeaderTimeout,
 		"shutdown_timeout", c.ShutdownTimeout,
+		"readiness_timeout", c.ReadinessTimeout,
 	}
 }
