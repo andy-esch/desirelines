@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -378,6 +379,21 @@ func TestHandler_HandleEvent(t *testing.T) {
 			expectedBody:   "acknowledged",
 		},
 		{
+			// Same as above but with the *wrapped* error the real Strava
+			// client emits (see strava/client.go: `get tokens for athlete %d: %w`).
+			// Locks in errors.Is unwrapping — a future refactor that loses
+			// %w would silently route orphans to the 500 default branch.
+			name:           "Allowlisted owner with wrapped ErrTokenNotFound (orphan) acknowledged",
+			method:         "POST",
+			contentType:    "application/json",
+			payload:        validPayload,
+			mockSubID:      testSubscriptionID,
+			mockAllowlist:  portstest.NewAllowAllMockAllowlist(),
+			stravaErr:      fmt.Errorf("get tokens for athlete %d: %w", int64(testOwnerID), ports.ErrTokenNotFound),
+			expectedStatus: http.StatusOK,
+			expectedBody:   "acknowledged",
+		},
+		{
 			// Transient allowlist failure (Firestore unreachable, etc.) —
 			// fail-closed with 500 so Strava retries within its 3-attempt
 			// cap. Better than silently dropping a legitimate user's event
@@ -440,13 +456,6 @@ func allowlistOrDefault(a *portstest.MockAllowlist) *portstest.MockAllowlist {
 	return portstest.NewAllowAllMockAllowlist()
 }
 
-func ttHandlerConfig(*handleEventTestCase) *HandlerConfig {
-	// Test cases don't currently configure metrics or rate limiting; nil keeps
-	// the no-op defaults. This indirection exists so future test cases can opt
-	// into metric assertions without churning every call site.
-	return nil
-}
-
 func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 	log := gcplog.NewNoOpLogger()
 	mockSecrets := &portstest.MockSecretProvider{
@@ -462,7 +471,7 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 		FetchErr:    tt.stravaErr,
 	}
 
-	handler := NewHandler(mockPublisher, mockDeauthPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), allowlistOrDefault(tt.mockAllowlist), log, ttHandlerConfig(tt))
+	handler := NewHandler(mockPublisher, mockDeauthPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), allowlistOrDefault(tt.mockAllowlist), log, nil)
 	router := handler.RegisterRoutes()
 
 	var body []byte

@@ -14,18 +14,27 @@ The dispatcher is the **only service** that calls the Strava API. Downstream con
 
 ```
 packages/dispatcher/
-├── cmd/dispatcher/main.go       # HTTP server entrypoint
+├── cmd/dispatcher/main.go         # HTTP server entrypoint (composition root)
 ├── adapters/
-│   ├── http/handler.go          # HTTP handler (inbound adapter)
-│   ├── pubsub/publisher.go      # PubSub publishing (outbound adapter)
-│   ├── strava/client.go         # Strava API client (outbound adapter)
-│   ├── proto/webhook_adapter.go # JSON ↔ protobuf conversion
-│   └── env/secrets.go           # Environment/secrets adapter
-├── ports/interfaces.go          # Port interfaces (Publisher, SecretProvider, StravaClient)
-├── types/generated/webhook.pb.go # Generated protobuf types
-├── config/config.go             # Configuration loading
-└── Dockerfile                   # Cloud Run container
+│   ├── http/handler.go            # HTTP handler (inbound adapter)
+│   ├── pubsub/publisher.go        # PubSub publishing (outbound adapter)
+│   ├── strava/client.go           # Strava API client (outbound adapter)
+│   ├── firestore/token_store.go   # Per-athlete OAuth token store (Firestore)
+│   ├── proto/webhook_adapter.go   # JSON ↔ protobuf conversion
+│   └── env/secrets.go             # Environment/secrets adapter
+├── ports/
+│   ├── interfaces.go              # Port interfaces (Publisher, SecretProvider, StravaClient, TokenStore)
+│   └── portstest/mocks.go         # Shared test mocks
+├── types/generated/webhook.pb.go  # Generated protobuf types
+├── config/config.go               # Configuration loading
+└── Dockerfile                     # Cloud Run container
 ```
+
+The athlete-allowlist check (`packages/shared/allowlist`) is shared with the
+apigateway. The dispatcher uses it to drop stray webhooks — events from
+athletes who hold a Strava OAuth grant but are not allowlisted in this
+environment — before any Strava API call. See `webhook/owner_check` metric
+for outcome breakdown.
 
 **Type Definitions:** Webhook types are defined in `schemas/proto/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `just proto-gen-backend`.
 
