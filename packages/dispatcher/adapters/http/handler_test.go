@@ -18,6 +18,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -758,6 +760,146 @@ func TestHandler_OwnerCheck_DeauthBypassesAllowlist(t *testing.T) {
 	if denyingAllowlist.CalledCount() != 0 {
 		t.Errorf("Allowlist called %d times, want 0 (deauth must bypass)", denyingAllowlist.CalledCount())
 	}
+}
+
+// TestHandler_OwnerCheck_CounterLabels asserts that recordOwnerCheck emits
+// the right `result` label for each of the four outcomes. Without this,
+// the labels could silently rename or typo and the orphan alert (which
+// keys on result="orphan") would stop firing — invisibly.
+//
+// Uses an OTel manual reader so the test asserts what's actually flushed,
+// not just that recordOwnerCheck was reached.
+func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
+	type tc struct {
+		name         string
+		allowlist    *portstest.MockAllowlist
+		stravaErr    error
+		wantResult   string
+		wantStatus   int
+		payloadBytes []byte
+	}
+
+	validBody := func(t *testing.T) []byte {
+		t.Helper()
+		body, err := json.Marshal(webhookproto.StravaWebhookJSON{
+			AspectType:     "create",
+			ObjectType:     "activity",
+			ObjectID:       testObjectID,
+			OwnerID:        testOwnerID,
+			EventTime:      testEventTime,
+			SubscriptionID: testSubscriptionID,
+		})
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return body
+	}(t)
+
+	cases := []tc{
+		{
+			name:         "allowed",
+			allowlist:    portstest.NewAllowAllMockAllowlist(),
+			wantResult:   "allowed",
+			wantStatus:   http.StatusCreated,
+			payloadBytes: validBody,
+		},
+		{
+			name:         "stray",
+			allowlist:    &portstest.MockAllowlist{Allowed: false},
+			wantResult:   "stray",
+			wantStatus:   http.StatusOK,
+			payloadBytes: validBody,
+		},
+		{
+			name:         "orphan",
+			allowlist:    portstest.NewAllowAllMockAllowlist(),
+			stravaErr:    ports.ErrTokenNotFound,
+			wantResult:   "orphan",
+			wantStatus:   http.StatusOK,
+			payloadBytes: validBody,
+		},
+		{
+			name:         "error",
+			allowlist:    &portstest.MockAllowlist{Err: errors.New("firestore unreachable")},
+			wantResult:   "error",
+			wantStatus:   http.StatusInternalServerError,
+			payloadBytes: validBody,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			reader := sdkmetric.NewManualReader()
+			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+			meter := provider.Meter("test")
+			counter, err := meter.Int64Counter("desirelines.io/webhook/owner_check")
+			if err != nil {
+				t.Fatalf("create counter: %v", err)
+			}
+
+			log := gcplog.NewNoOpLogger()
+			handler := NewHandler(
+				&portstest.MockPublisher{},
+				&portstest.MockPublisher{},
+				&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
+				&portstest.MockStravaClient{
+					FetchResult: []byte(`{"id":12345}`),
+					FetchErr:    c.stravaErr,
+				},
+				&portstest.MockTokenStore{},
+				c.allowlist,
+				log,
+				&HandlerConfig{OwnerCheckCounter: counter},
+			)
+			router := handler.RegisterRoutes()
+
+			req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(c.payloadBytes))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if w.Code != c.wantStatus {
+				t.Errorf("status = %d, want %d (body: %s)", w.Code, c.wantStatus, w.Body.String())
+			}
+
+			var rm metricdata.ResourceMetrics
+			if collectErr := reader.Collect(context.Background(), &rm); collectErr != nil {
+				t.Fatalf("collect metrics: %v", collectErr)
+			}
+
+			results := ownerCheckResultLabels(rm)
+			if len(results) != 1 {
+				t.Fatalf("expected exactly 1 owner_check increment, got %d (%v)", len(results), results)
+			}
+			if results[0] != c.wantResult {
+				t.Errorf("result label = %q, want %q", results[0], c.wantResult)
+			}
+		})
+	}
+}
+
+// ownerCheckResultLabels collects the `result` label from each
+// owner_check counter data point in the resource metrics, in the order
+// they appear. Returns an empty slice if the counter was never recorded.
+func ownerCheckResultLabels(rm metricdata.ResourceMetrics) []string {
+	var out []string
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "desirelines.io/webhook/owner_check" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			for _, dp := range sum.DataPoints {
+				if v, exists := dp.Attributes.Value("result"); exists {
+					out = append(out, v.AsString())
+				}
+			}
+		}
+	}
+	return out
 }
 
 func TestHandler_EnrichmentBehavior_Create(t *testing.T) {

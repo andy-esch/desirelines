@@ -392,6 +392,12 @@ func (h *Handler) routeWebhookEvent(ctx context.Context, w http.ResponseWriter, 
 func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, correlationID string) {
 	enriched := &generated.EnrichedEvent{Event: webhook}
 
+	// Track the owner-check outcome locally; defer the metric so each
+	// request records exactly one result regardless of which branch returns.
+	// Invariant: allowed + stray + orphan + error == total activity events.
+	result := ownerCheckAllowed
+	defer func() { h.recordOwnerCheck(ctx, webhook, result) }()
+
 	ownerIDStr := strconv.FormatInt(webhook.OwnerId, 10)
 	allowed, allowErr := h.allowlist.IsAllowed(ctx, ownerIDStr)
 	switch {
@@ -399,7 +405,7 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 		// Fail-closed on transient allowlist errors: 500 so Strava retries.
 		// Strava's 3-attempt cap bounds the damage; better than silently
 		// dropping a legitimate user's event because Firestore had a hiccup.
-		h.recordOwnerCheck(ctx, webhook, ownerCheckError)
+		result = ownerCheckError
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Allowlist check failed",
@@ -411,7 +417,7 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 	case !allowed:
 		// Stray webhook — non-allowlisted athlete still has an active Strava
 		// OAuth grant. Expected; ack quietly without calling Strava.
-		h.recordOwnerCheck(ctx, webhook, ownerCheckStray)
+		result = ownerCheckStray
 		h.logger.Info("Stray webhook for non-allowlisted owner, acknowledging",
 			"correlation_id", correlationID,
 			"owner_id", webhook.OwnerId,
@@ -421,7 +427,6 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 		h.writeAcknowledged(w)
 		return
 	}
-	h.recordOwnerCheck(ctx, webhook, ownerCheckAllowed)
 
 	if webhook.AspectType == generated.AspectType_ASPECT_TYPE_CREATE {
 		rawActivity, fetchErr := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
@@ -438,7 +443,7 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 			// Orphan: athlete is allowlisted but has no Firestore tokens.
 			// This is a real bug (Firestore wipe, deauth/re-auth race, etc.).
 			// Ack so Strava stops retrying, but log ERROR so the alert fires.
-			h.recordOwnerCheck(ctx, webhook, ownerCheckOrphan)
+			result = ownerCheckOrphan
 			h.logger.Error("Orphan tokens — allowlisted athlete has no tokens, dropping event",
 				"correlation_id", correlationID,
 				"owner_id", webhook.OwnerId,
