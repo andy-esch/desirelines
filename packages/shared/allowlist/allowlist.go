@@ -25,10 +25,16 @@ type Checker interface {
 	IsAllowed(ctx context.Context, athleteID string) (bool, error)
 }
 
+// docGetter fetches the allowlist document for an athlete. The error
+// shape matters: gRPC NotFound is mapped to "not allowed," any other
+// error is treated as a transient failure. Extracted as a function so
+// IsAllowed's branching can be unit-tested without a real Firestore.
+type docGetter func(ctx context.Context, athleteID string) error
+
 // FirestoreChecker is the Firestore-backed implementation of Checker.
 // It looks up documents in stravatoken.AllowlistCollection by athlete ID.
 type FirestoreChecker struct {
-	client *firestore.Client
+	getDoc docGetter
 	logger *slog.Logger
 }
 
@@ -37,19 +43,32 @@ var _ Checker = (*FirestoreChecker)(nil)
 
 // NewFirestoreChecker creates a new Firestore-backed allowlist checker.
 func NewFirestoreChecker(client *firestore.Client, logger *slog.Logger) *FirestoreChecker {
-	return &FirestoreChecker{client: client, logger: logger}
+	return &FirestoreChecker{
+		getDoc: func(ctx context.Context, athleteID string) error {
+			_, err := client.Collection(stravatoken.AllowlistCollection).Doc(athleteID).Get(ctx)
+			if err != nil {
+				return fmt.Errorf("firestore get allowlist/%s: %w", athleteID, err)
+			}
+			return nil
+		},
+		logger: logger,
+	}
 }
 
 // IsAllowed returns true iff a document exists at
 // {AllowlistCollection}/{athleteID}. NotFound is mapped to (false, nil);
-// any other Firestore error is wrapped and returned.
+// any other Firestore error is surfaced.
+//
+// gRPC status codes propagate through %w wrapping (grpcstatus.Code uses
+// errors.As internally), so the NotFound check is robust against the
+// closure's error wrapping.
 func (c *FirestoreChecker) IsAllowed(ctx context.Context, athleteID string) (bool, error) {
-	_, err := c.client.Collection(stravatoken.AllowlistCollection).Doc(athleteID).Get(ctx)
+	err := c.getDoc(ctx, athleteID)
 	if err != nil {
 		if grpcstatus.Code(err) == codes.NotFound {
 			return false, nil
 		}
-		return false, fmt.Errorf("check allowlist for %s: %w", athleteID, err)
+		return false, err
 	}
 	return true, nil
 }
