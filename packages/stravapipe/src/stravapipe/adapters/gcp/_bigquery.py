@@ -2,7 +2,6 @@
 
 import logging
 
-from google.api_core.exceptions import BadRequest
 from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
 
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
@@ -11,7 +10,10 @@ from stravapipe.domain import (
     MinimalStravaActivity,
     SummaryStravaActivity,
 )
-from stravapipe.exceptions import ActivityNotFoundError, BigQueryError
+from stravapipe.exceptions import (
+    ActivityNotFoundError,
+    StreamingBufferDMLError,
+)
 from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
 
@@ -184,12 +186,15 @@ class ActivitiesWriter(WriteActivities):
     def _cleanup_staging(self, activity_ids: list[int]) -> None:
         """Delete merged rows from staging table.
 
-        Called after successful MERGE to prevent staging table from growing indefinitely.
-        Uses parameterized query to prevent SQL injection.
+        Called after successful MERGE to prevent staging table from growing
+        indefinitely. Uses parameterized query to prevent SQL injection.
 
-        If rows are still in BigQuery's streaming buffer (up to ~90 minutes after
-        insert), the DELETE will fail. This is safe to ignore — the MERGE is
-        idempotent, so stale staging rows only cause redundant no-op merges.
+        If rows are still in BigQuery's streaming buffer (up to ~90 minutes
+        after insert), the DELETE will fail with StreamingBufferDMLError.
+        This is the expected path for any activity merged within the buffer
+        window, not an error condition — the MERGE is idempotent, so stale
+        staging rows only cause redundant no-op merges on the next event.
+        Logged at INFO so it's traceable without firing 5xx alert noise.
         """
         delete_query = f"""
         DELETE FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
@@ -198,14 +203,11 @@ class ActivitiesWriter(WriteActivities):
         query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
         try:
             self._client.execute_dml_query(delete_query, query_params)
-        except BigQueryError as e:
-            if isinstance(e.__cause__, BadRequest):
-                logger.warning(
-                    "Staging cleanup skipped — rows still in streaming buffer",
-                    extra={"activity_ids": activity_ids},
-                )
-            else:
-                raise
+        except StreamingBufferDMLError:
+            logger.info(
+                "Staging cleanup deferred — rows still in streaming buffer",
+                extra={"activity_ids": activity_ids},
+            )
 
     def _build_merge_query(
         self, activity_id: int

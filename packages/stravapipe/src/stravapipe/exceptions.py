@@ -76,6 +76,21 @@ class BigQueryError(StravaPipeError):
         self.errors = list(errors) if errors else []
 
 
+class StreamingBufferDMLError(BigQueryError):
+    """Raised when a DML operation targets rows still in the streaming buffer.
+
+    BigQuery streaming inserts hold rows in a per-table buffer for up to
+    ~90 minutes before they're flushed to long-term storage. While buffered,
+    rows cannot be modified by UPDATE, DELETE, or MERGE statements that
+    target them. The API rejects such DML with HTTP 400.
+
+    This is an expected, transient condition — not a bug. Callers that
+    perform best-effort cleanup (e.g. activities_staging post-MERGE) should
+    catch this specifically and treat it as "skip and try again later."
+    Bubbling up as ERROR-level pollutes alerts and obscures real failures.
+    """
+
+
 class DataValidationError(StravaPipeError):
     """Raised when data validation fails."""
 
