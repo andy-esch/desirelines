@@ -130,6 +130,11 @@ func (h *Handler) pingWithRetry(parent context.Context) error {
 		return nil
 	}
 
+	// Log the first failure even if the retry recovers — transient cold-start
+	// spikes should stay visible for diagnostics (matches the Python helper).
+	h.logger.Warn("Database health check failed, retrying",
+		"error", firstErr, "backoff", h.retryBackoff)
+
 	select {
 	case <-time.After(h.retryBackoff):
 	case <-parent.Done():
@@ -139,8 +144,8 @@ func (h *Handler) pingWithRetry(parent context.Context) error {
 	ctx2, cancel2 := context.WithTimeout(parent, h.timeout)
 	defer cancel2()
 	if retryErr := h.pinger.Ping(ctx2); retryErr != nil {
-		return fmt.Errorf("postgres ping after retry: %w", retryErr)
+		return fmt.Errorf("database ping after retry: %w", retryErr)
 	}
-	h.logger.Info("Database ping succeeded after retry", "first_error", firstErr)
+	h.logger.Info("Database ping succeeded after retry")
 	return nil
 }
