@@ -43,6 +43,9 @@ def client(mock_postgres_config):
     ) as mock_factory:
         mock_factory.return_value = (MagicMock(), MagicMock())
         with TestClient(app) as client:
+            # Override the MagicMock timeout that lifespan picked up from the
+            # mocked config — asyncio.wait_for needs a real number.
+            app.state.readiness_timeout_s = 5.0
             yield client
 
 
@@ -104,8 +107,11 @@ class TestReadyEndpoint:
             return MagicMock()
 
         app.state.session_factory = _slow_factory
+        app.state.readiness_timeout_s = 0.01
 
-        with patch("stravapipe.shared.readiness.DEFAULT_READINESS_TIMEOUT_S", 0.01):
+        # Patch retry backoff to 0 so the test doesn't pay the production
+        # 1s pause for each persistent failure.
+        with patch("stravapipe.shared.readiness.DEFAULT_READINESS_RETRY_BACKOFF_S", 0):
             response = client.get("/ready")
 
         assert response.status_code == 503

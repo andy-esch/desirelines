@@ -59,6 +59,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.bq_client = make_bigquery_client_wrapper(config)
         app.state.bq_dataset = config.bq_dataset
 
+        app.state.readiness_timeout_s = config.readiness_timeout_s
+
         # Initialize OTel metrics
         meter = setup_metrics("desirelines-bq-inserter")
         app.state.bq_histogram = meter.create_histogram(
@@ -105,7 +107,8 @@ async def ready(request: Request) -> JSONResponse:
     bq_client = request.app.state.bq_client
     dataset_id = request.app.state.bq_dataset
     checks = await run_checks(
-        {"bigquery": lambda: check_bigquery(bq_client, dataset_id)}
+        {"bigquery": lambda: check_bigquery(bq_client, dataset_id)},
+        timeout=request.app.state.readiness_timeout_s,
     )
     return build_ready_response(checks)
 

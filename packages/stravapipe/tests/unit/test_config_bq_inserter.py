@@ -24,6 +24,7 @@ class TestBQInserterConfig:
         assert config.gcp_project_id == "test-project"
         assert config.gcp_bigquery_dataset == "test-dataset"
         assert config.log_level == "INFO"
+        assert config.readiness_timeout_s == 10.0
 
         # Test compatibility properties
         assert config.project_id == "test-project"

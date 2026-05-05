@@ -26,6 +26,10 @@ class BQInserterConfig(BaseSettings):
     # Optional configuration
     log_level: str = "INFO"
 
+    # Readiness probe timeout (per-attempt; the helper retries once after a
+    # short backoff). Override via READINESS_TIMEOUT_S env var.
+    readiness_timeout_s: float = 10.0
+
     model_config = SettingsConfigDict(
         env_file=".env",
         validate_default=True,
