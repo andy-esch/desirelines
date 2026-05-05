@@ -34,6 +34,10 @@ class PostgresWriterConfig(BaseSettings):
     # Database configuration
     postgres_connection_string: str = Field(description="PostgreSQL connection string")
 
+    # Readiness probe timeout in seconds (per-attempt; the helper retries once
+    # after a short backoff). Override via READINESS_TIMEOUT env var.
+    readiness_timeout: float = 10.0
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

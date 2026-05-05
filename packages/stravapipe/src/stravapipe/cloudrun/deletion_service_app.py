@@ -250,6 +250,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.token_store = FirestoreTokenStore(firestore_client)
         logger.info("Firestore client initialized")
 
+        app.state.readiness_timeout = config.readiness_timeout
+
         # OTel metrics
         meter = setup_metrics("desirelines-deletion-service")
         app.state.deletion_histogram = meter.create_histogram(
@@ -305,7 +307,8 @@ async def ready(request: Request) -> JSONResponse:
         {
             "bigquery": lambda: check_bigquery(bq_client, dataset_id),
             "firestore": lambda: check_firestore(firestore_client),
-        }
+        },
+        timeout=request.app.state.readiness_timeout,
     )
     return build_ready_response(checks)
 

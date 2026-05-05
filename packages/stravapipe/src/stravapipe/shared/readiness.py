@@ -22,24 +22,63 @@ from stravapipe.shared.constants import ResponseStatus
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_READINESS_TIMEOUT_S: float = 2.0
+# Per-attempt timeout. Sized for cold-start tail latency (Neon for postgres-writer,
+# BigQuery / Firestore for the others). The hourly Cloud Scheduler probe almost
+# always lands on a suspended dependency, so a tighter budget flags every cold
+# wake as "unhealthy" even when the underlying service is fine.
+DEFAULT_READINESS_TIMEOUT: float = 10.0
+
+# Pause between the initial probe and the single retry. Per Neon's official
+# cold-start guidance: pair a longer per-attempt timeout with a brief retry to
+# absorb tail wake-time without inflating the timeout to absurd values. One
+# retry is enough — genuine outages will keep failing on attempt #2.
+DEFAULT_READINESS_RETRY_BACKOFF: float = 1.0
 
 
 async def _run_with_timeout(
     name: str,
     probe: Callable[[], Awaitable[None]],
     timeout: float,  # noqa: ASYNC109 — applying the timeout is the function's whole job; rule's "use asyncio.timeout at call site" guidance would just spread the same code across every readiness handler
+    retry_backoff: float = DEFAULT_READINESS_RETRY_BACKOFF,
 ) -> str | None:
-    """Run a probe coroutine with a timeout. None on success, error string on failure."""
-    try:
-        await asyncio.wait_for(probe(), timeout=timeout)
-    except TimeoutError:
-        logger.warning("Readiness probe '%s' timed out after %.1fs", name, timeout)
-        return f"{name}: timeout"
-    except Exception as exc:
-        logger.warning("Readiness probe '%s' failed: %s", name, exc)
-        return f"{name}: {exc}"
-    return None
+    """Run a probe with one retry after backoff. None on success, error on final failure.
+
+    Each attempt gets the full per-attempt timeout. retry_backoff=0 disables
+    the inter-attempt sleep (used in tests). The first attempt's failure is
+    logged at WARN regardless of whether the retry succeeds, so transient
+    cold-start spikes stay visible.
+    """
+
+    async def _attempt() -> str | None:
+        try:
+            await asyncio.wait_for(probe(), timeout=timeout)
+        except TimeoutError:
+            return f"{name}: timeout"
+        except Exception as exc:
+            return f"{name}: {exc}"
+        return None
+
+    first_err = await _attempt()
+    if first_err is None:
+        return None
+
+    logger.warning(
+        "Readiness probe '%s' failed (%s); retrying after %.2fs",
+        name,
+        first_err,
+        retry_backoff,
+    )
+
+    if retry_backoff > 0:
+        await asyncio.sleep(retry_backoff)
+
+    retry_err = await _attempt()
+    if retry_err is None:
+        logger.info("Readiness probe '%s' succeeded after retry", name)
+        return None
+
+    logger.warning("Readiness probe '%s' failed after retry: %s", name, retry_err)
+    return retry_err
 
 
 async def check_bigquery(client: BigQueryClientWrapper, dataset_id: str) -> None:
@@ -71,12 +110,23 @@ async def check_firestore(
 async def run_checks(
     probes: dict[str, Callable[[], Awaitable[None]]],
     timeout: float | None = None,  # noqa: ASYNC109 — distributes the same timeout across all probes; pushing timeout responsibility to the FastAPI handler would force the same wait_for boilerplate at every call site
+    retry_backoff: float | None = None,
 ) -> dict[str, str | None]:
-    """Run probes concurrently with the same timeout. Returns name -> error|None."""
-    effective_timeout = timeout if timeout is not None else DEFAULT_READINESS_TIMEOUT_S
+    """Run probes concurrently. Each probe gets one retry after retry_backoff.
+
+    Retry is per-probe rather than whole-handler so a flaky BigQuery probe
+    doesn't trigger a re-run of an already-successful Postgres probe.
+    """
+    effective_timeout = timeout if timeout is not None else DEFAULT_READINESS_TIMEOUT
+    effective_backoff = (
+        retry_backoff if retry_backoff is not None else DEFAULT_READINESS_RETRY_BACKOFF
+    )
     names = list(probes.keys())
     results = await asyncio.gather(
-        *(_run_with_timeout(name, probes[name], effective_timeout) for name in names),
+        *(
+            _run_with_timeout(name, probes[name], effective_timeout, effective_backoff)
+            for name in names
+        ),
         return_exceptions=False,
     )
     return dict(zip(names, results, strict=True))

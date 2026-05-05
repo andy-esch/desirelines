@@ -151,7 +151,7 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	readinessTimeout, err := parseDurationEnvSeconds("READINESS_TIMEOUT_SECONDS", DefaultReadinessTimeout)
+	readinessTimeout, err := parseDurationEnvSeconds("READINESS_TIMEOUT", DefaultReadinessTimeout)
 	if err != nil {
 		return nil, err
 	}
