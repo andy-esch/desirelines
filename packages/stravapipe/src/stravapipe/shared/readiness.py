@@ -26,20 +26,20 @@ logger = logging.getLogger(__name__)
 # BigQuery / Firestore for the others). The hourly Cloud Scheduler probe almost
 # always lands on a suspended dependency, so a tighter budget flags every cold
 # wake as "unhealthy" even when the underlying service is fine.
-DEFAULT_READINESS_TIMEOUT_S: float = 10.0
+DEFAULT_READINESS_TIMEOUT: float = 10.0
 
 # Pause between the initial probe and the single retry. Per Neon's official
 # cold-start guidance: pair a longer per-attempt timeout with a brief retry to
 # absorb tail wake-time without inflating the timeout to absurd values. One
 # retry is enough — genuine outages will keep failing on attempt #2.
-DEFAULT_READINESS_RETRY_BACKOFF_S: float = 1.0
+DEFAULT_READINESS_RETRY_BACKOFF: float = 1.0
 
 
 async def _run_with_timeout(
     name: str,
     probe: Callable[[], Awaitable[None]],
     timeout: float,  # noqa: ASYNC109 — applying the timeout is the function's whole job; rule's "use asyncio.timeout at call site" guidance would just spread the same code across every readiness handler
-    retry_backoff: float = DEFAULT_READINESS_RETRY_BACKOFF_S,
+    retry_backoff: float = DEFAULT_READINESS_RETRY_BACKOFF,
 ) -> str | None:
     """Run a probe with one retry after backoff. None on success, error on final failure.
 
@@ -117,11 +117,9 @@ async def run_checks(
     Retry is per-probe rather than whole-handler so a flaky BigQuery probe
     doesn't trigger a re-run of an already-successful Postgres probe.
     """
-    effective_timeout = timeout if timeout is not None else DEFAULT_READINESS_TIMEOUT_S
+    effective_timeout = timeout if timeout is not None else DEFAULT_READINESS_TIMEOUT
     effective_backoff = (
-        retry_backoff
-        if retry_backoff is not None
-        else DEFAULT_READINESS_RETRY_BACKOFF_S
+        retry_backoff if retry_backoff is not None else DEFAULT_READINESS_RETRY_BACKOFF
     )
     names = list(probes.keys())
     results = await asyncio.gather(

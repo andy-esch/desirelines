@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
         logger.info("PostgreSQL session factory initialized")
 
-        app.state.readiness_timeout_s = config.readiness_timeout_s
+        app.state.readiness_timeout = config.readiness_timeout
 
         # Initialize OTel metrics
         meter = setup_metrics("desirelines-postgres-writer")
@@ -113,7 +113,7 @@ async def ready(request: Request) -> JSONResponse:
     session_factory = request.app.state.session_factory
     checks = await run_checks(
         {"postgres": lambda: check_postgres(session_factory)},
-        timeout=request.app.state.readiness_timeout_s,
+        timeout=request.app.state.readiness_timeout,
     )
     return build_ready_response(checks)
 

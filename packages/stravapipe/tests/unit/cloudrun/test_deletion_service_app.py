@@ -72,7 +72,7 @@ def client(mock_deletion_config, mock_services):
             app.state.firestore_client = mock_services["firestore_client"]
             # Override the MagicMock timeout that lifespan picked up from the
             # mocked config — asyncio.wait_for needs a real number.
-            app.state.readiness_timeout_s = 5.0
+            app.state.readiness_timeout = 5.0
             yield c
 
 
@@ -172,11 +172,11 @@ class TestReadyEndpoint:
         app.state.bq_client = mock_bq
         app.state.bq_dataset = "test_dataset"
         app.state.firestore_client = mock_fs
-        app.state.readiness_timeout_s = 0.01
+        app.state.readiness_timeout = 0.01
 
         # Patch retry backoff to 0 so the test doesn't pay the production
         # 1s pause for each persistent failure.
-        with patch("stravapipe.shared.readiness.DEFAULT_READINESS_RETRY_BACKOFF_S", 0):
+        with patch("stravapipe.shared.readiness.DEFAULT_READINESS_RETRY_BACKOFF", 0):
             response = client.get("/ready")
 
         assert response.status_code == 503

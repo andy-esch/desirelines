@@ -1350,7 +1350,11 @@ resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
 
       **Action**:
       1. Check Neon dashboard — is the compute suspended? Down?
-      2. Check apigateway logs for `Database health check failed`.
+      2. Check apigateway logs for `Database health check failed`. Lines
+         ending in `, retrying` are transient cold-start spikes that
+         recovered on the second attempt — they don't indicate failure
+         unless followed by a `Database health check failed` line for the
+         same probe.
       3. Test the endpoint directly: `curl https://${var.project_name}-${var.environment}.web.app/api/ready`.
     EOT
   }
@@ -1518,6 +1522,9 @@ resource "google_monitoring_alert_policy" "python_readiness_failing" {
 
       **Action**:
       1. Check the failing service's logs for `Readiness probe '...' failed`.
+         Lines ending in `; retrying after ...s` are transient cold-start
+         spikes that recovered on the second attempt — only `failed after
+         retry` lines indicate the probe ultimately failed.
       2. Test the endpoint directly via the scheduler's "Run now" button.
       3. Cross-check with apigateway readiness alert — concurrent failures
          on apigateway + postgres-writer indicate a shared (Neon) outage.
