@@ -2,6 +2,7 @@ from collections.abc import Sequence
 import logging
 from typing import Any, TypedDict
 
+from google.api_core.exceptions import BadRequest
 from google.cloud.bigquery import (
     ArrayQueryParameter,
     QueryJobConfig,
@@ -9,7 +10,13 @@ from google.cloud.bigquery import (
 )
 from google.cloud.bigquery import Client as BigQueryClient
 
-from stravapipe.exceptions import BigQueryError
+from stravapipe.exceptions import BigQueryError, StreamingBufferDMLError
+
+# BigQuery's error message when a DML targets rows in the streaming buffer.
+# Matched as a substring because the surrounding message includes the table
+# name and verbiage that varies. Documented at:
+#   https://cloud.google.com/bigquery/docs/reference/standard-sql/dml-syntax#limitations
+_STREAMING_BUFFER_ERROR_FRAGMENT = "would affect rows in the streaming buffer"
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +151,18 @@ class BigQueryClientWrapper:
         try:
             _ = job.result()
             rows_affected = getattr(job, "num_dml_affected_rows", 0)
+        except BadRequest as e:
+            if _STREAMING_BUFFER_ERROR_FRAGMENT in str(e):
+                # Expected condition: rows are still in BigQuery's streaming
+                # buffer (~90 min after streaming insert). Don't log here —
+                # the typed exception lets caller handle without alert noise.
+                raise StreamingBufferDMLError(
+                    f"DML rejected: rows in streaming buffer (job_id={job.job_id})"
+                ) from e
+            logger.exception("DML query failed", extra={"job_id": str(job.job_id)})
+            raise BigQueryError(f"Failed to execute DML query: {e!s}") from e
         except Exception as e:
-            logger.exception("DML query failed")
+            logger.exception("DML query failed", extra={"job_id": str(job.job_id)})
             raise BigQueryError(f"Failed to execute DML query: {e!s}") from e
         logger.debug(
             "DML query completed",
