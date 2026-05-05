@@ -49,6 +49,22 @@ func (p *countingPinger) Ping(ctx context.Context) error {
 	return p.pingErr
 }
 
+// sequencePinger returns a different error per call, indexed by call count
+// (zero-based). Out-of-range calls return the last entry. Used for retry
+// tests where attempt #1 and #2 should produce different outcomes.
+type sequencePinger struct {
+	calls atomic.Int64
+	errs  []error
+}
+
+func (p *sequencePinger) Ping(ctx context.Context) error {
+	idx := int(p.calls.Add(1) - 1)
+	if idx >= len(p.errs) {
+		idx = len(p.errs) - 1
+	}
+	return p.errs[idx]
+}
+
 func TestHandleLive(t *testing.T) {
 	logger := gcplog.NewNoOpLogger()
 
@@ -167,7 +183,9 @@ func TestHandleReady(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewHandler(tt.pinger, logger)
+			// Zero retry backoff to keep failure-path tests fast — retry logic
+			// itself is exercised in TestHandleReady_Retry below.
+			h := NewHandlerWithOptions(tt.pinger, logger, DefaultHealthCheckTimeout, 0)
 
 			req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 			w := httptest.NewRecorder()
@@ -188,6 +206,69 @@ func TestHandleReady(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHandleReady_Retry covers the retry-after-backoff path added for Neon
+// tail-latency tolerance. Three scenarios: success on first try (no retry),
+// transient failure recovered on retry (200), persistent failure (503).
+func TestHandleReady_Retry(t *testing.T) {
+	logger := gcplog.NewNoOpLogger()
+
+	t.Run("success on first try makes no second call", func(t *testing.T) {
+		pinger := &countingPinger{} // pingErr nil → success
+		h := NewHandlerWithOptions(pinger, logger, DefaultHealthCheckTimeout, 0)
+
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		w := httptest.NewRecorder()
+		h.HandleReady(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want 200", w.Code)
+		}
+		if got := pinger.calls.Load(); got != 1 {
+			t.Errorf("Ping called %d times, want 1 (no retry on success)", got)
+		}
+	})
+
+	t.Run("first call fails, second succeeds returns 200", func(t *testing.T) {
+		pinger := &sequencePinger{errs: []error{errors.New("transient timeout"), nil}}
+		h := NewHandlerWithOptions(pinger, logger, DefaultHealthCheckTimeout, 0)
+
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		w := httptest.NewRecorder()
+		h.HandleReady(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want 200 (retry should recover)", w.Code)
+		}
+		if got := pinger.calls.Load(); got != 2 {
+			t.Errorf("Ping called %d times, want 2 (one initial + one retry)", got)
+		}
+
+		var resp Response
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if resp.Database != StatusHealthy {
+			t.Errorf("database = %q, want %q", resp.Database, StatusHealthy)
+		}
+	})
+
+	t.Run("both calls fail returns 503 with one retry", func(t *testing.T) {
+		pinger := &countingPinger{pingErr: errors.New("persistent failure")}
+		h := NewHandlerWithOptions(pinger, logger, DefaultHealthCheckTimeout, 0)
+
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		w := httptest.NewRecorder()
+		h.HandleReady(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("status = %d, want 503", w.Code)
+		}
+		if got := pinger.calls.Load(); got != 2 {
+			t.Errorf("Ping called %d times, want exactly 2 (one initial + one retry, no more)", got)
+		}
+	})
 }
 
 // TestHandleReady_JSONOmitEmpty verifies that the Database field is omitted

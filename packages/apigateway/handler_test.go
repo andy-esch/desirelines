@@ -130,8 +130,10 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 	// Create a mock auth middleware for testing
 	mockAuth := &mockAuthMiddleware{}
 
-	// Create feature handlers
-	healthHandler := health.NewHandler(activityRepo, logger)
+	// Create feature handlers. Zero retry backoff so failure-path tests don't
+	// pay the production retry pause; retry behavior is covered in
+	// internal/health/handler_test.go.
+	healthHandler := health.NewHandlerWithOptions(activityRepo, logger, health.DefaultHealthCheckTimeout, 0)
 	sportsHandler := sports.NewHandler(logger, sportConfig)
 	activitiesHandler := activities.NewHandler(activityRepo, sportConfig, logger)
 
