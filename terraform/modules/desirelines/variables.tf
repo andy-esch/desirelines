@@ -80,6 +80,12 @@ variable "enable_application_metric_alerts" {
   default     = false
 }
 
+variable "enable_bq_swapi_experiment" {
+  description = "Dual-write activity creates to activities_swapi_experiment via the BigQuery Storage Write API alongside the production insertAll path. Spike-only feature flag — see desirelines-planning/tasks/in-progress/spike-bigquery-storage-write-api-for-stravapipe.md. Enable in dev for the soak window (~3 days), then in prod for ~1 week, then GO/NO-GO retro. Removed in Stage 1 of the migration along with the activities_swapi_experiment table."
+  type        = bool
+  default     = false
+}
+
 # Deployment version tracking for code provenance and observability
 variable "deployment_version" {
   description = "Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest')"
