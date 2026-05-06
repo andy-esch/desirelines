@@ -26,6 +26,7 @@ with full schema parity. After Stage 2 it's deleted entirely.
 
 from datetime import datetime
 import logging
+from typing import Any
 
 from google.cloud.bigquery_storage_v1 import BigQueryWriteClient, types, writer
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
@@ -100,12 +101,18 @@ def _build_descriptor() -> descriptor_pb2.DescriptorProto:
     return proto
 
 
-def _build_message_class():  # type: ignore[no-untyped-def]
+def _build_message_class() -> type[Any]:
     """Build a protobuf message class from the descriptor.
 
     Uses a dedicated descriptor pool to avoid collisions with other
     dynamically-built messages in the process. The returned class is used
     to instantiate, populate, and serialize each row.
+
+    Return type is `type[Any]`: the class is a subclass of
+    `google.protobuf.message.Message` at runtime, but mypy can't know
+    about the dynamically-attached fields (id, name, etc.). Honest
+    signal that we lose static type safety here — accessor errors
+    surface at runtime as `AttributeError`.
     """
     descriptor = _build_descriptor()
 
@@ -124,7 +131,7 @@ def _build_message_class():  # type: ignore[no-untyped-def]
 
 
 # Module-level so we build the descriptor + message class once per process.
-_MESSAGE_CLASS = _build_message_class()  # type: ignore[no-untyped-call]
+_MESSAGE_CLASS = _build_message_class()
 
 
 def _to_iso_string(dt: datetime | None) -> str | None:
