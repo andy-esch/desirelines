@@ -3,6 +3,20 @@ python_requirements(
     name="deps",
     source="pyproject.toml",
     resolve="stravapipe",
+    overrides={
+        # Pants's default module inference maps `google.cloud.X` → `google-cloud-X`
+        # by name, which gets confused when two packages share the namespace
+        # (`google-cloud-bigquery` and `google-cloud-bigquery-storage`). Without
+        # this override, imports of `google.cloud.bigquery_storage_v1` are
+        # incorrectly attributed to `google-cloud-bigquery` and the right
+        # package never makes it into the requirements PEX.
+        "google-cloud-bigquery-storage": {
+            "modules": [
+                "google.cloud.bigquery_storage",
+                "google.cloud.bigquery_storage_v1",
+            ],
+        },
+    },
 )
 
 # Expose pyproject.toml as a file target for Docker builds
