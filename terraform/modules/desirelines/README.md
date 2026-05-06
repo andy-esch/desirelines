@@ -61,6 +61,7 @@ module "desirelines" {
 | [google_bigquery_dataset_iam_member.developer_owner](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_dataset_iam_member) | resource |
 | [google_bigquery_table.activities](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_table) | resource |
 | [google_bigquery_table.activities_staging](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_table) | resource |
+| [google_bigquery_table.activities_swapi_experiment](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_table) | resource |
 | [google_bigquery_table.deleted_activities](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_table) | resource |
 | [google_cloud_run_v2_job.backfill](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_job) | resource |
 | [google_cloud_run_v2_service.api_gateway](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service) | resource |

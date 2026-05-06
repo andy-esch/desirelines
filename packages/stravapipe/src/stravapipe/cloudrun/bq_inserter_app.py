@@ -17,7 +17,12 @@ from fastapi.responses import JSONResponse
 from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
 
-from stravapipe.adapters.gcp import make_bigquery_client_wrapper, make_write_activities
+from stravapipe.adapters.gcp import (
+    BigQueryStorageWriter,
+    make_bigquery_client_wrapper,
+    make_storage_writer,
+    make_write_activities,
+)
 from stravapipe.application.bq_inserter import (
     DeleteActivityService,
     make_delete_service,
@@ -41,6 +46,11 @@ from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
 
+# Stable identifier emitted on every experimental log record. The soak
+# Cloud Logging filter (`jsonPayload.experiment="bq_swapi"`) keys off
+# this exact string — see the spike task for the runbook.
+_EXPERIMENT_NAME = "bq_swapi"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -51,6 +61,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         app.state.writer = make_write_activities(config)
         logger.info("BigQuery writer initialized")
+
+        # Experimental Storage Write API writer for the dual-write spike.
+        # None when BQ_SWAPI_EXPERIMENT_ENABLED is off (the default).
+        app.state.experimental_writer = make_storage_writer(config)
+        if app.state.experimental_writer is not None:
+            logger.info(
+                "Storage Write API experiment ENABLED (dual-write to %s)",
+                config.bq_swapi_experiment_table,
+            )
+        else:
+            logger.info("Storage Write API experiment disabled")
 
         app.state.delete_service = make_delete_service(config)
         logger.info("BigQuery delete service initialized")
@@ -117,6 +138,7 @@ async def ready(request: Request) -> JSONResponse:
 async def handle_pubsub(request: Request) -> WebhookResponse:
     """Handle Pub/Sub CloudEvent from Eventarc."""
     writer = request.app.state.writer
+    experimental_writer = request.app.state.experimental_writer
     delete_service = request.app.state.delete_service
     bq_hist = request.app.state.bq_histogram
     webhook_counter = request.app.state.webhook_counter
@@ -125,7 +147,7 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
         request,
         logger,
         on_create=lambda event, event_data, cid: _handle_create(
-            event, event_data, cid, writer, bq_hist, tracer
+            event, event_data, cid, writer, bq_hist, tracer, experimental_writer
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
             event, cid, delete_service, bq_hist, tracer
@@ -142,11 +164,19 @@ async def _handle_create(
     writer: WriteActivities,
     bq_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
+    experimental_writer: BigQueryStorageWriter | None = None,
 ) -> WebhookResponse:
     """Handle CREATE events - write activity to BigQuery.
 
     Activity data is provided inline from the dispatcher's enriched event.
     No Strava API call is needed.
+
+    When ``experimental_writer`` is set (BQ_SWAPI_EXPERIMENT_ENABLED=true),
+    we additionally dual-write a subset of fields to a temp table via the
+    Storage Write API. The experimental write runs AFTER the production
+    write succeeds, is wrapped in an airtight try/except, and NEVER
+    propagates failures back to the caller. See
+    `spike-bigquery-storage-write-api-for-stravapipe`.
     """
     raw_activity = event_data.get("raw_activity")
 
@@ -183,11 +213,54 @@ async def _handle_create(
             "execution_time_ms": stats.get("execution_time_ms"),
         },
     )
+
+    # Experimental dual-write — fire-and-forget. Runs only after the
+    # production write returns successfully so a failure here cannot mask
+    # a real ingestion failure. NEVER raises into the caller.
+    if experimental_writer is not None:
+        _safe_experimental_write(experimental_writer, activity, correlation_id)
+
     return WebhookResponse(
         status=ResponseStatus.CREATED,
         activity_id=event.object_id,
         correlation_id=correlation_id,
     )
+
+
+def _safe_experimental_write(
+    experimental_writer: BigQueryStorageWriter,
+    activity: DetailedStravaActivity,
+    correlation_id: str,
+) -> None:
+    """Run the experimental Storage Write API path. Logs WARNING and swallows.
+
+    Single try/except block, no re-raise, no propagation. Success is at
+    DEBUG because the primary signal during the soak is the BQ row count
+    in `activities_swapi_experiment` compared against `activities` —
+    INFO-per-event would just be noise. Failures log WARNING with the
+    exception class so the soak retro can categorize them.
+    """
+    try:
+        experimental_writer.write_activity(activity)
+        logger.debug(
+            "Experimental Storage Write succeeded",
+            extra={
+                "activity_id": activity.id,
+                "correlation_id": correlation_id,
+                "experiment": _EXPERIMENT_NAME,
+            },
+        )
+    except Exception as exc:
+        logger.warning(
+            "Experimental Storage Write failed (production write was OK)",
+            extra={
+                "activity_id": activity.id,
+                "correlation_id": correlation_id,
+                "experiment": _EXPERIMENT_NAME,
+                "exception_class": type(exc).__name__,
+                "exception_message": str(exc),
+            },
+        )
 
 
 async def _handle_delete(

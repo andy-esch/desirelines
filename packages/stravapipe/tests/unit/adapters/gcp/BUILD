@@ -7,6 +7,11 @@ python_tests(
         # GCP adapter tests load JSON fixtures for repository testing
         "test_repositories.py": {
             "dependencies": ["packages/stravapipe/tests/fixtures:test_fixtures"],
-        }
+        },
+        # Storage Write API spike test loads activity_1.json for the
+        # serialization round-trip case.
+        "test_bigquery_storage.py": {
+            "dependencies": ["packages/stravapipe/tests/fixtures:test_fixtures"],
+        },
     }
 )
