@@ -31,3 +31,14 @@ protobuf_sources(
     go_mod_address="packages/dispatcher:mod",
 )
 
+# BigQuery activities proto (Python only — used by stravapipe's BQ Storage
+# Write API wrapper). GENERATED FILE — regenerate via `just generate-bq-proto`.
+# See schemas/bigquery/generate_proto.py and the comment header in the
+# generated .proto. CI's `verify-schemas` recipe diffs against the BQ JSON
+# schema to catch drift.
+protobuf_sources(
+    name="bq_activities",
+    sources=["desirelines/bigquery/v1/bq_activities.proto"],
+    python_resolve="stravapipe",
+)
+

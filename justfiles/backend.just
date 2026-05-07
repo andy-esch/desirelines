@@ -84,15 +84,28 @@ go-format +args='':
         (cd packages/apigateway && go fmt ./...)
     fi
 
+# Generate the BQ activities .proto file from the BigQuery JSON schema.
+# Source of truth: schemas/bigquery/activities_full.json
+# Output: schemas/proto/desirelines/bigquery/v1/bq_activities.proto
+# Pants picks up the generated .proto via its protobuf_sources target.
+#
+# Uses plain `python3` (not `uv run`) because the generator is stdlib-only
+# and this recipe is invoked from CI's lightweight validation job, which
+# doesn't install uv. Any Python 3.11+ on PATH works.
+generate-bq-proto:
+    @echo "🔨 Generating BQ activities .proto from JSON schema..."
+    @python3 schemas/bigquery/generate_proto.py
+
 # Generate Python/Go protos via Pants and sync to source tree
-proto-gen-backend:
+proto-gen-backend: generate-bq-proto
     @echo "🔨 Generating Go & Python code with Pants..."
     pants export-codegen schemas/proto::
     @echo "📋 Syncing generated code to source tree..."
-    # Python: Copy sports_metrics and webhook protos to stravapipe
+    # Python: Copy sports_metrics, webhook, and BQ activities protos to stravapipe
     @mkdir -p packages/stravapipe/src/stravapipe/types/generated
     @find dist/codegen/schemas/proto -name "sports_metrics_pb2.py*" -exec cp {} packages/stravapipe/src/stravapipe/types/generated/ \;
     @find dist/codegen/schemas/proto -name "webhook_pb2.py*" -exec cp {} packages/stravapipe/src/stravapipe/types/generated/ \;
+    @find dist/codegen/schemas/proto -name "bq_activities_pb2.py*" -exec cp {} packages/stravapipe/src/stravapipe/types/generated/ \;
     @touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
     # Go: Copy .pb.go files to apigateway and dispatcher
     @mkdir -p packages/apigateway/types/generated packages/dispatcher/types/generated
@@ -124,6 +137,8 @@ verify-schemas: verify-webhook-adapters
         (echo "❌ stravapipe sport config out of sync! Run: just sync-sport-config" && exit 1)
     @diff -q schemas/sports/sport_types.json packages/apigateway/config/sport_types.json || \
         (echo "❌ apigateway sport config out of sync! Run: just sync-sport-config" && exit 1)
+    @echo "🔍 Verifying BQ proto matches BQ JSON schema..."
+    @python3 schemas/bigquery/generate_proto.py --check
     @echo "✅ All schemas in sync"
 
 # Lint protobuf files using 'buf'
