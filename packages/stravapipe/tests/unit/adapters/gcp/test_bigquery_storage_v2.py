@@ -122,9 +122,10 @@ class TestSchemaParity:
         bq_schema = _load_bq_schema()
         missing: list[str] = []
         for path, _col in _iter_bq_schema_paths(bq_schema):
-            if _find_proto_field_at_path(
-                bq_activities_pb2.Activity.DESCRIPTOR, path
-            ) is None:
+            if (
+                _find_proto_field_at_path(bq_activities_pb2.Activity.DESCRIPTOR, path)
+                is None
+            ):
                 missing.append(path)
         assert not missing, (
             f"BQ fields with no matching proto field: {missing}. "
@@ -258,9 +259,7 @@ class TestWrapperClass:
 
     @patch("stravapipe.adapters.gcp._bigquery_storage_v2.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage_v2.BigQueryWriteClient")
-    def test_close_runs_even_on_failure(
-        self, mock_client_class, mock_stream_class
-    ):
+    def test_close_runs_even_on_failure(self, mock_client_class, mock_stream_class):
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
         mock_client.table_path.return_value = "projects/p/datasets/d/tables/t"
@@ -284,9 +283,7 @@ class TestWrapperClass:
     def test_default_stream_path_format(self, mock_client_class, mock_stream_class):
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        mock_client.table_path.return_value = (
-            "projects/myp/datasets/myd/tables/myt"
-        )
+        mock_client.table_path.return_value = "projects/myp/datasets/myd/tables/myt"
         mock_stream_class.return_value = MagicMock()
 
         wrapper = BigQueryStorageWriterV2(

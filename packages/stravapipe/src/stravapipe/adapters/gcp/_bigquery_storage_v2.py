@@ -59,16 +59,18 @@ from stravapipe.types.generated import bq_activities_pb2
 # Hand-maintained but verified by the schema-parity test against
 # `schemas/bigquery/activities_full.json`. If you add a new TIMESTAMP
 # column to the BQ schema, the test fails until you add the path here.
-_TIMESTAMP_PATHS: frozenset[str] = frozenset({
-    "start_date",
-    "start_date_local",
-    "segment_efforts.start_date",
-    "segment_efforts.start_date_local",
-    "laps.start_date",
-    "laps.start_date_local",
-    "best_efforts.start_date",
-    "best_efforts.start_date_local",
-})
+_TIMESTAMP_PATHS: frozenset[str] = frozenset(
+    {
+        "start_date",
+        "start_date_local",
+        "segment_efforts.start_date",
+        "segment_efforts.start_date_local",
+        "laps.start_date",
+        "laps.start_date_local",
+        "best_efforts.start_date",
+        "best_efforts.start_date_local",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -260,9 +262,7 @@ class BigQueryStorageWriterV2:
         """
         serialized = self._serialize_activity(activity)
 
-        append_stream = writer.AppendRowsStream(
-            self._client, self._request_template
-        )
+        append_stream = writer.AppendRowsStream(self._client, self._request_template)
         try:
             proto_rows = types.ProtoRows()
             proto_rows.serialized_rows.append(serialized)
