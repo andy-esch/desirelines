@@ -184,6 +184,17 @@ strict = true
 module = "stravapipe.types.generated.*"
 disable_error_code = ["misc", "type-arg", "no-untyped-def", "no-untyped-call"]
 
+# Deeply-nested generated protos with the same nested-message name at
+# multiple paths (e.g. bq_activities_pb2 has Segment/Athlete/Activity
+# submessages inside both segment_efforts and best_efforts) hit known
+# protoc-gen-pyi limitations where intra-file forward references aren't
+# always resolved. Runtime _pb2.py is correct; only the .pyi stub fails
+# typecheck. Narrow override — keeps the simpler protos under the
+# slightly-relaxed-but-still-checked rules above.
+[[tool.mypy.overrides]]
+module = "stravapipe.types.generated.bq_activities_pb2"
+ignore_errors = true
+
 # Tests: idiomatic pytest (`def test_foo():` without `-> None`), heavy use
 # of Mock/patch which return Any. Keep strict type safety for the bodies
 # (still catches real bugs in test logic) but drop the annotation ceremony

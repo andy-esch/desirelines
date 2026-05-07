@@ -1,21 +1,22 @@
 """BigQuery Storage Write API adapter — production wrapper (full schema).
 
 Companion to ``_bigquery_storage.py`` (the spike's 7-field subset wrapper).
-This module ships the full 204-field mapping that matches
-``schemas/bigquery/activities_full.json`` and is the wrapper Stage 1 will
-swap into ``_write_to_staging`` once the spike's soak returns GO.
+This module ships the full mapping for ``schemas/bigquery/activities_full.json``
+and is the wrapper Stage 1 will swap into ``_write_to_staging`` once the
+spike's soak returns GO.
 
 Until cutover, this module is **not imported by any production path**.
 It coexists with the spike wrapper so reviewers can compare them and
 the cutover is a one-line edit in ``bq_inserter_app.py``.
 
-Architecture (see ``research/bq-storage-write-api-migration.md`` for full
-rationale and verified findings):
+Architecture:
 
-- **Two pure pipelines.** A descriptor builder converts the BQ JSON
-  schema to a ``descriptor_pb2.DescriptorProto``; a value mapper walks
-  the resulting fields and pulls values from a ``DetailedStravaActivity``
-  Pydantic model.
+- **Static proto, generated from BQ schema.** ``schemas/bigquery/activities_full.json``
+  is the source of truth; ``schemas/bigquery/generate_proto.py`` converts it
+  to ``schemas/proto/desirelines/bigquery/v1/bq_activities.proto``; Pants's
+  protobuf codegen produces ``stravapipe.types.generated.bq_activities_pb2``.
+  This module imports the generated ``Activity`` class directly — no runtime
+  descriptor building, no JSON file reading.
 - **Strict type coercion at write time.** The legacy ``insertAll`` API
   silently coerces (e.g. ``int → STRING`` for ``workout_type``); Storage
   Write is strict. ``_coerce_to_proto_type`` replicates the legacy
@@ -23,170 +24,51 @@ rationale and verified findings):
   type-mismatched field.
 - **TIMESTAMP via int64 microseconds.** BQ Storage Write expects raw
   micros-since-epoch, *not* the proto well-known ``Timestamp`` message.
-  ``_iso_to_micros`` handles both tz-aware ISO strings (``start_date``,
-  with ``Z`` or offset) and naive ones (``start_date_local``, treated as
-  UTC for conversion — see comment there).
+  ``_iso_to_micros`` handles tz-aware ISO strings (with Z or offset) and
+  naive ones (treated as UTC for conversion — matches insertAll's
+  behavior and BQ's internal storage convention).
 - **Default stream, per-call AppendRowsStream.** Same shape as the
   spike. Reuse-the-stream optimization is deferred to a future task if
   latency surprises us.
+
+The set of fields encoded as TIMESTAMP is hard-coded below
+(``_TIMESTAMP_PATHS``). The schema-parity test in
+``test_bigquery_storage_v2.py`` verifies this set matches the
+``TIMESTAMP`` columns in the BQ JSON schema; if it drifts, CI fails.
 """
 
-from collections.abc import Iterable
 from datetime import UTC, datetime
-import json
-import logging
-from pathlib import Path
 from typing import Any
 
 from google.cloud.bigquery_storage_v1 import BigQueryWriteClient, types, writer
-from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
+from google.protobuf import descriptor_pb2
 from google.protobuf.descriptor import FieldDescriptor
 
 from stravapipe.domain import DetailedStravaActivity
-
-logger = logging.getLogger(__name__)
-
+from stravapipe.types.generated import bq_activities_pb2
 
 # ---------------------------------------------------------------------------
-# Type mapping (BigQuery JSON schema → proto2)
+# TIMESTAMP path tracking
 # ---------------------------------------------------------------------------
 
-# Maps BQ scalar types to proto2 field types. RECORD is handled separately
-# in `_build_descriptor` via `nested_type` + `type_name`.
-_BQ_TO_PROTO_SCALAR: dict[str, int] = {
-    "INTEGER": descriptor_pb2.FieldDescriptorProto.TYPE_INT64,
-    "FLOAT": descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE,
-    "STRING": descriptor_pb2.FieldDescriptorProto.TYPE_STRING,
-    "BOOLEAN": descriptor_pb2.FieldDescriptorProto.TYPE_BOOL,
-    # TIMESTAMP encoded as int64 microseconds since Unix epoch (BQ Storage
-    # Write API convention; *not* the proto well-known Timestamp message).
-    "TIMESTAMP": descriptor_pb2.FieldDescriptorProto.TYPE_INT64,
-    # JSON columns transport as STRING containing JSON-encoded text.
-    "JSON": descriptor_pb2.FieldDescriptorProto.TYPE_STRING,
-}
-
-_BQ_MODE_TO_LABEL: dict[str, int] = {
-    "REQUIRED": descriptor_pb2.FieldDescriptorProto.LABEL_REQUIRED,
-    "NULLABLE": descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL,
-    "REPEATED": descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED,
-}
-
-
-def _to_message_name(field_name: str) -> str:
-    """Convert ``snake_case`` field name to ``PascalCase`` nested message name.
-
-    Used so the BQ ``segment_efforts`` RECORD becomes a proto nested type
-    ``SegmentEfforts`` (proto convention is PascalCase for messages).
-    """
-    return "".join(part.capitalize() for part in field_name.split("_"))
-
-
-def _build_descriptor(
-    schema: list[dict[str, Any]],
-    *,
-    name: str,
-    parent_fqn: str,
-    timestamp_paths: set[str],
-    path: str = "",
-) -> descriptor_pb2.DescriptorProto:
-    """Recursively build a DescriptorProto from a BQ schema list.
-
-    Side effect: populates ``timestamp_paths`` with dotted paths of fields
-    whose BQ type is TIMESTAMP. The value mapper consults this set to know
-    which int64 fields need datetime → microseconds conversion (proto
-    inspection alone can't distinguish "INT64 micros-since-epoch" from
-    "regular INT64").
-
-    Field numbers are assigned sequentially per-message (1, 2, 3, …). The
-    Storage Write API matches by name, not number, so the specific values
-    don't matter as long as they're unique within their containing
-    message. Sequential is simpler than maintaining a stable constant
-    table; refactor risk is bounded by the schema-parity test.
-    """
-    msg = descriptor_pb2.DescriptorProto()
-    msg.name = name
-    self_fqn = f"{parent_fqn}.{name}"
-    field_number = 1
-    for col in schema:
-        field_path = f"{path}.{col['name']}" if path else col["name"]
-        f = msg.field.add()
-        f.name = col["name"]
-        f.number = field_number
-        field_number += 1
-        f.label = _BQ_MODE_TO_LABEL[col["mode"]]  # type: ignore[assignment]
-        if col["type"] == "RECORD":
-            nested_name = _to_message_name(col["name"])
-            nested = _build_descriptor(
-                col["fields"],
-                name=nested_name,
-                parent_fqn=self_fqn,
-                timestamp_paths=timestamp_paths,
-                path=field_path,
-            )
-            msg.nested_type.add().CopyFrom(nested)
-            f.type = descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE
-            f.type_name = f".{self_fqn}.{nested_name}"
-        else:
-            if col["type"] == "TIMESTAMP":
-                timestamp_paths.add(field_path)
-            f.type = _BQ_TO_PROTO_SCALAR[col["type"]]  # type: ignore[assignment]
-    return msg
-
-
-def _bq_schema_path() -> Path:
-    """Locate ``schemas/bigquery/activities_full.json`` from this module.
-
-    The schema lives outside the package (in the repo's top-level
-    ``schemas/`` directory). At build time the Docker context copies it
-    in, so the relative path resolves both locally and inside the
-    container. Walk up from this file to find the schemas dir.
-    """
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "schemas" / "bigquery" / "activities_full.json"
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError(
-        "Could not locate schemas/bigquery/activities_full.json relative "
-        f"to {here}. Check Docker build context includes schemas/."
-    )
-
-
-def _build_message_class() -> tuple[type[Any], frozenset[str]]:
-    """Build the dynamic message class for the activities table.
-
-    Returns ``(message class, frozenset of TIMESTAMP field paths)``. The
-    timestamp set is frozen so the value mapper can't accidentally
-    mutate it.
-
-    Uses a dedicated descriptor pool to avoid collisions with any other
-    dynamically-built proto messages in the process (the spike wrapper
-    has its own pool too — they don't conflict).
-    """
-    schema_doc = json.loads(_bq_schema_path().read_text())
-    timestamp_paths: set[str] = set()
-
-    file_proto = descriptor_pb2.FileDescriptorProto()
-    file_proto.name = "stravapipe/activity_full.proto"
-    file_proto.package = "stravapipe.activity_full"
-    file_proto.syntax = "proto2"
-    top = _build_descriptor(
-        schema_doc["schema"],
-        name="Activity",
-        parent_fqn="stravapipe.activity_full",
-        timestamp_paths=timestamp_paths,
-    )
-    file_proto.message_type.add().CopyFrom(top)
-
-    pool = descriptor_pool.DescriptorPool()
-    pool.Add(file_proto)
-    descriptor = pool.FindMessageTypeByName("stravapipe.activity_full.Activity")
-    return message_factory.GetMessageClass(descriptor), frozenset(timestamp_paths)
-
-
-# Module-level: build once per process. The resulting class + timestamp
-# set are immutable and deterministic from the schema file.
-_MESSAGE_CLASS, _TIMESTAMP_PATHS = _build_message_class()
+# Dotted paths of fields that the BQ schema declares as TIMESTAMP. The
+# generated proto encodes them as int64; this set tells the value mapper
+# which int64s need datetime → microseconds-since-epoch conversion at
+# write time.
+#
+# Hand-maintained but verified by the schema-parity test against
+# `schemas/bigquery/activities_full.json`. If you add a new TIMESTAMP
+# column to the BQ schema, the test fails until you add the path here.
+_TIMESTAMP_PATHS: frozenset[str] = frozenset({
+    "start_date",
+    "start_date_local",
+    "segment_efforts.start_date",
+    "segment_efforts.start_date_local",
+    "laps.start_date",
+    "laps.start_date_local",
+    "best_efforts.start_date",
+    "best_efforts.start_date_local",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +80,8 @@ def _iso_to_micros(value: str) -> int:
     """Parse an ISO-8601 string into microseconds since Unix epoch.
 
     Handles both forms Pydantic emits via ``model_dump(mode='json')``:
-      - With timezone (``2018-02-16T14:52:54Z`` or ``…+00:00``)
+      - With timezone (``2018-02-16T14:52:54Z`` or ``…+00:00``).
+        Python 3.11+ ``datetime.fromisoformat`` accepts both natively.
       - Naive (``2018-02-16T14:52:54``) — treated as UTC for the
         conversion.
 
@@ -217,8 +100,6 @@ def _iso_to_micros(value: str) -> int:
     what Strava sends), the resulting micros encode the wall-clock
     numbers as if they were UTC.
     """
-    if value.endswith("Z"):
-        value = value[:-1] + "+00:00"
     dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
@@ -254,7 +135,7 @@ def _populate_message(
     msg: Any,
     raw: dict[str, Any],
     *,
-    timestamp_paths: frozenset[str],
+    timestamp_paths: frozenset[str] = _TIMESTAMP_PATHS,
     path: str = "",
 ) -> None:
     """Recursively populate a proto message from a JSON-shaped dict.
@@ -267,10 +148,11 @@ def _populate_message(
     every leaf value is JSON-safe.
 
     Critical: NULLABLE fields with ``None`` values must be left
-    *unset* on the proto, not set to a falsy value. proto2 distinguishes
-    set-from-unset; setting ``int_field = 0`` sends the wire bytes for 0
-    and BQ stores NOT NULL. The ``if value is None: continue`` guard
-    is what preserves NULL semantics.
+    *unset* on the proto, not set to a falsy value. proto3 distinguishes
+    set-from-unset for ``optional`` fields; setting an int field
+    explicitly to 0 sends the wire bytes for 0 and BQ stores NOT NULL.
+    The ``if value is None: continue`` guard is what preserves NULL
+    semantics.
     """
     descriptor = msg.DESCRIPTOR
     for field in descriptor.fields:
@@ -290,10 +172,6 @@ def _populate_message(
                         path=field_path,
                     )
             else:
-                # REPEATED scalar (e.g. start_latlng list[float],
-                # available_zones list[str]). Coerce each item; the BQ
-                # schema doesn't have any REPEATED TIMESTAMP columns,
-                # so we don't handle that case.
                 target = getattr(msg, field.name)
                 target.extend(_coerce_to_proto_type(v, field.type) for v in value)
         elif field.type == FieldDescriptor.TYPE_MESSAGE:
@@ -358,7 +236,7 @@ class BigQueryStorageWriterV2:
 
         proto_schema = types.ProtoSchema()
         descriptor = descriptor_pb2.DescriptorProto()
-        _MESSAGE_CLASS.DESCRIPTOR.CopyToProto(descriptor)
+        bq_activities_pb2.Activity.DESCRIPTOR.CopyToProto(descriptor)
         proto_schema.proto_descriptor = descriptor
 
         proto_data = types.AppendRowsRequest.ProtoData()
@@ -368,12 +246,8 @@ class BigQueryStorageWriterV2:
 
     def _serialize_activity(self, activity: DetailedStravaActivity) -> bytes:
         """Map a Pydantic activity onto the proto message and serialize."""
-        msg = _MESSAGE_CLASS()
-        _populate_message(
-            msg,
-            activity.model_dump(mode="json"),
-            timestamp_paths=_TIMESTAMP_PATHS,
-        )
+        msg = bq_activities_pb2.Activity()
+        _populate_message(msg, activity.model_dump(mode="json"))
         return bytes(msg.SerializeToString())
 
     def write_activity(self, activity: DetailedStravaActivity) -> None:
@@ -386,7 +260,9 @@ class BigQueryStorageWriterV2:
         """
         serialized = self._serialize_activity(activity)
 
-        append_stream = writer.AppendRowsStream(self._client, self._request_template)
+        append_stream = writer.AppendRowsStream(
+            self._client, self._request_template
+        )
         try:
             proto_rows = types.ProtoRows()
             proto_rows.serialized_rows.append(serialized)
@@ -401,27 +277,3 @@ class BigQueryStorageWriterV2:
             future.result()  # type: ignore[no-untyped-call]
         finally:
             append_stream.close()
-
-
-# ---------------------------------------------------------------------------
-# Schema-parity helpers (used by tests; exported so admin/diagnose
-# utilities can reuse if needed)
-# ---------------------------------------------------------------------------
-
-
-def iter_bq_schema_paths(
-    schema: Iterable[dict[str, Any]],
-    *,
-    path: str = "",
-) -> Iterable[tuple[str, dict[str, Any]]]:
-    """Yield ``(dotted_path, field_dict)`` for every leaf in a BQ schema.
-
-    Used by the schema-parity test to compare the BQ schema against the
-    Pydantic model. Recurses through RECORD fields.
-    """
-    for col in schema:
-        field_path = f"{path}.{col['name']}" if path else col["name"]
-        if col["type"] == "RECORD":
-            yield from iter_bq_schema_paths(col["fields"], path=field_path)
-        else:
-            yield field_path, col
