@@ -3,6 +3,7 @@
 import logging
 
 from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
+from opentelemetry.trace import Tracer
 
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
 from stravapipe.domain import (
@@ -16,6 +17,7 @@ from stravapipe.exceptions import (
 )
 from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
+from stravapipe.shared.tracing import record_span
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +76,16 @@ class ActivitiesWriter(WriteActivities):
         *,
         dataset_name: str,
         table_name: str = "activities",
+        tracer: Tracer | None = None,
     ):
         self._client = client
         self._dataset_name = dataset_name
         self._table_name = table_name
         # Derive from main table name
         self._staging_table_name = f"{table_name}_staging"
+        # Optional so non-service callers (e.g. the backfill job) can leave
+        # it unset; record_span no-ops when tracer is None.
+        self._tracer = tracer
 
     def write_activity(self, activity: DetailedStravaActivity) -> MergeResult:
         """Two-step upsert: stage then merge.
@@ -139,11 +145,16 @@ class ActivitiesWriter(WriteActivities):
     def _write_to_staging(self, activity: DetailedStravaActivity) -> None:
         """Insert activity to staging table using fast streaming insert"""
         activities_dict = [activity.model_dump(mode="json")]
-        self._client.insert_rows_json(
-            activities_dict,
-            dataset_name=self._dataset_name,
-            table_name=self._staging_table_name,
-        )
+        with record_span(
+            self._tracer,
+            "bigquery.write_to_staging",
+            {"activity_id": activity.id},
+        ):
+            self._client.insert_rows_json(
+                activities_dict,
+                dataset_name=self._dataset_name,
+                table_name=self._staging_table_name,
+            )
 
     def _write_batch_to_staging(
         self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
@@ -161,16 +172,31 @@ class ActivitiesWriter(WriteActivities):
                 data = activity.model_dump(mode="json")
             activities_dict.append(data)
 
-        self._client.insert_rows_json(
-            activities_dict,
-            dataset_name=self._dataset_name,
-            table_name=self._staging_table_name,
-        )
+        with record_span(
+            self._tracer,
+            "bigquery.write_batch_to_staging",
+            {"batch_size": len(activities)},
+        ):
+            self._client.insert_rows_json(
+                activities_dict,
+                dataset_name=self._dataset_name,
+                table_name=self._staging_table_name,
+            )
 
     def _merge_from_staging(self, activity_id: int) -> MergeResult:
-        """Execute MERGE operation from staging to main table for specific activity"""
+        """Execute MERGE operation from staging to main table for specific activity.
+
+        Sub-spans (``bigquery.merge_from_staging`` and ``bigquery.cleanup_staging``)
+        let traces show MERGE-vs-DELETE latency separately — the CDC migration
+        decision depends on this split.
+        """
         merge_query, query_params = self._build_merge_query(activity_id)
-        result = self._client.execute_merge_query(merge_query, query_params)
+        with record_span(
+            self._tracer,
+            "bigquery.merge_from_staging",
+            {"activity_id": activity_id},
+        ):
+            result = self._client.execute_merge_query(merge_query, query_params)
         # Clean up staging table after successful merge
         self._cleanup_staging([activity_id])
         return result
@@ -178,7 +204,12 @@ class ActivitiesWriter(WriteActivities):
     def _merge_batch_from_staging(self, activity_ids: list[int]) -> MergeResult:
         """Execute MERGE operation for multiple activities at once"""
         merge_query, query_params = self._build_batch_merge_query(activity_ids)
-        result = self._client.execute_merge_query(merge_query, query_params)
+        with record_span(
+            self._tracer,
+            "bigquery.merge_batch_from_staging",
+            {"batch_size": len(activity_ids)},
+        ):
+            result = self._client.execute_merge_query(merge_query, query_params)
         # Clean up staging table after successful merge
         self._cleanup_staging(activity_ids)
         return result
@@ -201,13 +232,21 @@ class ActivitiesWriter(WriteActivities):
         WHERE id IN UNNEST(@activity_ids)
         """
         query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
-        try:
-            self._client.execute_dml_query(delete_query, query_params)
-        except StreamingBufferDMLError:
-            logger.info(
-                "Staging cleanup deferred — rows still in streaming buffer",
-                extra={"activity_ids": activity_ids},
-            )
+        # The streaming-buffer path is expected, not exceptional, so we catch
+        # *inside* the span to keep its status OK and avoid record_span
+        # marking it ERROR. Other DML failures still propagate.
+        with record_span(
+            self._tracer,
+            "bigquery.cleanup_staging",
+            {"batch_size": len(activity_ids)},
+        ):
+            try:
+                self._client.execute_dml_query(delete_query, query_params)
+            except StreamingBufferDMLError:
+                logger.info(
+                    "Staging cleanup deferred — rows still in streaming buffer",
+                    extra={"activity_ids": activity_ids},
+                )
 
     def _build_merge_query(
         self, activity_id: int

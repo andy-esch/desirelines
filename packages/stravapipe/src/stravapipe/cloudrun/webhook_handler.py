@@ -49,6 +49,7 @@ async def handle_webhook_cloudevent(
     on_delete: AspectCallback | None = None,
     webhook_counter: Counter | None = None,
     tracer: Tracer | None = None,
+    span_name: str = "webhook.process",
 ) -> WebhookResponse:
     """Parse a Pub/Sub CloudEvent and route to aspect-specific callbacks.
 
@@ -64,6 +65,13 @@ async def handle_webhook_cloudevent(
         on_delete: Callback for ASPECT_TYPE_DELETE events
         webhook_counter: Optional OTel counter for webhook events
         tracer: Optional OTel tracer for distributed tracing
+        span_name: Name for the root processing span. Callers should pass a
+            service-prefixed name (e.g. ``"bq_inserter.webhook.process"``) so
+            traces from different services don't collide visually in Cloud
+            Trace's compact view. The OTel ``service.name`` resource attribute
+            already disambiguates them in detail views, but Cloud Trace's
+            timeline shows only the span name. Defaults to ``"webhook.process"``
+            for the test fixture.
 
     Returns:
         WebhookResponse with status and details
@@ -121,7 +129,7 @@ async def handle_webhook_cloudevent(
         # a trace. If you add new log lines, keep them inside this span.
         with record_span(
             tracer,
-            "webhook.process",
+            span_name,
             attributes=span_attrs,
             parent_context=parent_context,
         ):

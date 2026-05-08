@@ -8,6 +8,7 @@ import logging
 from types import TracebackType
 from typing import Literal, Self
 
+from opentelemetry.trace import Tracer
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -16,6 +17,7 @@ from sqlalchemy.pool import NullPool, QueuePool
 from stravapipe.adapters.postgres._connection import PoolConfig
 from stravapipe.adapters.postgres._repository import SqlAlchemyActivityRepository
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
+from stravapipe.shared.tracing import record_span
 
 logger = logging.getLogger(__name__)
 
@@ -116,15 +118,25 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         connection.close()
     """
 
-    def __init__(self, session_factory: Callable[[], Session]):
+    def __init__(
+        self,
+        session_factory: Callable[[], Session],
+        *,
+        tracer: Tracer | None = None,
+    ):
         """Initialize Unit of Work with a session factory.
 
         Args:
             session_factory: Callable that creates SQLAlchemy sessions.
                 Can be a sessionmaker or a lambda for test fixtures.
+            tracer: Optional OTel tracer. When set, ``__enter__`` and ``commit``
+                emit ``postgres.session.acquire`` and ``postgres.commit`` spans
+                so connection-checkout and commit latency are visible
+                independently in distributed traces.
         """
         self._session_factory = session_factory
         self._session: Session | None = None
+        self._tracer = tracer
 
     def __enter__(self) -> Self:
         """Start a new unit of work with a fresh session."""
@@ -133,7 +145,11 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
                 "Unit of Work already has an active session. "
                 "Create a new instance or ensure previous context was exited."
             )
-        self._session = self._session_factory()
+        # session_factory() may block on connection-pool checkout under
+        # contention; recording the span here exposes that wait separately
+        # from the actual SQL work that follows.
+        with record_span(self._tracer, "postgres.session.acquire"):
+            self._session = self._session_factory()
         # Initialize repository with the session
         self.activities = SqlAlchemyActivityRepository(self._session)
         return self
@@ -166,7 +182,11 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         """Commit the current transaction."""
         if self._session is None:
             raise RuntimeError("Cannot commit: no active session")
-        self._session.commit()
+        # commit() blocks until the WAL flush returns; instrumenting it
+        # surfaces commit-time latency (e.g. replication lag) separately
+        # from the INSERT/UPDATE work that preceded it.
+        with record_span(self._tracer, "postgres.commit"):
+            self._session.commit()
 
     def rollback(self) -> None:
         """Rollback the current transaction."""

@@ -139,6 +139,9 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
         ),
         webhook_counter=webhook_counter,
         tracer=tracer,
+        # Service-prefixed so this doesn't collide with the bq-inserter's
+        # span on the same Pub/Sub event in Cloud Trace's compact view.
+        span_name="postgres_writer.webhook.process",
     )
 
 
@@ -175,21 +178,40 @@ async def _handle_create(
     # malformed payload will fail identically.
     activity = validate_or_422(StandardActivity, raw_activity, context="raw_activity")
 
-    # Insert to PostgreSQL within transaction (no Strava API call needed)
-    uow = SqlAlchemyUnitOfWork(session_factory)
+    # Insert to PostgreSQL within transaction (no Strava API call needed).
+    # The UoW emits postgres.session.acquire and postgres.commit sub-spans
+    # internally; the call-site sub-spans below cover the work in between
+    # so a trace shows insert / polyline-decode / route-insert / commit
+    # latency separately. Polyline decode is pure CPU and dominates for
+    # long routes, which is why it gets its own span.
+    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
         record_span(tracer, "postgres.insert", {"activity_id": activity_id}),
         record_duration(pg_histogram, {"operation": "insert"}),
         uow,
     ):
-        inserted = uow.activities.insert(activity)
-        if (
-            inserted
-            and activity.map
-            and activity.map.polyline
-            and (geojson := decode_polyline_to_geojson(activity.map.polyline))
+        with record_span(
+            tracer,
+            "postgres.activities.insert",
+            {"activity_id": activity_id},
         ):
-            uow.activities.insert_route(activity.id, geojson)
+            inserted = uow.activities.insert(activity)
+
+        if inserted and activity.map and activity.map.polyline:
+            with record_span(
+                tracer,
+                "postgres.polyline.decode",
+                {"activity_id": activity_id},
+            ):
+                geojson = decode_polyline_to_geojson(activity.map.polyline)
+            if geojson:
+                with record_span(
+                    tracer,
+                    "postgres.activities.insert_route",
+                    {"activity_id": activity_id},
+                ):
+                    uow.activities.insert_route(activity.id, geojson)
+
         uow.commit()
 
     if inserted:
@@ -246,7 +268,7 @@ async def _handle_update(
             reason=SkipReason.NO_RELEVANT_UPDATES,
         )
 
-    uow = SqlAlchemyUnitOfWork(session_factory)
+    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
         record_span(tracer, "postgres.update_metadata", {"activity_id": activity_id}),
         record_duration(pg_histogram, {"operation": "update_metadata"}),
@@ -301,7 +323,7 @@ async def _handle_delete(
 ) -> WebhookResponse:
     """Handle DELETE events - remove activity from PostgreSQL."""
     activity_id = event.object_id
-    uow = SqlAlchemyUnitOfWork(session_factory)
+    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
 
     with (
         record_span(tracer, "postgres.delete", {"activity_id": activity_id}),

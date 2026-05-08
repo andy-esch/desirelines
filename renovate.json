@@ -16,7 +16,7 @@
   "packageRules": [
     {
       "description": "Group all non-major updates by manager — keeps majors as individual PRs for review. Specific rules below (vite, go version, terraform) override per Renovate's last-rule-wins semantics.",
-      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "all non-major ({{manager}})"
     },
     {
@@ -42,7 +42,7 @@
     },
     {
       "description": "Group Vite ecosystem so peer-dep-coupled major bumps land in one PR",
-      "matchPackageNames": ["vite", "/^@vitejs\\//", "/^@tailwindcss\\/vite$/"],
+      "matchPackageNames": ["vite", "@tailwindcss/vite", "/^@vitejs\\//"],
       "groupName": "vite"
     },
     {

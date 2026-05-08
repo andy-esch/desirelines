@@ -1,5 +1,7 @@
 """GCP adapters."""
 
+from opentelemetry.trace import Tracer
+
 from stravapipe.adapters.gcp._bigquery import ActivitiesReader, ActivitiesWriter
 from stravapipe.adapters.gcp._bigquery_storage import BigQueryStorageWriter
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
@@ -13,12 +15,21 @@ def make_bigquery_client_wrapper(config: BQInserterConfig) -> BigQueryClientWrap
     return BigQueryClientWrapper(project_id=config.project_id)
 
 
-def make_write_activities(config: BQInserterConfig) -> WriteActivities:
-    """Create an ActivitiesWriter (WriteActivities port) with the given config."""
+def make_write_activities(
+    config: BQInserterConfig,
+    *,
+    tracer: Tracer | None = None,
+) -> WriteActivities:
+    """Create an ActivitiesWriter (WriteActivities port) with the given config.
+
+    Pass ``tracer`` from the Cloud Run service so write/merge/cleanup steps
+    emit sub-spans. Batch jobs that don't initialize OTel can leave it unset.
+    """
     client = make_bigquery_client_wrapper(config)
     return ActivitiesWriter(
         client=client,
         dataset_name=config.bq_dataset,
+        tracer=tracer,
     )
 
 

@@ -4,6 +4,8 @@ Activity data is now provided inline by the dispatcher's enriched events.
 The SyncService (which fetched from Strava API) is no longer used.
 """
 
+from opentelemetry.trace import Tracer
+
 from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.application.bq_inserter.delete_service import (
     BQActivityDeletionResult,
@@ -14,6 +16,8 @@ from stravapipe.config import BQInserterConfig, load_bq_inserter_config
 
 def make_delete_service(
     config: BQInserterConfig | None = None,
+    *,
+    tracer: Tracer | None = None,
 ) -> DeleteActivityService:
     """Create a configured DeleteActivityService instance.
 
@@ -22,6 +26,8 @@ def make_delete_service(
 
     Args:
         config: Application configuration. If None, loads from environment.
+        tracer: Optional OTel tracer threaded into the service so the archive
+            INSERT and activity DELETE DML jobs each emit their own sub-span.
 
     Returns:
         DeleteActivityService: Fully configured delete service instance.
@@ -37,6 +43,7 @@ def make_delete_service(
     return DeleteActivityService(
         client=client,
         dataset_id=config.bq_dataset,
+        tracer=tracer,
     )
 
 

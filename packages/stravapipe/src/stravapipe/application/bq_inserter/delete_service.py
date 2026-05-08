@@ -4,8 +4,10 @@ from dataclasses import dataclass
 import logging
 
 from google.cloud.bigquery import ScalarQueryParameter
+from opentelemetry.trace import Tracer
 
 from stravapipe.adapters.gcp import BigQueryClientWrapper
+from stravapipe.shared.tracing import record_span
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +24,25 @@ class BQActivityDeletionResult:
 class DeleteActivityService:
     """Archive deleted activity from activities to deleted_activities table"""
 
-    def __init__(self, client: BigQueryClientWrapper, *, dataset_id: str):
+    def __init__(
+        self,
+        client: BigQueryClientWrapper,
+        *,
+        dataset_id: str,
+        tracer: Tracer | None = None,
+    ):
         """Initialize the delete service with required dependencies.
 
         Args:
             client: BigQuery client wrapper for database operations.
             dataset_id: BigQuery dataset ID (without project prefix).
+            tracer: Optional OTel tracer. When set, the archive INSERT and
+                activity DELETE jobs each get their own sub-span so DML latency
+                can be attributed to the right step.
         """
         self._client = client
         self._dataset_id = dataset_id
+        self._tracer = tracer
 
     def _table(self, name: str) -> str:
         return f"`{self._client.project_id}.{self._dataset_id}.{name}`"
@@ -80,14 +92,19 @@ class DeleteActivityService:
         WHERE id = @activity_id
         """
 
-        rows_archived = self._client.execute_dml_query(
-            insert_query,
-            [
-                ScalarQueryParameter("activity_id", "INT64", activity_id),
-                ScalarQueryParameter("event_time", "INT64", event_time),
-                ScalarQueryParameter("correlation_id", "STRING", correlation_id),
-            ],
-        )
+        with record_span(
+            self._tracer,
+            "bigquery.archive_insert",
+            {"activity_id": activity_id},
+        ):
+            rows_archived = self._client.execute_dml_query(
+                insert_query,
+                [
+                    ScalarQueryParameter("activity_id", "INT64", activity_id),
+                    ScalarQueryParameter("event_time", "INT64", event_time),
+                    ScalarQueryParameter("correlation_id", "STRING", correlation_id),
+                ],
+            )
 
         if rows_archived == 0:
             logger.warning(
@@ -107,10 +124,15 @@ class DeleteActivityService:
         WHERE id = @activity_id
         """
 
-        rows_deleted = self._client.execute_dml_query(
-            delete_query,
-            [ScalarQueryParameter("activity_id", "INT64", activity_id)],
-        )
+        with record_span(
+            self._tracer,
+            "bigquery.activity_delete",
+            {"activity_id": activity_id},
+        ):
+            rows_deleted = self._client.execute_dml_query(
+                delete_query,
+                [ScalarQueryParameter("activity_id", "INT64", activity_id)],
+            )
 
         logger.info(
             "Successfully archived deleted activity %s",

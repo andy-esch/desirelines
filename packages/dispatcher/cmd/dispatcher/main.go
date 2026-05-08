@@ -257,6 +257,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		WebhookCounter:     webhookCounter,
 		OwnerCheckCounter:  ownerCheckCounter,
 		HTTPHistogram:      httpHist,
+		Tracer:             tracer,
 	})
 
 	return &Dependencies{

@@ -24,10 +24,16 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// tracerScope is the OTel instrumentation scope for handler-emitted spans.
+// Matches the scope used by other dispatcher components so spans share the
+// same instrumentation library identity in Cloud Trace.
+const tracerScope = "desirelines.io"
 
 // Error codes
 const (
@@ -81,6 +87,7 @@ type Handler struct {
 	webhookCounter     metric.Int64Counter
 	ownerCheckCounter  metric.Int64Counter
 	httpHistogram      metric.Float64Histogram
+	tracer             trace.Tracer
 }
 
 // HandlerConfig holds configuration for the HTTP handler.
@@ -90,6 +97,10 @@ type HandlerConfig struct {
 	WebhookCounter     metric.Int64Counter
 	OwnerCheckCounter  metric.Int64Counter
 	HTTPHistogram      metric.Float64Histogram
+	// Tracer is used for handler-level spans (e.g. allowlist check). If nil
+	// at construction time the handler falls back to a no-op tracer; spans
+	// inside the handler simply don't get emitted.
+	Tracer trace.Tracer
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
@@ -102,11 +113,20 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 	var webhookCounter metric.Int64Counter
 	var ownerCheckCounter metric.Int64Counter
 	var httpHistogram metric.Float64Histogram
+	var tracer trace.Tracer
 	if cfg != nil {
 		rateLimiter = cfg.RateLimiter
 		webhookCounter = cfg.WebhookCounter
 		ownerCheckCounter = cfg.OwnerCheckCounter
 		httpHistogram = cfg.HTTPHistogram
+		tracer = cfg.Tracer
+	}
+	if tracer == nil {
+		// Fall back to the global tracer provider so the handler always has
+		// a working tracer, including when callers construct it without a
+		// HandlerConfig (e.g. some tests). This matches what otel.Setup()
+		// registers globally; if OTel is disabled it's the no-op tracer.
+		tracer = otel.Tracer(tracerScope)
 	}
 	return &Handler{
 		secretProvider:     secretProvider,
@@ -121,6 +141,7 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		webhookCounter:     webhookCounter,
 		ownerCheckCounter:  ownerCheckCounter,
 		httpHistogram:      httpHistogram,
+		tracer:             tracer,
 	}
 }
 
@@ -399,7 +420,14 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 	defer func() { h.recordOwnerCheck(ctx, webhook, result) }()
 
 	ownerIDStr := strconv.FormatInt(webhook.OwnerId, 10)
-	allowed, allowErr := h.allowlist.IsAllowed(ctx, ownerIDStr)
+	// Span makes the allowlist read self-documenting in traces. Without it,
+	// the underlying firestore.DocumentRef.Get span is visible but its
+	// purpose ("guard non-allowlisted owners") is not.
+	allowCtx, allowSpanDone := sharedotel.StartSpan(ctx, h.tracer, "dispatcher.allowlist_check",
+		attribute.Int64("owner_id", webhook.OwnerId),
+	)
+	allowed, allowErr := h.allowlist.IsAllowed(allowCtx, ownerIDStr)
+	allowSpanDone(allowErr)
 	switch {
 	case allowErr != nil:
 		// Fail-closed on transient allowlist errors: 500 so Strava retries.

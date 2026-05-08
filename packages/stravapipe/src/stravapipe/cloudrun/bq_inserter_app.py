@@ -59,7 +59,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         config = load_bq_inserter_config()
         logger.info("BQ Inserter configuration validated successfully")
 
-        app.state.writer = make_write_activities(config)
+        # Initialize OTel tracing first so the tracer can be threaded into
+        # adapters built below (writer, delete_service). setup_tracing is
+        # safe to call before metrics — they share no state.
+        app.state.tracer = setup_tracing("desirelines-bq-inserter")
+
+        app.state.writer = make_write_activities(config, tracer=app.state.tracer)
         logger.info("BigQuery writer initialized")
 
         # Experimental Storage Write API writer for the dual-write spike.
@@ -73,7 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         else:
             logger.info("Storage Write API experiment disabled")
 
-        app.state.delete_service = make_delete_service(config)
+        app.state.delete_service = make_delete_service(config, tracer=app.state.tracer)
         logger.info("BigQuery delete service initialized")
 
         # Held for /ready dependency probe (get_dataset on the configured dataset).
@@ -93,9 +98,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "desirelines.io/webhook/events",
             description="Webhook events processed",
         )
-
-        # Initialize OTel tracing
-        app.state.tracer = setup_tracing("desirelines-bq-inserter")
 
         yield
     except Exception:
@@ -154,6 +156,9 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
         ),
         webhook_counter=webhook_counter,
         tracer=tracer,
+        # Service-prefixed so this doesn't collide with the postgres-writer's
+        # span on the same Pub/Sub event in Cloud Trace's compact view.
+        span_name="bq_inserter.webhook.process",
     )
 
 
