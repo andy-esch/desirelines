@@ -3,6 +3,7 @@
   "extends": [
     "config:recommended",
     ":dependencyDashboard",
+    ":semanticCommits",
     "group:monorepos",
     "monorepo:react",
     "monorepo:tanstack-query",
@@ -20,6 +21,11 @@
       "description": "Group all non-major updates by manager — keeps majors as individual PRs for review. Specific rules below (vite, go version, terraform) override per Renovate's last-rule-wins semantics.",
       "matchUpdateTypes": ["minor", "patch", "digest"],
       "groupName": "all non-major ({{manager}})"
+    },
+    {
+      "description": "Flag major version bumps for human review (audit finding I-7). automerge is already false by default; the label surfaces majors on the dashboard.",
+      "matchUpdateTypes": ["major"],
+      "labels": ["requires-review"]
     },
     {
       "description": "Pin PostGIS to PostgreSQL v17 - major version bumps require database migration",
