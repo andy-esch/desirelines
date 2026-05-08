@@ -4,10 +4,7 @@
     "config:recommended",
     ":dependencyDashboard",
     ":semanticCommits",
-    "group:monorepos",
-    "monorepo:react",
-    "monorepo:tanstack-query",
-    "monorepo:tanstack-router"
+    "group:monorepos"
   ],
   "postUpdateOptions": ["gomodTidy", "npmDedupe"],
   "terraform": {
@@ -45,8 +42,7 @@
     },
     {
       "description": "Group Vite ecosystem so peer-dep-coupled major bumps land in one PR",
-      "matchPackageNames": ["vite"],
-      "matchPackagePatterns": ["^@vitejs/", "^@tailwindcss/vite$"],
+      "matchPackageNames": ["vite", "/^@vitejs\\//", "/^@tailwindcss\\/vite$/"],
       "groupName": "vite"
     },
     {
