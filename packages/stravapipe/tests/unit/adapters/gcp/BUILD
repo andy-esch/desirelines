@@ -17,7 +17,7 @@ python_tests(
         # the canonical BQ schema JSON (for schema-parity assertions).
         # The canonical schema lives outside the package so it's
         # referenced via the schemas/bigquery target.
-        "test_bigquery_storage_v2.py": {
+        "test_bigquery_storage.py": {
             "dependencies": [
                 "packages/stravapipe/tests/fixtures:test_fixtures",
                 "schemas/bigquery:schemas",

@@ -1,151 +1,210 @@
-"""BigQuery Storage Write API adapter (experimental, dual-write spike).
+"""BigQuery Storage Write API adapter — production wrapper (full schema).
 
-Spike-scoped wrapper that writes a subset of activity fields to a temp table
-via the Storage Write API's default stream. Used by `bq_inserter` to dual-
-write alongside the legacy `insert_rows_json` path so we can compare
-behavior in production before committing to a full migration.
+Companion to ``_bigquery_storage.py`` (the spike's 7-field subset wrapper).
+This module ships the full mapping for ``schemas/bigquery/activities_full.json``
+and is the wrapper Stage 1 will swap into ``_write_to_staging`` once the
+spike's soak returns GO.
 
-Scope decisions (see spike task Retro for rationale):
+Until cutover, this module is **not imported by any production path**.
+It coexists with the spike wrapper so reviewers can compare them and
+the cutover is a one-line edit in ``bq_inserter_app.py``.
 
-- **Subset schema**: writes 7 fields (id, name, sport_type, start_date,
-  distance, moving_time, athlete_id) rather than the full 204-field
-  `activities_full.json` schema. Sufficient for row-count and spot-check
-  validation; the full-schema mapping is Stage 1's concern.
-- **Dynamic protobuf descriptor**: schema is defined inline via
-  `descriptor_pb2` rather than a static `.proto` file. Self-contained,
-  no compilation step in the build.
-- **Default stream**: matches `insert_rows_json`'s fire-and-forget
-  semantics. No offset management, no commit step.
-- **Per-call streams**: each `write_activity` call opens and closes its
-  own `AppendRowsStream`. Simpler than long-lived streams; latency cost
-  is expected to be the main thing the experiment surfaces.
+Architecture:
 
-After Stage 1 cuts over, this module is replaced by a production wrapper
-with full schema parity. After Stage 2 it's deleted entirely.
+- **Static proto, generated from BQ schema.** ``schemas/bigquery/activities_full.json``
+  is the source of truth; ``schemas/bigquery/generate_proto.py`` converts it
+  to ``schemas/proto/desirelines/bigquery/v1/bq_activities.proto``; Pants's
+  protobuf codegen produces ``stravapipe.types.generated.bq_activities_pb2``.
+  This module imports the generated ``Activity`` class directly — no runtime
+  descriptor building, no JSON file reading.
+- **Strict type coercion at write time.** The legacy ``insertAll`` API
+  silently coerces (e.g. ``int → STRING`` for ``workout_type``); Storage
+  Write is strict. ``_coerce_to_proto_type`` replicates the legacy
+  coercion explicitly so we don't crash on the first activity with a
+  type-mismatched field.
+- **TIMESTAMP via int64 microseconds.** BQ Storage Write expects raw
+  micros-since-epoch, *not* the proto well-known ``Timestamp`` message.
+  ``_iso_to_micros`` handles tz-aware ISO strings (with Z or offset) and
+  naive ones (treated as UTC for conversion — matches insertAll's
+  behavior and BQ's internal storage convention).
+- **Default stream, per-call AppendRowsStream.** Same shape as the
+  spike. Reuse-the-stream optimization is deferred to a future task if
+  latency surprises us.
+
+The set of fields encoded as TIMESTAMP is hard-coded below
+(``_TIMESTAMP_PATHS``). The schema-parity test in
+``test_bigquery_storage.py`` verifies this set matches the
+``TIMESTAMP`` columns in the BQ JSON schema; if it drifts, CI fails.
 """
 
-from datetime import datetime
-import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from google.cloud.bigquery_storage_v1 import BigQueryWriteClient, types, writer
-from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
+from google.protobuf import descriptor_pb2
+from google.protobuf.descriptor import FieldDescriptor
 
 from stravapipe.domain import DetailedStravaActivity
+from stravapipe.types.generated import bq_activities_pb2
 
-logger = logging.getLogger(__name__)
+# ---------------------------------------------------------------------------
+# TIMESTAMP path tracking
+# ---------------------------------------------------------------------------
+
+# Dotted paths of fields that the BQ schema declares as TIMESTAMP. The
+# generated proto encodes them as int64; this set tells the value mapper
+# which int64s need datetime → microseconds-since-epoch conversion at
+# write time.
+#
+# Hand-maintained but verified by the schema-parity test against
+# `schemas/bigquery/activities_full.json`. If you add a new TIMESTAMP
+# column to the BQ schema, the test fails until you add the path here.
+_TIMESTAMP_PATHS: frozenset[str] = frozenset(
+    {
+        "start_date",
+        "start_date_local",
+        "segment_efforts.start_date",
+        "segment_efforts.start_date_local",
+        "laps.start_date",
+        "laps.start_date_local",
+        "best_efforts.start_date",
+        "best_efforts.start_date_local",
+    }
+)
 
 
-# Field numbers are arbitrary but stable: the BigQuery Storage Write API
-# matches by name, not by tag, so these need only be unique within the
-# message. We use 1..N for clarity.
-_FIELD_NUMBERS = {
-    "id": 1,
-    "name": 2,
-    "sport_type": 3,
-    "start_date": 4,
-    "distance": 5,
-    "moving_time": 6,
-    "athlete_id": 7,
-}
+# ---------------------------------------------------------------------------
+# Value mapping (Pydantic → proto)
+# ---------------------------------------------------------------------------
 
 
-def _build_descriptor() -> descriptor_pb2.DescriptorProto:
-    """Build the protobuf descriptor for the experiment subset schema.
+def _iso_to_micros(value: str) -> int:
+    """Parse an ISO-8601 string into microseconds since Unix epoch.
 
-    Returns a DescriptorProto matching this BigQuery table schema:
+    Handles both forms Pydantic emits via ``model_dump(mode='json')``:
+      - With timezone (``2018-02-16T14:52:54Z`` or ``…+00:00``).
+        Python 3.11+ ``datetime.fromisoformat`` accepts both natively.
+      - Naive (``2018-02-16T14:52:54``) — treated as UTC for the
+        conversion.
 
-      id            INT64    REQUIRED
-      name          STRING   NULLABLE
-      sport_type    STRING   NULLABLE
-      start_date    STRING   NULLABLE  (ISO 8601; BigQuery TIMESTAMP coerces)
-      distance      FLOAT64  NULLABLE
-      moving_time   INT64    NULLABLE
-      athlete_id    INT64    NULLABLE
+    The "treat naive as UTC" rule matches what BQ does internally: BQ's
+    TIMESTAMP type stores microseconds since Unix epoch in UTC. When you
+    insert a naive string via the legacy ``insertAll`` API, BQ assumes
+    UTC. Doing the same here keeps the wire-level value consistent with
+    historical rows.
 
-    `start_date` is sent as ISO-8601 STRING because BigQuery accepts it as a
-    TIMESTAMP coercion, and string-based timestamp transport sidesteps the
-    proto2 timestamp-encoding problem during the spike. If we promote to
-    Stage 1, we'll switch to a proper TIMESTAMP encoding.
+    Note on ``start_date_local``: per ``CLAUDE.md`` "start_date_local is
+    athlete local time — never convert to UTC." That guidance is about
+    *query-time* interpretation: the stored micros represent the
+    wall-clock value the athlete saw, with the timezone information
+    discarded. This function doesn't violate that — for a naive input
+    (or a Z-tagged input that's actually local-with-fake-Z, which is
+    what Strava sends), the resulting micros encode the wall-clock
+    numbers as if they were UTC.
     """
-    proto = descriptor_pb2.DescriptorProto()
-    proto.name = "ActivityExperiment"
-
-    def _add_field(
-        name: str,
-        ftype: int,
-        label: int = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL,
-    ) -> None:
-        f = proto.field.add()
-        f.name = name
-        f.number = _FIELD_NUMBERS[name]
-        # protobuf stubs declare these as the generated enum type; the
-        # int values match the enum's numeric domain, but the stubs reject
-        # int assignment. Casting at the boundary is the standard idiom.
-        f.type = ftype  # type: ignore[assignment]
-        f.label = label  # type: ignore[assignment]
-
-    # id is the only REQUIRED field (matches BigQuery schema)
-    _add_field(
-        "id",
-        descriptor_pb2.FieldDescriptorProto.TYPE_INT64,
-        label=descriptor_pb2.FieldDescriptorProto.LABEL_REQUIRED,
-    )
-    _add_field("name", descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
-    _add_field("sport_type", descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
-    _add_field("start_date", descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
-    _add_field("distance", descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE)
-    _add_field("moving_time", descriptor_pb2.FieldDescriptorProto.TYPE_INT64)
-    _add_field("athlete_id", descriptor_pb2.FieldDescriptorProto.TYPE_INT64)
-
-    return proto
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return int(dt.timestamp() * 1_000_000)
 
 
-def _build_message_class() -> type[Any]:
-    """Build a protobuf message class from the descriptor.
+def _coerce_to_proto_type(value: Any, proto_type: int) -> Any:
+    """Coerce a Python value to the proto field's declared scalar type.
 
-    Uses a dedicated descriptor pool to avoid collisions with other
-    dynamically-built messages in the process. The returned class is used
-    to instantiate, populate, and serialize each row.
+    The legacy ``insertAll`` API silently coerces values that don't
+    match the BQ column type (notably ``int → STRING`` for
+    ``workout_type``, where Pydantic declares ``int`` but the BQ schema
+    declares ``STRING``). The Storage Write API is strict; without
+    coercion, we'd raise ``TypeError: bad argument type for built-in
+    operation`` on the first such field.
 
-    Return type is `type[Any]`: the class is a subclass of
-    `google.protobuf.message.Message` at runtime, but mypy can't know
-    about the dynamically-attached fields (id, name, etc.). Honest
-    signal that we lose static type safety here — accessor errors
-    surface at runtime as `AttributeError`.
+    This is also where future Pydantic↔BQ drift gets papered over —
+    pair this with the schema-parity test, which surfaces drift as a
+    test failure rather than a prod incident.
     """
-    descriptor = _build_descriptor()
-
-    file_proto = descriptor_pb2.FileDescriptorProto()
-    file_proto.name = "stravapipe/experiment.proto"
-    file_proto.package = "stravapipe.experiment"
-    file_proto.syntax = "proto2"
-    file_proto.message_type.add().CopyFrom(descriptor)
-
-    pool = descriptor_pool.DescriptorPool()
-    pool.Add(file_proto)
-    msg_descriptor = pool.FindMessageTypeByName(
-        "stravapipe.experiment.ActivityExperiment"
-    )
-    return message_factory.GetMessageClass(msg_descriptor)
+    if proto_type == FieldDescriptor.TYPE_STRING:
+        return str(value)
+    if proto_type == FieldDescriptor.TYPE_INT64:
+        return int(value)
+    if proto_type == FieldDescriptor.TYPE_DOUBLE:
+        return float(value)
+    if proto_type == FieldDescriptor.TYPE_BOOL:
+        return bool(value)
+    return value
 
 
-# Module-level so we build the descriptor + message class once per process.
-_MESSAGE_CLASS = _build_message_class()
+def _populate_message(
+    msg: Any,
+    raw: dict[str, Any],
+    *,
+    timestamp_paths: frozenset[str] = _TIMESTAMP_PATHS,
+    path: str = "",
+) -> None:
+    """Recursively populate a proto message from a JSON-shaped dict.
+
+    ``raw`` is the output of ``activity.model_dump(mode='json')`` (or a
+    sub-dict for nested RECORDs). Pydantic's mode='json' dump already
+    converts ``datetime`` fields to ISO strings and runs validators
+    like ``PhotosSummaryPrimary.transform_to_json_str`` (which encodes
+    the photo URLs dict as a JSON string), so by the time we're here
+    every leaf value is JSON-safe.
+
+    Critical: NULLABLE fields with ``None`` values must be left
+    *unset* on the proto, not set to a falsy value. proto3 distinguishes
+    set-from-unset for ``optional`` fields; setting an int field
+    explicitly to 0 sends the wire bytes for 0 and BQ stores NOT NULL.
+    The ``if value is None: continue`` guard is what preserves NULL
+    semantics.
+    """
+    descriptor = msg.DESCRIPTOR
+    for field in descriptor.fields:
+        field_path = f"{path}.{field.name}" if path else field.name
+        value = raw.get(field.name)
+        if value is None:
+            continue
+
+        if field.is_repeated:
+            if field.type == FieldDescriptor.TYPE_MESSAGE:
+                for item in value:
+                    sub = getattr(msg, field.name).add()
+                    _populate_message(
+                        sub,
+                        item,
+                        timestamp_paths=timestamp_paths,
+                        path=field_path,
+                    )
+            else:
+                target = getattr(msg, field.name)
+                target.extend(_coerce_to_proto_type(v, field.type) for v in value)
+        elif field.type == FieldDescriptor.TYPE_MESSAGE:
+            _populate_message(
+                getattr(msg, field.name),
+                value,
+                timestamp_paths=timestamp_paths,
+                path=field_path,
+            )
+        elif field_path in timestamp_paths:
+            setattr(msg, field.name, _iso_to_micros(value))
+        else:
+            setattr(msg, field.name, _coerce_to_proto_type(value, field.type))
 
 
-def _to_iso_string(dt: datetime | None) -> str | None:
-    """Render an optional datetime as an ISO-8601 string."""
-    return dt.isoformat() if dt is not None else None
+# ---------------------------------------------------------------------------
+# Production wrapper class
+# ---------------------------------------------------------------------------
 
 
 class BigQueryStorageWriter:
     """Writes activities to BigQuery via Storage Write API default stream.
 
-    Spike-scoped: writes the subset schema only. Each `write_activity`
-    call uses a fresh AppendRowsStream — simpler than reusing connections
-    for the spike, at some latency cost (which is part of what we're
-    measuring).
+    Production wrapper covering the full ``activities_full.json`` schema.
+    Same call shape as the spike's ``BigQueryStorageWriter`` so the
+    cutover in ``bq_inserter_app.py`` is mechanical (swap the class,
+    same ``write_activity(activity)`` interface).
+
+    Per-call AppendRowsStream: each ``write_activity`` opens, sends, and
+    closes its own stream. Reuse-the-stream optimization deferred until
+    soak data shows it's needed.
     """
 
     def __init__(
@@ -179,7 +238,7 @@ class BigQueryStorageWriter:
 
         proto_schema = types.ProtoSchema()
         descriptor = descriptor_pb2.DescriptorProto()
-        _MESSAGE_CLASS.DESCRIPTOR.CopyToProto(descriptor)
+        bq_activities_pb2.Activity.DESCRIPTOR.CopyToProto(descriptor)
         proto_schema.proto_descriptor = descriptor
 
         proto_data = types.AppendRowsRequest.ProtoData()
@@ -188,32 +247,18 @@ class BigQueryStorageWriter:
         return request
 
     def _serialize_activity(self, activity: DetailedStravaActivity) -> bytes:
-        """Map activity fields onto the proto message and serialize."""
-        msg = _MESSAGE_CLASS()
-        msg.id = activity.id
-        if activity.name is not None:
-            msg.name = activity.name
-        if activity.sport_type is not None:
-            msg.sport_type = activity.sport_type
-        start_date_str = _to_iso_string(activity.start_date)
-        if start_date_str is not None:
-            msg.start_date = start_date_str
-        if activity.distance is not None:
-            msg.distance = float(activity.distance)
-        if activity.moving_time is not None:
-            msg.moving_time = int(activity.moving_time)
-        if activity.athlete is not None and activity.athlete.id is not None:
-            msg.athlete_id = int(activity.athlete.id)
-        # SerializeToString returns bytes per protobuf contract; stub
-        # returns Any, so explicit cast at the boundary.
+        """Map a Pydantic activity onto the proto message and serialize."""
+        msg = bq_activities_pb2.Activity()
+        _populate_message(msg, activity.model_dump(mode="json"))
         return bytes(msg.SerializeToString())
 
     def write_activity(self, activity: DetailedStravaActivity) -> None:
-        """Write a single activity to the experiment table.
+        """Write a single activity to the destination table.
 
-        Raises on any underlying gRPC or schema error — the caller in
-        bq_inserter._handle_create wraps this in a try/except that NEVER
-        propagates failures back into the production write path.
+        Raises on any underlying gRPC or schema error. Caller wraps in a
+        try/except per its own retry/error policy — for the bq-inserter
+        path, the existing ``handle_webhook_cloudevent`` translates
+        exceptions to 5xx so Pub/Sub redelivers.
         """
         serialized = self._serialize_activity(activity)
 
@@ -229,10 +274,6 @@ class BigQueryStorageWriter:
             request.proto_rows = proto_data
 
             future = append_stream.send(request)
-            # Block until BQ accepts (or rejects) the row. The default-stream
-            # write is synchronous from the caller's POV; future.result()
-            # raises on schema/permission errors and on transient gRPC
-            # failures the underlying client didn't retry.
             future.result()  # type: ignore[no-untyped-call]
         finally:
             append_stream.close()

@@ -106,66 +106,6 @@ resource "google_bigquery_table" "activities" {
   clustering = ["sport_type", "start_date"]
 }
 
-# BigQuery experimental temp table for the Storage Write API dual-write
-# spike (`spike-bigquery-storage-write-api-for-stravapipe`).
-#
-# Subset schema (7 fields) — sufficient for row-count comparison and
-# spot-checking against the production `activities` table during the
-# ~1 week soak. NOT used by any production code path.
-#
-# Lifecycle: DROP this resource as part of Stage 1 of the migration
-# (`migrate-stravapipe-bigquery-writes-from-insertall-to-storage-write-api`).
-# If the spike lands at NO-GO, drop this AND remove the wrapper.
-resource "google_bigquery_table" "activities_swapi_experiment" {
-  dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
-  table_id            = "activities_swapi_experiment"
-  friendly_name       = "Storage Write API Experiment (TEMP)"
-  description         = "Temp table for the BQ Storage Write API dual-write spike. Drop after Stage 1 cuts over or NO-GO retro."
-  deletion_protection = false # Experimental, easily recreatable
-  labels              = merge(local.common_labels, { experiment = "bq-swapi" })
-
-  schema = jsonencode([
-    {
-      mode        = "REQUIRED"
-      name        = "id"
-      type        = "INT64"
-      description = "Strava activity ID (primary key)"
-    },
-    {
-      mode = "NULLABLE"
-      name = "name"
-      type = "STRING"
-    },
-    {
-      mode = "NULLABLE"
-      name = "sport_type"
-      type = "STRING"
-    },
-    {
-      mode        = "NULLABLE"
-      name        = "start_date"
-      type        = "TIMESTAMP"
-      description = "Activity start time (UTC); ISO-8601 string accepted via TIMESTAMP coercion"
-    },
-    {
-      mode = "NULLABLE"
-      name = "distance"
-      type = "FLOAT64"
-    },
-    {
-      mode = "NULLABLE"
-      name = "moving_time"
-      type = "INT64"
-    },
-    {
-      mode        = "NULLABLE"
-      name        = "athlete_id"
-      type        = "INT64"
-      description = "Athlete who owns the activity (flattened from nested athlete RECORD)"
-    },
-  ])
-}
-
 # BigQuery Staging Table for Activities (used for upsert operations)
 resource "google_bigquery_table" "activities_staging" {
   dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id

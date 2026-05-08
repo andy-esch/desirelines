@@ -6,6 +6,7 @@ from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
 from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
 
+from stravapipe.adapters.gcp._bigquery_storage import BigQueryStorageWriter
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
 from stravapipe.domain import (
     DetailedStravaActivity,
@@ -75,6 +76,7 @@ class ActivitiesWriter(WriteActivities):
     def __init__(
         self,
         client: BigQueryClientWrapper,
+        storage_writer: BigQueryStorageWriter,
         *,
         dataset_name: str,
         table_name: str = "activities",
@@ -82,6 +84,7 @@ class ActivitiesWriter(WriteActivities):
         histogram: Histogram | None = None,
     ):
         self._client = client
+        self._storage_writer = storage_writer
         self._dataset_name = dataset_name
         self._table_name = table_name
         # Derive from main table name
@@ -152,18 +155,24 @@ class ActivitiesWriter(WriteActivities):
         return self._merge_batch_from_staging(activity_ids)
 
     def _write_to_staging(self, activity: DetailedStravaActivity) -> None:
-        """Insert activity to staging table using fast streaming insert"""
-        activities_dict = [activity.model_dump(mode="json")]
+        """Write activity to staging via the BigQuery Storage Write API.
+
+        Replaces the legacy ``insertAll`` (``insert_rows_json``) path. Storage
+        Write API committed-mode rows are immediately consistent — they're
+        not held in the legacy streaming buffer — so the post-MERGE DELETE
+        in ``_cleanup_staging`` works without retries for rows written
+        through this method.
+
+        The batch path (``_write_batch_to_staging``) still uses the legacy
+        API, so the streaming-buffer workaround in ``_cleanup_staging``
+        stays in place until Stage 2 migrates that path too.
+        """
         with record_span(
             self._tracer,
             "bigquery.write_to_staging",
             {"activity_id": activity.id},
         ):
-            self._client.insert_rows_json(
-                activities_dict,
-                dataset_name=self._dataset_name,
-                table_name=self._staging_table_name,
-            )
+            self._storage_writer.write_activity(activity)
 
     def _write_batch_to_staging(
         self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
