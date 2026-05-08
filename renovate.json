@@ -3,10 +3,8 @@
   "extends": [
     "config:recommended",
     ":dependencyDashboard",
-    "group:monorepos",
-    "monorepo:react",
-    "monorepo:tanstack-query",
-    "monorepo:tanstack-router"
+    ":semanticCommits",
+    "group:monorepos"
   ],
   "postUpdateOptions": ["gomodTidy", "npmDedupe"],
   "terraform": {
@@ -16,6 +14,16 @@
     "enabled": true
   },
   "packageRules": [
+    {
+      "description": "Group all non-major updates by manager — keeps majors as individual PRs for review. Specific rules below (vite, go version, terraform) override per Renovate's last-rule-wins semantics.",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "all non-major ({{manager}})"
+    },
+    {
+      "description": "Flag major version bumps for human review (audit finding I-7). automerge is already false by default; the label surfaces majors on the dashboard.",
+      "matchUpdateTypes": ["major"],
+      "labels": ["requires-review"]
+    },
     {
       "description": "Pin PostGIS to PostgreSQL v17 - major version bumps require database migration",
       "matchPackageNames": ["postgis/postgis"],
@@ -34,8 +42,7 @@
     },
     {
       "description": "Group Vite ecosystem so peer-dep-coupled major bumps land in one PR",
-      "matchPackageNames": ["vite"],
-      "matchPackagePatterns": ["^@vitejs/", "^@tailwindcss/vite$"],
+      "matchPackageNames": ["vite", "/^@vitejs\\//", "/^@tailwindcss\\/vite$/"],
       "groupName": "vite"
     },
     {
