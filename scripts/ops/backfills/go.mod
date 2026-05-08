@@ -3,7 +3,7 @@ module github.com/andy-esch/desirelines/scripts/ops/backfills
 go 1.25.1
 
 require (
-	cloud.google.com/go/bigquery v1.76.0
+	cloud.google.com/go/bigquery v1.77.0
 	google.golang.org/api v0.277.0
 )
 
