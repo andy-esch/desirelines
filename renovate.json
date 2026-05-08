@@ -17,6 +17,11 @@
   },
   "packageRules": [
     {
+      "description": "Group all non-major updates by manager — keeps majors as individual PRs for review. Specific rules below (vite, go version, terraform) override per Renovate's last-rule-wins semantics.",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "all non-major ({{manager}})"
+    },
+    {
       "description": "Pin PostGIS to PostgreSQL v17 - major version bumps require database migration",
       "matchPackageNames": ["postgis/postgis"],
       "allowedVersions": "17.x"
