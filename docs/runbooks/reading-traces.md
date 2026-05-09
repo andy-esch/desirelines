@@ -19,11 +19,13 @@ GCP Console → **Trace explorer** → paste the ID into the search bar. Done.
 Cloud Trace doesn't index by activity_id directly, but spans carry it as an attribute. Two ways to find the trace:
 
 1. **Logs Explorer** — filter to the relevant service and search for the activity ID:
+
    ```
    resource.type="cloud_run_revision"
    resource.labels.service_name=~"desirelines-(dispatcher|bq-inserter|postgres-writer)"
    jsonPayload.activity_id="12345678"
    ```
+
    Click any matching log entry; the entry has a `trace` field. Click the trace icon to jump to Cloud Trace.
 
 2. **Trace explorer with span filter** — use the attribute filter `+attribute:activity_id=12345678`. Slower but no log digging required.
