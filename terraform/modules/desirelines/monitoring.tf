@@ -6,6 +6,8 @@
 # - Cloud Run service performance and errors
 # - PubSub message flow and backlogs
 # - Data pipeline health (BigQuery & PostgreSQL)
+# Custom OTel metrics use the prefix `workload.googleapis.com/desirelines.io/`
+# (default of opentelemetry-operations-go/exporter/metric in provider.go).
 # ============================================================================
 
 resource "google_monitoring_dashboard" "desirelines_observability" {
@@ -643,7 +645,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/strava/api.duration\" AND resource.type=\"generic_task\""
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/strava/api.duration\" AND resource.type=\"generic_task\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_DELTA"
@@ -677,7 +679,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/postgres/query.duration\" AND resource.type=\"generic_task\""
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/postgres/query.duration\" AND resource.type=\"generic_task\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_DELTA"
@@ -710,7 +712,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/bigquery/operation.duration\" AND resource.type=\"generic_task\""
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/bigquery/operation.duration\" AND resource.type=\"generic_task\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_DELTA"
@@ -744,7 +746,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/events\" AND resource.type=\"generic_task\""
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/events\" AND resource.type=\"generic_task\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_RATE"
@@ -777,7 +779,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/postgres/pool.connections\" AND resource.type=\"generic_task\""
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/postgres/pool.connections\" AND resource.type=\"generic_task\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MEAN"
@@ -815,7 +817,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               dataSets = [{
                 timeSeriesQuery = {
                   timeSeriesFilter = {
-                    filter = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\""
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\""
                     aggregation = {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_RATE"
@@ -831,6 +833,44 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               timeshiftDuration = "0s"
               yAxis = {
                 label = "Events/min"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # Postgres Writer Operation Latency (P95) - Row 68, Full Width
+        # Sister metric to postgres/query.duration (apigateway side); this
+        # one comes from the postgres-writer service. Operation labels:
+        # insert, activities_insert, update_metadata, delete.
+        # `activities_insert` surfaces the Neon cold-compute signal:
+        # warm-path ~180ms, cold ~1s+.
+        {
+          yPos   = 68
+          width  = 12
+          height = 4
+          widget = {
+            title = "Postgres Writer Operation Latency (P95) by operation"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/postgres/operation.duration\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_DELTA"
+                      crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      groupByFields      = ["metric.labels.operation"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.operation}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Milliseconds"
                 scale = "LINEAR"
               }
             }
@@ -1597,7 +1637,7 @@ resource "google_monitoring_alert_policy" "postgres_pool_exhaustion" {
     display_name = "in_use connections > 3 for 5m"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/postgres/pool.connections\" AND resource.type=\"generic_task\" AND metric.labels.state=\"in_use\""
+      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/postgres/pool.connections\" AND resource.type=\"generic_task\" AND metric.labels.state=\"in_use\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 3
@@ -1635,7 +1675,7 @@ resource "google_monitoring_alert_policy" "strava_api_latency" {
     display_name = "strava/api.duration P99 > 5000ms"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/strava/api.duration\" AND resource.type=\"generic_task\""
+      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/strava/api.duration\" AND resource.type=\"generic_task\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 5000
@@ -1674,7 +1714,7 @@ resource "google_monitoring_alert_policy" "http_request_latency" {
     display_name = "http/request.duration P99 > 2000ms"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/http/request.duration\" AND resource.type=\"generic_task\""
+      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/http/request.duration\" AND resource.type=\"generic_task\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 2000
@@ -1713,7 +1753,7 @@ resource "google_monitoring_alert_policy" "postgres_query_latency" {
     display_name = "postgres/query.duration P99 > 500ms"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/postgres/query.duration\" AND resource.type=\"generic_task\""
+      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/postgres/query.duration\" AND resource.type=\"generic_task\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 500
@@ -1751,7 +1791,7 @@ resource "google_monitoring_alert_policy" "firestore_operation_latency" {
     display_name = "firestore/operation.duration P99 > 1000ms"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/firestore/operation.duration\" AND resource.type=\"generic_task\""
+      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/firestore/operation.duration\" AND resource.type=\"generic_task\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 1000
@@ -1791,7 +1831,7 @@ resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
     display_name = "pubsub/publish.duration P99 > 1000ms"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/pubsub/publish.duration\" AND resource.type=\"generic_task\""
+      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/pubsub/publish.duration\" AND resource.type=\"generic_task\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 1000
@@ -1833,7 +1873,7 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
 
   documentation {
     content = <<-EOT
-      **CRITICAL**: No `custom.googleapis.com/desirelines.io/webhook/events` increments observed in
+      **CRITICAL**: No `workload.googleapis.com/desirelines.io/webhook/events` increments observed in
       the last 24 hours. Real failure modes:
 
       1. **Strava OAuth revoked** — user revoked app access, or token
@@ -1865,7 +1905,7 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
     display_name = "webhook_events rate = 0 over 24h"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/events\" AND resource.type=\"generic_task\""
+      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/events\" AND resource.type=\"generic_task\""
       duration        = "0s"
       comparison      = "COMPARISON_LT"
       threshold_value = 1 # any non-zero count over the window passes
@@ -1940,7 +1980,7 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
     display_name = "owner_check{result=orphan} rate > 0 for 5m"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\" AND metric.labels.result=\"orphan\""
+      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\" AND metric.labels.result=\"orphan\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0
@@ -1991,7 +2031,7 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_error" {
     display_name = "owner_check{result=error} rate > 1/min for 10m"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\" AND metric.labels.result=\"error\""
+      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\" AND metric.labels.result=\"error\""
       duration        = "600s"
       comparison      = "COMPARISON_GT"
       threshold_value = 1
