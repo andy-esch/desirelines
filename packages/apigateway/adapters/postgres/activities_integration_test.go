@@ -50,12 +50,12 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	// Verify our Pool wrapper still works (connection string validation, etc.)
 	t.Run("PoolWrapper", func(t *testing.T) {
-		wrappedPool, err := postgres.NewPool(ctx, connString, slog.Default())
+		wrappedPool, err := postgres.NewPool(ctx, connString, slog.Default(), nil)
 		if err != nil {
 			t.Fatalf("failed to create wrapped pool: %v", err)
 		}
 		noopHist, _ := otel.NoopProviders().Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
-		repo := postgres.NewActivityRepository(wrappedPool, noopHist)
+		repo := postgres.NewActivityRepository(wrappedPool, noopHist, nil)
 		defer repo.Close()
 
 		if err := repo.Ping(ctx); err != nil {

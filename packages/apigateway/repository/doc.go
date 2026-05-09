@@ -47,6 +47,6 @@
 //
 //	import "github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 //
-//	pool, _ := postgres.NewPool(ctx, connString, logger)
-//	repo := postgres.NewActivityRepository(pool)
+//	pool, _ := postgres.NewPool(ctx, connString, logger, tracer)
+//	repo := postgres.NewActivityRepository(pool, histogram, tracer)
 package repository

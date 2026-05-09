@@ -66,6 +66,16 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
+)
+
+// Span attribute conventions used across this adapter. Constants so the
+// strings are stable and grep-able when tuning SLO labels later.
+const (
+	dbSystem   = "postgresql"
+	dbName     = "desirelines"
+	dbOpSelect = "SELECT"
 )
 
 // AggregationVersion is the version string for the data aggregation schema.
@@ -82,20 +92,30 @@ type ActivityRepository struct {
 	db        DBQuerier
 	pool      *Pool
 	histogram metric.Float64Histogram
+	tracer    trace.Tracer
 }
 
 // Compile-time interface verification
 var _ repository.ActivityRepository = (*ActivityRepository)(nil)
 
 // NewActivityRepository creates a PostgreSQL activity repository.
-func NewActivityRepository(pool *Pool, histogram metric.Float64Histogram) *ActivityRepository {
-	return &ActivityRepository{db: pool, pool: pool, histogram: histogram}
+//
+// The tracer is used to emit per-method spans (`repository.activities.*`)
+// so trace inspection can attribute apigateway latency to specific queries
+// rather than seeing a single flat handler span. Pass a noop tracer when
+// instrumentation isn't desired (e.g. tests); the production wiring in
+// cmd/apigateway/main.go threads in providers.Tracer.
+func NewActivityRepository(pool *Pool, histogram metric.Float64Histogram, tracer trace.Tracer) *ActivityRepository {
+	if tracer == nil {
+		tracer = tracenoop.NewTracerProvider().Tracer("")
+	}
+	return &ActivityRepository{db: pool, pool: pool, histogram: histogram, tracer: tracer}
 }
 
 // newActivityRepository creates a repository backed by any DBQuerier.
 // Used in tests to inject a transaction for rollback isolation.
 func newActivityRepository(db DBQuerier) *ActivityRepository {
-	return &ActivityRepository{db: db}
+	return &ActivityRepository{db: db, tracer: tracenoop.NewTracerProvider().Tracer("")}
 }
 
 // Ping verifies database connectivity.
@@ -139,7 +159,24 @@ func (r *ActivityRepository) queryMultiSportByDateRange(ctx context.Context, op,
 // GetMultiSportMetricsByDateRange returns cumulative metrics for multiple sports in a date range.
 // Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter,
 // ensuring correct cumulative sums even for sports with no activity data in the range.
-func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
+//
+//nolint:dupl // Span-attribute list intentionally mirrors sibling multi-sport methods so each retains its own grep-able span name and attribute set; extracting a helper would obscure that.
+func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (result map[string]*generated.SportMetrics, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.multi_sport_metrics_by_date_range",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+		attribute.String("from", from),
+		attribute.String("to", to),
+		attribute.Int("sport_count", len(sportTypes)),
+	)
+	defer func() {
+		// result.row_count = number of sports returned (each may have many timeseries points).
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(result)))
+		spanDone(retErr)
+	}()
+
 	query := `
 		SELECT
 			sport,
@@ -208,7 +245,19 @@ func getDateRangeForYear(year int, loc *time.Location) (from, to string) {
 // Each sport gets its own dense date series via CROSS JOIN with unnest of the sport types parameter.
 // loc determines "today" for current-year queries — using the user's timezone prevents
 // the dense series from extending into "tomorrow" when the server runs in UTC.
-func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.SportMetrics, error) {
+//
+//nolint:dupl // Year-wrapper structure mirrors GetMultiSportDailySummary so each method's span name remains explicit and grep-able.
+func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (result map[string]*generated.SportMetrics, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.multi_sport_metrics",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+		attribute.Int("year", year),
+		attribute.Int("sport_count", len(sportTypes)),
+	)
+	defer func() { spanDone(retErr) }()
+
 	from, to := getDateRangeForYear(year, loc)
 	return r.GetMultiSportMetricsByDateRange(ctx, userID, from, to, sportTypes)
 }
@@ -256,14 +305,42 @@ func scanMultiSportMetricsRows(rows interface {
 
 // GetMultiSportDailySummary returns daily summaries for multiple sports in a given year.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.DailySummary, error) {
+//
+//nolint:dupl // Year-wrapper structure mirrors GetMultiSportMetrics so each method's span name remains explicit and grep-able.
+func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (result map[string]*generated.DailySummary, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.multi_sport_daily_summary",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+		attribute.Int("year", year),
+		attribute.Int("sport_count", len(sportTypes)),
+	)
+	defer func() { spanDone(retErr) }()
+
 	from, to := getDateRangeForYear(year, loc)
 	return r.GetMultiSportDailySummaryByDateRange(ctx, userID, from, to, sportTypes)
 }
 
 // GetMultiSportDailySummaryByDateRange returns daily summaries for multiple sports in a date range.
 // Returns a map keyed by raw Strava sport type.
-func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
+//
+//nolint:dupl // Span-attribute list intentionally mirrors sibling multi-sport methods so each retains its own grep-able span name and attribute set.
+func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (result map[string]*generated.DailySummary, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.multi_sport_daily_summary_by_date_range",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+		attribute.String("from", from),
+		attribute.String("to", to),
+		attribute.Int("sport_count", len(sportTypes)),
+	)
+	defer func() {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(result)))
+		spanDone(retErr)
+	}()
+
 	query := `
 		SELECT
 			sport,
@@ -336,8 +413,22 @@ func scanMultiSportDailySummaryRows(rows interface {
 // GetYearMetadata returns metadata about activities for a given year.
 // Includes list of sports, per-sport totals, and last updated timestamp.
 func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string, year int) (metadata *generated.YearMetadata, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.year_metadata",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+		attribute.Int("year", year),
+	)
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "year_metadata"))
-	defer func() { done(retErr) }()
+	defer func() {
+		// row_count = number of distinct sports the user had in this year.
+		if metadata != nil {
+			trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(metadata.Sports)))
+		}
+		done(retErr)
+		spanDone(retErr)
+	}()
 	// Validate year range early to avoid unnecessary DB query and satisfy G115 (int to int32)
 	if year < 0 || year > math.MaxInt32 {
 		return nil, fmt.Errorf("year %d out of valid range (0-%d)", year, math.MaxInt32)
@@ -417,8 +508,24 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string,
 // GetActivityByID returns a single activity by its Strava ID.
 // Returns nil (not error) if the activity is not found.
 func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string, id int64) (activity *activitiesv1.Activity, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.get_by_id",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+		attribute.Int64("activity_id", id),
+	)
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_activity_by_id"))
-	defer func() { done(retErr) }()
+	defer func() {
+		// 0 if not found (treated as success), 1 if a row was returned.
+		rowCount := 0
+		if activity != nil {
+			rowCount = 1
+		}
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", rowCount))
+		done(retErr)
+		spanDone(retErr)
+	}()
 	query := `
 		SELECT
 			id, name, type, sport, start_date_local,
@@ -455,8 +562,11 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 	)
 
 	if retErr != nil {
-		// Check for not found - pgx returns specific error
+		// Check for not found - pgx returns specific error.
+		// Clear retErr so the duration metric and span both record this as
+		// success, not error: a missing activity is a normal API response.
 		if errors.Is(retErr, pgx.ErrNoRows) {
+			retErr = nil
 			return nil, nil
 		}
 		return nil, fmt.Errorf("query activity by id: %w", retErr)
@@ -528,9 +638,26 @@ func (qb *queryBuilder) append(s string) {
 // ListActivities returns activities matching the filter criteria with cursor-based pagination.
 // Results are ordered by (start_date_local DESC, id DESC) for stable ordering.
 // Uses keyset pagination for O(1) performance regardless of offset.
+//
+//nolint:gocyclo // Complexity is from query-builder branching on optional filter fields; not worth restructuring just to drop one over the threshold.
 func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (resp *activitiesv1.ListActivitiesResponse, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.list",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", filter.UserID),
+		attribute.Int("limit", filter.Limit),
+		attribute.Int("sport_count", len(filter.SportTypes)),
+		attribute.Bool("has_cursor", filter.Cursor != nil),
+	)
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "list_activities"))
-	defer func() { done(retErr) }()
+	defer func() {
+		if resp != nil {
+			trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(resp.Activities)))
+		}
+		done(retErr)
+		spanDone(retErr)
+	}()
 	// Build query dynamically based on filter
 	// We fetch limit+1 to determine if there are more results
 	qb := newQueryBuilder(`
@@ -680,8 +807,19 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 // Uses ST_Translate to center each route's start point at the origin, and
 // ST_Simplify to reduce coordinate density for efficient frontend rendering.
 func (r *ActivityRepository) GetNormalizedRoutes(ctx context.Context, userID string, limit int) (routes []repository.NormalizedRoute, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.list_routes",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+		attribute.Int("limit", limit),
+	)
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_normalized_routes"))
-	defer func() { done(retErr) }()
+	defer func() {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(routes)))
+		done(retErr)
+		spanDone(retErr)
+	}()
 
 	// Match ListActivities pattern: default for unset, cap at max otherwise.
 	if limit <= 0 {

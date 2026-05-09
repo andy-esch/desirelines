@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // newRecordingLogger returns a slog.Logger that writes JSON records to the
@@ -42,7 +45,7 @@ func decodeRecords(t *testing.T, buf *bytes.Buffer) []map[string]any {
 
 func TestSlowQueryTracer_BelowThreshold_DoesNotLog(t *testing.T) {
 	logger, buf := newRecordingLogger(t)
-	tracer := newSlowQueryTracer(logger, 500*time.Millisecond)
+	tracer := newPgxTracer(logger, 500*time.Millisecond, nil)
 
 	ctx := tracer.TraceQueryStart(context.Background(), nil, pgx.TraceQueryStartData{
 		SQL:  "SELECT 1",
@@ -59,7 +62,7 @@ func TestSlowQueryTracer_BelowThreshold_DoesNotLog(t *testing.T) {
 func TestSlowQueryTracer_AboveThreshold_LogsWarn(t *testing.T) {
 	logger, buf := newRecordingLogger(t)
 	// Threshold of 1ms keeps the test fast while still exercising the path.
-	tracer := newSlowQueryTracer(logger, 1*time.Millisecond)
+	tracer := newPgxTracer(logger, 1*time.Millisecond, nil)
 
 	ctx := tracer.TraceQueryStart(context.Background(), nil, pgx.TraceQueryStartData{
 		SQL:  "SELECT slow_query($1, $2)",
@@ -103,7 +106,7 @@ func TestSlowQueryTracer_AboveThreshold_LogsWarn(t *testing.T) {
 
 func TestSlowQueryTracer_ArgCountMatchesInput(t *testing.T) {
 	logger, buf := newRecordingLogger(t)
-	tracer := newSlowQueryTracer(logger, 1*time.Millisecond)
+	tracer := newPgxTracer(logger, 1*time.Millisecond, nil)
 
 	args := []any{"a", "b", "c", "d", "e"}
 	ctx := tracer.TraceQueryStart(context.Background(), nil, pgx.TraceQueryStartData{
@@ -124,7 +127,7 @@ func TestSlowQueryTracer_ArgCountMatchesInput(t *testing.T) {
 
 func TestSlowQueryTracer_LogsErrorFieldOnFailure(t *testing.T) {
 	logger, buf := newRecordingLogger(t)
-	tracer := newSlowQueryTracer(logger, 1*time.Millisecond)
+	tracer := newPgxTracer(logger, 1*time.Millisecond, nil)
 
 	ctx := tracer.TraceQueryStart(context.Background(), nil, pgx.TraceQueryStartData{
 		SQL:  "SELECT bad_column",
@@ -156,11 +159,98 @@ func TestSlowQueryTracer_NoLogWhenContextMissing(t *testing.T) {
 	// Defensive: TraceQueryEnd must not panic and must not log if it is
 	// called with a context that never went through TraceQueryStart.
 	logger, buf := newRecordingLogger(t)
-	tracer := newSlowQueryTracer(logger, 1*time.Millisecond)
+	tracer := newPgxTracer(logger, 1*time.Millisecond, nil)
 
 	tracer.TraceQueryEnd(context.Background(), nil, pgx.TraceQueryEndData{})
 
 	if got := buf.String(); got != "" {
 		t.Errorf("expected no log output without start context, got %q", got)
 	}
+}
+
+func TestPgxTracer_AcquireSpanEmitted(t *testing.T) {
+	// Verify TraceAcquireStart/End emit a `postgres.session.acquire` span
+	// with the expected name and db.* attributes. This is the apigateway's
+	// equivalent of stravapipe's SqlAlchemyUnitOfWork session-acquire span;
+	// regressions here would silently drop the apigateway's pool-checkout
+	// signal in Cloud Trace.
+	logger, _ := newRecordingLogger(t)
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	pt := newPgxTracer(logger, 0, tp.Tracer("test"))
+
+	ctx := pt.TraceAcquireStart(context.Background(), nil, pgxpool.TraceAcquireStartData{})
+	pt.TraceAcquireEnd(ctx, nil, pgxpool.TraceAcquireEndData{})
+
+	ended := sr.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("expected 1 ended span, got %d", len(ended))
+	}
+	span := ended[0]
+	if span.Name() != "postgres.session.acquire" {
+		t.Errorf("span name = %q, want %q", span.Name(), "postgres.session.acquire")
+	}
+
+	wantAttrs := map[string]string{"db.system": dbSystem, "db.name": dbName}
+	for _, attr := range span.Attributes() {
+		want, ok := wantAttrs[string(attr.Key)]
+		if !ok {
+			continue
+		}
+		if got := attr.Value.AsString(); got != want {
+			t.Errorf("attr %q = %q, want %q", attr.Key, got, want)
+		}
+		delete(wantAttrs, string(attr.Key))
+	}
+	if len(wantAttrs) != 0 {
+		t.Errorf("missing required attributes: %v", wantAttrs)
+	}
+}
+
+func TestPgxTracer_AcquireSpanRecordsError(t *testing.T) {
+	// Failed pool acquires (e.g. timeout, network) must surface as ERROR
+	// status on the span so Cloud Trace's status facet finds them.
+	logger, _ := newRecordingLogger(t)
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	pt := newPgxTracer(logger, 0, tp.Tracer("test"))
+
+	ctx := pt.TraceAcquireStart(context.Background(), nil, pgxpool.TraceAcquireStartData{})
+	acquireErr := errors.New("connection refused")
+	pt.TraceAcquireEnd(ctx, nil, pgxpool.TraceAcquireEndData{Err: acquireErr})
+
+	ended := sr.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("expected 1 ended span, got %d", len(ended))
+	}
+	if got := ended[0].Status().Code.String(); got != "Error" {
+		t.Errorf("span status = %q, want %q", got, "Error")
+	}
+}
+
+func TestPgxTracer_AcquireEndWithoutStart_NoPanic(t *testing.T) {
+	// Defensive: if pgxpool ever calls TraceAcquireEnd with a context that
+	// never went through TraceAcquireStart, the tracer must no-op silently
+	// rather than panic. Currently never happens but cheap to guarantee.
+	logger, _ := newRecordingLogger(t)
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	pt := newPgxTracer(logger, 0, tp.Tracer("test"))
+
+	pt.TraceAcquireEnd(context.Background(), nil, pgxpool.TraceAcquireEndData{})
+
+	if ended := sr.Ended(); len(ended) != 0 {
+		t.Errorf("expected 0 ended spans, got %d", len(ended))
+	}
+}
+
+func TestPgxTracer_NilTracer_NoOp(t *testing.T) {
+	// nil tracer should fall back to a no-op tracer; acquire methods must
+	// still operate cleanly without emitting spans.
+	logger, _ := newRecordingLogger(t)
+	pt := newPgxTracer(logger, 0, nil)
+
+	ctx := pt.TraceAcquireStart(context.Background(), nil, pgxpool.TraceAcquireStartData{})
+	pt.TraceAcquireEnd(ctx, nil, pgxpool.TraceAcquireEndData{})
+	// No assertions — just verifying no panic.
 }
