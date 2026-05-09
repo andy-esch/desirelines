@@ -59,12 +59,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         config = load_bq_inserter_config()
         logger.info("BQ Inserter configuration validated successfully")
 
-        # Initialize OTel tracing first so the tracer can be threaded into
-        # adapters built below (writer, delete_service). setup_tracing is
-        # safe to call before metrics — they share no state.
+        # Initialize OTel tracing + metrics first so both can be threaded
+        # into adapters built below. The writer takes the histogram so the
+        # `merge_from_staging` sub-span records duration on the same
+        # `bigquery/operation.duration` metric the outer `bigquery.insert_rows`
+        # already uses. (delete_service intentionally does not — the outer
+        # `bigquery.dml` histogram is sufficient for alerting on the rare
+        # DELETE path; see expose-sub-span-histograms-for-slo-alerting.)
         app.state.tracer = setup_tracing("desirelines-bq-inserter")
+        meter = setup_metrics("desirelines-bq-inserter")
+        app.state.bq_histogram = meter.create_histogram(
+            "desirelines.io/bigquery/operation.duration",
+            unit="ms",
+            description="BigQuery operation duration",
+        )
+        app.state.webhook_counter = meter.create_counter(
+            "desirelines.io/webhook/events",
+            description="Webhook events processed",
+        )
 
-        app.state.writer = make_write_activities(config, tracer=app.state.tracer)
+        app.state.writer = make_write_activities(
+            config, tracer=app.state.tracer, histogram=app.state.bq_histogram
+        )
         logger.info("BigQuery writer initialized")
 
         # Experimental Storage Write API writer for the dual-write spike.
@@ -86,18 +102,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.bq_dataset = config.bq_dataset
 
         app.state.readiness_timeout = config.readiness_timeout
-
-        # Initialize OTel metrics
-        meter = setup_metrics("desirelines-bq-inserter")
-        app.state.bq_histogram = meter.create_histogram(
-            "desirelines.io/bigquery/operation.duration",
-            unit="ms",
-            description="BigQuery operation duration",
-        )
-        app.state.webhook_counter = meter.create_counter(
-            "desirelines.io/webhook/events",
-            description="Webhook events processed",
-        )
 
         yield
     except Exception:

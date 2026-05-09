@@ -353,49 +353,64 @@ func TestGetMultiSportDailySummaryByDateRange_EmitsSpan(t *testing.T) {
 	}
 }
 
-func TestGetMultiSportMetrics_YearWrapperEmitsBothSpans(t *testing.T) {
-	// The year wrapper computes from/to via getDateRangeForYear and delegates.
-	// We expect TWO spans in the trace: the wrapper (multi_sport_metrics) and
-	// the underlying date-range method's span.
+//nolint:dupl // Sibling year-wrapper tests intentionally have identical shape; the methods they exercise are themselves twins.
+func TestGetMultiSportMetrics_YearWrapperDelegatesAndStampsYear(t *testing.T) {
+	// The year wrapper no longer emits its own span — it delegates to
+	// GetMultiSportMetricsByDateRange and stamps `year` on whichever span
+	// is currently active. Test: provide a parent span, call the wrapper,
+	// assert the inner span exists, the wrapper-equivalent does NOT, and
+	// the parent span carries the year attribute.
 	repo, sr := newSpanRecordingRepo(t)
 
-	loc := time.UTC
+	parentCtx, parentSpan := repo.tracer.Start(context.Background(), "test-server-span")
 	_, err := repo.GetMultiSportMetrics(
-		context.Background(), "user-1", 2026, []string{"Run"}, loc,
+		parentCtx, "user-1", 2026, []string{"Run"}, time.UTC,
 	)
+	parentSpan.End()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wrapper := findSpan(sr.Ended(), "repository.activities.multi_sport_metrics")
-	inner := findSpan(sr.Ended(), "repository.activities.multi_sport_metrics_by_date_range")
-	if wrapper == nil {
-		t.Fatalf("wrapper span (multi_sport_metrics) not emitted")
+	if findSpan(sr.Ended(), "repository.activities.multi_sport_metrics") != nil {
+		t.Errorf("wrapper span should not be emitted; year wrapper is pure delegation now")
 	}
-	if inner == nil {
-		t.Fatalf("inner span (multi_sport_metrics_by_date_range) not emitted")
+	if findSpan(sr.Ended(), "repository.activities.multi_sport_metrics_by_date_range") == nil {
+		t.Errorf("inner date-range span not emitted")
 	}
-	if got := attrAsInt(wrapper, "year"); got != 2026 {
-		t.Errorf("wrapper year = %d, want 2026", got)
+	parent := findSpan(sr.Ended(), "test-server-span")
+	if parent == nil {
+		t.Fatalf("parent span not found")
+	}
+	if got := attrAsInt(parent, "year"); got != 2026 {
+		t.Errorf("year stamped on parent = %d, want 2026", got)
 	}
 }
 
-func TestGetMultiSportDailySummary_YearWrapperEmitsBothSpans(t *testing.T) {
+//nolint:dupl // Sibling year-wrapper tests intentionally have identical shape; the methods they exercise are themselves twins.
+func TestGetMultiSportDailySummary_YearWrapperDelegatesAndStampsYear(t *testing.T) {
 	repo, sr := newSpanRecordingRepo(t)
 
-	loc := time.UTC
+	parentCtx, parentSpan := repo.tracer.Start(context.Background(), "test-server-span")
 	_, err := repo.GetMultiSportDailySummary(
-		context.Background(), "user-1", 2026, []string{"Run"}, loc,
+		parentCtx, "user-1", 2026, []string{"Run"}, time.UTC,
 	)
+	parentSpan.End()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if findSpan(sr.Ended(), "repository.activities.multi_sport_daily_summary") == nil {
-		t.Errorf("wrapper span (multi_sport_daily_summary) not emitted")
+	if findSpan(sr.Ended(), "repository.activities.multi_sport_daily_summary") != nil {
+		t.Errorf("wrapper span should not be emitted")
 	}
 	if findSpan(sr.Ended(), "repository.activities.multi_sport_daily_summary_by_date_range") == nil {
-		t.Errorf("inner span (multi_sport_daily_summary_by_date_range) not emitted")
+		t.Errorf("inner date-range span not emitted")
+	}
+	parent := findSpan(sr.Ended(), "test-server-span")
+	if parent == nil {
+		t.Fatalf("parent span not found")
+	}
+	if got := attrAsInt(parent, "year"); got != 2026 {
+		t.Errorf("year stamped on parent = %d, want 2026", got)
 	}
 }
 
