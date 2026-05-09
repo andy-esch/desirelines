@@ -222,9 +222,7 @@ class ActivitiesWriter(WriteActivities):
                 "bigquery.merge_batch_from_staging",
                 {"batch_size": len(activity_ids)},
             ),
-            record_duration(
-                self._histogram, {"operation": "merge_batch_from_staging"}
-            ),
+            record_duration(self._histogram, {"operation": "merge_batch_from_staging"}),
         ):
             result = self._client.execute_merge_query(merge_query, query_params)
         # Clean up staging table after successful merge
