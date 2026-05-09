@@ -12,7 +12,7 @@ FROM python:${PYTHON_VERSION}-slim AS builder
 WORKDIR /build
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.11.11 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.12 /uv /uvx /bin/
 
 # Copy package files for dependency installation (context is packages/stravapipe)
 COPY pyproject.toml README.md ./
