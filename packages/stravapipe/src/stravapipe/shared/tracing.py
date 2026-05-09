@@ -55,8 +55,16 @@ def setup_tracing(service_name: str) -> Tracer:
             GoogleCloudResourceDetector,
         )
 
+        # Detector first, explicit service.name second: OTel's Resource.merge()
+        # lets the `other` resource override on conflict, so the explicit
+        # attribute must be on the right-hand side to win. Mirrors the Go
+        # pattern in packages/shared/otel/provider.go (WithDetectors before
+        # WithAttributes). Without this order, `service.name` from the GCP
+        # detector or env vars (OTEL_SERVICE_NAME / K_SERVICE) silently
+        # clobbers ours, and Cloud Trace's "Service" column shows blank for
+        # spans emitted by these Python services.
         gcp_resource = GoogleCloudResourceDetector().detect()
-        resource = Resource.create({"service.name": service_name}).merge(gcp_resource)
+        resource = gcp_resource.merge(Resource.create({"service.name": service_name}))
 
         exporter = CloudTraceSpanExporter()  # type: ignore[no-untyped-call, unused-ignore]
         processor = BatchSpanProcessor(exporter)

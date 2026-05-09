@@ -80,19 +80,22 @@ Look for the **widest single span** in the timeline view. The pattern is usually
 | `strava.FetchActivity` (>500ms) | Strava API latency or token refresh | Check for child `strava.RefreshToken` span — if present, this is a one-time hit |
 | `postgres.polyline.decode` (>200ms) | Long route activity | Expected for ultras; not actionable unless persistent |
 | `postgres.session.acquire` (>200ms) | Pool contention or Neon cold compute | If consistent, check Neon compute hours / pool config |
+| `postgres.activities.insert` (~700ms-1.5s) on the **first** webhook after idle | Neon compute wake-up — the first query after the compute scales to zero pays the wake cost (`session.acquire` will be sub-ms because pool checkout is just TCP). Subsequent inserts within the warm window drop to ~150-200ms. | Not a bug. Confirm by uploading a second activity quickly: insert latency should drop 4-5×. |
 | Cold-start gap before first span | Cloud Run cold start | Expected on the first request after idle; not a bug |
 
 ### "There's a missing parent span"
 
-Cloud Trace flags a span whose `parent_id` doesn't resolve. Three causes, in order of likelihood:
+Cloud Trace flags a span whose `parent_id` doesn't resolve. Four causes, ranked:
 
-1. **Exporter dropout** during cold start — BatchSpanProcessor's queue saturated before it could flush. Acceptable noise.
-2. **Sampling decision drift** — happens with non-`AlwaysSample` configs; we currently use `AlwaysSample` so this should be ruled out.
-3. **Propagation gap** — the dispatcher's PubSub publish failed to inject `traceparent`, or the consumer didn't extract it. The consumer's root span will show no parent. **This is the bug case.** Check both:
-   - Go: `packages/dispatcher/adapters/pubsub/publisher.go` — confirm `propagation.MapCarrier(attrs)` is the carrier.
-   - Python: `packages/stravapipe/src/stravapipe/shared/tracing.py:extract_context_from_attributes` — confirm `traceparent` in `message_attributes`.
+1. **Upstream trust-boundary parent (the dispatcher's normal case).** The dispatcher's `POST /webhook` span continues the inbound `X-Cloud-Trace-Context` header by design (see [observability.md](../architecture/observability.md) — trusted callers continue the trace). Cloud Run's edge layer / Strava's webhook system owns the parent span_id and doesn't export to our Cloud Trace project, so Cloud Trace flags it as missing. **This appears on every dispatcher webhook trace and is not a bug.** Apigateway is exempt because of `WithPublicEndpointFn(true)`.
 
-If missing-parent appears on **most** webhook traces (not just cold starts), suspect propagation. If only on cold-start traces, accept it as exporter noise.
+   *To confirm this is the cause:* the missing span_id should equal `POST /webhook`'s `parent_span_id` (visible in the span attributes panel). All other spans in the trace will have visible parents.
+
+2. **Exporter dropout** during cold start — BatchSpanProcessor's queue saturated before it could flush. Acceptable noise.
+3. **Sampling decision drift** — N/A while `AlwaysSample` is in effect.
+4. **Propagation gap** — the bug case. Signal: a Python service's `webhook.process` has a `parent_span_id` that doesn't match the dispatcher's `pubsub.Publish` span_id. Check Go inject in `packages/dispatcher/adapters/pubsub/publisher.go` and Python extract in `packages/stravapipe/src/stravapipe/shared/tracing.py:extract_context_from_attributes`.
+
+Triage rule: if the missing ID matches `POST /webhook`'s parent, you're in case 1 — done. If a Python `webhook.process` doesn't parent to `pubsub.Publish`, you're in case 4 — bug.
 
 ### "Show logs" doesn't work
 
