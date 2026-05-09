@@ -42,7 +42,7 @@ func decodeRecords(t *testing.T, buf *bytes.Buffer) []map[string]any {
 
 func TestSlowQueryTracer_BelowThreshold_DoesNotLog(t *testing.T) {
 	logger, buf := newRecordingLogger(t)
-	tracer := newSlowQueryTracer(logger, 500*time.Millisecond)
+	tracer := newPgxTracer(logger, 500*time.Millisecond, nil)
 
 	ctx := tracer.TraceQueryStart(context.Background(), nil, pgx.TraceQueryStartData{
 		SQL:  "SELECT 1",
@@ -59,7 +59,7 @@ func TestSlowQueryTracer_BelowThreshold_DoesNotLog(t *testing.T) {
 func TestSlowQueryTracer_AboveThreshold_LogsWarn(t *testing.T) {
 	logger, buf := newRecordingLogger(t)
 	// Threshold of 1ms keeps the test fast while still exercising the path.
-	tracer := newSlowQueryTracer(logger, 1*time.Millisecond)
+	tracer := newPgxTracer(logger, 1*time.Millisecond, nil)
 
 	ctx := tracer.TraceQueryStart(context.Background(), nil, pgx.TraceQueryStartData{
 		SQL:  "SELECT slow_query($1, $2)",
@@ -103,7 +103,7 @@ func TestSlowQueryTracer_AboveThreshold_LogsWarn(t *testing.T) {
 
 func TestSlowQueryTracer_ArgCountMatchesInput(t *testing.T) {
 	logger, buf := newRecordingLogger(t)
-	tracer := newSlowQueryTracer(logger, 1*time.Millisecond)
+	tracer := newPgxTracer(logger, 1*time.Millisecond, nil)
 
 	args := []any{"a", "b", "c", "d", "e"}
 	ctx := tracer.TraceQueryStart(context.Background(), nil, pgx.TraceQueryStartData{
@@ -124,7 +124,7 @@ func TestSlowQueryTracer_ArgCountMatchesInput(t *testing.T) {
 
 func TestSlowQueryTracer_LogsErrorFieldOnFailure(t *testing.T) {
 	logger, buf := newRecordingLogger(t)
-	tracer := newSlowQueryTracer(logger, 1*time.Millisecond)
+	tracer := newPgxTracer(logger, 1*time.Millisecond, nil)
 
 	ctx := tracer.TraceQueryStart(context.Background(), nil, pgx.TraceQueryStartData{
 		SQL:  "SELECT bad_column",
@@ -156,7 +156,7 @@ func TestSlowQueryTracer_NoLogWhenContextMissing(t *testing.T) {
 	// Defensive: TraceQueryEnd must not panic and must not log if it is
 	// called with a context that never went through TraceQueryStart.
 	logger, buf := newRecordingLogger(t)
-	tracer := newSlowQueryTracer(logger, 1*time.Millisecond)
+	tracer := newPgxTracer(logger, 1*time.Millisecond, nil)
 
 	tracer.TraceQueryEnd(context.Background(), nil, pgx.TraceQueryEndData{})
 

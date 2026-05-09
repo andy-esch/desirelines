@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Pool configuration defaults (can be overridden via environment variables).
@@ -72,7 +73,12 @@ type Pool struct {
 // CU-hour budget. The hourly Cloud Scheduler /api/ready probe is the canary
 // that catches a broken connection string or unreachable DB. See the
 // optimize-database-compute-usage task for the full analysis.
-func NewPool(ctx context.Context, connString string, logger *slog.Logger) (*Pool, error) {
+//
+// The tracer is used to emit `postgres.session.acquire` spans on every
+// pool checkout via pgxpool's AcquireTracer interface. Pass nil to disable
+// (spans become no-ops); production callers should pass providers.Tracer
+// from the OTel setup.
+func NewPool(ctx context.Context, connString string, logger *slog.Logger, tracer trace.Tracer) (*Pool, error) {
 	// Validate connection string format and required parameters
 	if validateErr := validateConnectionString(connString); validateErr != nil {
 		return nil, validateErr
@@ -96,16 +102,19 @@ func NewPool(ctx context.Context, connString string, logger *slog.Logger) (*Pool
 		return nil, fmt.Errorf("%w: min=%d, max=%d", ErrInvalidPoolConfig, config.MinConns, config.MaxConns)
 	}
 
-	// Slow-query logging via pgx tracer. Threshold is configurable via
-	// DB_SLOW_QUERY_THRESHOLD_MS; setting it to 0 disables the tracer
-	// entirely (no per-query overhead, no log lines).
+	// pgx tracer combines slow-query logging (gated by DB_SLOW_QUERY_THRESHOLD_MS;
+	// 0 disables the WARN logs) with `postgres.session.acquire` OTel span
+	// emission (always on when tracer != nil). The tracer object implements
+	// both pgx.QueryTracer and pgxpool.AcquireTracer; pgxpool detects each via
+	// type assertion. We always install it because the acquire span has
+	// negligible overhead (sub-microsecond) and we want it in production
+	// regardless of the slow-query threshold.
 	slowMs := getInt32Env("DB_SLOW_QUERY_THRESHOLD_MS", defaultSlowQueryThresholdMs)
-	if slowMs > 0 {
-		config.ConnConfig.Tracer = newSlowQueryTracer(
-			logger,
-			time.Duration(slowMs)*time.Millisecond,
-		)
-	}
+	config.ConnConfig.Tracer = newPgxTracer(
+		logger,
+		time.Duration(slowMs)*time.Millisecond,
+		tracer,
+	)
 
 	logger.Info("Creating PostgreSQL connection pool",
 		"max_conns", config.MaxConns,

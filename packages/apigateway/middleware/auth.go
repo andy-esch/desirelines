@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	otelTrace "go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 )
 
 // contextKey is an unexported type for context keys to avoid collisions.
@@ -52,16 +53,25 @@ type AuthMiddleware struct {
 	verifier  TokenVerifier
 	logger    *slog.Logger
 	histogram metric.Float64Histogram
+	tracer    otelTrace.Tracer
 }
 
 // NewAuthMiddleware creates authentication middleware with a pre-initialized token verifier.
 // The Firebase app and auth client should be initialized in main.go and passed here.
-func NewAuthMiddleware(verifier TokenVerifier, logger *slog.Logger, histogram metric.Float64Histogram) *AuthMiddleware {
+//
+// The tracer is used to emit an `auth.verify_id_token` span around the
+// Firebase token verification call. Pass nil to disable (span no-ops);
+// production callers thread providers.Tracer through from the OTel setup.
+func NewAuthMiddleware(verifier TokenVerifier, logger *slog.Logger, histogram metric.Float64Histogram, tracer otelTrace.Tracer) *AuthMiddleware {
+	if tracer == nil {
+		tracer = tracenoop.NewTracerProvider().Tracer("")
+	}
 	logger.Info("Auth middleware initialized successfully")
 	return &AuthMiddleware{
 		verifier:  verifier,
 		logger:    logger,
 		histogram: histogram,
+		tracer:    tracer,
 	}
 }
 
@@ -93,21 +103,25 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 		idToken := parts[1]
 
-		// Verify the ID token with Firebase
-		done := otel.RecordDuration(r.Context(), m.histogram)
-		token, err := m.verifier.VerifyIDToken(r.Context(), idToken)
+		// Verify the ID token with Firebase. Span captures user-perceived
+		// auth latency; histogram captures the time-series for alerting.
+		// Both record the err so failed verifications are stamped on each.
+		ctx, spanDone := otel.StartSpan(r.Context(), m.tracer, "auth.verify_id_token")
+		done := otel.RecordDuration(ctx, m.histogram)
+		token, err := m.verifier.VerifyIDToken(ctx, idToken)
+		done(err)
+		spanDone(err)
 		if err != nil {
-			done(err)
 			m.logger.Warn("Auth: Authentication failed", "reason", "token_verification_failed", "error", err)
 			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
 			return
 		}
-		done(nil)
 
-		// Token verified — inject UID into context and proceed.
-		// The UID is the Strava athlete ID (as string), matching the
-		// PostgreSQL user_id column.
-		ctx := WithUserID(r.Context(), token.UID)
+		// Token verified — inject UID into context and proceed. We base
+		// the user-id context on r.Context() (NOT the auth-span ctx above,
+		// which is now closed) so downstream handlers create their spans
+		// as children of the otelhttp server span, not the closed auth span.
+		ctx = WithUserID(r.Context(), token.UID)
 
 		// Stamp the verified user ID onto the active OTel server span so Cloud
 		// Trace can filter "all traces for user X". Uses the OTel semantic-

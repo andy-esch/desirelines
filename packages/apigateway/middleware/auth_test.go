@@ -66,10 +66,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			am := &AuthMiddleware{
-				verifier: tt.mockVerifier,
-				logger:   logger,
-			}
+			am := NewAuthMiddleware(tt.mockVerifier, logger, nil, nil)
 
 			// Create a dummy handler that returns 200 OK
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,10 +99,7 @@ func TestAuthMiddleware_InjectsUserID(t *testing.T) {
 		},
 	}
 
-	am := &AuthMiddleware{
-		verifier: verifier,
-		logger:   logger,
-	}
+	am := NewAuthMiddleware(verifier, logger, nil, nil)
 
 	var capturedUID string
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -141,14 +135,11 @@ func TestAuthMiddleware_StampsEnduserIDOnSpan(t *testing.T) {
 		Token: &auth.Token{UID: "strava-12345"},
 	}
 
-	am := &AuthMiddleware{
-		verifier: verifier,
-		logger:   logger,
-	}
-
 	sr := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
 	tracer := tp.Tracer("test")
+
+	am := NewAuthMiddleware(verifier, logger, nil, tracer)
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -171,12 +162,28 @@ func TestAuthMiddleware_StampsEnduserIDOnSpan(t *testing.T) {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
 
+	// We expect two ended spans: the test-server-span (parent) and the
+	// auth.verify_id_token span (child) emitted by the middleware. Find the
+	// server span by name and assert the enduser.id stamp lives on it — the
+	// stamp must persist on the request-level span so downstream filtering by
+	// `enduser.id=<uid>` finds every operation in the request.
 	ended := sr.Ended()
-	if len(ended) != 1 {
-		t.Fatalf("expected 1 ended span, got %d", len(ended))
+	if len(ended) != 2 {
+		t.Fatalf("expected 2 ended spans (server + auth), got %d", len(ended))
+	}
+	var serverSpan sdktrace.ReadOnlySpan
+	names := make([]string, len(ended))
+	for i, s := range ended {
+		names[i] = s.Name()
+		if s.Name() == "test-server-span" {
+			serverSpan = s
+		}
+	}
+	if serverSpan == nil {
+		t.Fatalf("test-server-span not found in ended spans; got names: %v", names)
 	}
 	var found bool
-	for _, attr := range ended[0].Attributes() {
+	for _, attr := range serverSpan.Attributes() {
 		if string(attr.Key) == "enduser.id" {
 			if got := attr.Value.AsString(); got != "strava-12345" {
 				t.Errorf("enduser.id = %q, want %q", got, "strava-12345")
@@ -185,7 +192,7 @@ func TestAuthMiddleware_StampsEnduserIDOnSpan(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("enduser.id attribute not set on span")
+		t.Errorf("enduser.id attribute not set on server span")
 	}
 }
 
@@ -195,7 +202,7 @@ func TestAuthMiddleware_NoSpanIsNoOp(t *testing.T) {
 	// panic — auth must still succeed and inject the UID into context.
 	logger := gcplog.NewNoOpLogger()
 	verifier := &MockTokenVerifier{Token: &auth.Token{UID: "strava-12345"}}
-	am := &AuthMiddleware{verifier: verifier, logger: logger}
+	am := NewAuthMiddleware(verifier, logger, nil, nil)
 
 	var capturedUID string
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

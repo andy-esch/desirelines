@@ -41,6 +41,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	otelmetric "go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func main() {
@@ -83,7 +84,7 @@ func run(log *slog.Logger) error {
 	}
 
 	// Initialize all dependencies
-	deps, err := initDependencies(ctx, cfg, log, providers.Meter)
+	deps, err := initDependencies(ctx, cfg, log, providers.Meter, providers.Tracer)
 	if err != nil {
 		return fmt.Errorf("failed to initialize dependencies: %w", err)
 	}
@@ -205,7 +206,7 @@ func (d *Dependencies) Close() {
 // This is the composition root following hexagonal architecture.
 //
 //nolint:gocyclo // Composition root — wiring complexity is inherent.
-func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger, meter otelmetric.Meter) (*Dependencies, error) {
+func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger, meter otelmetric.Meter, tracer trace.Tracer) (*Dependencies, error) {
 	deps := &Dependencies{
 		logger:           log,
 		readinessTimeout: cfg.ReadinessTimeout,
@@ -254,12 +255,12 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	// 4–7. Auth setup: Firebase (via emulator in local dev) + Strava (mock in local dev)
 	if cfg.Environment.IsLocal() && os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" {
 		// Local dev: real Firebase auth (via emulator) + mock Strava
-		if authErr := initLocalDevAuth(ctx, cfg, deps, log, authHist); authErr != nil {
+		if authErr := initLocalDevAuth(ctx, cfg, deps, log, authHist, tracer); authErr != nil {
 			return nil, authErr
 		}
 	} else if !cfg.Environment.IsLocal() {
 		// Production/staging: real Firebase + real Strava
-		if authErr := initFirebaseAuth(ctx, cfg, deps, log, authHist, oauthHist); authErr != nil {
+		if authErr := initFirebaseAuth(ctx, cfg, deps, log, authHist, oauthHist, tracer); authErr != nil {
 			return nil, authErr
 		}
 	} else {
@@ -289,11 +290,11 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 		return nil, fmt.Errorf("failed to get database connection string: %w", err)
 	}
 
-	pool, poolErr := postgres.NewPool(ctx, connString, log)
+	pool, poolErr := postgres.NewPool(ctx, connString, log, tracer)
 	if poolErr != nil {
 		return nil, fmt.Errorf("failed to initialize database pool: %w", poolErr)
 	}
-	deps.repo = postgres.NewActivityRepository(pool, postgresHist)
+	deps.repo = postgres.NewActivityRepository(pool, postgresHist, tracer)
 	log.Info("Database repository initialized")
 
 	// 9a. Local-only sanity check: warn (don't fail) if MOCK_ATHLETE_ID has
@@ -418,7 +419,7 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 
 // initFirebaseAuth initializes Firebase, Firestore, and OAuth dependencies.
 // Extracted from initDependencies for cyclomatic complexity.
-func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist, oauthHist otelmetric.Float64Histogram) error {
+func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist, oauthHist otelmetric.Float64Histogram, tracer trace.Tracer) error {
 	firebaseApp, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: cfg.GCPProjectID})
 	if err != nil {
 		return fmt.Errorf("failed to initialize Firebase app: %w", err)
@@ -430,7 +431,7 @@ func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	}
 	log.Info("Firebase app initialized", "project_id", cfg.GCPProjectID)
 
-	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist)
+	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist, tracer)
 
 	firestoreClient, err := firestore.NewClientWithDatabase(ctx, cfg.GCPProjectID, cfg.FirestoreDatabase)
 	if err != nil {
@@ -452,7 +453,7 @@ func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 // emulator (for real JWT minting/verification) and a mock Strava adapter (to
 // skip the real Strava OAuth redirect). The full auth middleware runs on every
 // request, exactly as in production.
-func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist otelmetric.Float64Histogram) error {
+func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist otelmetric.Float64Histogram, tracer trace.Tracer) error {
 	log.Info("Local dev auth: Firebase emulator + mock Strava")
 
 	// Firebase Admin SDK auto-detects FIREBASE_AUTH_EMULATOR_HOST
@@ -468,7 +469,7 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	log.Info("Firebase Auth emulator connected", "host", os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"))
 
 	// Real auth middleware — verifies JWTs against the emulator
-	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist)
+	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist, tracer)
 
 	stateSecret := os.Getenv("AUTH_STATE_SECRET")
 	if stateSecret == "" {
