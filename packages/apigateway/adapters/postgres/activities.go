@@ -166,7 +166,7 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
 		attribute.String("db.operation", dbOpSelect),
-		attribute.String("user_id", userID),
+		attribute.String("enduser.id", userID),
 		attribute.String("from", from),
 		attribute.String("to", to),
 		attribute.Int("sport_count", len(sportTypes)),
@@ -220,13 +220,11 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 
 	rows, err := r.queryMultiSportByDateRange(ctx, "get_metrics_by_date_range", query, userID, from, to, sportTypes)
 	if err != nil {
-		retErr = err
 		return nil, err
 	}
 	defer rows.Close()
 
-	result, retErr = scanMultiSportMetricsRows(rows)
-	return result, retErr
+	return scanMultiSportMetricsRows(rows)
 }
 
 // getDateRangeForYear calculates the from and to date strings for a given year,
@@ -254,15 +252,14 @@ func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID st
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
 		attribute.String("db.operation", dbOpSelect),
-		attribute.String("user_id", userID),
+		attribute.String("enduser.id", userID),
 		attribute.Int("year", year),
 		attribute.Int("sport_count", len(sportTypes)),
 	)
 	defer func() { spanDone(retErr) }()
 
 	from, to := getDateRangeForYear(year, loc)
-	result, retErr = r.GetMultiSportMetricsByDateRange(ctx, userID, from, to, sportTypes)
-	return result, retErr
+	return r.GetMultiSportMetricsByDateRange(ctx, userID, from, to, sportTypes)
 }
 
 // scanMultiSportMetricsRows scans database rows into a map of sport → SportMetrics.
@@ -315,15 +312,14 @@ func (r *ActivityRepository) GetMultiSportDailySummary(ctx context.Context, user
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
 		attribute.String("db.operation", dbOpSelect),
-		attribute.String("user_id", userID),
+		attribute.String("enduser.id", userID),
 		attribute.Int("year", year),
 		attribute.Int("sport_count", len(sportTypes)),
 	)
 	defer func() { spanDone(retErr) }()
 
 	from, to := getDateRangeForYear(year, loc)
-	result, retErr = r.GetMultiSportDailySummaryByDateRange(ctx, userID, from, to, sportTypes)
-	return result, retErr
+	return r.GetMultiSportDailySummaryByDateRange(ctx, userID, from, to, sportTypes)
 }
 
 // GetMultiSportDailySummaryByDateRange returns daily summaries for multiple sports in a date range.
@@ -335,7 +331,7 @@ func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Co
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
 		attribute.String("db.operation", dbOpSelect),
-		attribute.String("user_id", userID),
+		attribute.String("enduser.id", userID),
 		attribute.String("from", from),
 		attribute.String("to", to),
 		attribute.Int("sport_count", len(sportTypes)),
@@ -365,13 +361,11 @@ func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Co
 
 	rows, err := r.queryMultiSportByDateRange(ctx, "daily_summary_by_date_range", query, userID, from, to, sportTypes)
 	if err != nil {
-		retErr = err
 		return nil, err
 	}
 	defer rows.Close()
 
-	result, retErr = scanMultiSportDailySummaryRows(rows)
-	return result, retErr
+	return scanMultiSportDailySummaryRows(rows)
 }
 
 // scanMultiSportDailySummaryRows scans database rows into a map of sport → DailySummary.
@@ -423,7 +417,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string,
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
 		attribute.String("db.operation", dbOpSelect),
-		attribute.String("user_id", userID),
+		attribute.String("enduser.id", userID),
 		attribute.Int("year", year),
 	)
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "year_metadata"))
@@ -518,7 +512,7 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
 		attribute.String("db.operation", dbOpSelect),
-		attribute.String("user_id", userID),
+		attribute.String("enduser.id", userID),
 		attribute.Int64("activity_id", id),
 	)
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_activity_by_id"))
@@ -651,7 +645,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
 		attribute.String("db.operation", dbOpSelect),
-		attribute.String("user_id", filter.UserID),
+		attribute.String("enduser.id", filter.UserID),
 		attribute.Int("limit", filter.Limit),
 		attribute.Int("sport_count", len(filter.SportTypes)),
 		attribute.Bool("has_cursor", filter.Cursor != nil),
@@ -817,7 +811,7 @@ func (r *ActivityRepository) GetNormalizedRoutes(ctx context.Context, userID str
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
 		attribute.String("db.operation", dbOpSelect),
-		attribute.String("user_id", userID),
+		attribute.String("enduser.id", userID),
 		attribute.Int("limit", limit),
 	)
 	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "get_normalized_routes"))

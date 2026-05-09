@@ -9,7 +9,37 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
+
+// fakeRow implements pgx.Row for GetActivityByID tests. The scanFn is invoked
+// when Scan is called; return pgx.ErrNoRows to simulate not-found, or nil to
+// simulate a successful scan (caller is responsible for populating dest).
+type fakeRow struct {
+	scanFn func(dest ...any) error
+}
+
+func (r *fakeRow) Scan(dest ...any) error { return r.scanFn(dest...) }
+
+// fakeQuerier implements DBQuerier so repository methods can be exercised in
+// unit tests without a real Postgres. Only the methods used by the test under
+// test need to do meaningful work; others can return zero values.
+type fakeQuerier struct {
+	queryRowFn func(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func (q *fakeQuerier) Query(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+func (q *fakeQuerier) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return q.queryRowFn(ctx, sql, args...)
+}
+func (q *fakeQuerier) Exec(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
 
 func TestActivityRepository_Ping(t *testing.T) {
 	// Since Pool embeds *pgxpool.Pool, we can't easily mock it.
@@ -54,6 +84,74 @@ func TestNewActivityRepository(t *testing.T) {
 			t.Error("expected nil pool to be stored as nil")
 		}
 	})
+}
+
+func TestGetActivityByID_NotFound_EmitsSpan(t *testing.T) {
+	// The not-found path must emit a `repository.activities.get_by_id` span
+	// with `result.row_count=0` and OK (not error) status — pgx.ErrNoRows is
+	// converted to (nil, nil) so traces classify it as a normal API outcome.
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+
+	repo := newActivityRepository(&fakeQuerier{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			return &fakeRow{scanFn: func(_ ...any) error { return pgx.ErrNoRows }}
+		},
+	})
+	repo.tracer = tp.Tracer("test")
+	noopHist, _ := otel.NoopProviders().Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
+	repo.histogram = noopHist
+
+	activity, err := repo.GetActivityByID(context.Background(), "user-123", 42)
+	if err != nil {
+		t.Fatalf("expected nil error on not-found, got %v", err)
+	}
+	if activity != nil {
+		t.Errorf("expected nil activity on not-found, got %v", activity)
+	}
+
+	ended := sr.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("expected 1 ended span, got %d", len(ended))
+	}
+	span := ended[0]
+	if span.Name() != "repository.activities.get_by_id" {
+		t.Errorf("span name = %q, want %q", span.Name(), "repository.activities.get_by_id")
+	}
+	if got := span.Status().Code.String(); got != "Unset" && got != "Ok" {
+		t.Errorf("span status = %q, want Unset or Ok (not-found is success)", got)
+	}
+
+	// Required attributes: db.system, db.name, db.operation, enduser.id,
+	// activity_id, result.row_count.
+	wantAttrs := map[string]any{
+		"db.system":        "postgresql",
+		"db.name":          "desirelines",
+		"db.operation":     "SELECT",
+		"enduser.id":       "user-123",
+		"activity_id":      int64(42),
+		"result.row_count": int64(0),
+	}
+	for _, attr := range span.Attributes() {
+		want, ok := wantAttrs[string(attr.Key)]
+		if !ok {
+			continue
+		}
+		switch v := want.(type) {
+		case string:
+			if got := attr.Value.AsString(); got != v {
+				t.Errorf("attr %q = %q, want %q", attr.Key, got, v)
+			}
+		case int64:
+			if got := attr.Value.AsInt64(); got != v {
+				t.Errorf("attr %q = %d, want %d", attr.Key, got, v)
+			}
+		}
+		delete(wantAttrs, string(attr.Key))
+	}
+	if len(wantAttrs) != 0 {
+		t.Errorf("missing required attributes: %v", wantAttrs)
+	}
 }
 
 func TestActivityRepository_InterfaceCompliance(t *testing.T) {
