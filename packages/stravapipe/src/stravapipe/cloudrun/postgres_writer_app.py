@@ -190,10 +190,18 @@ async def _handle_create(
         record_duration(pg_histogram, {"operation": "insert"}),
         uow,
     ):
-        with record_span(
-            tracer,
-            "postgres.activities.insert",
-            {"activity_id": activity_id},
+        # Sub-operation histogram: postgres.activities.insert is the single
+        # slowest postgres-side step on warm Neon (the Neon cold-compute
+        # signal lands here, not on session.acquire which is just TCP).
+        # Recording on the same `postgres/operation.duration` histogram with
+        # a sub-operation label lets the SLO task alert on it independently.
+        with (
+            record_span(
+                tracer,
+                "postgres.activities.insert",
+                {"activity_id": activity_id},
+            ),
+            record_duration(pg_histogram, {"operation": "activities_insert"}),
         ):
             inserted = uow.activities.insert(activity)
 

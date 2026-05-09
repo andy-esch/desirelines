@@ -1,5 +1,6 @@
 """GCP adapters."""
 
+from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
 
 from stravapipe.adapters.gcp._bigquery import ActivitiesReader, ActivitiesWriter
@@ -19,17 +20,22 @@ def make_write_activities(
     config: BQInserterConfig,
     *,
     tracer: Tracer | None = None,
+    histogram: Histogram | None = None,
 ) -> WriteActivities:
     """Create an ActivitiesWriter (WriteActivities port) with the given config.
 
     Pass ``tracer`` from the Cloud Run service so write/merge/cleanup steps
-    emit sub-spans. Batch jobs that don't initialize OTel can leave it unset.
+    emit sub-spans. Pass ``histogram`` so the same steps record duration on
+    the existing ``desirelines.io/bigquery/operation.duration`` histogram
+    (with operation labels matching span names — see SLO/alerting tasks).
+    Batch jobs that don't initialize OTel can leave both unset.
     """
     client = make_bigquery_client_wrapper(config)
     return ActivitiesWriter(
         client=client,
         dataset_name=config.bq_dataset,
         tracer=tracer,
+        histogram=histogram,
     )
 
 

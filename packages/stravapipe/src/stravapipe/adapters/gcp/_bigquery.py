@@ -3,6 +3,7 @@
 import logging
 
 from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
+from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
 
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
@@ -17,6 +18,7 @@ from stravapipe.exceptions import (
 )
 from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
+from stravapipe.shared.metrics import record_duration
 from stravapipe.shared.tracing import record_span
 
 logger = logging.getLogger(__name__)
@@ -77,15 +79,22 @@ class ActivitiesWriter(WriteActivities):
         dataset_name: str,
         table_name: str = "activities",
         tracer: Tracer | None = None,
+        histogram: Histogram | None = None,
     ):
         self._client = client
         self._dataset_name = dataset_name
         self._table_name = table_name
         # Derive from main table name
         self._staging_table_name = f"{table_name}_staging"
-        # Optional so non-service callers (e.g. the backfill job) can leave
-        # it unset; record_span no-ops when tracer is None.
+        # Both optional so non-service callers (e.g. the backfill job) can
+        # leave them unset; record_span/record_duration no-op when None.
         self._tracer = tracer
+        # The histogram, when set, captures sub-operation duration on the
+        # same `desirelines.io/bigquery/operation.duration` metric the outer
+        # `bigquery.insert_rows` already uses, with operation labels matching
+        # the span names. Lets the SLO task attach burn-rate alerts to e.g.
+        # the MERGE step independently of write_to_staging.
+        self._histogram = histogram
 
     def write_activity(self, activity: DetailedStravaActivity) -> MergeResult:
         """Two-step upsert: stage then merge.
@@ -191,10 +200,13 @@ class ActivitiesWriter(WriteActivities):
         decision depends on this split.
         """
         merge_query, query_params = self._build_merge_query(activity_id)
-        with record_span(
-            self._tracer,
-            "bigquery.merge_from_staging",
-            {"activity_id": activity_id},
+        with (
+            record_span(
+                self._tracer,
+                "bigquery.merge_from_staging",
+                {"activity_id": activity_id},
+            ),
+            record_duration(self._histogram, {"operation": "merge_from_staging"}),
         ):
             result = self._client.execute_merge_query(merge_query, query_params)
         # Clean up staging table after successful merge
@@ -204,10 +216,15 @@ class ActivitiesWriter(WriteActivities):
     def _merge_batch_from_staging(self, activity_ids: list[int]) -> MergeResult:
         """Execute MERGE operation for multiple activities at once"""
         merge_query, query_params = self._build_batch_merge_query(activity_ids)
-        with record_span(
-            self._tracer,
-            "bigquery.merge_batch_from_staging",
-            {"batch_size": len(activity_ids)},
+        with (
+            record_span(
+                self._tracer,
+                "bigquery.merge_batch_from_staging",
+                {"batch_size": len(activity_ids)},
+            ),
+            record_duration(
+                self._histogram, {"operation": "merge_batch_from_staging"}
+            ),
         ):
             result = self._client.execute_merge_query(merge_query, query_params)
         # Clean up staging table after successful merge
