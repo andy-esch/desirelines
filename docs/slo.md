@@ -89,7 +89,7 @@ postgres-writer is on the user-noticed critical path.
 | **What counts as "good"** | end-to-end < 3000ms |
 | **What counts as "bad"** | end-to-end ≥ 3000ms, OR CREATE event was lost (no measurement → counted as failure) |
 | **Scope: CREATE-only** | UPDATE and DELETE webhooks don't emit the freshness measurement today. CREATE is the most user-perceived signal ("uploaded activity didn't appear"); UPDATE ("edited title not visible") and DELETE ("deleted activity still showing") are arguably also freshness signals but with less acute impact and lower cadence. Extension is filed as a follow-up task. |
-| **Rationale** | 3 seconds is generous for the typical webhook path: dispatcher Strava-fetch (~300-500ms warm) + Pub/Sub publish (~50ms) + Pub/Sub deliver (~50-100ms) + postgres insert (~200ms warm) — well under 1s on warm path. The 3s budget gives breathing room for one cold transient (Neon cold-compute or Cloud Run cold-start) without flapping. Tighten to 2s after a month of warm-path data shows it's achievable. |
+| **Rationale** | Sized for the actual usage profile. This is a single-user app at 2-5 webhooks/day, so the **typical case is cold-everything**: Neon (5-min idle) is cold ~95%+ of webhooks, Cloud Run (scale-to-zero) is cold most of the time, and Strava token refresh fires on ~50% of webhooks. N=2 production samples show ~1.6-1.7s for the cold + token-refresh path (typical) and ~700ms for the rare back-to-back warm case. 3s gives ~1.4s headroom over the typical case — enough to tolerate compound cold-start without flapping, but tight enough to alert on real degradation. Recalibrate after 7-30 days based on actual p95: may stay at 3s, or push to 4s threshold or 90% target depending on the distribution. |
 
 ### SLO 4 — Apigateway availability
 

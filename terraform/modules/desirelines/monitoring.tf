@@ -907,10 +907,19 @@ resource "google_monitoring_notification_channel" "email_alerts" {
 # Slack channel is created outside Terraform (via GCP Console OAuth) so the
 # auth token never enters state; we just reference its ID. Email is kept
 # as a backup — both fire in parallel so nothing is missed if Slack is muted.
+#
+# `slack_only_notification_channels` is the lower-urgency variant used by
+# slow-burn SLO alerts in slos.tf — Slack only, no email — so the inbox
+# isn't flooded by sustained-mild-degradation alerts.
 locals {
   notification_channels = concat(
     google_monitoring_notification_channel.email_alerts[*].id,
     var.slack_notification_channel_id != null ? [var.slack_notification_channel_id] : [],
+  )
+  slack_only_notification_channels = (
+    var.slack_notification_channel_id != null
+    ? [var.slack_notification_channel_id]
+    : []
   )
 }
 
