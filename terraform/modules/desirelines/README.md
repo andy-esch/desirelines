@@ -94,8 +94,12 @@ module "desirelines" {
 | [google_monitoring_alert_policy.python_readiness_failing](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.service_4xx_errors](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.service_5xx_errors](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
+| [google_monitoring_alert_policy.slo_1_dispatcher_availability_fast_burn](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
+| [google_monitoring_alert_policy.slo_1_dispatcher_availability_slow_burn](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.slo_4_apigateway_availability_fast_burn](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.slo_4_apigateway_availability_slow_burn](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
+| [google_monitoring_alert_policy.slo_5_apigateway_latency_fast_burn](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
+| [google_monitoring_alert_policy.slo_5_apigateway_latency_slow_burn](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.strava_api_latency](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.webhook_events_absent](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.webhook_owner_check_error](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
@@ -103,7 +107,10 @@ module "desirelines" {
 | [google_monitoring_dashboard.desirelines_observability](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_dashboard) | resource |
 | [google_monitoring_notification_channel.email_alerts](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_notification_channel) | resource |
 | [google_monitoring_service.apigateway](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_service) | resource |
+| [google_monitoring_service.dispatcher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_service) | resource |
 | [google_monitoring_slo.apigateway_availability](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_slo) | resource |
+| [google_monitoring_slo.apigateway_latency](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_slo) | resource |
+| [google_monitoring_slo.dispatcher_availability](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_slo) | resource |
 | [google_monitoring_uptime_check_config.apigateway_health](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_uptime_check_config) | resource |
 | [google_monitoring_uptime_check_config.frontend_root](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_uptime_check_config) | resource |
 | [google_project_iam_member.api_gateway_firestore](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
