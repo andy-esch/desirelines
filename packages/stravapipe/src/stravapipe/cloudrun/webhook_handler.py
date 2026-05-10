@@ -24,9 +24,11 @@ from stravapipe.shared.constants import (
 )
 from stravapipe.shared.correlation import (
     apply_pubsub_request_context,
+    extract_dispatcher_received_at_from_attributes,
     extract_trace_from_cloud_trace_header,
     extract_trace_from_pubsub_attributes,
     new_correlation_id,
+    set_dispatcher_received_at_ms,
     set_trace_context,
 )
 from stravapipe.shared.responses import WebhookResponse
@@ -120,6 +122,15 @@ async def handle_webhook_cloudevent(
         )
         if trace_id:
             set_trace_context(trace_id, span_id, sampled)
+
+        # Extract dispatcher receive timestamp so handlers can record the
+        # end-to-end webhook freshness histogram (anchors SLO 3, data
+        # freshness). Stashed on a contextvar so handler-side code reads it
+        # without needing to thread `message_attributes` through the
+        # callback signature.
+        set_dispatcher_received_at_ms(
+            extract_dispatcher_received_at_from_attributes(message_attributes)
+        )
 
         # IMPORTANT: The span must wrap ALL log statements below. The
         # google-cloud-logging library reads the active OTel span and

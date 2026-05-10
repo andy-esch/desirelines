@@ -10,6 +10,7 @@ Activity data is now provided inline in the enriched event from the dispatcher
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import time
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -26,6 +27,7 @@ from stravapipe.config import load_postgres_writer_config
 from stravapipe.domain.activity import StandardActivity
 from stravapipe.domain.geometry import decode_polyline_to_geojson
 from stravapipe.shared.constants import ResponseStatus, SkipReason
+from stravapipe.shared.correlation import get_dispatcher_received_at_ms
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
 from stravapipe.shared.readiness import (
@@ -65,6 +67,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.webhook_counter = meter.create_counter(
             "desirelines.io/webhook/events",
             description="Webhook events processed",
+        )
+        # End-to-end webhook freshness: time from dispatcher receiving the
+        # Strava webhook to the activity row landing in postgres. Anchors
+        # SLO 3 (data freshness). The dispatcher stamps a
+        # `dispatcher_received_at_unix_ms` Pub/Sub attribute on every
+        # message; we read it here and record `now() - received_at` after
+        # a successful insert. Lost events (DLQ) don't emit a measurement,
+        # so they count against the SLO via its denominator.
+        app.state.freshness_histogram = meter.create_histogram(
+            "desirelines.io/webhook/end_to_end.duration",
+            unit="ms",
+            description=(
+                "End-to-end webhook latency from dispatcher receive to "
+                "postgres row visible. Records on successful inserts only."
+            ),
         )
 
         # Initialize OTel tracing
@@ -123,13 +140,14 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
     """Handle Pub/Sub CloudEvent from Eventarc."""
     session_factory = request.app.state.session_factory
     pg_hist = request.app.state.pg_histogram
+    freshness_hist = request.app.state.freshness_histogram
     webhook_counter = request.app.state.webhook_counter
     tracer = request.app.state.tracer
     return await handle_webhook_cloudevent(
         request,
         logger,
         on_create=lambda event, event_data, cid: _handle_create(
-            event, event_data, cid, session_factory, pg_hist, tracer
+            event, event_data, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         on_update=lambda event, event_data, cid: _handle_update(
             event, cid, session_factory, pg_hist, tracer
@@ -152,6 +170,7 @@ async def _handle_create(
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
+    freshness_histogram: Histogram | None = None,
 ) -> WebhookResponse:
     """Handle CREATE events - insert new activity to PostgreSQL.
 
@@ -223,6 +242,15 @@ async def _handle_create(
         uow.commit()
 
     if inserted:
+        # Record end-to-end webhook freshness (anchors SLO 3). Skipped when
+        # the dispatcher didn't stamp the timestamp (legacy messages from
+        # before the attribute existed) — that's fine, the SLO measures
+        # against post-rollout traffic only.
+        received_at_ms = get_dispatcher_received_at_ms()
+        if received_at_ms is not None and freshness_histogram is not None:
+            elapsed_ms = (time.time() * 1000.0) - received_at_ms
+            freshness_histogram.record(elapsed_ms, {"aspect_type": "create"})
+
         logger.info(
             "Created activity %s in PostgreSQL",
             activity_id,
