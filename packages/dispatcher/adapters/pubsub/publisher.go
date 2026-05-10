@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
@@ -25,6 +26,32 @@ const (
 	// if the caller's context has no deadline. Prevents indefinite blocking.
 	DefaultPublishTimeout = 30 * time.Second
 )
+
+// receivedAtCtxKey carries the dispatcher-receive timestamp from the HTTP
+// handler down to the publisher so it can be stamped onto the Pub/Sub
+// message attributes. Downstream postgres-writer subtracts this from its
+// insert time to record the end-to-end webhook freshness histogram that
+// SLO 3 (data freshness) measures. Unexported; use WithWebhookReceivedAt
+// and webhookReceivedAt to read/write.
+type receivedAtCtxKey struct{}
+
+// WithWebhookReceivedAt stashes the dispatcher's webhook-receive timestamp
+// on the context. Call this once at HTTP handler entry; the publisher will
+// read it when stamping Pub/Sub attributes.
+func WithWebhookReceivedAt(ctx context.Context, t time.Time) context.Context {
+	return context.WithValue(ctx, receivedAtCtxKey{}, t)
+}
+
+// webhookReceivedAt returns the receive timestamp stashed via
+// WithWebhookReceivedAt, or the current time if none was set (so downstream
+// freshness measurements are always populated, just slightly tighter than
+// reality if the timestamp wasn't propagated).
+func webhookReceivedAt(ctx context.Context) time.Time {
+	if t, ok := ctx.Value(receivedAtCtxKey{}).(time.Time); ok {
+		return t
+	}
+	return time.Now()
+}
 
 var (
 	// ErrPublisherClosed is returned when Publish is called on a closed publisher.
@@ -135,9 +162,14 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 	}
 
 	// Inject W3C traceparent into message attributes so downstream Python
-	// consumers can continue the distributed trace.
+	// consumers can continue the distributed trace. Also stamp the
+	// dispatcher-receive timestamp (Unix milliseconds) — postgres-writer
+	// reads this to record the end-to-end webhook freshness histogram
+	// (`webhook/end_to_end.duration`), which SLO 3 (data freshness)
+	// measures against.
 	attrs := map[string]string{
-		"correlation_id": correlationID,
+		"correlation_id":                 correlationID,
+		"dispatcher_received_at_unix_ms": strconv.FormatInt(webhookReceivedAt(ctx).UnixMilli(), 10),
 	}
 	otelglobal.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(attrs))
 
