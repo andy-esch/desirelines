@@ -53,7 +53,11 @@ resource "google_monitoring_service" "apigateway" {
 # `http/request.duration` histogram which has http.route labels.
 
 resource "google_monitoring_slo" "apigateway_availability" {
-  service             = google_monitoring_service.apigateway.service_id
+  # Use `.name` (full resource path) rather than `.service_id` — the
+  # canonical reference for cross-resource pointers in GCP. The provider
+  # accepts either form (strips the path prefix internally), but `.name`
+  # is defensive against provider behavior tightening.
+  service             = google_monitoring_service.apigateway.name
   slo_id              = "apigateway-availability"
   display_name        = "Apigateway availability — 99.5% over 30d"
   goal                = 0.995
