@@ -221,12 +221,12 @@ resolution for custom metrics).
 | `bigquery/operation.duration` | bq-inserter | `insert_rows`, `merge_from_staging`, `merge_batch_from_staging`, `dml` | Outer + sub-operation timings; MERGE step is the dominant ingest cost (~73% of `insert_rows`) |
 | `postgres/operation.duration` | postgres-writer | `insert`, `activities_insert`, `update_metadata`, `delete` | `activities_insert` surfaces Neon cold-compute (warm ~180ms, cold ~1s+) |
 | `postgres/query.duration` | apigateway | `year_metadata`, `get_by_id`, `list`, `list_routes`, `multi_sport_metrics_by_date_range`, `multi_sport_daily_summary_by_date_range` | One label per repository read method; matches span names |
-| `auth/firebase_verify.duration` | apigateway | (none — name maps 1:1 to span) | Firebase ID-token verification |
+| `auth/firebase_verify.duration` | apigateway | (none) | Firebase ID-token verification. Name predates the `auth.verify_id_token` span; rename pending. |
 | `strava/api.duration` | dispatcher | `fetch_activity`, `refresh_token` | Strava-side latency |
 | `pubsub/publish.duration` | dispatcher | (per topic) | Publish latency |
 | `firestore/operation.duration` | dispatcher | (per op) | Firestore read/write latency |
 | `http/request.duration` | apigateway, dispatcher | `result=success\|error` | otelhttp middleware |
-| `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create\|update\|delete` | End-to-end webhook freshness from dispatcher receive to postgres row visible. Anchors SLO 3 (data freshness). |
+| `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create` | End-to-end webhook freshness from dispatcher receive to postgres row visible. Anchors SLO 3. CREATE-only today; UPDATE/DELETE could be added if user impact justifies. |
 
 ### Counters
 

@@ -461,9 +461,7 @@ class TestDispatcherReceivedAtMs:
 
     def test_extract_returns_int_for_valid_attribute(self):
         attrs = {"dispatcher_received_at_unix_ms": "1715347800123"}
-        assert (
-            extract_dispatcher_received_at_from_attributes(attrs) == 1715347800123
-        )
+        assert extract_dispatcher_received_at_from_attributes(attrs) == 1715347800123
 
     def test_extract_returns_none_when_missing(self):
         assert extract_dispatcher_received_at_from_attributes({}) is None
