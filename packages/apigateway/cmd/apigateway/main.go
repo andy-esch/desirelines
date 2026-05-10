@@ -226,8 +226,12 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	if err != nil {
 		log.Warn("Failed to create postgres histogram", "error", err)
 	}
-	authHist, err := meter.Float64Histogram("desirelines.io/auth/firebase_verify.duration",
-		otelmetric.WithUnit("ms"), otelmetric.WithDescription("Firebase token verification duration"))
+	// Name matches the `auth.verify_id_token` span emitted by AuthMiddleware
+	// so the convention "histogram operation == span name" stays 1:1 across
+	// the apigateway. Old metric `auth/firebase_verify.duration` predates the
+	// span and is no longer written; query the new name going forward.
+	authHist, err := meter.Float64Histogram("desirelines.io/auth/verify_id_token.duration",
+		otelmetric.WithUnit("ms"), otelmetric.WithDescription("Firebase ID token verification duration"))
 	if err != nil {
 		log.Warn("Failed to create auth histogram", "error", err)
 	}
