@@ -57,6 +57,14 @@ _pubsub_message_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
 _delivery_attempt_var: contextvars.ContextVar[int | None] = contextvars.ContextVar(
     "delivery_attempt", default=None
 )
+# Dispatcher receive timestamp (Unix milliseconds) extracted from the
+# `dispatcher_received_at_unix_ms` Pub/Sub attribute the dispatcher stamps.
+# postgres-writer reads this on a successful insert to record the
+# `desirelines.io/webhook/end_to_end.duration` histogram (anchors SLO 3,
+# data freshness). None when the attribute is missing or unparseable.
+_dispatcher_received_at_ms_var: contextvars.ContextVar[int | None] = (
+    contextvars.ContextVar("dispatcher_received_at_ms", default=None)
+)
 
 # Matches GCP's X-Cloud-Trace-Context header: TRACE_ID/SPAN_ID;o=TRACE_TRUE
 # (SPAN_ID and ;o= are optional)
@@ -148,6 +156,37 @@ def set_delivery_attempt(attempt: int | None) -> contextvars.Token[int | None]:
 def get_delivery_attempt() -> int | None:
     """Return the current delivery attempt, or None if unset / first delivery."""
     return _delivery_attempt_var.get()
+
+
+def set_dispatcher_received_at_ms(
+    received_at_ms: int | None,
+) -> contextvars.Token[int | None]:
+    """Set the dispatcher receive timestamp (ms) for the current task."""
+    return _dispatcher_received_at_ms_var.set(received_at_ms)
+
+
+def get_dispatcher_received_at_ms() -> int | None:
+    """Return the dispatcher receive timestamp (ms), or None if unset/missing."""
+    return _dispatcher_received_at_ms_var.get()
+
+
+def extract_dispatcher_received_at_from_attributes(
+    attributes: dict[str, str],
+) -> int | None:
+    """Parse the `dispatcher_received_at_unix_ms` Pub/Sub attribute.
+
+    Returns the timestamp in milliseconds, or None if the attribute is
+    missing or unparseable. Missing on legacy messages from before the
+    dispatcher started stamping it; unparseable should never happen but
+    we tolerate it to avoid breaking ingest on a bad message.
+    """
+    raw = attributes.get("dispatcher_received_at_unix_ms")
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
 
 
 def apply_pubsub_request_context(

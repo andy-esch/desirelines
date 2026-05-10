@@ -8,16 +8,19 @@ from stravapipe.shared import correlation
 from stravapipe.shared.correlation import (
     CorrelationFilter,
     apply_pubsub_request_context,
+    extract_dispatcher_received_at_from_attributes,
     extract_trace_from_cloud_trace_header,
     extract_trace_from_pubsub_attributes,
     extract_trace_from_traceparent,
     get_correlation_id,
     get_delivery_attempt,
+    get_dispatcher_received_at_ms,
     get_pubsub_message_id,
     get_trace_id,
     new_correlation_id,
     set_correlation_id,
     set_delivery_attempt,
+    set_dispatcher_received_at_ms,
     set_pubsub_message_id,
     set_trace_context,
 )
@@ -34,11 +37,13 @@ def _reset_contextvars():
     set_trace_context("", "", False)
     set_pubsub_message_id("")
     set_delivery_attempt(None)
+    set_dispatcher_received_at_ms(None)
     yield
     set_correlation_id("")
     set_trace_context("", "", False)
     set_pubsub_message_id("")
     set_delivery_attempt(None)
+    set_dispatcher_received_at_ms(None)
 
 
 class TestCorrelationIdContextVar:
@@ -444,3 +449,44 @@ class TestApplyPubSubRequestContext:
         # Contextvar still gets explicitly set to None so a leaked previous
         # value from another test/request doesn't bleed into log fields.
         assert get_delivery_attempt() is None
+
+
+class TestDispatcherReceivedAtMs:
+    """`dispatcher_received_at_unix_ms` parsing + contextvar plumbing.
+
+    Anchors SLO 3 (data freshness): postgres-writer reads this on each
+    successful insert to compute `now() - dispatcher_received_at` and
+    record on `desirelines.io/webhook/end_to_end.duration`.
+    """
+
+    def test_extract_returns_int_for_valid_attribute(self):
+        attrs = {"dispatcher_received_at_unix_ms": "1715347800123"}
+        assert extract_dispatcher_received_at_from_attributes(attrs) == 1715347800123
+
+    def test_extract_returns_none_when_missing(self):
+        assert extract_dispatcher_received_at_from_attributes({}) is None
+
+    def test_extract_returns_none_when_empty(self):
+        assert (
+            extract_dispatcher_received_at_from_attributes(
+                {"dispatcher_received_at_unix_ms": ""}
+            )
+            is None
+        )
+
+    def test_extract_returns_none_for_unparseable(self):
+        # Tolerant: a malformed attribute should not break ingest. Resulting
+        # missing freshness measurement counts against SLO 3 as a failure.
+        assert (
+            extract_dispatcher_received_at_from_attributes(
+                {"dispatcher_received_at_unix_ms": "not-a-number"}
+            )
+            is None
+        )
+
+    def test_set_and_get_round_trip(self):
+        set_dispatcher_received_at_ms(1715347800123)
+        assert get_dispatcher_received_at_ms() == 1715347800123
+
+    def test_default_is_none(self):
+        assert get_dispatcher_received_at_ms() is None

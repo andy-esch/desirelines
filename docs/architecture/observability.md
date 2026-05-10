@@ -204,15 +204,55 @@ Result: open a trace in Cloud Trace, click "Show logs", see all related log entr
 
 ## Metrics
 
-Custom metrics use the `desirelines.io/` namespace:
+All custom OTel metrics use the `desirelines.io/` namespace and land in
+Cloud Monitoring under `workload.googleapis.com/desirelines.io/...` (the
+default prefix used by `opentelemetry-operations-go/exporter/metric`'s
+`mexporter.New()` in [`provider.go`](../../packages/shared/otel/provider.go)).
+**Don't use the legacy `custom.googleapis.com/...` prefix** — it's empty
+under current SDK versions and any filters using it return no data.
 
-- `webhook/events` (counter, both Python services) — webhook events processed, labeled by `aspect_type` and `object_type`.
-- `bigquery/operation.duration` (histogram, bq-inserter) — BQ operation ms.
-- `postgres/operation.duration` (histogram, postgres-writer) — Postgres operation ms.
-- `http/server.duration` (histogram, dispatcher and apigateway) — HTTP request ms.
-- `owner_check` (counter, dispatcher) — allowlist outcomes (`allowed` / `stray` / `orphan` / `error`).
+Metrics export interval: **60 seconds** (Cloud Monitoring's minimum
+resolution for custom metrics).
 
-Metrics export interval: **60 seconds** — matches Cloud Monitoring's minimum resolution for custom metrics. Set in [`provider.go`](../../packages/shared/otel/provider.go).
+### Histograms (latency)
+
+| Metric | Service | Labels (operation=) | Notes |
+|---|---|---|---|
+| `bigquery/operation.duration` | bq-inserter | `insert_rows`, `merge_from_staging`, `merge_batch_from_staging`, `dml` | Outer + sub-operation timings; MERGE step is the dominant ingest cost (~73% of `insert_rows`) |
+| `postgres/operation.duration` | postgres-writer | `insert`, `activities_insert`, `update_metadata`, `delete` | `activities_insert` surfaces Neon cold-compute (warm ~180ms, cold ~1s+) |
+| `postgres/query.duration` | apigateway | `year_metadata`, `get_by_id`, `list`, `list_routes`, `multi_sport_metrics_by_date_range`, `multi_sport_daily_summary_by_date_range` | One label per repository read method; matches span names |
+| `auth/firebase_verify.duration` | apigateway | (none) | Firebase ID-token verification. Name predates the `auth.verify_id_token` span; rename pending. |
+| `strava/api.duration` | dispatcher | `fetch_activity`, `refresh_token` | Strava-side latency |
+| `pubsub/publish.duration` | dispatcher | (per topic) | Publish latency |
+| `firestore/operation.duration` | dispatcher | (per op) | Firestore read/write latency |
+| `http/request.duration` | apigateway, dispatcher | `result=success\|error` | otelhttp middleware |
+| `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create` | End-to-end webhook freshness from dispatcher receive to postgres row visible. Anchors SLO 3. CREATE-only today; UPDATE/DELETE could be added if user impact justifies. |
+
+### Counters
+
+| Metric | Service | Labels | Notes |
+|---|---|---|---|
+| `webhook/events` | dispatcher, bq-inserter, postgres-writer | `aspect_type`, `object_type` | Webhook events processed |
+| `webhook/owner_check` | dispatcher | `result=allowed\|stray\|orphan\|error` | Allowlist outcomes |
+
+### Gauges
+
+| Metric | Service | Labels | Notes |
+|---|---|---|---|
+| `postgres/pool.connections` | apigateway | `state=idle\|in_use\|total` | pgxpool connection state, reported via async observable callback |
+
+### Span ↔ metric alignment
+
+For most histograms, the `operation` label value matches the span name
+1:1 (after the [alignment cleanup](../../../desirelines-planning/tasks/completed/align-apigateway-histogram-labels-and-cleanup-not-found-paths.md)).
+That makes "find the metric for span X" mechanical:
+
+- Span `repository.activities.list_routes` → histogram `postgres/query.duration{operation="list_routes"}`
+- Span `bigquery.merge_from_staging` → histogram `bigquery/operation.duration{operation="merge_from_staging"}`
+
+Span attributes don't propagate into histogram labels — they're
+trace-only. If you need a span attribute as a histogram label, you have
+to add it explicitly to `record_duration`.
 
 ## What's *not* instrumented
 

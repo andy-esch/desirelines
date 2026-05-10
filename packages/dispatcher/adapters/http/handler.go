@@ -12,8 +12,10 @@ import (
 	"mime"
 	"net/http"
 	"strconv"
+	"time"
 
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
+	pubsubadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/pubsub"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
@@ -245,7 +247,13 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 // keeps it under golangci-lint's gocyclo cap and makes the operational
 // pipeline scannable at a glance.
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	// Capture the receive timestamp before any work — this becomes the
+	// anchor for SLO 3 (data freshness): the time from "Strava POSTed
+	// the webhook" to "row visible in postgres." Stashing on the context
+	// here lets the publisher stamp it as a Pub/Sub attribute later
+	// without needing to thread the timestamp through every helper.
+	ctx := pubsubadapter.WithWebhookReceivedAt(r.Context(), time.Now())
+	r = r.WithContext(ctx)
 
 	body, ok := h.readAndValidateBody(w, r)
 	if !ok {
