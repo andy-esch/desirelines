@@ -110,7 +110,7 @@ module "desirelines" {
 | [google_monitoring_notification_channel.email_alerts](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_notification_channel) | resource |
 | [google_monitoring_service.apigateway](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_service) | resource |
 | [google_monitoring_service.dispatcher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_service) | resource |
-| [google_monitoring_service.webhook_ingest](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_service) | resource |
+| [google_monitoring_service.postgres_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_service) | resource |
 | [google_monitoring_slo.apigateway_availability](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_slo) | resource |
 | [google_monitoring_slo.apigateway_latency](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_slo) | resource |
 | [google_monitoring_slo.dispatcher_availability](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_slo) | resource |
