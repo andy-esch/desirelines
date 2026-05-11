@@ -426,16 +426,37 @@ resource "google_monitoring_alert_policy" "slo_5_apigateway_latency_slow_burn" {
 # off-platform; failures don't tie to user-noticed product behavior. Separate
 # alert exists.
 
-resource "google_monitoring_service" "webhook_ingest" {
-  service_id   = "${var.project_name}-webhook-ingest-svc"
-  display_name = "Desirelines Webhook Ingest Pipeline"
-  # No basic_service / telemetry block — this is a custom user-defined
-  # service for Pub/Sub-based SLOs since Pub/Sub subscriptions aren't a
-  # supported basic_service.service_type.
+resource "google_monitoring_service" "postgres_writer" {
+  service_id   = "${var.project_name}-postgres-writer-svc"
+  display_name = "Desirelines Postgres Writer"
+
+  # Bind to the Cloud Run service that consumes the activity-events
+  # subscription. SLO 2 measures THIS service's ingest success (its
+  # DLQ rate), so binding it here gives the SLO a meaningful home in
+  # GCP's Services view alongside apigateway and dispatcher.
+  #
+  # The basic_service binding doesn't restrict which metrics the SLI
+  # can filter on — the SLI below targets Pub/Sub subscription metrics,
+  # not Cloud Run metrics, and that's fine. The binding is purely
+  # organizational (where the SLO appears in the UI), not a filter
+  # constraint.
+  #
+  # Earlier draft used a custom service (no basic_service block); the
+  # GCP API rejected it with "Neither basic_service nor an identifier
+  # case were set." Terraform's google_monitoring_service requires one
+  # of the identifier blocks at apply time, so the "user-defined custom
+  # service" path isn't actually available via this resource type.
+  basic_service {
+    service_type = "CLOUD_RUN"
+    service_labels = {
+      service_name = google_cloud_run_v2_service.postgres_writer.name
+      location     = google_cloud_run_v2_service.postgres_writer.location
+    }
+  }
 }
 
 resource "google_monitoring_slo" "webhook_ingest_success" {
-  service             = google_monitoring_service.webhook_ingest.service_id
+  service             = google_monitoring_service.postgres_writer.service_id
   slo_id              = "webhook-ingest-success"
   display_name        = "Webhook ingest success — 99% over 30d"
   goal                = 0.99
