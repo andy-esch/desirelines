@@ -30,6 +30,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/health"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/sports"
+	"github.com/andy-esch/desirelines/packages/apigateway/internal/synthetic"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
@@ -186,6 +187,11 @@ type Dependencies struct {
 	logger           *slog.Logger
 	httpHistogram    otelmetric.Float64Histogram
 	readinessTimeout time.Duration
+
+	// enableSyntheticFaults gates the SLO-rehearsal endpoints in
+	// `internal/synthetic`. True for any non-production environment.
+	// See internal/synthetic/handler.go for context + removal steps.
+	enableSyntheticFaults bool
 }
 
 // Close releases all dependency resources.
@@ -208,8 +214,9 @@ func (d *Dependencies) Close() {
 //nolint:gocyclo // Composition root — wiring complexity is inherent.
 func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger, meter otelmetric.Meter, tracer trace.Tracer) (*Dependencies, error) {
 	deps := &Dependencies{
-		logger:           log,
-		readinessTimeout: cfg.ReadinessTimeout,
+		logger:                log,
+		readinessTimeout:      cfg.ReadinessTimeout,
+		enableSyntheticFaults: !cfg.Environment.IsProduction(),
 	}
 
 	// 1. Load sport configuration (embedded in binary via go:embed)
@@ -337,13 +344,21 @@ func buildRouter(deps *Dependencies) http.Handler {
 	sportsHandler := sports.NewHandler(deps.logger, deps.sportConfig)
 	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig, deps.logger)
 
+	// Synthetic-fault handler for SLO alert rehearsal. Registered only
+	// when deps.enableSyntheticFaults is true (non-production envs).
+	// To remove cleanly, delete this assignment + the SyntheticFault5xx
+	// field on AuthenticatedRoutes below + the `internal/synthetic`
+	// package itself.
+	syntheticHandler := synthetic.NewHandler(deps.logger)
+
 	// Configure and create router
 	routerCfg := server.RouterConfig{
-		CORSHandler:     deps.corsHandler,
-		AuthMiddleware:  deps.authMiddleware,
-		RateLimiter:     deps.rateLimiter,
-		AuthRateLimiter: deps.authRateLimiter,
-		HTTPHistogram:   deps.httpHistogram,
+		CORSHandler:           deps.corsHandler,
+		AuthMiddleware:        deps.authMiddleware,
+		RateLimiter:           deps.rateLimiter,
+		AuthRateLimiter:       deps.authRateLimiter,
+		HTTPHistogram:         deps.httpHistogram,
+		EnableSyntheticFaults: deps.enableSyntheticFaults,
 	}
 
 	// Auth routes — authHandler may be nil if no auth is configured (no emulator, no env)
@@ -368,12 +383,13 @@ func buildRouter(deps *Dependencies) http.Handler {
 	}
 
 	authRoutes := server.AuthenticatedRoutes{
-		GetMetadata:     activitiesHandler.HandleMetadata,
-		GetMetrics:      activitiesHandler.HandleMetrics,
-		GetSource:       activitiesHandler.HandleSource,
-		GetRoutes:       activitiesHandler.HandleRoutes,
-		ListActivities:  activitiesHandler.HandleListActivities,
-		GetActivityByID: activitiesHandler.HandleGetActivity,
+		GetMetadata:       activitiesHandler.HandleMetadata,
+		GetMetrics:        activitiesHandler.HandleMetrics,
+		GetSource:         activitiesHandler.HandleSource,
+		GetRoutes:         activitiesHandler.HandleRoutes,
+		ListActivities:    activitiesHandler.HandleListActivities,
+		GetActivityByID:   activitiesHandler.HandleGetActivity,
+		SyntheticFault5xx: syntheticHandler.Fault5xx,
 	}
 
 	return server.NewRouter(routerCfg, publicRoutes, authRoutes, deps.logger)

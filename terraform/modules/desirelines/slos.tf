@@ -400,3 +400,130 @@ resource "google_monitoring_alert_policy" "slo_5_apigateway_latency_slow_burn" {
     mime_type = "text/markdown"
   }
 }
+
+# ============================================================================
+# SLO 2 — Webhook ingest success (target: 99% over 30 days)
+# ============================================================================
+# SLI: % of activity-events Pub/Sub messages NOT ending up in postgres-writer's
+# DLQ.
+#
+# Different shape than SLOs 1, 4, 5: Pub/Sub subscriptions aren't a supported
+# basic_service type for `google_monitoring_service`, so this SLO attaches to
+# a custom (user-defined) service. The SLI uses Pub/Sub subscription metrics:
+#   - good: subscription/ack_message_count on postgres-writer subscription
+#   - bad: subscription/dead_letter_message_count on postgres-writer
+#     subscription
+# Every distinct activity event ends as either acked (delivered + persisted)
+# or DLQ'd (max retries exhausted). good + bad = total messages naturally;
+# the provider computes good / (good + bad) as the SLI.
+#
+# Why postgres-writer only, not bq-inserter: bq-inserter DLQ failures are
+# archive-only — user sees no impact when BQ is behind. postgres-writer DLQ
+# failures break the dashboard. Only the user-facing subscription rolls
+# into the SLO. bq-inserter has its own static-threshold alert.
+#
+# Why activity-events only, not deauth-events: deauth events are rare and
+# off-platform; failures don't tie to user-noticed product behavior. Separate
+# alert exists.
+
+resource "google_monitoring_service" "webhook_ingest" {
+  service_id   = "${var.project_name}-webhook-ingest-svc"
+  display_name = "Desirelines Webhook Ingest Pipeline"
+  # No basic_service / telemetry block — this is a custom user-defined
+  # service for Pub/Sub-based SLOs since Pub/Sub subscriptions aren't a
+  # supported basic_service.service_type.
+}
+
+resource "google_monitoring_slo" "webhook_ingest_success" {
+  service             = google_monitoring_service.webhook_ingest.service_id
+  slo_id              = "webhook-ingest-success"
+  display_name        = "Webhook ingest success — 99% over 30d"
+  goal                = 0.99
+  rolling_period_days = 30
+
+  request_based_sli {
+    good_total_ratio {
+      good_service_filter = "metric.type=\"pubsub.googleapis.com/subscription/ack_message_count\" resource.type=\"pubsub_subscription\" resource.label.\"subscription_id\"=\"${google_pubsub_subscription.postgres_writer.name}\""
+      bad_service_filter  = "metric.type=\"pubsub.googleapis.com/subscription/dead_letter_message_count\" resource.type=\"pubsub_subscription\" resource.label.\"subscription_id\"=\"${google_pubsub_subscription.postgres_writer.name}\""
+    }
+  }
+}
+
+resource "google_monitoring_alert_policy" "slo_2_webhook_ingest_success_fast_burn" {
+  display_name = "SLO 2 (webhook ingest success) — fast burn (1h)"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Fast burn: 14.4× rate over 1 hour"
+    condition_threshold {
+      filter          = "select_slo_burn_rate(\"${google_monitoring_slo.webhook_ingest_success.name}\", \"3600s\")"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 14.4
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  documentation {
+    content   = <<-EOT
+      The webhook ingest success SLO is burning fast. Activity events are
+      ending up in the postgres-writer DLQ at a sustained rate. At the
+      current rate the 30-day error budget will be exhausted in ~2 days.
+
+      **Targets**: 99% of activity-events messages ack successfully (don't
+      hit DLQ) over rolling 30d.
+      **Error budget**: ~1.5-6 lost events/month at typical volume.
+
+      **Investigate**:
+      - Postgres-writer service health (Cloud Run logs for the actual
+        failure shape — schema mismatch? connection refused? timeout?)
+      - postgres-writer DLQ subscription depth in the existing
+        `DLQ: PostgreSQL Writer Has Messages` alert (likely also firing)
+      - Recent postgres-writer deploys or DB schema migrations
+      - Neon database availability / quota
+      - Pub/Sub delivery health for the `postgres-writer` subscription
+
+      **Spec**: `docs/slo.md` SLO 2.
+      **Distinct from SLO 1**: dispatcher could be 100% healthy while this
+      fires — the failure is downstream of publish.
+    EOT
+    mime_type = "text/markdown"
+  }
+}
+
+resource "google_monitoring_alert_policy" "slo_2_webhook_ingest_success_slow_burn" {
+  display_name = "SLO 2 (webhook ingest success) — slow burn (6h)"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Slow burn: 6× rate over 6 hours"
+    condition_threshold {
+      filter          = "select_slo_burn_rate(\"${google_monitoring_slo.webhook_ingest_success.name}\", \"21600s\")"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 6.0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+    }
+  }
+
+  notification_channels = local.slack_only_notification_channels
+
+  documentation {
+    content   = <<-EOT
+      The webhook ingest success SLO is burning slowly — sustained mild
+      DLQ activity. Lower urgency than fast-burn; investigate next session.
+
+      Same investigation steps as the fast-burn alert; see `docs/slo.md`
+      SLO 2.
+    EOT
+    mime_type = "text/markdown"
+  }
+}

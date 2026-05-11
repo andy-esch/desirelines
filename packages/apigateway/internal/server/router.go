@@ -30,6 +30,13 @@ type RouterConfig struct {
 	RateLimiter     *ratelimit.Limiter
 	AuthRateLimiter *ratelimit.Limiter // applied only to /auth/*
 	HTTPHistogram   metric.Float64Histogram
+
+	// EnableSyntheticFaults gates the synthetic-fault routes in
+	// `internal/synthetic` — when true, `/v1/__synthetic_5xx__` is wired
+	// for SLO alert rehearsal. Should be FALSE in production: the route
+	// literally doesn't appear in the chi route table when this is off.
+	// Production callers receive 404 (no route), not 500.
+	EnableSyntheticFaults bool
 }
 
 // PublicRoutes are registered without authentication.
@@ -49,6 +56,13 @@ type AuthenticatedRoutes struct {
 	GetRoutes       http.HandlerFunc
 	ListActivities  http.HandlerFunc
 	GetActivityByID http.HandlerFunc
+
+	// SyntheticFault5xx is registered only when EnableSyntheticFaults is
+	// true (typically: any non-production environment). When non-nil and
+	// enabled, it's wired at `/v1/__synthetic_5xx__` for validating that
+	// the SLO 4 (apigateway availability) burn-rate alerts actually fire.
+	// See `internal/synthetic/handler.go` for removal instructions.
+	SyntheticFault5xx http.HandlerFunc
 }
 
 // NewRouter creates a configured chi router with all routes registered.
@@ -119,6 +133,15 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 			// Strava IDs are 10+ digits, so no practical collision with 4-digit years.
 			r.Get("/activities", auth.ListActivities)
 			r.Get("/activities/{id}", auth.GetActivityByID)
+
+			// Synthetic-fault endpoint for SLO alert rehearsal. Conditional
+			// registration ensures it doesn't appear in the prod route table
+			// at all — see `internal/synthetic/handler.go` for context +
+			// removal steps. Auth-gated so random internet callers can't
+			// burn the SLO budget; only the developer (logged in) can hit it.
+			if cfg.EnableSyntheticFaults && auth.SyntheticFault5xx != nil {
+				r.Get("/__synthetic_5xx__", auth.SyntheticFault5xx)
+			}
 		})
 	})
 
