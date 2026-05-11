@@ -190,20 +190,36 @@ Resolved 2026-05-10:
 
 **Code work (in dependency order):**
 
-- [ ] **Custom metric prerequisite for SLO 3**: dispatcher emits
-      `dispatcher_received_at_unix_ms` Pub/Sub attribute;
-      postgres-writer emits `webhook/end_to_end.duration` histogram
-      after successful insert. ~50 LOC across two services.
-- [ ] SLOs 1, 4, 5 wired as `google_monitoring_slo` in `monitoring.tf`
-- [ ] SLOs 2, 3 wired as MQL-based alert policies (no GCP-native
-      SLO since the SLI is non-Cloud-Run)
-- [ ] Burn-rate alert pairs (fast 1h/14.4× + slow 6h/6×) for each
-      of the 5 SLOs, wired to existing notification channels
-- [ ] At least one SLO validated via synthetic failure in dev
-- [ ] `docs/architecture/observability.md` Metrics section updated
-      with canonical metric names + operation labels (folded in
-      from the histograms task; can be done alongside any of the
-      above)
+- [x] **Custom metric prerequisite for SLO 3**: shipped in PR #598.
+      Dispatcher stamps `dispatcher_received_at_unix_ms` Pub/Sub
+      attribute; postgres-writer records
+      `desirelines.io/webhook/end_to_end.duration` histogram after
+      each successful CREATE insert.
+- [x] SLOs 1, 4, 5 wired as `google_monitoring_slo` in `slos.tf`
+      (PRs #600, #601) — verified live in Cloud Monitoring →
+      Services for dev.
+- [x] Burn-rate alert pairs (fast 1h/14.4× + slow 6h/6×) wired for
+      SLOs 1, 4, 5 — 6 alert policies, all in "OK" state.
+- [x] `docs/architecture/observability.md` Metrics section updated
+      with canonical metric names + operation labels (shipped
+      alongside PR #598).
+- [ ] **SLO 2** wired (Pub/Sub DLQ ratio). Different shape: uses
+      a custom `google_monitoring_service` parent (not Cloud Run)
+      since Pub/Sub subscriptions aren't a supported basic_service
+      type. Burn-rate alerts follow the same pattern.
+- [ ] **SLO 3** wired (data freshness). Awaiting ~7-30 days of
+      `webhook/end_to_end.duration` data so the 3s threshold can
+      be calibrated against actual p95 before committing in
+      Terraform.
+- [ ] **Validate one alert end-to-end** in dev via a dedicated
+      synthetic-failure endpoint. Add a new handler at e.g.
+      `/v1/__synthetic_5xx__` (dev-only, gated by env flag or
+      build tag) that returns 500 unconditionally. Hit it
+      repeatedly until the 1h window weights enough burn rate
+      to trigger; expect fast-burn alert in email + Slack within
+      ~10-15 min. Leave the endpoint in place permanently — opt-in,
+      production-safe, available for re-validation any time the
+      alert wiring changes. Cleaner than modifying real handlers.
 
 ## References
 
