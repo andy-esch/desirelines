@@ -344,11 +344,11 @@ func buildRouter(deps *Dependencies) http.Handler {
 	sportsHandler := sports.NewHandler(deps.logger, deps.sportConfig)
 	activitiesHandler := activities.NewHandler(deps.repo, deps.sportConfig, deps.logger)
 
-	// Synthetic-fault handler for SLO alert rehearsal. Registered only
-	// when deps.enableSyntheticFaults is true (non-production envs).
-	// To remove cleanly, delete this assignment + the SyntheticFault5xx
-	// field on AuthenticatedRoutes below + the `internal/synthetic`
-	// package itself.
+	// Synthetic-fault handler for SLO + security-alert rehearsal.
+	// Registered only when deps.enableSyntheticFaults is true (non-
+	// production envs). To remove cleanly, delete this assignment +
+	// the SyntheticFault field on AuthenticatedRoutes below + the
+	// `internal/synthetic` package itself.
 	syntheticHandler := synthetic.NewHandler(deps.logger)
 
 	// Configure and create router
@@ -383,13 +383,13 @@ func buildRouter(deps *Dependencies) http.Handler {
 	}
 
 	authRoutes := server.AuthenticatedRoutes{
-		GetMetadata:       activitiesHandler.HandleMetadata,
-		GetMetrics:        activitiesHandler.HandleMetrics,
-		GetSource:         activitiesHandler.HandleSource,
-		GetRoutes:         activitiesHandler.HandleRoutes,
-		ListActivities:    activitiesHandler.HandleListActivities,
-		GetActivityByID:   activitiesHandler.HandleGetActivity,
-		SyntheticFault5xx: syntheticHandler.Fault5xx,
+		GetMetadata:     activitiesHandler.HandleMetadata,
+		GetMetrics:      activitiesHandler.HandleMetrics,
+		GetSource:       activitiesHandler.HandleSource,
+		GetRoutes:       activitiesHandler.HandleRoutes,
+		ListActivities:  activitiesHandler.HandleListActivities,
+		GetActivityByID: activitiesHandler.HandleGetActivity,
+		SyntheticFault:  syntheticHandler.Fault,
 	}
 
 	return server.NewRouter(routerCfg, publicRoutes, authRoutes, deps.logger)
