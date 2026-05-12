@@ -5,8 +5,10 @@
 # of resources live in focused siblings:
 #
 #   - dashboards.tf        Cloud Monitoring dashboard
-#   - alerts.tf            Static-threshold alert policies (DLQ, 4xx/5xx,
-#                          PubSub backlog, OTel application metrics)
+#   - alerts.tf            Static-threshold alert policies (pipeline
+#                          health: DLQ + non-SLO 5xx + PubSub backlog;
+#                          security: per-response-code anomaly signals;
+#                          OTel application-metric alerts)
 #   - uptime_checks.tf     Synthetic HTTPS probes + alerts
 #   - readiness_probes.tf  Cloud Scheduler-driven /ready probes + alerts
 #   - slos.tf              `google_monitoring_slo` + burn-rate alerts

@@ -1,10 +1,15 @@
 # ============================================================================
 # Alert Policies (non-SLO, non-uptime, non-readiness)
 # ============================================================================
-# Static-threshold alert policies covering DLQs, Cloud Run 4xx/5xx error
-# rates, PubSub backlog age, and OTel application metrics (postgres pool,
-# strava/http/postgres/firestore/pubsub latency, webhook counters,
-# owner-check outcomes).
+# Static-threshold alert policies in three categories:
+#   - Pipeline health: DLQ messages (BQ inserter, Postgres writer),
+#     PubSub backlog age, non-SLO Cloud Run 5xx ratio.
+#   - Security: per-response-code anomaly signals (401/403, 404, 429
+#     on apigateway; 400 on dispatcher). Each maps a single response_code
+#     to a specific attack pattern (credential stuffing, scanner activity,
+#     rate-limiter engagement, webhook tampering).
+#   - OTel application metrics: postgres pool, strava/http/postgres/firestore/
+#     pubsub latency, webhook event counters, owner-check outcomes.
 #
 # Notification channels come from `local.notification_channels` in
 # `monitoring.tf`. SLO burn-rate alerts live in `slos.tf`. Uptime alerts
@@ -147,7 +152,7 @@ resource "google_monitoring_alert_policy" "apigateway_auth_failure_surge" {
     display_name = "401/403 rate > 10/min sustained"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.label.response_code=monitoring.regex.full_match(\"401|403\")"
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=monitoring.regex.full_match(\"401|403\")"
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0.167 # ≈ 10/min under ALIGN_RATE per-second
@@ -195,7 +200,7 @@ resource "google_monitoring_alert_policy" "apigateway_not_found_surge" {
     display_name = "404 rate > 5/min sustained"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.label.response_code=\"404\""
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"404\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
@@ -245,7 +250,7 @@ resource "google_monitoring_alert_policy" "apigateway_rate_limited_surge" {
     display_name = "429 rate > 5/min sustained"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.label.response_code=\"429\""
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"429\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
@@ -296,7 +301,7 @@ resource "google_monitoring_alert_policy" "dispatcher_bad_request_surge" {
     display_name = "400 rate > 5/min sustained"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.dispatcher.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.label.response_code=\"400\""
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.dispatcher.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"400\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
