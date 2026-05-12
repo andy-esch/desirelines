@@ -24,9 +24,150 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
 
       tiles = [
         # ====================================================================
-        # Section Header: Dead Letter Queues (CRITICAL) - Row 0
+        # Section Header: SLO Compliance - Row 0
+        # ====================================================================
+        # Four scorecards (one per active SLO) showing the fraction of the
+        # 30-day error budget remaining. 1.0 = full budget, 0 = exhausted.
+        # Thresholds: < 0.25 → red (≤7 days of budget left at current burn);
+        # < 0.50 → yellow; otherwise green. Detailed compliance + burn-rate
+        # drill-down lives in Monitoring → Services (GCP-native UI for SLOs).
+        {
+          width  = 12
+          height = 2
+          widget = {
+            title = "🎯 SLO Compliance"
+            text = {
+              content = "Fraction of each 30-day error budget remaining. Red below 25% — investigate before the budget burns out. See Monitoring → Services for full SLO drill-down."
+              format  = "MARKDOWN"
+              style   = {}
+            }
+          }
+        },
+
+        # SLO 1 budget fraction - Row 2
+        {
+          yPos   = 2
+          width  = 3
+          height = 4
+          widget = {
+            title = "SLO 1 Dispatcher availability (99%)"
+            scorecard = {
+              timeSeriesQuery = {
+                timeSeriesFilter = {
+                  filter = "select_slo_budget_fraction(\"${google_monitoring_slo.dispatcher_availability.name}\")"
+                  aggregation = {
+                    alignmentPeriod  = "60s"
+                    perSeriesAligner = "ALIGN_MEAN"
+                  }
+                }
+              }
+              gaugeView = {
+                lowerBound = 0
+                upperBound = 1
+              }
+              thresholds = [
+                { value = 0.25, color = "RED", direction = "BELOW" },
+                { value = 0.50, color = "YELLOW", direction = "BELOW" },
+              ]
+            }
+          }
+        },
+
+        # SLO 2 budget fraction - Row 2
+        {
+          xPos   = 3
+          yPos   = 2
+          width  = 3
+          height = 4
+          widget = {
+            title = "SLO 2 Webhook ingest success (99%)"
+            scorecard = {
+              timeSeriesQuery = {
+                timeSeriesFilter = {
+                  filter = "select_slo_budget_fraction(\"${google_monitoring_slo.webhook_ingest_success.name}\")"
+                  aggregation = {
+                    alignmentPeriod  = "60s"
+                    perSeriesAligner = "ALIGN_MEAN"
+                  }
+                }
+              }
+              gaugeView = {
+                lowerBound = 0
+                upperBound = 1
+              }
+              thresholds = [
+                { value = 0.25, color = "RED", direction = "BELOW" },
+                { value = 0.50, color = "YELLOW", direction = "BELOW" },
+              ]
+            }
+          }
+        },
+
+        # SLO 4 budget fraction - Row 2
+        {
+          xPos   = 6
+          yPos   = 2
+          width  = 3
+          height = 4
+          widget = {
+            title = "SLO 4 Apigateway availability (99.5%)"
+            scorecard = {
+              timeSeriesQuery = {
+                timeSeriesFilter = {
+                  filter = "select_slo_budget_fraction(\"${google_monitoring_slo.apigateway_availability.name}\")"
+                  aggregation = {
+                    alignmentPeriod  = "60s"
+                    perSeriesAligner = "ALIGN_MEAN"
+                  }
+                }
+              }
+              gaugeView = {
+                lowerBound = 0
+                upperBound = 1
+              }
+              thresholds = [
+                { value = 0.25, color = "RED", direction = "BELOW" },
+                { value = 0.50, color = "YELLOW", direction = "BELOW" },
+              ]
+            }
+          }
+        },
+
+        # SLO 5 budget fraction - Row 2
+        {
+          xPos   = 9
+          yPos   = 2
+          width  = 3
+          height = 4
+          widget = {
+            title = "SLO 5 Apigateway latency (95% < 1s)"
+            scorecard = {
+              timeSeriesQuery = {
+                timeSeriesFilter = {
+                  filter = "select_slo_budget_fraction(\"${google_monitoring_slo.apigateway_latency.name}\")"
+                  aggregation = {
+                    alignmentPeriod  = "60s"
+                    perSeriesAligner = "ALIGN_MEAN"
+                  }
+                }
+              }
+              gaugeView = {
+                lowerBound = 0
+                upperBound = 1
+              }
+              thresholds = [
+                { value = 0.25, color = "RED", direction = "BELOW" },
+                { value = 0.50, color = "YELLOW", direction = "BELOW" },
+              ]
+            }
+          }
+        },
+
+        # ====================================================================
+        # Section Header: Dead Letter Queues (CRITICAL) - Row 6
         # ====================================================================
         {
+          yPos   = 6
           width  = 12
           height = 2
           widget = {
@@ -39,9 +180,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # BQ Inserter DLQ - Row 2, Left
+        # BQ Inserter DLQ - Row 8, Left
         {
-          yPos   = 2
+          yPos   = 8
           width  = 6
           height = 4
           widget = {
@@ -73,10 +214,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Postgres Writer DLQ - Row 2, Right
+        # Postgres Writer DLQ - Row 8, Right
         {
           xPos   = 6
-          yPos   = 2
+          yPos   = 8
           width  = 6
           height = 4
           widget = {
@@ -109,10 +250,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         },
 
         # ====================================================================
-        # Section Header: Cloud Run Performance - Row 6
+        # Section Header: Cloud Run Performance - Row 12
         # ====================================================================
         {
-          yPos   = 6
+          yPos   = 12
           width  = 12
           height = 2
           widget = {
@@ -125,9 +266,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Service Request Counts - Row 8
+        # Service Request Counts - Row 14
         {
-          yPos   = 8
+          yPos   = 14
           width  = 12
           height = 4
           widget = {
@@ -160,9 +301,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Service 4xx Errors - Row 12, Left
+        # Service 4xx Errors - Row 18, Left
         {
-          yPos   = 12
+          yPos   = 18
           width  = 6
           height = 4
           widget = {
@@ -193,10 +334,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Service 5xx Errors - Row 12, Right
+        # Service 5xx Errors - Row 18, Right
         {
           xPos   = 6
-          yPos   = 12
+          yPos   = 18
           width  = 6
           height = 4
           widget = {
@@ -230,9 +371,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Service Request Latency (P95) - Row 16, Full Width
+        # Service Request Latency (P95) - Row 22, Full Width
         {
-          yPos   = 16
+          yPos   = 22
           width  = 12
           height = 4
           widget = {
@@ -266,9 +407,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Service Instance Count - Row 20
+        # Service Instance Count - Row 26
         {
-          yPos   = 20
+          yPos   = 26
           width  = 12
           height = 4
           widget = {
@@ -300,10 +441,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         },
 
         # ====================================================================
-        # Section Header: PubSub Message Flow - Row 24
+        # Section Header: PubSub Message Flow - Row 30
         # ====================================================================
         {
-          yPos   = 24
+          yPos   = 30
           width  = 12
           height = 2
           widget = {
@@ -316,9 +457,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Messages Published - Row 26, Left
+        # Messages Published - Row 32, Left
         {
-          yPos   = 26
+          yPos   = 32
           width  = 6
           height = 4
           widget = {
@@ -347,10 +488,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Unacked Messages - Row 26, Right
+        # Unacked Messages - Row 32, Right
         {
           xPos   = 6
-          yPos   = 26
+          yPos   = 32
           width  = 6
           height = 4
           widget = {
@@ -384,9 +525,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Oldest Unacked Message Age - Row 30
+        # Oldest Unacked Message Age - Row 36
         {
-          yPos   = 30
+          yPos   = 36
           width  = 12
           height = 4
           widget = {
@@ -421,10 +562,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         },
 
         # ====================================================================
-        # Section Header: Cloud Run Resource Utilization - Row 34
+        # Section Header: Cloud Run Resource Utilization - Row 40
         # ====================================================================
         {
-          yPos   = 34
+          yPos   = 40
           width  = 12
           height = 2
           widget = {
@@ -437,9 +578,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # CPU Utilization - Row 36, Left
+        # CPU Utilization - Row 42, Left
         {
-          yPos   = 36
+          yPos   = 42
           width  = 6
           height = 4
           widget = {
@@ -470,10 +611,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Memory Utilization - Row 36, Right
+        # Memory Utilization - Row 42, Right
         {
           xPos   = 6
-          yPos   = 36
+          yPos   = 42
           width  = 6
           height = 4
           widget = {
@@ -504,9 +645,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Startup Latency - Row 40
+        # Startup Latency - Row 46
         {
-          yPos   = 40
+          yPos   = 46
           width  = 12
           height = 4
           widget = {
@@ -538,10 +679,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         },
 
         # ====================================================================
-        # Section Header: PubSub Delivery Performance - Row 44
+        # Section Header: PubSub Delivery Performance - Row 50
         # ====================================================================
         {
-          yPos   = 44
+          yPos   = 50
           width  = 12
           height = 2
           widget = {
@@ -554,9 +695,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Push Delivery Latency - Row 46, Left
+        # Push Delivery Latency - Row 52, Left
         {
-          yPos   = 46
+          yPos   = 52
           width  = 6
           height = 4
           widget = {
@@ -587,10 +728,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Push Delivery Results - Row 46, Right
+        # Push Delivery Results - Row 52, Right
         {
           xPos   = 6
-          yPos   = 46
+          yPos   = 52
           width  = 6
           height = 4
           widget = {
@@ -622,10 +763,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         },
 
         # ====================================================================
-        # Section Header: Application Metrics (OTel) - Row 50
+        # Section Header: Application Metrics (OTel) - Row 56
         # ====================================================================
         {
-          yPos   = 50
+          yPos   = 56
           width  = 12
           height = 2
           widget = {
@@ -638,9 +779,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Strava API Latency - Row 52, Left
+        # Strava API Latency - Row 58, Left
         {
-          yPos   = 52
+          yPos   = 58
           width  = 6
           height = 4
           widget = {
@@ -671,10 +812,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # PostgreSQL Query Latency - Row 52, Right
+        # PostgreSQL Query Latency - Row 58, Right
         {
           xPos   = 6
-          yPos   = 52
+          yPos   = 58
           width  = 6
           height = 4
           widget = {
@@ -705,9 +846,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # BigQuery Operation Latency - Row 56, Left
+        # BigQuery Operation Latency - Row 62, Left
         {
-          yPos   = 56
+          yPos   = 62
           width  = 6
           height = 4
           widget = {
@@ -738,10 +879,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Webhook Events Counter - Row 56, Right
+        # Webhook Events Counter - Row 62, Right
         {
           xPos   = 6
-          yPos   = 56
+          yPos   = 62
           width  = 6
           height = 4
           widget = {
@@ -772,9 +913,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Connection Pool Gauge - Row 60
+        # Connection Pool Gauge - Row 66
         {
-          yPos   = 60
+          yPos   = 66
           width  = 12
           height = 4
           widget = {
@@ -805,14 +946,14 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Webhook Owner Allowlist Check - Row 64
+        # Webhook Owner Allowlist Check - Row 70
         # Plots the four owner-check outcomes:
         #   allowed  — happy path; matches the webhook/events rate
         #   stray    — not allowlisted; expected, ack'd silently
         #   orphan   — allowlisted but no Firestore tokens; alerts
         #   error    — allowlist read failed; alerts at >1/min
         {
-          yPos   = 64
+          yPos   = 70
           width  = 12
           height = 4
           widget = {
@@ -843,14 +984,14 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Postgres Writer Operation Latency (P95) - Row 68, Full Width
+        # Postgres Writer Operation Latency (P95) - Row 74, Full Width
         # Sister metric to postgres/query.duration (apigateway side); this
         # one comes from the postgres-writer service. Operation labels:
         # insert, activities_insert, update_metadata, delete.
         # `activities_insert` surfaces the Neon cold-compute signal:
         # warm-path ~180ms, cold ~1s+.
         {
-          yPos   = 68
+          yPos   = 74
           width  = 12
           height = 4
           widget = {
