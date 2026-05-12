@@ -81,14 +81,14 @@ postgres-writer is on the user-noticed critical path.
 
 | Aspect | Value |
 |---|---|
-| **SLI** | `% of CREATE webhook events where postgres row is visible within 3s of dispatcher receiving the webhook` |
+| **SLI** | `% of webhook events where the postgres row reflects the change within 3s of dispatcher receiving the webhook` |
 | **Target** | 95% |
 | **Window** | Rolling 30 days |
-| **Error budget** | 5% of CREATE webhook events can land slowly without burning the budget |
-| **Metric source** | `desirelines.io/webhook/end_to_end.duration` histogram with `aspect_type=create`, recorded by postgres-writer when an activity row is inserted. The elapsed time is `now - dispatcher_received_at` where `dispatcher_received_at` is propagated as a Pub/Sub attribute (`dispatcher_received_at_unix_ms`). |
-| **What counts as "good"** | end-to-end < 3000ms |
-| **What counts as "bad"** | end-to-end ≥ 3000ms, OR CREATE event was lost (no measurement → counted as failure) |
-| **Scope: CREATE-only** | UPDATE and DELETE webhooks don't emit the freshness measurement today. CREATE is the most user-perceived signal ("uploaded activity didn't appear"); UPDATE ("edited title not visible") and DELETE ("deleted activity still showing") are arguably also freshness signals but with less acute impact and lower cadence. Extension is filed as a follow-up task. |
+| **Error budget** | 5% of webhook events can land slowly without burning the budget |
+| **Metric source** | `desirelines.io/webhook/end_to_end.duration` histogram with `aspect_type=create\|update\|delete`, recorded by postgres-writer on each success path (new row inserted / metadata updated / row deleted). The elapsed time is `now - dispatcher_received_at` where `dispatcher_received_at` is propagated as a Pub/Sub attribute (`dispatcher_received_at_unix_ms`). Events that fail before recording (skips, DLQ) are absent from the histogram; the delivery-reliability signal for those is covered separately by SLO 2 (webhook ingest success), so SLO 3 stays focused on latency-of-successful-events without conflating two failure modes in one SLI. |
+| **What counts as "good"** | end-to-end < 3000ms on a recorded success-path event |
+| **What counts as "bad"** | end-to-end ≥ 3000ms on a recorded success-path event. DLQ losses are NOT counted here (they'd be absent from both numerator and denominator under the planned `distribution_cut` SLI shape); SLO 2 covers that failure mode. |
+| **Scope: all aspect_types** | CREATE, UPDATE, and DELETE webhooks all emit the freshness measurement and share the SLO threshold. Per-aspect slicing stays available in Metrics Explorer via the `aspect_type` label if behavior diverges (e.g. UPDATE turns out to be routinely slower because the path differs), at which point splitting into per-aspect SLOs becomes worth doing. |
 | **Rationale** | Sized for the actual usage profile. This is a single-user app at 2-5 webhooks/day, so the **typical case is cold-everything**: Neon (5-min idle) is cold ~95%+ of webhooks, Cloud Run (scale-to-zero) is cold most of the time, and Strava token refresh fires on ~50% of webhooks. N=2 production samples show ~1.6-1.7s for the cold + token-refresh path (typical) and ~700ms for the rare back-to-back warm case. 3s gives ~1.4s headroom over the typical case — enough to tolerate compound cold-start without flapping, but tight enough to alert on real degradation. Recalibrate after 7-30 days based on actual p95: may stay at 3s, or push to 4s threshold or 90% target depending on the distribution. |
 
 ### SLO 4 — Apigateway availability

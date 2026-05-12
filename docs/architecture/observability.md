@@ -226,7 +226,7 @@ resolution for custom metrics).
 | `pubsub/publish.duration` | dispatcher | (per topic) | Publish latency |
 | `firestore/operation.duration` | dispatcher | (per op) | Firestore read/write latency |
 | `http/request.duration` | apigateway, dispatcher | `result=success\|error` | otelhttp middleware |
-| `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create` | End-to-end webhook freshness from dispatcher receive to postgres row visible. Anchors SLO 3. CREATE-only today; UPDATE/DELETE could be added if user impact justifies. |
+| `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create\|update\|delete` | End-to-end webhook freshness from dispatcher receive to postgres row visible/updated/removed. Anchors SLO 3. Emitted only on success paths (new insert, metadata updated, row deleted) so skips and DLQ don't pollute the latency distribution. |
 
 ### Counters
 

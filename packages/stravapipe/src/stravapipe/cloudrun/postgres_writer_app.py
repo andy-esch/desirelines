@@ -42,6 +42,30 @@ from stravapipe.types.generated import webhook_pb2 as pb
 logger = setup_logging(__name__)
 
 
+def _record_freshness(
+    freshness_histogram: Histogram | None,
+    aspect_type: str,
+) -> None:
+    """Record end-to-end webhook freshness for SLO 3, if the inputs allow.
+
+    No-op when either (a) the histogram isn't available (e.g. a test
+    path without lifespan init) or (b) the dispatcher didn't stamp the
+    Pub/Sub `dispatcher_received_at_unix_ms` attribute (e.g. legacy
+    messages from before the freshness rollout). Both branches are
+    safe-by-design: the SLO measures forward-traffic only and silence
+    on absent inputs is intentional.
+
+    Called by each of `_handle_create`, `_handle_update`,
+    `_handle_delete` on their success path. Skipped/DLQ events are
+    governed by SLO 2 (webhook ingest success), not this metric.
+    """
+    received_at_ms = get_dispatcher_received_at_ms()
+    if received_at_ms is None or freshness_histogram is None:
+        return
+    elapsed_ms = (time.time() * 1000.0) - received_at_ms
+    freshness_histogram.record(elapsed_ms, {"aspect_type": aspect_type})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize shared resources on startup and ensure clean shutdown."""
@@ -80,7 +104,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             unit="ms",
             description=(
                 "End-to-end webhook latency from dispatcher receive to "
-                "postgres row visible. Records on successful inserts only."
+                "the postgres state reflecting the change. Records on "
+                "success paths only: new row inserted (CREATE), metadata "
+                "updated (UPDATE), row deleted (DELETE). Skips and DLQ "
+                "events don't emit; the latter are covered by SLO 2 "
+                "(webhook ingest success)."
             ),
         )
 
@@ -150,10 +178,10 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
             event, event_data, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         on_update=lambda event, event_data, cid: _handle_update(
-            event, cid, session_factory, pg_hist, tracer
+            event, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
-            event, cid, session_factory, pg_hist, tracer
+            event, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         webhook_counter=webhook_counter,
         tracer=tracer,
@@ -242,14 +270,7 @@ async def _handle_create(
         uow.commit()
 
     if inserted:
-        # Record end-to-end webhook freshness (anchors SLO 3). Skipped when
-        # the dispatcher didn't stamp the timestamp (legacy messages from
-        # before the attribute existed) — that's fine, the SLO measures
-        # against post-rollout traffic only.
-        received_at_ms = get_dispatcher_received_at_ms()
-        if received_at_ms is not None and freshness_histogram is not None:
-            elapsed_ms = (time.time() * 1000.0) - received_at_ms
-            freshness_histogram.record(elapsed_ms, {"aspect_type": "create"})
+        _record_freshness(freshness_histogram, "create")
 
         logger.info(
             "Created activity %s in PostgreSQL",
@@ -277,6 +298,7 @@ async def _handle_update(
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
+    freshness_histogram: Histogram | None = None,
 ) -> WebhookResponse:
     """Handle UPDATE events - update metadata if activity exists."""
     activity_id = event.object_id
@@ -331,6 +353,8 @@ async def _handle_update(
         )
 
     if updated:
+        _record_freshness(freshness_histogram, "update")
+
         logger.info(
             "Updated activity %s metadata",
             activity_id,
@@ -356,6 +380,7 @@ async def _handle_delete(
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
+    freshness_histogram: Histogram | None = None,
 ) -> WebhookResponse:
     """Handle DELETE events - remove activity from PostgreSQL."""
     activity_id = event.object_id
@@ -370,6 +395,8 @@ async def _handle_delete(
         uow.commit()
 
     if deleted:
+        _record_freshness(freshness_histogram, "delete")
+
         logger.info("Deleted activity %s from PostgreSQL", activity_id)
         return WebhookResponse(
             status=ResponseStatus.DELETED,

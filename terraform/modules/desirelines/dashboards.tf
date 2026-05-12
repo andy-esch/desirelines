@@ -335,6 +335,13 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         },
 
         # Service 5xx Errors - Row 18, Right
+        # The decorative threshold line at 0.05/sec was removed in
+        # 2026-05-12 — it didn't correspond to any live alert after the
+        # 5xx alert was reconciled into a ratio condition (alerts.tf) and
+        # SLO 4/1 burn-rate alerts (slos.tf). SLO compliance scorecards
+        # at the top of the dashboard cover the apigateway/dispatcher
+        # 5xx burn signal; this tile is now pure visual reference for the
+        # other Cloud Run services.
         {
           xPos   = 6
           yPos   = 18
@@ -364,9 +371,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 label = "Errors/min"
                 scale = "LINEAR"
               }
-              thresholds = [{
-                value = 0.05
-              }]
             }
           }
         },
