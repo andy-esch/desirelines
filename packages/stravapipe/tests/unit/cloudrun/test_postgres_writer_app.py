@@ -8,10 +8,13 @@ rather than fetched from the Strava API.
 """
 
 import json
+import time
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 import pytest
+
+from stravapipe.cloudrun.postgres_writer_app import app
 
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
@@ -98,9 +101,6 @@ class TestReadyEndpoint:
 
     def test_ready_returns_503_on_timeout(self, client):
         """A probe that exceeds the timeout returns 503 with timeout marker."""
-        import time
-
-        from stravapipe.cloudrun.postgres_writer_app import app
 
         def _slow_factory():
             time.sleep(0.5)
