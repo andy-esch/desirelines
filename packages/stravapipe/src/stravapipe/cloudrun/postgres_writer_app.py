@@ -80,7 +80,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             unit="ms",
             description=(
                 "End-to-end webhook latency from dispatcher receive to "
-                "postgres row visible. Records on successful inserts only."
+                "the postgres state reflecting the change. Records on "
+                "success paths only: new row inserted (CREATE), metadata "
+                "updated (UPDATE), row deleted (DELETE). Skips and DLQ "
+                "events don't emit; the latter are covered by SLO 2 "
+                "(webhook ingest success)."
             ),
         )
 
