@@ -150,10 +150,10 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
             event, event_data, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         on_update=lambda event, event_data, cid: _handle_update(
-            event, cid, session_factory, pg_hist, tracer
+            event, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
-            event, cid, session_factory, pg_hist, tracer
+            event, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         webhook_counter=webhook_counter,
         tracer=tracer,
@@ -277,6 +277,7 @@ async def _handle_update(
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
+    freshness_histogram: Histogram | None = None,
 ) -> WebhookResponse:
     """Handle UPDATE events - update metadata if activity exists."""
     activity_id = event.object_id
@@ -331,6 +332,15 @@ async def _handle_update(
         )
 
     if updated:
+        # Record end-to-end webhook freshness for the UPDATE path. Mirrors
+        # the CREATE-side emission; same SLO 3 measurement, different
+        # aspect_type label so per-path slicing stays available in
+        # Metrics Explorer if behavior diverges.
+        received_at_ms = get_dispatcher_received_at_ms()
+        if received_at_ms is not None and freshness_histogram is not None:
+            elapsed_ms = (time.time() * 1000.0) - received_at_ms
+            freshness_histogram.record(elapsed_ms, {"aspect_type": "update"})
+
         logger.info(
             "Updated activity %s metadata",
             activity_id,
@@ -356,6 +366,7 @@ async def _handle_delete(
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
+    freshness_histogram: Histogram | None = None,
 ) -> WebhookResponse:
     """Handle DELETE events - remove activity from PostgreSQL."""
     activity_id = event.object_id
@@ -370,6 +381,16 @@ async def _handle_delete(
         uow.commit()
 
     if deleted:
+        # Record end-to-end webhook freshness for the DELETE path. The
+        # interesting variant of "freshness" for delete is "how long
+        # before the ghost activity disappears from the dashboard."
+        # Mirrors the CREATE/UPDATE shape; same SLO 3 measurement, just
+        # a different aspect_type label.
+        received_at_ms = get_dispatcher_received_at_ms()
+        if received_at_ms is not None and freshness_histogram is not None:
+            elapsed_ms = (time.time() * 1000.0) - received_at_ms
+            freshness_histogram.record(elapsed_ms, {"aspect_type": "delete"})
+
         logger.info("Deleted activity %s from PostgreSQL", activity_id)
         return WebhookResponse(
             status=ResponseStatus.DELETED,
