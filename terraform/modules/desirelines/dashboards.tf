@@ -1020,6 +1020,172 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
             }
           }
+        },
+
+        # ====================================================================
+        # Section Header: Security signals - Row 78
+        # ====================================================================
+        # Per-response-code rate tiles paired 1:1 with the security alerts
+        # in `alerts.tf` (`apigateway_auth_failure_surge`,
+        # `apigateway_not_found_surge`, `apigateway_rate_limited_surge`,
+        # `dispatcher_bad_request_surge`). Each tile carries a threshold
+        # line at the alert's firing value so "how close are we to firing?"
+        # is one-glance.
+        #
+        # Values are events/sec (ALIGN_RATE), so threshold 0.167 = 10/min
+        # and 0.0833 = 5/min. Tile titles include the per-minute equivalent
+        # for human reading.
+        {
+          yPos   = 78
+          width  = 12
+          height = 2
+          widget = {
+            title = "🔒 Security signals"
+            text = {
+              content = "Per-response-code anomaly rates. Threshold line on each tile shows where the matching alert in `alerts.tf` fires. Sustained values near or above the line mean adversarial activity is likely; investigate in logs and consider blocking the source IP."
+              format  = "MARKDOWN"
+              style   = {}
+            }
+          }
+        },
+
+        # 401/403 rate (apigateway) - Row 80
+        {
+          yPos   = 80
+          width  = 3
+          height = 4
+          widget = {
+            title = "401/403 apigateway (alert at 10/min)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=monitoring.regex.full_match(\"401|403\")"
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_RATE"
+                      crossSeriesReducer = "REDUCE_SUM"
+                    }
+                  }
+                }
+                plotType   = "LINE"
+                targetAxis = "Y1"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Events/sec"
+                scale = "LINEAR"
+              }
+              thresholds = [{
+                value = 0.167 # = 10/min, matches apigateway_auth_failure_surge
+              }]
+            }
+          }
+        },
+
+        # 404 rate (apigateway) - Row 80
+        {
+          xPos   = 3
+          yPos   = 80
+          width  = 3
+          height = 4
+          widget = {
+            title = "404 apigateway (alert at 5/min)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"404\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_RATE"
+                      crossSeriesReducer = "REDUCE_SUM"
+                    }
+                  }
+                }
+                plotType   = "LINE"
+                targetAxis = "Y1"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Events/sec"
+                scale = "LINEAR"
+              }
+              thresholds = [{
+                value = 0.0833 # = 5/min, matches apigateway_not_found_surge
+              }]
+            }
+          }
+        },
+
+        # 429 rate (apigateway) - Row 80
+        {
+          xPos   = 6
+          yPos   = 80
+          width  = 3
+          height = 4
+          widget = {
+            title = "429 apigateway (alert at 5/min)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"429\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_RATE"
+                      crossSeriesReducer = "REDUCE_SUM"
+                    }
+                  }
+                }
+                plotType   = "LINE"
+                targetAxis = "Y1"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Events/sec"
+                scale = "LINEAR"
+              }
+              thresholds = [{
+                value = 0.0833 # = 5/min, matches apigateway_rate_limited_surge
+              }]
+            }
+          }
+        },
+
+        # 400 rate (dispatcher) - Row 80
+        {
+          xPos   = 9
+          yPos   = 80
+          width  = 3
+          height = 4
+          widget = {
+            title = "400 dispatcher (alert at 5/min)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.dispatcher.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"400\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_RATE"
+                      crossSeriesReducer = "REDUCE_SUM"
+                    }
+                  }
+                }
+                plotType   = "LINE"
+                targetAxis = "Y1"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Events/sec"
+                scale = "LINEAR"
+              }
+              thresholds = [{
+                value = 0.0833 # = 5/min, matches dispatcher_bad_request_surge
+              }]
+            }
+          }
         }
       ]
     }
