@@ -56,21 +56,34 @@ def make_pubsub_body(
     webhook_data: dict,
     attributes: dict[str, str] | None = None,
     delivery_attempt: int | None = None,
+    dispatcher_received_at_ms: int | None = None,
 ) -> dict:
     """Create a Pub/Sub message body with base64-encoded webhook data.
 
     Pass `delivery_attempt=N` to simulate a redelivered message (Pub/Sub sets
     this on the envelope when DLQ is configured). Omit it to mimic the
     first-delivery / no-DLQ shape where the field is absent.
+
+    Pass `dispatcher_received_at_ms=ms` to stamp the
+    `dispatcher_received_at_unix_ms` attribute the dispatcher sets on every
+    real message (used by postgres-writer to record SLO 3 freshness). Omit
+    to mimic legacy / pre-rollout traffic, in which case the
+    `_record_freshness` helper early-returns and no histogram emission
+    occurs.
     """
     encoded_data = base64.b64encode(json.dumps(webhook_data).encode()).decode()
+    merged_attributes: dict[str, str] = dict(attributes) if attributes else {}
+    if dispatcher_received_at_ms is not None:
+        merged_attributes["dispatcher_received_at_unix_ms"] = str(
+            dispatcher_received_at_ms
+        )
     msg: dict = {
         "data": encoded_data,
         "messageId": "test-message-123",
         "publishTime": "2024-01-01T00:00:00Z",
     }
-    if attributes:
-        msg["attributes"] = attributes
+    if merged_attributes:
+        msg["attributes"] = merged_attributes
     if delivery_attempt is not None:
         msg["deliveryAttempt"] = delivery_attempt
     return {"message": msg}
