@@ -1026,8 +1026,51 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
+        # Webhook freshness P95 by aspect_type - Row 78, Full Width
+        # Source for SLO 3 (data freshness). Three series after the
+        # `feat/extend-webhook-freshness-metric-to-update-and-delete` PR
+        # lands — CREATE has been emitting since 2026-05-09; UPDATE and
+        # DELETE start emitting once that PR deploys. Threshold reference
+        # line at 3000ms matches SLO 3's planned target; update the value
+        # if SLO 3 wires with a different calibrated threshold after the
+        # data window matures.
+        {
+          yPos   = 78
+          width  = 12
+          height = 4
+          widget = {
+            title = "Webhook freshness P95 by aspect_type (anchors SLO 3)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/end_to_end.duration\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_DELTA"
+                      crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      groupByFields      = ["metric.labels.aspect_type"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.aspect_type}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Milliseconds"
+                scale = "LINEAR"
+              }
+              thresholds = [{
+                value = 3000 # SLO 3 target threshold; adjust if SLO 3 calibrates differently
+              }]
+            }
+          }
+        },
+
         # ====================================================================
-        # Section Header: Security signals - Row 78
+        # Section Header: Security signals - Row 82
         # ====================================================================
         # Per-response-code rate tiles paired 1:1 with the security alerts
         # in `alerts.tf` (`apigateway_auth_failure_surge`,
@@ -1040,7 +1083,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         # and 0.0833 = 5/min. Tile titles include the per-minute equivalent
         # for human reading.
         {
-          yPos   = 78
+          yPos   = 82
           width  = 12
           height = 2
           widget = {
@@ -1053,9 +1096,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # 401/403 rate (apigateway) - Row 80
+        # 401/403 rate (apigateway) - Row 84
         {
-          yPos   = 80
+          yPos   = 84
           width  = 3
           height = 4
           widget = {
@@ -1087,10 +1130,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # 404 rate (apigateway) - Row 80
+        # 404 rate (apigateway) - Row 84
         {
           xPos   = 3
-          yPos   = 80
+          yPos   = 84
           width  = 3
           height = 4
           widget = {
@@ -1122,10 +1165,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # 429 rate (apigateway) - Row 80
+        # 429 rate (apigateway) - Row 84
         {
           xPos   = 6
-          yPos   = 80
+          yPos   = 84
           width  = 3
           height = 4
           widget = {
@@ -1157,10 +1200,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # 400 rate (dispatcher) - Row 80
+        # 400 rate (dispatcher) - Row 84
         {
           xPos   = 9
-          yPos   = 80
+          yPos   = 84
           width  = 3
           height = 4
           widget = {

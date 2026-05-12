@@ -8,10 +8,13 @@ rather than fetched from the Strava API.
 """
 
 import json
+import time
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 import pytest
+
+from stravapipe.cloudrun.postgres_writer_app import app
 
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
@@ -98,9 +101,6 @@ class TestReadyEndpoint:
 
     def test_ready_returns_503_on_timeout(self, client):
         """A probe that exceeds the timeout returns 503 with timeout marker."""
-        import time
-
-        from stravapipe.cloudrun.postgres_writer_app import app
 
         def _slow_factory():
             time.sleep(0.5)
@@ -531,6 +531,168 @@ class TestErrorHandling:
 
         assert response.status_code == 422
         assert "raw_activity" in response.json()["detail"]
+
+
+class TestFreshnessEmission:
+    """End-to-end webhook freshness histogram emission (anchors SLO 3).
+
+    Exercises `_record_freshness` via the success path of each handler
+    when the dispatcher stamps the `dispatcher_received_at_unix_ms`
+    attribute. The CREATE-only emission shipped earlier and the
+    UPDATE/DELETE extension landed in
+    `feat/extend-webhook-freshness-metric-to-update-and-delete`; this
+    class is the unit-level safety net added in the
+    `add-postgres-writer-app-test-fixture-for-dispatcher-received-at`
+    follow-up so regressions are caught before post-deploy verification.
+    """
+
+    def _mock_freshness_histogram(self):
+        """Replace `app.state.freshness_histogram` with a MagicMock.
+
+        The lifespan creates a real OTel Histogram; we need to swap it
+        so the test can assert on `.record(...)` calls. Returns the mock
+        so the test body can inspect it.
+        """
+        from stravapipe.cloudrun.postgres_writer_app import app
+
+        mock = MagicMock()
+        app.state.freshness_histogram = mock
+        return mock
+
+    def test_create_emits_freshness_when_attribute_present(self, client):
+        """CREATE success path records to the histogram with aspect_type=create."""
+        import time
+
+        mock_histogram = self._mock_freshness_histogram()
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+
+        received_at_ms = int(time.time() * 1000) - 500  # 500ms in the past
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=MagicMock(map=None),
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(
+                    webhook, dispatcher_received_at_ms=received_at_ms
+                ),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "created"
+        mock_histogram.record.assert_called_once()
+        elapsed_ms, labels = mock_histogram.record.call_args.args
+        assert 0 < elapsed_ms < 60_000  # sane bound: anything > 1 minute means a bug
+        assert labels == {"aspect_type": "create"}
+
+    def test_update_emits_freshness_when_attribute_present(self, client):
+        """UPDATE success path records to the histogram with aspect_type=update."""
+        import time
+
+        mock_histogram = self._mock_freshness_histogram()
+        mock_uow = MagicMock()
+        mock_uow.activities.exists.return_value = True
+        mock_uow.activities.update_metadata.return_value = True
+
+        received_at_ms = int(time.time() * 1000) - 500
+
+        webhook = make_webhook_payload(aspect_type="update")
+        webhook["updates"] = {"title": "Renamed"}
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(
+                    webhook, dispatcher_received_at_ms=received_at_ms
+                ),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "updated"
+        mock_histogram.record.assert_called_once()
+        elapsed_ms, labels = mock_histogram.record.call_args.args
+        assert 0 < elapsed_ms < 60_000
+        assert labels == {"aspect_type": "update"}
+
+    def test_delete_emits_freshness_when_attribute_present(self, client):
+        """DELETE success path records to the histogram with aspect_type=delete."""
+        import time
+
+        mock_histogram = self._mock_freshness_histogram()
+        mock_uow = MagicMock()
+        mock_uow.activities.delete.return_value = True
+
+        received_at_ms = int(time.time() * 1000) - 500
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(
+                    make_webhook_payload(aspect_type="delete"),
+                    dispatcher_received_at_ms=received_at_ms,
+                ),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "deleted"
+        mock_histogram.record.assert_called_once()
+        elapsed_ms, labels = mock_histogram.record.call_args.args
+        assert 0 < elapsed_ms < 60_000
+        assert labels == {"aspect_type": "delete"}
+
+    def test_no_emission_when_attribute_missing(self, client):
+        """No `dispatcher_received_at_unix_ms` attribute → no record() call.
+
+        Guards the early-return branch in `_record_freshness`. Covers the
+        pre-rollout / legacy-message case where the dispatcher hadn't
+        started stamping the attribute yet.
+        """
+        mock_histogram = self._mock_freshness_histogram()
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=MagicMock(map=None),
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),  # no dispatcher_received_at_ms
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "created"
+        mock_histogram.record.assert_not_called()
 
 
 class TestIdempotency:
