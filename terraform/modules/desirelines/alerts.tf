@@ -98,50 +98,63 @@ resource "google_monitoring_alert_policy" "dlq_postgres_writer" {
   }
 }
 
-# HIGH: Service 4xx Error Rate (Client Errors)
-resource "google_monitoring_alert_policy" "service_4xx_errors" {
-  display_name = "⚠️ Cloud Run: High 4xx Error Rate"
+# ============================================================================
+# SECURITY: Anomalous 4xx signals
+# ============================================================================
+# Four narrow alerts, one per attack pattern. At single-user volume
+# (~0.04 req/min baseline) any sustained 4xx is anomalous; thresholds
+# below are calibrated to fire on adversarial activity without tripping
+# on the occasional legitimate edge case (e.g. token expiry).
+#
+# Why per-code instead of one unified "4xx > X" alert: each response_code
+# maps to a distinct attack pattern with a distinct runbook. Splitting
+# means the alert payload itself tells the on-caller what kind of incident
+# they're looking at.
+#
+# Thresholds are placeholders — re-tune after observing a week of real
+# baseline data. Bias is toward sensitivity rather than precision; a few
+# false positives on the user's own browser are cheaper than missing a
+# real probe.
+
+# SECURITY (HIGH): Sustained 401/403 on apigateway — credential stuffing
+# or OAuth code injection. Legit traffic occasionally hits 401 during
+# Firebase token expiry/refresh; sustained 10/min is well above that.
+resource "google_monitoring_alert_policy" "apigateway_auth_failure_surge" {
+  display_name = "🔒 apigateway: 401/403 surge (credential attack)"
   combiner     = "OR"
 
   documentation {
     content = <<-EOT
-      **MEDIUM PRIORITY**: One or more Cloud Run services are experiencing high 4xx errors (>10%).
+      **HIGH**: apigateway is returning 401 or 403 at >10/min sustained for
+      5 minutes. Most likely an external actor probing authenticated
+      endpoints — credential stuffing, OAuth code injection on the
+      `/auth/callback` path, or stale-token replay.
 
-      4xx errors are client errors (bad requests, unauthorized, not found, etc.) and may indicate:
-      - Malformed webhook payloads from Strava (dispatcher)
-      - Invalid API requests (api_gateway)
-      - Authentication issues
-
-      **Monitored Services**:
-      - desirelines-dispatcher (webhook entry point)
-      - desirelines-api-gateway (web UI backend)
-      - desirelines-bq-inserter (BigQuery writer)
-      - desirelines-postgres-writer (PostgreSQL writer)
-
-      **Action Required**:
-      1. Check which service is affected in the dashboard
-      2. Review service logs to see specific 4xx status codes
-      3. For dispatcher: Check Strava webhook payload format
-      4. For api_gateway: Check client requests and auth tokens
-
-      Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
+      **Action**:
+      1. Check apigateway logs for the request paths — `/auth/*` vs `/v1/*`
+         distinguishes OAuth attack from authenticated-endpoint probe.
+      2. Inspect source IPs / user agents in the logs. A single IP
+         hammering ⇒ block at Firebase Hosting or Cloud Armor. Many IPs
+         ⇒ distributed scanner.
+      3. If concentrated on `/auth/callback`: review the recent OAuth
+         flow — was a Strava code leaked, did a redirect URI change?
+      4. Don't react to a single brief spike around token-expiry events;
+         the 5-min duration filter should already absorb those.
     EOT
   }
 
   conditions {
-    display_name = "Service 4xx error rate > 10%"
+    display_name = "401/403 rate > 10/min sustained"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"4xx\""
-      duration        = "300s" # 5 minutes to avoid transient errors
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.label.response_code=monitoring.regex.full_match(\"401|403\")"
+      duration        = "300s"
       comparison      = "COMPARISON_GT"
-      threshold_value = 0.10 # 10% error rate (higher tolerance for client errors)
+      threshold_value = 0.167 # ≈ 10/min under ALIGN_RATE per-second
 
       aggregations {
-        alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_RATE"
-        cross_series_reducer = "REDUCE_SUM"
-        group_by_fields      = ["resource.labels.service_name"]
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_RATE"
       }
     }
   }
@@ -149,51 +162,223 @@ resource "google_monitoring_alert_policy" "service_4xx_errors" {
   notification_channels = local.notification_channels
 
   alert_strategy {
-    auto_close = "3600s" # Auto-resolve after 1 hour
+    auto_close = "3600s"
   }
 }
 
-# CRITICAL: Service 5xx Error Rate (Server Errors)
-resource "google_monitoring_alert_policy" "service_5xx_errors" {
-  display_name = "🚨 Cloud Run: 5xx Server Errors"
+# SECURITY (MEDIUM): Sustained 404 on apigateway — directory enumeration
+# or vulnerability scanning. Legit users essentially never generate 404
+# (no navigation reaches nonexistent routes); any sustained volume is a bot.
+resource "google_monitoring_alert_policy" "apigateway_not_found_surge" {
+  display_name = "🔒 apigateway: 404 surge (scanner activity)"
   combiner     = "OR"
 
   documentation {
     content = <<-EOT
-      **CRITICAL**: One or more Cloud Run services are experiencing 5xx server errors (>2%).
+      **MEDIUM**: apigateway is returning 404 at >5/min sustained for
+      5 minutes. Almost always a bot probing for common attack paths
+      (`/wp-admin`, `/.git/config`, `/.env`, etc.) since legitimate
+      navigation doesn't produce 404s.
 
-      5xx errors indicate actual problems with our code or infrastructure:
-      - Unhandled exceptions
-      - Timeouts
-      - Dependency failures (BigQuery, PostgreSQL, etc.)
+      **Action**:
+      1. Check apigateway logs for the 404 paths — confirms it's a
+         scanner and reveals what's being probed.
+      2. If concentrated from a single IP / ASN: block at Firebase
+         Hosting or Cloud Armor.
+      3. If distributed and noisy: usually safe to ignore; public Cloud
+         Run URLs get this constantly. Document the IP range to avoid
+         re-triaging next time.
+    EOT
+  }
+
+  conditions {
+    display_name = "404 rate > 5/min sustained"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.label.response_code=\"404\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_RATE"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+# SECURITY (HIGH): Sustained 429 on apigateway — rate-limiter middleware
+# is engaging, which itself is the signal. Either an external flood or a
+# misbehaving legitimate client. Threshold is intentionally low because
+# even a few 429s in a window means real-volume traffic is being denied.
+resource "google_monitoring_alert_policy" "apigateway_rate_limited_surge" {
+  display_name = "🔒 apigateway: 429 surge (rate-limit engagement)"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **HIGH**: apigateway's rate-limiter middleware is returning 429 at
+      >5/min sustained for 5 minutes. Either an external flood/DOS
+      attempt or a misbehaving legitimate client looping a request.
+
+      **Action**:
+      1. Check apigateway logs for the source IP(s). Single source =
+         likely deliberate; distributed = distributed flood.
+      2. Cross-check with `apigateway_uptime` — if uptime is still
+         passing, the limiter is doing its job.
+      3. If a legit client (e.g. the web app in a polling-loop bug):
+         find and fix the client. The web app has TanStack Query with
+         AbortSignal — runaway requests usually mean a missing abort.
+      4. If adversarial: consider tightening `var.api_rate_limit_*` or
+         adding Cloud Armor in front.
+    EOT
+  }
+
+  conditions {
+    display_name = "429 rate > 5/min sustained"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.label.response_code=\"429\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_RATE"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+# SECURITY (HIGH): Sustained 400 on dispatcher — webhook payload tampering
+# or replay attempts. Strava sends well-formed payloads; bursts of 400 on
+# the webhook endpoint mean someone is trying to manipulate or fuzz it.
+resource "google_monitoring_alert_policy" "dispatcher_bad_request_surge" {
+  display_name = "🔒 dispatcher: 400 surge (webhook tampering)"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **HIGH**: dispatcher is returning 400 (Bad Request) at >5/min
+      sustained for 5 minutes. Legitimate Strava webhook payloads are
+      well-formed; bursts of 400 indicate someone is hitting the
+      `/webhook` endpoint with crafted/replayed payloads.
+
+      **Action**:
+      1. Check dispatcher logs for the rejection reason — proto
+         deserialization vs signature mismatch vs missing required field.
+      2. Inspect source IPs. Strava webhook traffic comes from
+         documented Strava IP ranges; any other origin is the actor.
+      3. If volume is high enough to threaten capacity, block at
+         Cloud Run ingress or via Cloud Armor.
+      4. If a real Strava-side schema change is the cause (Strava added
+         a required field): update proto + redeploy. Crosscheck the
+         dispatcher's allowlist behavior — orphan tokens should still
+         be handled gracefully.
+    EOT
+  }
+
+  conditions {
+    display_name = "400 rate > 5/min sustained"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.dispatcher.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.label.response_code=\"400\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_RATE"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+# CRITICAL: 5xx Server Errors on non-SLO Cloud Run services
+#
+# Scope: bq-inserter, postgres-writer, deletion-service. The apigateway
+# and dispatcher 5xx cases are covered by SLO 4 (apigateway availability)
+# and SLO 1 (dispatcher availability) burn-rate alert pairs in slos.tf,
+# so they're excluded here to avoid double-paging.
+#
+# Shape: ratio condition (5xx count / total count), not a raw rate. The
+# pre-2026-05-12 version used ALIGN_RATE without a denominator, which
+# meant threshold_value=0.02 was actually triggering at 0.02 events/sec
+# (1.2/min), not "2% of requests" — a silent false-negative bug since
+# the alert was authored.
+#
+# The matching 4xx alert was removed in the same change; 4xx is a client
+# signal rather than a service-health signal, and at single-user volume
+# it doesn't carry actionable information that the dashboard tile and
+# log search don't already cover.
+resource "google_monitoring_alert_policy" "service_5xx_errors" {
+  display_name = "🚨 Cloud Run: 5xx errors on non-SLO services"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **CRITICAL**: One of the non-SLO Cloud Run services is returning
+      5xx at >2% of its request volume.
 
       **Monitored Services**:
-      - desirelines-dispatcher (webhook entry point)
-      - desirelines-api-gateway (web UI backend)
       - desirelines-bq-inserter (BigQuery writer)
       - desirelines-postgres-writer (PostgreSQL writer)
+      - desirelines-deletion-service (deletion handler)
+
+      apigateway + dispatcher 5xx is covered by SLO 1 + SLO 4 burn-rate
+      alerts (slos.tf) and is intentionally excluded from this policy.
 
       **Action Required**:
-      1. Check which service is failing in the dashboard
+      1. Identify the failing service from the alert's `service_name` label
       2. Review service logs for stack traces and error details
       3. Check for recent deployments or configuration changes
-      4. For bq_inserter/postgres_writer: Check DLQ for failed messages
-      5. Verify dependencies (BigQuery, PostgreSQL) are healthy
+      4. For bq_inserter / postgres_writer: cross-reference with the
+         corresponding DLQ alert (failures here typically end up in DLQ)
+      5. Verify dependencies (BigQuery, PostgreSQL, Firestore) are healthy
 
       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
     EOT
   }
 
   conditions {
-    display_name = "Service 5xx error rate > 2%"
+    display_name = "Non-SLO service 5xx ratio > 2%"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
-      duration        = "300s" # 5 minutes
-      comparison      = "COMPARISON_GT"
-      threshold_value = 0.02 # 2% error rate (strict for server errors)
+      # 5xx count on the three non-SLO services
+      filter             = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+      duration           = "300s" # 5 minutes
+      comparison         = "COMPARISON_GT"
+      threshold_value    = 0.02 # 2% of requests on the rolling window
+      denominator_filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)\") AND metric.type=\"run.googleapis.com/request_count\""
 
       aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["resource.labels.service_name"]
+      }
+      denominator_aggregations {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_RATE"
         cross_series_reducer = "REDUCE_SUM"
@@ -687,10 +872,14 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_error" {
     display_name = "owner_check{result=error} rate > 1/min for 10m"
 
     condition_threshold {
-      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\" AND metric.labels.result=\"error\""
-      duration        = "600s"
+      filter   = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\" AND metric.labels.result=\"error\""
+      duration = "600s"
+      # `ALIGN_RATE` aligns counter increments into events-per-second, so a
+      # "rate > 1/min" intent becomes 1/60 = 0.01667. The pre-2026-05-12
+      # value of `1` was actually requiring 60 errors/min — 60× too high —
+      # which made the alert silently false-negative since it was authored.
       comparison      = "COMPARISON_GT"
-      threshold_value = 1
+      threshold_value = 0.01667
 
       aggregations {
         alignment_period     = "60s"

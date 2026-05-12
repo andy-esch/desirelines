@@ -71,23 +71,26 @@ output "monitoring_dashboard_url" {
 output "alert_policy_ids" {
   description = "IDs of created alert policies"
   value = {
-    dlq_bq_inserter              = google_monitoring_alert_policy.dlq_bq_inserter.id
-    dlq_postgres_writer          = google_monitoring_alert_policy.dlq_postgres_writer.id
-    service_4xx                  = google_monitoring_alert_policy.service_4xx_errors.id
-    service_5xx                  = google_monitoring_alert_policy.service_5xx_errors.id
-    old_messages                 = google_monitoring_alert_policy.old_messages.id
-    apigateway_uptime            = google_monitoring_alert_policy.apigateway_uptime.id
-    apigateway_readiness_failing = google_monitoring_alert_policy.apigateway_readiness_failing.id
-    python_readiness_failing     = google_monitoring_alert_policy.python_readiness_failing.id
-    frontend_uptime              = google_monitoring_alert_policy.frontend_uptime.id
-    postgres_pool_exhaustion     = one(google_monitoring_alert_policy.postgres_pool_exhaustion[*].id)
-    strava_api_latency           = one(google_monitoring_alert_policy.strava_api_latency[*].id)
-    http_request_latency         = one(google_monitoring_alert_policy.http_request_latency[*].id)
-    postgres_query_latency       = one(google_monitoring_alert_policy.postgres_query_latency[*].id)
-    firestore_operation_latency  = one(google_monitoring_alert_policy.firestore_operation_latency[*].id)
-    pubsub_publish_latency       = one(google_monitoring_alert_policy.pubsub_publish_latency[*].id)
-    webhook_events_absent        = one(google_monitoring_alert_policy.webhook_events_absent[*].id)
-    webhook_owner_check_orphan   = one(google_monitoring_alert_policy.webhook_owner_check_orphan[*].id)
-    webhook_owner_check_error    = one(google_monitoring_alert_policy.webhook_owner_check_error[*].id)
+    dlq_bq_inserter               = google_monitoring_alert_policy.dlq_bq_inserter.id
+    dlq_postgres_writer           = google_monitoring_alert_policy.dlq_postgres_writer.id
+    service_5xx                   = google_monitoring_alert_policy.service_5xx_errors.id
+    apigateway_auth_failure_surge = google_monitoring_alert_policy.apigateway_auth_failure_surge.id
+    apigateway_not_found_surge    = google_monitoring_alert_policy.apigateway_not_found_surge.id
+    apigateway_rate_limited_surge = google_monitoring_alert_policy.apigateway_rate_limited_surge.id
+    dispatcher_bad_request_surge  = google_monitoring_alert_policy.dispatcher_bad_request_surge.id
+    old_messages                  = google_monitoring_alert_policy.old_messages.id
+    apigateway_uptime             = google_monitoring_alert_policy.apigateway_uptime.id
+    apigateway_readiness_failing  = google_monitoring_alert_policy.apigateway_readiness_failing.id
+    python_readiness_failing      = google_monitoring_alert_policy.python_readiness_failing.id
+    frontend_uptime               = google_monitoring_alert_policy.frontend_uptime.id
+    postgres_pool_exhaustion      = one(google_monitoring_alert_policy.postgres_pool_exhaustion[*].id)
+    strava_api_latency            = one(google_monitoring_alert_policy.strava_api_latency[*].id)
+    http_request_latency          = one(google_monitoring_alert_policy.http_request_latency[*].id)
+    postgres_query_latency        = one(google_monitoring_alert_policy.postgres_query_latency[*].id)
+    firestore_operation_latency   = one(google_monitoring_alert_policy.firestore_operation_latency[*].id)
+    pubsub_publish_latency        = one(google_monitoring_alert_policy.pubsub_publish_latency[*].id)
+    webhook_events_absent         = one(google_monitoring_alert_policy.webhook_events_absent[*].id)
+    webhook_owner_check_orphan    = one(google_monitoring_alert_policy.webhook_owner_check_orphan[*].id)
+    webhook_owner_check_error     = one(google_monitoring_alert_policy.webhook_owner_check_error[*].id)
   }
 }
