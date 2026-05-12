@@ -221,7 +221,7 @@ resolution for custom metrics).
 | `bigquery/operation.duration` | bq-inserter | `insert_rows`, `merge_from_staging`, `merge_batch_from_staging`, `dml` | Outer + sub-operation timings; MERGE step is the dominant ingest cost (~73% of `insert_rows`) |
 | `postgres/operation.duration` | postgres-writer | `insert`, `activities_insert`, `update_metadata`, `delete` | `activities_insert` surfaces Neon cold-compute (warm ~180ms, cold ~1s+) |
 | `postgres/query.duration` | apigateway | `year_metadata`, `get_by_id`, `list`, `list_routes`, `multi_sport_metrics_by_date_range`, `multi_sport_daily_summary_by_date_range` | One label per repository read method; matches span names |
-| `auth/firebase_verify.duration` | apigateway | (none) | Firebase ID-token verification. Name predates the `auth.verify_id_token` span; rename pending. |
+| `auth/verify_id_token.duration` | apigateway | (none) | Firebase ID-token verification. Histogram name matches the `auth.verify_id_token` span 1:1 (convention from histogram-label alignment cleanup). |
 | `strava/api.duration` | dispatcher | `fetch_activity`, `refresh_token` | Strava-side latency |
 | `pubsub/publish.duration` | dispatcher | (per topic) | Publish latency |
 | `firestore/operation.duration` | dispatcher | (per op) | Firestore read/write latency |
