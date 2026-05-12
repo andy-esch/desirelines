@@ -42,6 +42,30 @@ from stravapipe.types.generated import webhook_pb2 as pb
 logger = setup_logging(__name__)
 
 
+def _record_freshness(
+    freshness_histogram: Histogram | None,
+    aspect_type: str,
+) -> None:
+    """Record end-to-end webhook freshness for SLO 3, if the inputs allow.
+
+    No-op when either (a) the histogram isn't available (e.g. a test
+    path without lifespan init) or (b) the dispatcher didn't stamp the
+    Pub/Sub `dispatcher_received_at_unix_ms` attribute (e.g. legacy
+    messages from before the freshness rollout). Both branches are
+    safe-by-design: the SLO measures forward-traffic only and silence
+    on absent inputs is intentional.
+
+    Called by each of `_handle_create`, `_handle_update`,
+    `_handle_delete` on their success path. Skipped/DLQ events are
+    governed by SLO 2 (webhook ingest success), not this metric.
+    """
+    received_at_ms = get_dispatcher_received_at_ms()
+    if received_at_ms is None or freshness_histogram is None:
+        return
+    elapsed_ms = (time.time() * 1000.0) - received_at_ms
+    freshness_histogram.record(elapsed_ms, {"aspect_type": aspect_type})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize shared resources on startup and ensure clean shutdown."""
@@ -246,14 +270,7 @@ async def _handle_create(
         uow.commit()
 
     if inserted:
-        # Record end-to-end webhook freshness (anchors SLO 3). Skipped when
-        # the dispatcher didn't stamp the timestamp (legacy messages from
-        # before the attribute existed) — that's fine, the SLO measures
-        # against post-rollout traffic only.
-        received_at_ms = get_dispatcher_received_at_ms()
-        if received_at_ms is not None and freshness_histogram is not None:
-            elapsed_ms = (time.time() * 1000.0) - received_at_ms
-            freshness_histogram.record(elapsed_ms, {"aspect_type": "create"})
+        _record_freshness(freshness_histogram, "create")
 
         logger.info(
             "Created activity %s in PostgreSQL",
@@ -336,14 +353,7 @@ async def _handle_update(
         )
 
     if updated:
-        # Record end-to-end webhook freshness for the UPDATE path. Mirrors
-        # the CREATE-side emission; same SLO 3 measurement, different
-        # aspect_type label so per-path slicing stays available in
-        # Metrics Explorer if behavior diverges.
-        received_at_ms = get_dispatcher_received_at_ms()
-        if received_at_ms is not None and freshness_histogram is not None:
-            elapsed_ms = (time.time() * 1000.0) - received_at_ms
-            freshness_histogram.record(elapsed_ms, {"aspect_type": "update"})
+        _record_freshness(freshness_histogram, "update")
 
         logger.info(
             "Updated activity %s metadata",
@@ -385,15 +395,7 @@ async def _handle_delete(
         uow.commit()
 
     if deleted:
-        # Record end-to-end webhook freshness for the DELETE path. The
-        # interesting variant of "freshness" for delete is "how long
-        # before the ghost activity disappears from the dashboard."
-        # Mirrors the CREATE/UPDATE shape; same SLO 3 measurement, just
-        # a different aspect_type label.
-        received_at_ms = get_dispatcher_received_at_ms()
-        if received_at_ms is not None and freshness_histogram is not None:
-            elapsed_ms = (time.time() * 1000.0) - received_at_ms
-            freshness_histogram.record(elapsed_ms, {"aspect_type": "delete"})
+        _record_freshness(freshness_histogram, "delete")
 
         logger.info("Deleted activity %s from PostgreSQL", activity_id)
         return WebhookResponse(
