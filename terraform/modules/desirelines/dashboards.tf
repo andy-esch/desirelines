@@ -272,7 +272,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 12
           height = 4
           widget = {
-            title = "Service Requests (per minute)"
+            title = "Service Requests (per second)"
             xyChart = {
               dataSets = [
                 {
@@ -294,7 +294,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               ]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Requests/min"
+                label = "Requests/sec"
                 scale = "LINEAR"
               }
             }
@@ -327,7 +327,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Errors/min"
+                label = "Errors/sec"
                 scale = "LINEAR"
               }
             }
@@ -368,7 +368,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Errors/min"
+                label = "Errors/sec"
                 scale = "LINEAR"
               }
             }
@@ -467,7 +467,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 6
           height = 4
           widget = {
-            title = "Messages Published (per minute)"
+            title = "Messages Published (per second)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -485,7 +485,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Messages/min"
+                label = "Messages/sec"
                 scale = "LINEAR"
               }
             }
@@ -739,7 +739,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 6
           height = 4
           widget = {
-            title = "Push Delivery Results (per minute)"
+            title = "Push Delivery Results (per second)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -759,7 +759,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Requests/min"
+                label = "Requests/sec"
                 scale = "LINEAR"
               }
             }
@@ -890,7 +890,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 6
           height = 4
           widget = {
-            title = "Webhook Events (per minute)"
+            title = "Webhook Events (per second)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -910,7 +910,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Events/min"
+                label = "Events/sec"
                 scale = "LINEAR"
               }
             }
@@ -961,7 +961,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 12
           height = 4
           widget = {
-            title = "Webhook Owner Check Outcomes (per minute)"
+            title = "Webhook Owner Check Outcomes (per second)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -981,7 +981,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Events/min"
+                label = "Events/sec"
                 scale = "LINEAR"
               }
             }
@@ -1230,6 +1230,91 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }
               thresholds = [{
                 value = 0.0833 # = 5/min, matches dispatcher_bad_request_surge
+              }]
+            }
+          }
+        },
+
+        # SLO burn rate (1h window) - Row 88, Full Width
+        # Visualizes the same `select_slo_burn_rate(..., "3600s")` signal
+        # the fast-burn alerts fire on. Threshold line at 14.4× marks the
+        # alert sensitivity — sustained values above the line for ~14 min
+        # of the 1h window would burn 2% of the 30-day budget and trigger
+        # the fast-burn alert. Slow-burn (6× over 6h) isn't shown here;
+        # it's a separate, less time-sensitive signal best inspected via
+        # GCP Monitoring → Services.
+        {
+          yPos   = 88
+          width  = 12
+          height = 4
+          widget = {
+            title = "SLO burn rate (1h window) — fast-burn alerts fire above 14.4×"
+            xyChart = {
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "select_slo_burn_rate(\"${google_monitoring_slo.dispatcher_availability.name}\", \"3600s\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "SLO 1 dispatcher availability"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "select_slo_burn_rate(\"${google_monitoring_slo.webhook_ingest_success.name}\", \"3600s\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "SLO 2 webhook ingest success"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "select_slo_burn_rate(\"${google_monitoring_slo.apigateway_availability.name}\", \"3600s\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "SLO 4 apigateway availability"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "select_slo_burn_rate(\"${google_monitoring_slo.apigateway_latency.name}\", \"3600s\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "SLO 5 apigateway latency"
+                },
+              ]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Burn rate (×)"
+                scale = "LINEAR"
+              }
+              thresholds = [{
+                value = 14.4 # fast-burn threshold (2% of 30d budget in 1h)
               }]
             }
           }
