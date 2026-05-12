@@ -196,30 +196,35 @@ Resolved 2026-05-10:
       `desirelines.io/webhook/end_to_end.duration` histogram after
       each successful CREATE insert.
 - [x] SLOs 1, 4, 5 wired as `google_monitoring_slo` in `slos.tf`
-      (PRs #600, #601) — verified live in Cloud Monitoring →
+      (PRs #600, #602) — verified live in Cloud Monitoring →
       Services for dev.
 - [x] Burn-rate alert pairs (fast 1h/14.4× + slow 6h/6×) wired for
       SLOs 1, 4, 5 — 6 alert policies, all in "OK" state.
 - [x] `docs/architecture/observability.md` Metrics section updated
       with canonical metric names + operation labels (shipped
       alongside PR #598).
-- [ ] **SLO 2** wired (Pub/Sub DLQ ratio). Different shape: uses
-      a custom `google_monitoring_service` parent (not Cloud Run)
-      since Pub/Sub subscriptions aren't a supported basic_service
-      type. Burn-rate alerts follow the same pattern.
+- [x] **SLO 2** wired (Pub/Sub DLQ ratio) in PRs #603/#604. Bound
+      to the postgres-writer Cloud Run service (`basic_service`
+      with `CLOUD_RUN`) since `google_monitoring_service` requires
+      a `basic_service` or `telemetry` block — custom services
+      aren't supported by Terraform today. Burn-rate alert pair
+      follows the same pattern as SLOs 1/4/5.
+- [x] **Synthetic-fault endpoint** deployed in PR #603 at
+      `/v1/__synthetic_5xx__`. Environment-gated (off in prod via
+      `EnableSyntheticFaults` flag), auth-gated, and cleanly
+      removable — see `packages/apigateway/internal/synthetic/handler.go`
+      for removal steps.
 - [ ] **SLO 3** wired (data freshness). Awaiting ~7-30 days of
       `webhook/end_to_end.duration` data so the 3s threshold can
       be calibrated against actual p95 before committing in
       Terraform.
-- [ ] **Validate one alert end-to-end** in dev via a dedicated
-      synthetic-failure endpoint. Add a new handler at e.g.
-      `/v1/__synthetic_5xx__` (dev-only, gated by env flag or
-      build tag) that returns 500 unconditionally. Hit it
-      repeatedly until the 1h window weights enough burn rate
-      to trigger; expect fast-burn alert in email + Slack within
-      ~10-15 min. Leave the endpoint in place permanently — opt-in,
-      production-safe, available for re-validation any time the
-      alert wiring changes. Cleaner than modifying real handlers.
+- [x] **Validate fast-burn alert end-to-end** — confirmed
+      2026-05-11 by repeatedly hitting `/v1/__synthetic_5xx__`
+      (Firebase ID token from Network tab; loop of 200 5xx GETs).
+      Burn-rate alert fired through both email and Slack within
+      the expected ~10-15 min window. SLO budget burn visible in
+      Cloud Monitoring → Services. End-to-end alerting wiring is
+      proven for the GCP-native SLO shape.
 
 ## References
 
