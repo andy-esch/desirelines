@@ -35,10 +35,12 @@ The set of fields encoded as TIMESTAMP is hard-coded below
 """
 
 from collections.abc import Sequence
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any
 
 from google.cloud.bigquery_storage_v1 import BigQueryWriteClient, types, writer
+from google.cloud.bigquery_storage_v1.exceptions import StreamClosedError
 from google.protobuf import descriptor_pb2
 from google.protobuf.descriptor import FieldDescriptor
 
@@ -279,7 +281,14 @@ class BigQueryStorageWriter:
             future = append_stream.send(request)
             future.result()  # type: ignore[no-untyped-call]
         finally:
-            append_stream.close()
+            # AppendRowsStream.send() opens the gRPC connection internally
+            # on first call. If that open fails (transient gRPC error,
+            # quota, etc.), the stream is left in a closed state and
+            # calling .close() on it raises StreamClosedError. Suppress
+            # that secondary exception so the original failure from
+            # .send() / future.result() is what propagates to the caller.
+            with suppress(StreamClosedError):
+                append_stream.close()
 
     def write_activity(self, activity: DetailedStravaActivity) -> None:
         """Write a single activity to the destination table.
