@@ -2,7 +2,7 @@
 
 Each test exercises one transformation rule. The integration is also
 covered by the round-trip test in
-``packages/stravapipe/tests/unit/adapters/gcp/test_bigquery_storage_v2.py``,
+``packages/stravapipe/tests/unit/adapters/gcp/test_bigquery_storage.py``,
 but the targeted tests here document expected output and catch
 regressions in the generator itself before the round-trip notices.
 

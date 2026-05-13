@@ -26,7 +26,11 @@ import sys
 from google.cloud.firestore_v1 import Client as FirestoreClient
 
 from stravapipe.adapters.firestore import FirestoreTokenStore
-from stravapipe.adapters.gcp import ActivitiesWriter, BigQueryClientWrapper
+from stravapipe.adapters.gcp import (
+    ActivitiesWriter,
+    BigQueryClientWrapper,
+    BigQueryStorageWriter,
+)
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork, create_session_factory
 from stravapipe.adapters.strava import create_strava_activities_repo
 from stravapipe.application.backfill import BackfillService
@@ -83,8 +87,18 @@ def main() -> None:
     bq_writer = None
     if config.gcp_bigquery_dataset:
         bq_client = BigQueryClientWrapper(project_id=config.gcp_project_id)
+        # Single-activity writes go through the Storage Write API; the
+        # batch path (used by backfill) still uses the legacy insertAll
+        # internally — see ActivitiesWriter._write_batch_to_staging.
+        # Stage 2 of the migration moves batch onto Storage Write too.
+        storage_writer = BigQueryStorageWriter(
+            project_id=config.gcp_project_id,
+            dataset_name=config.gcp_bigquery_dataset,
+            table_name="activities_staging",
+        )
         bq_writer = ActivitiesWriter(
             client=bq_client,
+            storage_writer=storage_writer,
             dataset_name=config.gcp_bigquery_dataset,
         )
 

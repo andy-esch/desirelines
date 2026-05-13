@@ -391,17 +391,6 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
         value = "true"
       }
 
-      # Spike-only feature flag (see variables.tf for full context).
-      # When true, bq-inserter dual-writes activity creates to
-      # activities_swapi_experiment via the Storage Write API. Default
-      # false; set to true per-environment in the deploy repo's tfvars
-      # for the soak window. Stage 1 of the migration removes this
-      # block + the variable + the experiment table.
-      env {
-        name  = "BQ_SWAPI_EXPERIMENT_ENABLED"
-        value = var.enable_bq_swapi_experiment ? "true" : "false"
-      }
-
       # Python/Uvicorn needs more startup time than Go services:
       # FastAPI lifespan must complete before /health is served
       startup_probe {

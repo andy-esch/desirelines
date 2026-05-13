@@ -30,16 +30,6 @@ class BQInserterConfig(BaseSettings):
     # after a short backoff). Override via READINESS_TIMEOUT env var.
     readiness_timeout: float = 10.0
 
-    # Feature flag: enables the dual-write experimental path that writes a
-    # subset of activity fields to a temp table via the BigQuery Storage
-    # Write API alongside the production insertAll write. Default false so
-    # the experiment is opt-in per environment. See spike task
-    # `spike-bigquery-storage-write-api-for-stravapipe`.
-    bq_swapi_experiment_enabled: bool = False
-    # The temp table name for the experiment. Hard-coded default matches
-    # Terraform; exposed as a setting so tests can override it.
-    bq_swapi_experiment_table: str = "activities_swapi_experiment"
-
     model_config = SettingsConfigDict(
         env_file=".env",
         validate_default=True,

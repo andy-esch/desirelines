@@ -24,6 +24,11 @@ def make_write_activities(
 ) -> WriteActivities:
     """Create an ActivitiesWriter (WriteActivities port) with the given config.
 
+    The single-activity write path uses the BigQuery Storage Write API
+    (``BigQueryStorageWriter``) targeting the staging table. The batch
+    path inside ``ActivitiesWriter`` still uses the legacy
+    ``insert_rows_json`` API — Stage 2 migrates that.
+
     Pass ``tracer`` from the Cloud Run service so write/merge/cleanup steps
     emit sub-spans. Pass ``histogram`` so the same steps record duration on
     the existing ``desirelines.io/bigquery/operation.duration`` histogram
@@ -31,8 +36,14 @@ def make_write_activities(
     Batch jobs that don't initialize OTel can leave both unset.
     """
     client = make_bigquery_client_wrapper(config)
+    storage_writer = BigQueryStorageWriter(
+        project_id=config.project_id,
+        dataset_name=config.bq_dataset,
+        table_name="activities_staging",
+    )
     return ActivitiesWriter(
         client=client,
+        storage_writer=storage_writer,
         dataset_name=config.bq_dataset,
         tracer=tracer,
         histogram=histogram,
@@ -48,22 +59,6 @@ def make_read_activities(config: BQInserterConfig) -> ReadActivitiesMetadata:
     )
 
 
-def make_storage_writer(config: BQInserterConfig) -> BigQueryStorageWriter | None:
-    """Create the experimental Storage Write API writer (or None if disabled).
-
-    Returns None when the feature flag is off so callers can branch on
-    presence. The wrapper is spike-scoped — see _bigquery_storage.py for
-    schema scope and the related task for context.
-    """
-    if not config.bq_swapi_experiment_enabled:
-        return None
-    return BigQueryStorageWriter(
-        project_id=config.project_id,
-        dataset_name=config.bq_dataset,
-        table_name=config.bq_swapi_experiment_table,
-    )
-
-
 __all__ = [
     "ActivitiesReader",
     "ActivitiesWriter",
@@ -72,6 +67,5 @@ __all__ = [
     "MergeResult",
     "make_bigquery_client_wrapper",
     "make_read_activities",
-    "make_storage_writer",
     "make_write_activities",
 ]

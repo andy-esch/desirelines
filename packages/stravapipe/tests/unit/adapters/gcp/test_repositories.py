@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -85,7 +86,17 @@ def bigquery_schema():
 
 @pytest.fixture
 def write_activities_repo(bq_client):
-    return ActivitiesWriter(bq_client, dataset_name="test-dataset")
+    # ActivitiesWriter now takes a BigQueryStorageWriter for the
+    # single-activity write path. Tests use a MagicMock — the real one
+    # would try to open a gRPC channel at construction. The single-write
+    # path isn't exercised by these tests anyway (they cover the batch
+    # path + MERGE), so the mock is never called.
+    storage_writer = MagicMock()
+    return ActivitiesWriter(
+        bq_client,
+        storage_writer=storage_writer,
+        dataset_name="test-dataset",
+    )
 
 
 @pytest.fixture
@@ -105,10 +116,19 @@ class TestActivitiesWriter:
         assert "rows_affected" in stats
         assert "execution_time_ms" in stats
 
-    def test_write_activity_staging_table_name(self, write_activities_repo, activity2):
+    def test_write_activity_calls_storage_writer(
+        self, write_activities_repo, activity2
+    ):
+        # The single-activity staging write goes through the injected
+        # BigQueryStorageWriter (Storage Write API). Verify the writer
+        # was called exactly once with the activity. The
+        # `activities_staging` table name is enforced at the factory
+        # (`make_write_activities`), not in this class — see
+        # `__init__.py` and the parity test in `test_bigquery_storage.py`.
         write_activities_repo.write_activity(activity2)
-        # Should have written to staging table first
-        assert write_activities_repo._client.table_name == "activities_staging"
+        write_activities_repo._storage_writer.write_activity.assert_called_once_with(
+            activity2
+        )
 
     def test_write_activity_merge_query_executed(
         self, write_activities_repo, activity2
