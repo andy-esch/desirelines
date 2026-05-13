@@ -116,7 +116,9 @@ class TestActivitiesWriter:
         assert "rows_affected" in stats
         assert "execution_time_ms" in stats
 
-    def test_write_activity_calls_storage_writer(self, write_activities_repo, activity2):
+    def test_write_activity_calls_storage_writer(
+        self, write_activities_repo, activity2
+    ):
         # The single-activity staging write goes through the injected
         # BigQueryStorageWriter (Storage Write API). Verify the writer
         # was called exactly once with the activity. The

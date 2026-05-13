@@ -1,13 +1,8 @@
-"""BigQuery Storage Write API adapter — production wrapper (full schema).
+"""BigQuery Storage Write API adapter for the activities staging table.
 
-Companion to ``_bigquery_storage.py`` (the spike's 7-field subset wrapper).
-This module ships the full mapping for ``schemas/bigquery/activities_full.json``
-and is the wrapper Stage 1 will swap into ``_write_to_staging`` once the
-spike's soak returns GO.
-
-Until cutover, this module is **not imported by any production path**.
-It coexists with the spike wrapper so reviewers can compare them and
-the cutover is a one-line edit in ``bq_inserter_app.py``.
+Owns the mapping from ``DetailedStravaActivity`` to the protobuf message
+generated from ``schemas/bigquery/activities_full.json`` and the single
+``write_activity`` call used by ``ActivitiesWriter._write_to_staging``.
 
 Architecture:
 
