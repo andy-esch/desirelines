@@ -14,6 +14,7 @@ Four layers of coverage:
    AppendRowsStream in the right order with close-on-failure semantics.
 """
 
+from datetime import UTC, datetime
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -28,7 +29,12 @@ from stravapipe.adapters.gcp._bigquery_storage import (
     _iso_to_micros,
     _populate_message,
 )
-from stravapipe.domain import DetailedStravaActivity
+from stravapipe.domain import (
+    DetailedStravaActivity,
+    MetaAthlete,
+    SummaryMap,
+    SummaryStravaActivity,
+)
 from stravapipe.types.generated import bq_activities_pb2
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "fixtures"
@@ -292,6 +298,133 @@ class TestWrapperClass:
         assert wrapper._default_stream() == (
             "projects/myp/datasets/myd/tables/myt/streams/_default"
         )
+
+
+class TestWrapperBatch:
+    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
+    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
+    def test_batch_sends_one_request_with_all_rows(
+        self, mock_client_class, mock_stream_class
+    ):
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.table_path.return_value = "projects/p/datasets/d/tables/t"
+
+        mock_stream = MagicMock()
+        mock_stream_class.return_value = mock_stream
+        mock_stream.send.return_value = MagicMock()
+
+        wrapper = BigQueryStorageWriter(
+            project_id="p", dataset_name="d", table_name="t"
+        )
+        activities = [
+            _load_activity("activity_1.json"),
+            _load_activity("activity_2.json"),
+        ]
+        wrapper.write_activities_batch(activities)
+
+        # One AppendRows call carrying both serialized rows
+        mock_stream.send.assert_called_once()
+        sent_request = mock_stream.send.call_args.args[0]
+        assert len(sent_request.proto_rows.rows.serialized_rows) == 2
+        mock_stream.close.assert_called_once()
+
+    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
+    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
+    def test_empty_batch_does_not_open_stream(
+        self, mock_client_class, mock_stream_class
+    ):
+        mock_client_class.return_value = MagicMock()
+        wrapper = BigQueryStorageWriter(
+            project_id="p", dataset_name="d", table_name="t"
+        )
+        wrapper.write_activities_batch([])
+        mock_stream_class.assert_not_called()
+
+    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
+    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
+    def test_batch_close_runs_on_send_failure(
+        self, mock_client_class, mock_stream_class
+    ):
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.table_path.return_value = "projects/p/datasets/d/tables/t"
+
+        mock_stream = MagicMock()
+        mock_stream_class.return_value = mock_stream
+        mock_future = MagicMock()
+        mock_future.result.side_effect = RuntimeError("simulated gRPC error")
+        mock_stream.send.return_value = mock_future
+
+        wrapper = BigQueryStorageWriter(
+            project_id="p", dataset_name="d", table_name="t"
+        )
+        with pytest.raises(RuntimeError, match="simulated gRPC error"):
+            wrapper.write_activities_batch([_load_activity("activity_1.json")])
+        mock_stream.close.assert_called_once()
+
+
+class TestDumpForBq:
+    """The dump-shape decision (model_dump vs to_bq_dict) lives in the
+    storage writer; verify both branches at the dict layer so the batch
+    test doesn't have to reach into proto bytes."""
+
+    def test_detailed_activity_uses_full_model_dump(self):
+        activity = _load_activity("activity_1.json")
+        dumped = BigQueryStorageWriter._dump_for_bq(activity)
+        # DetailedStravaActivity matches BQ schema 1:1 — every dumped
+        # key should also exist on the model.
+        assert dumped["id"] == activity.id
+
+    def test_summary_activity_excludes_non_bq_fields(self):
+        summary = SummaryStravaActivity(
+            id=42,
+            resource_state=2,
+            athlete=MetaAthlete(id=1, resource_state=1),
+            name="x",
+            type="Run",
+            sport_type="Run",
+            distance=1.0,
+            moving_time=1,
+            elapsed_time=1,
+            total_elevation_gain=0.0,
+            start_date=datetime(2025, 1, 1, tzinfo=UTC),
+            start_date_local=datetime(2025, 1, 1, tzinfo=UTC),
+            timezone="UTC",
+            utc_offset=0.0,
+            start_latlng=[0.0, 0.0],
+            end_latlng=[0.0, 0.0],
+            location_city="Berlin",
+            achievement_count=0,
+            kudos_count=0,
+            comment_count=0,
+            athlete_count=1,
+            photo_count=0,
+            has_kudoed=False,
+            map=SummaryMap(id="x", summary_polyline="", resource_state=2),
+            trainer=False,
+            commute=False,
+            manual=False,
+            private=False,
+            flagged=False,
+            from_accepted_tag=False,
+            average_speed=0.0,
+            max_speed=0.0,
+        )
+        dumped = BigQueryStorageWriter._dump_for_bq(summary)
+        # Fields excluded by SummaryStravaActivity._BQ_EXCLUDE_FIELDS must
+        # not appear — they conflict with the BQ schema (e.g. top-level
+        # `resource_state` collides with `athlete.resource_state`).
+        for excluded in (
+            "resource_state",
+            "location_city",
+            "location_state",
+            "location_country",
+            "from_accepted_tag",
+            "utc_offset",
+        ):
+            assert excluded not in dumped
+        assert dumped["id"] == 42
 
 
 def test_start_date_local_naive_handling_matches_z_suffix():

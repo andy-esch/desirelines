@@ -1,8 +1,10 @@
 """BigQuery Storage Write API adapter for the activities staging table.
 
-Owns the mapping from ``DetailedStravaActivity`` to the protobuf message
-generated from ``schemas/bigquery/activities_full.json`` and the single
-``write_activity`` call used by ``ActivitiesWriter._write_to_staging``.
+Owns the mapping from ``DetailedStravaActivity`` /
+``SummaryStravaActivity`` to the protobuf message generated from
+``schemas/bigquery/activities_full.json``, and the two write entry
+points (``write_activity`` for the webhook path, ``write_activities_batch``
+for the backfill path) used by ``ActivitiesWriter``.
 
 Architecture:
 
@@ -39,7 +41,7 @@ from google.cloud.bigquery_storage_v1 import BigQueryWriteClient, types, writer
 from google.protobuf import descriptor_pb2
 from google.protobuf.descriptor import FieldDescriptor
 
-from stravapipe.domain import DetailedStravaActivity
+from stravapipe.domain import DetailedStravaActivity, SummaryStravaActivity
 from stravapipe.types.generated import bq_activities_pb2
 
 # ---------------------------------------------------------------------------
@@ -193,13 +195,11 @@ class BigQueryStorageWriter:
     """Writes activities to BigQuery via Storage Write API default stream.
 
     Production wrapper covering the full ``activities_full.json`` schema.
-    Same call shape as the spike's ``BigQueryStorageWriter`` so the
-    cutover in ``bq_inserter_app.py`` is mechanical (swap the class,
-    same ``write_activity(activity)`` interface).
 
-    Per-call AppendRowsStream: each ``write_activity`` opens, sends, and
-    closes its own stream. Reuse-the-stream optimization deferred until
-    soak data shows it's needed.
+    Per-call AppendRowsStream: each ``write_activity`` /
+    ``write_activities_batch`` opens, sends, and closes its own stream.
+    Reuse-the-stream optimization deferred until soak data shows it's
+    needed.
     """
 
     def __init__(
@@ -241,26 +241,33 @@ class BigQueryStorageWriter:
         request.proto_rows = proto_data
         return request
 
-    def _serialize_activity(self, activity: DetailedStravaActivity) -> bytes:
-        """Map a Pydantic activity onto the proto message and serialize."""
+    @staticmethod
+    def _dump_for_bq(
+        activity: DetailedStravaActivity | SummaryStravaActivity,
+    ) -> dict[str, Any]:
+        """JSON-shaped dict for proto population.
+
+        ``SummaryStravaActivity.to_bq_dict()`` excludes fields not present
+        in the BQ schema (e.g. ``location_city``); ``DetailedStravaActivity``
+        already matches the schema 1:1 so its plain ``model_dump`` is
+        sufficient.
+        """
+        if isinstance(activity, SummaryStravaActivity):
+            return activity.to_bq_dict()
+        return activity.model_dump(mode="json")
+
+    def _serialize(self, raw: dict[str, Any]) -> bytes:
+        """Map a JSON-shaped dict onto the proto message and serialize."""
         msg = bq_activities_pb2.Activity()
-        _populate_message(msg, activity.model_dump(mode="json"))
+        _populate_message(msg, raw)
         return bytes(msg.SerializeToString())
 
-    def write_activity(self, activity: DetailedStravaActivity) -> None:
-        """Write a single activity to the destination table.
-
-        Raises on any underlying gRPC or schema error. Caller wraps in a
-        try/except per its own retry/error policy — for the bq-inserter
-        path, the existing ``handle_webhook_cloudevent`` translates
-        exceptions to 5xx so Pub/Sub redelivers.
-        """
-        serialized = self._serialize_activity(activity)
-
+    def _send_serialized(self, serialized_rows: list[bytes]) -> None:
+        """Send one AppendRowsRequest containing the given pre-serialized rows."""
         append_stream = writer.AppendRowsStream(self._client, self._request_template)
         try:
             proto_rows = types.ProtoRows()
-            proto_rows.serialized_rows.append(serialized)
+            proto_rows.serialized_rows.extend(serialized_rows)
 
             proto_data = types.AppendRowsRequest.ProtoData()
             proto_data.rows = proto_rows
@@ -272,3 +279,32 @@ class BigQueryStorageWriter:
             future.result()  # type: ignore[no-untyped-call]
         finally:
             append_stream.close()
+
+    def write_activity(self, activity: DetailedStravaActivity) -> None:
+        """Write a single activity to the destination table.
+
+        Raises on any underlying gRPC or schema error. Caller wraps in a
+        try/except per its own retry/error policy — for the bq-inserter
+        path, the existing ``handle_webhook_cloudevent`` translates
+        exceptions to 5xx so Pub/Sub redelivers.
+        """
+        self._send_serialized([self._serialize(self._dump_for_bq(activity))])
+
+    def write_activities_batch(
+        self,
+        activities: list[DetailedStravaActivity | SummaryStravaActivity],
+    ) -> None:
+        """Write multiple activities in a single AppendRowsRequest.
+
+        Sized for backfill, which already chunks at the application
+        layer (``BackfillService._batch_size``, default 100). Storage
+        Write API caps requests at 10 MB total bytes; with default
+        backfill chunking the cap is comfortably out of reach.
+
+        Empty list is a no-op (no stream opened) to keep the caller
+        contract symmetric with the legacy ``insert_rows_json`` path.
+        """
+        if not activities:
+            return
+        serialized = [self._serialize(self._dump_for_bq(a)) for a in activities]
+        self._send_serialized(serialized)

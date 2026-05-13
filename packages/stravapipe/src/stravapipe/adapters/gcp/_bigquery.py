@@ -1,7 +1,5 @@
 """BigQuery adapters for reading and writing Strava activities."""
 
-import logging
-
 from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
 from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
@@ -13,23 +11,22 @@ from stravapipe.domain import (
     MinimalStravaActivity,
     SummaryStravaActivity,
 )
-from stravapipe.exceptions import (
-    ActivityNotFoundError,
-    StreamingBufferDMLError,
-)
+from stravapipe.exceptions import ActivityNotFoundError
 from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
 from stravapipe.shared.metrics import record_duration
 from stravapipe.shared.tracing import record_span
 
-logger = logging.getLogger(__name__)
-
 
 class ActivitiesWriter(WriteActivities):
     """Write Strava Activities to BigQuery via staging table + MERGE."""
 
-    # BigQuery streaming insert limit per API call
-    # https://cloud.google.com/bigquery/quotas#streaming_inserts
+    # Application-level sanity ceiling. The real Storage Write API cap is
+    # 10 MB per AppendRowsRequest (bytes-based), enforced at the gRPC
+    # layer; this row-count guard is just a smoke alarm against runaway
+    # in-memory lists. Backfill chunks at 100 by default — orders of
+    # magnitude below either limit.
+    # https://cloud.google.com/bigquery/quotas#write-api-limits
     _MAX_BATCH_SIZE: int = 10_000
 
     # Column definitions for MERGE queries (single source of truth)
@@ -123,14 +120,16 @@ class ActivitiesWriter(WriteActivities):
             MergeResult with rows_affected, execution_time_ms, job_id, query_preview
 
         Raises:
-            ValueError: If batch size exceeds BigQuery's 10,000 row limit
+            ValueError: If batch size exceeds the application-level
+                sanity cap (``_MAX_BATCH_SIZE``).
 
         Note:
-            - BigQuery supports up to 10,000 rows per insert_rows_json call
-            - For larger batches, chunk them before calling this method
-            - Much faster than individual inserts (1 API call vs N calls)
-            - Accepts both DetailedActivity and SummaryActivity models
-            - Missing fields in SummaryActivity will be NULL in BigQuery
+            - All writes go through the Storage Write API; the real cap
+              is 10 MB per AppendRowsRequest (bytes-based, not rows).
+            - Backfill chunks at 100 by default — well below both caps.
+            - Much faster than individual inserts (1 API call vs N calls).
+            - Accepts both DetailedActivity and SummaryActivity models.
+            - Missing fields in SummaryActivity will be NULL in BigQuery.
         """
         if not activities:
             return MergeResult(
@@ -142,8 +141,8 @@ class ActivitiesWriter(WriteActivities):
 
         if len(activities) > self._MAX_BATCH_SIZE:
             raise ValueError(
-                f"Batch size {len(activities)} exceeds BigQuery streaming insert "
-                f"limit of {self._MAX_BATCH_SIZE} rows. Chunk your data before calling "
+                f"Batch size {len(activities)} exceeds the sanity cap of "
+                f"{self._MAX_BATCH_SIZE} rows. Chunk your data before calling "
                 f"write_activities_batch()."
             )
 
@@ -157,49 +156,39 @@ class ActivitiesWriter(WriteActivities):
     def _write_to_staging(self, activity: DetailedStravaActivity) -> None:
         """Write activity to staging via the BigQuery Storage Write API.
 
-        Replaces the legacy ``insertAll`` (``insert_rows_json``) path. Storage
-        Write API committed-mode rows are immediately consistent — they're
-        not held in the legacy streaming buffer — so the post-MERGE DELETE
-        in ``_cleanup_staging`` works without retries for rows written
-        through this method.
-
-        The batch path (``_write_batch_to_staging``) still uses the legacy
-        API, so the streaming-buffer workaround in ``_cleanup_staging``
-        stays in place until Stage 2 migrates that path too.
+        Committed-mode rows are immediately consistent — they're not held
+        in the legacy streaming buffer — so the post-MERGE DELETE in
+        ``_cleanup_staging`` runs without retries.
         """
-        with record_span(
-            self._tracer,
-            "bigquery.write_to_staging",
-            {"activity_id": activity.id},
+        with (
+            record_span(
+                self._tracer,
+                "bigquery.write_to_staging",
+                {"activity_id": activity.id},
+            ),
+            record_duration(self._histogram, {"operation": "write_to_staging"}),
         ):
             self._storage_writer.write_activity(activity)
 
     def _write_batch_to_staging(
         self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
     ) -> None:
-        """Insert multiple activities to staging table in one API call.
+        """Insert multiple activities to staging via the Storage Write API.
 
-        Accepts both DetailedActivity and SummaryActivity models.
-        SummaryActivity uses to_bq_dict() to exclude fields not in the BQ schema.
+        Delegates to ``BigQueryStorageWriter`` (same wrapper the
+        single-activity path uses). Accepts both DetailedActivity and
+        SummaryActivity — the wrapper picks the right dump method per
+        instance.
         """
-        activities_dict = []
-        for activity in activities:
-            if isinstance(activity, SummaryStravaActivity):
-                data = activity.to_bq_dict()
-            else:
-                data = activity.model_dump(mode="json")
-            activities_dict.append(data)
-
-        with record_span(
-            self._tracer,
-            "bigquery.write_batch_to_staging",
-            {"batch_size": len(activities)},
+        with (
+            record_span(
+                self._tracer,
+                "bigquery.write_batch_to_staging",
+                {"batch_size": len(activities)},
+            ),
+            record_duration(self._histogram, {"operation": "write_batch_to_staging"}),
         ):
-            self._client.insert_rows_json(
-                activities_dict,
-                dataset_name=self._dataset_name,
-                table_name=self._staging_table_name,
-            )
+            self._storage_writer.write_activities_batch(activities)
 
     def _merge_from_staging(self, activity_id: int) -> MergeResult:
         """Execute MERGE operation from staging to main table for specific activity.
@@ -242,35 +231,21 @@ class ActivitiesWriter(WriteActivities):
         """Delete merged rows from staging table.
 
         Called after successful MERGE to prevent staging table from growing
-        indefinitely. Uses parameterized query to prevent SQL injection.
-
-        If rows are still in BigQuery's streaming buffer (up to ~90 minutes
-        after insert), the DELETE will fail with StreamingBufferDMLError.
-        This is the expected path for any activity merged within the buffer
-        window, not an error condition — the MERGE is idempotent, so stale
-        staging rows only cause redundant no-op merges on the next event.
-        Logged at INFO so it's traceable without firing 5xx alert noise.
+        indefinitely. All writes go through the Storage Write API
+        (committed-mode, immediately consistent), so this DELETE has no
+        streaming-buffer race to defend against.
         """
         delete_query = f"""
         DELETE FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
         WHERE id IN UNNEST(@activity_ids)
         """
         query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
-        # The streaming-buffer path is expected, not exceptional, so we catch
-        # *inside* the span to keep its status OK and avoid record_span
-        # marking it ERROR. Other DML failures still propagate.
         with record_span(
             self._tracer,
             "bigquery.cleanup_staging",
             {"batch_size": len(activity_ids)},
         ):
-            try:
-                self._client.execute_dml_query(delete_query, query_params)
-            except StreamingBufferDMLError:
-                logger.info(
-                    "Staging cleanup deferred — rows still in streaming buffer",
-                    extra={"activity_ids": activity_ids},
-                )
+            self._client.execute_dml_query(delete_query, query_params)
 
     def _build_merge_query(
         self, activity_id: int

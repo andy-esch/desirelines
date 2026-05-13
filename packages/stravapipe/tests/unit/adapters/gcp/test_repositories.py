@@ -86,11 +86,11 @@ def bigquery_schema():
 
 @pytest.fixture
 def write_activities_repo(bq_client):
-    # ActivitiesWriter now takes a BigQueryStorageWriter for the
-    # single-activity write path. Tests use a MagicMock — the real one
-    # would try to open a gRPC channel at construction. The single-write
-    # path isn't exercised by these tests anyway (they cover the batch
-    # path + MERGE), so the mock is never called.
+    # Both the single-write and batch paths now go through the injected
+    # BigQueryStorageWriter. Tests use a MagicMock — the real one opens
+    # a gRPC channel at construction. Behavior of the writer itself is
+    # covered in test_bigquery_storage.py; these tests assert that
+    # ActivitiesWriter calls into it correctly.
     storage_writer = MagicMock()
     return ActivitiesWriter(
         bq_client,
@@ -202,42 +202,34 @@ class TestActivitiesWriterBatch:
     def test_exceeds_batch_limit_raises_value_error(
         self, write_activities_repo, activity2
     ):
-        # Create a list that exceeds the 10,000 limit
+        # Application-level sanity cap, not a BQ limit — see _MAX_BATCH_SIZE
         oversized = [activity2] * 10_001
-        with pytest.raises(ValueError, match="exceeds BigQuery streaming insert"):
+        with pytest.raises(ValueError, match="exceeds the sanity cap"):
             write_activities_repo.write_activities_batch(oversized)
 
     def test_batch_with_detailed_activity(self, write_activities_repo, activity2):
         result = write_activities_repo.write_activities_batch([activity2])
         assert result["rows_affected"] == 1
-        # Should have staging insert + MERGE + DELETE = 2 queries
+        # Staging write now goes through the Storage Write API wrapper,
+        # so the only DML the mock client sees is MERGE + DELETE.
         assert len(write_activities_repo._client.executed_queries) == 2
-        # Written activities should use model_dump
-        assert write_activities_repo._client.written_activities is not None
-        assert len(write_activities_repo._client.written_activities) == 1
-        assert write_activities_repo._client.written_activities[0]["id"] == activity2.id
+        write_activities_repo._storage_writer.write_activities_batch.assert_called_once_with(
+            [activity2]
+        )
 
-    def test_batch_with_summary_activity_uses_to_bq_dict(
+    def test_batch_passes_summary_activity_to_storage_writer(
         self, write_activities_repo, summary_activity
     ):
-        """SummaryActivity should use to_bq_dict() which excludes BQ-incompatible fields."""
+        """SummaryActivity flows through to the storage writer unchanged.
+
+        The dump-for-BQ shaping (``to_bq_dict()`` field exclusion) lives
+        inside ``BigQueryStorageWriter._dump_for_bq`` — see
+        ``test_bigquery_storage.py`` for the field-level assertions.
+        """
         write_activities_repo.write_activities_batch([summary_activity])
-
-        written = write_activities_repo._client.written_activities
-        assert written is not None
-        assert len(written) == 1
-
-        # Fields excluded by to_bq_dict() should NOT be present
-        assert "resource_state" not in written[0]
-        assert "location_city" not in written[0]
-        assert "location_state" not in written[0]
-        assert "location_country" not in written[0]
-        assert "from_accepted_tag" not in written[0]
-        assert "utc_offset" not in written[0]
-
-        # Core fields should still be present
-        assert written[0]["id"] == summary_activity.id
-        assert written[0]["name"] == "Test Run"
+        write_activities_repo._storage_writer.write_activities_batch.assert_called_once_with(
+            [summary_activity]
+        )
 
     def test_batch_merge_query_uses_array_param(self, write_activities_repo, activity2):
         write_activities_repo.write_activities_batch([activity2])
