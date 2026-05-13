@@ -15,10 +15,10 @@ Architecture:
   This module imports the generated ``Activity`` class directly — no runtime
   descriptor building, no JSON file reading.
 - **Strict type coercion at write time.** The legacy ``insertAll`` API
-  silently coerces (e.g. ``int → STRING`` for ``workout_type``); Storage
-  Write is strict. ``_coerce_to_proto_type`` replicates the legacy
-  coercion explicitly so we don't crash on the first activity with a
-  type-mismatched field.
+  silently coerces (e.g. ``int → STRING`` for ``workout_type``, where Pydantic
+  declares ``int`` but the BQ schema declares ``STRING``). The Storage
+  Write API is strict; without coercion, we'd raise ``TypeError: bad
+  argument type for built-in operation`` on the first such field.
 - **TIMESTAMP via int64 microseconds.** BQ Storage Write expects raw
   micros-since-epoch, *not* the proto well-known ``Timestamp`` message.
   ``_iso_to_micros`` handles tz-aware ISO strings (with Z or offset) and
@@ -34,6 +34,7 @@ The set of fields encoded as TIMESTAMP is hard-coded below
 ``TIMESTAMP`` columns in the BQ JSON schema; if it drifts, CI fails.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -292,7 +293,7 @@ class BigQueryStorageWriter:
 
     def write_activities_batch(
         self,
-        activities: list[DetailedStravaActivity | SummaryStravaActivity],
+        activities: Sequence[DetailedStravaActivity | SummaryStravaActivity],
     ) -> None:
         """Write multiple activities in a single AppendRowsRequest.
 
