@@ -48,6 +48,9 @@ logger = setup_logging(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize shared resources on startup and ensure clean shutdown."""
+    # Pre-seed teardown-relevant slots so the `finally` block can run
+    # safely even if startup raises before these are populated.
+    app.state.writer = None
     try:
         config = load_bq_inserter_config()
         logger.info("BQ Inserter configuration validated successfully")
@@ -90,6 +93,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.exception("Application lifecycle error")
         raise
     finally:
+        # Close the BQ Storage Write stream before tearing down OTel so
+        # any final stream-close log/metric still has a tracer available.
+        if app.state.writer is not None:
+            app.state.writer.close()
         # shutdown_metrics and shutdown_tracing are safe to call multiple times
         # and handle the case where they haven't been initialized (provider is None).
         shutdown_metrics()

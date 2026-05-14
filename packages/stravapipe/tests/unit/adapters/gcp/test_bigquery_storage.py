@@ -19,6 +19,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from google.api_core.exceptions import Unknown
+from google.cloud.bigquery_storage_v1.exceptions import StreamClosedError
 from google.protobuf.descriptor import FieldDescriptor
 import pytest
 
@@ -242,7 +244,7 @@ class TestRoundTrip:
 class TestWrapperClass:
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
-    def test_write_activity_calls_send_then_close(
+    def test_write_activity_sends_one_request(
         self, mock_client_class, mock_stream_class
     ):
         mock_client = MagicMock()
@@ -261,59 +263,8 @@ class TestWrapperClass:
 
         mock_stream.send.assert_called_once()
         mock_future.result.assert_called_once()
-        mock_stream.close.assert_called_once()
-
-    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
-    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
-    def test_close_runs_even_on_failure(self, mock_client_class, mock_stream_class):
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
-        mock_client.table_path.return_value = "projects/p/datasets/d/tables/t"
-
-        mock_stream = MagicMock()
-        mock_stream_class.return_value = mock_stream
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("simulated gRPC error")
-        mock_stream.send.return_value = mock_future
-
-        wrapper = BigQueryStorageWriter(
-            project_id="p", dataset_name="d", table_name="t"
-        )
-        with pytest.raises(RuntimeError, match="simulated gRPC error"):
-            wrapper.write_activity(_load_activity("activity_1.json"))
-
-        mock_stream.close.assert_called_once()
-
-    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
-    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
-    def test_stream_close_error_does_not_mask_send_failure(
-        self, mock_client_class, mock_stream_class
-    ):
-        """When send() fails opening the stream and close() then raises
-        StreamClosedError, the original send-side error must propagate
-        (the close-secondary should be suppressed)."""
-        from google.api_core.exceptions import Unknown
-        from google.cloud.bigquery_storage_v1.exceptions import StreamClosedError
-
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
-        mock_client.table_path.return_value = "projects/p/datasets/d/tables/t"
-
-        mock_stream = MagicMock()
-        mock_stream_class.return_value = mock_stream
-        # Mirror the real failure mode: send() raises Unknown from the
-        # internal .open(), and close() then raises StreamClosedError
-        # because the stream never finished opening.
-        mock_stream.send.side_effect = Unknown("simulated open failure")
-        mock_stream.close.side_effect = StreamClosedError("already closed")
-
-        wrapper = BigQueryStorageWriter(
-            project_id="p", dataset_name="d", table_name="t"
-        )
-        with pytest.raises(Unknown, match="simulated open failure"):
-            wrapper.write_activity(_load_activity("activity_1.json"))
-
-        mock_stream.close.assert_called_once()
+        # close is NOT called per-write; it's only called on wrapper.close().
+        mock_stream.close.assert_not_called()
 
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
@@ -358,7 +309,8 @@ class TestWrapperBatch:
         mock_stream.send.assert_called_once()
         sent_request = mock_stream.send.call_args.args[0]
         assert len(sent_request.proto_rows.rows.serialized_rows) == 2
-        mock_stream.close.assert_called_once()
+        # Stream is reused; not closed per-batch.
+        mock_stream.close.assert_not_called()
 
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
@@ -372,26 +324,135 @@ class TestWrapperBatch:
         wrapper.write_activities_batch([])
         mock_stream_class.assert_not_called()
 
+class TestStreamReuse:
+    """Per Google's Storage Write API best practices, the writer holds
+    one long-lived AppendRowsStream and reuses it across calls. These
+    tests pin down that contract."""
+
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
-    def test_batch_close_runs_on_send_failure(
+    def test_two_writes_share_one_stream(
         self, mock_client_class, mock_stream_class
     ):
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
-        mock_client.table_path.return_value = "projects/p/datasets/d/tables/t"
-
+        mock_client_class.return_value = MagicMock()
         mock_stream = MagicMock()
         mock_stream_class.return_value = mock_stream
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("simulated gRPC error")
-        mock_stream.send.return_value = mock_future
+        mock_stream.send.return_value = MagicMock()
 
         wrapper = BigQueryStorageWriter(
             project_id="p", dataset_name="d", table_name="t"
         )
-        with pytest.raises(RuntimeError, match="simulated gRPC error"):
-            wrapper.write_activities_batch([_load_activity("activity_1.json")])
+        wrapper.write_activity(_load_activity("activity_1.json"))
+        wrapper.write_activity(_load_activity("activity_2.json"))
+
+        # AppendRowsStream constructed exactly once, send called twice.
+        assert mock_stream_class.call_count == 1
+        assert mock_stream.send.call_count == 2
+
+    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
+    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
+    def test_send_failure_drops_stream_and_next_write_reopens(
+        self, mock_client_class, mock_stream_class
+    ):
+        mock_client_class.return_value = MagicMock()
+        first_stream = MagicMock(spec=["send", "close", "is_active"])
+        second_stream = MagicMock(spec=["send", "close", "is_active"])
+        mock_stream_class.side_effect = [first_stream, second_stream]
+
+        # First call fails during result(); second call succeeds.
+        failing_future = MagicMock()
+        failing_future.result.side_effect = Unknown("open failed")
+        first_stream.send.return_value = failing_future
+        second_stream.send.return_value = MagicMock()
+
+        wrapper = BigQueryStorageWriter(
+            project_id="p", dataset_name="d", table_name="t"
+        )
+        with pytest.raises(Unknown, match="open failed"):
+            wrapper.write_activity(_load_activity("activity_1.json"))
+        # _drop_stream closed the bad stream.
+        first_stream.close.assert_called_once()
+
+        # Next call gets a brand new stream and succeeds.
+        wrapper.write_activity(_load_activity("activity_2.json"))
+        assert mock_stream_class.call_count == 2
+        second_stream.send.assert_called_once()
+
+    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
+    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
+    def test_drop_suppresses_stream_closed_error(
+        self, mock_client_class, mock_stream_class
+    ):
+        """The lib's _open() may have already invoked self.close() with a
+        reason if the open failed, leaving the stream in a closed state.
+        Our drop path must not raise StreamClosedError on top of the
+        original send failure."""
+        mock_client_class.return_value = MagicMock()
+        bad_stream = MagicMock(spec=["send", "close", "is_active"])
+        good_stream = MagicMock(spec=["send", "close", "is_active"])
+        mock_stream_class.side_effect = [bad_stream, good_stream]
+
+        bad_stream.send.side_effect = Unknown("open failure")
+        bad_stream.close.side_effect = StreamClosedError("already closed")
+        good_stream.send.return_value = MagicMock()
+
+        wrapper = BigQueryStorageWriter(
+            project_id="p", dataset_name="d", table_name="t"
+        )
+        with pytest.raises(Unknown, match="open failure"):
+            wrapper.write_activity(_load_activity("activity_1.json"))
+
+        # Original Unknown propagates; StreamClosedError from the close
+        # is swallowed.
+        bad_stream.close.assert_called_once()
+
+    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
+    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
+    def test_close_closes_the_active_stream(
+        self, mock_client_class, mock_stream_class
+    ):
+        mock_client_class.return_value = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream_class.return_value = mock_stream
+        mock_stream.send.return_value = MagicMock()
+
+        wrapper = BigQueryStorageWriter(
+            project_id="p", dataset_name="d", table_name="t"
+        )
+        wrapper.write_activity(_load_activity("activity_1.json"))
+        wrapper.close()
+
+        mock_stream.close.assert_called_once()
+
+    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
+    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
+    def test_close_before_any_write_is_safe(
+        self, mock_client_class, mock_stream_class
+    ):
+        mock_client_class.return_value = MagicMock()
+        wrapper = BigQueryStorageWriter(
+            project_id="p", dataset_name="d", table_name="t"
+        )
+        wrapper.close()
+        # No stream was ever opened.
+        mock_stream_class.assert_not_called()
+
+    @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
+    @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
+    def test_close_is_idempotent(self, mock_client_class, mock_stream_class):
+        mock_client_class.return_value = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream_class.return_value = mock_stream
+        mock_stream.send.return_value = MagicMock()
+
+        wrapper = BigQueryStorageWriter(
+            project_id="p", dataset_name="d", table_name="t"
+        )
+        wrapper.write_activity(_load_activity("activity_1.json"))
+        wrapper.close()
+        wrapper.close()  # No-op second call.
+
+        # close on the underlying stream happens exactly once.
         mock_stream.close.assert_called_once()
 
 

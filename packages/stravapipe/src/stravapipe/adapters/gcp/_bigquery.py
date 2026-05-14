@@ -108,6 +108,15 @@ class ActivitiesWriter(WriteActivities):
         # Step 2: MERGE from staging to main table
         return self._merge_from_staging(activity.id)
 
+    def close(self) -> None:
+        """Release adapter-owned resources.
+
+        Closes the underlying Storage Write API stream. Idempotent;
+        callers (Cloud Run lifespan, backfill teardown) should invoke
+        once on shutdown.
+        """
+        self._storage_writer.close()
+
     def write_activities_batch(
         self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
     ) -> MergeResult:
