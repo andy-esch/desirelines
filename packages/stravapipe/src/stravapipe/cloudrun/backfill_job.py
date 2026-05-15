@@ -117,6 +117,8 @@ def main() -> None:
             years=config.years,
         )
     finally:
+        if bq_writer is not None:
+            bq_writer.close()
         db_engine.dispose()
 
     # --- Exit ---

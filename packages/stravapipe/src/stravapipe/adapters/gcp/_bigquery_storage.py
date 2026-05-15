@@ -24,9 +24,14 @@ Architecture:
   ``_iso_to_micros`` handles tz-aware ISO strings (with Z or offset) and
   naive ones (treated as UTC for conversion — matches insertAll's
   behavior and BQ's internal storage convention).
-- **Default stream, per-call AppendRowsStream.** Same shape as the
-  spike. Reuse-the-stream optimization is deferred to a future task if
-  latency surprises us.
+- **Default stream, one long-lived AppendRowsStream per writer instance.**
+  Lazy-opened on first write; reused across calls; reopened on
+  failure. Per Google's
+  [Storage Write API best practices](https://docs.cloud.google.com/bigquery/docs/write-api-best-practices)
+  — "Don't use one connection for just a single write." Open / close
+  per call hits intermittent stream-open failures that surface as
+  ``google.api_core.exceptions.Unknown`` (see issue #14269 in
+  ``googleapis/google-cloud-python``).
 
 The set of fields encoded as TIMESTAMP is hard-coded below
 (``_TIMESTAMP_PATHS``). The schema-parity test in
@@ -37,6 +42,7 @@ The set of fields encoded as TIMESTAMP is hard-coded below
 from collections.abc import Sequence
 from contextlib import suppress
 from datetime import UTC, datetime
+import threading
 from typing import Any
 
 from google.cloud.bigquery_storage_v1 import BigQueryWriteClient, types, writer
@@ -199,10 +205,12 @@ class BigQueryStorageWriter:
 
     Production wrapper covering the full ``activities_full.json`` schema.
 
-    Per-call AppendRowsStream: each ``write_activity`` /
-    ``write_activities_batch`` opens, sends, and closes its own stream.
-    Reuse-the-stream optimization deferred until soak data shows it's
-    needed.
+    Owns one long-lived ``AppendRowsStream`` per writer instance, reused
+    across writes. The stream is lazy-opened on first send and re-opened
+    after any send failure (single in-process recovery; Pub/Sub
+    redelivery is the higher-level retry). ``close()`` shuts down the
+    stream cleanly and should be called from the Cloud Run service
+    lifespan / backfill job teardown.
     """
 
     def __init__(
@@ -221,6 +229,10 @@ class BigQueryStorageWriter:
         # Schema and stream path don't change per call — build the request
         # template once and reuse for every AppendRowsStream we open.
         self._request_template = self._build_request_template()
+        # Lazy-opened, lock-protected, single AppendRowsStream slot.
+        # `_send_serialized` is the only writer; `close()` resets to None.
+        self._stream: writer.AppendRowsStream | None = None
+        self._stream_lock = threading.Lock()
 
     def _table_path(self) -> str:
         return self._client.table_path(
@@ -265,30 +277,65 @@ class BigQueryStorageWriter:
         _populate_message(msg, raw)
         return bytes(msg.SerializeToString())
 
+    def _get_or_open_stream(self) -> writer.AppendRowsStream:
+        """Return the active stream, lazy-opening one if needed.
+
+        Must be called with ``self._stream_lock`` held.
+        """
+        if self._stream is not None and self._stream.is_active:
+            return self._stream
+        # Stream slot is empty or stale. Drop first (no-op if None;
+        # closes and clears if stale) so we don't leak the underlying
+        # gRPC channel on the rare server-side-close-between-writes
+        # path. The new stream's first send() triggers the open().
+        self._drop_stream()
+        self._stream = writer.AppendRowsStream(self._client, self._request_template)
+        return self._stream
+
+    def _drop_stream(self) -> None:
+        """Close and clear the stream slot.
+
+        Must be called with ``self._stream_lock`` held. Suppresses
+        ``StreamClosedError`` because the library's ``_open()`` may have
+        already invoked its internal ``self.close(reason=...)`` if open
+        failed, leaving the stream in a closed state.
+        """
+        if self._stream is None:
+            return
+        with suppress(StreamClosedError):
+            self._stream.close()
+        self._stream = None
+
     def _send_serialized(self, serialized_rows: list[bytes]) -> None:
-        """Send one AppendRowsRequest containing the given pre-serialized rows."""
-        append_stream = writer.AppendRowsStream(self._client, self._request_template)
-        try:
-            proto_rows = types.ProtoRows()
-            proto_rows.serialized_rows.extend(serialized_rows)
+        """Send one AppendRowsRequest containing the given pre-serialized rows.
 
-            proto_data = types.AppendRowsRequest.ProtoData()
-            proto_data.rows = proto_rows
+        Uses the long-lived stream when available. On any send failure
+        the stream is dropped so the next call opens a fresh one;
+        Pub/Sub redelivery handles the retry of the failed write.
+        """
+        proto_rows = types.ProtoRows()
+        proto_rows.serialized_rows.extend(serialized_rows)
 
-            request = types.AppendRowsRequest()
-            request.proto_rows = proto_data
+        proto_data = types.AppendRowsRequest.ProtoData()
+        proto_data.rows = proto_rows
 
-            future = append_stream.send(request)
-            future.result()  # type: ignore[no-untyped-call]
-        finally:
-            # AppendRowsStream.send() opens the gRPC connection internally
-            # on first call. If that open fails (transient gRPC error,
-            # quota, etc.), the stream is left in a closed state and
-            # calling .close() on it raises StreamClosedError. Suppress
-            # that secondary exception so the original failure from
-            # .send() / future.result() is what propagates to the caller.
-            with suppress(StreamClosedError):
-                append_stream.close()
+        request = types.AppendRowsRequest()
+        request.proto_rows = proto_data
+
+        with self._stream_lock:
+            try:
+                stream = self._get_or_open_stream()
+                future = stream.send(request)
+                future.result()  # type: ignore[no-untyped-call]
+            except Exception:
+                self._drop_stream()
+                raise
+
+    def close(self) -> None:
+        """Close the underlying stream. Idempotent and safe to call once
+        from the Cloud Run service lifespan or batch-job teardown."""
+        with self._stream_lock:
+            self._drop_stream()
 
     def write_activity(self, activity: DetailedStravaActivity) -> None:
         """Write a single activity to the destination table.
