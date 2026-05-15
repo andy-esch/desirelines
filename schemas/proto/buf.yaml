@@ -7,6 +7,15 @@ lint:
 breaking:
   use:
     - WIRE_JSON
+  ignore_only:
+    # bq_activities.proto is generated from the BQ table schema and is only
+    # ever serialized as binary protobuf for the BigQuery Storage Write API
+    # (never marshaled as JSON). The file uses proto2 syntax (required by
+    # the Storage Write API), which buf flags as a JSON-format change vs
+    # the previous proto3 version. The JSON-format check is meaningful for
+    # protos that travel over JSON; this one does not.
+    MESSAGE_SAME_JSON_FORMAT:
+      - desirelines/bigquery/v1/bq_activities.proto
 
 # Buf configuration for Desirelines protobuf schemas
 #
