@@ -1,6 +1,6 @@
 """Unit tests for the production BigQuery Storage Write API wrapper.
 
-Four layers of coverage:
+Five layers of coverage:
 
 1. **Type-mapping unit tests** — coercion helper, ISO→micros encoding.
 2. **Schema-parity tests** — walk ``activities_full.json`` against the
@@ -10,8 +10,10 @@ Four layers of coverage:
    schema's TIMESTAMP columns and the wrapper's timestamp set.
 3. **Round-trip tests** — load a real ``DetailedStravaActivity`` fixture,
    serialize via the wrapper, parse back, assert key fields preserve.
-4. **Wrapper class behavior** — write_activity calls the underlying
-   AppendRowsStream in the right order with close-on-failure semantics.
+4. **Wrapper class behavior** — write_activity / write_activities_batch
+   build the right AppendRowsRequest and call the underlying stream.
+5. **Stream reuse** — long-lived stream is shared across writes,
+   dropped on failure, and closed idempotently on shutdown.
 """
 
 from datetime import UTC, datetime
@@ -82,11 +84,27 @@ def _find_proto_field_at_path(descriptor, path: str):
     return None
 
 
+_FAKE_STREAM = "projects/p/datasets/d/tables/t/streams/_default"
+
+
+def _make_mock_client() -> MagicMock:
+    """MagicMock satisfying ``BigQueryStorageWriter`` construction.
+
+    ``proto-plus`` rejects MagicMock values for ``request.write_stream``
+    (which must be a real string), so the helper pre-configures
+    ``write_stream_path`` to return a fixed path. All wrapper-class
+    tests use this to avoid each one duplicating the setup.
+    """
+    client = MagicMock()
+    client.write_stream_path.return_value = _FAKE_STREAM
+    return client
+
+
 class TestCoercion:
     def test_coerce_int_to_string(self):
-        # The motivating case: workout_type comes from Strava as int but
-        # the BQ schema declares STRING. insertAll silently coerced;
-        # Storage Write doesn't, so we coerce explicitly.
+        # Motivating case: workout_type is `int` in Pydantic but `STRING`
+        # in the BQ schema; Storage Write is strict about field types so
+        # we coerce explicitly.
         assert _coerce_to_proto_type(10, FieldDescriptor.TYPE_STRING) == "10"
 
     def test_coerce_string_to_int(self):
@@ -247,9 +265,7 @@ class TestWrapperClass:
     def test_write_activity_sends_one_request(
         self, mock_client_class, mock_stream_class
     ):
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
-        mock_client.table_path.return_value = "projects/p/datasets/d/tables/t"
+        mock_client_class.return_value = _make_mock_client()
 
         mock_stream = MagicMock()
         mock_stream_class.return_value = mock_stream
@@ -271,7 +287,9 @@ class TestWrapperClass:
     def test_default_stream_path_format(self, mock_client_class, mock_stream_class):
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        mock_client.table_path.return_value = "projects/myp/datasets/myd/tables/myt"
+        mock_client.write_stream_path.return_value = (
+            "projects/myp/datasets/myd/tables/myt/streams/_default"
+        )
         mock_stream_class.return_value = MagicMock()
 
         wrapper = BigQueryStorageWriter(
@@ -279,6 +297,9 @@ class TestWrapperClass:
         )
         assert wrapper._default_stream() == (
             "projects/myp/datasets/myd/tables/myt/streams/_default"
+        )
+        mock_client.write_stream_path.assert_called_with(
+            "myp", "myd", "myt", "_default"
         )
 
 
@@ -288,9 +309,7 @@ class TestWrapperBatch:
     def test_batch_sends_one_request_with_all_rows(
         self, mock_client_class, mock_stream_class
     ):
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
-        mock_client.table_path.return_value = "projects/p/datasets/d/tables/t"
+        mock_client_class.return_value = _make_mock_client()
 
         mock_stream = MagicMock()
         mock_stream_class.return_value = mock_stream
@@ -317,7 +336,7 @@ class TestWrapperBatch:
     def test_empty_batch_does_not_open_stream(
         self, mock_client_class, mock_stream_class
     ):
-        mock_client_class.return_value = MagicMock()
+        mock_client_class.return_value = _make_mock_client()
         wrapper = BigQueryStorageWriter(
             project_id="p", dataset_name="d", table_name="t"
         )
@@ -333,7 +352,7 @@ class TestStreamReuse:
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
     def test_two_writes_share_one_stream(self, mock_client_class, mock_stream_class):
-        mock_client_class.return_value = MagicMock()
+        mock_client_class.return_value = _make_mock_client()
         mock_stream = MagicMock()
         mock_stream_class.return_value = mock_stream
         mock_stream.send.return_value = MagicMock()
@@ -353,7 +372,7 @@ class TestStreamReuse:
     def test_send_failure_drops_stream_and_next_write_reopens(
         self, mock_client_class, mock_stream_class
     ):
-        mock_client_class.return_value = MagicMock()
+        mock_client_class.return_value = _make_mock_client()
         first_stream = MagicMock(spec=["send", "close", "is_active"])
         second_stream = MagicMock(spec=["send", "close", "is_active"])
         mock_stream_class.side_effect = [first_stream, second_stream]
@@ -386,7 +405,7 @@ class TestStreamReuse:
         reason if the open failed, leaving the stream in a closed state.
         Our drop path must not raise StreamClosedError on top of the
         original send failure."""
-        mock_client_class.return_value = MagicMock()
+        mock_client_class.return_value = _make_mock_client()
         bad_stream = MagicMock(spec=["send", "close", "is_active"])
         good_stream = MagicMock(spec=["send", "close", "is_active"])
         mock_stream_class.side_effect = [bad_stream, good_stream]
@@ -408,7 +427,7 @@ class TestStreamReuse:
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
     def test_close_closes_the_active_stream(self, mock_client_class, mock_stream_class):
-        mock_client_class.return_value = MagicMock()
+        mock_client_class.return_value = _make_mock_client()
         mock_stream = MagicMock()
         mock_stream_class.return_value = mock_stream
         mock_stream.send.return_value = MagicMock()
@@ -424,7 +443,7 @@ class TestStreamReuse:
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
     def test_close_before_any_write_is_safe(self, mock_client_class, mock_stream_class):
-        mock_client_class.return_value = MagicMock()
+        mock_client_class.return_value = _make_mock_client()
         wrapper = BigQueryStorageWriter(
             project_id="p", dataset_name="d", table_name="t"
         )
@@ -435,7 +454,7 @@ class TestStreamReuse:
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
     def test_close_is_idempotent(self, mock_client_class, mock_stream_class):
-        mock_client_class.return_value = MagicMock()
+        mock_client_class.return_value = _make_mock_client()
         mock_stream = MagicMock()
         mock_stream_class.return_value = mock_stream
         mock_stream.send.return_value = MagicMock()

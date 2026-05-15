@@ -3,8 +3,9 @@
 Mirrors the apigateway pattern (packages/apigateway/internal/health/handler.go):
 each service exposes a cheap /health for liveness and a deeper /ready that
 exercises its primary dependency. /ready is hit hourly by Cloud Scheduler,
-not on every Cloud Run probe — keep the underlying probes light to respect
-that contract (see Neon compute-cost note in CLAUDE.md).
+not on every Cloud Run probe — keep the underlying probes light. Each
+invocation wakes Neon's compute for its idle window, which is the dominant
+DB-active driver, so avoid pinging the DB more than necessary.
 """
 
 import asyncio

@@ -6,37 +6,42 @@ Owns the mapping from ``DetailedStravaActivity`` /
 points (``write_activity`` for the webhook path, ``write_activities_batch``
 for the backfill path) used by ``ActivitiesWriter``.
 
-Architecture:
+Key gotchas (read before changing anything here):
 
-- **Static proto, generated from BQ schema.** ``schemas/bigquery/activities_full.json``
-  is the source of truth; ``schemas/bigquery/generate_proto.py`` converts it
-  to ``schemas/proto/desirelines/bigquery/v1/bq_activities.proto``; Pants's
-  protobuf codegen produces ``stravapipe.types.generated.bq_activities_pb2``.
-  This module imports the generated ``Activity`` class directly — no runtime
-  descriptor building, no JSON file reading.
-- **Strict type coercion at write time.** The legacy ``insertAll`` API
-  silently coerces (e.g. ``int → STRING`` for ``workout_type``, where Pydantic
-  declares ``int`` but the BQ schema declares ``STRING``). The Storage
-  Write API is strict; without coercion, we'd raise ``TypeError: bad
-  argument type for built-in operation`` on the first such field.
-- **TIMESTAMP via int64 microseconds.** BQ Storage Write expects raw
-  micros-since-epoch, *not* the proto well-known ``Timestamp`` message.
-  ``_iso_to_micros`` handles tz-aware ISO strings (with Z or offset) and
-  naive ones (treated as UTC for conversion — matches insertAll's
-  behavior and BQ's internal storage convention).
-- **Default stream, one long-lived AppendRowsStream per writer instance.**
-  Lazy-opened on first write; reused across calls; reopened on
-  failure. Per Google's
-  [Storage Write API best practices](https://docs.cloud.google.com/bigquery/docs/write-api-best-practices)
-  — "Don't use one connection for just a single write." Open / close
-  per call hits intermittent stream-open failures that surface as
-  ``google.api_core.exceptions.Unknown`` (see issue #14269 in
-  ``googleapis/google-cloud-python``).
+- **proto2 syntax, not proto3.** BigQuery Storage Write rejects
+  descriptors carrying the ``[proto3_optional=true]`` annotation that
+  proto3's ``optional`` keyword generates. The generated proto is
+  ``syntax = "proto2"`` with every non-repeated field labeled
+  ``optional``. See ``schemas/bigquery/generate_proto.py`` for the
+  generator and ``schemas/proto/desirelines/bigquery/v1/bq_activities.proto``
+  for the output. Per Google's
+  [Storage Write API best practices](https://docs.cloud.google.com/bigquery/docs/write-api-best-practices).
 
-The set of fields encoded as TIMESTAMP is hard-coded below
-(``_TIMESTAMP_PATHS``). The schema-parity test in
-``test_bigquery_storage.py`` verifies this set matches the
-``TIMESTAMP`` columns in the BQ JSON schema; if it drifts, CI fails.
+- **TIMESTAMP as int64 micros-since-epoch.** The API does not accept
+  the proto well-known ``Timestamp`` message for BQ TIMESTAMP columns.
+  ``_TIMESTAMP_PATHS`` enumerates the affected dotted paths;
+  ``_iso_to_micros`` does the conversion at write time.
+
+- **One long-lived ``AppendRowsStream`` per writer.** Per Google's
+  docs: "Don't use one connection for just a single write." The stream
+  is lazy-opened on first send, reused, and re-opened on failure (see
+  ``_send_serialized``). ``close()`` is wired into the Cloud Run
+  lifespan / backfill teardown.
+
+- **Pydantic ↔ BQ type drift handled by explicit coercion.** Storage
+  Write is strict about field types; the legacy ``insertAll`` was lax.
+  ``_coerce_to_proto_type`` papers over the known mismatches (notably
+  ``workout_type``: ``int`` in Pydantic, ``STRING`` in BQ). The
+  schema-parity test in ``test_bigquery_storage.py`` fails if a new
+  drift sneaks in.
+
+- **Failed stream opens surface as `Unknown` with no detail.** The
+  underlying gRPC error gets wrapped into ``api_core.exceptions.Unknown``
+  with the unhelpful message "There was a problem opening the stream.
+  Try turning on DEBUG level logs to see the error." To see the real
+  cause, set ``GRPC_VERBOSITY=DEBUG`` on the Cloud Run service — the
+  gRPC C-core logs to stderr, which Cloud Logging captures at
+  ``DEFAULT`` severity.
 """
 
 from collections.abc import Sequence
@@ -88,25 +93,16 @@ def _iso_to_micros(value: str) -> int:
     """Parse an ISO-8601 string into microseconds since Unix epoch.
 
     Handles both forms Pydantic emits via ``model_dump(mode='json')``:
-      - With timezone (``2018-02-16T14:52:54Z`` or ``…+00:00``).
-        Python 3.11+ ``datetime.fromisoformat`` accepts both natively.
-      - Naive (``2018-02-16T14:52:54``) — treated as UTC for the
-        conversion.
+    tz-aware (``…Z`` or ``…+00:00``) and naive. Naive inputs are treated
+    as UTC, matching BQ's internal TIMESTAMP representation (micros
+    since epoch, UTC).
 
-    The "treat naive as UTC" rule matches what BQ does internally: BQ's
-    TIMESTAMP type stores microseconds since Unix epoch in UTC. When you
-    insert a naive string via the legacy ``insertAll`` API, BQ assumes
-    UTC. Doing the same here keeps the wire-level value consistent with
-    historical rows.
-
-    Note on ``start_date_local``: per ``CLAUDE.md`` "start_date_local is
-    athlete local time — never convert to UTC." That guidance is about
-    *query-time* interpretation: the stored micros represent the
-    wall-clock value the athlete saw, with the timezone information
-    discarded. This function doesn't violate that — for a naive input
-    (or a Z-tagged input that's actually local-with-fake-Z, which is
-    what Strava sends), the resulting micros encode the wall-clock
-    numbers as if they were UTC.
+    ``start_date_local`` is athlete local time, not UTC. Strava sends
+    it either Z-suffixed with the wall-clock numbers (not actually
+    UTC) or naive. Either way, this function encodes the wall-clock
+    numbers *as if* they were UTC — the timezone is discarded and the
+    stored micros represent the value the athlete saw on their watch.
+    Consumers must interpret it as local time at query time.
     """
     dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
@@ -117,16 +113,14 @@ def _iso_to_micros(value: str) -> int:
 def _coerce_to_proto_type(value: Any, proto_type: int) -> Any:
     """Coerce a Python value to the proto field's declared scalar type.
 
-    The legacy ``insertAll`` API silently coerces values that don't
-    match the BQ column type (notably ``int → STRING`` for
-    ``workout_type``, where Pydantic declares ``int`` but the BQ schema
-    declares ``STRING``). The Storage Write API is strict; without
-    coercion, we'd raise ``TypeError: bad argument type for built-in
-    operation`` on the first such field.
-
-    This is also where future Pydantic↔BQ drift gets papered over —
-    pair this with the schema-parity test, which surfaces drift as a
-    test failure rather than a prod incident.
+    Storage Write is strict about field types and raises
+    ``TypeError: bad argument type for built-in operation`` on the
+    first mismatched field. The motivating case is ``workout_type``,
+    which Pydantic declares ``int`` but the BQ schema declares
+    ``STRING``; future Pydantic↔BQ drift lands here too. The
+    schema-parity test in ``test_bigquery_storage.py`` is the safety
+    net that surfaces new drift as a test failure rather than a prod
+    incident.
     """
     if proto_type == FieldDescriptor.TYPE_STRING:
         return str(value)
@@ -149,18 +143,17 @@ def _populate_message(
     """Recursively populate a proto message from a JSON-shaped dict.
 
     ``raw`` is the output of ``activity.model_dump(mode='json')`` (or a
-    sub-dict for nested RECORDs). Pydantic's mode='json' dump already
-    converts ``datetime`` fields to ISO strings and runs validators
-    like ``PhotosSummaryPrimary.transform_to_json_str`` (which encodes
-    the photo URLs dict as a JSON string), so by the time we're here
-    every leaf value is JSON-safe.
+    sub-dict for nested RECORDs). Pydantic's mode='json' dump converts
+    ``datetime`` fields to ISO strings and runs validators (e.g.
+    ``PhotosSummaryPrimary.transform_to_json_str`` encodes the photo
+    URLs dict as a JSON string), so every leaf value is JSON-safe by
+    the time we're here.
 
-    Critical: NULLABLE fields with ``None`` values must be left
-    *unset* on the proto, not set to a falsy value. proto3 distinguishes
-    set-from-unset for ``optional`` fields; setting an int field
-    explicitly to 0 sends the wire bytes for 0 and BQ stores NOT NULL.
-    The ``if value is None: continue`` guard is what preserves NULL
-    semantics.
+    NULL semantics: fields with ``None`` values must be left *unset*
+    on the proto. Proto2 ``optional`` fields distinguish set-from-unset;
+    setting an int field to 0 explicitly sends 0 on the wire and BQ
+    stores NOT NULL. The ``if value is None: continue`` guard is what
+    preserves NULL.
     """
     descriptor = msg.DESCRIPTOR
     for field in descriptor.fields:
@@ -234,13 +227,14 @@ class BigQueryStorageWriter:
         self._stream: writer.AppendRowsStream | None = None
         self._stream_lock = threading.Lock()
 
-    def _table_path(self) -> str:
-        return self._client.table_path(
-            self._project_id, self._dataset_name, self._table_name
-        )
-
     def _default_stream(self) -> str:
-        return f"{self._table_path()}/streams/_default"
+        # Canonical resource name per `WriteStream` proto pattern:
+        # `projects/{p}/datasets/{d}/tables/{t}/streams/_default`. Built via
+        # the lib's own helper so the format stays in sync with the proto
+        # definition if Google ever changes it.
+        return self._client.write_stream_path(
+            self._project_id, self._dataset_name, self._table_name, "_default"
+        )
 
     def _build_request_template(self) -> types.AppendRowsRequest:
         request = types.AppendRowsRequest()

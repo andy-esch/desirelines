@@ -10,8 +10,6 @@ Activity data is now provided inline in the enriched event from the dispatcher
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-import logging
-import os
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -53,19 +51,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Pre-seed teardown-relevant slots so the `finally` block can run
     # safely even if startup raises before these are populated.
     app.state.writer = None
-
-    # Diagnostic: when BQ_STORAGE_DEBUG=true, surface the underlying
-    # exception that ``AppendRowsStream._open`` wraps as the generic
-    # ``Unknown: There was a problem opening the stream.`` The library
-    # logs the real error at DEBUG before re-raising; turning the
-    # google.cloud.bigquery_storage_v1 logger up to DEBUG is the
-    # documented way to see it. Toggle via Cloud Run env-var update
-    # (no redeploy needed). Remove this block after capturing the
-    # underlying cause — see planning task
-    # diagnose-bq-storage-stream-open-failures.
-    if os.environ.get("BQ_STORAGE_DEBUG", "").lower() == "true":
-        logging.getLogger("google.cloud.bigquery_storage_v1").setLevel(logging.DEBUG)
-        logger.info("BQ_STORAGE_DEBUG enabled — verbose bigquery_storage_v1 logs on")
 
     try:
         config = load_bq_inserter_config()
