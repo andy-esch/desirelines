@@ -284,8 +284,11 @@ class BigQueryStorageWriter:
         """
         if self._stream is not None and self._stream.is_active:
             return self._stream
-        # Stream slot is empty or stale — build a fresh one. The new
-        # stream's first send() will trigger the underlying open().
+        # Stream slot is empty or stale. Drop first (no-op if None;
+        # closes and clears if stale) so we don't leak the underlying
+        # gRPC channel on the rare server-side-close-between-writes
+        # path. The new stream's first send() triggers the open().
+        self._drop_stream()
         self._stream = writer.AppendRowsStream(self._client, self._request_template)
         return self._stream
 

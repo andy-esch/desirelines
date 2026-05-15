@@ -324,6 +324,7 @@ class TestWrapperBatch:
         wrapper.write_activities_batch([])
         mock_stream_class.assert_not_called()
 
+
 class TestStreamReuse:
     """Per Google's Storage Write API best practices, the writer holds
     one long-lived AppendRowsStream and reuses it across calls. These
@@ -331,9 +332,7 @@ class TestStreamReuse:
 
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
-    def test_two_writes_share_one_stream(
-        self, mock_client_class, mock_stream_class
-    ):
+    def test_two_writes_share_one_stream(self, mock_client_class, mock_stream_class):
         mock_client_class.return_value = MagicMock()
         mock_stream = MagicMock()
         mock_stream_class.return_value = mock_stream
@@ -408,9 +407,7 @@ class TestStreamReuse:
 
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
-    def test_close_closes_the_active_stream(
-        self, mock_client_class, mock_stream_class
-    ):
+    def test_close_closes_the_active_stream(self, mock_client_class, mock_stream_class):
         mock_client_class.return_value = MagicMock()
         mock_stream = MagicMock()
         mock_stream_class.return_value = mock_stream
@@ -426,9 +423,7 @@ class TestStreamReuse:
 
     @patch("stravapipe.adapters.gcp._bigquery_storage.writer.AppendRowsStream")
     @patch("stravapipe.adapters.gcp._bigquery_storage.BigQueryWriteClient")
-    def test_close_before_any_write_is_safe(
-        self, mock_client_class, mock_stream_class
-    ):
+    def test_close_before_any_write_is_safe(self, mock_client_class, mock_stream_class):
         mock_client_class.return_value = MagicMock()
         wrapper = BigQueryStorageWriter(
             project_id="p", dataset_name="d", table_name="t"
