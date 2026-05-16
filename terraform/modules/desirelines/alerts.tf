@@ -451,14 +451,22 @@ resource "google_monitoring_alert_policy" "old_messages" {
 # six (strava_api, firestore_operation, pubsub_publish, postgres_pool) have
 # been tuned to ~2× observed 7-day P99 (see each policy's documentation for
 # specifics). The remaining two (http_request_latency, postgres_query_latency)
-# are still placeholders pending histogram bucket extension — observed P95
-# and P99 both clip at the top finite bucket (~10s), so a meaningful threshold
-# can't be derived from the current buckets.
+# carry interim thresholds at 9000ms pending histogram bucket extension —
+# observed P95 and P99 both clip at the top finite bucket (~10s), so a
+# meaningful P99 threshold can't be derived from the current buckets.
+#
+# Format: histogram-based latency alerts and the webhook-absence alert use
+# `condition_prometheus_query_language` (not `condition_threshold`) because
+# the GCP OTel exporter emits these as CUMULATIVE+DISTRIBUTION / CUMULATIVE
+# +INT64, and Cloud Monitoring's `condition_threshold` aligners
+# (ALIGN_PERCENTILE_99, ALIGN_SUM) don't accept those metric kinds. PromQL's
+# `histogram_quantile` and `rate`/`increase` handle cumulative series
+# natively, so the threshold is encoded directly in the query.
 #
 # Discipline going forward: if an alert fires repeatedly on normal traffic,
 # loosen the threshold; if it never fires when something clearly went wrong,
-# tighten it. All histograms are emitted with WithUnit("ms"), so
-# threshold_value is in milliseconds.
+# tighten it. All histograms are emitted with WithUnit("ms"), so the
+# numeric comparison in each query is in milliseconds.
 #
 # All alerts in this block are gated on var.enable_application_metric_alerts.
 # Cloud Monitoring rejects an alert that references a metric descriptor which
@@ -536,18 +544,16 @@ resource "google_monitoring_alert_policy" "strava_api_latency" {
   conditions {
     display_name = "strava/api.duration P99 > 1500ms"
 
-    condition_threshold {
-      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/strava/api.duration\" AND resource.type=\"generic_task\""
-      duration        = "300s"
-      comparison      = "COMPARISON_GT"
-      threshold_value = 1500
-
-      aggregations {
-        alignment_period     = "300s"
-        per_series_aligner   = "ALIGN_PERCENTILE_99"
-        cross_series_reducer = "REDUCE_MAX"
-        group_by_fields      = ["metric.labels.operation"]
-      }
+    condition_prometheus_query_language {
+      query               = <<-EOT
+        histogram_quantile(0.99,
+          sum by (le, metric_operation) (
+            rate({__name__="workload.googleapis.com/desirelines.io/strava/api.duration_bucket", monitored_resource="generic_task"}[5m])
+          )
+        ) > 1500
+      EOT
+      duration            = "300s"
+      evaluation_interval = "60s"
     }
   }
 
@@ -567,25 +573,31 @@ resource "google_monitoring_alert_policy" "http_request_latency" {
   documentation {
     content = <<-EOT
       **MEDIUM**: P99 HTTP request duration (across dispatcher + apigateway)
-      exceeded 2s placeholder for ≥5 minutes. Placeholder threshold — tune after
-      a week of observed data.
+      exceeded 9000ms (interim) for ≥5 minutes.
+
+      Interim threshold — observed P99 and P95 both clip at the top finite
+      histogram bucket (~10s), so the real tail is unmeasurable from the
+      current buckets. 9000ms catches a sustained "stuck at bucket ceiling"
+      condition (likely Neon scale-to-zero storm or a real degradation), at
+      the cost of being noisy during cold-start events. Re-tune after
+      `extend-otel-histogram-buckets-for-long-tail-latency` lands and
+      bucket resolution allows a meaningful P99.
     EOT
   }
 
   conditions {
-    display_name = "http/request.duration P99 > 2000ms"
+    display_name = "http/request.duration P99 > 9000ms (interim)"
 
-    condition_threshold {
-      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/http/request.duration\" AND resource.type=\"generic_task\""
-      duration        = "300s"
-      comparison      = "COMPARISON_GT"
-      threshold_value = 2000
-
-      aggregations {
-        alignment_period     = "300s"
-        per_series_aligner   = "ALIGN_PERCENTILE_99"
-        cross_series_reducer = "REDUCE_MAX"
-      }
+    condition_prometheus_query_language {
+      query               = <<-EOT
+        histogram_quantile(0.99,
+          sum by (le) (
+            rate({__name__="workload.googleapis.com/desirelines.io/http/request.duration_bucket", monitored_resource="generic_task"}[5m])
+          )
+        ) > 9000
+      EOT
+      duration            = "300s"
+      evaluation_interval = "60s"
     }
   }
 
@@ -604,28 +616,32 @@ resource "google_monitoring_alert_policy" "postgres_query_latency" {
 
   documentation {
     content = <<-EOT
-      **MEDIUM**: P99 Postgres query duration exceeded 500ms placeholder for ≥5 minutes.
-      Expected queries should be fast (indexed lookups, < 50ms typical). A sustained
-      P99 at 500ms suggests missing index, table bloat, or connection contention.
-      Placeholder threshold — tune after a week of observed data.
+      **MEDIUM**: P99 Postgres query duration exceeded 9000ms (interim) for ≥5
+      minutes. Expected queries should be fast (indexed lookups, < 50ms
+      typical).
+
+      Interim threshold — observed P99 and P95 both clip at the top finite
+      histogram bucket (~10s), almost certainly Neon compute scale-to-zero
+      wake-up. 9000ms catches sustained "stuck at bucket ceiling" (real
+      degradation OR sustained cold-start storm). Re-tune after
+      `extend-otel-histogram-buckets-for-long-tail-latency` lands and
+      bucket resolution allows a meaningful P99.
     EOT
   }
 
   conditions {
-    display_name = "postgres/query.duration P99 > 500ms"
+    display_name = "postgres/query.duration P99 > 9000ms (interim)"
 
-    condition_threshold {
-      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/postgres/query.duration\" AND resource.type=\"generic_task\""
-      duration        = "300s"
-      comparison      = "COMPARISON_GT"
-      threshold_value = 500
-
-      aggregations {
-        alignment_period     = "300s"
-        per_series_aligner   = "ALIGN_PERCENTILE_99"
-        cross_series_reducer = "REDUCE_MAX"
-        group_by_fields      = ["metric.labels.operation"]
-      }
+    condition_prometheus_query_language {
+      query               = <<-EOT
+        histogram_quantile(0.99,
+          sum by (le, metric_operation) (
+            rate({__name__="workload.googleapis.com/desirelines.io/postgres/query.duration_bucket", monitored_resource="generic_task"}[5m])
+          )
+        ) > 9000
+      EOT
+      duration            = "300s"
+      evaluation_interval = "60s"
     }
   }
 
@@ -655,18 +671,16 @@ resource "google_monitoring_alert_policy" "firestore_operation_latency" {
   conditions {
     display_name = "firestore/operation.duration P99 > 1000ms"
 
-    condition_threshold {
-      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/firestore/operation.duration\" AND resource.type=\"generic_task\""
-      duration        = "300s"
-      comparison      = "COMPARISON_GT"
-      threshold_value = 1000
-
-      aggregations {
-        alignment_period     = "300s"
-        per_series_aligner   = "ALIGN_PERCENTILE_99"
-        cross_series_reducer = "REDUCE_MAX"
-        group_by_fields      = ["metric.labels.operation"]
-      }
+    condition_prometheus_query_language {
+      query               = <<-EOT
+        histogram_quantile(0.99,
+          sum by (le, metric_operation) (
+            rate({__name__="workload.googleapis.com/desirelines.io/firestore/operation.duration_bucket", monitored_resource="generic_task"}[5m])
+          )
+        ) > 1000
+      EOT
+      duration            = "300s"
+      evaluation_interval = "60s"
     }
   }
 
@@ -697,17 +711,16 @@ resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
   conditions {
     display_name = "pubsub/publish.duration P99 > 500ms"
 
-    condition_threshold {
-      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/pubsub/publish.duration\" AND resource.type=\"generic_task\""
-      duration        = "300s"
-      comparison      = "COMPARISON_GT"
-      threshold_value = 500
-
-      aggregations {
-        alignment_period     = "300s"
-        per_series_aligner   = "ALIGN_PERCENTILE_99"
-        cross_series_reducer = "REDUCE_MAX"
-      }
+    condition_prometheus_query_language {
+      query               = <<-EOT
+        histogram_quantile(0.99,
+          sum by (le) (
+            rate({__name__="workload.googleapis.com/desirelines.io/pubsub/publish.duration_bucket", monitored_resource="generic_task"}[5m])
+          )
+        ) > 500
+      EOT
+      duration            = "300s"
+      evaluation_interval = "60s"
     }
   }
 
@@ -769,19 +782,16 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
   }
 
   conditions {
-    display_name = "webhook_events rate = 0 over 24h"
+    display_name = "webhook_events count = 0 over 24h"
 
-    condition_threshold {
-      filter          = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/events\" AND resource.type=\"generic_task\""
-      duration        = "0s"
-      comparison      = "COMPARISON_LT"
-      threshold_value = 1 # any non-zero count over the window passes
-
-      aggregations {
-        alignment_period     = "86400s" # 24 hours
-        per_series_aligner   = "ALIGN_SUM"
-        cross_series_reducer = "REDUCE_SUM"
-      }
+    condition_prometheus_query_language {
+      query               = <<-EOT
+        sum(
+          increase({__name__="workload.googleapis.com/desirelines.io/webhook/events", monitored_resource="generic_task"}[24h])
+        ) < 1
+      EOT
+      duration            = "0s"
+      evaluation_interval = "300s"
     }
   }
 
