@@ -50,9 +50,7 @@ def make_write_activities(
     )
 
 
-def make_read_activities(
-    *, project_id: str, bq_dataset: str
-) -> ReadActivitiesMetadata:
+def make_read_activities(*, project_id: str, bq_dataset: str) -> ReadActivitiesMetadata:
     """Create an ActivitiesReader (ReadActivitiesMetadata port)."""
     client = make_bigquery_client_wrapper(project_id=project_id)
     return ActivitiesReader(
