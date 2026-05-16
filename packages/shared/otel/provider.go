@@ -42,6 +42,52 @@ const (
 	scopeName = "desirelines.io"
 )
 
+// extendedDurationBuckets resolves long-tail latency past the default 10s
+// ceiling. The OTel SDK default boundaries top out at 10000ms, which clipped
+// the P99 of http/request.duration and postgres/query.duration to ~9950ms in
+// prod — Neon scale-to-zero wake-ups dominate the tail. Boundaries below keep
+// fine resolution in the sub-second range (where typical traffic lives) and
+// add coarse resolution out to 60s for cold-start visibility.
+var extendedDurationBuckets = []float64{
+	1, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000,
+	2500, 5000, 7500, 10000, 15000, 30000, 60000,
+}
+
+// extendedDurationInstrumentNames lists every desirelines `.duration`
+// histogram. Each gets a View that overrides its bucket boundaries to
+// extendedDurationBuckets. Listed explicitly (rather than wildcard-matched
+// by name or unit) so the override documents intent per-instrument and
+// typos surface via provider_test.go.
+var extendedDurationInstrumentNames = []string{
+	"desirelines.io/http/request.duration",
+	"desirelines.io/postgres/query.duration",
+	"desirelines.io/strava/api.duration",
+	"desirelines.io/firestore/operation.duration",
+	"desirelines.io/pubsub/publish.duration",
+	"desirelines.io/auth/verify_id_token.duration",
+	"desirelines.io/strava/oauth_exchange.duration",
+}
+
+// extendedDurationViews returns one View per name in
+// extendedDurationInstrumentNames, each applying extendedDurationBuckets.
+func extendedDurationViews() []sdkmetric.View {
+	views := make([]sdkmetric.View, len(extendedDurationInstrumentNames))
+	for i, name := range extendedDurationInstrumentNames {
+		views[i] = sdkmetric.NewView(
+			// Kind filter is defensive: if someone later adds a counter
+			// with one of these names, it shouldn't accidentally pick up
+			// histogram bucket boundaries.
+			sdkmetric.Instrument{Name: name, Kind: sdkmetric.InstrumentKindHistogram},
+			sdkmetric.Stream{
+				Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+					Boundaries: extendedDurationBuckets,
+				},
+			},
+		)
+	}
+	return views
+}
+
 // Providers holds the initialized OTel meter and tracer.
 type Providers struct {
 	Meter  metric.Meter
@@ -73,6 +119,7 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 	mp := sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(exportInterval))),
 		sdkmetric.WithResource(res),
+		sdkmetric.WithView(extendedDurationViews()...),
 	)
 
 	// --- Tracing ---
