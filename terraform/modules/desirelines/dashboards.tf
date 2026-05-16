@@ -277,7 +277,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                       filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\""
                       aggregation = {
                         alignmentPeriod    = "60s"
-                        perSeriesAligner   = "ALIGN_RATE"
+                        perSeriesAligner   = "ALIGN_SUM"
                         crossSeriesReducer = "REDUCE_SUM"
                         groupByFields      = ["resource.labels.service_name"]
                       }
@@ -303,7 +303,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 6
           height = 4
           widget = {
-            title = "Service 4xx Errors (client errors)"
+            title = "Service 4xx Errors (per minute)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -311,7 +311,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"4xx\""
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                       groupByFields      = ["resource.labels.service_name"]
                     }
@@ -344,7 +344,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 6
           height = 4
           widget = {
-            title = "Service 5xx Errors (server errors)"
+            title = "Service 5xx Errors (per minute)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -352,7 +352,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                       groupByFields      = ["resource.labels.service_name"]
                     }
@@ -471,7 +471,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "resource.type=\"pubsub_topic\" AND resource.labels.topic_id=\"${google_pubsub_topic.activity_events.name}\" AND metric.type=\"pubsub.googleapis.com/topic/send_request_count\""
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                     }
                   }
@@ -743,7 +743,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"pubsub.googleapis.com/subscription/push_request_count\""
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                       groupByFields      = ["metric.labels.response_class"]
                     }
@@ -894,7 +894,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/events\" AND resource.type=\"generic_task\""
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                       groupByFields      = ["metric.labels.aspect_type"]
                     }
@@ -965,7 +965,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\""
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                       groupByFields      = ["metric.labels.result"]
                     }
@@ -1075,9 +1075,11 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         # line at the alert's firing value so "how close are we to firing?"
         # is one-glance.
         #
-        # Values are events/sec (ALIGN_RATE), so threshold 0.167 = 10/min
-        # and 0.0833 = 5/min. Tile titles include the per-minute equivalent
-        # for human reading.
+        # Chart values are events/min (ALIGN_SUM over a 60s window).
+        # Thresholds (10, 5, 5, 5 per min) match the alert firing points.
+        # Note: alerts in `alerts.tf` use ALIGN_RATE with thresholds
+        # 0.167 and 0.0833 (events/sec) — mathematically equivalent at
+        # 60s alignment (10/60 = 0.167, 5/60 = 0.0833).
         {
           yPos   = 82
           width  = 12
@@ -1106,7 +1108,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=monitoring.regex.full_match(\"401|403\")"
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                     }
                   }
@@ -1120,7 +1122,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 scale = "LINEAR"
               }
               thresholds = [{
-                value = 0.167 # = 10/min, matches apigateway_auth_failure_surge
+                value = 10 # = 10/min, matches apigateway_auth_failure_surge
               }]
             }
           }
@@ -1141,7 +1143,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"404\""
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                     }
                   }
@@ -1155,7 +1157,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 scale = "LINEAR"
               }
               thresholds = [{
-                value = 0.0833 # = 5/min, matches apigateway_not_found_surge
+                value = 5 # = 5/min, matches apigateway_not_found_surge
               }]
             }
           }
@@ -1176,7 +1178,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"429\""
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                     }
                   }
@@ -1190,7 +1192,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 scale = "LINEAR"
               }
               thresholds = [{
-                value = 0.0833 # = 5/min, matches apigateway_rate_limited_surge
+                value = 5 # = 5/min, matches apigateway_rate_limited_surge
               }]
             }
           }
@@ -1211,7 +1213,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                     filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.dispatcher.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"400\""
                     aggregation = {
                       alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_RATE"
+                      perSeriesAligner   = "ALIGN_SUM"
                       crossSeriesReducer = "REDUCE_SUM"
                     }
                   }
@@ -1225,7 +1227,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 scale = "LINEAR"
               }
               thresholds = [{
-                value = 0.0833 # = 5/min, matches dispatcher_bad_request_surge
+                value = 5 # = 5/min, matches dispatcher_bad_request_surge
               }]
             }
           }
