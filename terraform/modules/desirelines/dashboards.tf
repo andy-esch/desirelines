@@ -62,7 +62,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 }
               }
               gaugeView = {
-                lowerBound = 0
                 upperBound = 1
               }
               thresholds = [
@@ -92,7 +91,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 }
               }
               gaugeView = {
-                lowerBound = 0
                 upperBound = 1
               }
               thresholds = [
@@ -122,7 +120,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 }
               }
               gaugeView = {
-                lowerBound = 0
                 upperBound = 1
               }
               thresholds = [
@@ -152,7 +149,6 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 }
               }
               gaugeView = {
-                lowerBound = 0
                 upperBound = 1
               }
               thresholds = [
@@ -272,7 +268,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 12
           height = 4
           widget = {
-            title = "Service Requests (per second)"
+            title = "Service Requests (per minute)"
             xyChart = {
               dataSets = [
                 {
@@ -294,7 +290,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               ]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Requests/sec"
+                label = "Requests/min"
                 scale = "LINEAR"
               }
             }
@@ -327,7 +323,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Errors/sec"
+                label = "Errors/min"
                 scale = "LINEAR"
               }
             }
@@ -368,7 +364,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Errors/sec"
+                label = "Errors/min"
                 scale = "LINEAR"
               }
             }
@@ -467,7 +463,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 6
           height = 4
           widget = {
-            title = "Messages Published (per second)"
+            title = "Messages Published (per minute)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -485,7 +481,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Messages/sec"
+                label = "Messages/min"
                 scale = "LINEAR"
               }
             }
@@ -739,7 +735,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 6
           height = 4
           widget = {
-            title = "Push Delivery Results (per second)"
+            title = "Push Delivery Results (per minute)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -759,7 +755,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Requests/sec"
+                label = "Requests/min"
                 scale = "LINEAR"
               }
             }
@@ -890,7 +886,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 6
           height = 4
           widget = {
-            title = "Webhook Events (per second)"
+            title = "Webhook Events (per minute)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -910,7 +906,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Events/sec"
+                label = "Events/min"
                 scale = "LINEAR"
               }
             }
@@ -961,7 +957,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           width  = 12
           height = 4
           widget = {
-            title = "Webhook Owner Check Outcomes (per second)"
+            title = "Webhook Owner Check Outcomes (per minute)"
             xyChart = {
               dataSets = [{
                 timeSeriesQuery = {
@@ -981,7 +977,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Events/sec"
+                label = "Events/min"
                 scale = "LINEAR"
               }
             }
@@ -1120,7 +1116,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Events/sec"
+                label = "Events/min"
                 scale = "LINEAR"
               }
               thresholds = [{
@@ -1155,7 +1151,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Events/sec"
+                label = "Events/min"
                 scale = "LINEAR"
               }
               thresholds = [{
@@ -1190,7 +1186,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Events/sec"
+                label = "Events/min"
                 scale = "LINEAR"
               }
               thresholds = [{
@@ -1225,7 +1221,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
               timeshiftDuration = "0s"
               yAxis = {
-                label = "Events/sec"
+                label = "Events/min"
                 scale = "LINEAR"
               }
               thresholds = [{
