@@ -68,6 +68,18 @@ var extendedDurationInstrumentNames = []string{
 	"desirelines.io/strava/oauth_exchange.duration",
 }
 
+// newMeterProvider constructs the SDK MeterProvider with the project's
+// standard resource and View configuration. Extracted from Setup so the
+// View wiring can be exercised with a ManualReader in provider_test.go
+// without instantiating the real GCP exporter.
+func newMeterProvider(res *resource.Resource, reader sdkmetric.Reader) *sdkmetric.MeterProvider {
+	return sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(reader),
+		sdkmetric.WithResource(res),
+		sdkmetric.WithView(extendedDurationViews()...),
+	)
+}
+
 // extendedDurationViews returns one View per name in
 // extendedDurationInstrumentNames, each applying extendedDurationBuckets.
 func extendedDurationViews() []sdkmetric.View {
@@ -116,11 +128,8 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 		return nil, nil, fmt.Errorf("create GCP metric exporter: %w", err)
 	}
 
-	mp := sdkmetric.NewMeterProvider(
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(exportInterval))),
-		sdkmetric.WithResource(res),
-		sdkmetric.WithView(extendedDurationViews()...),
-	)
+	reader := sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(exportInterval))
+	mp := newMeterProvider(res, reader)
 
 	// --- Tracing ---
 	traceExp, err := texporter.New()

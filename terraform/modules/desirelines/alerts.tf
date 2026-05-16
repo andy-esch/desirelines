@@ -62,7 +62,7 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
 
 # CRITICAL: DLQ Messages Detected (PostgreSQL Writer)
 resource "google_monitoring_alert_policy" "dlq_postgres_writer" {
-  display_name = "DLQ: PostgreSQL Writer Has Messages"
+  display_name = "🚨 DLQ: PostgreSQL Writer Has Messages"
   combiner     = "OR"
 
   documentation {

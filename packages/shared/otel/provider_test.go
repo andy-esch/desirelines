@@ -1,9 +1,13 @@
 package otel
 
 import (
+	"context"
 	"testing"
 
+	otelmetric "go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/sdk/resource"
 )
 
 // TestExtendedDurationViews_MatchEachListedInstrument asserts that every name
@@ -55,6 +59,52 @@ func TestExtendedDurationViews_MatchEachListedInstrument(t *testing.T) {
 				t.Fatalf("expected exactly one view to match %s, got %d", name, matched)
 			}
 		})
+	}
+}
+
+// TestNewMeterProvider_AppliesExtendedDurationViewsToHistograms asserts that
+// the MeterProvider returned by newMeterProvider actually wires the View
+// configuration through — recording a value into one of the extended-bucket
+// instruments must produce a HistogramDataPoint whose Bounds end at 60000ms,
+// not the SDK default of 10000ms. This catches drift between
+// extendedDurationViews() and the WithView call in newMeterProvider.
+func TestNewMeterProvider_AppliesExtendedDurationViewsToHistograms(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	mp := newMeterProvider(resource.Empty(), reader)
+
+	const instrumentName = "desirelines.io/http/request.duration"
+	hist, err := mp.Meter(scopeName).Float64Histogram(instrumentName, otelmetric.WithUnit("ms"))
+	if err != nil {
+		t.Fatalf("create histogram: %v", err)
+	}
+	hist.Record(context.Background(), 100.0)
+
+	var rm metricdata.ResourceMetrics
+	if collectErr := reader.Collect(context.Background(), &rm); collectErr != nil {
+		t.Fatalf("collect: %v", collectErr)
+	}
+
+	var bounds []float64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != instrumentName {
+				continue
+			}
+			data, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("expected Histogram[float64] for %s, got %T", instrumentName, m.Data)
+			}
+			if len(data.DataPoints) != 1 {
+				t.Fatalf("expected 1 data point, got %d", len(data.DataPoints))
+			}
+			bounds = data.DataPoints[0].Bounds
+		}
+	}
+	if len(bounds) == 0 {
+		t.Fatalf("did not find %s in collected metrics", instrumentName)
+	}
+	if got := bounds[len(bounds)-1]; got != 60000 {
+		t.Fatalf("expected extendedDurationBuckets to be applied (last bound = 60000), got %v (full bounds = %v)", got, bounds)
 	}
 }
 
