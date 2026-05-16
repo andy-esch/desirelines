@@ -447,11 +447,18 @@ resource "google_monitoring_alert_policy" "old_messages" {
 # ============================================================================
 # Application-metric Alerts (OTel histograms + gauges)
 # ============================================================================
-# Thresholds below are intentionally conservative placeholders — the plan is
-# to observe a week of P99 data in Cloud Monitoring, then tune. If an alert
-# fires repeatedly on normal traffic, loosen the threshold; if it never fires
-# when something clearly went wrong, tighten it. All histograms are emitted
-# with WithUnit("ms"), so threshold_value is in milliseconds.
+# Thresholds were initially shipped as placeholders. As of 2026-05-16, four of
+# six (strava_api, firestore_operation, pubsub_publish, postgres_pool) have
+# been tuned to ~2× observed 7-day P99 (see each policy's documentation for
+# specifics). The remaining two (http_request_latency, postgres_query_latency)
+# are still placeholders pending histogram bucket extension — observed P95
+# and P99 both clip at the top finite bucket (~10s), so a meaningful threshold
+# can't be derived from the current buckets.
+#
+# Discipline going forward: if an alert fires repeatedly on normal traffic,
+# loosen the threshold; if it never fires when something clearly went wrong,
+# tighten it. All histograms are emitted with WithUnit("ms"), so
+# threshold_value is in milliseconds.
 #
 # All alerts in this block are gated on var.enable_application_metric_alerts.
 # Cloud Monitoring rejects an alert that references a metric descriptor which
@@ -471,6 +478,11 @@ resource "google_monitoring_alert_policy" "postgres_pool_exhaustion" {
       **HIGH**: apigateway's Postgres connection pool has ≥4 connections in use
       (default max is 5 via `DB_POOL_MAX_CONNS`). Sustained exhaustion causes
       request queueing and rising `postgres/query.duration` tails.
+
+      Threshold verified 2026-05-16: 80% of `DB_POOL_MAX_CONNS=5` → fire at
+      ≥4 in_use. 7-day observed max was 1 in_use; current capacity is
+      heavily over-provisioned for single-user scale, but the alert exists
+      to catch the moment that changes.
 
       **Action**:
       1. Check `postgres/query.duration` P99 — slow queries hold connections.
@@ -511,20 +523,24 @@ resource "google_monitoring_alert_policy" "strava_api_latency" {
 
   documentation {
     content = <<-EOT
-      **MEDIUM**: P99 Strava API call duration exceeded 5s placeholder for ≥5 minutes.
+      **MEDIUM**: P99 Strava API call duration exceeded 1500ms for ≥5 minutes.
       Strava's own latency dominates here; if this fires often, check Strava's status
-      page before assuming it's us. Tune threshold after observing a week of data.
+      page before assuming it's us.
+
+      Threshold tuned 2026-05-16 from 7-day observed P99 of 747.5ms (worst
+      `operation` label). 2× margin gives headroom for legitimate burstiness
+      without page-fatigue.
     EOT
   }
 
   conditions {
-    display_name = "strava/api.duration P99 > 5000ms"
+    display_name = "strava/api.duration P99 > 1500ms"
 
     condition_threshold {
       filter          = "metric.type=\"workload.googleapis.com/desirelines.io/strava/api.duration\" AND resource.type=\"generic_task\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
-      threshold_value = 5000
+      threshold_value = 1500
 
       aggregations {
         alignment_period     = "300s"
@@ -628,8 +644,11 @@ resource "google_monitoring_alert_policy" "firestore_operation_latency" {
 
   documentation {
     content = <<-EOT
-      **MEDIUM**: P99 Firestore operation duration exceeded 1s placeholder for ≥5 minutes.
-      Placeholder threshold — tune after a week of observed data.
+      **MEDIUM**: P99 Firestore operation duration exceeded 1000ms for ≥5 minutes.
+
+      Threshold confirmed 2026-05-16 from 7-day observed P99 of 492.5ms (worst
+      `operation` label). 2× observed = ~1000ms, which is what the initial
+      placeholder happened to already be set to.
     EOT
   }
 
@@ -666,21 +685,23 @@ resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
 
   documentation {
     content = <<-EOT
-      **MEDIUM**: P99 PubSub publish duration exceeded 1s placeholder for ≥5 minutes.
+      **MEDIUM**: P99 PubSub publish duration exceeded 500ms for ≥5 minutes.
       Publish should be sub-100ms typically; sustained slowness here blocks the
-      dispatcher's webhook response path. Placeholder threshold — tune after a
-      week of observed data.
+      dispatcher's webhook response path.
+
+      Threshold tuned 2026-05-16 from 7-day observed P99 of 248.5ms. 2× margin
+      gives headroom for legitimate burstiness without page-fatigue.
     EOT
   }
 
   conditions {
-    display_name = "pubsub/publish.duration P99 > 1000ms"
+    display_name = "pubsub/publish.duration P99 > 500ms"
 
     condition_threshold {
       filter          = "metric.type=\"workload.googleapis.com/desirelines.io/pubsub/publish.duration\" AND resource.type=\"generic_task\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
-      threshold_value = 1000
+      threshold_value = 500
 
       aggregations {
         alignment_period     = "300s"
