@@ -7,10 +7,12 @@ shared conftest.
 """
 
 import logging
+from unittest.mock import patch
 
 import pytest
 
-from stravapipe.shared.logging import _parse_log_level
+import stravapipe.shared.logging as logging_module
+from stravapipe.shared.logging import _parse_log_level, setup_logging
 
 
 class TestParseLogLevel:
@@ -57,3 +59,35 @@ class TestParseLogLevel:
         with caplog.at_level(logging.WARNING):
             assert _parse_log_level() == logging.INFO
         assert not any("Invalid LOG_LEVEL" in r.message for r in caplog.records)
+
+
+class TestSetupLoggingIdempotency:
+    """Pin down the once-per-process handler-install contract.
+
+    ``google.cloud.logging.Client().setup_logging()`` attaches a fresh
+    handler on every call; calling ``setup_logging()`` from multiple
+    modules at import time used to multiply each log record by the
+    number of callers (each handler emits independently). The
+    idempotency guard exists to prevent that regression.
+    """
+
+    def test_install_runs_once_across_multiple_calls(self, monkeypatch):
+        # Reset the module-level state so the test isn't sensitive to
+        # whether other tests in the same process already triggered install.
+        monkeypatch.setitem(logging_module._state, "handlers_installed", False)
+        with patch.object(logging_module, "_install_handlers") as mock_install:
+            setup_logging("a")
+            setup_logging("b")
+            setup_logging("c")
+        mock_install.assert_called_once()
+
+    def test_subsequent_calls_still_return_adapters(self, monkeypatch):
+        monkeypatch.setitem(logging_module._state, "handlers_installed", False)
+        with patch.object(logging_module, "_install_handlers"):
+            first = setup_logging("a")
+            second = setup_logging("b")
+        # Each call returns an adapter wrapping the named logger; the
+        # idempotency guard skips handler install but doesn't skip the
+        # adapter construction.
+        assert first.logger.name == "a"
+        assert second.logger.name == "b"

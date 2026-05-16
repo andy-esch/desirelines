@@ -6,28 +6,28 @@ from opentelemetry.trace import Tracer
 from stravapipe.adapters.gcp._bigquery import ActivitiesReader, ActivitiesWriter
 from stravapipe.adapters.gcp._bigquery_storage import BigQueryStorageWriter
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
-from stravapipe.config import BQInserterConfig
 from stravapipe.ports.out.read import ReadActivitiesMetadata
-from stravapipe.ports.out.write import WriteActivities
 
 
-def make_bigquery_client_wrapper(config: BQInserterConfig) -> BigQueryClientWrapper:
-    """Create a BigQuery client wrapper with the given config."""
-    return BigQueryClientWrapper(project_id=config.project_id)
+def make_bigquery_client_wrapper(*, project_id: str) -> BigQueryClientWrapper:
+    """Create a BigQuery client wrapper for the given project."""
+    return BigQueryClientWrapper(project_id=project_id)
 
 
 def make_write_activities(
-    config: BQInserterConfig,
     *,
+    project_id: str,
+    bq_dataset: str,
     tracer: Tracer | None = None,
     histogram: Histogram | None = None,
-) -> WriteActivities:
-    """Create an ActivitiesWriter (WriteActivities port) with the given config.
+) -> ActivitiesWriter:
+    """Create an ``ActivitiesWriter`` (implements the ``WriteActivities`` port).
 
-    The single-activity write path uses the BigQuery Storage Write API
-    (``BigQueryStorageWriter``) targeting the staging table. The batch
-    path inside ``ActivitiesWriter`` still uses the legacy
-    ``insert_rows_json`` API — Stage 2 migrates that.
+    Returns the concrete type rather than the port so callers can use
+    the writer's lifecycle methods (``close()``, ``write_activities_batch()``)
+    that aren't on the port surface. Callers that only need the port's
+    ``write_activity()`` can still bind the result to a ``WriteActivities``
+    variable.
 
     Pass ``tracer`` from the Cloud Run service so write/merge/cleanup steps
     emit sub-spans. Pass ``histogram`` so the same steps record duration on
@@ -35,27 +35,27 @@ def make_write_activities(
     (with operation labels matching span names — see SLO/alerting tasks).
     Batch jobs that don't initialize OTel can leave both unset.
     """
-    client = make_bigquery_client_wrapper(config)
+    client = make_bigquery_client_wrapper(project_id=project_id)
     storage_writer = BigQueryStorageWriter(
-        project_id=config.project_id,
-        dataset_name=config.bq_dataset,
+        project_id=project_id,
+        dataset_name=bq_dataset,
         table_name="activities_staging",
     )
     return ActivitiesWriter(
         client=client,
         storage_writer=storage_writer,
-        dataset_name=config.bq_dataset,
+        dataset_name=bq_dataset,
         tracer=tracer,
         histogram=histogram,
     )
 
 
-def make_read_activities(config: BQInserterConfig) -> ReadActivitiesMetadata:
-    """Create an ActivitiesReader (ReadActivitiesMetadata port) with the given config."""
-    client = make_bigquery_client_wrapper(config)
+def make_read_activities(*, project_id: str, bq_dataset: str) -> ReadActivitiesMetadata:
+    """Create an ActivitiesReader (ReadActivitiesMetadata port)."""
+    client = make_bigquery_client_wrapper(project_id=project_id)
     return ActivitiesReader(
         client=client,
-        dataset_name=config.bq_dataset,
+        dataset_name=bq_dataset,
     )
 
 
