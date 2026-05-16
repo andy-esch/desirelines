@@ -75,23 +75,45 @@ def _install_correlation_filter() -> None:
             handler.filters.insert(0, CorrelationFilter())
 
 
+# Module-level guard for the global handler-installation side effects.
+# ``google.cloud.logging.Client().setup_logging()`` attaches a *new*
+# handler to the root logger on every call — running it once per module
+# that imports ``setup_logging`` produces N copies of every log record.
+# Each Cloud Run service has multiple modules calling ``setup_logging``
+# at import time (entry-point + ``cloudrun/errors.py`` + anywhere else
+# that wants a named logger), so this guard is necessary, not optional.
+#
+# Stored in a dict (not a bare ``bool``) so the assignment doesn't
+# require a ``global`` declaration in ``setup_logging``.
+_state: dict[str, bool] = {"handlers_installed": False}
+
+
 def setup_logging(logger_name: str) -> logging.LoggerAdapter[logging.Logger]:
-    """Set up GCP-compatible structured logging using Google Cloud Logging
+    """Return a logger adapter for ``logger_name``; install global handlers once.
 
-    Uses the official google-cloud-logging library which automatically
-    integrates with GCP and properly maps severity levels (INFO, WARNING, ERROR, etc.).
+    First call per process installs the Cloud Logging handler (or a
+    standard-library fallback) on the root logger and attaches the
+    ``CorrelationFilter``. Subsequent calls skip the install step and
+    just hand back a ``JsonFieldsAdapter`` wrapping the named logger.
 
-    Returns a LoggerAdapter that automatically wraps extra fields in json_fields
-    for GCP structured logging (jsonPayload).
+    Use ``ENABLE_CLOUD_LOGGING=true`` to enable GCP Cloud Logging
+    integration. ``LOG_LEVEL`` controls verbosity (default INFO).
+    """
+    if not _state["handlers_installed"]:
+        _install_handlers()
+        _state["handlers_installed"] = True
 
-    Set ENABLE_CLOUD_LOGGING=true to enable GCP Cloud Logging integration.
-    When not set or false, uses standard logging.
+    base_logger = logging.getLogger(logger_name)
+    return JsonFieldsAdapter(base_logger, {})
 
-    Args:
-        logger_name: Name for the logger (typically __name__)
 
-    Returns:
-        Configured LoggerAdapter instance that handles json_fields transformation
+def _install_handlers() -> None:
+    """One-shot install of the appropriate root-logger handler.
+
+    Cloud Logging when ``ENABLE_CLOUD_LOGGING=true`` (with stdlib
+    fallback on failure); plain ``basicConfig`` otherwise. The
+    ``CorrelationFilter`` is attached afterwards so ``record.trace``
+    is populated before Cloud Logging's own filter reads it.
     """
     enable_cloud_logging = os.environ.get("ENABLE_CLOUD_LOGGING", "").lower() == "true"
     log_level = _parse_log_level()
@@ -111,7 +133,7 @@ def setup_logging(logger_name: str) -> logging.LoggerAdapter[logging.Logger]:
                 format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
                 force=True,
             )
-            logging.getLogger(logger_name).warning(
+            logging.warning(
                 "Cloud Logging unavailable, using standard logging: %s", str(e)
             )
     else:
@@ -124,6 +146,3 @@ def setup_logging(logger_name: str) -> logging.LoggerAdapter[logging.Logger]:
     # Auto-inject correlation_id and trace context into every log record.
     # Must run after Cloud Logging or basicConfig has installed handlers.
     _install_correlation_filter()
-
-    base_logger = logging.getLogger(logger_name)
-    return JsonFieldsAdapter(base_logger, {})

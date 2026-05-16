@@ -76,7 +76,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
 
         app.state.writer = make_write_activities(
-            config, tracer=app.state.tracer, histogram=app.state.bq_histogram
+            project_id=config.project_id,
+            bq_dataset=config.bq_dataset,
+            tracer=app.state.tracer,
+            histogram=app.state.bq_histogram,
         )
         logger.info("BigQuery writer initialized")
 
@@ -84,7 +87,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("BigQuery delete service initialized")
 
         # Held for /ready dependency probe (get_dataset on the configured dataset).
-        app.state.bq_client = make_bigquery_client_wrapper(config)
+        app.state.bq_client = make_bigquery_client_wrapper(project_id=config.project_id)
         app.state.bq_dataset = config.bq_dataset
 
         app.state.readiness_timeout = config.readiness_timeout
