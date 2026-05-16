@@ -30,7 +30,9 @@ from stravapipe.adapters.gcp._bigquery_storage import (
     _TIMESTAMP_PATHS,
     BigQueryStorageWriter,
     _coerce_to_proto_type,
+    _flatten_descriptor,
     _iso_to_micros,
+    _normalize_name,
     _populate_message,
 )
 from stravapipe.domain import (
@@ -189,6 +191,84 @@ class TestSchemaParity:
                     f"proto repeated={proto_repeated}"
                 )
         assert not mismatches, "REPEATED mode mismatches: " + "; ".join(mismatches)
+
+
+class TestFlattenDescriptor:
+    """The BQ Storage Write API rejects ``DescriptorProto``s that
+    reference nested message types via fully-qualified paths it can't
+    resolve in isolation. ``_flatten_descriptor`` inlines all dependent
+    types as root-level siblings with normalized names — these tests
+    pin down that contract."""
+
+    def test_normalize_name_strips_leading_dot_and_replaces_dots(self):
+        assert _normalize_name(".foo.Bar.Baz") == "foo_Bar_Baz"
+        assert _normalize_name("foo.Bar") == "foo_Bar"
+        assert _normalize_name("Single") == "Single"
+
+    def test_flatten_produces_no_dotted_type_names(self):
+        flat = _flatten_descriptor(bq_activities_pb2.Activity.DESCRIPTOR)
+
+        def walk(desc):
+            for f in desc.field:
+                if f.type_name:
+                    assert "." not in f.type_name, (
+                        f"Field {f.name} has dotted type_name {f.type_name!r}; "
+                        "flattening incomplete."
+                    )
+            for nt in desc.nested_type:
+                walk(nt)
+
+        walk(flat)
+
+    def test_flatten_lifts_all_nested_types_to_root(self):
+        """No nested_type entry should itself contain nested_types — all
+        message types are flattened to a single level."""
+        flat = _flatten_descriptor(bq_activities_pb2.Activity.DESCRIPTOR)
+        for nt in flat.nested_type:
+            assert len(nt.nested_type) == 0, (
+                f"Nested type {nt.name} still has its own nested_types; "
+                "flattening should produce a single level."
+            )
+
+    def test_flatten_root_name_is_normalized_full_name(self):
+        flat = _flatten_descriptor(bq_activities_pb2.Activity.DESCRIPTOR)
+        assert flat.name == "desirelines_bigquery_v1_Activity"
+
+    def test_flatten_preserves_field_names_and_numbers(self):
+        """BQ matches columns by field NAME, so field names must survive
+        flattening unchanged. Field numbers preserve wire-format binding."""
+        flat = _flatten_descriptor(bq_activities_pb2.Activity.DESCRIPTOR)
+        original_fields = {
+            f.name: f.number for f in bq_activities_pb2.Activity.DESCRIPTOR.fields
+        }
+        flat_fields = {f.name: f.number for f in flat.field}
+        assert flat_fields == original_fields
+
+    def test_flatten_dedupes_repeated_references_to_same_type(self):
+        """If the same dependent type were referenced from multiple
+        places (it isn't in our current schema, but the flattener
+        should be safe for it), it should appear once in nested_type."""
+        flat = _flatten_descriptor(bq_activities_pb2.Activity.DESCRIPTOR)
+        names = [nt.name for nt in flat.nested_type]
+        assert len(names) == len(set(names)), f"Duplicate nested type names: {names}"
+
+    def test_flatten_emits_no_proto3_optional(self):
+        """BQ Storage Write rejects descriptors carrying the
+        ``[proto3_optional=true]`` annotation. Our generator emits
+        ``syntax = "proto2"`` so the source descriptor never has this
+        flag set, but verify the flattener also doesn't introduce it."""
+        flat = _flatten_descriptor(bq_activities_pb2.Activity.DESCRIPTOR)
+
+        def walk(desc):
+            for f in desc.field:
+                assert not f.proto3_optional, (
+                    f"Field {desc.name}.{f.name} has proto3_optional=True; "
+                    "BQ Storage Write will reject this descriptor."
+                )
+            for nt in desc.nested_type:
+                walk(nt)
+
+        walk(flat)
 
 
 class TestRoundTrip:
