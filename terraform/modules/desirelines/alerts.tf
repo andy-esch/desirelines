@@ -785,9 +785,20 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
     display_name = "webhook_events count = 0 over 24h"
 
     condition_prometheus_query_language {
+      # `or on() vector(0)` provides a 0 fallback when the time series is
+      # absent from the 24h window (e.g., service down long enough that no
+      # datapoints exist). Without it, `sum(increase(...))` returns an empty
+      # vector when there's no data, and `empty < 1` is itself empty, so the
+      # alert would silently not fire on the worst-case scenario. The outer
+      # parens are required: `<` binds tighter than `or`, so without them
+      # the `< 1` would attach to `vector(0)` only, producing a vector that
+      # always fires.
       query               = <<-EOT
-        sum(
-          increase({__name__="workload.googleapis.com/desirelines.io/webhook/events", monitored_resource="generic_task"}[24h])
+        (
+          sum(
+            increase({__name__="workload.googleapis.com/desirelines.io/webhook/events", monitored_resource="generic_task"}[24h])
+          )
+          or on() vector(0)
         ) < 1
       EOT
       duration            = "0s"
