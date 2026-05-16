@@ -17,6 +17,23 @@ Key gotchas (read before changing anything here):
   for the output. Per Google's
   [Storage Write API best practices](https://docs.cloud.google.com/bigquery/docs/write-api-best-practices).
 
+- **Descriptor flattening for the schema we send to BQ.** Our proto
+  uses nested message types (``Activity.Athlete``, ``Activity.Map``,
+  etc.) which protoc compiles with fully-qualified type names like
+  ``.desirelines.bigquery.v1.Activity.Athlete`` in field references.
+  The Storage Write API receives a single ``DescriptorProto`` in
+  isolation — it has no file/package context to resolve those paths
+  and rejects the schema with "<name> is not defined". We work around
+  this by flattening: all dependent message types are inlined as
+  siblings at the root level of ``nested_type`` with normalized names
+  (dots → underscores), and field ``type_name`` references are
+  rewritten to match. Mirrors Go's
+  [``adapt.NormalizeDescriptor``](https://pkg.go.dev/cloud.google.com/go/bigquery/storage/managedwriter/adapt);
+  Python doesn't ship one, so ``_flatten_descriptor`` below does it
+  by hand. The flattened descriptor only affects what we send as the
+  *schema*; rows are still serialized using the original nested-shape
+  ``Activity`` class.
+
 - **TIMESTAMP as int64 micros-since-epoch.** The API does not accept
   the proto well-known ``Timestamp`` message for BQ TIMESTAMP columns.
   ``_TIMESTAMP_PATHS`` enumerates the affected dotted paths;
@@ -189,6 +206,84 @@ def _populate_message(
 
 
 # ---------------------------------------------------------------------------
+# Descriptor flattening (see module docstring for the why)
+# ---------------------------------------------------------------------------
+
+
+def _flatten_descriptor(top: Any) -> descriptor_pb2.DescriptorProto:
+    """Build a self-contained ``DescriptorProto`` with all dependent
+    message types inlined as root-level siblings under ``nested_type``.
+
+    Python equivalent of Go's ``adapt.NormalizeDescriptor``: necessary
+    because the BQ Storage Write API receives one ``DescriptorProto``
+    with no file/package context, so fully-qualified type names like
+    ``.package.Outer.Inner`` can't be resolved.
+
+    Transformation:
+      - Descriptor names: ``full_name`` with dots replaced by underscores
+        (e.g. ``Activity_Photos_Primary``). Disambiguates same-simple-
+        name nested types in different scopes.
+      - Field ``type_name``: rewritten to the normalized name.
+      - All dependent message types collected once and added to
+        ``root.nested_type`` regardless of nesting depth in the source.
+    """
+    root = descriptor_pb2.DescriptorProto()
+    seen: set[str] = set()
+    _flatten_into(top, root, root, seen)
+    return root
+
+
+def _flatten_into(
+    msg: Any,
+    output: descriptor_pb2.DescriptorProto,
+    root: descriptor_pb2.DescriptorProto,
+    seen: set[str],
+) -> None:
+    """Populate ``output`` with ``msg``'s fields; lift any dependent
+    message types into ``root.nested_type`` with normalized names."""
+    output.name = _normalize_name(msg.full_name)
+    seen.add(_normalize_name(msg.full_name))
+
+    for f in msg.fields:
+        out_field = output.field.add()
+        out_field.name = f.name
+        out_field.number = f.number
+        out_field.type = f.type
+        # Our generator only emits `optional` or `repeated` (never
+        # `required` — BQ enforces REQUIRED server-side). Match that
+        # invariant rather than reading the deprecated `field.label`.
+        out_field.label = (
+            descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED
+            if f.is_repeated
+            else descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+        )
+
+        if f.type == FieldDescriptor.TYPE_MESSAGE:
+            sub = f.message_type
+            assert sub is not None, (
+                f"Field {f.name} is TYPE_MESSAGE but message_type is None"
+            )
+            normalized = _normalize_name(sub.full_name)
+            if normalized not in seen:
+                # Add the nested type first so seen is updated before the
+                # recursive call processes its own field references.
+                seen.add(normalized)
+                sub_out = root.nested_type.add()
+                _flatten_into(sub, sub_out, root, seen)
+            out_field.type_name = normalized
+        elif f.type == FieldDescriptor.TYPE_ENUM:
+            raise NotImplementedError(
+                "Enum types not yet supported by the BQ descriptor flattener; "
+                "extend _flatten_into if the schema gains an enum column."
+            )
+
+
+def _normalize_name(full_name: str) -> str:
+    """``.foo.Bar.Baz`` → ``foo_Bar_Baz``. Leading dot stripped."""
+    return full_name.lstrip(".").replace(".", "_")
+
+
+# ---------------------------------------------------------------------------
 # Production wrapper class
 # ---------------------------------------------------------------------------
 
@@ -241,9 +336,12 @@ class BigQueryStorageWriter:
         request.write_stream = self._default_stream()
 
         proto_schema = types.ProtoSchema()
-        descriptor = descriptor_pb2.DescriptorProto()
-        bq_activities_pb2.Activity.DESCRIPTOR.CopyToProto(descriptor)
-        proto_schema.proto_descriptor = descriptor
+        # Flatten the descriptor before sending — BQ Storage Write can't
+        # resolve fully-qualified type names for nested messages. See
+        # the module docstring for the full explanation.
+        proto_schema.proto_descriptor = _flatten_descriptor(
+            bq_activities_pb2.Activity.DESCRIPTOR
+        )
 
         proto_data = types.AppendRowsRequest.ProtoData()
         proto_data.writer_schema = proto_schema

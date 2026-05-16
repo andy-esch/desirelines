@@ -117,6 +117,18 @@ proto-gen-backend: generate-bq-proto
 sync-schemas: proto-gen-backend sync-sport-config
     @echo "✅ All schemas synced"
 
+# Validate the bq-inserter's proto schema against a real BQ table.
+# Catches descriptor-shape issues (proto3_optional, unresolved nested
+# type names, name/type drift) that the BQ Storage Write API only
+# surfaces server-side after a deploy. Requires ADC.
+#
+# Usage:
+#   just bq-validate-schema                 # validates against desirelines-dev
+#   just bq-validate-schema desirelines-prod
+bq-validate-schema project='desirelines-dev':
+    @cd packages/stravapipe && uv run python -m stravapipe.tools.validate_bq_storage_schema \
+        --project {{project}}
+
 # Sync sport_types.json to all backend packages
 sync-sport-config:
     @echo "📋 Syncing sport config to packages..."

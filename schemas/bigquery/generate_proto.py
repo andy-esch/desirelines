@@ -208,17 +208,17 @@ def main(argv: list[str] | None = None) -> int:
         existing = OUTPUT_PATH.read_text() if OUTPUT_PATH.exists() else ""
         if existing != content:
             print(
-                f"❌ {rel_output} is out of sync with activities_full.json.\n"
+                f"FAIL: {rel_output} is out of sync with activities_full.json.\n"
                 "   Run: just generate-bq-proto",
                 file=sys.stderr,
             )
             return 1
-        print(f"✅ {rel_output} is in sync")
+        print(f"OK: {rel_output} is in sync")
         return 0
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(content)
-    print(f"✅ Generated {rel_output} ({len(content)} bytes)")
+    print(f"OK: generated {rel_output} ({len(content)} bytes)")
     return 0
 
 
