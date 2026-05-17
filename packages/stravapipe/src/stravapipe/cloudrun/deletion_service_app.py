@@ -42,10 +42,9 @@ from stravapipe.config import load_deletion_service_config
 from stravapipe.shared.constants import ResponseStatus
 from stravapipe.shared.correlation import (
     apply_pubsub_request_context,
-    extract_trace_from_cloud_trace_header,
-    extract_trace_from_pubsub_attributes,
+    initialize_pubsub_context,
+    initialize_request_trace,
     new_correlation_id,
-    set_trace_context,
 )
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
@@ -326,40 +325,29 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
     # log emitted before we parse the PubSub body still carries one.
     correlation_id = new_correlation_id()
 
-    # Best-effort: extract X-Cloud-Trace-Context from the incoming Cloud Run
-    # request. The W3C traceparent from PubSub attributes (set below) is
-    # preferred, but this gives early log lines trace linking too.
-    cloud_trace_header = request.headers.get("X-Cloud-Trace-Context", "")
-    if cloud_trace_header:
-        trace_id, span_id, sampled = extract_trace_from_cloud_trace_header(
-            cloud_trace_header
-        )
-        if trace_id:
-            set_trace_context(trace_id, span_id, sampled)
+    # Best-effort: seed the trace contextvar from the Cloud Run request's
+    # X-Cloud-Trace-Context header so early log lines get trace linking. The
+    # W3C traceparent from PubSub attributes (set below) is preferred and
+    # will override this.
+    initialize_request_trace(request.headers)
 
     try:
         context, event_data, message_attributes = await parse_pubsub_cloudevent(request)
 
         # Prefer dispatcher's correlation_id over the pre-generated fallback,
-        # then wire request-scoped Pub/Sub identifiers onto contextvars so
-        # CorrelationFilter mirrors them into every subsequent log record's
-        # jsonPayload. The returned dict is the matching span_attrs map.
-        correlation_id = message_attributes.get("correlation_id") or correlation_id
+        # and override the request-level trace with the cross-service W3C
+        # traceparent attribute when present. Then wire request-scoped Pub/Sub
+        # identifiers onto contextvars so CorrelationFilter mirrors them into
+        # every subsequent log record's jsonPayload. The returned dict is the
+        # matching span_attrs map.
+        correlation_id = initialize_pubsub_context(message_attributes, correlation_id)
         span_attrs = apply_pubsub_request_context(
             correlation_id,
             context.pubsub_message_id,
             context.delivery_attempt,
         )
 
-        # Extract W3C trace context from dispatcher's traceparent attribute.
-        # This is the cross-service trace and overrides the Cloud Run
-        # request-level X-Cloud-Trace-Context above.
         parent_context = extract_context_from_attributes(message_attributes)
-        trace_id, span_id, sampled = extract_trace_from_pubsub_attributes(
-            message_attributes
-        )
-        if trace_id:
-            set_trace_context(trace_id, span_id, sampled)
 
         tracer = request.app.state.tracer
 
