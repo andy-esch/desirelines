@@ -63,6 +63,143 @@ locals {
   )
 }
 
+# ============================================================================
+# Unknown Strava sport_type — log-based metric + alert
+# ============================================================================
+# Surfaces sport_type values that Strava added upstream before we registered
+# them in schemas/sports/sport_types.json. apigateway (Go) and stravapipe
+# (Python) both emit a structured WARNING log
+#   "Unknown Strava sport_type detected"
+# from their sport-config layer on first sighting (deduped per process); the
+# unmapped activity is bucketed to the "other" category so it still renders
+# in the UI. This metric counts those WARNINGs and the alert pages on the
+# first one so an operator can extend the registry. See acceptance criteria
+# in tasks/done/enhance-sport-categorization-* (planning repo).
+#
+# Filter pivots on the exact log message string, which is therefore exported
+# as a constant in both runtimes (UnknownSportCategory / unknownSportLogMessage
+# in Go, UNKNOWN_SPORT_LOG_MESSAGE in Python) and asserted in their unit tests.
+# If the message string ever changes, update it here in lockstep — otherwise
+# the alert silently goes dark.
+#
+# Not gated on enable_application_metric_alerts: log-based metric descriptors
+# are created with the Terraform resource itself (no app emission required),
+# so the alert can bind on the first apply without the "metric does not exist
+# yet" 404 that gates the OTel-based alerts.
+resource "google_logging_metric" "unknown_sport_type" {
+  name        = "${var.project_name}_${var.environment}_unknown_sport_type"
+  description = "Strava sport_type values seen by apigateway/stravapipe that have no mapping in schemas/sports/sport_types.json. Each datapoint is one first-sighting WARNING; per-process dedup means the count tracks distinct unknown types observed (not raw activity count)."
+
+  # `jsonPayload.message` matches both runtimes' structured logs (Go slog
+  # JSON handler + Python stdlib logging via google-cloud-logging). The
+  # service filter narrows to the two emitters so an unrelated job logging
+  # the same string can't false-positive.
+  filter = <<-EOT
+    resource.type="cloud_run_revision"
+    severity=WARNING
+    jsonPayload.message="Unknown Strava sport_type detected"
+  EOT
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+    labels {
+      key         = "unmapped_sport_type"
+      value_type  = "STRING"
+      description = "The Strava sport_type value that fell through to the 'other' bucket."
+    }
+    labels {
+      key         = "service"
+      value_type  = "STRING"
+      description = "Cloud Run service that emitted the warning (apigateway or stravapipe-*)."
+    }
+  }
+
+  # Extract the unmapped sport name and the Cloud Run service name so the
+  # alert message names the specific sport without requiring a log dive.
+  label_extractors = {
+    "unmapped_sport_type" = "EXTRACT(jsonPayload.unmapped_sport_type)"
+    "service"             = "EXTRACT(resource.labels.service_name)"
+  }
+}
+
+# HIGH (but volume-bounded): A previously-unmapped Strava sport_type just
+# landed in production. The first occurrence in a given Cloud Run instance
+# emits one WARNING (per-process dedup); subsequent activities of the same
+# type are silently re-bucketed into "other" until the instance recycles.
+# That makes the alert exactly the signal we want: page once when a new
+# upstream sport appears, then go quiet so the operator can register it
+# without inbox noise.
+#
+# Action on fire: open the alert, read the `unmapped_sport_type` label,
+# add the value to the appropriate category in schemas/sports/sport_types.json,
+# run `just sync-schemas && just verify-schemas`, ship.
+resource "google_monitoring_alert_policy" "unknown_sport_type_detected" {
+  display_name = "⚠️ Strava sport_type detected with no registry mapping"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **HIGH**: apigateway or stravapipe just saw a Strava `sport_type` value
+      that has no entry in `schemas/sports/sport_types.json`. The activity
+      was bucketed into the "other" category so the user can still see it in
+      the UI, but until the registry is updated all future activities of
+      this type will also land in "other" instead of their proper bucket.
+
+      **Where it came from**: the alert's `unmapped_sport_type` label names
+      the exact Strava enum value (e.g., `HighIntensityIntervalTraining`).
+
+      **Action**:
+      1. Cross-check against Strava's current `SportType` enum:
+         `just check-upstream-sports` (or
+         https://developers.strava.com/swagger/swagger.json → `SportType`).
+      2. Add the value to the most fitting category in
+         `schemas/sports/sport_types.json`. If none fits, leave it in
+         "other" — that's a valid permanent state.
+      3. Run `just sync-schemas && just verify-schemas` and open a PR.
+      4. Once deployed, the alert auto-closes after 1h with no fresh firings.
+
+      Dedup note: each Cloud Run instance only emits one WARNING per
+      unmapped type. Quiet alerts don't mean the unmapped type stopped
+      arriving — it means the instance hasn't recycled. Check the GCP
+      "other" category counts (apigateway dashboard) to see ongoing
+      volume.
+    EOT
+  }
+
+  conditions {
+    display_name = "Unknown sport_type detected at least once in 5m"
+
+    condition_threshold {
+      filter          = "metric.type=\"logging.googleapis.com/user/${google_logging_metric.unknown_sport_type.name}\" AND resource.type=\"cloud_run_revision\""
+      duration        = "0s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_SUM"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["metric.label.unmapped_sport_type"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    # Per-process dedup means a recurring unmapped type produces sparse,
+    # bursty datapoints (one per cold start). 1h auto-close keeps the alert
+    # actionable without re-firing forever on the same gap-in-registry.
+    auto_close = "3600s"
+  }
+}
+
 # Output the dashboard URL for easy access
 output "monitoring_dashboard_url" {
   description = "URL to the GCP Monitoring Dashboard"
@@ -94,5 +231,6 @@ output "alert_policy_ids" {
     webhook_events_absent         = one(google_monitoring_alert_policy.webhook_events_absent[*].id)
     webhook_owner_check_orphan    = one(google_monitoring_alert_policy.webhook_owner_check_orphan[*].id)
     webhook_owner_check_error     = one(google_monitoring_alert_policy.webhook_owner_check_error[*].id)
+    unknown_sport_type_detected   = google_monitoring_alert_policy.unknown_sport_type_detected.id
   }
 }

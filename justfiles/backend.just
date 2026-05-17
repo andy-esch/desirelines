@@ -138,6 +138,15 @@ sync-sport-config:
     @cp schemas/sports/sport_types.json packages/apigateway/config/
     @echo "✅ Sport config synced"
 
+# Diff Strava's upstream SportType enum against schemas/sports/sport_types.json.
+# Surfaces sports Strava added before we registered them. Stdlib-only Python.
+#
+# Default mode warns but exits 0; `just check-upstream-sports --strict` exits
+# non-zero on drift (suitable for a scheduled CI job that posts to Slack).
+check-upstream-sports +args='':
+    @echo "🔍 Diffing Strava SportType enum against schemas/sports/sport_types.json..."
+    @python3 scripts/ops/check-strava-sports.py {{args}}
+
 # Verify both webhook adapters handle all proto fields and enum values
 verify-webhook-adapters:
     @./scripts/verify-webhook-adapters.sh

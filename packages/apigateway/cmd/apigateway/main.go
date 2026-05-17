@@ -48,6 +48,11 @@ import (
 func main() {
 	// Logger configured for GCP Cloud Logging. See packages/shared/gcplog/README.md
 	log := gcplog.NewWithLevel(config.ParseLogLevel())
+	// Mirror onto the slog default so library code (e.g.,
+	// config.SportConfig.GetCategoryForStravaType, which emits the
+	// "Unknown Strava sport_type detected" WARNING the log-based metric
+	// alerts on) writes through the same GCP-formatted JSON handler.
+	slog.SetDefault(log)
 	log.Info("Starting API Gateway")
 
 	if err := run(log); err != nil {

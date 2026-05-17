@@ -1,11 +1,14 @@
 """Tests for sport configuration loader."""
 
 import json
+import logging
 
 import pytest
 
 from stravapipe.config.sport_config import (
     SUPPORTED_CONFIG_VERSIONS,
+    UNKNOWN_SPORT_CATEGORY,
+    UNKNOWN_SPORT_LOG_MESSAGE,
     SportConfig,
     load_sport_config,
 )
@@ -14,8 +17,8 @@ from stravapipe.config.sport_config import (
 # Update this constant when adding/removing sports from the config.
 # Current sports: cycling, ebike, running, walking, hiking, swimming, yoga,
 # workout, watersports, winter_sports, golf, racket_sports, team_sports,
-# skating, climbing, wheelchair
-EXPECTED_SPORT_COUNT = 16
+# skating, climbing, wheelchair, other
+EXPECTED_SPORT_COUNT = 17
 
 
 def test_categorize_activities():
@@ -181,6 +184,73 @@ def test_sport_category_matches():
 
     # Should not match unconfigured types
     assert cycling.matches("Run") is False
+
+
+def test_categorize_unknown_returns_other_and_warns(caplog):
+    """Unmapped sport_types fall into the 'other' bucket and emit a WARNING.
+
+    The log-based metric in terraform/modules/desirelines/monitoring.tf is
+    bound to the exact message string, so this test guards against silent
+    drift between the code and the alert filter.
+    """
+    config = load_sport_config()
+    # Use a stable but obviously bogus sport name. Reset the per-process
+    # dedup so this test is order-independent.
+    sport = "AbsolutelyMadeUpSport"
+    config._unknown_seen.discard(sport)
+
+    with caplog.at_level(logging.WARNING, logger="stravapipe.config.sport_config"):
+        result = config.categorize_activity(sport)
+
+    assert result == UNKNOWN_SPORT_CATEGORY
+    matching = [r for r in caplog.records if r.message == UNKNOWN_SPORT_LOG_MESSAGE]
+    assert len(matching) == 1, (
+        f"expected one WARNING, got: {[r.message for r in caplog.records]}"
+    )
+    assert getattr(matching[0], "unmapped_sport_type", None) == sport
+    assert getattr(matching[0], "fallback_category", None) == UNKNOWN_SPORT_CATEGORY
+
+
+def test_categorize_unknown_dedupes_per_process(caplog):
+    """Repeated unknown sport_types must not flood logs.
+
+    Cloud Run instances handle bursts of webhooks; without dedup a single
+    Strava-added sport could emit hundreds of identical WARNINGs. The alert
+    only needs one to fire.
+    """
+    config = load_sport_config()
+    sport = "DuplicatedUnknownSport"
+    config._unknown_seen.discard(sport)
+
+    with caplog.at_level(logging.WARNING, logger="stravapipe.config.sport_config"):
+        config.categorize_activity(sport)
+        config.categorize_activity(sport)
+        config.categorize_activity(sport)
+
+    matching = [r for r in caplog.records if r.message == UNKNOWN_SPORT_LOG_MESSAGE]
+    assert len(matching) == 1, (
+        f"expected one WARNING for repeated call, got {len(matching)}"
+    )
+
+
+def test_categorize_empty_returns_other_silently(caplog):
+    """Empty input is bucketed to 'other' without emitting a WARNING."""
+    config = load_sport_config()
+    with caplog.at_level(logging.WARNING, logger="stravapipe.config.sport_config"):
+        assert config.categorize_activity("") == UNKNOWN_SPORT_CATEGORY
+    assert not [r for r in caplog.records if r.message == UNKNOWN_SPORT_LOG_MESSAGE], (
+        "empty sport_type should not emit a WARNING"
+    )
+
+
+def test_other_category_in_config():
+    """The 'other' category is a first-class category in sport_types.json."""
+    config = load_sport_config()
+    other = config.get_category("other")
+    assert other is not None
+    assert other.primary_metric == "time_minutes"
+    assert other.has_distance is False
+    assert other.has_elevation is False
 
 
 def test_excluded_types_loaded():

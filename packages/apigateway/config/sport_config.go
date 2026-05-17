@@ -22,12 +22,30 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
 )
+
+// UnknownSportCategory is the fallback category returned when a Strava sport_type
+// has no explicit mapping in sport_types.json. The catch-all keeps unmapped
+// activities visible in the UI ("Other") instead of silently dropping them.
+//
+// Operators are alerted via the "Unknown Strava sport_type detected" log-based
+// metric (see terraform/modules/desirelines/alerts.tf). When the alert fires,
+// add the upstream sport to schemas/sports/sport_types.json so it lands in its
+// proper category.
+const UnknownSportCategory = "other"
+
+// unknownSportLogMessage is the canonical log message for unmapped sport_type
+// values. The string is exported as a constant because the GCP log-based
+// metric filter must match it byte-for-byte — changing this message in code
+// without also updating terraform/modules/desirelines/monitoring.tf would
+// silently break the alert.
+const unknownSportLogMessage = "Unknown Strava sport_type detected"
 
 //go:embed sport_types.json
 var embeddedSportConfig []byte
@@ -73,6 +91,12 @@ type SportConfig struct {
 	// rawJSON stores the original JSON bytes used to create this config.
 	// Used for serving the config via API endpoint.
 	rawJSON []byte
+	// unknownSeen deduplicates the WARNING log emitted by
+	// GetCategoryForStravaType so a single unmapped sport_type doesn't spam
+	// logs across a request burst. Cleared with the process — Cloud Run
+	// recycling naturally re-arms the dedup, which is exactly what the
+	// log-based alert wants (one fresh sighting per restart).
+	unknownSeen sync.Map
 }
 
 // Package-level state for singleton loading pattern.
@@ -190,12 +214,29 @@ func (c *SportConfig) GetStravaTypes(category string) []string {
 
 // GetCategoryForStravaType returns the category name for a Strava sport_type value.
 // For example, "Ride" returns "cycling", "TrailRun" returns "running".
-// Returns the original value unchanged if no mapping exists.
+//
+// When the sport_type has no mapping (e.g., Strava added a new SportType enum
+// value upstream that we haven't registered yet), it returns
+// [UnknownSportCategory] ("other") and emits a structured WARNING log so the
+// log-based metric "${var.project_name}_${var.environment}_unknown_sport_type"
+// can fire an alert. The warning is deduplicated per-process (sync.Map) to
+// avoid log spam from request bursts referencing the same unmapped type.
 func (c *SportConfig) GetCategoryForStravaType(stravaType string) string {
 	if category, ok := c.reverseMap[stravaType]; ok {
 		return category
 	}
-	return stravaType
+	if stravaType == "" {
+		// Empty input is not a real Strava sport_type — bucket it as "other"
+		// without logging (would be noisy if a column ever lands NULL).
+		return UnknownSportCategory
+	}
+	if _, loaded := c.unknownSeen.LoadOrStore(stravaType, struct{}{}); !loaded {
+		slog.Default().Warn(unknownSportLogMessage,
+			"unmapped_sport_type", stravaType,
+			"fallback_category", UnknownSportCategory,
+		)
+	}
+	return UnknownSportCategory
 }
 
 // RawJSON returns the raw sport config JSON bytes.

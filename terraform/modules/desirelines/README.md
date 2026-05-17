@@ -79,6 +79,7 @@ module "desirelines" {
 | [google_firestore_database.user_configs](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/firestore_database) | resource |
 | [google_logging_metric.apigateway_readiness_failures](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/logging_metric) | resource |
 | [google_logging_metric.python_readiness_failures](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/logging_metric) | resource |
+| [google_logging_metric.unknown_sport_type](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/logging_metric) | resource |
 | [google_monitoring_alert_policy.apigateway_auth_failure_surge](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.apigateway_not_found_surge](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.apigateway_rate_limited_surge](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
@@ -105,6 +106,7 @@ module "desirelines" {
 | [google_monitoring_alert_policy.slo_5_apigateway_latency_fast_burn](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.slo_5_apigateway_latency_slow_burn](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.strava_api_latency](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
+| [google_monitoring_alert_policy.unknown_sport_type_detected](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.webhook_events_absent](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.webhook_owner_check_error](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.webhook_owner_check_orphan](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |

@@ -1,7 +1,9 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,8 +14,8 @@ import (
 // Update this constant when adding/removing sports from the config.
 // Current sports: cycling, ebike, running, walking, hiking, swimming, yoga,
 // workout, watersports, winter_sports, golf, racket_sports, team_sports,
-// skating, climbing, wheelchair
-const expectedSportCount = 16
+// skating, climbing, wheelchair, other
+const expectedSportCount = 17
 
 func TestValidateSport(t *testing.T) {
 	config, err := LoadSportConfig("sport_types.json")
@@ -201,7 +203,12 @@ func TestGetCategoryForStravaType(t *testing.T) {
 		{"WeightTraining", "workout"},
 		{"Swim", "swimming"},
 		{"EBikeRide", "ebike"},
-		{"UnknownSport", "UnknownSport"},
+		// Unmapped sport_type falls into the "other" bucket and triggers a
+		// WARNING log (see TestGetCategoryForStravaType_UnknownLogsWarning).
+		{"UnknownSport", "other"},
+		// Empty string is bucketed to "other" silently (no WARNING log) —
+		// guards against a future NULL/empty column landing here.
+		{"", "other"},
 	}
 
 	for _, tt := range tests {
@@ -211,6 +218,56 @@ func TestGetCategoryForStravaType(t *testing.T) {
 				t.Errorf("GetCategoryForStravaType(%q) = %q, want %q", tt.stravaType, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestGetCategoryForStravaType_UnknownLogsWarning verifies that the first time
+// a sport_type with no mapping is seen, GetCategoryForStravaType emits the
+// structured WARNING that the GCP log-based metric (and downstream alert)
+// pivots on. The message string is asserted explicitly because the metric
+// filter in terraform/modules/desirelines/monitoring.tf depends on it.
+//
+// Subsequent calls for the same unmapped type are deduplicated — that
+// invariant is exercised below by confirming the buffer doesn't grow.
+func TestGetCategoryForStravaType_UnknownLogsWarning(t *testing.T) {
+	config, err := NewSportConfig("sport_types.json")
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	var buf bytes.Buffer
+	prev := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+
+	const unmapped = "HighIntensityYogaCrossfit"
+
+	if got := config.GetCategoryForStravaType(unmapped); got != UnknownSportCategory {
+		t.Fatalf("got category %q, want %q", got, UnknownSportCategory)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "Unknown Strava sport_type detected") {
+		t.Errorf("expected canonical WARNING message, got: %s", out)
+	}
+	if !strings.Contains(out, `"unmapped_sport_type":"`+unmapped+`"`) {
+		t.Errorf("expected unmapped_sport_type attribute, got: %s", out)
+	}
+	if !strings.Contains(out, `"fallback_category":"`+UnknownSportCategory+`"`) {
+		t.Errorf("expected fallback_category attribute, got: %s", out)
+	}
+
+	// Dedup: re-calling with the same unmapped type must not emit a second log.
+	sizeAfterFirst := buf.Len()
+	_ = config.GetCategoryForStravaType(unmapped)
+	if buf.Len() != sizeAfterFirst {
+		t.Errorf("expected per-process dedup, got additional log output: %s", buf.String()[sizeAfterFirst:])
+	}
+
+	// Different unmapped type emits a fresh log.
+	_ = config.GetCategoryForStravaType("AnotherUnmappedSport")
+	if buf.Len() == sizeAfterFirst {
+		t.Error("expected a fresh log for a different unmapped type, got none")
 	}
 }
 
