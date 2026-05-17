@@ -83,5 +83,21 @@ export const FIXTURE_SPORT_CONFIG: SportConfig = {
       hasDistance: false,
       hasElevation: false,
     },
+    // "other" is the catch-all category the backend assigns to any Strava
+    // sport_type that isn't explicitly mapped (e.g., a new SportType Strava
+    // added upstream before we registered it). Mirroring it in the demo
+    // fixture keeps demo-mode consistent with production once an unknown
+    // sport lands. See schemas/sports/sport_types.json — the sentinel
+    // stravaTypes entry is intentional; "other" is populated by the
+    // fallback path, not by direct matching.
+    other: {
+      displayName: "Other",
+      stravaTypes: ["__unmapped_sport_type__"],
+      excludedTypes: [],
+      primaryMetric: "time_minutes",
+      metrics: ["time_minutes", "activities", "activity_ids"],
+      hasDistance: false,
+      hasElevation: false,
+    },
   },
 };

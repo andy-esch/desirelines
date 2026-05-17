@@ -2,13 +2,28 @@
 
 from functools import lru_cache
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
+logger = logging.getLogger(__name__)
+
 # Update when code supports new versions
 SUPPORTED_CONFIG_VERSIONS = ["1.0"]
+
+# UNKNOWN_SPORT_CATEGORY is the fallback bucket returned by
+# SportConfig.categorize_activity for any Strava sport_type that has no
+# explicit mapping in sport_types.json. Mirrors apigateway's
+# config.UnknownSportCategory ("other"); changes must stay in lockstep.
+UNKNOWN_SPORT_CATEGORY = "other"
+
+# UNKNOWN_SPORT_LOG_MESSAGE is the canonical WARNING message the GCP
+# log-based metric filter is bound to (see
+# terraform/modules/desirelines/monitoring.tf). Renaming this string
+# without also updating Terraform silently breaks the alert.
+UNKNOWN_SPORT_LOG_MESSAGE = "Unknown Strava sport_type detected"
 
 
 # Pydantic models for schema validation
@@ -99,13 +114,43 @@ class SportConfig:
             name: SportCategory(name, config.model_dump())
             for name, config in validated.sport_categories.items()
         }
+        # Per-process dedup for the "Unknown Strava sport_type detected"
+        # WARNING. Cloud Run recycles restore the alert's signal naturally —
+        # one fresh sighting per restart is the desired behaviour.
+        self._unknown_seen: set[str] = set()
 
-    def categorize_activity(self, sport_type: str) -> str | None:
-        """Map a Strava sport_type value to its sport category name."""
+    def categorize_activity(self, sport_type: str) -> str:
+        """Map a Strava sport_type value to its sport category name.
+
+        Returns the explicit category for known sport_types, or
+        ``UNKNOWN_SPORT_CATEGORY`` ("other") as a fallback for any value not
+        in ``sport_types.json``. Unknown values trigger a structured WARNING
+        log on first sighting (deduplicated per process) that the GCP
+        log-based metric pivots on for alerting.
+
+        Args:
+            sport_type: Strava ``sport_type`` value (e.g., ``"Ride"``, ``"Run"``).
+
+        Returns:
+            Category name (e.g., ``"cycling"``) or ``"other"`` for unmapped
+            input. Empty/None-like input falls into ``"other"`` silently
+            (no WARNING) to avoid alert noise from NULL columns.
+        """
         for name, category in self.categories.items():
             if category.matches(sport_type):
                 return name
-        return None
+        if not sport_type:
+            return UNKNOWN_SPORT_CATEGORY
+        if sport_type not in self._unknown_seen:
+            self._unknown_seen.add(sport_type)
+            logger.warning(
+                UNKNOWN_SPORT_LOG_MESSAGE,
+                extra={
+                    "unmapped_sport_type": sport_type,
+                    "fallback_category": UNKNOWN_SPORT_CATEGORY,
+                },
+            )
+        return UNKNOWN_SPORT_CATEGORY
 
     def get_category(self, sport: str) -> SportCategory | None:
         """Get configuration for a sport category."""
