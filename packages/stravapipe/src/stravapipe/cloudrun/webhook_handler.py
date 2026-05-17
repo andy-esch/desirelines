@@ -90,7 +90,7 @@ async def handle_webhook_cloudevent(
     # PubSub body already has trace linking. May be overwritten below by the
     # W3C traceparent from PubSub attributes (preferred — that's the
     # cross-service trace from the dispatcher).
-    initialize_request_trace(request)
+    initialize_request_trace(request.headers)
 
     try:
         context, event_data, message_attributes = await parse_pubsub_cloudevent(request)

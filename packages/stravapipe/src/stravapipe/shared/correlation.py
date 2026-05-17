@@ -27,14 +27,13 @@ present) ``logging.googleapis.com/trace`` automatically — no need to pass
 ``extra={"correlation_id": ...}`` on each call.
 """
 
+from collections.abc import Mapping
 import contextvars
 import logging
 import os
 import re
 from typing import Any
 import uuid
-
-from fastapi import Request
 
 # Module-level ContextVars. Default to empty string so the filter can
 # unconditionally set record attributes without raising LookupError.
@@ -271,16 +270,21 @@ def extract_trace_from_pubsub_attributes(
     return extract_trace_from_traceparent(attributes.get("traceparent", ""))
 
 
-def initialize_request_trace(request: Request) -> None:
+def initialize_request_trace(headers: Mapping[str, str]) -> None:
     """Best-effort: install the trace from the Cloud Run request header.
 
-    Reads ``X-Cloud-Trace-Context`` and seeds the trace contextvar so any
-    log emitted before the PubSub body is parsed already has trace linking.
-    Safe to call before PubSub parsing — the W3C ``traceparent`` from
-    PubSub attributes (preferred, cross-service) may overwrite this later
-    via ``initialize_pubsub_context()``.
+    Reads ``X-Cloud-Trace-Context`` from the supplied header mapping
+    (e.g., ``fastapi.Request.headers`` or any case-insensitive HTTP
+    headers map) and seeds the trace contextvar so any log emitted
+    before the PubSub body is parsed already has trace linking. Safe
+    to call before PubSub parsing — the W3C ``traceparent`` from
+    PubSub attributes (preferred, cross-service) may overwrite this
+    later via ``initialize_pubsub_context()``.
+
+    Accepts a Mapping rather than a framework-specific Request type so
+    this shared module stays decoupled from any web framework.
     """
-    header = request.headers.get("X-Cloud-Trace-Context", "")
+    header = headers.get("X-Cloud-Trace-Context", "")
     if not header:
         return
     trace_id, span_id, sampled = extract_trace_from_cloud_trace_header(header)

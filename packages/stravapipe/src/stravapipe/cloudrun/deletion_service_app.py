@@ -329,7 +329,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
     # X-Cloud-Trace-Context header so early log lines get trace linking. The
     # W3C traceparent from PubSub attributes (set below) is preferred and
     # will override this.
-    initialize_request_trace(request)
+    initialize_request_trace(request.headers)
 
     try:
         context, event_data, message_attributes = await parse_pubsub_cloudevent(request)

@@ -1,9 +1,7 @@
 """Unit tests for the correlation ID + trace context propagation module."""
 
 import logging
-from unittest.mock import Mock
 
-from fastapi import Request
 import pytest
 
 from stravapipe.shared import correlation
@@ -496,38 +494,27 @@ class TestDispatcherReceivedAtMs:
         assert get_dispatcher_received_at_ms() is None
 
 
-def _make_request(headers: dict[str, str]) -> Request:
-    """Build a Mock(spec=Request) whose .headers exposes the given map.
-
-    Avoids constructing a real ASGI scope just to assert header reads —
-    initialize_request_trace only touches ``request.headers.get(...)``.
-    """
-    request = Mock(spec=Request)
-    request.headers = headers
-    return request
-
-
 class TestInitializeRequestTrace:
     """Two-phase bootstrap: seed the trace from the Cloud Run request header."""
 
     def test_noop_when_header_absent(self):
-        initialize_request_trace(_make_request({}))
+        initialize_request_trace({})
         assert get_trace_id() == ""
 
     def test_noop_when_header_empty(self):
-        initialize_request_trace(_make_request({"X-Cloud-Trace-Context": ""}))
+        initialize_request_trace({"X-Cloud-Trace-Context": ""})
         assert get_trace_id() == ""
 
     def test_noop_when_header_malformed(self):
         # Malformed header parses to empty trace — we must NOT clobber the
         # contextvar with junk, since later traceparent extraction may set
         # a valid value.
-        initialize_request_trace(_make_request({"X-Cloud-Trace-Context": "not valid!"}))
+        initialize_request_trace({"X-Cloud-Trace-Context": "not valid!"})
         assert get_trace_id() == ""
 
     def test_sets_trace_context_when_valid(self):
         header = "0af7651916cd43dd8448eb211c80319c/12345;o=1"
-        initialize_request_trace(_make_request({"X-Cloud-Trace-Context": header}))
+        initialize_request_trace({"X-Cloud-Trace-Context": header})
         assert get_trace_id() == "0af7651916cd43dd8448eb211c80319c"
 
 
