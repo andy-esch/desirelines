@@ -1,7 +1,9 @@
 """Unit tests for the correlation ID + trace context propagation module."""
 
 import logging
+from unittest.mock import Mock
 
+from fastapi import Request
 import pytest
 
 from stravapipe.shared import correlation
@@ -17,6 +19,8 @@ from stravapipe.shared.correlation import (
     get_dispatcher_received_at_ms,
     get_pubsub_message_id,
     get_trace_id,
+    initialize_pubsub_context,
+    initialize_request_trace,
     new_correlation_id,
     set_correlation_id,
     set_delivery_attempt,
@@ -490,3 +494,83 @@ class TestDispatcherReceivedAtMs:
 
     def test_default_is_none(self):
         assert get_dispatcher_received_at_ms() is None
+
+
+def _make_request(headers: dict[str, str]) -> Request:
+    """Build a Mock(spec=Request) whose .headers exposes the given map.
+
+    Avoids constructing a real ASGI scope just to assert header reads —
+    initialize_request_trace only touches ``request.headers.get(...)``.
+    """
+    request = Mock(spec=Request)
+    request.headers = headers
+    return request
+
+
+class TestInitializeRequestTrace:
+    """Two-phase bootstrap: seed the trace from the Cloud Run request header."""
+
+    def test_noop_when_header_absent(self):
+        initialize_request_trace(_make_request({}))
+        assert get_trace_id() == ""
+
+    def test_noop_when_header_empty(self):
+        initialize_request_trace(_make_request({"X-Cloud-Trace-Context": ""}))
+        assert get_trace_id() == ""
+
+    def test_noop_when_header_malformed(self):
+        # Malformed header parses to empty trace — we must NOT clobber the
+        # contextvar with junk, since later traceparent extraction may set
+        # a valid value.
+        initialize_request_trace(_make_request({"X-Cloud-Trace-Context": "not valid!"}))
+        assert get_trace_id() == ""
+
+    def test_sets_trace_context_when_valid(self):
+        header = "0af7651916cd43dd8448eb211c80319c/12345;o=1"
+        initialize_request_trace(_make_request({"X-Cloud-Trace-Context": header}))
+        assert get_trace_id() == "0af7651916cd43dd8448eb211c80319c"
+
+
+class TestInitializePubsubContext:
+    """Two-phase bootstrap: install correlation + trace from PubSub attributes."""
+
+    def test_prefers_attribute_over_fallback(self):
+        resolved = initialize_pubsub_context(
+            {"correlation_id": "dispatcher-cid"}, "fallback-cid"
+        )
+        assert resolved == "dispatcher-cid"
+        assert get_correlation_id() == "dispatcher-cid"
+
+    def test_returns_fallback_when_attribute_missing(self):
+        resolved = initialize_pubsub_context({}, "fallback-cid")
+        assert resolved == "fallback-cid"
+        assert get_correlation_id() == "fallback-cid"
+
+    def test_returns_fallback_when_attribute_empty(self):
+        resolved = initialize_pubsub_context({"correlation_id": ""}, "fallback-cid")
+        assert resolved == "fallback-cid"
+        assert get_correlation_id() == "fallback-cid"
+
+    def test_extracts_traceparent_when_present(self):
+        attrs = {
+            "correlation_id": "abc",
+            "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        }
+        initialize_pubsub_context(attrs, "fallback")
+        assert get_trace_id() == "0af7651916cd43dd8448eb211c80319c"
+
+    def test_does_not_clobber_existing_trace_when_traceparent_missing(self):
+        # Request-phase set the trace from X-Cloud-Trace-Context; if the
+        # PubSub envelope has no traceparent (legacy publisher), the existing
+        # trace must survive so logs still link.
+        set_trace_context("preexisting-trace", "span-1", True)
+        initialize_pubsub_context({"correlation_id": "abc"}, "fallback")
+        assert get_trace_id() == "preexisting-trace"
+
+    def test_traceparent_overrides_request_trace(self):
+        set_trace_context("request-trace", "", False)
+        attrs = {
+            "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        }
+        initialize_pubsub_context(attrs, "fallback")
+        assert get_trace_id() == "0af7651916cd43dd8448eb211c80319c"

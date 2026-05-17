@@ -34,6 +34,8 @@ import re
 from typing import Any
 import uuid
 
+from fastapi import Request
+
 # Module-level ContextVars. Default to empty string so the filter can
 # unconditionally set record attributes without raising LookupError.
 _correlation_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
@@ -267,6 +269,50 @@ def extract_trace_from_pubsub_attributes(
     Returns ``(trace_id, span_id, sampled)``; all empty / False if absent.
     """
     return extract_trace_from_traceparent(attributes.get("traceparent", ""))
+
+
+def initialize_request_trace(request: Request) -> None:
+    """Best-effort: install the trace from the Cloud Run request header.
+
+    Reads ``X-Cloud-Trace-Context`` and seeds the trace contextvar so any
+    log emitted before the PubSub body is parsed already has trace linking.
+    Safe to call before PubSub parsing — the W3C ``traceparent`` from
+    PubSub attributes (preferred, cross-service) may overwrite this later
+    via ``initialize_pubsub_context()``.
+    """
+    header = request.headers.get("X-Cloud-Trace-Context", "")
+    if not header:
+        return
+    trace_id, span_id, sampled = extract_trace_from_cloud_trace_header(header)
+    if trace_id:
+        set_trace_context(trace_id, span_id, sampled)
+
+
+def initialize_pubsub_context(
+    message_attributes: dict[str, str], fallback_correlation_id: str
+) -> str:
+    """Install correlation ID and trace context from PubSub attributes.
+
+    Prefers the dispatcher-provided ``correlation_id`` attribute over the
+    caller's fallback, then overrides any request-level trace with the W3C
+    ``traceparent`` attribute (the cross-service trace). Returns the
+    resolved correlation_id so the caller can thread it into response
+    payloads.
+
+    This is the second half of the two-phase request-context bootstrap;
+    pair with ``initialize_request_trace()`` at the top of a Cloud Run
+    handler. The split is intentional — both call sites do work (parse
+    the CloudEvent, validate the payload) between the request phase and
+    the PubSub phase.
+    """
+    correlation_id = message_attributes.get("correlation_id") or fallback_correlation_id
+    set_correlation_id(correlation_id)
+    trace_id, span_id, sampled = extract_trace_from_pubsub_attributes(
+        message_attributes
+    )
+    if trace_id:
+        set_trace_context(trace_id, span_id, sampled)
+    return correlation_id
 
 
 def _format_gcp_trace(trace_id: str) -> str:
