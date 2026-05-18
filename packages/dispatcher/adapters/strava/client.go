@@ -315,6 +315,10 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 			if writeErr != nil {
 				if errors.Is(writeErr, ports.ErrTokenConflict) {
 					// Another goroutine won the race. Re-read their tokens.
+					// Non-fatal (the request still succeeds), so record it as
+					// a span attribute rather than an error — it's the signal
+					// for "a token race happened during this trace".
+					trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.token_conflict", true))
 					c.logger.Warn("Token refresh race detected, using competing thread's tokens",
 						"correlation_id", cid, "owner_id", ownerID)
 					winner, getErr := c.tokenStore.GetTokens(ctx, ownerID)

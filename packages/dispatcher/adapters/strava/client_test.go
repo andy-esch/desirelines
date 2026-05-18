@@ -518,7 +518,7 @@ func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
 		winnerTokens: &stravatoken.Data{AccessToken: "winner-access", RefreshToken: "winner-refresh"},
 	}
 
-	client := newTestClient(server, tokenStore)
+	client, sr := newRecordingTestClient(server, tokenStore)
 
 	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
 	if err != nil {
@@ -527,6 +527,13 @@ func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
 
 	if string(body) != `{"id":12345}` {
 		t.Errorf("body = %s, want %s", string(body), `{"id":12345}`)
+	}
+
+	// The optimistic-concurrency loss is non-fatal but must be visible
+	// in the trace as strava.token_conflict=true.
+	span := spanByName(t, sr, "strava.RefreshToken")
+	if !spanAttrBool(span, "strava.token_conflict") {
+		t.Error("strava.token_conflict attribute not set to true on a detected refresh race")
 	}
 }
 
