@@ -66,6 +66,23 @@ const (
 	grantTypeRefresh  = "refresh_token"
 )
 
+const (
+	// tokenExpirySkew triggers a proactive token refresh this long
+	// before the stored access token's nominal expiry. Covers clock
+	// drift and in-flight request time; well under Strava's ~6h token
+	// lifetime. The reactive 401 path remains a backstop for tokens
+	// revoked before their nominal expiry.
+	tokenExpirySkew = 5 * time.Minute
+
+	// refresh-reason values identifying what triggered a token refresh.
+	// Stamped as the strava.refresh_reason span attribute and the
+	// refresh_reason log field. (snake_case / strava.* prefix match the
+	// existing convention in this file rather than a bare "refresh.reason".)
+	refreshReasonEmptyToken      = "empty_token"
+	refreshReasonProactiveExpiry = "proactive_expiry"
+	refreshReasonReactive401     = "reactive_401"
+)
+
 // tokenResponse represents the JSON response from Strava's OAuth token endpoint.
 type tokenResponse struct {
 	AccessToken  string `json:"access_token"`
@@ -111,9 +128,26 @@ func NewClient(clientID, clientSecret string, tokenStore ports.TokenStore, logge
 	}
 }
 
+// proactiveRefreshReason reports why the stored token must be refreshed
+// before use, or "" if it is still usable. Drives refresh-ahead: an
+// empty token has never been minted; a token at/under the expiry skew
+// window is about to expire. Returning "" lets FetchActivity use the
+// stored token directly, with the reactive 401 path as a backstop.
+func proactiveRefreshReason(tokens *stravatoken.Data, now time.Time) string {
+	switch {
+	case tokens.AccessToken == "":
+		return refreshReasonEmptyToken
+	case now.Add(tokenExpirySkew).Unix() >= tokens.ExpiresAt:
+		return refreshReasonProactiveExpiry
+	default:
+		return ""
+	}
+}
+
 // FetchActivity retrieves the raw JSON for a Strava activity.
-// Reads the owner's tokens from the TokenStore, retries on transient errors,
-// and refreshes + persists tokens on 401.
+// Reads the owner's tokens from the TokenStore, refreshes ahead of
+// expiry, retries on transient errors, and refreshes + persists tokens
+// reactively on 401 as a backstop.
 func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (_ []byte, err error) {
 	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.FetchActivity",
 		attribute.Int64("strava.owner_id", ownerID),
@@ -129,11 +163,14 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 		return nil, err
 	}
 
-	// If no access token, refresh first
-	if tokens.AccessToken == "" {
-		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens)
+	// Refresh-ahead: refresh proactively when there is no stored token
+	// or it is at/under the expiry skew window, so we never send a
+	// request we already know will 401. The reactive 401 path below
+	// remains a backstop for tokens revoked before nominal expiry.
+	if reason := proactiveRefreshReason(tokens, time.Now()); reason != "" {
+		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, reason)
 		if refreshErr != nil {
-			err = fmt.Errorf("%w: initial token refresh failed: %w", ErrStravaAuth, refreshErr)
+			err = fmt.Errorf("%w: proactive token refresh failed: %w", ErrStravaAuth, refreshErr)
 			return nil, err
 		}
 		tokens = refreshedTokens
@@ -165,7 +202,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 			}
 			c.logger.Warn("Strava 401, refreshing token",
 				"correlation_id", cid, "activity_id", activityID, "owner_id", ownerID)
-			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens)
+			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, refreshReasonReactive401)
 			if refreshErr != nil {
 				err = fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
 				return nil, err
@@ -179,6 +216,8 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 		lastErr = fetchErr
 		if attempt < activityRetryAttempts-1 {
 			backoff := min(activityRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
+			trace.SpanFromContext(ctx).AddEvent("strava.retry",
+				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, fetchErr)...))
 			c.logger.Warn("Strava fetch retry",
 				"correlation_id", cid,
 				"activity_id", activityID,
@@ -194,6 +233,10 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 		}
 	}
 
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("strava.attempts", activityRetryAttempts),
+		attribute.Bool("strava.exhausted", true),
+	)
 	err = fmt.Errorf("%w: %w", ErrStravaAPI, lastErr)
 	return nil, err
 }
@@ -233,7 +276,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 	case http.StatusUnauthorized:
 		return nil, &authError{statusCode: resp.StatusCode}
 	default:
-		return nil, fmt.Errorf("strava API returned %d: %s", resp.StatusCode, string(body))
+		return nil, &stravaAPIError{statusCode: resp.StatusCode}
 	}
 }
 
@@ -243,9 +286,10 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 //
 // Returns error if either the refresh or the write-back fails — callers must not
 // proceed with stale tokens if write-back fails.
-func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.Data) (_ *stravatoken.Data, err error) {
+func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.Data, reason string) (_ *stravatoken.Data, err error) {
 	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.RefreshToken",
 		attribute.Int64("strava.owner_id", ownerID),
+		attribute.String("strava.refresh_reason", reason),
 	)
 	defer func() { spanDone(err) }()
 
@@ -284,13 +328,24 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 				return nil, err
 			}
 
+			if newTokens.ExpiresAt == 0 {
+				// Without an expiry, refresh-ahead treats the token as
+				// expired forever and refreshes on every request — the
+				// exact failure mode this strategy exists to prevent.
+				// Surface it instead of degrading silently.
+				c.logger.Warn("Refreshed Strava token has zero expiry; refresh-ahead will fire on every request until corrected",
+					"correlation_id", cid, "owner_id", ownerID, "refresh_reason", reason)
+			}
+
 			c.logger.Info("Strava access token refreshed",
-				"correlation_id", cid, "owner_id", ownerID)
+				"correlation_id", cid, "owner_id", ownerID, "refresh_reason", reason)
 			return newTokens, nil
 		}
 		lastErr = err
 		if attempt < tokenRetryAttempts-1 {
 			backoff := min(tokenRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
+			trace.SpanFromContext(ctx).AddEvent("strava.retry",
+				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, err)...))
 			c.logger.Warn("Token refresh retry",
 				"correlation_id", cid,
 				"attempt", attempt+1,
@@ -340,7 +395,7 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token refresh returned %d: %s", resp.StatusCode, string(body))
+		return nil, &stravaAPIError{statusCode: resp.StatusCode}
 	}
 
 	var tokenResp tokenResponse
@@ -372,4 +427,38 @@ func (e *authError) Error() string {
 func isAuthError(err error) bool {
 	var ae *authError
 	return errors.As(err, &ae)
+}
+
+// stravaAPIError is an internal error for non-auth, non-404 HTTP
+// failures from the Strava API. It deliberately carries only the
+// status code — the response body is dropped so it can never reach a
+// span attribute (docs/architecture/observability.md: "Keep them
+// small. Cloud Trace truncates large attribute values").
+type stravaAPIError struct {
+	statusCode int
+}
+
+func (e *stravaAPIError) Error() string {
+	return fmt.Sprintf("strava API error: HTTP %d", e.statusCode)
+}
+
+// retryEventAttrs builds the strava.retry span-event attributes. HTTP
+// failures contribute a bounded status_code; transport/decode errors
+// contribute their (short, body-free) message.
+func retryEventAttrs(attempt int, backoff time.Duration, err error) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.Int("attempt", attempt),
+		attribute.String("backoff", backoff.String()),
+	}
+	var apiErr *stravaAPIError
+	var authErr *authError
+	switch {
+	case errors.As(err, &apiErr):
+		attrs = append(attrs, attribute.Int("status_code", apiErr.statusCode))
+	case errors.As(err, &authErr):
+		attrs = append(attrs, attribute.Int("status_code", authErr.statusCode))
+	default:
+		attrs = append(attrs, attribute.String("error", err.Error()))
+	}
+	return attrs
 }

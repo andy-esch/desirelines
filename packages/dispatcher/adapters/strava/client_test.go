@@ -15,7 +15,99 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
+
+// futureExpiry is well beyond tokenExpirySkew, so proactiveRefreshReason
+// returns "" and FetchActivity uses the stored token directly. Tests that
+// exercise the direct-fetch or reactive-401 paths must set this, otherwise
+// the new refresh-ahead logic refreshes before every fetch.
+func futureExpiry() int64 { return time.Now().Add(time.Hour).Unix() }
+
+// pastExpiry is in the past, so proactiveRefreshReason returns
+// "proactive_expiry".
+func pastExpiry() int64 { return time.Now().Add(-time.Hour).Unix() }
+
+// newRecordingTestClient is newTestClient with a real SDK tracer feeding a
+// SpanRecorder, so tests can assert span attributes/events.
+func newRecordingTestClient(server *httptest.Server, tokenStore ports.TokenStore) (*Client, *tracetest.SpanRecorder) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	c := newTestClient(server, tokenStore)
+	c.tracer = tp.Tracer("test")
+	return c, sr
+}
+
+// spanByName returns the first ended span with the given name.
+func spanByName(t *testing.T, sr *tracetest.SpanRecorder, name string) sdktrace.ReadOnlySpan {
+	t.Helper()
+	for _, s := range sr.Ended() {
+		if s.Name() == name {
+			return s
+		}
+	}
+	t.Fatalf("no ended span named %q (got %d spans)", name, len(sr.Ended()))
+	return nil
+}
+
+// spanAttrString returns the string value of a span attribute, or "".
+func spanAttrString(s sdktrace.ReadOnlySpan, key string) string {
+	for _, a := range s.Attributes() {
+		if string(a.Key) == key {
+			return a.Value.AsString()
+		}
+	}
+	return ""
+}
+
+// spanAttrInt returns the int64 value of a span attribute, or 0.
+func spanAttrInt(s sdktrace.ReadOnlySpan, key string) int64 {
+	for _, a := range s.Attributes() {
+		if string(a.Key) == key {
+			return a.Value.AsInt64()
+		}
+	}
+	return 0
+}
+
+// spanAttrBool returns the bool value of a span attribute, or false.
+func spanAttrBool(s sdktrace.ReadOnlySpan, key string) bool {
+	for _, a := range s.Attributes() {
+		if string(a.Key) == key {
+			return a.Value.AsBool()
+		}
+	}
+	return false
+}
+
+// assertHTTPRetryEvent verifies a strava.retry event for an HTTP
+// failure: attempt present, a bounded status_code, and no free-form
+// error string (P1 — response bodies must not reach span attributes).
+func assertHTTPRetryEvent(t *testing.T, e sdktrace.Event, wantStatus int64) {
+	t.Helper()
+	var sawAttempt, sawError bool
+	var gotStatus int64
+	for _, a := range e.Attributes {
+		switch string(a.Key) {
+		case "attempt":
+			sawAttempt = true
+		case "status_code":
+			gotStatus = a.Value.AsInt64()
+		case "error":
+			sawError = true
+		}
+	}
+	if !sawAttempt {
+		t.Errorf("strava.retry missing 'attempt' attribute: %+v", e.Attributes)
+	}
+	if gotStatus != wantStatus {
+		t.Errorf("strava.retry status_code = %d, want %d", gotStatus, wantStatus)
+	}
+	if sawError {
+		t.Error("strava.retry carried a free-form 'error' for an HTTP failure; expected status_code only")
+	}
+}
 
 const (
 	testOwnerID         int64 = 67890
@@ -64,7 +156,7 @@ func TestFetchActivity_Success(t *testing.T) {
 
 	tokenStore := &portstest.MockTokenStore{
 		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -90,7 +182,7 @@ func TestFetchActivity_NotFound(t *testing.T) {
 
 	tokenStore := &portstest.MockTokenStore{
 		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -153,10 +245,10 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 
 	tokenStore := &portstest.MockTokenStore{
 		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
-	client := newTestClient(server, tokenStore)
+	client, sr := newRecordingTestClient(server, tokenStore)
 
 	body, err := client.FetchActivity(context.Background(), testOwnerID, 12345)
 	if err != nil {
@@ -177,6 +269,12 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 	}
 	if written.RefreshToken != "new-refresh-token" {
 		t.Errorf("written refresh token = %s, want new-refresh-token", written.RefreshToken)
+	}
+
+	// The refresh was triggered by a 401 on a still-valid stored token.
+	span := spanByName(t, sr, "strava.RefreshToken")
+	if got := spanAttrString(span, "strava.refresh_reason"); got != refreshReasonReactive401 {
+		t.Errorf("strava.refresh_reason = %q, want %q", got, refreshReasonReactive401)
 	}
 }
 
@@ -239,7 +337,7 @@ func TestFetchActivity_ServerError(t *testing.T) {
 
 	tokenStore := &portstest.MockTokenStore{
 		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -335,7 +433,7 @@ func TestFetchActivity_Repeated401StopsAfterOneRefresh(t *testing.T) {
 
 	tokenStore := &portstest.MockTokenStore{
 		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "old-refresh"},
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "old-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -416,7 +514,7 @@ func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &conflictTokenStore{
-		oldTokens:    &stravatoken.Data{AccessToken: "old-token", RefreshToken: "old-refresh"},
+		oldTokens:    &stravatoken.Data{AccessToken: "old-token", RefreshToken: "old-refresh", ExpiresAt: futureExpiry()},
 		winnerTokens: &stravatoken.Data{AccessToken: "winner-access", RefreshToken: "winner-refresh"},
 	}
 
@@ -508,7 +606,7 @@ func TestFetchActivity_TokenRefreshReturnsNoAccessToken(t *testing.T) {
 
 	tokenStore := &portstest.MockTokenStore{
 		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -542,7 +640,7 @@ func TestFetchActivity_TokenRefreshInvalidJSON(t *testing.T) {
 
 	tokenStore := &portstest.MockTokenStore{
 		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -568,7 +666,7 @@ func TestFetchActivity_ContextCancellation(t *testing.T) {
 
 	tokenStore := &portstest.MockTokenStore{
 		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh"},
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -609,7 +707,7 @@ func TestFetchActivity_WriteBackFailureReturnsError(t *testing.T) {
 
 	tokenStore := &portstest.MockTokenStore{
 		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh"},
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 		WriteErr: errors.New("firestore write failed"),
 	}
@@ -621,5 +719,211 @@ func TestFetchActivity_WriteBackFailureReturnsError(t *testing.T) {
 	}
 	if !errors.Is(err, ErrStravaAuth) {
 		t.Errorf("expected ErrStravaAuth, got %v", err)
+	}
+}
+
+func TestProactiveRefreshReason(t *testing.T) {
+	// Fixed clock. tokenExpirySkew is 5m (300s); now+skew = 1_000_000_300.
+	now := time.Unix(1_000_000_000, 0)
+	tests := []struct {
+		name      string
+		token     *stravatoken.Data
+		wantValue string
+	}{
+		{"empty access token", &stravatoken.Data{AccessToken: "", ExpiresAt: now.Add(time.Hour).Unix()}, refreshReasonEmptyToken},
+		{"expired", &stravatoken.Data{AccessToken: "x", ExpiresAt: now.Add(-time.Hour).Unix()}, refreshReasonProactiveExpiry},
+		{"within skew window", &stravatoken.Data{AccessToken: "x", ExpiresAt: now.Add(4 * time.Minute).Unix()}, refreshReasonProactiveExpiry},
+		{"unset expiry (legacy doc)", &stravatoken.Data{AccessToken: "x", ExpiresAt: 0}, refreshReasonProactiveExpiry},
+		{"valid, well beyond skew", &stravatoken.Data{AccessToken: "x", ExpiresAt: now.Add(time.Hour).Unix()}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := proactiveRefreshReason(tt.token, now); got != tt.wantValue {
+				t.Errorf("proactiveRefreshReason() = %q, want %q", got, tt.wantValue)
+			}
+		})
+	}
+}
+
+// TestFetchActivity_ValidToken_NoRefresh is the core acceptance check:
+// a still-valid stored token is used directly with zero refresh calls.
+func TestFetchActivity_ValidToken_NoRefresh(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			t.Error("token endpoint must not be called when the stored token is valid")
+			w.WriteHeader(http.StatusInternalServerError)
+		case testActivityPath:
+			if auth := r.Header.Get("Authorization"); auth != "Bearer valid-access" {
+				t.Errorf("expected Bearer valid-access, got %q", auth)
+			}
+			w.WriteHeader(http.StatusOK)
+			if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "valid-access", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err != nil {
+		t.Fatalf("FetchActivity() error = %v", err)
+	}
+	if string(body) != `{"id":12345}` {
+		t.Errorf("body = %s, want {\"id\":12345}", string(body))
+	}
+	if _, refreshed := tokenStore.WrittenTokens[testOwnerID]; refreshed {
+		t.Error("token was refreshed/written for a valid stored token; expected zero refresh calls")
+	}
+}
+
+// TestFetchActivity_ProactiveRefreshOnExpiry: an expired stored token is
+// refreshed *before* the fetch (no doomed 401 round-trip), and the
+// strava.RefreshToken span carries strava.refresh_reason=proactive_expiry.
+func TestFetchActivity_ProactiveRefreshOnExpiry(t *testing.T) {
+	var activityCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "fresh-access", "refresh_token": "fresh-refresh", "expires_at": futureExpiry(),
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case testActivityPath:
+			activityCalls.Add(1)
+			if auth := r.Header.Get("Authorization"); auth != "Bearer fresh-access" {
+				t.Errorf("activity called with %q; proactive refresh should prevent any stale-token request", auth)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "stale-access", RefreshToken: "stale-refresh", ExpiresAt: pastExpiry()},
+		},
+	}
+	client, sr := newRecordingTestClient(server, tokenStore)
+
+	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err != nil {
+		t.Fatalf("FetchActivity() error = %v", err)
+	}
+	if string(body) != `{"id":12345}` {
+		t.Errorf("body = %s, want {\"id\":12345}", string(body))
+	}
+	if n := activityCalls.Load(); n != 1 {
+		t.Errorf("activity endpoint called %d times, want 1 (no doomed 401 round-trip)", n)
+	}
+	written, ok := tokenStore.WrittenTokens[testOwnerID]
+	if !ok || written.AccessToken != "fresh-access" {
+		t.Errorf("expected proactively refreshed token to be persisted, got %+v (ok=%v)", written, ok)
+	}
+
+	span := spanByName(t, sr, "strava.RefreshToken")
+	if got := spanAttrString(span, "strava.refresh_reason"); got != refreshReasonProactiveExpiry {
+		t.Errorf("strava.refresh_reason = %q, want %q", got, refreshReasonProactiveExpiry)
+	}
+}
+
+// TestFetchActivity_EmptyTokenRefreshReason: the no-stored-token path
+// stamps strava.refresh_reason=empty_token.
+func TestFetchActivity_EmptyTokenRefreshReason(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "minted-access", "refresh_token": "r", "expires_at": futureExpiry(),
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case testActivityPath:
+			w.WriteHeader(http.StatusOK)
+			if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "", RefreshToken: "test-refresh"},
+		},
+	}
+	client, sr := newRecordingTestClient(server, tokenStore)
+
+	if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err != nil {
+		t.Fatalf("FetchActivity() error = %v", err)
+	}
+	span := spanByName(t, sr, "strava.RefreshToken")
+	if got := spanAttrString(span, "strava.refresh_reason"); got != refreshReasonEmptyToken {
+		t.Errorf("strava.refresh_reason = %q, want %q", got, refreshReasonEmptyToken)
+	}
+}
+
+// TestFetchActivity_RetryEmitsSpanEvents covers Finding 4: transient
+// failures emit strava.retry span events and the exhausted attributes.
+func TestFetchActivity_RetryEmitsSpanEvents(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, err := w.Write([]byte(`{"error":"internal"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "valid-access", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client, sr := newRecordingTestClient(server, tokenStore)
+
+	if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err == nil {
+		t.Fatal("expected error after exhausting retries")
+	}
+
+	span := spanByName(t, sr, "strava.FetchActivity")
+
+	var retryEvents int
+	for _, e := range span.Events() {
+		if e.Name != "strava.retry" {
+			continue
+		}
+		retryEvents++
+		assertHTTPRetryEvent(t, e, http.StatusInternalServerError)
+	}
+	// Events fire only between attempts: activityRetryAttempts-1 of them.
+	if want := activityRetryAttempts - 1; retryEvents != want {
+		t.Errorf("strava.retry event count = %d, want %d", retryEvents, want)
+	}
+	if got := spanAttrInt(span, "strava.attempts"); got != int64(activityRetryAttempts) {
+		t.Errorf("strava.attempts = %d, want %d", got, activityRetryAttempts)
+	}
+	if !spanAttrBool(span, "strava.exhausted") {
+		t.Error("strava.exhausted not set to true on terminal failure")
 	}
 }
