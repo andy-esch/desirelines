@@ -6,6 +6,7 @@ import logging
 import time
 from typing import Any, TypeVar, cast
 
+from opentelemetry.trace import get_current_span
 import requests
 
 from stravapipe.exceptions import StravaRateLimitError
@@ -17,6 +18,34 @@ F = TypeVar("F", bound=Callable[..., Any])
 # HTTP status code constants used by retry decisions.
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_INTERNAL_SERVER_ERROR = 500
+
+
+def _add_retry_event(
+    attempt: int,
+    backoff_seconds: float,
+    *,
+    status_code: int | None = None,
+    error: str | None = None,
+) -> None:
+    """Emit a ``strava.retry`` event on the current span (no-op if none).
+
+    Mirrors the dispatcher's Go ``strava.retry`` events so retries are
+    visible cross-language in Cloud Trace. ``status_code`` is preferred;
+    ``error`` is a bounded exception type name, never a response body.
+    """
+    attrs: dict[str, Any] = {"attempt": attempt, "backoff": f"{backoff_seconds:g}s"}
+    if status_code is not None:
+        attrs["status_code"] = status_code
+    elif error is not None:
+        attrs["error"] = error
+    get_current_span().add_event("strava.retry", attrs)
+
+
+def _mark_retries_exhausted(max_attempts: int) -> None:
+    """Stamp the current span when every retry attempt was used up."""
+    span = get_current_span()
+    span.set_attribute("strava.attempts", max_attempts)
+    span.set_attribute("strava.exhausted", True)
 
 
 def retry_on_failure(
@@ -41,6 +70,7 @@ def retry_on_failure(
             last_exception: Exception | None = None
 
             for attempt in range(max_attempts):
+                retry_status: int | None = None
                 try:
                     return func(*args, **kwargs)
 
@@ -52,6 +82,7 @@ def retry_on_failure(
                         if status_code == HTTP_TOO_MANY_REQUESTS:
                             retry_after = int(e.response.headers.get("Retry-After", 60))
                             if attempt == max_attempts - 1:
+                                _mark_retries_exhausted(max_attempts)
                                 raise StravaRateLimitError(
                                     f"Rate limit exceeded after {max_attempts} "
                                     "attempts",
@@ -70,6 +101,11 @@ def retry_on_failure(
                                     "status_code": status_code,
                                 },
                             )
+                            _add_retry_event(
+                                attempt + 1,
+                                float(retry_after),
+                                status_code=status_code,
+                            )
                             time.sleep(retry_after)
                             continue
 
@@ -79,6 +115,7 @@ def retry_on_failure(
 
                         # Retry on server errors (5xx)
                         last_exception = e
+                        retry_status = status_code
                     else:
                         # Network error without response
                         last_exception = e
@@ -109,6 +146,16 @@ def retry_on_failure(
                             "exception_type": type(last_exception).__name__,
                         },
                     )
+                    _add_retry_event(
+                        attempt + 1,
+                        delay,
+                        status_code=retry_status,
+                        error=(
+                            None
+                            if retry_status is not None
+                            else type(last_exception).__name__
+                        ),
+                    )
                     time.sleep(delay)
 
             # All attempts failed
@@ -123,6 +170,7 @@ def retry_on_failure(
                     else "unknown",
                 },
             )
+            _mark_retries_exhausted(max_attempts)
             if last_exception:
                 raise last_exception
             # This should never happen - loop only exits without exception if
