@@ -49,7 +49,7 @@ POST /webhook                                  (dispatcher, otelhttp)
 ├─ strava.FetchActivity                        ~200-400ms
 │    ├─ firestore.GetTokens
 │    ├─ HTTP GET (otelhttp transport)
-│    └─ strava.RefreshToken    (only on 401)
+│    └─ strava.RefreshToken    (refresh-ahead near expiry; or reactively on 401)
 └─ pubsub.Publish                              ~50ms
      ├─ bq_inserter.webhook.process            (child via traceparent)
      │    └─ bigquery.insert_rows
@@ -122,7 +122,8 @@ Useful when investigating "does this code path even work?":
 | DELETE webhook | Filter `aspect_type=delete`; bq-inserter runs `bigquery.archive_insert` + `bigquery.activity_delete` |
 | UPDATE webhook | Filter `aspect_type=update`; bq-inserter currently ignores, postgres-writer runs `postgres.update_metadata` |
 | Athlete deauth | Filter `object_type=athlete`; runs `dispatcher.handleAthleteEvent` and the deletion-service subgraph |
-| Token refresh on 401 | Look for a `strava.RefreshToken` span inside `strava.FetchActivity` |
+| Token refresh | `strava.RefreshToken` inside `strava.FetchActivity`. Its `strava.refresh_reason` attribute says why: `proactive_expiry` (normal — refreshed ahead of expiry), `reactive_401` (Strava rejected a token we thought valid — revoked early), `empty_token` (no stored token, e.g. just after connect). Steady-state webhooks within the ~6h token window have **no** `strava.RefreshToken` span at all. A `WARN "Refreshed Strava token has zero expiry"` log means refresh-ahead will fire every request — investigate the stored token's `expires_at`. |
+| Strava retried | `strava.retry` events on `strava.FetchActivity` (transient fetch failures) or `strava.RefreshToken` (token-endpoint failures), with `attempt`/`backoff` and either `status_code` or a short `error`. `strava.attempts` + `strava.exhausted=true` on the parent span mean every retry was used up. |
 | Cold start | Filter on `httpRequest.latency` > 2s; expect a gap before the first span |
 
 ## What to file vs. what to drop
