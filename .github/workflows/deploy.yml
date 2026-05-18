@@ -85,6 +85,34 @@ jobs:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:buildcache,mode=max
 
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":x: *Image build failed* — `${{ matrix.image }}` did not build, nothing was deployed."
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run> · commit `${{ github.sha }}`"
+                    }
+                  ]
+                }
+              ]
+            }
+
   # ===========================================================================
   # Job 2: Trigger Deploy Repo
   # ===========================================================================
@@ -115,6 +143,34 @@ jobs:
             -f "client_payload[env]=dev"
 
           echo "Triggered deploy repo with image_tag=${{ needs.build-images.outputs.git_sha }}"
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":x: *Deploy trigger failed* — images built but `repository_dispatch` to desirelines-deploy did not fire. Deploy repo doesn't know there's a candidate."
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run> · image_tag `${{ needs.build-images.outputs.git_sha }}`"
+                    }
+                  ]
+                }
+              ]
+            }
 
   # ===========================================================================
   # Job 3: Auto-tag Terraform Modules
