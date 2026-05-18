@@ -1206,3 +1206,105 @@ func TestStampWebhookIDsOnSpan_NoActiveSpanIsNoOp(t *testing.T) {
 		OwnerId:    2,
 	})
 }
+
+func endedSpanNames(sr *tracetest.SpanRecorder) []string {
+	ended := sr.Ended()
+	n := make([]string, 0, len(ended))
+	for _, s := range ended {
+		n = append(n, s.Name())
+	}
+	return n
+}
+
+func spanAttrStr(s sdktrace.ReadOnlySpan, k string) (string, bool) {
+	for _, a := range s.Attributes() {
+		if string(a.Key) == k {
+			return a.Value.AsString(), true
+		}
+	}
+	return "", false
+}
+
+func spanAttrInt(s sdktrace.ReadOnlySpan, k string) (int64, bool) {
+	for _, a := range s.Attributes() {
+		if string(a.Key) == k {
+			return a.Value.AsInt64(), true
+		}
+	}
+	return 0, false
+}
+
+func spanAttrBool(s sdktrace.ReadOnlySpan, k string) (bool, bool) {
+	for _, a := range s.Attributes() {
+		if string(a.Key) == k {
+			return a.Value.AsBool(), true
+		}
+	}
+	return false, false
+}
+
+// TestHandler_WebhookValidationSpans covers Finding 3: the pre-routing
+// validation steps each emit a descriptive child span with attributes.
+func TestHandler_WebhookValidationSpans(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+
+	handler := NewHandler(
+		&portstest.MockPublisher{},
+		&portstest.MockPublisher{},
+		&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
+		&portstest.MockStravaClient{},
+		&portstest.MockTokenStore{},
+		&portstest.MockAllowlist{Allowed: true},
+		gcplog.NewNoOpLogger(),
+		&HandlerConfig{Tracer: tp.Tracer("test")},
+	)
+	router := handler.RegisterRoutes()
+
+	payload, err := json.Marshal(webhookproto.StravaWebhookJSON{
+		AspectType:     "create",
+		ObjectType:     "activity",
+		ObjectID:       testObjectID,
+		OwnerID:        testOwnerID,
+		EventTime:      testEventTime,
+		SubscriptionID: testSubscriptionID,
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code < 200 || w.Code >= 300 {
+		t.Fatalf("status = %d, want 2xx", w.Code)
+	}
+
+	spans := make(map[string]sdktrace.ReadOnlySpan)
+	for _, s := range sr.Ended() {
+		spans[s.Name()] = s
+	}
+	for _, name := range []string{
+		"dispatcher.webhook.validate_body",
+		"dispatcher.webhook.parse",
+		"dispatcher.webhook.check_subscription_id",
+	} {
+		if _, ok := spans[name]; !ok {
+			t.Fatalf("missing span %q (got %v)", name, endedSpanNames(sr))
+		}
+	}
+
+	if v, ok := spanAttrInt(spans["dispatcher.webhook.validate_body"], "desirelines.body_size_bytes"); !ok || v <= 0 {
+		t.Errorf("validate_body desirelines.body_size_bytes = %d (set=%v), want > 0", v, ok)
+	}
+	if v, ok := spanAttrStr(spans["dispatcher.webhook.parse"], "desirelines.aspect_type"); !ok || v != generated.AspectType_ASPECT_TYPE_CREATE.String() {
+		t.Errorf("parse desirelines.aspect_type = %q (set=%v), want %q", v, ok, generated.AspectType_ASPECT_TYPE_CREATE.String())
+	}
+	if v, ok := spanAttrStr(spans["dispatcher.webhook.parse"], "desirelines.object_type"); !ok || v != generated.ObjectType_OBJECT_TYPE_ACTIVITY.String() {
+		t.Errorf("parse desirelines.object_type = %q (set=%v), want %q", v, ok, generated.ObjectType_OBJECT_TYPE_ACTIVITY.String())
+	}
+	if v, ok := spanAttrBool(spans["dispatcher.webhook.check_subscription_id"], "desirelines.subscription_match"); !ok || !v {
+		t.Errorf("check_subscription_id desirelines.subscription_match = %v (set=%v), want true", v, ok)
+	}
+}

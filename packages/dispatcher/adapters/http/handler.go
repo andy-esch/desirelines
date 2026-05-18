@@ -283,8 +283,13 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 // behind a MaxBytesReader. Returns (body, true) on success; on failure writes
 // the appropriate 4xx error and returns (nil, false).
 func (h *Handler) readAndValidateBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+	ctx, spanDone := sharedotel.StartSpan(r.Context(), h.tracer, "dispatcher.webhook.validate_body")
+	var spanErr error
+	defer func() { spanDone(spanErr) }()
+
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != contentTypeJSON {
+		spanErr = fmt.Errorf("unsupported content-type %q", r.Header.Get("Content-Type"))
 		apiErr := apierrors.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		apiErr.Code = ErrCodeInvalidContentType
 		apierrors.WriteError(w, r, apiErr, h.logger)
@@ -294,6 +299,7 @@ func (h *Handler) readAndValidateBody(w http.ResponseWriter, r *http.Request) ([
 	r.Body = http.MaxBytesReader(w, r.Body, h.maxRequestBodySize)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		spanErr = err
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Failed to read request body",
@@ -303,6 +309,7 @@ func (h *Handler) readAndValidateBody(w http.ResponseWriter, r *http.Request) ([
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil, false
 	}
+	trace.SpanFromContext(ctx).SetAttributes(attribute.Int("desirelines.body_size_bytes", len(body)))
 	return body, true
 }
 
@@ -310,8 +317,13 @@ func (h *Handler) readAndValidateBody(w http.ResponseWriter, r *http.Request) ([
 // runs proto-level validation. Returns (webhook, true) on success; on failure
 // writes the appropriate 400 error and returns (nil, false).
 func (h *Handler) parseAndValidateWebhook(w http.ResponseWriter, r *http.Request, body []byte) (*generated.WebhookEvent, bool) {
+	ctx, spanDone := sharedotel.StartSpan(r.Context(), h.tracer, "dispatcher.webhook.parse")
+	var spanErr error
+	defer func() { spanDone(spanErr) }()
+
 	webhook, err := webhookproto.ParseStravaWebhook(body)
 	if err != nil {
+		spanErr = err
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Invalid JSON payload",
@@ -322,6 +334,7 @@ func (h *Handler) parseAndValidateWebhook(w http.ResponseWriter, r *http.Request
 		return nil, false
 	}
 	if validateErr := webhookproto.Validate(webhook); validateErr != nil {
+		spanErr = validateErr
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusBadRequest,
 			"Webhook validation failed",
@@ -331,6 +344,10 @@ func (h *Handler) parseAndValidateWebhook(w http.ResponseWriter, r *http.Request
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil, false
 	}
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String("desirelines.aspect_type", webhook.AspectType.String()),
+		attribute.String("desirelines.object_type", webhook.ObjectType.String()),
+	)
 	return webhook, true
 }
 
@@ -339,8 +356,13 @@ func (h *Handler) parseAndValidateWebhook(w http.ResponseWriter, r *http.Request
 // matches; on mismatch or secret-fetch failure, writes the appropriate 4xx/5xx
 // error and returns false.
 func (h *Handler) checkSubscriptionID(w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent) bool {
+	ctx, spanDone := sharedotel.StartSpan(r.Context(), h.tracer, "dispatcher.webhook.check_subscription_id")
+	var spanErr error
+	defer func() { spanDone(spanErr) }()
+
 	_, subscriptionID, err := h.secretProvider.GetSecrets()
 	if err != nil {
+		spanErr = err
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Configuration error",
@@ -350,7 +372,10 @@ func (h *Handler) checkSubscriptionID(w http.ResponseWriter, r *http.Request, we
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return false
 	}
-	if webhook.SubscriptionId != subscriptionID {
+	match := webhook.SubscriptionId == subscriptionID
+	trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("desirelines.subscription_match", match))
+	if !match {
+		spanErr = fmt.Errorf("subscription_id mismatch")
 		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
 		apiErr.Code = ErrCodeInvalidSubscriptionID
 		apierrors.WriteError(w, r, apiErr, h.logger)
