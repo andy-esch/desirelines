@@ -29,6 +29,10 @@ runs:
       with:
         webhook: ${{ inputs.webhook }}
         webhook-type: incoming-webhook
+        # `toJSON()` wraps the string in quotes AND escapes anything that
+        # would otherwise break the JSON payload (double quotes, newlines,
+        # backslashes). Bare `"${{ inputs.x }}"` interpolation would break
+        # if a caller's headline or context ever contained a literal `"`.
         payload: |
           {
             "blocks": [
@@ -36,7 +40,7 @@ runs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "${{ inputs.headline }}"
+                  "text": ${{ toJSON(inputs.headline) }}
                 }
               },
               {
@@ -44,7 +48,7 @@ runs:
                 "elements": [
                   {
                     "type": "mrkdwn",
-                    "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run> · ${{ inputs.context }}"
+                    "text": ${{ toJSON(format('<{0}/{1}/actions/runs/{2}|View run> · {3}', github.server_url, github.repository, github.run_id, inputs.context)) }}
                   }
                 ]
               }
