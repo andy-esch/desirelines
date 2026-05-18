@@ -1,0 +1,52 @@
+name: Notify Slack
+description: >-
+  Post a Block Kit message to Slack via incoming webhook. Always includes a
+  "View run" link in the context line so the reader can jump straight to
+  the workflow run. Calls slackapi/slack-github-action@v3 under the hood.
+
+inputs:
+  webhook:
+    description: Slack incoming webhook URL (e.g. ${{ secrets.SLACK_WEBHOOK_URL }})
+    required: true
+  headline:
+    description: >-
+      Primary headline text. Use Slack mrkdwn and start with an emoji
+      shortcode (e.g. ":x: *Build failed* — ..."). Newlines are passed
+      through to Slack.
+    required: true
+  context:
+    description: >-
+      Context text appended after the "View run" link with a " · " separator.
+      Use mrkdwn. Pass identifying metadata such as commit SHA, image tag,
+      or environment.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Post to Slack
+      uses: slackapi/slack-github-action@v3
+      with:
+        webhook: ${{ inputs.webhook }}
+        webhook-type: incoming-webhook
+        payload: |
+          {
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "${{ inputs.headline }}"
+                }
+              },
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run> · ${{ inputs.context }}"
+                  }
+                ]
+              }
+            ]
+          }
