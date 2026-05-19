@@ -28,7 +28,15 @@ Cloud Trace doesn't index by activity_id directly, but spans carry it as an attr
 
    Click any matching log entry; the entry has a `trace` field. Click the trace icon to jump to Cloud Trace.
 
-2. **Trace explorer with span filter** — use the attribute filter `+attribute:activity_id=12345678`. Slower but no log digging required.
+2. **Trace explorer with span filter** — use the attribute filter `+attribute:desirelines.activity_id=12345678`. Slower but no log digging required.
+
+   > Note: span attributes are `desirelines.*`-namespaced (e.g.
+   > `desirelines.activity_id`, `desirelines.aspect_type`,
+   > `desirelines.object_id`), but **log fields stay bare**
+   > (`jsonPayload.activity_id`) and **metric labels stay bare**
+   > (`metric.labels.aspect_type`). Same value, different name per
+   > plane — use the namespaced form only for Trace-explorer attribute
+   > filters.
 
 ### From an alert
 
@@ -138,7 +146,7 @@ After pulling a trace, classify the finding:
 
 - **Don't trust Cloud Trace's compact timeline view alone.** The compact view sorts by duration and can hide structure. Switch to the tree view to see span parentage.
 - **Cold-start traces overrepresent latency.** A trace from the first request after idle scales is not representative — pull a few warm traces before drawing conclusions.
-- **Span attribute search is fuzzy.** `attribute:activity_id=12345` works, but Trace explorer sometimes needs the leading `+` and the exact attribute name. If a search returns nothing, fall back to logs.
+- **Span attribute search is fuzzy.** `attribute:desirelines.activity_id=12345` works, but Trace explorer sometimes needs the leading `+` and the exact attribute name. If a search returns nothing, fall back to logs (where the field is the bare `jsonPayload.activity_id`).
 
 ## See also
 

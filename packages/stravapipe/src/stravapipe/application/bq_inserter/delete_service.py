@@ -95,7 +95,7 @@ class DeleteActivityService:
         with record_span(
             self._tracer,
             "bigquery.archive_insert",
-            {"activity_id": activity_id},
+            {"desirelines.activity_id": activity_id},
         ):
             rows_archived = self._client.execute_dml_query(
                 insert_query,
@@ -127,7 +127,7 @@ class DeleteActivityService:
         with record_span(
             self._tracer,
             "bigquery.activity_delete",
-            {"activity_id": activity_id},
+            {"desirelines.activity_id": activity_id},
         ):
             rows_deleted = self._client.execute_dml_query(
                 delete_query,

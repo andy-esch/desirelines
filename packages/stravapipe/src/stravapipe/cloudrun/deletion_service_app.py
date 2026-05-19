@@ -103,7 +103,11 @@ def _try_delete_step(
     """
     try:
         with (
-            record_span(tracer, f"deletion.{store_name}", {"user_id": result.user_id}),
+            record_span(
+                tracer,
+                f"deletion.{store_name}",
+                {"desirelines.user_id": result.user_id},
+            ),
             record_duration(deletion_hist, {"store": store_name}),
         ):
             work()
@@ -385,7 +389,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
             result = DeletionResult(user_id=user_id)
 
             # Set user_id on span now that we know it.
-            get_current_span().set_attribute("user_id", user_id)
+            get_current_span().set_attribute("desirelines.user_id", user_id)
 
             deps = _DeletionDeps(
                 session_factory=request.app.state.session_factory,

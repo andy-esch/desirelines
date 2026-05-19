@@ -193,7 +193,9 @@ async def _handle_create(
     )
 
     with (
-        record_span(tracer, "bigquery.insert_rows", {"activity_id": event.object_id}),
+        record_span(
+            tracer, "bigquery.insert_rows", {"desirelines.activity_id": event.object_id}
+        ),
         record_duration(bq_histogram, {"operation": "insert_rows"}),
     ):
         stats = writer.write_activity(activity)
@@ -223,7 +225,9 @@ async def _handle_delete(
 ) -> WebhookResponse:
     """Handle DELETE events - archive and remove from BigQuery."""
     with (
-        record_span(tracer, "bigquery.dml", {"activity_id": event.object_id}),
+        record_span(
+            tracer, "bigquery.dml", {"desirelines.activity_id": event.object_id}
+        ),
         record_duration(bq_histogram, {"operation": "dml"}),
     ):
         result = service.run(

@@ -173,7 +173,7 @@ class ActivitiesWriter(WriteActivities):
             record_span(
                 self._tracer,
                 "bigquery.write_to_staging",
-                {"activity_id": activity.id},
+                {"desirelines.activity_id": activity.id},
             ),
             record_duration(self._histogram, {"operation": "write_to_staging"}),
         ):
@@ -211,7 +211,7 @@ class ActivitiesWriter(WriteActivities):
             record_span(
                 self._tracer,
                 "bigquery.merge_from_staging",
-                {"activity_id": activity_id},
+                {"desirelines.activity_id": activity_id},
             ),
             record_duration(self._histogram, {"operation": "merge_from_staging"}),
         ):
