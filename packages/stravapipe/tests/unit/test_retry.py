@@ -321,6 +321,13 @@ class TestRetryOnFailure:
         assert "extra" in kwargs
 
 
+def _attrs(span_or_event):
+    """Return .attributes, narrowed from OTel's ``Attributes | None``."""
+    attributes = span_or_event.attributes
+    assert attributes is not None
+    return attributes
+
+
 class TestRetrySpanEvents:
     """strava.retry events + exhaustion attributes (parity with the Go side)."""
 
@@ -351,12 +358,12 @@ class TestRetrySpanEvents:
         events = [e for e in span.events if e.name == "strava.retry"]
         assert len(events) == 2  # max_attempts - 1
         for i, e in enumerate(events, start=1):
-            assert e.attributes["attempt"] == i
-            assert e.attributes["error"] == "ConnectionError"
+            assert _attrs(e)["attempt"] == i
+            assert _attrs(e)["error"] == "ConnectionError"
             # Network errors have no HTTP status and never a response body.
-            assert "status_code" not in e.attributes
-        assert span.attributes["strava.attempts"] == 3
-        assert span.attributes["strava.exhausted"] is True
+            assert "status_code" not in _attrs(e)
+        assert _attrs(span)["strava.attempts"] == 3
+        assert _attrs(span)["strava.exhausted"] is True
 
     def test_server_error_event_carries_status_code(self):
         """5xx: bounded status_code on the event, never a free-form error."""
@@ -382,6 +389,6 @@ class TestRetrySpanEvents:
         span = exporter.get_finished_spans()[0]
         events = [e for e in span.events if e.name == "strava.retry"]
         assert len(events) == 1  # max_attempts - 1
-        assert events[0].attributes["status_code"] == 500
-        assert "error" not in events[0].attributes
-        assert span.attributes["strava.exhausted"] is True
+        assert _attrs(events[0])["status_code"] == 500
+        assert "error" not in _attrs(events[0])
+        assert _attrs(span)["strava.exhausted"] is True
