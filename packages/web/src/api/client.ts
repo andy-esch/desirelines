@@ -2,6 +2,7 @@ import axios, { type AxiosError } from "axios";
 import { getConfig } from "../lib/config";
 import { logger } from "../lib/logger";
 import type { AuthService } from "../services/auth/AuthService";
+import { buildTraceparent } from "./trace";
 import { isInternalRequest } from "./url";
 
 /**
@@ -85,6 +86,18 @@ export function configureClientAuth(authService: AuthService): void {
   let authInitPromise: Promise<boolean> | null = null;
 
   instance.interceptors.request.use(async (config) => {
+    // Only our own API gateway gets auth tokens and trace propagation;
+    // absolute URLs to other domains must receive neither.
+    const isInternal = isInternalRequest(config.url, config.baseURL);
+
+    // Inject W3C traceparent before the auth wait so correlation survives
+    // even an auth-init timeout (which early-returns below). The apigateway
+    // is public-endpoint-mode — it links, never parents — so this is a
+    // correlation hint, not a trusted parent. See ./trace.ts.
+    if (isInternal) {
+      config.headers.traceparent = buildTraceparent();
+    }
+
     // Wait for initial auth state with timeout (only on first request).
     // Uses a shared promise so concurrent requests coalesce into one wait.
     if (!authInitPromise) {
@@ -115,10 +128,6 @@ export function configureClientAuth(authService: AuthService): void {
     }
 
     const user = authService.getCurrentUser();
-    // Only attach token for requests to our own API gateway.
-    // Absolute URLs to other domains must not receive the auth token.
-    const isInternal = isInternalRequest(config.url, config.baseURL);
-
     if (user && isInternal) {
       try {
         // getIdToken() auto-refreshes if expired or close to expiry (5 min buffer).

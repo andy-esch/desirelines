@@ -70,7 +70,13 @@ func (h *Handler) HandlePreflight(w http.ResponseWriter, r *http.Request) {
 	// Only set preflight headers if origin is allowed
 	if h.SetHeaders(w, r) {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		// traceparent/tracestate/baggage allow the browser to propagate W3C
+		// trace context for browser→apigateway correlation. apigateway is
+		// public-endpoint-mode (main.go) so it *links*, never parents, on
+		// these — they are correlation hints, not trusted parents. tracestate
+		// and baggage are unused today but included to keep this a one-time
+		// CORS change.
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, traceparent, tracestate, baggage")
 		w.Header().Set("Access-Control-Max-Age", "3600")
 	}
 	w.WriteHeader(http.StatusNoContent)

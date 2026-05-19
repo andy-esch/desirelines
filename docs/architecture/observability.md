@@ -105,6 +105,15 @@ The apigateway's setting is in [`packages/apigateway/cmd/apigateway/main.go`](..
 
 The `Link` keeps caller correlation available when it's a legitimate client (e.g. the React frontend), without trusting their ID for our trace tree.
 
+### Browser → apigateway propagation
+
+The React frontend propagates W3C trace context so a UI action can be tied to the backend traces it triggers ("this click → these backend spans → this SQL"). This is **propagation only** — there is no browser OTel SDK and no collector:
+
+- `packages/web/src/api/trace.ts` mints one trace-id per user navigation, wired to TanStack Router's `onBeforeNavigate` in `packages/web/src/router.tsx`, so every request a single navigation fires shares it.
+- The centralized axios interceptor (`packages/web/src/api/client.ts`) injects a `00-<trace-id>-<span-id>-01` `traceparent` header, gated on `isInternalRequest()` — the same gate that guards auth-token attachment, so the header never leaks to third-party hosts. CORS allows it via `packages/apigateway/pkg/cors/cors.go` (`traceparent`, `tracestate`, `baggage`).
+
+Because the apigateway is public-endpoint-mode (the row above), it **links, never parents** on this header: the browser trace-id is a correlation *hint*, not a trusted parent, and a fresh per-request span-id is just a correlation handle. In Cloud Trace this appears as the apigateway's fresh root span carrying the browser navigation's span context as a `Link` — not as a browser-rooted trace tree. For finding and reading these (including the per-plane attribute/log/metric naming that differs by signal), see [docs/runbooks/reading-traces.md](../runbooks/reading-traces.md).
+
 ## Trace IDs in error responses
 
 API error responses include the active span's `trace_id` so support can jump straight to Cloud Trace from a bug report:

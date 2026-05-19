@@ -124,6 +124,55 @@ describe("401 response interceptor", () => {
   });
 });
 
+describe("traceparent request interceptor", () => {
+  const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/;
+
+  beforeEach(() => {
+    resetClient();
+    client = getClient();
+    configureClientAuth(mockAuthService);
+  });
+
+  /** Capture the outgoing request config; resolve 200 so the call settles. */
+  function captureAdapter() {
+    const seen: InternalAxiosRequestConfig[] = [];
+    const adapter = vi.fn().mockImplementation((config: InternalAxiosRequestConfig) => {
+      seen.push(config);
+      return Promise.resolve({ status: 200, statusText: "OK", headers: {}, config, data: {} });
+    });
+    client.defaults.adapter = adapter;
+    return seen;
+  }
+
+  const traceparentOf = (config: InternalAxiosRequestConfig | undefined) =>
+    (config?.headers as unknown as Record<string, unknown> | undefined)?.traceparent as
+      | string
+      | undefined;
+
+  it("attaches a well-formed traceparent to internal requests", async () => {
+    const seen = captureAdapter();
+    await client.get("activities");
+    expect(traceparentOf(seen[0])).toMatch(TRACEPARENT);
+  });
+
+  it("does not attach traceparent to external (cross-origin) requests", async () => {
+    const seen = captureAdapter();
+    await client.get("https://evil.example.org/steal");
+    expect(traceparentOf(seen[0])).toBeUndefined();
+  });
+
+  it("shares one trace-id across requests but uses a fresh span-id each", async () => {
+    const seen = captureAdapter();
+    await client.get("activities");
+    await client.get("activities/1");
+
+    const a = traceparentOf(seen[0])?.split("-");
+    const b = traceparentOf(seen[1])?.split("-");
+    expect(a?.[1]).toBe(b?.[1]); // same trace-id (no navigation between)
+    expect(a?.[2]).not.toBe(b?.[2]); // distinct span-id per request
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

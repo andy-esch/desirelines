@@ -206,7 +206,7 @@ func TestHandler_HandlePreflight(t *testing.T) {
 		checks := map[string]string{
 			"Access-Control-Allow-Origin":  "https://example.com",
 			"Access-Control-Allow-Methods": "GET, OPTIONS",
-			"Access-Control-Allow-Headers": "Content-Type, Authorization",
+			"Access-Control-Allow-Headers": "Content-Type, Authorization, traceparent, tracestate, baggage",
 			"Access-Control-Max-Age":       "3600",
 		}
 
