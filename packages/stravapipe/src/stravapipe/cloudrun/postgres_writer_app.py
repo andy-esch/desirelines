@@ -233,7 +233,9 @@ async def _handle_create(
     # long routes, which is why it gets its own span.
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
-        record_span(tracer, "postgres.insert", {"activity_id": activity_id}),
+        record_span(
+            tracer, "postgres.insert", {"desirelines.activity_id": activity_id}
+        ),
         record_duration(pg_histogram, {"operation": "insert"}),
         uow,
     ):
@@ -246,7 +248,7 @@ async def _handle_create(
             record_span(
                 tracer,
                 "postgres.activities.insert",
-                {"activity_id": activity_id},
+                {"desirelines.activity_id": activity_id},
             ),
             record_duration(pg_histogram, {"operation": "activities_insert"}),
         ):
@@ -256,14 +258,14 @@ async def _handle_create(
             with record_span(
                 tracer,
                 "postgres.polyline.decode",
-                {"activity_id": activity_id},
+                {"desirelines.activity_id": activity_id},
             ):
                 geojson = decode_polyline_to_geojson(activity.map.polyline)
             if geojson:
                 with record_span(
                     tracer,
                     "postgres.activities.insert_route",
-                    {"activity_id": activity_id},
+                    {"desirelines.activity_id": activity_id},
                 ):
                     uow.activities.insert_route(activity.id, geojson)
 
@@ -328,7 +330,9 @@ async def _handle_update(
 
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
-        record_span(tracer, "postgres.update_metadata", {"activity_id": activity_id}),
+        record_span(
+            tracer, "postgres.update_metadata", {"desirelines.activity_id": activity_id}
+        ),
         record_duration(pg_histogram, {"operation": "update_metadata"}),
         uow,
     ):
@@ -387,7 +391,9 @@ async def _handle_delete(
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
 
     with (
-        record_span(tracer, "postgres.delete", {"activity_id": activity_id}),
+        record_span(
+            tracer, "postgres.delete", {"desirelines.activity_id": activity_id}
+        ),
         record_duration(pg_histogram, {"operation": "delete"}),
         uow,
     ):

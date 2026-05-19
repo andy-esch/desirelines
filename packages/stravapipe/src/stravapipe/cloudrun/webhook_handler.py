@@ -164,8 +164,8 @@ async def handle_webhook_cloudevent(
 
             # Set span attributes now that we know the event details.
             span = get_current_span()
-            span.set_attribute("aspect_type", aspect_name)
-            span.set_attribute("object_id", event.object_id)
+            span.set_attribute("desirelines.aspect_type", aspect_name)
+            span.set_attribute("desirelines.object_id", event.object_id)
 
             # Record webhook event metric
             if webhook_counter is not None:
