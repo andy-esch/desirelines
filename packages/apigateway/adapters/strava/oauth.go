@@ -49,9 +49,28 @@ func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger, httpClie
 		// automatic HTTP client span and injects W3C traceparent so the
 		// exchange continues the caller's trace. Only the default client
 		// is wrapped; test-injected clients are left as-is.
+		//
+		// Clone() rather than wrapping http.DefaultTransport directly:
+		// DefaultTransport is a process-global whose connection pool /
+		// timeouts are shared by anything else that uses it; a clone
+		// isolates this client's pool. The stdlib DefaultTransport is
+		// always *http.Transport; the !ok branch is unreachable in
+		// practice and exists only to stay panic-free / lint-clean.
+		base, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			base = &http.Transport{}
+		}
 		httpClient = &http.Client{
-			Timeout:   httpClientTimeout,
-			Transport: otelhttp.NewTransport(http.DefaultTransport),
+			Timeout: httpClientTimeout,
+			Transport: otelhttp.NewTransport(
+				base.Clone(),
+				otelhttp.WithSpanNameFormatter(func(_ string, _ *http.Request) string {
+					// Single-purpose client (token exchange / refresh);
+					// a static descriptive name beats the generic
+					// "HTTP POST" otelhttp default.
+					return "apigateway.strava.oauth_exchange"
+				}),
+			),
 		}
 	}
 	return &OAuthClient{
