@@ -14,6 +14,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -44,7 +45,14 @@ var _ auth.StravaOAuthClient = (*OAuthClient)(nil)
 // with a 10-second timeout is used.
 func NewOAuthClient(clientID, clientSecret string, logger *slog.Logger, httpClient *http.Client, histogram metric.Float64Histogram) *OAuthClient {
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: httpClientTimeout}
+		// otelhttp transport gives the outbound Strava token call an
+		// automatic HTTP client span and injects W3C traceparent so the
+		// exchange continues the caller's trace. Only the default client
+		// is wrapped; test-injected clients are left as-is.
+		httpClient = &http.Client{
+			Timeout:   httpClientTimeout,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		}
 	}
 	return &OAuthClient{
 		httpClient:   httpClient,
