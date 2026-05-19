@@ -2,6 +2,11 @@
 
 from unittest.mock import Mock, patch
 
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 import pytest
 import requests
 
@@ -314,3 +319,76 @@ class TestRetryOnFailure:
         args, kwargs = mock_logger.error.call_args
         assert args == ("All %d retry attempts failed", 2)
         assert "extra" in kwargs
+
+
+def _attrs(span_or_event):
+    """Return .attributes, narrowed from OTel's ``Attributes | None``."""
+    attributes = span_or_event.attributes
+    assert attributes is not None
+    return attributes
+
+
+class TestRetrySpanEvents:
+    """strava.retry events + exhaustion attributes (parity with the Go side)."""
+
+    @staticmethod
+    def _exporter() -> tuple[TracerProvider, InMemorySpanExporter]:
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        return provider, exporter
+
+    def test_network_error_emits_retry_events_and_exhausted(self):
+        """Network failures: strava.retry events + exhaustion attrs, no body."""
+        provider, exporter = self._exporter()
+        tracer = provider.get_tracer("test")
+
+        @retry_on_failure(max_attempts=3, backoff_seconds=0.01)
+        def always_fails():
+            raise requests.exceptions.ConnectionError("boom")
+
+        with (
+            patch("time.sleep"),
+            tracer.start_as_current_span("parent"),
+            pytest.raises(requests.exceptions.ConnectionError),
+        ):
+            always_fails()
+
+        span = exporter.get_finished_spans()[0]
+        events = [e for e in span.events if e.name == "strava.retry"]
+        assert len(events) == 2  # max_attempts - 1
+        for i, e in enumerate(events, start=1):
+            assert _attrs(e)["attempt"] == i
+            assert _attrs(e)["error"] == "ConnectionError"
+            # Network errors have no HTTP status and never a response body.
+            assert "status_code" not in _attrs(e)
+        assert _attrs(span)["strava.attempts"] == 3
+        assert _attrs(span)["strava.exhausted"] is True
+
+    def test_server_error_event_carries_status_code(self):
+        """5xx: bounded status_code on the event, never a free-form error."""
+        provider, exporter = self._exporter()
+        tracer = provider.get_tracer("test")
+
+        resp = Mock()
+        resp.status_code = 500
+        http_err = requests.exceptions.HTTPError("500")
+        http_err.response = resp
+
+        @retry_on_failure(max_attempts=2, backoff_seconds=0.01)
+        def always_500():
+            raise http_err
+
+        with (
+            patch("time.sleep"),
+            tracer.start_as_current_span("parent"),
+            pytest.raises(requests.exceptions.HTTPError),
+        ):
+            always_500()
+
+        span = exporter.get_finished_spans()[0]
+        events = [e for e in span.events if e.name == "strava.retry"]
+        assert len(events) == 1  # max_attempts - 1
+        assert _attrs(events[0])["status_code"] == 500
+        assert "error" not in _attrs(events[0])
+        assert _attrs(span)["strava.exhausted"] is True
