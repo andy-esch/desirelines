@@ -44,6 +44,35 @@ class TestExtractContextFromAttributes:
         ctx = extract_context_from_attributes(attrs)
         assert ctx is not None
 
+    def test_extracted_context_carries_injected_trace_id(self):
+        """Round-trip contract: trace-id in the inbound `traceparent` attr
+        must surface as the active span context's trace-id in the extracted
+        Context.
+
+        Cross-service propagation contract test — pairs with the Go
+        publisher's `TestPublish_InjectsTraceparentMatchingActiveSpan`.
+        Catches the regression class "someone refactored
+        `extract_context_from_attributes` to swallow the traceparent and
+        return a fresh/empty context" — which the existing
+        `is not None` assertion would not catch.
+        """
+        from opentelemetry.trace import get_current_span
+
+        # Distinctive ids we can recognize on the other side.
+        trace_id_hex = "0af7651916cd43dd8448eb211c80319c"
+        span_id_hex = "b7ad6b7169203331"
+        attrs = {"traceparent": f"00-{trace_id_hex}-{span_id_hex}-01"}
+
+        ctx = extract_context_from_attributes(attrs)
+        assert ctx is not None
+
+        span = get_current_span(ctx)
+        sc = span.get_span_context()
+        # OTel API returns ints; format back to 32/16-char zero-padded hex
+        # so the round-trip is unambiguous regardless of value width.
+        assert f"{sc.trace_id:032x}" == trace_id_hex
+        assert f"{sc.span_id:016x}" == span_id_hex
+
     def test_returns_context_with_invalid_traceparent(self):
         """Invalid traceparent still returns a context (OTel handles gracefully)."""
         attrs = {"traceparent": "invalid"}
