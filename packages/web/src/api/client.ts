@@ -18,6 +18,18 @@ import { isInternalRequest } from "./url";
 let client: ReturnType<typeof axios.create> | null = null;
 let configured = false;
 
+/**
+ * Case-insensitive read from either a plain header object (axios's default
+ * normalized-lowercase form) or an `AxiosHeaders` instance (which exposes
+ * `.get()`). Returns `undefined` for missing / non-string values.
+ */
+function headerValue(headers: unknown, name: string): string | undefined {
+  if (!headers || typeof headers !== "object") return undefined;
+  const h = headers as Record<string, unknown> & { get?: (n: string) => unknown };
+  const raw = typeof h.get === "function" ? h.get(name) : (h[name.toLowerCase()] ?? h[name]);
+  return typeof raw === "string" ? raw : undefined;
+}
+
 function getClient() {
   if (!client) {
     const config = getConfig();
@@ -48,6 +60,33 @@ function getClient() {
         }
         return reqConfig;
       });
+    }
+
+    // Surface the backend trace id stamped by otel.TraceIDResponseHeader on
+    // every internal API response. Apigateway exposes the header cross-origin
+    // via CORS `Access-Control-Expose-Headers`. apierrors already inlines the
+    // same value in error response bodies, so this is the success-path / opaque-
+    // failure (non-apierrors) backstop. Dev-only logging keeps prod console
+    // quiet; the header is still attached and readable by error-reporting code.
+    if (!config.isProduction) {
+      client.interceptors.response.use(
+        (response) => {
+          const traceId = headerValue(response.headers, "x-trace-id");
+          if (traceId) {
+            const method = response.config.method?.toUpperCase() ?? "GET";
+            logger.debug(`[API] ${method} ${response.config.url} → trace_id=${traceId}`);
+          }
+          return response;
+        },
+        (error: AxiosError) => {
+          const traceId = headerValue(error.response?.headers, "x-trace-id");
+          if (traceId) {
+            const method = error.config?.method?.toUpperCase() ?? "GET";
+            logger.debug(`[API error] ${method} ${error.config?.url} → trace_id=${traceId}`);
+          }
+          return Promise.reject(error);
+        }
+      );
     }
   }
   return client;

@@ -336,3 +336,78 @@ func TestAddChiURLParamsAs_NoActiveSpanIsNoOp(t *testing.T) {
 		t.Errorf("status = %d, want 200", w.Code)
 	}
 }
+
+func TestTraceIDResponseHeader_SetsHeaderFromActiveSpan(t *testing.T) {
+	tp := sdktrace.NewTracerProvider()
+	tr := tp.Tracer("test")
+
+	r := chi.NewRouter()
+	r.Use(TraceIDResponseHeader)
+	r.Get("/x", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	ctx, span := tr.Start(req.Context(), "server")
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	span.End()
+
+	want := span.SpanContext().TraceID().String()
+	if got := w.Header().Get("X-Trace-Id"); got != want {
+		t.Errorf("X-Trace-Id = %q, want %q", got, want)
+	}
+}
+
+func TestTraceIDResponseHeader_NoActiveSpanIsNoOp(t *testing.T) {
+	// No tracer / no span in context — middleware must not panic and must
+	// not set a placeholder/empty header value.
+	r := chi.NewRouter()
+	r.Use(TraceIDResponseHeader)
+	r.Get("/x", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	if got := w.Header().Get("X-Trace-Id"); got != "" {
+		t.Errorf("X-Trace-Id should be unset when no active span, got %q", got)
+	}
+}
+
+func TestTraceIDResponseHeader_HeaderPresentEvenOnHandlerError(t *testing.T) {
+	// The header is stamped before the handler runs, so an error response
+	// (4xx/5xx) still carries it. This is the whole point: reverse
+	// correlation works on failures too, not just success.
+	tp := sdktrace.NewTracerProvider()
+	tr := tp.Tracer("test")
+
+	r := chi.NewRouter()
+	r.Use(TraceIDResponseHeader)
+	r.Get("/x", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	ctx, span := tr.Start(req.Context(), "server")
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	span.End()
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+	want := span.SpanContext().TraceID().String()
+	if got := w.Header().Get("X-Trace-Id"); got != want {
+		t.Errorf("X-Trace-Id on 500 = %q, want %q", got, want)
+	}
+}

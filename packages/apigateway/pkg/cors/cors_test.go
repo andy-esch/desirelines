@@ -177,6 +177,12 @@ func TestHandler_SetHeaders(t *testing.T) {
 				if credHeader != "true" {
 					t.Errorf("Access-Control-Allow-Credentials = %q, want 'true'", credHeader)
 				}
+				// X-Trace-Id must be exposed so cross-origin JS can read the
+				// backend trace handle stamped by otel.TraceIDResponseHeader.
+				exposeHeader := w.Header().Get("Access-Control-Expose-Headers")
+				if !strings.Contains(exposeHeader, "X-Trace-Id") {
+					t.Errorf("Access-Control-Expose-Headers = %q, want it to contain 'X-Trace-Id'", exposeHeader)
+				}
 			}
 		})
 	}

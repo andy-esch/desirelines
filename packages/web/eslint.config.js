@@ -101,8 +101,7 @@ export default tseslint.config(
   //   - `unbound-method`: vitest/jest `expect(mock.method).toHaveBeen...` is safe
   //   - `require-await`: RTL `act(async () => { ... })` without explicit await is idiomatic
   // Real-bug rules (no-floating-promises, no-misused-promises, etc.) remain enforced.
-  // Tracked for future full-fix: see
-  // desirelines-planning/tasks/ready-to-start/extend-type-aware-lint-strictness-to-tests.md
+  // Tracked for future full-fix in the project backlog.
   {
     files: [
       "**/*.test.ts",
