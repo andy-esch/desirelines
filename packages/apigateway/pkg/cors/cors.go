@@ -55,6 +55,10 @@ func (h *Handler) SetHeaders(w http.ResponseWriter, r *http.Request) bool {
 	if h.allowedOrigins[origin] {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		// Expose backend trace id (set by otel.TraceIDResponseHeader) so the
+		// browser can read it cross-origin via response.headers.get(). Without
+		// this, the header reaches the browser but is hidden from JS.
+		w.Header().Set("Access-Control-Expose-Headers", "X-Trace-Id")
 		w.Header().Add("Vary", "Origin")
 		return true
 	}

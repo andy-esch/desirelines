@@ -14,6 +14,18 @@ If the user has an error response, it includes `trace_id` (raw 32-char hex):
 
 GCP Console → **Trace explorer** → paste the ID into the search bar. Done.
 
+### From the browser console (any internal API request, dev mode)
+
+Apigateway stamps `X-Trace-Id` on every response (set by `TraceIDResponseHeader` middleware, exposed cross-origin via CORS). In a dev build the axios client logs it on success and error:
+
+```
+[API] GET activities/2026/metadata → trace_id=32beef1f57fe81b77a21a940a9e90080
+```
+
+Copy the hex into Trace explorer's search bar — same path as the user-reported-error flow. This works for the success path too (apierrors only inlines `trace_id` in error response bodies), and survives cases where the response isn't apierrors-shaped (network glitches, opaque 5xxs from an intermediary, etc.).
+
+If you only have the response in DevTools' Network tab and not the console line, the value is on the response headers as `x-trace-id` — same trace_id, paste-friendly.
+
 ### From a known activity ID
 
 Cloud Trace doesn't index by activity_id directly, but spans carry it as an attribute. Two ways to find the trace:

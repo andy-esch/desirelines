@@ -7,6 +7,18 @@ vi.mock("../lib/config", () => ({
   getConfig: () => ({ apiGatewayUrl: "https://api.example.com" }),
 }));
 
+// Spy on logger so the X-Trace-Id interceptor tests can assert debug output.
+// Other test blocks ignore it; the mocked logger silently absorbs unrelated
+// calls instead of writing to the real console during tests.
+vi.mock("../lib/logger", () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 // Shared mock auth service — configureClientAuth only registers interceptors
 // once (singleton guard), so the same mock instance is captured in the closure
 // for the entire test suite.
@@ -27,6 +39,9 @@ const mockAuthService: AuthService = {
 
 // Import after mocks are set up
 import getClient, { configureClientAuth, resetClient } from "./client";
+import { logger } from "../lib/logger";
+
+const mockLogger = vi.mocked(logger);
 
 let client: ReturnType<typeof getClient>;
 
@@ -170,6 +185,67 @@ describe("traceparent request interceptor", () => {
     const b = traceparentOf(seen[1])?.split("-");
     expect(a?.[1]).toBe(b?.[1]); // same trace-id (no navigation between)
     expect(a?.[2]).not.toBe(b?.[2]); // distinct span-id per request
+  });
+});
+
+describe("X-Trace-Id response logging (dev-only)", () => {
+  beforeEach(() => {
+    resetClient();
+    client = getClient();
+    configureClientAuth(mockAuthService);
+    mockLogger.debug.mockClear();
+  });
+
+  const TRACE_ID = "1234abcd5678ef901234abcd5678ef90";
+
+  it("logs the backend trace_id from X-Trace-Id on success responses", async () => {
+    client.defaults.adapter = vi.fn().mockImplementation((config: InternalAxiosRequestConfig) =>
+      Promise.resolve({
+        status: 200,
+        statusText: "OK",
+        headers: { "x-trace-id": TRACE_ID },
+        config,
+        data: { ok: true },
+      })
+    );
+
+    await client.get("activities");
+
+    const matched = mockLogger.debug.mock.calls.some(
+      ([msg]) => typeof msg === "string" && msg.includes(`trace_id=${TRACE_ID}`)
+    );
+    expect(matched).toBe(true);
+  });
+
+  it("logs the backend trace_id from X-Trace-Id on error responses", async () => {
+    client.defaults.adapter = vi.fn().mockImplementation((config: InternalAxiosRequestConfig) => {
+      const err = createAxiosError(500, config);
+      // createAxiosError defaults to empty headers; attach our trace id.
+      if (err.response) err.response.headers = { "x-trace-id": TRACE_ID };
+      return Promise.reject(err);
+    });
+
+    await expect(client.get("activities")).rejects.toThrow();
+
+    const matched = mockLogger.debug.mock.calls.some(
+      ([msg]) => typeof msg === "string" && msg.includes(`trace_id=${TRACE_ID}`)
+    );
+    expect(matched).toBe(true);
+  });
+
+  it("does not log when the header is absent", async () => {
+    client.defaults.adapter = vi
+      .fn()
+      .mockImplementation((config: InternalAxiosRequestConfig) =>
+        Promise.resolve({ status: 200, statusText: "OK", headers: {}, config, data: {} })
+      );
+
+    await client.get("activities");
+
+    const matched = mockLogger.debug.mock.calls.some(
+      ([msg]) => typeof msg === "string" && msg.includes("trace_id=")
+    );
+    expect(matched).toBe(false);
   });
 });
 

@@ -114,6 +114,8 @@ The React frontend propagates W3C trace context so a UI action can be tied to th
 
 Because the apigateway is public-endpoint-mode (the row above), it **links, never parents** on this header: the browser trace-id is a correlation *hint*, not a trusted parent, and a fresh per-request span-id is just a correlation handle. In Cloud Trace this appears as the apigateway's fresh root span carrying the browser navigation's span context as a `Link` — not as a browser-rooted trace tree. For finding and reading these (including the per-plane attribute/log/metric naming that differs by signal), see [docs/runbooks/reading-traces.md](../runbooks/reading-traces.md).
 
+**Current state (2026-05-19):** the apigateway-side mechanism above is verified working — a direct `curl` to the Cloud Run origin with `traceparent: 00-aaaa…-bbbb…-01` produces a fresh-root trace whose root-span `Link == aaaa…/bbbb…`. **However, in the deployed browser path the `Link` target is the Google-edge `X-Cloud-Trace-Context` (a GFE-owned trace with a missing parent), not the browser's `traceparent`.** An intermediate hop between the browser and Cloud Run drops or replaces the W3C `traceparent` header before it reaches Go, so the end-to-end "click → backend traces" correlation through this mechanism is **not** currently achieved. Reverse-correlation via the `trace_id` field on error responses (apierrors) still works. Locating the hop and choosing a remediation (proxy/ingress config fix vs. browser OTel SDK vs. extending reverse-correlation to success responses) is queued as follow-up work.
+
 ## Trace IDs in error responses
 
 API error responses include the active span's `trace_id` so support can jump straight to Cloud Trace from a bug report:
@@ -128,6 +130,8 @@ API error responses include the active span's `trace_id` so support can jump str
 ```
 
 The field is the **raw 32-char hex** (no `projects/<p>/traces/` prefix) — paste-friendly for users. Implemented in [`packages/shared/apierrors/response.go`](../../packages/shared/apierrors/response.go); both the dispatcher and apigateway pick it up automatically because they share the apierrors package. The field is `omitempty`, so requests without an active span don't emit a misleading empty value.
+
+Apigateway also stamps the same value on **every response** (success and error) as the `X-Trace-Id` header via [`TraceIDResponseHeader`](../../packages/shared/otel/chi.go) middleware, and exposes it cross-origin via CORS `Access-Control-Expose-Headers`. The browser axios client ([`packages/web/src/api/client.ts`](../../packages/web/src/api/client.ts)) reads it and logs to console in dev. This is the success-path / opaque-failure backstop for the apierrors body field, which only covers apierrors-shaped errors — network failures, gateway 5xxs, and other non-apierrors paths still get a trace handle via the header.
 
 ## Sampling
 
@@ -253,7 +257,7 @@ resolution for custom metrics).
 ### Span ↔ metric alignment
 
 For most histograms, the `operation` label value matches the span name
-1:1 (after the [alignment cleanup](../../../desirelines-planning/tasks/completed/align-apigateway-histogram-labels-and-cleanup-not-found-paths.md)).
+1:1 (convention adopted after a histogram-label alignment cleanup).
 That makes "find the metric for span X" mechanical:
 
 - Span `repository.activities.list_routes` → histogram `postgres/query.duration{operation="list_routes"}`
@@ -293,7 +297,7 @@ Useful context for reading the OTel code:
 - **Trace context propagation across Pub/Sub** was added once and has stayed stable. The Go side injects via `propagation.MapCarrier(attrs)` on the message attributes; the Python side extracts via `opentelemetry.propagate.extract()`. If a future change rebuilds the publish path or a new subscriber gets added, that propagation chain is the easy thing to forget.
 - **`PubSubMessage.attributes`** was originally dropped silently on the Python side. It's now a `dict[str, str]` field on the model and the `correlation_id` from the dispatcher flows through. Test fixtures that build PubSub bodies must include attributes.
 
-For the regression-test angle (a synthetic webhook driven through all 5 hops asserting a single trace_id), see the planning task [`tasks/next-up/e2e-trace-propagation-test.md`](../../../desirelines-planning/tasks/next-up/e2e-trace-propagation-test.md) — not yet implemented.
+For the regression-test angle (a synthetic webhook driven through all 5 hops asserting a single `trace_id` end-to-end), an end-to-end propagation test is on the backlog but not yet implemented.
 
 ## See also
 

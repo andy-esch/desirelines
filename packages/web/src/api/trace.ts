@@ -9,8 +9,15 @@
  * a trusted parent — which is exactly what makes injecting it safe.
  *
  * One trace-id is minted per user navigation (wired to TanStack Router in
- * router.tsx) so every request a single navigation fires shares it. In
- * Cloud Trace that surfaces as "this click → these backend traces".
+ * router.tsx) so every request a single navigation fires shares it. The
+ * intent is that Cloud Trace renders the apigateway's fresh-root span with
+ * a `Link` back to this trace-id, surfacing as "this click → these backend
+ * traces". See `docs/architecture/observability.md` ("Browser → apigateway
+ * propagation") for the current end-to-end state — at time of writing the
+ * deployed proxy hop in front of Cloud Run does not preserve the
+ * `traceparent` header, so the correlation is not yet end-to-end in prod;
+ * the per-request `X-Trace-Id` response header is the working backstop in
+ * the meantime.
  */
 
 /** Hex-encode `byteLength` cryptographically-random bytes. */

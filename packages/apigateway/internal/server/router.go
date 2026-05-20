@@ -91,6 +91,11 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	r.Use(gcplog.WithCloudTraceContext)
 	r.Use(otel.SpanNameFromChiRoute)
 	r.Use(otel.StampRequestID)
+	// Stamp X-Trace-Id on every response so the frontend can correlate a
+	// browser-side log/error to a Cloud Trace, even on the success path
+	// (apierrors only emits trace_id in error response bodies). Exposed
+	// cross-origin via CORS Access-Control-Expose-Headers in CORSMiddleware.
+	r.Use(otel.TraceIDResponseHeader)
 	r.Use(gcplog.HTTPRequestLoggerWithMetrics(logger, cfg.HTTPHistogram))
 	r.Use(chiMiddleware.Recoverer)
 

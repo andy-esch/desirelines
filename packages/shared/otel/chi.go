@@ -110,6 +110,27 @@ func AddChiURLParamsAs(r *http.Request, aliases map[string]string) {
 	}
 }
 
+// TraceIDResponseHeader is middleware that stamps `X-Trace-Id` on the response
+// from the active OpenTelemetry span's trace_id (raw 32-char hex), so success
+// and error responses both carry a backend trace handle the browser can
+// correlate from. Mirrors the `traceId` field surfaced in error response bodies
+// by apierrors.WriteError, but covers the success path too.
+//
+// Place inside the otelhttp wrapper so a server span exists, and run it before
+// any handler writes a response body — once headers are flushed they are
+// immutable. The header is read by cross-origin browsers only if it is also
+// listed in CORS `Access-Control-Expose-Headers` (configured at the apigateway
+// CORS handler). No-op if no valid span is active in the request context.
+func TraceIDResponseHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sc := trace.SpanContextFromContext(r.Context())
+		if sc.IsValid() {
+			w.Header().Set("X-Trace-Id", sc.TraceID().String())
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // StampRequestID is middleware that copies the chi-generated request ID (already
 // bridged into the request context by gcplog.BridgeRequestID) onto the active
 // OpenTelemetry server span as `request_id`.
