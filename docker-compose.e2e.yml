@@ -1,0 +1,80 @@
+# E2E test overlay for docker-compose.yml.
+#
+# Loaded alongside the root file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml \
+#     --profile backend up -d
+#
+# Adds one new service (`otel-collector`) and overrides env vars on the
+# four backend services so their traces flow to the collector instead
+# of Cloud Trace. Step 1's env-gated exporter (`provider.go` +
+# `tracing.py`) picks up `OTEL_EXPORTER_OTLP_ENDPOINT` and routes
+# accordingly — no per-service code change needed.
+#
+# Why an overlay rather than a separate top-to-bottom compose: the
+# root file is already large (~340 lines, 14 services). A parallel
+# fully-isolated file would duplicate a subset of those and create
+# drift risk. The overlay only ADDS, so its surface area is small
+# (this file) and the root remains untouched for local-dev use —
+# `docker compose up` (no overlay) behaves exactly as before.
+
+services:
+  # Captures OTLP/gRPC from the backend services and writes spans as
+  # newline-delimited JSON to ./test/e2e/spans/spans.jsonl on the host,
+  # where the e2e test driver reads them. Pinned to a specific contrib
+  # tag because the file exporter is contrib-only and the schema has
+  # shifted across versions; bump via renovate.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "4317:4317" # OTLP gRPC; bind for local debugging / direct curls
+    volumes:
+      - ./test/e2e/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+      - ./test/e2e/spans:/var/log/otel
+    # No healthcheck: the collector image is distroless-ish (no wget/
+    # curl/python). The test driver waits on span emission, not process
+    # health.
+
+  # --- env-var overrides on the four backend services ---
+  #
+  # Step 1's env-gated trace exporter checks OTEL_EXPORTER_OTLP_ENDPOINT
+  # at setup_tracing / Setup time; setting it here routes spans to the
+  # collector. Python services additionally need ENABLE_OTEL_TRACING=true
+  # because their `setup_tracing()` short-circuits to a no-op tracer
+  # when unset (Go services initialize OTel unconditionally).
+  #
+  # List-form `environment:` is additive across overlay files in
+  # Compose v2, so these append to the root file's env list and the
+  # OTLP endpoint wins on conflict. `depends_on:` is also additive.
+
+  dispatcher:
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  bq-inserter:
+    environment:
+      - ENABLE_OTEL_TRACING=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  postgres-writer:
+    environment:
+      - ENABLE_OTEL_TRACING=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  deletion-service:
+    environment:
+      - ENABLE_OTEL_TRACING=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      otel-collector:
+        condition: service_started

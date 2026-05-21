@@ -1,0 +1,3 @@
+# Span dumps written by the OTel Collector during e2e test runs.
+# Volume-mounted from docker-compose.e2e.yml; recreated each run.
+spans/
