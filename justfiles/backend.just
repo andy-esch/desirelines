@@ -78,10 +78,9 @@ go-lint +args='':
 # while iterating on a publish path. CI invokes this same binary via
 # `.github/workflows/ci.yml` (see go-quality job).
 #
-# G1 guard (e2e-trace-propagation-test.md §New scope): flags any
-# *pubsub.Publisher.Publish(...) call without a paired propagator.Inject
-# in the same function, so missing trace-context injection on a new
-# publish path is caught at PR time.
+# Flags any *pubsub.Publisher.Publish(...) call without a paired
+# propagator.Inject in the same function, so missing trace-context
+# injection on a new publish path is caught at PR time.
 go-lintpub:
     #!/usr/bin/env bash
     set -euo pipefail

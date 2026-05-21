@@ -6,11 +6,9 @@
 // message with no trace context to extract, and the cross-service
 // trace silently breaks.
 //
-// This is the "G1" guard from the trace-propagation regression task
-// (`desirelines-planning/tasks/in-progress/e2e-trace-propagation-test.md`).
 // It runs as a standalone `go vet`-style binary via the cmd/lintpub
-// singlechecker, plumbed into `just go-lint` and the `go-quality` CI
-// matrix.
+// singlechecker, plumbed into `just go-lint` (and standalone
+// `just go-lintpub`) and the `go-quality` CI matrix.
 //
 // What it flags:
 //

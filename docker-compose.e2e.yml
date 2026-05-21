@@ -7,8 +7,8 @@
 #
 # Adds one new service (`otel-collector`) and overrides env vars on the
 # four backend services so their traces flow to the collector instead
-# of Cloud Trace. Step 1's env-gated exporter (`provider.go` +
-# `tracing.py`) picks up `OTEL_EXPORTER_OTLP_ENDPOINT` and routes
+# of Cloud Trace. The env-gated trace exporter in `provider.go` (Go) and
+# `tracing.py` (Python) picks up `OTEL_EXPORTER_OTLP_ENDPOINT` and routes
 # accordingly — no per-service code change needed.
 #
 # Why an overlay rather than a separate top-to-bottom compose: the
@@ -38,8 +38,8 @@ services:
 
   # --- env-var overrides on the four backend services ---
   #
-  # Step 1's env-gated trace exporter checks OTEL_EXPORTER_OTLP_ENDPOINT
-  # at setup_tracing / Setup time; setting it here routes spans to the
+  # The env-gated trace exporter checks OTEL_EXPORTER_OTLP_ENDPOINT at
+  # setup_tracing / Setup time; setting it here routes spans to the
   # collector. Python services additionally need ENABLE_OTEL_TRACING=true
   # because their `setup_tracing()` short-circuits to a no-op tracer
   # when unset (Go services initialize OTel unconditionally).
