@@ -45,28 +45,54 @@ def setup_tracing(service_name: str) -> Tracer:
         return get_tracer("desirelines.io")
 
     try:
-        # Deferred imports: GCP exporters are optional runtime deps. Importing
-        # them lazily inside the feature-flagged branch keeps `setup_tracing`
-        # a no-op when the packages aren't installed (e.g. local dev).
-        from opentelemetry.exporter.cloud_trace import (  # noqa: PLC0415
-            CloudTraceSpanExporter,
-        )
-        from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
-            GoogleCloudResourceDetector,
+        # When one of the standard OTLP endpoint env vars is set, export to
+        # OTLP instead of Cloud Trace. Intended for the e2e test harness
+        # (a local Collector / Jaeger captures spans for the test process to
+        # inspect); production deploys leave these unset and fall through
+        # to the GCP exporter below. Mirrors the Go-side switch in
+        # packages/shared/otel/provider.go (newTraceExporter).
+        otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get(
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
         )
 
-        # Detector first, explicit service.name second: OTel's Resource.merge()
-        # lets the `other` resource override on conflict, so the explicit
-        # attribute must be on the right-hand side to win. Mirrors the Go
-        # pattern in packages/shared/otel/provider.go (WithDetectors before
-        # WithAttributes). Without this order, `service.name` from the GCP
-        # detector or env vars (OTEL_SERVICE_NAME / K_SERVICE) silently
-        # clobbers ours, and Cloud Trace's "Service" column shows blank for
-        # spans emitted by these Python services.
-        gcp_resource = GoogleCloudResourceDetector().detect()
-        resource = gcp_resource.merge(Resource.create({"service.name": service_name}))
+        if otlp_endpoint:
+            # Deferred import: keeps the dep optional at the no-op path.
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # noqa: PLC0415
+                OTLPSpanExporter,
+            )
 
-        exporter = CloudTraceSpanExporter()  # type: ignore[no-untyped-call, unused-ignore]
+            # Test harness has no need for GCP-derived resource attributes;
+            # a minimal resource with just service.name keeps the captured
+            # span shape simple and the assertions readable.
+            resource = Resource.create({"service.name": service_name})
+            exporter = OTLPSpanExporter()  # reads OTEL_EXPORTER_OTLP_* env
+        else:
+            # Deferred imports: GCP exporters are optional runtime deps.
+            # Importing them lazily inside the feature-flagged branch keeps
+            # `setup_tracing` a no-op when the packages aren't installed
+            # (e.g. local dev).
+            from opentelemetry.exporter.cloud_trace import (  # noqa: PLC0415
+                CloudTraceSpanExporter,
+            )
+            from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
+                GoogleCloudResourceDetector,
+            )
+
+            # Detector first, explicit service.name second: OTel's
+            # Resource.merge() lets the `other` resource override on
+            # conflict, so the explicit attribute must be on the right-hand
+            # side to win. Mirrors the Go pattern in
+            # packages/shared/otel/provider.go (WithDetectors before
+            # WithAttributes). Without this order, `service.name` from the
+            # GCP detector or env vars (OTEL_SERVICE_NAME / K_SERVICE)
+            # silently clobbers ours, and Cloud Trace's "Service" column
+            # shows blank for spans emitted by these Python services.
+            gcp_resource = GoogleCloudResourceDetector().detect()
+            resource = gcp_resource.merge(
+                Resource.create({"service.name": service_name})
+            )
+            exporter = CloudTraceSpanExporter()  # type: ignore[no-untyped-call, unused-ignore, assignment]
+
         processor = BatchSpanProcessor(exporter)
 
         provider = TracerProvider(resource=resource)

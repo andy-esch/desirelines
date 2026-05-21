@@ -31,6 +31,7 @@ dependencies = [
     "opentelemetry-exporter-gcp-trace>=1.8.0a0",
     "opentelemetry-resourcedetector-gcp>=1.8.0a0",
     "polyline>=2.0.4",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.28.0",
 ]
 
 # Development dependencies - Pants-compatible format

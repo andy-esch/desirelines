@@ -1,5 +1,7 @@
 """Unit tests for the shared tracing module."""
 
+from unittest.mock import patch
+
 import pytest
 
 from stravapipe.shared.tracing import (
@@ -24,6 +26,83 @@ class TestSetupTracing:
         monkeypatch.setenv("ENABLE_OTEL_TRACING", "false")
         tracer = setup_tracing("test-service")
         assert tracer is not None
+
+
+class TestSetupTracingExporterSelection:
+    """Tests for the env-gated exporter switch in setup_tracing.
+
+    When `OTEL_EXPORTER_OTLP_ENDPOINT` (or the trace-specific variant) is
+    set, setup_tracing must use the OTLP exporter — that's the switch the
+    e2e test harness relies on. When neither is set, it must fall through
+    to the GCP Cloud Trace exporter (production behaviour). Mocks are used
+    on both exporter classes so the test doesn't depend on real OTLP /
+    GCP connectivity.
+
+    These tests teardown via `shutdown_tracing` to clear the module-level
+    singleton; OTel's global `set_tracer_provider` is once-only by design
+    and will warn (but not raise) on subsequent calls — that's why we
+    assert via the mock's `.called` rather than provider identity.
+    """
+
+    def teardown_method(self):
+        shutdown_tracing()
+
+    def test_uses_otlp_when_endpoint_env_set(self, monkeypatch):
+        monkeypatch.setenv("ENABLE_OTEL_TRACING", "true")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+        with (
+            patch(
+                "opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter"
+            ) as mock_otlp,
+            patch(
+                "opentelemetry.exporter.cloud_trace.CloudTraceSpanExporter"
+            ) as mock_cloud,
+        ):
+            tracer = setup_tracing("test-svc")
+        assert tracer is not None
+        assert mock_otlp.called, "OTLP exporter should have been instantiated"
+        assert not mock_cloud.called, (
+            "Cloud Trace exporter should NOT be used when OTLP env is set"
+        )
+
+    def test_uses_otlp_when_traces_endpoint_env_set(self, monkeypatch):
+        # Trace-specific variant per OTel spec.
+        monkeypatch.setenv("ENABLE_OTEL_TRACING", "true")
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+        monkeypatch.setenv(
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:4317"
+        )
+        with patch(
+            "opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter"
+        ) as mock_otlp:
+            tracer = setup_tracing("test-svc")
+        assert tracer is not None
+        assert mock_otlp.called
+
+    def test_uses_cloud_trace_when_no_otlp_env(self, monkeypatch):
+        monkeypatch.setenv("ENABLE_OTEL_TRACING", "true")
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", raising=False)
+        with (
+            patch(
+                "opentelemetry.exporter.cloud_trace.CloudTraceSpanExporter"
+            ) as mock_cloud,
+            # GCP resource detector hits the metadata server otherwise.
+            patch(
+                "opentelemetry.resourcedetector.gcp_resource_detector.GoogleCloudResourceDetector"
+            ),
+            patch(
+                "opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter"
+            ) as mock_otlp,
+        ):
+            tracer = setup_tracing("test-svc")
+        assert tracer is not None
+        assert mock_cloud.called, (
+            "Cloud Trace exporter should be the default when no OTLP env is set"
+        )
+        assert not mock_otlp.called, (
+            "OTLP exporter should NOT be used when no OTLP env is set"
+        )
 
 
 class TestExtractContextFromAttributes:

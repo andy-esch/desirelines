@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	mexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric"
@@ -23,6 +24,7 @@ import (
 	gcppropagator "github.com/GoogleCloudPlatform/opentelemetry-operations-go/propagator"
 	"go.opentelemetry.io/contrib/detectors/gcp"
 	otelglobal "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
@@ -132,9 +134,9 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 	mp := newMeterProvider(res, reader)
 
 	// --- Tracing ---
-	traceExp, err := texporter.New()
+	traceExp, err := newTraceExporter(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create GCP trace exporter: %w", err)
+		return nil, nil, fmt.Errorf("create trace exporter: %w", err)
 	}
 
 	// Sampler: AlwaysSample is intentional. Request volume across dispatcher
@@ -207,6 +209,34 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 		Meter:  mp.Meter(scopeName),
 		Tracer: tp.Tracer(scopeName),
 	}, shutdown, nil
+}
+
+// newTraceExporter returns an OTLP trace exporter when one of the standard
+// OTel endpoint env vars is set, otherwise the GCP Cloud Trace exporter.
+//
+// The OTLP path is intended for the e2e test harness (export to a local
+// Collector or Jaeger and inspect spans from the test process); production
+// deploys leave the env vars unset and fall through to Cloud Trace.
+//
+// The OTLP SDK reads the endpoint, headers, protocol, etc. directly from
+// the standard OTEL_EXPORTER_OTLP_* env vars — we don't decode them here.
+// gRPC is the default protocol; if the harness ever needs HTTP/protobuf,
+// switch the import to `otlptracehttp` (this helper would then branch on
+// `OTEL_EXPORTER_OTLP_PROTOCOL`).
+func newTraceExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" ||
+		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
+		exp, err := otlptracegrpc.New(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("create OTLP trace exporter: %w", err)
+		}
+		return exp, nil
+	}
+	exp, err := texporter.New()
+	if err != nil {
+		return nil, fmt.Errorf("create GCP trace exporter: %w", err)
+	}
+	return exp, nil
 }
 
 // NoopProviders returns no-op Providers for use when OTel setup fails.

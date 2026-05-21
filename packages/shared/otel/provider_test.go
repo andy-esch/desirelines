@@ -131,3 +131,48 @@ func TestExtendedDurationViews_DoNotMatchUnlistedInstruments(t *testing.T) {
 		})
 	}
 }
+
+// TestNewTraceExporter_OTLPBranchWhenEndpointSet verifies that
+// `newTraceExporter` takes the OTLP path (not the GCP Cloud Trace path)
+// when one of the standard OTel endpoint env vars is set. This is the
+// switch the e2e test harness relies on — captured spans flow to a local
+// Collector / Jaeger instead of leaving the test process.
+//
+// The GCP branch is intentionally not unit-tested here: `texporter.New()`
+// requires GCP credentials at construction time and is exercised by the
+// existing Setup() path in deployed CI.
+func TestNewTraceExporter_OTLPBranchWhenEndpointSet(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	exp, err := newTraceExporter(context.Background())
+	if err != nil {
+		t.Fatalf("newTraceExporter with OTLP env: %v", err)
+	}
+	if exp == nil {
+		t.Fatal("expected non-nil exporter, got nil")
+	}
+	t.Cleanup(func() {
+		if sdErr := exp.Shutdown(context.Background()); sdErr != nil {
+			t.Logf("exporter Shutdown: %v", sdErr)
+		}
+	})
+}
+
+// TestNewTraceExporter_OTLPBranchAlsoTriggeredByTracesEndpoint mirrors
+// the above for the trace-specific env var, since the OTel spec defines
+// both OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+// and our helper checks either.
+func TestNewTraceExporter_OTLPBranchAlsoTriggeredByTracesEndpoint(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "localhost:4317")
+	exp, err := newTraceExporter(context.Background())
+	if err != nil {
+		t.Fatalf("newTraceExporter with TRACES endpoint env: %v", err)
+	}
+	if exp == nil {
+		t.Fatal("expected non-nil exporter, got nil")
+	}
+	t.Cleanup(func() {
+		if sdErr := exp.Shutdown(context.Background()); sdErr != nil {
+			t.Logf("exporter Shutdown: %v", sdErr)
+		}
+	})
+}

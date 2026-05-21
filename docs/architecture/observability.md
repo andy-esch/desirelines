@@ -152,6 +152,12 @@ Python services gate OTel SDK initialization on `ENABLE_OTEL_TRACING=true`. When
 
 Why a flag in Python but not Go? Historical: the Python OTel SDK was once flaky in cold-start paths and we wanted an off switch. The Go SDK has been reliable and never needed one. The flag is set to `true` in production via Terraform ([`cloud_run.tf`](../../terraform/modules/desirelines/cloud_run.tf)). Leave it unset locally unless you're testing tracing.
 
+## Local OTLP override (`OTEL_EXPORTER_OTLP_ENDPOINT`)
+
+Both Go ([`provider.go`](../../packages/shared/otel/provider.go)) and Python ([`tracing.py`](../../packages/stravapipe/src/stravapipe/shared/tracing.py)) check the standard OTel env vars `OTEL_EXPORTER_OTLP_ENDPOINT` (or the trace-specific `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) on startup. When either is set, the trace exporter swaps from Cloud Trace to OTLP/gRPC — spans flow to whatever Collector or Jaeger instance the endpoint points at instead of leaving the process. Unset → Cloud Trace as usual.
+
+Used by the e2e trace-propagation test harness (so spans can be captured and asserted from the test process) and useful for ad-hoc local debugging with a Jaeger all-in-one container (`docker run -p 4317:4317 -p 16686:16686 jaegertracing/all-in-one`, then run a service with `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`).
+
 ## Authoring spans
 
 ### Go services
