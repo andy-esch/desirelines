@@ -2,6 +2,19 @@
 
 from unittest.mock import patch
 
+# Force-load the OTel exporter submodules at import time so
+# `unittest.mock.patch("...module.ClassName")` can resolve their dotted
+# paths in TestSetupTracingExporterSelection. `opentelemetry.exporter`
+# is a namespace package; its submodules don't appear as attributes
+# until explicitly imported, and production tracing.py only imports
+# them lazily inside `setup_tracing()`. Without these top-level
+# imports, `patch()` fails at `with` setup with
+# `AttributeError: module 'opentelemetry.exporter' has no attribute
+# 'cloud_trace'` (and the OTLP equivalent). Side-effect imports —
+# the names aren't referenced directly.
+import opentelemetry.exporter.cloud_trace
+import opentelemetry.exporter.otlp.proto.grpc.trace_exporter
+import opentelemetry.resourcedetector.gcp_resource_detector  # noqa: F401
 import pytest
 
 from stravapipe.shared.tracing import (
