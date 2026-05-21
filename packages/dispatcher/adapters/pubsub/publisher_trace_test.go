@@ -159,13 +159,16 @@ func TestPublish_InjectsTraceparentMatchingActiveSpan(t *testing.T) {
 	}
 }
 
-// TestPublish_NoActiveSpan_NoTraceparent guards against the inverse
-// regression: with no active span, we must not emit a `traceparent`
-// at all (an invalid/all-zero one would be worse than missing — it
-// would silently confuse downstream extraction). The W3C propagator's
-// documented behavior is to skip injection when the remote span context
-// is invalid; this pins that behavior at the contract boundary.
-func TestPublish_NoActiveSpan_NoTraceparent(t *testing.T) {
+// TestPublish_NoCallerSpan_InjectsInternalSpanContext pins the contract
+// that Publish always emits a well-formed `traceparent` on the outgoing
+// message, even when the caller passes a bare `context.Background()` with
+// no active span — because Publish opens its own internal `pubsub.Publish`
+// span before injecting, and that span's context is what gets propagated.
+// Guards against the regression "someone refactors Publish to skip opening
+// the internal span when the caller didn't provide one," which would
+// silently drop downstream tracing for any call site that doesn't already
+// have a parent span on the context.
+func TestPublish_NoCallerSpan_InjectsInternalSpanContext(t *testing.T) {
 	withGlobalW3CPropagator(t)
 
 	provider := sdktrace.NewTracerProvider()
@@ -178,12 +181,9 @@ func TestPublish_NoActiveSpan_NoTraceparent(t *testing.T) {
 	p, srv := newTestPublisher(t)
 	p.tracer = provider.Tracer("test")
 
-	// context.Background() carries no span — Publish will create its own
-	// internal `pubsub.Publish` span before injecting, so we expect the
-	// injected traceparent to reflect THAT span's trace-id (not absence).
-	// This test re-asserts that the published message carries SOME
-	// well-formed traceparent even when the caller didn't start a span,
-	// because Publish itself opens one.
+	// context.Background() carries no caller span. Publish opens its own
+	// internal `pubsub.Publish` span before injecting, so the published
+	// message's `traceparent` reflects THAT span's trace-id — not absence.
 	err := p.Publish(context.Background(), &generated.EnrichedEvent{
 		Event: &generated.WebhookEvent{ObjectId: 1, OwnerId: 2},
 	}, "corr-id-no-span")
