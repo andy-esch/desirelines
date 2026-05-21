@@ -14,6 +14,12 @@ from unittest.mock import patch
 # the names aren't referenced directly.
 import opentelemetry.exporter.cloud_trace
 import opentelemetry.exporter.otlp.proto.grpc.trace_exporter
+
+# Asymmetric noqa: ruff flags F401 on this third import but not the
+# first two (its dotted-name analysis treats the third `opentelemetry`
+# binding as redundant given the first two already bind that name).
+# All three are equally needed as side-effect submodule loads for the
+# patch() targets below.
 import opentelemetry.resourcedetector.gcp_resource_detector  # noqa: F401
 import pytest
 

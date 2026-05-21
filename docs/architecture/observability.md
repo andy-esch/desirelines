@@ -88,6 +88,8 @@ If either side breaks, the consumer's root span has no parent in Cloud Trace.
 
 See [`packages/shared/otel/provider.go`](../../packages/shared/otel/provider.go) for the propagator wiring and [`packages/stravapipe/src/stravapipe/shared/tracing.py`](../../packages/stravapipe/src/stravapipe/shared/tracing.py) for the Python side.
 
+**Regression guard (Go side):** the custom [`lintpub`](../../packages/shared/otel/lintpub/) analyzer (wired into `just go-lint` and the `go-quality` CI matrix) flags any new `*pubsub.Publisher.Publish(...)` call site that isn't paired with a `propagator.Inject(...)` in the same function — catches "new publish path forgot to inject" at PR time. Python side has a paired round-trip test (`tests/unit/shared/test_tracing.py::TestExtractContextFromAttributes::test_extracted_context_carries_injected_trace_id`) for the extraction half.
+
 ## Trust boundaries: dispatcher vs. apigateway
 
 The two HTTP-fronted services treat incoming trace context **differently** because their callers have different trust profiles:
