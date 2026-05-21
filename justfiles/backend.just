@@ -60,15 +60,26 @@ go-test +args='':
         (cd packages/apigateway && go test -v ./... {{args}})
     fi
 
-# Run Go linter (default: golangci-lint, use --pants for Pants)
+# Run Go linter (default: golangci-lint + lintpub, use --pants for Pants)
 go-lint +args='':
     #!/usr/bin/env bash
+    set -euo pipefail
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Linting Go with Pants..."
         pants lint packages/dispatcher:: packages/apigateway:: packages/shared::
     else
         echo "🐹 Linting Go with golangci-lint (fast)..."
         golangci-lint run ./packages/dispatcher/... ./packages/apigateway/... ./packages/shared/... {{args}}
+        echo "🔎 Running trace-propagation analyzer (lintpub)..."
+        # G1 guard (e2e-trace-propagation-test.md §New scope): flags any
+        # pubsub.Publisher.Publish call without a paired propagator.Inject
+        # in the same function, so a missing trace-context injection on a
+        # new publish path is caught at PR time.
+        lintpub_bin="$(mktemp -d)/lintpub"
+        (cd packages/shared && go build -o "$lintpub_bin" ./cmd/lintpub)
+        for pkg in dispatcher apigateway shared; do
+            (cd "packages/$pkg" && "$lintpub_bin" ./...)
+        done
     fi
 
 # Format Go code (default: go fmt, use --pants for Pants)
