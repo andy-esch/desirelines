@@ -44,7 +44,6 @@ package lintpub
 
 import (
 	"errors"
-	"flag"
 	"go/ast"
 	"go/types"
 	"strings"
@@ -66,6 +65,13 @@ const (
 	// covers any TextMapPropagator implementation regardless of which
 	// specific OTel sub-package it lives in. See isPropagatorInject.
 	otelPkgPathPrefix = "go.opentelemetry.io/"
+
+	// defaultSkipTests is the single source of truth for the -skip-tests
+	// default. It feeds both the `skipTests` var initializer (the value
+	// in effect when the flag is never parsed — e.g. under analysistest)
+	// and the BoolVar default registered in init(), so the two can't
+	// drift apart.
+	defaultSkipTests = true
 )
 
 // Analyzer is the go/analysis registration. Plug into singlechecker.Main
@@ -75,15 +81,16 @@ var Analyzer = &analysis.Analyzer{
 	Doc:      "checks that pubsub.Publisher.Publish calls are paired with OTel propagator.Inject in the same function (so traceparent reaches downstream consumers)",
 	Run:      run,
 	Requires: []*analysis.Analyzer{inspect.Analyzer},
-	Flags:    flagSet(),
 }
 
-var skipTests = true
+// skipTests controls whether *_test.go files are analyzed. Wired to the
+// -skip-tests flag in init(); holds defaultSkipTests when the flag is
+// never parsed (the analysistest path doesn't parse flags).
+var skipTests = defaultSkipTests
 
-func flagSet() flag.FlagSet {
-	fs := flag.NewFlagSet("lintpub", flag.ExitOnError)
-	fs.BoolVar(&skipTests, "skip-tests", true, "skip files ending in _test.go (default true)")
-	return *fs
+func init() {
+	Analyzer.Flags.BoolVar(&skipTests, "skip-tests", defaultSkipTests,
+		"skip files ending in _test.go")
 }
 
 func run(pass *analysis.Pass) (any, error) {

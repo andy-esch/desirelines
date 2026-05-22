@@ -141,8 +141,9 @@ func TestExtendedDurationViews_DoNotMatchUnlistedInstruments(t *testing.T) {
 // Collector / Jaeger instead of leaving the test process.
 //
 // The GCP branch is intentionally not unit-tested here: `texporter.New()`
-// requires GCP credentials at construction time and is exercised by the
-// existing Setup() path in deployed CI.
+// fails without GCP credentials at construction time (verified:
+// "no project found with application default credentials"), so it's
+// only exercised when a service boots Setup() in a deployed environment.
 func TestNewTraceExporter_OTLPBranchWhenEndpointSet(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	exp, err := newTraceExporter(context.Background())
