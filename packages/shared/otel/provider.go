@@ -214,14 +214,14 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 // newTraceExporter returns an OTLP trace exporter when one of the standard
 // OTel endpoint env vars is set, otherwise the GCP Cloud Trace exporter.
 //
-// The OTLP path is intended for the e2e test harness (export to a local
-// Collector or Jaeger and inspect spans from the test process); production
+// The OTLP path is for local debugging — point OTEL_EXPORTER_OTLP_ENDPOINT
+// at a local Collector or Jaeger to inspect spans off-process. Production
 // deploys leave the env vars unset and fall through to Cloud Trace.
 //
 // The OTLP SDK reads the endpoint, headers, protocol, etc. directly from
 // the standard OTEL_EXPORTER_OTLP_* env vars — we don't decode them here.
-// gRPC is the default protocol; if the harness ever needs HTTP/protobuf,
-// switch the import to `otlptracehttp` (this helper would then branch on
+// gRPC is the default protocol; if HTTP/protobuf is ever needed, switch
+// the import to `otlptracehttp` (this helper would then branch on
 // `OTEL_EXPORTER_OTLP_PROTOCOL`).
 func newTraceExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" ||

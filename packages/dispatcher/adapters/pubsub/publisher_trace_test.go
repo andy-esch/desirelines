@@ -1,13 +1,10 @@
 // Contract tests for the dispatcher's cross-service trace propagation.
 //
-// These are the cheap fast-feedback half of the e2e trace-propagation
-// regression coverage — they catch the most likely break vector
-// ("someone removes propagator.Inject from a publish path") without
-// standing up the full multi-service docker-compose harness. The
-// downstream Python `extract_context_from_attributes` half lives in
-// `packages/stravapipe/tests/unit/shared/test_tracing.py`; the planned
-// chain-level test (Option A in the parent task) is still scoped to
-// follow this.
+// They catch the most likely break vector — "someone removes
+// propagator.Inject from a publish path" — by asserting that Publish
+// stamps a well-formed `traceparent` on the outgoing message. The
+// downstream Python `extract_context_from_attributes` side is covered
+// in `packages/stravapipe/tests/unit/shared/test_tracing.py`.
 //
 // Internal-test package (`package pubsub`, not `pubsub_test`) so we can
 // construct a Publisher directly with the pstest-backed client without

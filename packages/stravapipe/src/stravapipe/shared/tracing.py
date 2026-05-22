@@ -46,10 +46,10 @@ def setup_tracing(service_name: str) -> Tracer:
 
     try:
         # When one of the standard OTLP endpoint env vars is set, export to
-        # OTLP instead of Cloud Trace. Intended for the e2e test harness
-        # (a local Collector / Jaeger captures spans for the test process to
-        # inspect); production deploys leave these unset and fall through
-        # to the GCP exporter below. Mirrors the Go-side switch in
+        # OTLP instead of Cloud Trace — for local debugging, point it at a
+        # local Collector or Jaeger to capture spans off-process. Production
+        # deploys leave these unset and fall through to the GCP exporter
+        # below. Mirrors the Go-side switch in
         # packages/shared/otel/provider.go (newTraceExporter).
         otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get(
             "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"

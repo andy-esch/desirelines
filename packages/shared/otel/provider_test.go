@@ -136,9 +136,9 @@ func TestExtendedDurationViews_DoNotMatchUnlistedInstruments(t *testing.T) {
 
 // TestNewTraceExporter_OTLPBranchWhenEndpointSet verifies that
 // `newTraceExporter` takes the OTLP path (not the GCP Cloud Trace path)
-// when one of the standard OTel endpoint env vars is set. This is the
-// switch the e2e test harness relies on — captured spans flow to a local
-// Collector / Jaeger instead of leaving the test process.
+// when one of the standard OTel endpoint env vars is set — the switch
+// that lets local debugging redirect spans to a Collector / Jaeger
+// instead of Cloud Trace.
 //
 // The GCP branch is intentionally not unit-tested here: `texporter.New()`
 // fails without GCP credentials at construction time (verified:

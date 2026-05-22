@@ -51,11 +51,11 @@ class TestSetupTracingExporterSelection:
     """Tests for the env-gated exporter switch in setup_tracing.
 
     When `OTEL_EXPORTER_OTLP_ENDPOINT` (or the trace-specific variant) is
-    set, setup_tracing must use the OTLP exporter — that's the switch the
-    e2e test harness relies on. When neither is set, it must fall through
-    to the GCP Cloud Trace exporter (production behaviour). Mocks are used
-    on both exporter classes so the test doesn't depend on real OTLP /
-    GCP connectivity.
+    set, setup_tracing must use the OTLP exporter — the switch local
+    debugging uses to redirect spans to a Collector / Jaeger. When
+    neither is set, it must fall through to the GCP Cloud Trace exporter
+    (production behaviour). Mocks are used on both exporter classes so
+    the test doesn't depend on real OTLP / GCP connectivity.
 
     These tests teardown via `shutdown_tracing` to clear the module-level
     singleton; OTel's global `set_tracer_provider` is once-only by design
