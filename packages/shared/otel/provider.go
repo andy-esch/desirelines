@@ -82,6 +82,42 @@ func newMeterProvider(res *resource.Resource, reader sdkmetric.Reader) *sdkmetri
 	)
 }
 
+// newPropagator builds the composite text-map propagator that Setup
+// registers globally. Extracted so its extract precedence can be
+// exercised in provider_test.go without running the full Setup (which
+// needs GCP credentials for the exporters).
+//
+// It ensures a single trace_id flows from Cloud Run's
+// X-Cloud-Trace-Context header through OTel spans, Go logs, and
+// downstream Python services.
+//
+// CloudTraceOneWayPropagator (extract-only) reads the GCP trace context
+// from the incoming X-Cloud-Trace-Context header injected by Cloud Run.
+// It is listed first so that when an incoming request carries BOTH
+// headers, TraceContext (W3C) extracts second and takes precedence —
+// the correct behavior for service-to-service calls that already
+// propagate traceparent. For the dispatcher's entry point (called by
+// Strava), only X-Cloud-Trace-Context is present, so the GCP propagator
+// supplies the trace_id that OTel adopts. This makes the OTel trace_id
+// match the one that gcplog.WithCloudTraceContext writes into
+// structured log fields, so Cloud Trace's "Show logs" feature works.
+//
+// TraceContext (W3C) handles outgoing propagation via traceparent. The
+// dispatcher injects it into PubSub message attributes
+// (dispatcher/adapters/pubsub/publisher.go); Python workers extract it
+// via stravapipe/shared/tracing.py's extract_context_from_attributes(),
+// so their spans appear as children of the dispatcher's pubsub.Publish
+// span with a single unified trace_id across services.
+//
+// Baggage is included for future use (e.g., propagating correlation_id).
+func newPropagator() propagation.TextMapPropagator {
+	return propagation.NewCompositeTextMapPropagator(
+		gcppropagator.CloudTraceOneWayPropagator{},
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+}
+
 // extendedDurationViews returns one View per name in
 // extendedDurationInstrumentNames, each applying extendedDurationBuckets.
 func extendedDurationViews() []sdkmetric.View {
@@ -157,43 +193,7 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 
 	// Register globally so otelhttp and propagation.Inject/Extract work.
 	otelglobal.SetTracerProvider(tp)
-
-	// Composite propagator: ensures a single trace_id flows from Cloud Run's
-	// X-Cloud-Trace-Context header through OTel spans, Go logs, and downstream
-	// Python services.
-	//
-	// CloudTraceOneWayPropagator (extract-only) reads the GCP trace context
-	// from the incoming X-Cloud-Trace-Context header injected by Cloud Run.
-	// It is listed first so that when an incoming request carries BOTH headers,
-	// TraceContext (W3C) extracts second and takes precedence — this is the
-	// correct behavior for service-to-service calls that already propagate
-	// traceparent. For the dispatcher's entry point (called by Strava), only
-	// X-Cloud-Trace-Context is present, so the GCP propagator supplies the
-	// trace_id that OTel adopts. This makes the OTel trace_id match the one
-	// that gcplog.WithCloudTraceContext writes into structured log fields,
-	// so Cloud Trace's "Show logs" feature works correctly.
-	//
-	// TraceContext (W3C) handles outgoing propagation via traceparent. The
-	// dispatcher injects it into PubSub message attributes at
-	// packages/dispatcher/adapters/pubsub/publisher.go (see the Inject call
-	// after the attrs map is constructed). Python workers extract it via
-	// packages/stravapipe/src/stravapipe/shared/tracing.py's
-	// extract_context_from_attributes(), which the shared
-	// handle_webhook_cloudevent() helper (webhook_handler.py) then threads
-	// into record_span(parent_context=...). deletion_service_app.py has its
-	// own parse+extract path but uses the same helper function. Result:
-	// Python spans in bq_inserter, postgres_writer, and deletion_service
-	// appear as children of the dispatcher's pubsub.Publish span in Cloud
-	// Trace, with a single unified trace_id across services.
-	//
-	// Baggage is included for future use (e.g., propagating correlation_id).
-	otelglobal.SetTextMapPropagator(
-		propagation.NewCompositeTextMapPropagator(
-			gcppropagator.CloudTraceOneWayPropagator{},
-			propagation.TraceContext{},
-			propagation.Baggage{},
-		),
-	)
+	otelglobal.SetTextMapPropagator(newPropagator())
 
 	logger.Info("OTel initialized",
 		"service", serviceName,

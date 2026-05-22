@@ -64,6 +64,25 @@ func TestAnalyzer_IgnoresNonPublisherTypeWithPublishMethod(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), Analyzer, "publish_on_non_publisher_type")
 }
 
+// TestAnalyzer_SkipsTestFiles — the analyzer's default behavior skips
+// `*_test.go` files (tests may exercise Publish in isolation). The
+// fixture pairs a production file (whose Publish IS flagged) with a
+// `_test.go` file (whose Publish must NOT be flagged); analysistest
+// fails if the analyzer emits a diagnostic on the test file, so the
+// absence of a `// want` there is the assertion.
+func TestAnalyzer_SkipsTestFiles(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), Analyzer, "skipped_test_file")
+}
+
+// TestAnalyzer_CreditsInjectViaGetTextMapPropagatorGetter — when the
+// Inject call's method package isn't under go.opentelemetry.io/ (so
+// isPropagatorInject's Path 1 fails) but the receiver is a
+// `*.GetTextMapPropagator()` call, Path 2 must still credit it. The
+// fixture's Publish is therefore not flagged.
+func TestAnalyzer_CreditsInjectViaGetTextMapPropagatorGetter(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), Analyzer, "path2_inject_via_getter")
+}
+
 // Direct unit tests for the defensive nil-info branches in the helper
 // functions. analysistest never invokes them with info=nil, so without
 // these the defensive guards register as uncovered. The branches are

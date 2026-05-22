@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	otelmetric "go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // TestExtendedDurationViews_MatchEachListedInstrument asserts that every name
@@ -175,4 +177,124 @@ func TestNewTraceExporter_OTLPBranchAlsoTriggeredByTracesEndpoint(t *testing.T) 
 			t.Logf("exporter Shutdown: %v", sdErr)
 		}
 	})
+}
+
+// TestNewPropagator_W3CWinsWhenBothHeadersPresent pins the composite
+// propagator's extract precedence: when an incoming request carries
+// BOTH `X-Cloud-Trace-Context` and `traceparent`, the W3C TraceContext
+// arm must win (it's registered second, so it extracts last and
+// overrides). This is the documented contract — a regression here
+// (e.g. someone reorders the composite) would silently fork trace_ids
+// between the OTel span and the gcplog log fields.
+func TestNewPropagator_W3CWinsWhenBothHeadersPresent(t *testing.T) {
+	const w3cTraceID = "11111111111111111111111111111111"
+	const gcpTraceID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+	carrier := propagation.MapCarrier{
+		"traceparent":           "00-" + w3cTraceID + "-2222222222222222-01",
+		"x-cloud-trace-context": gcpTraceID + "/1;o=1",
+	}
+	ctx := newPropagator().Extract(context.Background(), carrier)
+
+	sc := trace.SpanContextFromContext(ctx)
+	if !sc.IsValid() {
+		t.Fatal("expected a valid span context after extracting both headers")
+	}
+	if got := sc.TraceID().String(); got != w3cTraceID {
+		t.Errorf("trace-id = %s, want %s (W3C traceparent must take precedence over X-Cloud-Trace-Context)", got, w3cTraceID)
+	}
+}
+
+// TestNewPropagator_AdoptsGCPHeaderWhenOnlyOnePresent covers the
+// dispatcher's entry-point case: a request from Strava carries only
+// `X-Cloud-Trace-Context` (no W3C header), so the GCP propagator must
+// supply the trace_id OTel adopts.
+func TestNewPropagator_AdoptsGCPHeaderWhenOnlyOnePresent(t *testing.T) {
+	const gcpTraceID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+	carrier := propagation.MapCarrier{
+		"x-cloud-trace-context": gcpTraceID + "/1;o=1",
+	}
+	ctx := newPropagator().Extract(context.Background(), carrier)
+
+	sc := trace.SpanContextFromContext(ctx)
+	if !sc.IsValid() {
+		t.Fatal("expected a valid span context from X-Cloud-Trace-Context alone")
+	}
+	if got := sc.TraceID().String(); got != gcpTraceID {
+		t.Errorf("trace-id = %s, want %s", got, gcpTraceID)
+	}
+}
+
+// TestNewPropagator_InjectsW3CTraceparent pins the outgoing side: the
+// composite must write a `traceparent` header (via the TraceContext
+// arm) so downstream services — including the Python workers reading
+// PubSub message attributes — can continue the trace.
+func TestNewPropagator_InjectsW3CTraceparent(t *testing.T) {
+	const traceID = "33333333333333333333333333333333"
+	const spanID = "4444444444444444"
+
+	tid, err := trace.TraceIDFromHex(traceID)
+	if err != nil {
+		t.Fatalf("TraceIDFromHex: %v", err)
+	}
+	sid, err := trace.SpanIDFromHex(spanID)
+	if err != nil {
+		t.Fatalf("SpanIDFromHex: %v", err)
+	}
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    tid,
+		SpanID:     sid,
+		TraceFlags: trace.FlagsSampled,
+		Remote:     true,
+	})
+	ctx := trace.ContextWithRemoteSpanContext(context.Background(), sc)
+
+	carrier := propagation.MapCarrier{}
+	newPropagator().Inject(ctx, carrier)
+
+	got := carrier.Get("traceparent")
+	want := "00-" + traceID + "-" + spanID + "-01"
+	if got != want {
+		t.Errorf("injected traceparent = %q, want %q", got, want)
+	}
+}
+
+// TestNoopProviders_ReturnsUsableNoopInstruments locks the
+// graceful-degradation contract: when Setup fails, callers fall back
+// to NoopProviders(), so its Meter and Tracer must be non-nil and
+// usable (creating an instrument / starting a span must not panic or
+// error). A service that crashed here would defeat the whole "OTel
+// failure must not crash the service" guarantee in Setup's doc.
+func TestNoopProviders_ReturnsUsableNoopInstruments(t *testing.T) {
+	p := NoopProviders()
+	if p == nil {
+		t.Fatal("NoopProviders() returned nil")
+	}
+	if p.Meter == nil {
+		t.Error("NoopProviders().Meter is nil")
+	}
+	if p.Tracer == nil {
+		t.Fatal("NoopProviders().Tracer is nil")
+	}
+	// A no-op instrument must construct without error.
+	if _, err := p.Meter.Int64Counter("desirelines.io/test.counter"); err != nil {
+		t.Errorf("no-op Meter failed to create a counter: %v", err)
+	}
+	// A no-op span must start and end without panicking.
+	_, span := p.Tracer.Start(context.Background(), "test.span")
+	span.End()
+}
+
+// TestNoopMeter_ReturnsUsableMeter covers the deprecated NoopMeter
+// shim — still exported, so still worth a smoke test that it returns
+// a usable Meter.
+func TestNoopMeter_ReturnsUsableMeter(t *testing.T) {
+	m := NoopMeter()
+	if m == nil {
+		t.Fatal("NoopMeter() returned nil")
+	}
+	if _, err := m.Int64Counter("desirelines.io/test.counter"); err != nil {
+		t.Errorf("no-op Meter failed to create a counter: %v", err)
+	}
 }
