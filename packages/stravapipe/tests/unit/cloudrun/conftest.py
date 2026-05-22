@@ -3,6 +3,13 @@
 import base64
 import json
 
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
+from opentelemetry.trace import Tracer
+
 SAMPLE_RAW_ACTIVITY = {
     "id": 12345678,
     "name": "Morning Run",
@@ -109,3 +116,39 @@ def make_webhook_payload(
     if raw_activity is not None:
         payload["raw_activity"] = raw_activity
     return payload
+
+
+# ---------------------------------------------------------------------------
+# Cross-service trace-propagation contract
+# ---------------------------------------------------------------------------
+
+# EXAMPLE_TRACEPARENT is the canonical W3C trace-context value used by the
+# trace-propagation tests. The contract it encodes:
+#
+#   The dispatcher injects a `traceparent` PubSub *message attribute* in
+#   W3C format `00-<32-hex trace-id>-<16-hex span-id>-<2-hex flags>`.
+#   Every downstream CloudEvent handler must extract it (via
+#   stravapipe.shared.tracing.extract_context_from_attributes) and parent
+#   its processing span under it, so a single trace_id spans the whole
+#   dispatcher -> Pub/Sub -> worker pipeline. See
+#   docs/architecture/observability.md ("How propagation actually works").
+#
+# The trace-id below is the W3C spec's own canonical example, so a failed
+# assertion is easy to recognize.
+EXAMPLE_TRACE_ID_HEX = "0af7651916cd43dd8448eb211c80319c"
+EXAMPLE_SPAN_ID_HEX = "b7ad6b7169203331"
+EXAMPLE_TRACEPARENT = f"00-{EXAMPLE_TRACE_ID_HEX}-{EXAMPLE_SPAN_ID_HEX}-01"
+
+
+def make_in_memory_tracer() -> tuple[Tracer, InMemorySpanExporter]:
+    """Build a real OTel tracer backed by an in-memory exporter.
+
+    Returns (tracer, exporter). Pass the tracer to the code under test,
+    then read `exporter.get_finished_spans()` afterward to assert on the
+    spans it emitted — e.g. that a processing span's trace_id matches an
+    injected `traceparent`.
+    """
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    return provider.get_tracer("trace-propagation-test"), exporter
