@@ -60,16 +60,36 @@ go-test +args='':
         (cd packages/apigateway && go test -v ./... {{args}})
     fi
 
-# Run Go linter (default: golangci-lint, use --pants for Pants)
+# Run Go linter (default: golangci-lint + lintpub, use --pants for Pants)
 go-lint +args='':
     #!/usr/bin/env bash
+    set -euo pipefail
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Linting Go with Pants..."
         pants lint packages/dispatcher:: packages/apigateway:: packages/shared::
     else
         echo "🐹 Linting Go with golangci-lint (fast)..."
         golangci-lint run ./packages/dispatcher/... ./packages/apigateway/... ./packages/shared/... {{args}}
+        just go-lintpub
     fi
+
+# Run only the trace-propagation analyzer (lintpub). Faster than the
+# full `go-lint` when you just want to check the Publish/Inject pairing
+# while iterating on a publish path. CI invokes this same binary via
+# `.github/workflows/ci.yml` (see go-quality job).
+#
+# Flags any *pubsub.Publisher.Publish(...) call without a paired
+# propagator.Inject in the same function, so missing trace-context
+# injection on a new publish path is caught at PR time.
+go-lintpub:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🔎 Running trace-propagation analyzer (lintpub)..."
+    lintpub_bin="$(mktemp -d)/lintpub"
+    (cd packages/shared && go build -o "$lintpub_bin" ./cmd/lintpub)
+    for pkg in dispatcher apigateway shared; do
+        (cd "packages/$pkg" && "$lintpub_bin" ./...)
+    done
 
 # Format Go code (default: go fmt, use --pants for Pants)
 go-format +args='':

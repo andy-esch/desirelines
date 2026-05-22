@@ -88,6 +88,8 @@ If either side breaks, the consumer's root span has no parent in Cloud Trace.
 
 See [`packages/shared/otel/provider.go`](../../packages/shared/otel/provider.go) for the propagator wiring and [`packages/stravapipe/src/stravapipe/shared/tracing.py`](../../packages/stravapipe/src/stravapipe/shared/tracing.py) for the Python side.
 
+**Regression guard (Go side):** the custom [`lintpub`](../../packages/shared/otel/lintpub/) analyzer (wired into `just go-lint` and the `go-quality` CI matrix) flags any new `*pubsub.Publisher.Publish(...)` call site that isn't paired with a `propagator.Inject(...)` in the same function — catches "new publish path forgot to inject" at PR time. Python side has a paired round-trip test (`tests/unit/shared/test_tracing.py::TestExtractContextFromAttributes::test_extracted_context_carries_injected_trace_id`) for the extraction half.
+
 ## Trust boundaries: dispatcher vs. apigateway
 
 The two HTTP-fronted services treat incoming trace context **differently** because their callers have different trust profiles:
@@ -151,6 +153,12 @@ Python services gate OTel SDK initialization on `ENABLE_OTEL_TRACING=true`. When
 - All trace-related code paths still run; they just don't export.
 
 Why a flag in Python but not Go? Historical: the Python OTel SDK was once flaky in cold-start paths and we wanted an off switch. The Go SDK has been reliable and never needed one. The flag is set to `true` in production via Terraform ([`cloud_run.tf`](../../terraform/modules/desirelines/cloud_run.tf)). Leave it unset locally unless you're testing tracing.
+
+## Local OTLP override (`OTEL_EXPORTER_OTLP_ENDPOINT`)
+
+Both Go ([`provider.go`](../../packages/shared/otel/provider.go)) and Python ([`tracing.py`](../../packages/stravapipe/src/stravapipe/shared/tracing.py)) check the standard OTel env vars `OTEL_EXPORTER_OTLP_ENDPOINT` (or the trace-specific `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) on startup. When either is set, the trace exporter swaps from Cloud Trace to OTLP/gRPC — spans flow to whatever Collector or Jaeger instance the endpoint points at instead of leaving the process. Unset → Cloud Trace as usual.
+
+Useful for ad-hoc local debugging: run a Jaeger all-in-one container (`docker run -p 4317:4317 -p 16686:16686 jaegertracing/all-in-one`), set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` on a service, and its spans land in Jaeger's UI instead of leaving the process.
 
 ## Authoring spans
 

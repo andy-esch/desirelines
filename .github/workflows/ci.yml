@@ -190,6 +190,16 @@ jobs:
           working-directory: packages/${{ matrix.package }}
           args: --timeout=5m
 
+      # Flags any `*pubsub.Publisher.Publish(...)` call not paired with a
+      # `propagator.Inject(...)` in the same function — catches the
+      # "new publish path forgot trace-context injection" regression
+      # class at PR time. Source: packages/shared/otel/lintpub/.
+      - name: Run trace-propagation analyzer (lintpub)
+        run: |
+          go build -o /tmp/lintpub ./packages/shared/cmd/lintpub
+          cd packages/${{ matrix.package }}
+          /tmp/lintpub ./...
+
       - name: Check Go formatting
         run: |
           cd packages/${{ matrix.package }}
