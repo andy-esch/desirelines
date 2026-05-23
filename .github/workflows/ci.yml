@@ -108,6 +108,14 @@ jobs:
           just sh-lint
           just sh-format-check
 
+      # Catches Renovate / hand-tidy drift across workspace members
+      # (each `go.mod`+`go.sum` and `go.work.sum`) at PR time. If this
+      # fails, the contributor should run `just go-tidy-fix` and commit
+      # the result. See justfiles/backend.just for the matching recipes.
+      - name: Verify Go workspace is tidy
+        run: just go-tidy-check
+
+
   # ===========================================================================
   # Python: Test, Lint, Type check (via Pants)
   # ===========================================================================

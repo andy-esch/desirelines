@@ -45,6 +45,11 @@ py-typecheck +args='':
         cd packages/stravapipe && uv run mypy --no-warn-unused-configs src/ {{args}}
     fi
 
+# Workspace members — keep in sync with `go.work`'s `use (...)` block.
+# Consumed by go-tidy-{check,fix}; single source of truth so a new
+# member only needs to be added in one place per task.
+go_workspace_members := "packages/apigateway packages/dispatcher packages/shared scripts/ops/backfills"
+
 # Run Go tests (default: go test, use --pants for Pants)
 go-test +args='':
     #!/usr/bin/env bash
@@ -90,6 +95,56 @@ go-lintpub:
     for pkg in dispatcher apigateway shared; do
         (cd "packages/$pkg" && "$lintpub_bin" ./...)
     done
+
+# Verify all Go module files in the workspace are tidy. Fails if any
+# member's go.mod / go.sum has drifted from what `go mod tidy` would
+# produce, or if `go.work.sum` needs an update. Wire into CI so drift
+# is caught at PR time instead of on a contributor's machine.
+#
+# Renovate updates ONE go.mod per PR with `go mod tidy` for that
+# module only; it does not run `go work sync` or tidy other members.
+# After a Renovate merge, transitively-pulled bumps surface as drift
+# in the other members — that's the failure mode this gate catches.
+go-tidy-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🐹 Checking Go module tidiness across workspace members..."
+    for pkg in {{go_workspace_members}}; do
+        echo "   → $pkg"
+        # `go mod tidy -diff` (Go 1.23+) exits non-zero if go.mod or
+        # go.sum would change. Prints the diff to stdout for the log.
+        (cd "$pkg" && go mod tidy -diff) || {
+            echo "❌ $pkg is not tidy. Run 'just go-tidy-fix' and commit."
+            exit 1
+        }
+    done
+    echo "🐹 Checking go workspace (go.work / go.work.sum + member go.mod sync)..."
+    go work sync
+    # `go work sync` writes the MVS-resolved version of every transitive
+    # dep back into each member's go.mod (per `go help work sync`), so a
+    # filter limited to go.work/go.work.sum would miss those edits. Scope
+    # the diff to every go.* file — catches member-level drift while
+    # ignoring unrelated working-tree changes a contributor may have.
+    if ! git diff --exit-code -- 'go.work' 'go.work.sum' '**/go.mod' '**/go.sum'; then
+        echo "❌ Go workspace is out of sync. Run 'just go-tidy-fix' and commit."
+        exit 1
+    fi
+    echo "✓ All Go workspace members + go.work.sum are tidy."
+
+# Apply `go mod tidy` to every workspace member + `go work sync` —
+# the "one button" fix for drift surfaced by `go-tidy-check`. Mutates
+# the working tree; review and commit the diff.
+go-tidy-fix:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🐹 Tidying every Go workspace member..."
+    for pkg in {{go_workspace_members}}; do
+        echo "   → $pkg"
+        (cd "$pkg" && go mod tidy)
+    done
+    echo "🐹 Syncing go workspace..."
+    go work sync
+    echo "✓ Done. Review with 'git diff' and commit."
 
 # Format Go code (default: go fmt, use --pants for Pants)
 go-format +args='':
