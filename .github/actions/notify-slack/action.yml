@@ -6,7 +6,7 @@ description: >-
 
 inputs:
   webhook:
-    description: Slack incoming webhook URL (e.g. ${{ secrets.SLACK_WEBHOOK_URL }})
+    description: Slack incoming webhook URL (callers pass secrets.SLACK_WEBHOOK_URL)
     required: true
   headline:
     description: >-
