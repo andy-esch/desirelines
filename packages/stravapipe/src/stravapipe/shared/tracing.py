@@ -177,6 +177,10 @@ def instrument_sqlalchemy_engine(engine: Engine) -> None:
             SQLAlchemyInstrumentor,
         )
 
+        # Footgun: SQLAlchemyInstrumentor().instrument(engine=None) silently
+        # switches to *global* instrumentation (wraps every future engine
+        # created via create_engine, in-process). The `engine: Engine`
+        # signature (not Optional) is the defense — don't relax it.
         SQLAlchemyInstrumentor().instrument(engine=engine)
         logger.info("SQLAlchemy OTel instrumentation enabled")
     except Exception:
