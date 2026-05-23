@@ -15,7 +15,7 @@ from stravapipe.exceptions import ActivityNotFoundError
 from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
 from stravapipe.shared.metrics import record_duration
-from stravapipe.shared.tracing import record_span
+from stravapipe.shared.tracing import db_attributes, record_span
 
 
 class ActivitiesWriter(WriteActivities):
@@ -173,7 +173,12 @@ class ActivitiesWriter(WriteActivities):
             record_span(
                 self._tracer,
                 "bigquery.write_to_staging",
-                {"desirelines.activity_id": activity.id},
+                db_attributes(
+                    "bigquery",
+                    self._dataset_name,
+                    "INSERT",
+                    {"desirelines.activity_id": activity.id},
+                ),
             ),
             record_duration(self._histogram, {"operation": "write_to_staging"}),
         ):
@@ -193,7 +198,12 @@ class ActivitiesWriter(WriteActivities):
             record_span(
                 self._tracer,
                 "bigquery.write_batch_to_staging",
-                {"batch_size": len(activities)},
+                db_attributes(
+                    "bigquery",
+                    self._dataset_name,
+                    "INSERT",
+                    {"batch_size": len(activities)},
+                ),
             ),
             record_duration(self._histogram, {"operation": "write_batch_to_staging"}),
         ):
@@ -211,7 +221,12 @@ class ActivitiesWriter(WriteActivities):
             record_span(
                 self._tracer,
                 "bigquery.merge_from_staging",
-                {"desirelines.activity_id": activity_id},
+                db_attributes(
+                    "bigquery",
+                    self._dataset_name,
+                    "MERGE",
+                    {"desirelines.activity_id": activity_id},
+                ),
             ),
             record_duration(self._histogram, {"operation": "merge_from_staging"}),
         ):
@@ -227,7 +242,12 @@ class ActivitiesWriter(WriteActivities):
             record_span(
                 self._tracer,
                 "bigquery.merge_batch_from_staging",
-                {"batch_size": len(activity_ids)},
+                db_attributes(
+                    "bigquery",
+                    self._dataset_name,
+                    "MERGE",
+                    {"batch_size": len(activity_ids)},
+                ),
             ),
             record_duration(self._histogram, {"operation": "merge_batch_from_staging"}),
         ):
@@ -252,7 +272,12 @@ class ActivitiesWriter(WriteActivities):
         with record_span(
             self._tracer,
             "bigquery.cleanup_staging",
-            {"batch_size": len(activity_ids)},
+            db_attributes(
+                "bigquery",
+                self._dataset_name,
+                "DELETE",
+                {"batch_size": len(activity_ids)},
+            ),
         ):
             self._client.execute_dml_query(delete_query, query_params)
 

@@ -134,6 +134,31 @@ def extract_context_from_attributes(
     return extract(attributes)
 
 
+def db_attributes(
+    system: str,
+    name: str,
+    operation: str,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the OTel ``db.*`` semconv attributes for a database span.
+
+    The standard keys (``db.system`` / ``db.name`` / ``db.operation``)
+    coexist with the app-specific ``desirelines.*`` attributes, which
+    callers pass via ``extra``. Defined once here so the semconv key
+    strings live in a single place. See
+    packages/apigateway/adapters/postgres/activities.go for the Go-side
+    reference pattern.
+    """
+    attrs: dict[str, Any] = {
+        "db.system": system,
+        "db.name": name,
+        "db.operation": operation,
+    }
+    if extra:
+        attrs.update(extra)
+    return attrs
+
+
 @contextmanager
 def record_span(
     tracer: Tracer | None,

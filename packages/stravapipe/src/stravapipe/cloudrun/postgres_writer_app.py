@@ -36,7 +36,12 @@ from stravapipe.shared.readiness import (
     run_checks,
 )
 from stravapipe.shared.responses import HealthResponse, WebhookResponse
-from stravapipe.shared.tracing import record_span, setup_tracing, shutdown_tracing
+from stravapipe.shared.tracing import (
+    db_attributes,
+    record_span,
+    setup_tracing,
+    shutdown_tracing,
+)
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
@@ -234,7 +239,14 @@ async def _handle_create(
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
         record_span(
-            tracer, "postgres.insert", {"desirelines.activity_id": activity_id}
+            tracer,
+            "postgres.insert",
+            db_attributes(
+                "postgresql",
+                "desirelines",
+                "INSERT",
+                {"desirelines.activity_id": activity_id},
+            ),
         ),
         record_duration(pg_histogram, {"operation": "insert"}),
         uow,
@@ -248,7 +260,12 @@ async def _handle_create(
             record_span(
                 tracer,
                 "postgres.activities.insert",
-                {"desirelines.activity_id": activity_id},
+                db_attributes(
+                    "postgresql",
+                    "desirelines",
+                    "INSERT",
+                    {"desirelines.activity_id": activity_id},
+                ),
             ),
             record_duration(pg_histogram, {"operation": "activities_insert"}),
         ):
@@ -265,7 +282,12 @@ async def _handle_create(
                 with record_span(
                     tracer,
                     "postgres.activities.insert_route",
-                    {"desirelines.activity_id": activity_id},
+                    db_attributes(
+                        "postgresql",
+                        "desirelines",
+                        "INSERT",
+                        {"desirelines.activity_id": activity_id},
+                    ),
                 ):
                     uow.activities.insert_route(activity.id, geojson)
 
@@ -331,7 +353,14 @@ async def _handle_update(
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
         record_span(
-            tracer, "postgres.update_metadata", {"desirelines.activity_id": activity_id}
+            tracer,
+            "postgres.update_metadata",
+            db_attributes(
+                "postgresql",
+                "desirelines",
+                "UPDATE",
+                {"desirelines.activity_id": activity_id},
+            ),
         ),
         record_duration(pg_histogram, {"operation": "update_metadata"}),
         uow,
@@ -392,7 +421,14 @@ async def _handle_delete(
 
     with (
         record_span(
-            tracer, "postgres.delete", {"desirelines.activity_id": activity_id}
+            tracer,
+            "postgres.delete",
+            db_attributes(
+                "postgresql",
+                "desirelines",
+                "DELETE",
+                {"desirelines.activity_id": activity_id},
+            ),
         ),
         record_duration(pg_histogram, {"operation": "delete"}),
         uow,

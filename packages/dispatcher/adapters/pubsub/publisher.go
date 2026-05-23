@@ -74,6 +74,9 @@ type Publisher struct {
 	logger    *slog.Logger
 	histogram metric.Float64Histogram
 	tracer    trace.Tracer
+	// topic is the Pub/Sub topic ID, stamped on the publish span as the
+	// OTel messaging.destination.name semconv attribute.
+	topic string
 
 	mu     sync.RWMutex
 	closed bool
@@ -127,6 +130,7 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 		logger:    logger,
 		histogram: histogram,
 		tracer:    tracer,
+		topic:     topicID,
 	}, nil
 }
 
@@ -148,8 +152,11 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 		defer cancel()
 	}
 
-	ctx, spanDone := otel.StartSpan(ctx, p.tracer, "pubsub.Publish",
+	ctx, spanDone := otel.StartSpan(ctx, p.tracer, "pubsub.publish",
 		attribute.String("correlation_id", correlationID),
+		attribute.String("messaging.system", "gcp_pubsub"),
+		attribute.String("messaging.destination.name", p.topic),
+		attribute.String("messaging.operation", "publish"),
 	)
 	defer func() { spanDone(err) }()
 

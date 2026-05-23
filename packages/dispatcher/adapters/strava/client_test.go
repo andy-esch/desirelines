@@ -272,7 +272,7 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 	}
 
 	// The refresh was triggered by a 401 on a still-valid stored token.
-	span := spanByName(t, sr, "strava.RefreshToken")
+	span := spanByName(t, sr, "strava.refresh_token")
 	if got := spanAttrString(span, "strava.refresh_reason"); got != refreshReasonReactive401 {
 		t.Errorf("strava.refresh_reason = %q, want %q", got, refreshReasonReactive401)
 	}
@@ -531,7 +531,7 @@ func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
 
 	// The optimistic-concurrency loss is non-fatal but must be visible
 	// in the trace as strava.token_conflict=true.
-	span := spanByName(t, sr, "strava.RefreshToken")
+	span := spanByName(t, sr, "strava.refresh_token")
 	if !spanAttrBool(span, "strava.token_conflict") {
 		t.Error("strava.token_conflict attribute not set to true on a detected refresh race")
 	}
@@ -795,7 +795,7 @@ func TestFetchActivity_ValidToken_NoRefresh(t *testing.T) {
 
 // TestFetchActivity_ProactiveRefreshOnExpiry: an expired stored token is
 // refreshed *before* the fetch (no doomed 401 round-trip), and the
-// strava.RefreshToken span carries strava.refresh_reason=proactive_expiry.
+// strava.refresh_token span carries strava.refresh_reason=proactive_expiry.
 func TestFetchActivity_ProactiveRefreshOnExpiry(t *testing.T) {
 	var activityCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -846,7 +846,7 @@ func TestFetchActivity_ProactiveRefreshOnExpiry(t *testing.T) {
 		t.Errorf("expected proactively refreshed token to be persisted, got %+v (ok=%v)", written, ok)
 	}
 
-	span := spanByName(t, sr, "strava.RefreshToken")
+	span := spanByName(t, sr, "strava.refresh_token")
 	if got := spanAttrString(span, "strava.refresh_reason"); got != refreshReasonProactiveExpiry {
 		t.Errorf("strava.refresh_reason = %q, want %q", got, refreshReasonProactiveExpiry)
 	}
@@ -885,7 +885,7 @@ func TestFetchActivity_EmptyTokenRefreshReason(t *testing.T) {
 	if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
-	span := spanByName(t, sr, "strava.RefreshToken")
+	span := spanByName(t, sr, "strava.refresh_token")
 	if got := spanAttrString(span, "strava.refresh_reason"); got != refreshReasonEmptyToken {
 		t.Errorf("strava.refresh_reason = %q, want %q", got, refreshReasonEmptyToken)
 	}
@@ -913,7 +913,7 @@ func TestFetchActivity_RetryEmitsSpanEvents(t *testing.T) {
 		t.Fatal("expected error after exhausting retries")
 	}
 
-	span := spanByName(t, sr, "strava.FetchActivity")
+	span := spanByName(t, sr, "strava.fetch_activity")
 
 	var retryEvents int
 	for _, e := range span.Events() {
