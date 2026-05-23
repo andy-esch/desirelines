@@ -57,6 +57,10 @@ files(
     name="docker_sources",
     sources=[
         "pyproject.toml",
+        # `uv.lock` is the production resolve — the Dockerfile installs
+        # via `uv sync --frozen` so prod pins to the same versions as
+        # local dev and (transitively) CI.
+        "uv.lock",
         "README.md",
         "src/**/*.py",
         "src/**/*.json",  # Include any JSON config files
