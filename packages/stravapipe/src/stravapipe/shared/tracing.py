@@ -14,6 +14,7 @@ import logging
 import os
 from typing import Any
 
+from fastapi import FastAPI
 from opentelemetry.context import Context
 from opentelemetry.propagate import extract
 from opentelemetry.sdk.resources import Resource
@@ -25,6 +26,7 @@ from opentelemetry.trace import (
     get_tracer,
     set_tracer_provider,
 )
+from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +119,75 @@ def shutdown_tracing() -> None:
     if _tracer_provider is not None:
         _tracer_provider.shutdown()
         _tracer_provider = None
+
+
+def instrument_fastapi_app(app: FastAPI) -> None:
+    """Enable OpenTelemetry auto-instrumentation for a FastAPI app.
+
+    Wraps every request in an HTTP server span and emits the standard
+    ``http.server.*`` metrics against the global MeterProvider that
+    ``setup_metrics`` installed.
+
+    Note: the webhook handlers re-parent their processing span on the
+    dispatcher's cross-service ``traceparent`` (carried in the Pub/Sub
+    message body, which a header-based server span can't see), so that
+    span continues the dispatcher's end-to-end trace rather than nesting
+    under this server span — the two are separate traces by design. See
+    docs/architecture/observability.md.
+
+    Gated on ``ENABLE_OTEL_TRACING`` and fails closed to a no-op,
+    matching ``setup_tracing``'s degradation contract. Call from the app
+    lifespan after ``setup_tracing`` / ``setup_metrics`` so the global
+    providers already exist.
+    """
+    if os.environ.get("ENABLE_OTEL_TRACING", "").lower() != "true":
+        logger.info("FastAPI instrumentation skipped (ENABLE_OTEL_TRACING != true)")
+        return
+
+    try:
+        # Deferred import: parity with setup_tracing — keeps tracing.py
+        # importable even if the optional instrumentation package is absent.
+        from opentelemetry.instrumentation.fastapi import (  # noqa: PLC0415
+            FastAPIInstrumentor,
+        )
+
+        FastAPIInstrumentor.instrument_app(app)
+        logger.info("FastAPI OTel instrumentation enabled")
+    except Exception:
+        logger.warning(
+            "FastAPI instrumentation failed, continuing without it",
+            exc_info=True,
+        )
+
+
+def instrument_sqlalchemy_engine(engine: Engine) -> None:
+    """Enable OpenTelemetry auto-instrumentation for a SQLAlchemy engine.
+
+    Emits a span per executed SQL statement, parented under whatever
+    span is active when the statement runs (e.g. the handler's
+    ``record_span``). Gated on ``ENABLE_OTEL_TRACING`` and fails closed
+    to a no-op.
+    """
+    if os.environ.get("ENABLE_OTEL_TRACING", "").lower() != "true":
+        logger.info("SQLAlchemy instrumentation skipped (ENABLE_OTEL_TRACING != true)")
+        return
+
+    try:
+        from opentelemetry.instrumentation.sqlalchemy import (  # noqa: PLC0415
+            SQLAlchemyInstrumentor,
+        )
+
+        # Footgun: SQLAlchemyInstrumentor().instrument(engine=None) silently
+        # switches to *global* instrumentation (wraps every future engine
+        # created via create_engine, in-process). The `engine: Engine`
+        # signature (not Optional) is the defense — don't relax it.
+        SQLAlchemyInstrumentor().instrument(engine=engine)
+        logger.info("SQLAlchemy OTel instrumentation enabled")
+    except Exception:
+        logger.warning(
+            "SQLAlchemy instrumentation failed, continuing without it",
+            exc_info=True,
+        )
 
 
 def extract_context_from_attributes(

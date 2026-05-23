@@ -32,6 +32,8 @@ dependencies = [
     "opentelemetry-resourcedetector-gcp>=1.8.0a0",
     "polyline>=2.0.4",
     "opentelemetry-exporter-otlp-proto-grpc>=1.28.0",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.49b0",
 ]
 
 # Development dependencies - Pants-compatible format
