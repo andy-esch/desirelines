@@ -80,6 +80,7 @@ func newTestPublisher(t *testing.T) (*Publisher, *pstest.Server) {
 		logger:    slog.Default(),
 		histogram: nil,
 		tracer:    nil, // set by callers that need it
+		topic:     "test-topic",
 	}, srv
 }
 
@@ -159,7 +160,7 @@ func TestPublish_InjectsTraceparentMatchingActiveSpan(t *testing.T) {
 // TestPublish_NoCallerSpan_InjectsInternalSpanContext pins the contract
 // that Publish always emits a well-formed `traceparent` on the outgoing
 // message, even when the caller passes a bare `context.Background()` with
-// no active span — because Publish opens its own internal `pubsub.Publish`
+// no active span — because Publish opens its own internal `pubsub.publish`
 // span before injecting, and that span's context is what gets propagated.
 // Guards against the regression "someone refactors Publish to skip opening
 // the internal span when the caller didn't provide one," which would
@@ -179,7 +180,7 @@ func TestPublish_NoCallerSpan_InjectsInternalSpanContext(t *testing.T) {
 	p.tracer = provider.Tracer("test")
 
 	// context.Background() carries no caller span. Publish opens its own
-	// internal `pubsub.Publish` span before injecting, so the published
+	// internal `pubsub.publish` span before injecting, so the published
 	// message's `traceparent` reflects THAT span's trace-id — not absence.
 	err := p.Publish(context.Background(), &generated.EnrichedEvent{
 		Event: &generated.WebhookEvent{ObjectId: 1, OwnerId: 2},

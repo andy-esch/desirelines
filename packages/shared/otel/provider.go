@@ -106,7 +106,7 @@ func newMeterProvider(res *resource.Resource, reader sdkmetric.Reader) *sdkmetri
 // dispatcher injects it into PubSub message attributes
 // (dispatcher/adapters/pubsub/publisher.go); Python workers extract it
 // via stravapipe/shared/tracing.py's extract_context_from_attributes(),
-// so their spans appear as children of the dispatcher's pubsub.Publish
+// so their spans appear as children of the dispatcher's pubsub.publish
 // span with a single unified trace_id across services.
 //
 // Baggage is included for future use (e.g., propagating correlation_id).

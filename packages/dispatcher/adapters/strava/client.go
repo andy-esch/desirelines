@@ -149,7 +149,7 @@ func proactiveRefreshReason(tokens *stravatoken.Data, now time.Time) string {
 // expiry, retries on transient errors, and refreshes + persists tokens
 // reactively on 401 as a backstop.
 func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (_ []byte, err error) {
-	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.FetchActivity",
+	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.fetch_activity",
 		attribute.Int64("strava.owner_id", ownerID),
 		attribute.Int64("strava.activity_id", activityID),
 	)
@@ -287,7 +287,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 // Returns error if either the refresh or the write-back fails — callers must not
 // proceed with stale tokens if write-back fails.
 func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.Data, reason string) (_ *stravatoken.Data, err error) {
-	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.RefreshToken",
+	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.refresh_token",
 		attribute.Int64("strava.owner_id", ownerID),
 		attribute.String("strava.refresh_reason", reason),
 	)

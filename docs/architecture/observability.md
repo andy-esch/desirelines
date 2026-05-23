@@ -24,10 +24,10 @@ A single Strava webhook produces one trace that spans the dispatcher (Go) → Pu
                                   │  - dispatcher.      │
                                   │      allowlist_check│
                                   │  - strava.          │
-                                  │      FetchActivity  │
+                                  │      fetch_activity │
                                   │  - firestore.       │
-                                  │      GetTokens      │
-                                  │  - pubsub.Publish   │ ← injects traceparent
+                                  │      get_tokens     │
+                                  │  - pubsub.publish   │ ← injects traceparent
                                   └──────────┬──────────┘
                                              │ Pub/Sub message
                                              │ attributes: { traceparent, ... }
@@ -57,7 +57,7 @@ A single Strava webhook produces one trace that spans the dispatcher (Go) → Pu
               └───────────────────────┘           └───────────────────────┘
 ```
 
-The same `trace_id` flows end-to-end. The bq-inserter and postgres-writer roots (`bq_inserter.webhook.process` and `postgres_writer.webhook.process`) appear as children of the dispatcher's `pubsub.Publish` span.
+The same `trace_id` flows end-to-end. The bq-inserter and postgres-writer roots (`bq_inserter.webhook.process` and `postgres_writer.webhook.process`) appear as children of the dispatcher's `pubsub.publish` span.
 
 The deauth path is a separate subgraph:
 
