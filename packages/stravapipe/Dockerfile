@@ -64,8 +64,27 @@ ENV UV_LINK_MODE=copy \
 # diagnose it. Build the venv where it will run.
 WORKDIR /app
 
-# Standalone CPython 3.14 (matches .python-version).
-RUN uv python install 3.14
+# Standalone CPython, pinned to a specific patch (matches
+# `.python-version`). Without the patch, `uv python install 3.14`
+# resolves to whatever 3.14.x is latest at build time → builds drift.
+RUN uv python install 3.14.5
+
+# Prune the standalone CPython stdlib of server-irrelevant directories.
+# uv ships python-build-standalone's "install_only" tarball (no
+# `install_only_stripped` variant exposed by uv yet), which is tuned
+# for portability over minimum size: `idlelib`, `tkinter`, `ensurepip`,
+# `turtledemo` are all unused by these Cloud Run services. The CPython
+# test suite is already excluded by `install_only`.
+#
+# Post-hoc `strip` of the interpreter was tried and reverted —
+# `--strip-unneeded` corrupts the version symbols in
+# python-build-standalone's portably-linked binaries (`python:slim`
+# strips at compile time via `-Wl,--strip-all`, which is different).
+# Modest win from prune alone (~5 MB); deeper size reduction is
+# tracked separately.
+RUN find /opt/python -depth -type d \( \
+        -name idlelib -o -name ensurepip -o -name tkinter -o -name turtledemo \
+    \) -exec rm -rf {} +
 
 # Layer 1: install LOCKED dependencies only, without the project.
 # Cached until uv.lock or pyproject.toml changes; src/ edits below
@@ -125,6 +144,11 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 EXPOSE 8080
 
+# Explicit non-root user (defense-in-depth). distroless/cc:nonroot
+# already defaults to uid 65532, but pinning here means a future
+# `--build-arg DISTROLESS_TAG=debug` (without `-nonroot`) doesn't
+# silently downgrade us to running as root.
+USER 65532:65532
+
 # Default: bq-inserter (Cloud Run overrides this per service/job).
-# distroless:nonroot already runs as uid 65532 — no explicit USER.
 CMD ["uvicorn", "stravapipe.cloudrun.bq_inserter_app:app", "--host", "0.0.0.0", "--port", "8080"]
