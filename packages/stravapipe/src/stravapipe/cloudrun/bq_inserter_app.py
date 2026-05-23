@@ -41,6 +41,7 @@ from stravapipe.shared.readiness import (
 from stravapipe.shared.responses import HealthResponse, WebhookResponse
 from stravapipe.shared.tracing import (
     db_attributes,
+    instrument_fastapi_app,
     record_span,
     setup_tracing,
     shutdown_tracing,
@@ -79,6 +80,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "desirelines.io/webhook/events",
             description="Webhook events processed",
         )
+
+        # FastAPI server span + http.server.* metrics — binds the global
+        # providers set just above.
+        instrument_fastapi_app(app)
 
         app.state.writer = make_write_activities(
             project_id=config.project_id,

@@ -38,6 +38,8 @@ from stravapipe.shared.readiness import (
 from stravapipe.shared.responses import HealthResponse, WebhookResponse
 from stravapipe.shared.tracing import (
     db_attributes,
+    instrument_fastapi_app,
+    instrument_sqlalchemy_engine,
     record_span,
     setup_tracing,
     shutdown_tracing,
@@ -119,6 +121,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         # Initialize OTel tracing
         app.state.tracer = setup_tracing("desirelines-postgres-writer")
+
+        # FastAPI server span + http.server.* metrics; SQLAlchemy
+        # statement spans on the pooled engine. After both OTel providers
+        # and the engine exist.
+        instrument_fastapi_app(app)
+        instrument_sqlalchemy_engine(app.state.db_engine)
 
         yield
     except Exception:

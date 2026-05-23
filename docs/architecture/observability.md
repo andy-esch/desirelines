@@ -59,6 +59,8 @@ A single Strava webhook produces one trace that spans the dispatcher (Go) → Pu
 
 The same `trace_id` flows end-to-end. The bq-inserter and postgres-writer roots (`bq_inserter.webhook.process` and `postgres_writer.webhook.process`) appear as children of the dispatcher's `pubsub.publish` span.
 
+The Python consumers are also FastAPI- and SQLAlchemy-instrumented: each inbound CloudEvent POST gets an HTTP **server span** (routing + body-parse time), and every SQL statement gets its own span nested under the handler's `postgres.*` spans. One deliberate gap: the server span continues the *HTTP delivery's* trace context, not the dispatcher's — the cross-service `traceparent` rides in the Pub/Sub message body, which a header-based server span can't see. So the FastAPI server span sits in a separate short trace from `webhook.process`; unifying them is a known follow-up.
+
 The deauth path is a separate subgraph:
 
 ```
@@ -250,6 +252,7 @@ resolution for custom metrics).
 | `pubsub/publish.duration` | dispatcher | (per topic) | Publish latency |
 | `firestore/operation.duration` | dispatcher | (per op) | Firestore read/write latency |
 | `http/request.duration` | apigateway, dispatcher | `result=success\|error` | otelhttp middleware |
+| `http.server.duration` | bq-inserter, postgres-writer, deletion-service | OTel `http.*` attrs | Auto-emitted by FastAPI instrumentation (ms; **not** `desirelines.io/`-namespaced). The OTel-standard ingress histogram — distinct from the Go `http/request.duration` above; union both for a cross-pipeline view rather than renaming either. |
 | `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create\|update\|delete` | End-to-end webhook freshness from dispatcher receive to postgres row visible/updated/removed. Anchors SLO 3. Emitted only on success paths (new insert, metadata updated, row deleted) so skips and DLQ don't pollute the latency distribution. |
 
 ### Counters
@@ -284,7 +287,6 @@ Deliberate omissions, so traces stay readable:
 
 - **Pydantic validation** in Python services — sub-millisecond, would clutter traces.
 - **`parseAndValidateWebhook`, `checkSubscriptionID`** in the dispatcher — fast, same reason.
-- **FastAPI route handler entry** — implicit in the `webhook.process` span; adding one would just duplicate the parent.
 
 If you find yourself reaching for these during an investigation, you've probably hit a real gap; flag it.
 
