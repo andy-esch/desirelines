@@ -1,0 +1,18 @@
+# Shrink the build context sent to the daemon and keep the layer cache
+# stable. Do NOT exclude `src/`, `uv.lock`, `pyproject.toml`, or
+# `README.md` — they're build-required.
+#
+# Note: `src/stravapipe/types/generated/*_pb2.py` and
+# `src/stravapipe/config/sport_types.json` are committed,
+# build-required files; do not add patterns that exclude them.
+
+.venv/
+**/__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+tests/
+# Pants lockfile — production installs from uv.lock; stravapipe.lock
+# is only used by Pants/CI and doesn't belong in the image.
+stravapipe.lock
