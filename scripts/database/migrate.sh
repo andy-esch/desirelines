@@ -63,10 +63,8 @@ DB_PASSWORD=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://[^:]+:(.+)@.*|
 URL_WITHOUT_CREDS=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://.+@|postgresql://|')
 JDBC_URL="jdbc:${URL_WITHOUT_CREDS}"
 
-echo "DB_USER=$DB_USER"
-echo "DB_PASSWORD=$DB_PASSWORD"
-echo "JDBC_URL=$JDBC_URL"
-
+# Intentionally do not echo DB_USER, DB_PASSWORD, or JDBC_URL — they contain
+# credentials. Per docs/guides/secure-scripting.md ("No Echoing Secrets").
 echo -e "${GREEN}✅ Connection string retrieved and parsed${NC}"
 echo ""
 

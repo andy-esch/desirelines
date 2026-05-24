@@ -4,9 +4,9 @@
 # Usage: ./scripts/ops/setup/bootstrap-terraform-sa.sh <environment>
 # Example: ./scripts/ops/setup/bootstrap-terraform-sa.sh dev
 
-set -e
+set -euo pipefail
 
-ENV_NAME="$1"
+ENV_NAME="${1:-}"
 if [[ -z "$ENV_NAME" ]]; then
 	echo "❌ Error: Environment name required"
 	echo "Usage: $0 <environment>"

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Verify that both Go and Python webhook adapters handle all proto fields and enum values.
 # Run via: just verify-webhook-adapters
+#
+# NOTE: `-e` is intentionally omitted. This script uses an `errors` counter and
+# expects `grep` to return non-zero when a field/enum is missing — that is the
+# signal the loop is testing for. Enabling `-e` would abort on the first miss
+# and defeat the purpose. Each external call has an explicit exit path.
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

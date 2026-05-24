@@ -48,22 +48,22 @@ md-format:
         exit 1
     fi
 
-# Lint shell scripts using shellcheck
+# Lint shell scripts using shellcheck (covers both scripts/ and local-dev/)
 sh-lint:
     #!/usr/bin/env bash
     if command -v shellcheck >/dev/null 2>&1; then
         echo "🐚 Linting scripts with shellcheck..."
-        find scripts -name "*.sh" -exec shellcheck {} +
+        find scripts local-dev -name "*.sh" -exec shellcheck {} +
     else
         echo "⚠️  shellcheck not found. Skipping."
     fi
 
-# Format shell scripts using shfmt
+# Format shell scripts using shfmt (covers both scripts/ and local-dev/)
 sh-format:
     #!/usr/bin/env bash
     if command -v shfmt >/dev/null 2>&1; then
         echo "🎨 Formatting scripts with shfmt..."
-        find scripts -name "*.sh" -exec shfmt -w -i 2 -ci {} +
+        find scripts local-dev -name "*.sh" -exec shfmt -w -i 2 -ci {} +
     else
         echo "⚠️  shfmt not found. Skipping."
     fi

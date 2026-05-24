@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "⚠️  [DEPRECATED] This script is under review and may be removed."
 
@@ -9,8 +9,11 @@ echo "⚠️  [DEPRECATED] This script is under review and may be removed."
 echo "🚀 Setting up local testing environment..."
 
 # Check required environment variables
+# Default expansion (`:-`) is required so `set -u` does not trip on the
+# indirect lookup when the target variable is unset — that "unset" case is
+# exactly what we are testing for.
 check_env_var() {
-	if [ -z "${!1}" ]; then
+	if [ -z "${!1:-}" ]; then
 		echo "❌ Error: $1 environment variable is required"
 		exit 1
 	fi

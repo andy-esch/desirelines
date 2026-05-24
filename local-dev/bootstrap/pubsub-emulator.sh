@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bootstrap PubSub topics and subscriptions for local development
 
-set -e
+set -euo pipefail
 
 # Default to local emulator (host perspective)
 export PUBSUB_EMULATOR_HOST=${PUBSUB_EMULATOR_HOST:-localhost:8085}
