@@ -14,8 +14,8 @@ echo "Project ID: $PROJECT_ID"
 # Wait for emulator to be ready
 echo "⏳ Waiting for PubSub emulator..."
 until curl -s http://pubsub-emulator:8085 >/dev/null 2>&1; do
-	echo "  Still waiting for emulator..."
-	sleep 2
+  echo "  Still waiting for emulator..."
+  sleep 2
 done
 echo "✅ PubSub emulator is ready"
 
