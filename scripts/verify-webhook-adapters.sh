@@ -29,7 +29,7 @@ echo "Checking webhook adapter field coverage..."
 # Extract message field names from proto (e.g., "object_id", "title", "updates")
 # Matches lines like: "  int64 object_id = 3;" or "  optional string title = 1;"
 # Uses awk to grab the word just before "= N"
-proto_fields=$(grep -E '^[[:space:]]+(optional[[:space:]]+)?[[:alnum:]_]+[[:space:]]+[[:alnum:]_]+[[:space:]]*=[[:space:]]*[0-9]+' "$PROTO_FILE" |
+proto_fields=$(grep -E '^[[:space:]]+(optional[[:space:]]+|repeated[[:space:]]+)?[[:alnum:]_.]+[[:space:]]+[[:alnum:]_]+[[:space:]]*=[[:space:]]*[0-9]+' "$PROTO_FILE" |
   grep -v 'hub_' |
   awk -F'=' '{print $1}' |
   awk '{print $NF}' || true)
