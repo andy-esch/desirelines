@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Complete Environment Bootstrap Script
 # Prerequisites: Set your gcloud project to match the environment first

@@ -39,7 +39,7 @@ if [[ -z "$proto_fields" ]]; then
     exit 1
 fi
 
-echo "  Extracted fields: $(echo $proto_fields | tr '\n' ' ')"
+echo "  Extracted fields: $(echo "$proto_fields" | tr '\n' ' ')"
 
 for field in $proto_fields; do
     # Skip raw_activity and event (EnrichedEvent-only fields)
@@ -69,7 +69,7 @@ if [[ -z "$enum_values" ]]; then
     exit 1
 fi
 
-echo "  Extracted enums: $(echo $enum_values | tr '\n' ' ')"
+echo "  Extracted enums: $(echo "$enum_values" | tr '\n' ' ')"
 
 for value in $enum_values; do
     # Extract the lowercase last segment: ASPECT_TYPE_CREATE -> create

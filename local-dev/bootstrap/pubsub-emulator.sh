@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Bootstrap PubSub topics and subscriptions for local development
 
 set -euo pipefail

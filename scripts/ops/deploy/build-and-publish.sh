@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Build and publish all Docker images to Artifact Registry
 #
 # Usage: ./scripts/ops/deploy/build-and-publish.sh [SHA]

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Run Flyway operations against dev or prod database
 # Usage: ./scripts/database/migrate.sh dev|prod [--dry-run|clean]
 
