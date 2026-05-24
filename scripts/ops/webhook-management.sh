@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Strava webhook management script
 # Usage: ./scripts/webhook-management.sh <command> <environment>

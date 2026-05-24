@@ -1,10 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Connect to PostgreSQL database via psql
 # Usage: ./scripts/database/connect.sh dev|prod [--admin|--apigateway|--writer]
 
 set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors for output
 RED='\033[0;31m'

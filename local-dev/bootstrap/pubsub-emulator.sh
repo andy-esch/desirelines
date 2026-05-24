@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Bootstrap PubSub topics and subscriptions for local development
 
-set -e
+set -euo pipefail
 
 # Default to local emulator (host perspective)
 export PUBSUB_EMULATOR_HOST=${PUBSUB_EMULATOR_HOST:-localhost:8085}
@@ -14,8 +14,8 @@ echo "Project ID: $PROJECT_ID"
 # Wait for emulator to be ready
 echo "⏳ Waiting for PubSub emulator..."
 until curl -s http://pubsub-emulator:8085 >/dev/null 2>&1; do
-	echo "  Still waiting for emulator..."
-	sleep 2
+  echo "  Still waiting for emulator..."
+  sleep 2
 done
 echo "✅ PubSub emulator is ready"
 

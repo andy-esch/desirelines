@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Complete Environment Bootstrap Script
 # Prerequisites: Set your gcloud project to match the environment first
@@ -11,7 +11,9 @@
 
 set -euo pipefail
 
-ENV_NAME="$1"
+# Default expansion keeps `set -u` from short-circuiting before the
+# helpful usage message below when no argument is supplied.
+ENV_NAME="${1:-}"
 if [[ -z "$ENV_NAME" ]]; then
 	echo "❌ Error: Environment name required"
 	echo "Usage: $0 <environment>"
