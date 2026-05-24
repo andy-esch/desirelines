@@ -67,3 +67,21 @@ sh-format:
     else
         echo "⚠️  shfmt not found. Skipping."
     fi
+
+# Verify shell scripts are formatted per the project style (-i 2 -ci),
+# without mutating the working tree. Exits non-zero with the diff
+# printed if any script needs reformatting. Wired into CI so format
+# drift is caught at PR time; locally, run `just sh-format` to fix.
+sh-format-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v shfmt >/dev/null 2>&1; then
+        echo "⚠️  shfmt not found. Skipping."
+        exit 0
+    fi
+    echo "🎨 Checking script formatting with shfmt..."
+    if ! find scripts local-dev -name "*.sh" -exec shfmt -d -i 2 -ci {} + ; then
+        echo "❌ Scripts not formatted. Run 'just sh-format' and commit."
+        exit 1
+    fi
+    echo "✓ All scripts formatted."
