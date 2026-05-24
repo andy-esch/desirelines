@@ -48,15 +48,22 @@ md-format:
         exit 1
     fi
 
-# Lint shell scripts using shellcheck (covers both scripts/ and local-dev/)
+# Lint shell scripts using shellcheck (covers both scripts/ and local-dev/).
+# In CI ($CI is set), a missing shellcheck is a hard error — defense in
+# depth against the install step being silently broken or removed.
+# Locally it skips gracefully so contributors aren't forced to install it.
 sh-lint:
     #!/usr/bin/env bash
-    if command -v shellcheck >/dev/null 2>&1; then
-        echo "🐚 Linting scripts with shellcheck..."
-        find scripts local-dev -name "*.sh" -exec shellcheck {} +
-    else
+    if ! command -v shellcheck >/dev/null 2>&1; then
+        if [[ -n "${CI:-}" ]]; then
+            echo "❌ shellcheck not found (required in CI)."
+            exit 1
+        fi
         echo "⚠️  shellcheck not found. Skipping."
+        exit 0
     fi
+    echo "🐚 Linting scripts with shellcheck..."
+    find scripts local-dev -name "*.sh" -exec shellcheck {} +
 
 # Format shell scripts using shfmt (covers both scripts/ and local-dev/)
 sh-format:
@@ -67,3 +74,28 @@ sh-format:
     else
         echo "⚠️  shfmt not found. Skipping."
     fi
+
+# Verify shell scripts are formatted per the project style (-i 2 -ci),
+# without mutating the working tree. Exits non-zero with the diff
+# printed if any script needs reformatting. Wired into CI so format
+# drift is caught at PR time; locally, run `just sh-format` to fix.
+sh-format-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # In CI ($CI is set), missing shfmt is a hard error — otherwise a
+    # silently-removed install step would let this gate pass green
+    # without actually checking anything.
+    if ! command -v shfmt >/dev/null 2>&1; then
+        if [[ -n "${CI:-}" ]]; then
+            echo "❌ shfmt not found (required in CI)."
+            exit 1
+        fi
+        echo "⚠️  shfmt not found. Skipping."
+        exit 0
+    fi
+    echo "🎨 Checking script formatting with shfmt..."
+    if ! find scripts local-dev -name "*.sh" -exec shfmt -d -i 2 -ci {} + ; then
+        echo "❌ Scripts not formatted. Run 'just sh-format' and commit."
+        exit 1
+    fi
+    echo "✓ All scripts formatted."
