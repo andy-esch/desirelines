@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/firestore v1.22.0
 	firebase.google.com/go/v4 v4.20.0
 	github.com/andy-esch/desirelines/packages/shared v0.0.0
-	github.com/go-chi/chi/v5 v5.2.5
+	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.9.2
