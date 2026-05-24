@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Deploy web application to Firebase Hosting
 # Usage: ./scripts/ops/deploy/deploy-web.sh <environment>
@@ -36,15 +36,12 @@ ENVIRONMENT="$1"
 case "$ENVIRONMENT" in
 local)
 	FIREBASE_PROJECT="desirelines-local"
-	GCP_PROJECT="desirelines-local"
 	;;
 dev)
 	FIREBASE_PROJECT="desirelines-dev"
-	GCP_PROJECT="desirelines-dev"
 	;;
 prod)
 	FIREBASE_PROJECT="desirelines-prod"
-	GCP_PROJECT="desirelines-prod"
 	;;
 *)
 	echo "❌ Error: Invalid environment: $ENVIRONMENT"

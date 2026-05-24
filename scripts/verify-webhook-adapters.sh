@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Verify that both Go and Python webhook adapters handle all proto fields and enum values.
 # Run via: just verify-webhook-adapters
+#
+# NOTE: `-e` is intentionally omitted. This script uses an `errors` counter and
+# expects `grep` to return non-zero when a field/enum is missing — that is the
+# signal the loop is testing for. Enabling `-e` would abort on the first miss
+# and defeat the purpose. Each external call has an explicit exit path.
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,7 +39,7 @@ if [[ -z "$proto_fields" ]]; then
     exit 1
 fi
 
-echo "  Extracted fields: $(echo $proto_fields | tr '\n' ' ')"
+echo "  Extracted fields: $(echo "$proto_fields" | tr '\n' ' ')"
 
 for field in $proto_fields; do
     # Skip raw_activity and event (EnrichedEvent-only fields)
@@ -64,7 +69,7 @@ if [[ -z "$enum_values" ]]; then
     exit 1
 fi
 
-echo "  Extracted enums: $(echo $enum_values | tr '\n' ' ')"
+echo "  Extracted enums: $(echo "$enum_values" | tr '\n' ' ')"
 
 for value in $enum_values; do
     # Extract the lowercase last segment: ASPECT_TYPE_CREATE -> create

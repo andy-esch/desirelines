@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Complete local development environment setup for Desire Lines
 # This script orchestrates all the steps needed for local development
 
