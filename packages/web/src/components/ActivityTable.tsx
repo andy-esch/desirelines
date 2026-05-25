@@ -5,11 +5,19 @@ import {
   formatDistance,
   formatElevation,
   formatImpactPct,
+  getDistanceLabel,
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
 import { SPORT_COLORS } from "../utils/sportConfig";
 import NeonSpinner from "./NeonSpinner";
+
+/** Speed unit label for each supported distance unit (cycling display). */
+const SPEED_LABEL: Record<DistanceUnit, string> = {
+  miles: "mph",
+  kilometers: "km/h",
+  meters: "m/h",
+};
 
 interface ActivityTableProps {
   activities: ActivitySummary[];
@@ -59,23 +67,19 @@ function formatPaceOrSpeed(
     return "-";
   }
 
+  const distanceInUnits = convertDistance(distanceMeters, distanceUnit);
+
   if (sport === "running") {
-    // Pace: min/mi or min/km
-    const distanceUnits =
-      distanceUnit === "miles" ? distanceMeters * 0.000621371 : distanceMeters * 0.001;
-    const paceMinutes = timeSeconds / 60 / distanceUnits;
+    // Pace: min/<unit>
+    const paceMinutes = timeSeconds / 60 / distanceInUnits;
     const paceMin = Math.floor(paceMinutes);
     const paceSec = Math.round((paceMinutes - paceMin) * 60);
-    const unitLabel = distanceUnit === "miles" ? "mi" : "km";
-    return `${paceMin}:${paceSec.toString().padStart(2, "0")}/${unitLabel}`;
+    return `${paceMin}:${paceSec.toString().padStart(2, "0")}/${getDistanceLabel(distanceUnit)}`;
   } else if (sport === "cycling") {
-    // Speed: mph or km/h
+    // Speed in <unit>/hour
     const hours = timeSeconds / 3600;
-    const distanceUnits =
-      distanceUnit === "miles" ? distanceMeters * 0.000621371 : distanceMeters * 0.001;
-    const speed = distanceUnits / hours;
-    const unitLabel = distanceUnit === "miles" ? "mph" : "km/h";
-    return `${speed.toFixed(1)} ${unitLabel}`;
+    const speed = distanceInUnits / hours;
+    return `${speed.toFixed(1)} ${SPEED_LABEL[distanceUnit]}`;
   }
 
   // Other sports (yoga, etc.) - no pace/speed

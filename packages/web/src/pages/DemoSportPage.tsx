@@ -2,7 +2,13 @@ import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCurrentYear } from "../hooks/useCurrentYear";
 import { getDisplayUnitForMetric, getUserSettings, type MetricUnit } from "../utils/units";
-import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
+import {
+  estimateYearEndDistance,
+  goalToDisplay,
+  goalToStorage,
+  type GoalUnitContext,
+  type Goals,
+} from "../utils/goalCalculations";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import MomentumIndicator from "../components/MomentumIndicator";
 import { useGoalStats } from "../hooks/useGoalStats";
@@ -12,7 +18,7 @@ import { getMetricConfig } from "../config/metricConfig";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
 import { createYearContext } from "../utils/yearContext";
-import { getPrimaryMetric } from "../utils/sportConfig";
+import { getPrimaryMetric, isTimeSport } from "../utils/sportConfig";
 import { convertMetricsToChartData } from "../hooks/useSportPageData";
 import SportPageContent from "../components/SportPageContent";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
@@ -68,8 +74,19 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
-  // Goals management - use localStorage for demo persistence
+  // Goals management - use localStorage for demo persistence.
+  //
+  // localStorage holds *canonical* values (meters for distance, minutes for
+  // time) so they round-trip cleanly into Firestore when a demo user signs in
+  // (see the localStorage→Firestore migration in useUserConfig). The Goals
+  // type returned to UI is in display units.
   const storageKey = `demo_goals_${sport}_${currentYear}`;
+  const isTime = isTimeSport(sport, sportConfig);
+  const hasDistance = sportInfo?.hasDistance ?? false;
+  const goalCtx: GoalUnitContext = useMemo(
+    () => ({ hasDistance, isTime, distanceUnit: userSettings.distanceUnit }),
+    [hasDistance, isTime, userSettings.distanceUnit]
+  );
 
   const loadGoals = useCallback((): Goals => {
     const stored = localStorage.getItem(storageKey);
@@ -77,7 +94,8 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
       try {
         const parsed = JSON.parse(stored) as { goals?: Goals } | null;
         if (Array.isArray(parsed?.goals)) {
-          return parsed.goals;
+          // Stored canonical → convert to display for the UI.
+          return parsed.goals.map((g) => ({ ...g, value: goalToDisplay(g.value, goalCtx) }));
         }
       } catch {
         // Fall back to defaults
@@ -85,6 +103,7 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     }
     const demoGoals = getDemoGoalsForSport(sport);
     if (demoGoals) {
+      // Demo defaults are already in display units — keep them that way for the UI.
       return [
         { id: "1", value: demoGoals.conservative, label: "Conservative" },
         { id: "2", value: demoGoals.target, label: "Target" },
@@ -96,7 +115,8 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
       { id: "2", value: 2500, label: "Target" },
       { id: "3", value: 3000, label: "Stretch" },
     ];
-  }, [storageKey, sport]);
+    // goalCtx is derived from sport/userSettings; including them transitively.
+  }, [storageKey, sport, goalCtx]);
 
   const [goals, setGoals] = useState<Goals>(loadGoals);
   const [prevStorageKey, setPrevStorageKey] = useState(storageKey);
@@ -109,7 +129,9 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
 
   const handleGoalsChange = (newGoals: Goals): Promise<void> => {
     setGoals(newGoals);
-    localStorage.setItem(storageKey, JSON.stringify({ goals: newGoals }));
+    // Persist canonical values; convert display → storage on write.
+    const canonical = newGoals.map((g) => ({ ...g, value: goalToStorage(g.value, goalCtx) }));
+    localStorage.setItem(storageKey, JSON.stringify({ goals: canonical }));
     return Promise.resolve();
   };
 

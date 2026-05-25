@@ -1,8 +1,46 @@
 import type { DistanceEntry, PacingEntry } from "../types/activity";
 import { toLocalDateString } from "./dateUtils";
+import {
+  goalDisplayToMeters,
+  goalMetersToDisplay,
+  hoursToMinutes,
+  minutesToHours,
+  type DistanceUnit,
+} from "./units";
 
 export type DistanceTimeseries = DistanceEntry[];
 export type PacingTimeseries = PacingEntry[];
+
+/** Context needed to convert a goal value between display units and canonical storage units. */
+export interface GoalUnitContext {
+  /** True for distance-based sports (storage = meters, display = miles/km). */
+  hasDistance: boolean;
+  /** True for time-based sports (storage = minutes, display = hours). */
+  isTime: boolean;
+  /** User's preferred distance display unit. */
+  distanceUnit: DistanceUnit;
+}
+
+/**
+ * Convert a goal value from display units (miles/km/hours) to canonical storage
+ * units (meters/minutes). Storage values are unit-stable across user preference
+ * changes; display values follow the user's current setting.
+ *
+ * Sports without a distance or time primary metric (sessions, etc.) are
+ * stored as-is — the value is already unitless.
+ */
+export function goalToStorage(displayValue: number, ctx: GoalUnitContext): number {
+  if (ctx.hasDistance) return Math.round(goalDisplayToMeters(displayValue, ctx.distanceUnit));
+  if (ctx.isTime) return Math.round(hoursToMinutes(displayValue));
+  return displayValue;
+}
+
+/** Inverse of `goalToStorage`. */
+export function goalToDisplay(storageValue: number, ctx: GoalUnitContext): number {
+  if (ctx.hasDistance) return Math.round(goalMetersToDisplay(storageValue, ctx.distanceUnit));
+  if (ctx.isTime) return Math.round(minutesToHours(storageValue));
+  return storageValue;
+}
 
 /**
  * Calculate the number of days in a year using UTC to avoid DST issues
@@ -264,11 +302,12 @@ export function validateGoals(goals: Goals): { valid: boolean; error?: string } 
 }
 
 /**
- * Calculate actual pacing from cumulative distance data
+ * Calculate actual pacing from cumulative metric data
  *
- * Pacing = distance / days elapsed (average miles per day so far)
+ * Pacing = cumulative value / days elapsed (per-day average in the data's own
+ * units — miles/day for distance sports, hours/day for time sports, etc.).
  *
- * @param distanceTraveled - Actual cumulative distance data
+ * @param distanceTraveled - Actual cumulative metric data
  * @param maxDate - Don't plot beyond this date
  * @returns Timeseries with actual average pace over time
  */

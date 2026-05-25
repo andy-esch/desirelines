@@ -8,19 +8,20 @@ import type { GoalsForYear } from "../services/userConfigService";
 import { logger } from "../lib/logger";
 
 /**
- * One-time migration hook: converts goals from legacy miles format to meters.
+ * One-time migration hook: converts goals from legacy display-unit storage to
+ * canonical storage (meters for distance sports, minutes for time sports).
  *
- * Runs once per userId/year/sport when goals are first loaded. Uses a ref to prevent
- * re-triggering within the same component lifecycle, and a localStorage flag
- * (scoped by userId) to prevent re-triggering across page loads.
- *
- * Only applies to distance-based sports; non-distance sports are a no-op.
+ * Runs once per userId/year/sport when goals are first loaded. Uses a ref to
+ * prevent re-triggering within the same component lifecycle, and a versioned
+ * localStorage flag to prevent re-triggering across page loads. Sports with no
+ * canonical-unit metric (sessions, etc.) are a no-op.
  *
  * @param goalsData   - Goals loaded from Firestore/localStorage
  * @param userId      - Authenticated user's UID (for per-user migration tracking)
  * @param year        - Year for migration tracking
  * @param sport       - Sport key for migration tracking
- * @param hasDistance  - Whether this sport uses distance as its primary metric
+ * @param hasDistance - True if this sport's primary metric is distance
+ * @param isTime      - True if this sport's primary metric is time
  * @param updateGoals - Async save function (from useUserConfig)
  */
 export function useGoalMigration(
@@ -29,6 +30,7 @@ export function useGoalMigration(
   year: number,
   sport: string,
   hasDistance: boolean,
+  isTime: boolean,
   updateGoals: (goals: GoalsForYear) => Promise<void>
 ): void {
   // Track which context was last migrated so we re-run when year/sport changes
@@ -37,7 +39,15 @@ export function useGoalMigration(
   useEffect(() => {
     const context = `${userId}_${year}_${sport}`;
     if (!goalsData || lastMigratedContext.current === context) return;
-    if (!hasDistance) return;
+
+    // Only distance and time sports have a display↔canonical conversion. Sports
+    // backed by sessions (or anything else without a unit) need no migration.
+    const kind: "distance" | "time" | null = hasDistance
+      ? "distance"
+      : isTime
+        ? "time"
+        : null;
+    if (kind === null) return;
 
     if (!isGoalUnitMigrated(userId, year, sport) && goalsData.goals.length > 0) {
       lastMigratedContext.current = context;
@@ -45,7 +55,8 @@ export function useGoalMigration(
         goalsData,
         userId,
         year,
-        sport
+        sport,
+        kind
       );
 
       if (needsSave) {
@@ -60,5 +71,5 @@ export function useGoalMigration(
         markGoalUnitMigrated(userId, year, sport);
       }
     }
-  }, [goalsData, userId, year, sport, hasDistance, updateGoals]);
+  }, [goalsData, userId, year, sport, hasDistance, isTime, updateGoals]);
 }
