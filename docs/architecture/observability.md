@@ -114,14 +114,9 @@ The `Link` keeps caller correlation available when it's a legitimate client (e.g
 
 ### Browser → apigateway propagation
 
-The React frontend propagates W3C trace context so a UI action can be tied to the backend traces it triggers ("this click → these backend spans → this SQL"). This is **propagation only** — there is no browser OTel SDK and no collector:
+Frontend axios client ([`packages/web/src/api/client.ts`](../../packages/web/src/api/client.ts)) injects a W3C `traceparent` on internal requests, gated on `isInternalRequest()`. Trace-id is minted per navigation by [`packages/web/src/api/trace.ts`](../../packages/web/src/api/trace.ts) (wired via TanStack Router's `onBeforeNavigate` in `packages/web/src/router.tsx`); CORS allows the header in [`packages/apigateway/pkg/cors/cors.go`](../../packages/apigateway/pkg/cors/cors.go).
 
-- `packages/web/src/api/trace.ts` mints one trace-id per user navigation, wired to TanStack Router's `onBeforeNavigate` in `packages/web/src/router.tsx`, so every request a single navigation fires shares it.
-- The centralized axios interceptor (`packages/web/src/api/client.ts`) injects a `00-<trace-id>-<span-id>-01` `traceparent` header, gated on `isInternalRequest()` — the same gate that guards auth-token attachment, so the header never leaks to third-party hosts. CORS allows it via `packages/apigateway/pkg/cors/cors.go` (`traceparent`, `tracestate`, `baggage`).
-
-Because the apigateway is public-endpoint-mode (the row above), it **links, never parents** on this header: the browser trace-id is a correlation *hint*, not a trusted parent, and a fresh per-request span-id is just a correlation handle. In Cloud Trace this appears as the apigateway's fresh root span carrying the browser navigation's span context as a `Link` — not as a browser-rooted trace tree. For finding and reading these (including the per-plane attribute/log/metric naming that differs by signal), see [docs/runbooks/reading-traces.md](../runbooks/reading-traces.md).
-
-**Current state (2026-05-19):** the apigateway-side mechanism above is verified working — a direct `curl` to the Cloud Run origin with `traceparent: 00-aaaa…-bbbb…-01` produces a fresh-root trace whose root-span `Link == aaaa…/bbbb…`. **However, in the deployed browser path the `Link` target is the Google-edge `X-Cloud-Trace-Context` (a GFE-owned trace with a missing parent), not the browser's `traceparent`.** An intermediate hop between the browser and Cloud Run drops or replaces the W3C `traceparent` header before it reaches Go, so the end-to-end "click → backend traces" correlation through this mechanism is **not** currently achieved. Reverse-correlation via the `trace_id` field on error responses (apierrors) still works. Locating the hop and choosing a remediation (proxy/ingress config fix vs. browser OTel SDK vs. extending reverse-correlation to success responses) is queued as follow-up work.
+Apigateway public-endpoint mode (trust-boundaries table above) links — never parents — on this header. The fresh-root span's `Link` carries the browser's `traceparent` trace-id/span-id; verified end-to-end through the Firebase Hosting `/api/**` rewrite to Cloud Run. For path-independent correlation, every response also carries `X-Trace-Id` (see "Trace IDs in error responses" below).
 
 ## Trace IDs in error responses
 
