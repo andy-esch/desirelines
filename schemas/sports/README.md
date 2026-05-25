@@ -26,11 +26,19 @@ The database stores Strava's `sport_type` as-is without validation. Filtering to
       "primary_metric": "distance_meters|time_minutes",
       "metrics": ["distance_meters", "time_minutes", ...],
       "has_distance": true|false,
-      "has_elevation": true|false
+      "has_elevation": true|false,
+      "dangerPace": { "valuePerDay": 20, "unit": "miles" }
     }
   }
 }
 ```
+
+`dangerPace` is optional. The frontend reads it to draw the sustainable-pace
+"danger zone" on charts; backends ignore it. `unit` must be one of
+`miles | kilometers | meters | feet | hours | minutes | sessions` — the value
+is converted into the user's preferred display unit at read time, so always
+state it in whatever unit is most natural to maintain (e.g. `miles` for the US
+default, `hours` for time sports).
 
 ## Consumers
 
@@ -45,6 +53,7 @@ This file is synced to three packages via `just sync-schemas`. Each consumer dep
 | `metrics` | Loaded | Loaded | Chart configuration |
 | `has_distance` | Returned via `GetCategory()` | Loaded | — |
 | `has_elevation` | Returned via `GetCategory()` | Loaded | — |
+| `dangerPace` | Loaded, passed through | Loaded, ignored | Danger-zone rendering in charts |
 
 **Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web package's demo fixture (`packages/web/src/data/fixtures/index.ts`) must be updated **manually** to match this file.
 

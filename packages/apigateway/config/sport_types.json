@@ -8,7 +8,8 @@
       "primaryMetric": "distance_meters",
       "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
       "hasDistance": true,
-      "hasElevation": true
+      "hasElevation": true,
+      "dangerPace": { "valuePerDay": 20, "unit": "miles" }
     },
     "ebike": {
       "displayName": "E-Bike",
@@ -26,7 +27,8 @@
       "primaryMetric": "distance_meters",
       "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
       "hasDistance": true,
-      "hasElevation": true
+      "hasElevation": true,
+      "dangerPace": { "valuePerDay": 10, "unit": "miles" }
     },
     "walking": {
       "displayName": "Walking",
@@ -62,7 +64,8 @@
       "primaryMetric": "time_minutes",
       "metrics": ["time_minutes", "activities", "activity_ids"],
       "hasDistance": false,
-      "hasElevation": false
+      "hasElevation": false,
+      "dangerPace": { "valuePerDay": 2, "unit": "hours" }
     },
     "workout": {
       "displayName": "Workout",

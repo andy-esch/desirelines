@@ -26,6 +26,15 @@ UNKNOWN_SPORT_CATEGORY = "other"
 UNKNOWN_SPORT_LOG_MESSAGE = "Unknown Strava sport_type detected"
 
 
+class DangerPaceModel(BaseModel):
+    """Optional sustainable-pace limit; consumed by the web client only."""
+
+    value_per_day: float = Field(alias="valuePerDay")
+    unit: str
+
+    model_config = {"populate_by_name": True}
+
+
 # Pydantic models for schema validation
 class SportCategoryModel(BaseModel):
     """Schema for sport category configuration."""
@@ -39,6 +48,8 @@ class SportCategoryModel(BaseModel):
     metrics: list[str] = Field(min_length=1)
     has_distance: bool = Field(alias="hasDistance")
     has_elevation: bool = Field(alias="hasElevation")
+    # Loaded and ignored by stravapipe; web frontend consumes it for danger-zone rendering.
+    danger_pace: DangerPaceModel | None = Field(default=None, alias="dangerPace")
 
     model_config = {"populate_by_name": True}
 
