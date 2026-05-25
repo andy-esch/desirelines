@@ -20,6 +20,7 @@ import { useState, useMemo } from "react";
 import {
   convertDistance,
   convertElevation,
+  getDisplayUnitForMetric,
   getUserSettings,
   goalMetersToDisplay,
   goalDisplayToMeters,
@@ -100,6 +101,31 @@ export interface SportPageData {
   onPriorYearsChange: (show: boolean) => void;
 }
 
+/** Context needed to convert a goal value between display units and storage units. */
+interface GoalUnitContext {
+  hasDistance: boolean;
+  isTime: boolean;
+  distanceUnit: DistanceUnit;
+}
+
+/**
+ * Convert a goal value from display units (miles/km/hours) to storage units
+ * (meters/minutes). Stored values are unit-stable across user preference
+ * changes; display values follow the user's current setting.
+ */
+function goalToStorage(displayValue: number, ctx: GoalUnitContext): number {
+  if (ctx.hasDistance) return Math.round(goalDisplayToMeters(displayValue, ctx.distanceUnit));
+  if (ctx.isTime) return Math.round(hoursToMinutes(displayValue));
+  return displayValue;
+}
+
+/** Inverse of `goalToStorage`. */
+function goalToDisplay(storageValue: number, ctx: GoalUnitContext): number {
+  if (ctx.hasDistance) return Math.round(goalMetersToDisplay(storageValue, ctx.distanceUnit));
+  if (ctx.isTime) return Math.round(minutesToHours(storageValue));
+  return storageValue;
+}
+
 /** Convert raw sport metrics to chart-ready DistanceEntry[] based on the active metric and user settings. */
 export function convertMetricsToChartData(
   metrics: SportMetrics,
@@ -162,20 +188,11 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   const activeMetric = metricSelection?.sport === sport ? metricSelection.metric : primaryMetric;
 
   // Determine the unit label based on selected metric
-  const metricUnit: MetricUnit = (() => {
-    switch (activeMetric) {
-      case "distance_meters":
-        return userSettings.distanceUnit;
-      case "elevation_meters":
-        return userSettings.elevationUnit;
-      case "time_minutes":
-        return "hours" as const;
-      case "activities":
-        return "sessions" as const;
-      default:
-        return sportInfo?.hasDistance ? userSettings.distanceUnit : "sessions";
-    }
-  })();
+  const metricUnit: MetricUnit = getDisplayUnitForMetric(
+    activeMetric,
+    userSettings,
+    sportInfo?.hasDistance ? userSettings.distanceUnit : "sessions"
+  );
 
   // Convert metrics to chart data format based on selected metric
   const chartData: DistanceEntry[] =
@@ -222,21 +239,17 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // Goals management
   // Explicit useMemo: contains new Date().toISOString() which would make the object
   // perpetually unstable, causing useUserConfig to re-trigger on every render.
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional: new Date() is impure, compiler can't auto-memoize
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
     const { roundingFactor, defaultGoalValue } = primaryMetricConfig;
     const generatedGoals = generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue);
     const now = new Date().toISOString();
     const goalMetric = getPrimaryMetric(sport, sportConfig);
+    const ctx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
 
     return {
       goals: generatedGoals.map((goal) => ({
         id: goal.id,
-        value: hasDistance
-          ? Math.round(goalDisplayToMeters(goal.value, distanceUnit))
-          : isTime
-            ? Math.round(hoursToMinutes(goal.value))
-            : goal.value,
+        value: goalToStorage(goal.value, ctx),
         label: goal.label || "",
         metric: goalMetric,
         createdAt: now,
@@ -267,17 +280,13 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   useGoalMigration(goalsData, user?.uid ?? "", year, sport, hasDistance, updateGoals);
 
   // Convert goals from storage units to display units for UI
+  const goalCtx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
   const goals: Goals = goalsData?.goals
-    ? goalsData.goals.map((g) => {
-        let displayValue = g.value;
-        if (hasDistance) {
-          displayValue = Math.round(goalMetersToDisplay(g.value, distanceUnit));
-        } else if (isTime) {
-          displayValue = Math.round(minutesToHours(g.value));
-        }
-
-        return { id: g.id, value: displayValue, label: g.label };
-      })
+    ? goalsData.goals.map((g) => ({
+        id: g.id,
+        value: goalToDisplay(g.value, goalCtx),
+        label: g.label,
+      }))
     : [];
 
   // Handle goals change: convert from display units back to storage units
@@ -288,11 +297,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     const updatedGoalsForYear: GoalsForYear = {
       goals: newGoals.map((goal) => ({
         id: goal.id,
-        value: hasDistance
-          ? Math.round(goalDisplayToMeters(goal.value, distanceUnit))
-          : isTime
-            ? Math.round(hoursToMinutes(goal.value))
-            : goal.value,
+        value: goalToStorage(goal.value, goalCtx),
         label: goal.label || "",
         metric: goalMetric,
         updatedAt: new Date().toISOString(),

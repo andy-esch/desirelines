@@ -2,6 +2,8 @@ import { useTheme } from "../../contexts/ThemeContext";
 import type { SportColorMap } from "./RouteCanvas";
 import type { DistanceUnit } from "../../utils/units";
 import { convertDistance, getDistanceLabel } from "../../utils/units";
+import { usePublicSportConfig } from "../../hooks/usePublicSportConfig";
+import { getSportDisplayName } from "../../utils/sportConfig";
 
 interface SportInfo {
   sport: string;
@@ -58,6 +60,7 @@ export default function RouteLegend({
 }: RouteLegendProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const { sportConfig } = usePublicSportConfig();
 
   const distanceValue = convertDistance(shownDistanceMeters, distanceUnit);
   const distanceLabel = getDistanceLabel(distanceUnit);
@@ -89,7 +92,7 @@ export default function RouteLegend({
             {sports.map(({ sport, count }) => {
               const enabled = enabledSports.has(sport);
               const rgb = sportColors.get(sport) ?? "128, 128, 128";
-              const displayName = sport.charAt(0).toUpperCase() + sport.slice(1);
+              const displayName = getSportDisplayName(sport, sportConfig);
               return (
                 <button
                   key={sport}

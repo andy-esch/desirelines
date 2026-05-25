@@ -1,5 +1,6 @@
 import { AVAILABLE_YEARS } from "../../constants/sidebar";
-import { capitalizeFirst } from "../../utils/format";
+import { usePublicSportConfig } from "../../hooks/usePublicSportConfig";
+import { getSportDisplayName } from "../../utils/sportConfig";
 import SportVisibilityHint from "../SportVisibilityHint";
 import StyledSelect from "../StyledSelect";
 
@@ -36,10 +37,11 @@ export default function FilterControls({
       ? [sport, ...availableSports]
       : availableSports;
 
+  const { sportConfig } = usePublicSportConfig();
   const sportOptions = sportsToShow.map((sportId) => {
     const count = sportCounts?.[sportId];
-    const label =
-      count !== undefined ? `${capitalizeFirst(sportId)} (${count})` : capitalizeFirst(sportId);
+    const name = getSportDisplayName(sportId, sportConfig);
+    const label = count !== undefined ? `${name} (${count})` : name;
     return { value: sportId, label };
   });
 

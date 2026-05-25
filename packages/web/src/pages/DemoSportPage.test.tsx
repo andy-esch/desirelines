@@ -82,7 +82,19 @@ vi.mock("../config/metricConfig", () => ({
 }));
 
 vi.mock("../utils/units", () => ({
-  getUserSettings: () => ({ distanceUnit: "km", elevationUnit: "m" }),
+  getUserSettings: () => ({ distanceUnit: "miles", elevationUnit: "feet" }),
+  getDisplayUnitForMetric: (metric: string, settings: { distanceUnit: string }) => {
+    switch (metric) {
+      case "distance_meters":
+        return settings.distanceUnit;
+      case "time_minutes":
+        return "hours";
+      case "activities":
+        return "sessions";
+      default:
+        return settings.distanceUnit;
+    }
+  },
 }));
 
 vi.mock("../utils/goalCalculations", () => ({

@@ -1,7 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { EmptyState } from "./EmptyState";
 import { renderWithRouter } from "../test/renderWithRouter";
+
+// usePublicSportConfig pulls from React Query; stub it so the component can
+// resolve display names without a QueryClientProvider in component tests.
+vi.mock("../hooks/usePublicSportConfig", () => ({
+  usePublicSportConfig: () => ({
+    sportConfig: {
+      version: "1.0",
+      sportCategories: {
+        cycling: { displayName: "Cycling" },
+        yoga: { displayName: "Yoga" },
+      },
+    },
+    isLoading: false,
+    error: null,
+    retry: () => undefined,
+  }),
+}));
 
 describe("EmptyState", () => {
   describe("default rendering", () => {
@@ -24,13 +41,13 @@ describe("EmptyState", () => {
     it("shows sport-specific message for distance sports", async () => {
       await renderWithRouter(<EmptyState sport="cycling" year={2025} unit="miles" />);
 
-      expect(screen.getByText("No cycling activities recorded for 2025")).toBeInTheDocument();
+      expect(screen.getByText("No Cycling activities recorded for 2025")).toBeInTheDocument();
     });
 
     it("shows sessions wording for session-based sports", async () => {
       await renderWithRouter(<EmptyState sport="yoga" year={2025} unit="sessions" />);
 
-      expect(screen.getByText("No yoga sessions recorded for 2025")).toBeInTheDocument();
+      expect(screen.getByText("No Yoga sessions recorded for 2025")).toBeInTheDocument();
     });
 
     it("uses custom message when provided", async () => {

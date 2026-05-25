@@ -451,15 +451,26 @@ export function getMetricConfigByMetricId(
     return baseConfig;
   }
 
-  // Distance: apply miles/km preference
-  if (configKey === "distance" && userSettings.distanceUnit === "kilometers") {
-    return {
-      ...baseConfig,
-      unit: "kilometers",
-      chartLabel: "km",
-      chartAxisLabel: "km",
-      perDayLabel: "km / day",
-    };
+  // Distance: apply user preference (miles / kilometers / meters)
+  if (configKey === "distance") {
+    if (userSettings.distanceUnit === "kilometers") {
+      return {
+        ...baseConfig,
+        unit: "kilometers",
+        chartLabel: "km",
+        chartAxisLabel: "km",
+        perDayLabel: "km / day",
+      };
+    }
+    if (userSettings.distanceUnit === "meters") {
+      return {
+        ...baseConfig,
+        unit: "meters",
+        chartLabel: "m",
+        chartAxisLabel: "m",
+        perDayLabel: "m / day",
+      };
+    }
   }
 
   // Elevation: apply feet/meters preference
@@ -506,20 +517,17 @@ export function getMetricFieldName(
  * Get human-readable label for a metric ID.
  * Used in UI elements like dropdown labels.
  *
+ * Derived from `BASE_METRIC_CONFIGS[].displayName` so there's a single source
+ * of truth for these strings.
+ *
  * @param metricId - API metric ID string
  * @returns Display label (e.g., "Distance", "Time", "Elevation", "Sessions")
  */
 export function getMetricDisplayLabel(metricId: string): string {
-  switch (metricId) {
-    case "distance_meters":
-      return "Distance";
-    case "elevation_meters":
-      return "Elevation";
-    case "time_minutes":
-      return "Time";
-    case "activities":
-      return "Sessions";
-    default:
-      return metricId;
-  }
+  const metricType = METRIC_STRING_TO_TYPE[metricId] ?? MetricType.METRIC_TYPE_UNSPECIFIED;
+  const configKey = METRIC_TYPE_TO_CONFIG_KEY[metricType];
+  // Unknown metric IDs fall through to the raw ID rather than the "distance"
+  // fallback used elsewhere — preserves the existing behavior of this fn.
+  if (metricType === MetricType.METRIC_TYPE_UNSPECIFIED) return metricId;
+  return BASE_METRIC_CONFIGS[configKey].displayName;
 }
