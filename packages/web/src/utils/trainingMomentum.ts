@@ -39,9 +39,10 @@ export function filterActualActivityData(distanceData: DistanceEntry[]): Distanc
 }
 
 /**
- * Calculates daily pace (miles per day) between consecutive data points
+ * Calculates daily pace between consecutive data points in the data's own units
+ * (miles/day for distance sports, hours/day for time sports, sessions/day, etc.).
  *
- * @param data - Distance data entries
+ * @param data - Cumulative metric entries
  * @returns Array of daily pace values
  */
 export function calculateDailyPaces(data: DistanceEntry[]): number[] {
@@ -110,7 +111,7 @@ export function calculateLinearRegression(values: number[]): {
  * 5. Converting slope to weekly percentage change relative to average pace
  *
  * @param distanceData - Full distance data (may include extended entries)
- * @param averagePace - Current average pace (miles/day) for relativization
+ * @param averagePace - Current average daily pace (in the data's own units) for relativization
  * @param lookbackDays - Number of activity days to analyze (default: 14)
  * @returns Weekly percentage change in pace, or null if insufficient data
  *

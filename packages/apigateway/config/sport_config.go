@@ -72,6 +72,17 @@ type SportCategory struct {
 	Metrics       []string `json:"metrics" validate:"required,min=1"`
 	HasDistance   bool     `json:"hasDistance"`
 	HasElevation  bool     `json:"hasElevation"`
+	// DangerPace is the optional sustainable-pace limit used by the frontend's
+	// "danger zone" rendering. Loaded and passed through verbatim; the apigateway
+	// does not interpret it.
+	DangerPace *DangerPace `json:"dangerPace,omitempty"`
+}
+
+// DangerPace expresses a daily pace ceiling in human-readable units. The web
+// client converts it to the user's preferred display unit before comparing.
+type DangerPace struct {
+	ValuePerDay float64 `json:"valuePerDay" validate:"required"`
+	Unit        string  `json:"unit" validate:"required"`
 }
 
 // SportConfigData is a config that holds the sport config version and

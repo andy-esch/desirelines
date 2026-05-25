@@ -14,11 +14,24 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
-import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
+import { getMetricUnitLabel, isSessionsUnit, type MetricUnit } from "../../utils/units";
+import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { useCumulativeChartData } from "../../hooks/useCumulativeChartData";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import ChartContainer from "./ChartContainer";
 import CumulativeChartPresenter from "./CumulativeChartPresenter";
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/** Derive the "Cumulative ___" chart title from the metric ID, with unit-based fallback. */
+function getCumulativeChartTitle(metric: string | undefined, unit: MetricUnit): string {
+  if (metric === "activities" || unit === "sessions") return "Cumulative Sessions";
+  if (metric) return `Cumulative ${getMetricDisplayLabel(metric)}`;
+  if (unit === "hours" || unit === "minutes") return "Cumulative Time";
+  return "Cumulative Distance";
+}
 
 // ============================================================================
 // Types
@@ -47,6 +60,8 @@ interface CumulativeMetricsChartProps {
   hideHeader?: boolean | undefined;
   /** Unit for display (miles, kilometers, sessions) */
   unit?: MetricUnit | undefined;
+  /** Active metric ID (e.g., "distance_meters", "time_minutes"). Drives chart title. */
+  metric?: string | undefined;
   /** Sport type for empty state messaging */
   sport?: string | undefined;
   /** Callback for retry on error */
@@ -180,6 +195,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     onAchievementsChange,
     hideHeader = false,
     unit = "miles",
+    metric,
     sport,
     onRetry,
     priorYearData,
@@ -213,8 +229,8 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
   const dragAnchor = useRef<number | undefined>(undefined);
 
   // Derive display values
-  const isSessionsMode = unit === "sessions";
-  const chartTitle = isSessionsMode ? "Cumulative Sessions" : "Cumulative Distance";
+  const isSessionsMode = isSessionsUnit(unit);
+  const chartTitle = getCumulativeChartTitle(metric, unit);
   const unitLabel = getMetricUnitLabel(unit);
 
   // Get chart data from hook
