@@ -65,6 +65,13 @@ def client(mock_deletion_config, mock_services):
         from stravapipe.cloudrun.deletion_service_app import app
 
         with TestClient(app) as c:
+            # `app` is a module-level singleton shared across this test
+            # module (and test_trace_propagation.py). Snapshot the state
+            # the lifespan just populated, then restore it on teardown so
+            # the per-test overrides below — and any state a test mutates
+            # itself (see TestReadyEndpoint) — don't leak into other tests.
+            saved_state = {key: app.state[key] for key in app.state}
+
             # Override app state with our mocks
             app.state.session_factory = mock_services["session_factory"]
             app.state.bq_deletion_service = mock_services["bq_deletion_service"]
@@ -73,7 +80,13 @@ def client(mock_deletion_config, mock_services):
             # Override the MagicMock timeout that lifespan picked up from the
             # mocked config — asyncio.wait_for needs a real number.
             app.state.readiness_timeout = 5.0
-            yield c
+            try:
+                yield c
+            finally:
+                for key in list(app.state):
+                    del app.state[key]
+                for key, value in saved_state.items():
+                    app.state[key] = value
 
 
 class TestHealthEndpoint:

@@ -24,10 +24,10 @@ A single Strava webhook produces one trace that spans the dispatcher (Go) → Pu
                                   │  - dispatcher.      │
                                   │      allowlist_check│
                                   │  - strava.          │
-                                  │      FetchActivity  │
+                                  │      fetch_activity │
                                   │  - firestore.       │
-                                  │      GetTokens      │
-                                  │  - pubsub.Publish   │ ← injects traceparent
+                                  │      get_tokens     │
+                                  │  - pubsub.publish   │ ← injects traceparent
                                   └──────────┬──────────┘
                                              │ Pub/Sub message
                                              │ attributes: { traceparent, ... }
@@ -57,7 +57,9 @@ A single Strava webhook produces one trace that spans the dispatcher (Go) → Pu
               └───────────────────────┘           └───────────────────────┘
 ```
 
-The same `trace_id` flows end-to-end. The bq-inserter and postgres-writer roots (`bq_inserter.webhook.process` and `postgres_writer.webhook.process`) appear as children of the dispatcher's `pubsub.Publish` span.
+The same `trace_id` flows end-to-end. The bq-inserter and postgres-writer roots (`bq_inserter.webhook.process` and `postgres_writer.webhook.process`) appear as children of the dispatcher's `pubsub.publish` span.
+
+The Python consumers are also FastAPI- and SQLAlchemy-instrumented: each inbound CloudEvent POST gets an HTTP **server span** (routing + body-parse time), and every SQL statement gets its own span nested under the handler's `postgres.*` spans. One deliberate gap: the server span continues the *HTTP delivery's* trace context, not the dispatcher's — the cross-service `traceparent` rides in the Pub/Sub message body, which a header-based server span can't see. So the FastAPI server span sits in a separate short trace from `webhook.process`; unifying them is a known follow-up.
 
 The deauth path is a separate subgraph:
 
@@ -87,6 +89,11 @@ For outgoing propagation:
 If either side breaks, the consumer's root span has no parent in Cloud Trace.
 
 See [`packages/shared/otel/provider.go`](../../packages/shared/otel/provider.go) for the propagator wiring and [`packages/stravapipe/src/stravapipe/shared/tracing.py`](../../packages/stravapipe/src/stravapipe/shared/tracing.py) for the Python side.
+
+**Regression guards.** Both halves of the propagation chain are covered at PR time:
+
+- *Inject side (Go):* the custom [`lintpub`](../../packages/shared/otel/lintpub/) analyzer (wired into `just go-lint` and the `go-quality` CI matrix) flags any new `*pubsub.Publisher.Publish(...)` call site that isn't paired with a `propagator.Inject(...)` in the same function — catches "new publish path forgot to inject."
+- *Extract side (Python):* `tests/unit/cloudrun/test_trace_propagation.py` drives both extract paths — the shared `handle_webhook_cloudevent()` helper (bq-inserter, postgres-writer) and `deletion_service_app`'s own path — through a real handler with an in-memory span exporter, asserting the processing span adopts the inbound `traceparent` trace-id. `tests/unit/shared/test_tracing.py` covers the `extract_context_from_attributes()` round-trip at the unit level.
 
 ## Trust boundaries: dispatcher vs. apigateway
 
@@ -146,6 +153,12 @@ Python services gate OTel SDK initialization on `ENABLE_OTEL_TRACING=true`. When
 - All trace-related code paths still run; they just don't export.
 
 Why a flag in Python but not Go? Historical: the Python OTel SDK was once flaky in cold-start paths and we wanted an off switch. The Go SDK has been reliable and never needed one. The flag is set to `true` in production via Terraform ([`cloud_run.tf`](../../terraform/modules/desirelines/cloud_run.tf)). Leave it unset locally unless you're testing tracing.
+
+## Local OTLP override (`OTEL_EXPORTER_OTLP_ENDPOINT`)
+
+Both Go ([`provider.go`](../../packages/shared/otel/provider.go)) and Python ([`tracing.py`](../../packages/stravapipe/src/stravapipe/shared/tracing.py)) check the standard OTel env vars `OTEL_EXPORTER_OTLP_ENDPOINT` (or the trace-specific `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) on startup. When either is set, the trace exporter swaps from Cloud Trace to OTLP/gRPC — spans flow to whatever Collector or Jaeger instance the endpoint points at instead of leaving the process. Unset → Cloud Trace as usual.
+
+Useful for ad-hoc local debugging: run a Jaeger all-in-one container (`docker run -p 4317:4317 -p 16686:16686 jaegertracing/all-in-one`), set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` on a service, and its spans land in Jaeger's UI instead of leaving the process.
 
 ## Authoring spans
 
@@ -234,6 +247,7 @@ resolution for custom metrics).
 | `pubsub/publish.duration` | dispatcher | (per topic) | Publish latency |
 | `firestore/operation.duration` | dispatcher | (per op) | Firestore read/write latency |
 | `http/request.duration` | apigateway, dispatcher | `result=success\|error` | otelhttp middleware |
+| `http.server.duration` | bq-inserter, postgres-writer, deletion-service | OTel `http.*` attrs | Auto-emitted by FastAPI instrumentation (ms; **not** `desirelines.io/`-namespaced). The OTel-standard ingress histogram — distinct from the Go `http/request.duration` above; union both for a cross-pipeline view rather than renaming either. |
 | `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create\|update\|delete` | End-to-end webhook freshness from dispatcher receive to postgres row visible/updated/removed. Anchors SLO 3. Emitted only on success paths (new insert, metadata updated, row deleted) so skips and DLQ don't pollute the latency distribution. |
 
 ### Counters
@@ -268,7 +282,6 @@ Deliberate omissions, so traces stay readable:
 
 - **Pydantic validation** in Python services — sub-millisecond, would clutter traces.
 - **`parseAndValidateWebhook`, `checkSubscriptionID`** in the dispatcher — fast, same reason.
-- **FastAPI route handler entry** — implicit in the `webhook.process` span; adding one would just duplicate the parent.
 
 If you find yourself reaching for these during an investigation, you've probably hit a real gap; flag it.
 

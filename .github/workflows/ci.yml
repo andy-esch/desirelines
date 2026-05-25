@@ -95,6 +95,27 @@ jobs:
       - name: Verify BUILD files
         run: "pants tailor --check ::"
 
+      # Shellcheck (preinstalled on ubuntu-latest) + shfmt format check.
+      # shfmt is installed via `go install` since Go is already set up
+      # above. Catches hardening / formatting regressions in scripts/ +
+      # local-dev/ at PR time; locally use `just sh-lint` and
+      # `just sh-format`. See justfiles/scripts.just for the recipes.
+      - name: Install shfmt
+        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.10.0
+
+      - name: Verify shell scripts (lint + format)
+        run: |
+          just sh-lint
+          just sh-format-check
+
+      # Catches Renovate / hand-tidy drift across workspace members
+      # (each `go.mod`+`go.sum` and `go.work.sum`) at PR time. If this
+      # fails, the contributor should run `just go-tidy-fix` and commit
+      # the result. See justfiles/backend.just for the matching recipes.
+      - name: Verify Go workspace is tidy
+        run: just go-tidy-check
+
+
   # ===========================================================================
   # Python: Test, Lint, Type check (via Pants)
   # ===========================================================================
@@ -189,6 +210,16 @@ jobs:
           version: v2.12.2
           working-directory: packages/${{ matrix.package }}
           args: --timeout=5m
+
+      # Flags any `*pubsub.Publisher.Publish(...)` call not paired with a
+      # `propagator.Inject(...)` in the same function — catches the
+      # "new publish path forgot trace-context injection" regression
+      # class at PR time. Source: packages/shared/otel/lintpub/.
+      - name: Run trace-propagation analyzer (lintpub)
+        run: |
+          go build -o /tmp/lintpub ./packages/shared/cmd/lintpub
+          cd packages/${{ matrix.package }}
+          /tmp/lintpub ./...
 
       - name: Check Go formatting
         run: |

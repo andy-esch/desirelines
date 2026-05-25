@@ -47,7 +47,7 @@
       "description": "Activity name/title"
     },
     {
-      "mode": "REQUIRED",
+      "mode": "NULLABLE",
       "name": "distance",
       "type": "FLOAT",
       "description": "Activity distance in meters"
@@ -65,7 +65,7 @@
       "description": "Total elapsed time in seconds"
     },
     {
-      "mode": "REQUIRED",
+      "mode": "NULLABLE",
       "name": "total_elevation_gain",
       "type": "FLOAT",
       "description": "Total elevation gain in meters"
@@ -235,13 +235,13 @@
       "description": "Upload ID as string"
     },
     {
-      "mode": "REQUIRED",
+      "mode": "NULLABLE",
       "name": "average_speed",
       "type": "FLOAT",
       "description": "Average speed in m/s"
     },
     {
-      "mode": "REQUIRED",
+      "mode": "NULLABLE",
       "name": "max_speed",
       "type": "FLOAT",
       "description": "Maximum speed in m/s"

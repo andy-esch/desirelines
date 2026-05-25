@@ -2,11 +2,12 @@ import React from "react";
 import KPICard from "./KPICard";
 import type { MetricUnit } from "../../utils/units";
 import type { YearContext } from "../../utils/yearContext";
+import { getMetricDisplayLabel } from "../../config/metricConfig";
 
 export interface KPICardsProps {
-  /** Current total distance or count */
-  currentDistance: number;
-  /** Average pace (miles per day or sessions per day) */
+  /** Current cumulative value in display units (distance, time, sessions, or elevation). */
+  currentValue: number;
+  /** Average daily pace in the same units as currentValue. */
   averagePace: number;
   /** Year context (current/past/future year state) */
   yearContext: YearContext;
@@ -25,33 +26,30 @@ export interface KPICardsProps {
   momentumIndicator?: React.ReactNode;
   /** Unit label (e.g., "mi", "km", "sessions") */
   unit?: MetricUnit;
+  /** Active metric ID (e.g., "distance_meters", "time_minutes"). Drives title text. */
+  metric?: string | undefined;
   /** Whether data is still loading */
   isLoading?: boolean;
+}
+
+/** Derive the "Current ___" card title from the metric ID, with unit-based fallback. */
+function getCurrentMetricTitle(metric: string | undefined, unit: MetricUnit): string {
+  if (metric === "activities" || unit === "sessions") return "Current # Sessions";
+  if (metric) return `Current ${getMetricDisplayLabel(metric)}`;
+  if (unit === "hours" || unit === "minutes") return "Current Time";
+  return "Current Distance";
 }
 
 /**
  * Dashboard KPI cards displaying key training metrics
  *
  * Displays three cards in a row:
- * 1. Current Distance - Total miles with average pace and momentum
- * 2. Next Goal - Progress percentage and remaining distance
+ * 1. Current value - Total with average pace and momentum
+ * 2. Next Goal - Progress percentage and remaining
  * 3. Pace to Goal - Required daily pace to reach goal
- *
- * @example
- * <KPICards
- *   currentDistance={2450}
- *   averagePace={8.3}
- *   daysElapsed={295}
- *   daysRemaining={70}
- *   nextGoal={{ label: "Challenger", value: 3000 }}
- *   nextGoalProgress={81.7}
- *   nextGoalGap={550}
- *   paceNeededForNextGoal={7.9}
- *   momentumIndicator={<MomentumIndicator />}
- * />
  */
 function KPICards({
-  currentDistance,
+  currentValue,
   averagePace,
   yearContext,
   nextGoal,
@@ -60,24 +58,24 @@ function KPICards({
   paceNeededForNextGoal,
   momentumIndicator,
   unit = "miles", // Default to miles
+  metric,
   isLoading = false,
 }: KPICardsProps) {
-  // Determine appropriate title based on unit
-  const metricTitle = unit === "sessions" ? "Current # Sessions" : "Current Distance";
-  const hasData = !isLoading && currentDistance > 0;
+  const metricTitle = getCurrentMetricTitle(metric, unit);
+  const hasData = !isLoading && currentValue > 0;
 
   // Helper functions for cleaner rendering — all branch on `hasData` first
   // to separate loading/empty state from data display logic.
-  const getCurrentDistanceValue = () => {
+  const getCurrentValueDisplay = () => {
     if (!hasData) return "--";
     return (
       <>
-        {currentDistance.toFixed(0)} <span className="text-lg">{unit}</span>
+        {currentValue.toFixed(0)} <span className="text-lg">{unit}</span>
       </>
     );
   };
 
-  const getCurrentDistanceSubtitle = () => {
+  const getCurrentValueSubtitle = () => {
     if (isLoading) return "Loading...";
 
     if (!hasData) {
@@ -142,11 +140,11 @@ function KPICards({
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-8">
-      {/* Current Distance/Sessions Card */}
+      {/* Current value card */}
       <KPICard
         title={metricTitle}
-        value={getCurrentDistanceValue()}
-        subtitle={getCurrentDistanceSubtitle()}
+        value={getCurrentValueDisplay()}
+        subtitle={getCurrentValueSubtitle()}
       />
 
       {/* Next Goal Card */}

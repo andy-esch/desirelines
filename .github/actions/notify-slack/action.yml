@@ -6,7 +6,7 @@ description: >-
 
 inputs:
   webhook:
-    description: Slack incoming webhook URL (e.g. SLACK_WEBHOOK_URL secret)
+    description: Slack incoming webhook URL (callers pass secrets.SLACK_WEBHOOK_URL)
     required: true
   headline:
     description: >-

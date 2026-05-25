@@ -66,5 +66,9 @@ ignore:
   - "**/generated/**"
   - "**/*.pb.go"
   - "**/testdata/**"
+  # Thin main() that only calls singlechecker.Main — singlechecker
+  # calls os.Exit, so the wrapper can't be unit-tested; the analyzer
+  # it delegates to (packages/shared/otel/lintpub) is well-covered.
+  - "packages/shared/cmd/lintpub/main.go"
   - "packages/web/src/**/*.test.*"
   - "packages/web/src/**/*.spec.*"

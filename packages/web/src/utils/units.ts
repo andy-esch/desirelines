@@ -108,6 +108,14 @@ export function getElevationLabel(unit: ElevationUnit): string {
 }
 
 /**
+ * True when the active unit represents activity counts rather than a measurable
+ * quantity. Centralizes the rule so chart/KPI components branch on the same check.
+ */
+export function isSessionsUnit(unit: MetricUnit): boolean {
+  return unit === "sessions";
+}
+
+/**
  * Get display label for any metric unit (distance, activity, or duration).
  * Handles both distance units (miles, km, m) and activity units (sessions).
  */

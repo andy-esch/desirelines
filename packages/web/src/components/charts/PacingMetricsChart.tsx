@@ -13,7 +13,8 @@
 import { useState, useEffect } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
-import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
+import { getMetricUnitLabel, isSessionsUnit, type MetricUnit } from "../../utils/units";
+import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { usePacingChartData } from "../../hooks/usePacingChartData";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import ChartContainer from "./ChartContainer";
@@ -40,10 +41,34 @@ interface PacingMetricsChartProps {
   hideHeader?: boolean | undefined;
   /** Unit for display (miles, kilometers, sessions) */
   unit?: MetricUnit | undefined;
+  /** Active metric ID (e.g., "distance_meters", "time_minutes"). Drives chart title. */
+  metric?: string | undefined;
   /** Sport type for empty state and danger zone threshold */
   sport?: string | undefined;
   /** Callback for retry on error */
   onRetry?: (() => void) | undefined;
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Derive the pacing chart title from the metric ID, with unit-based fallback.
+ * "Daily Pace" reads naturally for distance, but for time/sessions we want the
+ * label to match the underlying metric.
+ */
+function getPacingChartTitle(
+  metric: string | undefined,
+  unit: MetricUnit,
+  unitLabel: string
+): string {
+  if (metric === "activities" || unit === "sessions") return "Daily Activity (sessions / day)";
+  if (metric === "time_minutes" || unit === "hours" || unit === "minutes") {
+    return `Daily Time (${unitLabel} / day)`;
+  }
+  if (metric) return `Daily ${getMetricDisplayLabel(metric)} (${unitLabel} / day)`;
+  return `Daily Pace (${unitLabel} / day)`;
 }
 
 // ============================================================================
@@ -80,6 +105,7 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     showFullYear = true,
     hideHeader = false,
     unit = "miles",
+    metric,
     sport = "cycling",
     onRetry,
   } = props;
@@ -96,11 +122,9 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
   }, []);
 
   // Derive display values
-  const isSessionsMode = unit === "sessions";
+  const isSessionsMode = isSessionsUnit(unit);
   const unitLabel = getMetricUnitLabel(unit);
-  const chartTitle = isSessionsMode
-    ? "Daily Activity (sessions / day)"
-    : `Daily Pace (${unitLabel} / day)`;
+  const chartTitle = getPacingChartTitle(metric, unit, unitLabel);
 
   // Get chart data from hook
   const {

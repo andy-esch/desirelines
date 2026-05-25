@@ -20,6 +20,18 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
+// dbSystem is the OTel db.system value stamped on the Firestore
+// token-store spans. Only db.system is set: the rest of the db.*
+// triplet is SQL-shaped and has no honest Firestore mapping —
+// db.name means a SQL database/schema (Firestore has none; a
+// collection is db.collection.name, a different key) and db.operation
+// would just restate the span name. Firestore's own client libraries
+// emit gcp.firestore.* rather than db.* for the same reason. db.system
+// alone gives the cross-database "this span is a DB call" marker that
+// standardization is for; it coexists with the app-specific
+// desirelines.* / athlete_id attributes.
+const dbSystem = "firestore"
+
 // TokenStore implements ports.TokenStore using Firestore.
 type TokenStore struct {
 	client    *firestore.Client
@@ -44,10 +56,16 @@ func NewTokenStore(client *firestore.Client, logger *slog.Logger, histogram metr
 // GetTokens reads Strava tokens for the given athlete from Firestore.
 // Returns ports.ErrTokenNotFound if no tokens exist for this athlete.
 func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (_ *stravatoken.Data, err error) {
-	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.GetTokens",
-		attribute.Int64("athlete_id", athleteID))
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.get_tokens",
+		attribute.Int64("athlete_id", athleteID),
+		attribute.String("db.system", dbSystem))
 	defer func() { spanDone(err) }()
 
+	// The "operation" metric label is intentionally kept even though the
+	// span name above already identifies the operation: the
+	// firestore/operation.duration alert groups P99 by it
+	// (`sum by (le, metric_operation)` in alerts.tf), so dropping it
+	// would silently collapse per-operation latency into a single figure.
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "get_tokens"))
 	doc, err := s.tokensRef(athleteID).Get(ctx)
 	if err != nil {
@@ -74,8 +92,9 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (_ *stravat
 // the expected value (optimistic concurrency). Returns ports.ErrTokenConflict if
 // another goroutine has already refreshed the tokens since they were read.
 func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (err error) {
-	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.WriteTokens",
-		attribute.Int64("athlete_id", athleteID))
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.write_tokens",
+		attribute.Int64("athlete_id", athleteID),
+		attribute.String("db.system", dbSystem))
 	defer func() { spanDone(err) }()
 
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "write_tokens"))
@@ -123,8 +142,9 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 // DeleteTokens removes all stored tokens for the given athlete.
 // Returns nil if the tokens do not exist (Firestore Delete is idempotent).
 func (s *TokenStore) DeleteTokens(ctx context.Context, athleteID int64) (err error) {
-	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.DeleteTokens",
-		attribute.Int64("athlete_id", athleteID))
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.delete_tokens",
+		attribute.Int64("athlete_id", athleteID),
+		attribute.String("db.system", dbSystem))
 	defer func() { spanDone(err) }()
 
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "delete_tokens"))

@@ -1,5 +1,26 @@
 """Unit tests for the shared tracing module."""
 
+from unittest.mock import patch
+
+# Force-load the OTel exporter submodules at import time so
+# `unittest.mock.patch("...module.ClassName")` can resolve their dotted
+# paths in TestSetupTracingExporterSelection. `opentelemetry.exporter`
+# is a namespace package; its submodules don't appear as attributes
+# until explicitly imported, and production tracing.py only imports
+# them lazily inside `setup_tracing()`. Without these top-level
+# imports, `patch()` fails at `with` setup with
+# `AttributeError: module 'opentelemetry.exporter' has no attribute
+# 'cloud_trace'` (and the OTLP equivalent). Side-effect imports —
+# the names aren't referenced directly.
+import opentelemetry.exporter.cloud_trace
+import opentelemetry.exporter.otlp.proto.grpc.trace_exporter
+
+# Asymmetric noqa: ruff flags F401 on this third import but not the
+# first two (its dotted-name analysis treats the third `opentelemetry`
+# binding as redundant given the first two already bind that name).
+# All three are equally needed as side-effect submodule loads for the
+# patch() targets below.
+import opentelemetry.resourcedetector.gcp_resource_detector  # noqa: F401
 import pytest
 
 from stravapipe.shared.tracing import (
@@ -26,6 +47,83 @@ class TestSetupTracing:
         assert tracer is not None
 
 
+class TestSetupTracingExporterSelection:
+    """Tests for the env-gated exporter switch in setup_tracing.
+
+    When `OTEL_EXPORTER_OTLP_ENDPOINT` (or the trace-specific variant) is
+    set, setup_tracing must use the OTLP exporter — the switch local
+    debugging uses to redirect spans to a Collector / Jaeger. When
+    neither is set, it must fall through to the GCP Cloud Trace exporter
+    (production behaviour). Mocks are used on both exporter classes so
+    the test doesn't depend on real OTLP / GCP connectivity.
+
+    These tests teardown via `shutdown_tracing` to clear the module-level
+    singleton; OTel's global `set_tracer_provider` is once-only by design
+    and will warn (but not raise) on subsequent calls — that's why we
+    assert via the mock's `.called` rather than provider identity.
+    """
+
+    def teardown_method(self):
+        shutdown_tracing()
+
+    def test_uses_otlp_when_endpoint_env_set(self, monkeypatch):
+        monkeypatch.setenv("ENABLE_OTEL_TRACING", "true")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+        with (
+            patch(
+                "opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter"
+            ) as mock_otlp,
+            patch(
+                "opentelemetry.exporter.cloud_trace.CloudTraceSpanExporter"
+            ) as mock_cloud,
+        ):
+            tracer = setup_tracing("test-svc")
+        assert tracer is not None
+        assert mock_otlp.called, "OTLP exporter should have been instantiated"
+        assert not mock_cloud.called, (
+            "Cloud Trace exporter should NOT be used when OTLP env is set"
+        )
+
+    def test_uses_otlp_when_traces_endpoint_env_set(self, monkeypatch):
+        # Trace-specific variant per OTel spec.
+        monkeypatch.setenv("ENABLE_OTEL_TRACING", "true")
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+        monkeypatch.setenv(
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:4317"
+        )
+        with patch(
+            "opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter"
+        ) as mock_otlp:
+            tracer = setup_tracing("test-svc")
+        assert tracer is not None
+        assert mock_otlp.called
+
+    def test_uses_cloud_trace_when_no_otlp_env(self, monkeypatch):
+        monkeypatch.setenv("ENABLE_OTEL_TRACING", "true")
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", raising=False)
+        with (
+            patch(
+                "opentelemetry.exporter.cloud_trace.CloudTraceSpanExporter"
+            ) as mock_cloud,
+            # GCP resource detector hits the metadata server otherwise.
+            patch(
+                "opentelemetry.resourcedetector.gcp_resource_detector.GoogleCloudResourceDetector"
+            ),
+            patch(
+                "opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter"
+            ) as mock_otlp,
+        ):
+            tracer = setup_tracing("test-svc")
+        assert tracer is not None
+        assert mock_cloud.called, (
+            "Cloud Trace exporter should be the default when no OTLP env is set"
+        )
+        assert not mock_otlp.called, (
+            "OTLP exporter should NOT be used when no OTLP env is set"
+        )
+
+
 class TestExtractContextFromAttributes:
     """Tests for W3C traceparent extraction."""
 
@@ -43,6 +141,35 @@ class TestExtractContextFromAttributes:
         }
         ctx = extract_context_from_attributes(attrs)
         assert ctx is not None
+
+    def test_extracted_context_carries_injected_trace_id(self):
+        """Round-trip contract: trace-id in the inbound `traceparent` attr
+        must surface as the active span context's trace-id in the extracted
+        Context.
+
+        Cross-service propagation contract test — pairs with the Go
+        publisher's `TestPublish_InjectsTraceparentMatchingActiveSpan`.
+        Catches the regression class "someone refactored
+        `extract_context_from_attributes` to swallow the traceparent and
+        return a fresh/empty context" — which the existing
+        `is not None` assertion would not catch.
+        """
+        from opentelemetry.trace import get_current_span
+
+        # Distinctive ids we can recognize on the other side.
+        trace_id_hex = "0af7651916cd43dd8448eb211c80319c"
+        span_id_hex = "b7ad6b7169203331"
+        attrs = {"traceparent": f"00-{trace_id_hex}-{span_id_hex}-01"}
+
+        ctx = extract_context_from_attributes(attrs)
+        assert ctx is not None
+
+        span = get_current_span(ctx)
+        sc = span.get_span_context()
+        # OTel API returns ints; format back to 32/16-char zero-padded hex
+        # so the round-trip is unambiguous regardless of value width.
+        assert f"{sc.trace_id:032x}" == trace_id_hex
+        assert f"{sc.span_id:016x}" == span_id_hex
 
     def test_returns_context_with_invalid_traceparent(self):
         """Invalid traceparent still returns a context (OTel handles gracefully)."""

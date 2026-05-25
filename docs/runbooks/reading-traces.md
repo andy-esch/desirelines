@@ -66,11 +66,11 @@ End-to-end, you should see a single trace with a span tree like:
 POST /webhook                                  (dispatcher, otelhttp)
 ├─ dispatcher.allowlist_check                  ~50ms
 │    └─ firestore.DocumentRef.Get
-├─ strava.FetchActivity                        ~200-400ms
-│    ├─ firestore.GetTokens
+├─ strava.fetch_activity                        ~200-400ms
+│    ├─ firestore.get_tokens
 │    ├─ HTTP GET (otelhttp transport)
-│    └─ strava.RefreshToken    (refresh-ahead near expiry; or reactively on 401)
-└─ pubsub.Publish                              ~50ms
+│    └─ strava.refresh_token    (refresh-ahead near expiry; or reactively on 401)
+└─ pubsub.publish                              ~50ms
      ├─ bq_inserter.webhook.process            (child via traceparent)
      │    └─ bigquery.insert_rows
      │         ├─ bigquery.write_to_staging
@@ -97,7 +97,7 @@ Look for the **widest single span** in the timeline view. The pattern is usually
 |---|---|---|
 | `bigquery.merge_from_staging` (>1s) | MERGE SQL job throttled or large staging table | Check `bigquery.cleanup_staging` previous-run history; if cleanup has been deferred, staging is bloated |
 | `bigquery.cleanup_staging` errored | Streaming buffer DELETE refused (expected) | Look at log line `Staging cleanup deferred`; not a bug, will retry |
-| `strava.FetchActivity` (>500ms) | Strava API latency or token refresh | Check for child `strava.RefreshToken` span — if present, this is a one-time hit |
+| `strava.fetch_activity` (>500ms) | Strava API latency or token refresh | Check for child `strava.refresh_token` span — if present, this is a one-time hit |
 | `postgres.polyline.decode` (>200ms) | Long route activity | Expected for ultras; not actionable unless persistent |
 | `postgres.session.acquire` (>200ms) | Pool contention or Neon cold compute | If consistent, check Neon compute hours / pool config |
 | `postgres.activities.insert` (~700ms-1.5s) on the **first** webhook after idle | Neon compute wake-up — the first query after the compute scales to zero pays the wake cost (`session.acquire` will be sub-ms because pool checkout is just TCP). Subsequent inserts within the warm window drop to ~150-200ms. | Not a bug. Confirm by uploading a second activity quickly: insert latency should drop 4-5×. |
@@ -113,9 +113,9 @@ Cloud Trace flags a span whose `parent_id` doesn't resolve. Four causes, ranked:
 
 2. **Exporter dropout** during cold start — BatchSpanProcessor's queue saturated before it could flush. Acceptable noise.
 3. **Sampling decision drift** — N/A while `AlwaysSample` is in effect.
-4. **Propagation gap** — the bug case. Signal: a Python service's `webhook.process` has a `parent_span_id` that doesn't match the dispatcher's `pubsub.Publish` span_id. Check Go inject in `packages/dispatcher/adapters/pubsub/publisher.go` and Python extract in `packages/stravapipe/src/stravapipe/shared/tracing.py:extract_context_from_attributes`.
+4. **Propagation gap** — the bug case. Signal: a Python service's `webhook.process` has a `parent_span_id` that doesn't match the dispatcher's `pubsub.publish` span_id. Check Go inject in `packages/dispatcher/adapters/pubsub/publisher.go` and Python extract in `packages/stravapipe/src/stravapipe/shared/tracing.py:extract_context_from_attributes`.
 
-Triage rule: if the missing ID matches `POST /webhook`'s parent, you're in case 1 — done. If a Python `webhook.process` doesn't parent to `pubsub.Publish`, you're in case 4 — bug.
+Triage rule: if the missing ID matches `POST /webhook`'s parent, you're in case 1 — done. If a Python `webhook.process` doesn't parent to `pubsub.publish`, you're in case 4 — bug.
 
 ### "Show logs" doesn't work
 
@@ -142,8 +142,8 @@ Useful when investigating "does this code path even work?":
 | DELETE webhook | Filter `aspect_type=delete`; bq-inserter runs `bigquery.archive_insert` + `bigquery.activity_delete` |
 | UPDATE webhook | Filter `aspect_type=update`; bq-inserter currently ignores, postgres-writer runs `postgres.update_metadata` |
 | Athlete deauth | Filter `object_type=athlete`; runs `dispatcher.handleAthleteEvent` and the deletion-service subgraph |
-| Token refresh | `strava.RefreshToken` inside `strava.FetchActivity`. Its `strava.refresh_reason` attribute says why: `proactive_expiry` (normal — refreshed ahead of expiry), `reactive_401` (Strava rejected a token we thought valid — revoked early), `empty_token` (no stored token, e.g. just after connect). Steady-state webhooks within the ~6h token window have **no** `strava.RefreshToken` span at all. A `WARN "Refreshed Strava token has zero expiry"` log means refresh-ahead will fire every request — investigate the stored token's `expires_at`. |
-| Strava retried | `strava.retry` events on `strava.FetchActivity` (transient fetch failures) or `strava.RefreshToken` (token-endpoint failures), with `attempt`/`backoff` and either `status_code` or a short `error`. `strava.attempts` + `strava.exhausted=true` on the parent span mean every retry was used up. |
+| Token refresh | `strava.refresh_token` inside `strava.fetch_activity`. Its `strava.refresh_reason` attribute says why: `proactive_expiry` (normal — refreshed ahead of expiry), `reactive_401` (Strava rejected a token we thought valid — revoked early), `empty_token` (no stored token, e.g. just after connect). Steady-state webhooks within the ~6h token window have **no** `strava.refresh_token` span at all. A `WARN "Refreshed Strava token has zero expiry"` log means refresh-ahead will fire every request — investigate the stored token's `expires_at`. |
+| Strava retried | `strava.retry` events on `strava.fetch_activity` (transient fetch failures) or `strava.refresh_token` (token-endpoint failures), with `attempt`/`backoff` and either `status_code` or a short `error`. `strava.attempts` + `strava.exhausted=true` on the parent span mean every retry was used up. |
 | Cold start | Filter on `httpRequest.latency` > 2s; expect a gap before the first span |
 
 ## What to file vs. what to drop

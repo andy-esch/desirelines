@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Build and publish all Docker images to Artifact Registry
 #
 # Usage: ./scripts/ops/deploy/build-and-publish.sh [SHA]
@@ -22,25 +22,25 @@ gcloud auth configure-docker "$REGISTRY" --quiet
 # Build and push each service
 # =============================================================================
 declare -A SERVICES=(
-	[dispatcher]="packages/dispatcher/Dockerfile:."
-	[apigateway]="packages/apigateway/Dockerfile:."
-	[stravapipe]="packages/stravapipe/Dockerfile:packages/stravapipe"
+  [dispatcher]="packages/dispatcher/Dockerfile:."
+  [apigateway]="packages/apigateway/Dockerfile:."
+  [stravapipe]="packages/stravapipe/Dockerfile:packages/stravapipe"
 )
 
 for service in "${!SERVICES[@]}"; do
-	IFS=':' read -r dockerfile context <<< "${SERVICES[$service]}"
-	image="${REGISTRY}/${REPOSITORY}/${service}"
+  IFS=':' read -r dockerfile context <<<"${SERVICES[$service]}"
+  image="${REGISTRY}/${REPOSITORY}/${service}"
 
-	echo "Building ${service}..."
-	docker buildx build \
-		--file "$dockerfile" \
-		--tag "${image}:${SHA}" \
-		--tag "${image}:latest" \
-		--push \
-		--cache-from "type=registry,ref=${image}:buildcache" \
-		--cache-to "type=registry,ref=${image}:buildcache,mode=max" \
-		"$context"
-	echo ""
+  echo "Building ${service}..."
+  docker buildx build \
+    --file "$dockerfile" \
+    --tag "${image}:${SHA}" \
+    --tag "${image}:latest" \
+    --push \
+    --cache-from "type=registry,ref=${image}:buildcache" \
+    --cache-to "type=registry,ref=${image}:buildcache,mode=max" \
+    "$context"
+  echo ""
 done
 
 # =============================================================================
@@ -49,7 +49,7 @@ done
 echo "All images published to Artifact Registry:"
 echo ""
 for service in "${!SERVICES[@]}"; do
-	echo "  - ${service}:${SHA} + ${service}:latest"
+  echo "  - ${service}:${SHA} + ${service}:latest"
 done
 echo ""
 echo "Next step: deploy by merging to main (triggers CI -> deploy repo)"

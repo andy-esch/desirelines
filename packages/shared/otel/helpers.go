@@ -15,6 +15,13 @@ import (
 // optional error — if non-nil, a "result=error" attribute is added; otherwise
 // "result=success".
 //
+// Pass an "operation" attribute to split the histogram per logical
+// operation. This restates what the enclosing span's name already says,
+// but the two live on different planes: the metric label is what the
+// latency alerts group P99 by (`sum by (le, metric_operation)` in
+// alerts.tf). Keep it — dropping it silently collapses per-operation
+// latency into one undifferentiated figure.
+//
 // Usage:
 //
 //	done := otel.RecordDuration(ctx, histogram, attribute.String("operation", "get_tokens"))
@@ -44,7 +51,7 @@ func RecordDuration(ctx context.Context, h metric.Float64Histogram, attrs ...att
 //
 // Usage:
 //
-//	ctx, done := otel.StartSpan(ctx, tracer, "firestore.GetTokens",
+//	ctx, done := otel.StartSpan(ctx, tracer, "firestore.get_tokens",
 //	    attribute.Int64("athlete_id", id))
 //	result, err := store.GetTokens(ctx, id)
 //	done(err)

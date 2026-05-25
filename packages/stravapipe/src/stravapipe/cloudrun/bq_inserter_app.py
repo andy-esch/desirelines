@@ -39,7 +39,13 @@ from stravapipe.shared.readiness import (
     run_checks,
 )
 from stravapipe.shared.responses import HealthResponse, WebhookResponse
-from stravapipe.shared.tracing import record_span, setup_tracing, shutdown_tracing
+from stravapipe.shared.tracing import (
+    db_attributes,
+    instrument_fastapi_app,
+    record_span,
+    setup_tracing,
+    shutdown_tracing,
+)
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
@@ -74,6 +80,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "desirelines.io/webhook/events",
             description="Webhook events processed",
         )
+
+        # FastAPI server span + http.server.* metrics — binds the global
+        # providers set just above.
+        instrument_fastapi_app(app)
 
         app.state.writer = make_write_activities(
             project_id=config.project_id,
@@ -138,6 +148,7 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
     """Handle Pub/Sub CloudEvent from Eventarc."""
     writer = request.app.state.writer
     delete_service = request.app.state.delete_service
+    bq_dataset = request.app.state.bq_dataset
     bq_hist = request.app.state.bq_histogram
     webhook_counter = request.app.state.webhook_counter
     tracer = request.app.state.tracer
@@ -145,10 +156,10 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
         request,
         logger,
         on_create=lambda event, event_data, cid: _handle_create(
-            event, event_data, cid, writer, bq_hist, tracer
+            event, event_data, cid, writer, bq_dataset, bq_hist, tracer
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
-            event, cid, delete_service, bq_hist, tracer
+            event, cid, delete_service, bq_dataset, bq_hist, tracer
         ),
         webhook_counter=webhook_counter,
         tracer=tracer,
@@ -163,6 +174,7 @@ async def _handle_create(
     event_data: dict[str, Any],
     correlation_id: str,
     writer: WriteActivities,
+    bq_dataset: str,
     bq_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
 ) -> WebhookResponse:
@@ -194,7 +206,14 @@ async def _handle_create(
 
     with (
         record_span(
-            tracer, "bigquery.insert_rows", {"desirelines.activity_id": event.object_id}
+            tracer,
+            "bigquery.insert_rows",
+            db_attributes(
+                "bigquery",
+                bq_dataset,
+                "MERGE",
+                {"desirelines.activity_id": event.object_id},
+            ),
         ),
         record_duration(bq_histogram, {"operation": "insert_rows"}),
     ):
@@ -220,13 +239,21 @@ async def _handle_delete(
     event: pb.WebhookEvent,
     correlation_id: str,
     service: DeleteActivityService,
+    bq_dataset: str,
     bq_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
 ) -> WebhookResponse:
     """Handle DELETE events - archive and remove from BigQuery."""
     with (
         record_span(
-            tracer, "bigquery.dml", {"desirelines.activity_id": event.object_id}
+            tracer,
+            "bigquery.dml",
+            db_attributes(
+                "bigquery",
+                bq_dataset,
+                "DELETE",
+                {"desirelines.activity_id": event.object_id},
+            ),
         ),
         record_duration(bq_histogram, {"operation": "dml"}),
     ):

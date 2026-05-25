@@ -14,6 +14,7 @@ import logging
 import os
 from typing import Any
 
+from fastapi import FastAPI
 from opentelemetry.context import Context
 from opentelemetry.propagate import extract
 from opentelemetry.sdk.resources import Resource
@@ -25,6 +26,7 @@ from opentelemetry.trace import (
     get_tracer,
     set_tracer_provider,
 )
+from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
@@ -45,28 +47,54 @@ def setup_tracing(service_name: str) -> Tracer:
         return get_tracer("desirelines.io")
 
     try:
-        # Deferred imports: GCP exporters are optional runtime deps. Importing
-        # them lazily inside the feature-flagged branch keeps `setup_tracing`
-        # a no-op when the packages aren't installed (e.g. local dev).
-        from opentelemetry.exporter.cloud_trace import (  # noqa: PLC0415
-            CloudTraceSpanExporter,
-        )
-        from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
-            GoogleCloudResourceDetector,
+        # When one of the standard OTLP endpoint env vars is set, export to
+        # OTLP instead of Cloud Trace — for local debugging, point it at a
+        # local Collector or Jaeger to capture spans off-process. Production
+        # deploys leave these unset and fall through to the GCP exporter
+        # below. Mirrors the Go-side switch in
+        # packages/shared/otel/provider.go (newTraceExporter).
+        otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get(
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
         )
 
-        # Detector first, explicit service.name second: OTel's Resource.merge()
-        # lets the `other` resource override on conflict, so the explicit
-        # attribute must be on the right-hand side to win. Mirrors the Go
-        # pattern in packages/shared/otel/provider.go (WithDetectors before
-        # WithAttributes). Without this order, `service.name` from the GCP
-        # detector or env vars (OTEL_SERVICE_NAME / K_SERVICE) silently
-        # clobbers ours, and Cloud Trace's "Service" column shows blank for
-        # spans emitted by these Python services.
-        gcp_resource = GoogleCloudResourceDetector().detect()
-        resource = gcp_resource.merge(Resource.create({"service.name": service_name}))
+        if otlp_endpoint:
+            # Deferred import: keeps the dep optional at the no-op path.
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # noqa: PLC0415
+                OTLPSpanExporter,
+            )
 
-        exporter = CloudTraceSpanExporter()  # type: ignore[no-untyped-call, unused-ignore]
+            # Test harness has no need for GCP-derived resource attributes;
+            # a minimal resource with just service.name keeps the captured
+            # span shape simple and the assertions readable.
+            resource = Resource.create({"service.name": service_name})
+            exporter = OTLPSpanExporter()  # reads OTEL_EXPORTER_OTLP_* env
+        else:
+            # Deferred imports: GCP exporters are optional runtime deps.
+            # Importing them lazily inside the feature-flagged branch keeps
+            # `setup_tracing` a no-op when the packages aren't installed
+            # (e.g. local dev).
+            from opentelemetry.exporter.cloud_trace import (  # noqa: PLC0415
+                CloudTraceSpanExporter,
+            )
+            from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
+                GoogleCloudResourceDetector,
+            )
+
+            # Detector first, explicit service.name second: OTel's
+            # Resource.merge() lets the `other` resource override on
+            # conflict, so the explicit attribute must be on the right-hand
+            # side to win. Mirrors the Go pattern in
+            # packages/shared/otel/provider.go (WithDetectors before
+            # WithAttributes). Without this order, `service.name` from the
+            # GCP detector or env vars (OTEL_SERVICE_NAME / K_SERVICE)
+            # silently clobbers ours, and Cloud Trace's "Service" column
+            # shows blank for spans emitted by these Python services.
+            gcp_resource = GoogleCloudResourceDetector().detect()
+            resource = gcp_resource.merge(
+                Resource.create({"service.name": service_name})
+            )
+            exporter = CloudTraceSpanExporter()  # type: ignore[no-untyped-call, unused-ignore, assignment]
+
         processor = BatchSpanProcessor(exporter)
 
         provider = TracerProvider(resource=resource)
@@ -93,6 +121,75 @@ def shutdown_tracing() -> None:
         _tracer_provider = None
 
 
+def instrument_fastapi_app(app: FastAPI) -> None:
+    """Enable OpenTelemetry auto-instrumentation for a FastAPI app.
+
+    Wraps every request in an HTTP server span and emits the standard
+    ``http.server.*`` metrics against the global MeterProvider that
+    ``setup_metrics`` installed.
+
+    Note: the webhook handlers re-parent their processing span on the
+    dispatcher's cross-service ``traceparent`` (carried in the Pub/Sub
+    message body, which a header-based server span can't see), so that
+    span continues the dispatcher's end-to-end trace rather than nesting
+    under this server span — the two are separate traces by design. See
+    docs/architecture/observability.md.
+
+    Gated on ``ENABLE_OTEL_TRACING`` and fails closed to a no-op,
+    matching ``setup_tracing``'s degradation contract. Call from the app
+    lifespan after ``setup_tracing`` / ``setup_metrics`` so the global
+    providers already exist.
+    """
+    if os.environ.get("ENABLE_OTEL_TRACING", "").lower() != "true":
+        logger.info("FastAPI instrumentation skipped (ENABLE_OTEL_TRACING != true)")
+        return
+
+    try:
+        # Deferred import: parity with setup_tracing — keeps tracing.py
+        # importable even if the optional instrumentation package is absent.
+        from opentelemetry.instrumentation.fastapi import (  # noqa: PLC0415
+            FastAPIInstrumentor,
+        )
+
+        FastAPIInstrumentor.instrument_app(app)
+        logger.info("FastAPI OTel instrumentation enabled")
+    except Exception:
+        logger.warning(
+            "FastAPI instrumentation failed, continuing without it",
+            exc_info=True,
+        )
+
+
+def instrument_sqlalchemy_engine(engine: Engine) -> None:
+    """Enable OpenTelemetry auto-instrumentation for a SQLAlchemy engine.
+
+    Emits a span per executed SQL statement, parented under whatever
+    span is active when the statement runs (e.g. the handler's
+    ``record_span``). Gated on ``ENABLE_OTEL_TRACING`` and fails closed
+    to a no-op.
+    """
+    if os.environ.get("ENABLE_OTEL_TRACING", "").lower() != "true":
+        logger.info("SQLAlchemy instrumentation skipped (ENABLE_OTEL_TRACING != true)")
+        return
+
+    try:
+        from opentelemetry.instrumentation.sqlalchemy import (  # noqa: PLC0415
+            SQLAlchemyInstrumentor,
+        )
+
+        # Footgun: SQLAlchemyInstrumentor().instrument(engine=None) silently
+        # switches to *global* instrumentation (wraps every future engine
+        # created via create_engine, in-process). The `engine: Engine`
+        # signature (not Optional) is the defense — don't relax it.
+        SQLAlchemyInstrumentor().instrument(engine=engine)
+        logger.info("SQLAlchemy OTel instrumentation enabled")
+    except Exception:
+        logger.warning(
+            "SQLAlchemy instrumentation failed, continuing without it",
+            exc_info=True,
+        )
+
+
 def extract_context_from_attributes(
     attributes: dict[str, str],
 ) -> Context | None:
@@ -106,6 +203,31 @@ def extract_context_from_attributes(
     if "traceparent" not in attributes:
         return None
     return extract(attributes)
+
+
+def db_attributes(
+    system: str,
+    name: str,
+    operation: str,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the OTel ``db.*`` semconv attributes for a database span.
+
+    The standard keys (``db.system`` / ``db.name`` / ``db.operation``)
+    coexist with the app-specific ``desirelines.*`` attributes, which
+    callers pass via ``extra``. Defined once here so the semconv key
+    strings live in a single place. See
+    packages/apigateway/adapters/postgres/activities.go for the Go-side
+    reference pattern.
+    """
+    attrs: dict[str, Any] = {
+        "db.system": system,
+        "db.name": name,
+        "db.operation": operation,
+    }
+    if extra:
+        attrs.update(extra)
+    return attrs
 
 
 @contextmanager

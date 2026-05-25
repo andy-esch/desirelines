@@ -16,6 +16,26 @@ python_requirements(
                 "google.cloud.bigquery_storage_v1",
             ],
         },
+        # Same shape of problem on the OTel side: GCP / OTLP exporter
+        # packages have PyPI names that don't match their importable
+        # module paths (e.g. `opentelemetry-exporter-gcp-trace` provides
+        # `opentelemetry.exporter.cloud_trace`). Without these overrides
+        # Pants's default heuristic can't link imports of those module
+        # paths to the right PyPI package, so anything that imports them
+        # at top level (e.g. the tracing tests' mock setup) fails with
+        # ModuleNotFoundError under the Pants-built PEX. Production
+        # tracing.py imports them lazily inside `setup_tracing()`, which
+        # is why production code paths happen to work without the
+        # overrides — top-level usage needs them.
+        "opentelemetry-exporter-gcp-trace": {
+            "modules": ["opentelemetry.exporter.cloud_trace"],
+        },
+        "opentelemetry-exporter-otlp-proto-grpc": {
+            "modules": ["opentelemetry.exporter.otlp.proto.grpc"],
+        },
+        "opentelemetry-resourcedetector-gcp": {
+            "modules": ["opentelemetry.resourcedetector.gcp_resource_detector"],
+        },
     },
 )
 
@@ -37,6 +57,10 @@ files(
     name="docker_sources",
     sources=[
         "pyproject.toml",
+        # `uv.lock` is the production resolve — the Dockerfile installs
+        # via `uv sync --frozen` so prod pins to the same versions as
+        # local dev and (transitively) CI.
+        "uv.lock",
         "README.md",
         "src/**/*.py",
         "src/**/*.json",  # Include any JSON config files

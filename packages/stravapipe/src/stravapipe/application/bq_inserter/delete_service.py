@@ -7,7 +7,7 @@ from google.cloud.bigquery import ScalarQueryParameter
 from opentelemetry.trace import Tracer
 
 from stravapipe.adapters.gcp import BigQueryClientWrapper
-from stravapipe.shared.tracing import record_span
+from stravapipe.shared.tracing import db_attributes, record_span
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,12 @@ class DeleteActivityService:
         with record_span(
             self._tracer,
             "bigquery.archive_insert",
-            {"desirelines.activity_id": activity_id},
+            db_attributes(
+                "bigquery",
+                self._dataset_id,
+                "INSERT",
+                {"desirelines.activity_id": activity_id},
+            ),
         ):
             rows_archived = self._client.execute_dml_query(
                 insert_query,
@@ -127,7 +132,12 @@ class DeleteActivityService:
         with record_span(
             self._tracer,
             "bigquery.activity_delete",
-            {"desirelines.activity_id": activity_id},
+            db_attributes(
+                "bigquery",
+                self._dataset_id,
+                "DELETE",
+                {"desirelines.activity_id": activity_id},
+            ),
         ):
             rows_deleted = self._client.execute_dml_query(
                 delete_query,
