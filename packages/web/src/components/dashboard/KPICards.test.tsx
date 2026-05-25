@@ -169,6 +169,38 @@ describe("KPICards", () => {
     });
   });
 
+  describe("metric-driven title", () => {
+    it("renders 'Current Time' for time_minutes metric", () => {
+      render(
+        <KPICards {...getDefaultProps()} unit="hours" metric="time_minutes" currentDistance={23} />
+      );
+
+      expect(screen.getByText("Current Time")).toBeInTheDocument();
+      expect(screen.queryByText("Current Distance")).not.toBeInTheDocument();
+    });
+
+    it("renders 'Current Elevation' for elevation_meters metric", () => {
+      render(
+        <KPICards
+          {...getDefaultProps()}
+          unit="feet"
+          metric="elevation_meters"
+          currentDistance={12000}
+        />
+      );
+
+      expect(screen.getByText("Current Elevation")).toBeInTheDocument();
+    });
+
+    it("renders 'Current # Sessions' for activities metric regardless of unit", () => {
+      render(
+        <KPICards {...getDefaultProps()} unit="sessions" metric="activities" currentDistance={50} />
+      );
+
+      expect(screen.getByText("Current # Sessions")).toBeInTheDocument();
+    });
+  });
+
   describe("pace to goal variations", () => {
     it("hides pace value when shouldShowPacing is false", () => {
       const pastYearContext = createYearContext(2024);

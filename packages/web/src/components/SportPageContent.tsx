@@ -205,6 +205,7 @@ export default function SportPageContent({
             momentumIndicator={momentumIndicator}
             yearContext={yearContext}
             unit={unit}
+            metric={activeMetric}
             isLoading={isLoading}
           />
 
@@ -251,6 +252,7 @@ export default function SportPageContent({
                 showAchievements={showAchievements}
                 onAchievementsChange={setShowAchievements}
                 unit={unit}
+                metric={activeMetric}
                 sport={sport}
                 onRetry={onRetry}
                 priorYearData={priorYearData}

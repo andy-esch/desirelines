@@ -2,6 +2,7 @@ import React from "react";
 import KPICard from "./KPICard";
 import type { MetricUnit } from "../../utils/units";
 import type { YearContext } from "../../utils/yearContext";
+import { getMetricDisplayLabel } from "../../config/metricConfig";
 
 export interface KPICardsProps {
   /** Current total distance or count */
@@ -25,8 +26,18 @@ export interface KPICardsProps {
   momentumIndicator?: React.ReactNode;
   /** Unit label (e.g., "mi", "km", "sessions") */
   unit?: MetricUnit;
+  /** Active metric ID (e.g., "distance_meters", "time_minutes"). Drives title text. */
+  metric?: string | undefined;
   /** Whether data is still loading */
   isLoading?: boolean;
+}
+
+/** Derive the "Current ___" card title from the metric ID, with unit-based fallback. */
+function getCurrentMetricTitle(metric: string | undefined, unit: MetricUnit): string {
+  if (metric === "activities" || unit === "sessions") return "Current # Sessions";
+  if (metric) return `Current ${getMetricDisplayLabel(metric)}`;
+  if (unit === "hours" || unit === "minutes") return "Current Time";
+  return "Current Distance";
 }
 
 /**
@@ -60,10 +71,10 @@ function KPICards({
   paceNeededForNextGoal,
   momentumIndicator,
   unit = "miles", // Default to miles
+  metric,
   isLoading = false,
 }: KPICardsProps) {
-  // Determine appropriate title based on unit
-  const metricTitle = unit === "sessions" ? "Current # Sessions" : "Current Distance";
+  const metricTitle = getCurrentMetricTitle(metric, unit);
   const hasData = !isLoading && currentDistance > 0;
 
   // Helper functions for cleaner rendering — all branch on `hasData` first

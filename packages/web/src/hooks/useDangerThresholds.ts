@@ -1,6 +1,10 @@
 /**
  * Hardcoded default danger thresholds (sustainable pace limits).
  *
+ * Values are expressed in the sport's display unit (e.g. miles/day for distance
+ * sports, hours/day for time sports) since paceNeeded is computed in those same
+ * display units in GoalSummaryTable.
+ *
  * TODO: Move these to sport_types.json or a global system config
  * so they don't live in code. When user-configurable overrides are added
  * to the UserConfig proto, this hook should fetch useUserConfig("preferences")
@@ -9,7 +13,7 @@
 const DEFAULT_DANGER_THRESHOLDS: Record<string, number> = {
   cycling: 20, // miles/day
   running: 10, // miles/day
-  yoga: 120, // minutes/day
+  yoga: 2, // hours/day
 };
 
 /**

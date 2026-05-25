@@ -8,7 +8,7 @@ describe("useDangerThresholds", () => {
 
     expect(result.current.getThreshold("cycling")).toBe(20);
     expect(result.current.getThreshold("running")).toBe(10);
-    expect(result.current.getThreshold("yoga")).toBe(120);
+    expect(result.current.getThreshold("yoga")).toBe(2);
   });
 
   it("returns Infinity for unknown sports", () => {
