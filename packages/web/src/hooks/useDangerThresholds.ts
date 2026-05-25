@@ -1,37 +1,81 @@
 /**
- * Hardcoded default danger thresholds (sustainable pace limits).
+ * Resolves the sustainable-pace ceiling ("danger zone") for a sport into the
+ * user's preferred display units.
  *
- * Values are expressed in the sport's display unit (e.g. miles/day for distance
- * sports, hours/day for time sports) since paceNeeded is computed in those same
- * display units in GoalSummaryTable.
- *
- * TODO: Move these to sport_types.json or a global system config
- * so they don't live in code. When user-configurable overrides are added
- * to the UserConfig proto, this hook should fetch useUserConfig("preferences")
- * and merge overrides on top of these defaults.
+ * Source of truth is `sportCategories[sport].dangerPace` in sport_types.json
+ * (returned by the public /sports/config endpoint). When not present the hook
+ * returns Infinity, which the UI treats as "no ceiling".
  */
-const DEFAULT_DANGER_THRESHOLDS: Record<string, number> = {
-  cycling: 20, // miles/day
-  running: 10, // miles/day
-  yoga: 2, // hours/day
-};
+import type { DangerPace, SportConfig } from "../api/activities";
+import {
+  convertDistance,
+  convertElevation,
+  convertToMeters,
+  getUserSettings,
+  METERS_TO_FEET,
+  type DistanceUnit,
+  type ElevationUnit,
+} from "../utils/units";
+import { usePublicSportConfig } from "./usePublicSportConfig";
+import { useUserConfig } from "./useUserConfig";
+
+export function useDangerThresholds() {
+  const { sportConfig } = usePublicSportConfig();
+  const { data: preferences } = useUserConfig("preferences");
+  const { distanceUnit, elevationUnit } = getUserSettings(preferences);
+
+  const getThreshold = (sport: string): number => {
+    const pace = sportConfig?.sportCategories?.[sport]?.dangerPace;
+    if (!pace) return Infinity;
+    return resolveDangerPace(pace, distanceUnit, elevationUnit);
+  };
+
+  return { getThreshold };
+}
 
 /**
- * Hook for accessing danger thresholds for sports.
- *
- * Currently returns hardcoded defaults only. Structured as a hook (rather than
- * a plain utility) so that adding user-specific overrides from Firestore later
- * is a non-breaking change for consumers.
- *
- * @returns An object with a getThreshold(sport) method and allThresholds map
+ * Resolve a config-defined dangerPace into the user's display unit.
+ * Exported (and isolated from React hooks) so callers can resolve a sport's
+ * threshold from a snapshot of sportConfig without re-running the hook.
  */
-export function useDangerThresholds() {
-  const getThreshold = (sport: string): number => {
-    return DEFAULT_DANGER_THRESHOLDS[sport] ?? Infinity;
-  };
+export function resolveDangerPace(
+  pace: DangerPace,
+  distanceUnit: DistanceUnit,
+  elevationUnit: ElevationUnit
+): number {
+  switch (pace.unit) {
+    case "miles":
+    case "kilometers":
+    case "meters": {
+      const meters = convertToMeters(pace.valuePerDay, pace.unit);
+      return roundDp(convertDistance(meters, distanceUnit), 4);
+    }
+    case "feet": {
+      const meters = pace.valuePerDay / METERS_TO_FEET;
+      return roundDp(convertElevation(meters, elevationUnit), 4);
+    }
+    case "hours":
+      return pace.valuePerDay;
+    case "minutes":
+      return pace.valuePerDay / 60;
+    case "sessions":
+      return pace.valuePerDay;
+  }
+}
 
-  return {
-    getThreshold,
-    allThresholds: DEFAULT_DANGER_THRESHOLDS,
-  };
+/** Lightweight helper to test a config snapshot. Used by tests; not React-dependent. */
+export function getThresholdFromConfig(
+  sport: string,
+  sportConfig: SportConfig | null,
+  distanceUnit: DistanceUnit,
+  elevationUnit: ElevationUnit
+): number {
+  const pace = sportConfig?.sportCategories?.[sport]?.dangerPace;
+  if (!pace) return Infinity;
+  return resolveDangerPace(pace, distanceUnit, elevationUnit);
+}
+
+function roundDp(value: number, dp: number): number {
+  const factor = 10 ** dp;
+  return Math.round(value * factor) / factor;
 }

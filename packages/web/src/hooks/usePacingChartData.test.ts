@@ -15,6 +15,25 @@ vi.mock("../contexts/ServiceContext", () => ({
   useServices: () => ({}),
 }));
 
+// useDangerThresholds now reads dangerPace from the public sport config.
+// Re-create the legacy cycling/running/yoga ceilings here so existing assertions
+// (20 mi/day, 10 mi/day, 2 hr/day) continue to hold.
+vi.mock("./usePublicSportConfig", () => ({
+  usePublicSportConfig: () => ({
+    sportConfig: {
+      version: "1.0",
+      sportCategories: {
+        cycling: { dangerPace: { valuePerDay: 20, unit: "miles" } },
+        running: { dangerPace: { valuePerDay: 10, unit: "miles" } },
+        yoga: { dangerPace: { valuePerDay: 2, unit: "hours" } },
+      },
+    },
+    isLoading: false,
+    error: null,
+    retry: () => undefined,
+  }),
+}));
+
 describe("usePacingChartData", () => {
   // Test fixtures
   const year = 2024;

@@ -1,6 +1,32 @@
 import { renderHook } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { useCumulativeChartData } from "./useCumulativeChartData";
+
+// Stub user-config-backed dependencies that useDangerThresholds pulls in.
+vi.mock("./useUserConfig", () => ({
+  useUserConfig: () => ({ data: null }),
+}));
+vi.mock("./useAuth", () => ({
+  useAuth: () => ({ user: { uid: "test-user" }, loading: false }),
+}));
+vi.mock("../contexts/ServiceContext", () => ({
+  useServices: () => ({}),
+}));
+vi.mock("./usePublicSportConfig", () => ({
+  usePublicSportConfig: () => ({
+    sportConfig: {
+      version: "1.0",
+      sportCategories: {
+        cycling: { dangerPace: { valuePerDay: 20, unit: "miles" } },
+        running: { dangerPace: { valuePerDay: 10, unit: "miles" } },
+        yoga: { dangerPace: { valuePerDay: 2, unit: "hours" } },
+      },
+    },
+    isLoading: false,
+    error: null,
+    retry: () => undefined,
+  }),
+}));
 
 describe("useCumulativeChartData", () => {
   const year = 2024;
