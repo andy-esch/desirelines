@@ -9,10 +9,32 @@ import { GOAL_STORAGE_VERSION, type GoalsForYear } from "../services/userConfigS
  *   distance sports: miles → meters
  *   time sports:     hours → minutes
  *
- * Migration status is tracked in localStorage (one flag per user/year/sport).
- * The prefix below is versioned (`_v2_`) — bumping it forces a re-run for
- * everyone, which is the recovery hatch when a previous migration left
- * raw display values in Firestore (e.g. via the demo→Firestore copy path).
+ * Detection order in `migrateGoalUnitsIfNeeded`:
+ *   1. `storageVersion === GOAL_STORAGE_VERSION` on the payload → trust it,
+ *      skip everything else. This is the authoritative signal going forward.
+ *   2. localStorage flag for this user/year/sport is set → migration ran
+ *      previously but didn't stamp version (pre-version-field code). Stamp now.
+ *   3. Value-range heuristic (see thresholds below) → if every value is
+ *      already in the canonical range, assume canonical; otherwise convert.
+ *
+ * Recovery hatch — known caveat
+ * ------------------------------
+ * The prefix below is versioned (`_v2_`); bumping it forces every user back
+ * through paths 2 and 3, which is the only way to repair Firestore docs that
+ * shipped with raw display values (e.g. via the demo→Firestore copy bug).
+ *
+ * Path 3 (the heuristic) has a narrow but real false-negative window: a user
+ * whose goals are all *already* canonical AND all small enough to look like
+ * display values gets double-migrated (e.g. 16,093 m → 25,899,000 m). The
+ * boundary is `> DISTANCE_METERS_HEURISTIC` for distance (≈ 31 mi) and
+ * `> TIME_MINUTES_HEURISTIC` for time (≈ 17 hr). Realistic yearly goals sit
+ * above these thresholds, so the window is hypothetical — but if a user ever
+ * reports goal values that look ~1609× too big, delete their
+ * `desirelines_goals_canonical_v2_migrated_<uid>_<year>_<sport>` localStorage
+ * entry; their next load will re-run the migration and the heuristic should
+ * stamp the (now-grown) values as canonical correctly. Long-term, once
+ * `storageVersion: 2` has saturated the active user base the prefix bump can
+ * be reverted entirely and path 1 becomes the only signal.
  */
 
 const GOAL_UNIT_MIGRATION_PREFIX = "desirelines_goals_canonical_v2_migrated_";
