@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import type { MetricUnit } from "../utils/units";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
+import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
+import { getSportDisplayName } from "../utils/sportConfig";
 
 interface EmptyStateProps {
   sport?: string | undefined;
@@ -32,9 +34,10 @@ export function EmptyState({
   suggestedYear,
   linkPrefix = "",
 }: EmptyStateProps) {
+  const { sportConfig } = usePublicSportConfig();
   const defaultMessage =
     sport && year
-      ? `No ${sport} ${unit === "sessions" ? "sessions" : "activities"} recorded for ${year}`
+      ? `No ${getSportDisplayName(sport, sportConfig)} ${unit === "sessions" ? "sessions" : "activities"} recorded for ${year}`
       : "No data available";
 
   const isDemo = linkPrefix === DEMO_ROUTE_PREFIX;
