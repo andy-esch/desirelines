@@ -3,11 +3,14 @@ import React from "react";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useUserConfig, useFullUserConfig } from "./useUserConfig";
-import { UserConfigService } from "../services/userConfigService";
+import { UserConfigService, parseConfigData } from "../services/userConfigService";
 import type { GoalsForYear } from "../services/userConfigService";
 import { TestServiceProvider } from "../contexts/ServiceContext";
 
-// Mock UserConfigService
+// Mock UserConfigService and parseConfigData. parseConfigData defaults to an
+// identity-passing validator since most tests pass already-shaped fixtures;
+// individual tests can call `vi.mocked(parseConfigData).mockReturnValueOnce`
+// to drive the failure path.
 vi.mock("../services/userConfigService", () => {
   const MockUserConfigService = vi.fn();
   MockUserConfigService.prototype.getConfigSection = vi.fn();
@@ -15,14 +18,18 @@ vi.mock("../services/userConfigService", () => {
   MockUserConfigService.prototype.subscribeToConfigSection = vi.fn(() => vi.fn());
   MockUserConfigService.prototype.getConfig = vi.fn();
   MockUserConfigService.prototype.subscribeToConfig = vi.fn(() => vi.fn());
-  // Identity-passing schema validator — the tests pass already-shaped fixtures,
-  // so we don't need to exercise the real Zod schema here.
+  // Identity-passing schema validator — tests pass already-shaped fixtures,
+  // so we don't need to exercise the real Zod schema here. Individual tests
+  // can call `vi.mocked(parseConfigData).mockReturnValueOnce` to drive the
+  // failure path.
   const parseConfigData = vi.fn((_configType: string, data: unknown) => ({
     ok: true as const,
     data: data as object,
   }));
   return { UserConfigService: MockUserConfigService, parseConfigData };
 });
+
+const mockedParseConfigData = vi.mocked(parseConfigData);
 
 // Mock useAuth with dynamic return value
 const mockUser = { uid: "test-user", email: "test@example.com", displayName: "Test User" };
@@ -173,16 +180,39 @@ describe("useUserConfig", () => {
       expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
     });
 
-    it("should use defaults if localStorage is empty", async () => {
+    it("should use caller-supplied default if localStorage is empty", async () => {
+      localStorageMock.getItem.mockReturnValue(null);
+      const callerDefault: GoalsForYear = {
+        goals: [
+          {
+            id: "d1",
+            value: 100,
+            label: "Default",
+            metric: "distance_meters",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling", callerDefault), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.data).toEqual(callerDefault);
+    });
+
+    it("returns null for goals when localStorage is empty and no default is supplied", async () => {
       localStorageMock.getItem.mockReturnValue(null);
       const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
         wrapper: createWrapper(),
       });
 
       await waitFor(() => expect(result.current.loading).toBe(false));
-      // Should satisfy GoalsForYear structure (array)
-      expect(result.current.data!.goals).toBeDefined();
-      expect(Array.isArray(result.current.data!.goals)).toBe(true);
+      // In production callers always pass a sport-aware defaultValue.
+      // Without one, returning null is the documented behavior — guards the
+      // caller's null-handling path.
+      expect(result.current.data).toBeNull();
     });
   });
 
@@ -404,6 +434,82 @@ describe("useUserConfig", () => {
         );
         expect(localStorageMock.removeItem).toHaveBeenCalled();
       });
+    });
+
+    it("deletes orphan demo localStorage when Firestore already has data (Path 2)", async () => {
+      // Pre-populate demo localStorage AND give the authenticated user a
+      // populated Firestore section: the effect should treat the localStorage
+      // entry as orphaned and remove it without writing anything.
+      const orphanData: GoalsForYear = {
+        goals: [
+          {
+            id: "orphan",
+            value: 500,
+            label: "Orphan",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+            metric: "",
+          },
+        ],
+      };
+      const firestoreData: GoalsForYear = {
+        goals: [
+          {
+            id: "remote",
+            value: 2000,
+            label: "Remote",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+            metric: "",
+          },
+        ],
+      };
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(orphanData));
+      mockServiceInstance.getConfigSection.mockResolvedValue(firestoreData);
+      mockServiceInstance.subscribeToConfigSection.mockImplementation((_t: any, cb: any) => {
+        cb(firestoreData);
+        return vi.fn();
+      });
+
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.data).toEqual(firestoreData));
+
+      await waitFor(() => {
+        expect(localStorageMock.removeItem).toHaveBeenCalled();
+      });
+      expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
+    });
+
+    it("does not migrate or delete when localStorage data fails schema validation", async () => {
+      // Validation rejects the payload — leave it in place for diagnosis
+      // rather than silently dropping potentially-recoverable data.
+      const malformed = { goals: [{ id: "bad", value: "not a number" }] };
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(malformed));
+      mockServiceInstance.getConfigSection.mockResolvedValue(null);
+      mockServiceInstance.subscribeToConfigSection.mockImplementation((_t: any, cb: any) => {
+        cb(null);
+        return vi.fn();
+      });
+
+      // Drive parseConfigData to the failure branch for this test.
+      mockedParseConfigData.mockReturnValueOnce({
+        ok: false,
+        error: { issues: [] } as any,
+      });
+
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      // Give the migration effect a tick to run if it were going to.
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
+      expect(localStorageMock.removeItem).not.toHaveBeenCalled();
     });
   });
 });

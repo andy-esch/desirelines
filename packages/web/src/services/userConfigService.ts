@@ -146,21 +146,35 @@ export const UserConfigSchema = z
   .passthrough();
 
 /**
+ * Compile-time drift guard: tsc will error here if the Zod schema's output
+ * type diverges from the proto-generated UserConfig (e.g., proto adds a
+ * required field that the schema doesn't produce).
+ *
+ * If this line fails to compile after running `just proto-gen`, update the
+ * schemas above to match the new proto fields.
+ */
+function _assertSchemaMatchesProto(_output: z.output<typeof UserConfigSchema>): UserConfig {
+  return _output;
+}
+void _assertSchemaMatchesProto;
+
+/**
  * Validate a config payload (parsed JSON) against the Zod schema for its type.
  *
- * Used by the localStorage→Firestore sign-in migration to reject malformed or
- * out-of-shape demo data before it's written into the source of truth.
+ * Used by:
+ *   - the localStorage→Firestore sign-in migration in useUserConfig, to reject
+ *     malformed demo data before it's written into the source of truth
+ *   - the demo-mode read path in useUserConfig, to reject corrupted localStorage
+ *     blobs before they reach the rest of the app
  *
- * Returns the parsed (and defaulted) value on success, or `null` on failure;
- * callers can `logApiError(parseResult.error)` for diagnostic context.
+ * Returns a discriminated `{ ok: true, data } | { ok: false, error }` so the
+ * caller can `logApiError(result.error)` for diagnostic context.
  */
 export function parseConfigData(
   configType: "goals" | "annotations" | "preferences",
   data: unknown
 ):
-  | { ok: true; data: GoalsForYear }
-  | { ok: true; data: AnnotationsForYear }
-  | { ok: true; data: Preferences }
+  | { ok: true; data: GoalsForYear | AnnotationsForYear | Preferences }
   | { ok: false; error: z.ZodError } {
   if (configType === "goals") {
     const result = GoalsForYearSchema.safeParse(data);
@@ -179,19 +193,6 @@ export function parseConfigData(
     ? { ok: true, data: result.data as Preferences }
     : { ok: false, error: result.error };
 }
-
-/**
- * Compile-time drift guard: tsc will error here if the Zod schema's output
- * type diverges from the proto-generated UserConfig (e.g., proto adds a
- * required field that the schema doesn't produce).
- *
- * If this line fails to compile after running `just proto-gen`, update the
- * schemas above to match the new proto fields.
- */
-function _assertSchemaMatchesProto(_output: z.output<typeof UserConfigSchema>): UserConfig {
-  return _output;
-}
-void _assertSchemaMatchesProto;
 
 /**
  * Convert database errors to user-friendly error messages

@@ -12,44 +12,10 @@ import { useAuth } from "./useAuth";
 import { useServices } from "../contexts/ServiceContext";
 import { logApiError } from "../api/errors";
 
+// Discriminator for the supported configuration sections
+type ConfigType = "goals" | "annotations" | "preferences";
 // Union type for all supported configuration sections
 type ConfigData = GoalsForYear | AnnotationsForYear | Preferences;
-
-// Last-resort fallback when neither localStorage nor a caller-supplied default
-// is available. Callers (useSportPageData, DemoSportPage) almost always pass an
-// explicit, sport-aware `defaultValue`, so this rarely fires — but it must be
-// well-formed if it does. `metric` is intentionally empty (sport-agnostic) and
-// `storageVersion` is omitted so the migration treats these as legacy values
-// (display-unit miles) and either converts them on save or replaces them with
-// the caller's defaults on first render.
-const DEFAULT_GOALS: GoalsForYear = {
-  goals: [
-    {
-      id: "1",
-      value: 2000,
-      label: "Conservative",
-      metric: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: "2",
-      value: 2500,
-      label: "Target",
-      metric: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: "3",
-      value: 3000,
-      label: "Stretch",
-      metric: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ],
-};
 
 /**
  * Helper to get localStorage key
@@ -65,29 +31,38 @@ function getStorageKey(userId: string, configType: string, year?: number, sport?
 }
 
 /**
- * Read from local storage with fallback
+ * Read from localStorage and validate against the section's Zod schema.
+ *
+ * Mirrors the sign-in migration's validation path so demo-mode reads can't
+ * surface partially-written or corrupted blobs to the rest of the app.
+ * Invalid data is logged and treated the same as a missing entry — the
+ * caller's `defaultValue` (or the configType-specific fallback below)
+ * is returned instead.
  */
 function readFromLocalStorage(
   key: string,
-  configType: string,
+  configType: ConfigType,
   defaultValue?: ConfigData
 ): ConfigData | null {
   const stored = localStorage.getItem(key);
   if (stored) {
     try {
       const parsed = JSON.parse(stored) as unknown;
-      if (parsed && typeof parsed === "object") {
-        return parsed as ConfigData;
+      const result = parseConfigData(configType, parsed);
+      if (result.ok) {
+        return result.data;
       }
-      logApiError(new Error("Invalid storage format"), "Stored config is not an object");
+      logApiError(result.error, `[useUserConfig] localStorage at ${key} failed schema validation`);
     } catch (err) {
       logApiError(err, "Failed to parse stored config, using defaults");
     }
   }
 
-  // Fall back to defaults
+  // Fall back to defaults. Goals callers (useSportPageData, DemoSportPage)
+  // always supply a sport-aware `defaultValue`, so returning null when one
+  // isn't passed is correct — the consumer's null-handling kicks in.
   if (configType === "goals") {
-    return (defaultValue as GoalsForYear) || DEFAULT_GOALS;
+    return (defaultValue as GoalsForYear) ?? null;
   } else if (configType === "annotations") {
     return (defaultValue as AnnotationsForYear) || { annotations: [] };
   } else if (configType === "preferences") {
@@ -325,7 +300,9 @@ export function useUserConfig(
   //
   //   1. **Migration** (Firestore empty for this section): if there's a demo
   //      localStorage entry, validate it against the section's Zod schema and
-  //      promote it into Firestore. Delete on success.
+  //      promote it into Firestore. Delete on success. On validation failure,
+  //      leave the entry in place so it can be inspected during diagnosis
+  //      rather than silently dropped.
   //   2. **Cleanup** (Firestore already has data for this section): the demo
   //      entry is orphaned — Firestore is the source of truth and a user
   //      signing in with both populated would otherwise leave the localStorage

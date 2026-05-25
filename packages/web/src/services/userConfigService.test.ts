@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { UserConfigService } from "./userConfigService";
+import { UserConfigService, parseConfigData } from "./userConfigService";
 import type {
   UserConfig,
   GoalsForYear,
@@ -904,6 +904,105 @@ describe("UserConfigService", () => {
       unsubscribe();
 
       expect(mockUnsubscribe).toHaveBeenCalled();
+    });
+  });
+});
+
+describe("parseConfigData", () => {
+  describe("goals", () => {
+    it("returns ok with the parsed payload for a valid GoalsForYear", () => {
+      const data = {
+        goals: [
+          {
+            id: "1",
+            value: 1000,
+            label: "Conservative",
+            metric: "distance_meters",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
+      const result = parseConfigData("goals", data);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const goals = (result.data as GoalsForYear).goals;
+        expect(goals).toHaveLength(1);
+        expect(goals[0]?.value).toBe(1000);
+      }
+    });
+
+    it("preserves passthrough fields like storageVersion", () => {
+      const data = {
+        goals: [],
+        storageVersion: 2,
+      };
+      const result = parseConfigData("goals", data);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect((result.data as { storageVersion?: number }).storageVersion).toBe(2);
+      }
+    });
+
+    it("rejects payloads with malformed goal entries", () => {
+      const data = {
+        goals: [{ id: "1", value: "not a number" }], // value must be int
+      };
+      const result = parseConfigData("goals", data);
+      expect(result.ok).toBe(false);
+    });
+
+    it("rejects non-object inputs", () => {
+      expect(parseConfigData("goals", null).ok).toBe(false);
+      expect(parseConfigData("goals", "string").ok).toBe(false);
+      expect(parseConfigData("goals", 42).ok).toBe(false);
+    });
+  });
+
+  describe("annotations", () => {
+    it("returns ok for a valid AnnotationsForYear", () => {
+      const data = {
+        annotations: [
+          {
+            id: "a1",
+            startDate: "2025-01-01",
+            endDate: "2025-01-31",
+            label: "January",
+            description: "",
+            stravaActivityId: "",
+            type: 0,
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
+      const result = parseConfigData("annotations", data);
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects malformed annotation entries", () => {
+      const data = {
+        annotations: [{ id: 123 }], // id must be string per proto defaults
+      };
+      const result = parseConfigData("annotations", data);
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  describe("preferences", () => {
+    it("returns ok for a valid Preferences", () => {
+      const data = { theme: "dark", distanceUnit: "miles" };
+      const result = parseConfigData("preferences", data);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect((result.data as Preferences).theme).toBe("dark");
+      }
+    });
+
+    it("rejects malformed preference fields", () => {
+      const data = { theme: 42 }; // theme must be string
+      const result = parseConfigData("preferences", data);
+      expect(result.ok).toBe(false);
     });
   });
 });
