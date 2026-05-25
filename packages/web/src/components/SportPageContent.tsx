@@ -15,6 +15,9 @@ import type { MetricUnit } from "../utils/units";
 import type { YearContext } from "../utils/yearContext";
 import type { DistanceEntry } from "../types/activity";
 import { getSportGradient } from "../constants/sportGradients";
+import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
+import { getSportDisplayName } from "../utils/sportConfig";
+import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
 
 export interface SportPageContentProps {
   // Core
@@ -113,6 +116,12 @@ export default function SportPageContent({
   const [showFullYear, setShowFullYear] = useState(true);
   const [showAchievements, setShowAchievements] = useState(true);
 
+  // Honor the configured displayName (e.g. "E-Bike", "Water Sports") rather
+  // than a raw capitalization of the sport key. Shares the React Query cache
+  // slot with useSportConfig, so this is free for the authenticated path too.
+  const { sportConfig } = usePublicSportConfig();
+  const sportDisplayName = getSportDisplayName(sport, sportConfig);
+
   const isCurrentYear = yearContext.isCurrentYear;
   // Note: error state is shown in the chart area (which receives `error` separately).
   // Other components receive `isLoading` only so they show default values on error,
@@ -157,7 +166,7 @@ export default function SportPageContent({
         <div className="grow min-w-0 md:pl-4">
           <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
             <h1 className="h2 font-display">
-              {sport.charAt(0).toUpperCase() + sport.slice(1)} {currentYear}
+              {sportDisplayName} {currentYear}
             </h1>
           </div>
 
@@ -173,8 +182,8 @@ export default function SportPageContent({
               }}
             >
               <span>
-                No {sport} activities recorded for {currentYear}.{" "}
-                {routePrefix === "/demo" ? (
+                No {sportDisplayName} activities recorded for {currentYear}.{" "}
+                {routePrefix === DEMO_ROUTE_PREFIX ? (
                   <Link
                     to="/demo/$sport/$year"
                     params={{ sport, year: String(currentYear - 1) }}

@@ -5,6 +5,13 @@
  * Each sport has a "fill level" that determines how much data is shown.
  */
 
+/**
+ * Route prefix used when the app is in demo (unauthenticated) mode.
+ * Pages render with this prefix prepended to internal links so the user stays
+ * inside `/demo/...` instead of being bounced into authenticated routes.
+ */
+export const DEMO_ROUTE_PREFIX = "/demo";
+
 export type FillLevel = "full" | "partial" | "empty";
 
 export type DemoSport = "cycling" | "running" | "yoga" | "hiking" | "workout";

@@ -116,15 +116,55 @@ export function isSessionsUnit(unit: MetricUnit): boolean {
 }
 
 /**
- * Get display label for any metric unit (distance, activity, or duration).
- * Handles both distance units (miles, km, m) and activity units (sessions).
+ * Resolve the display unit a given metric should render in, applying the user's
+ * distance/elevation preferences. Single source of truth for the
+ * metric-ID → display-unit mapping used by both authenticated and demo pages.
+ *
+ * @param metric - Metric ID (e.g. "distance_meters", "time_minutes")
+ * @param userSettings - User's unit preferences
+ * @param fallback - Unit to return when `metric` is not a known ID
+ */
+export function getDisplayUnitForMetric(
+  metric: string,
+  userSettings: Pick<UserSettings, "distanceUnit" | "elevationUnit">,
+  fallback: MetricUnit = "miles"
+): MetricUnit {
+  switch (metric) {
+    case "distance_meters":
+      return userSettings.distanceUnit;
+    case "elevation_meters":
+      return userSettings.elevationUnit;
+    case "time_minutes":
+      return "hours";
+    case "activities":
+      return "sessions";
+    default:
+      return fallback;
+  }
+}
+
+/**
+ * Get the abbreviated display label for any metric unit. Used for chart axes
+ * and compact numeric subtitles where space is at a premium.
+ *
+ * Distance abbreviates (miles → mi, kilometers → km). Time abbreviates too
+ * (hours → hrs, minutes → min). Sessions and feet stay as-is since those
+ * are already short.
  */
 export function getMetricUnitLabel(unit: MetricUnit): string {
-  if (unit === "miles" || unit === "kilometers" || unit === "meters") {
-    return getDistanceLabel(unit);
+  switch (unit) {
+    case "miles":
+    case "kilometers":
+    case "meters":
+      return getDistanceLabel(unit);
+    case "hours":
+      return "hrs";
+    case "minutes":
+      return "min";
+    case "feet":
+    case "sessions":
+      return unit;
   }
-  // Return as-is for activity units (e.g., "sessions", "minutes", "hours")
-  return unit;
 }
 
 export type MetricType = "distance" | "time" | "sessions";

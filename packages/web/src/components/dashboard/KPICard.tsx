@@ -20,8 +20,8 @@ export interface KPICardProps {
  * @example
  * <KPICard
  *   title="Current Distance"
- *   value="2450 mi"
- *   subtitle="8.3 mi/day avg · 295 days"
+ *   value="2450 miles"
+ *   subtitle="8.3 miles / day avg · 295 days elapsed"
  *   indicator={<MomentumIndicator />}
  * />
  */

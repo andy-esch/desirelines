@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { MetricUnit } from "../utils/units";
+import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
 
 interface EmptyStateProps {
   sport?: string | undefined;
@@ -36,7 +37,7 @@ export function EmptyState({
       ? `No ${sport} ${unit === "sessions" ? "sessions" : "activities"} recorded for ${year}`
       : "No data available";
 
-  const isDemo = linkPrefix === "/demo";
+  const isDemo = linkPrefix === DEMO_ROUTE_PREFIX;
   const yearStr = suggestedYear ? String(suggestedYear) : "";
 
   return (

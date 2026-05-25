@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCurrentYear } from "../hooks/useCurrentYear";
-import { getUserSettings, type MetricUnit } from "../utils/units";
+import { getDisplayUnitForMetric, getUserSettings, type MetricUnit } from "../utils/units";
 import { estimateYearEndDistance, type Goals } from "../utils/goalCalculations";
 import { useTrainingMomentum } from "../hooks/useTrainingMomentum";
 import MomentumIndicator from "../components/MomentumIndicator";
@@ -15,6 +15,7 @@ import { createYearContext } from "../utils/yearContext";
 import { getPrimaryMetric } from "../utils/sportConfig";
 import { convertMetricsToChartData } from "../hooks/useSportPageData";
 import SportPageContent from "../components/SportPageContent";
+import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
 
 interface DemoSportPageProps {
   sport: string;
@@ -44,22 +45,11 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   const sportInfo = sportConfig?.sportCategories?.[sport] ?? null;
   const primaryMetric = getPrimaryMetric(sport, sportConfig);
 
-  // Pick the display unit for the primary metric. Mirrors the logic in useSportPageData
-  // so time-based sports (yoga, etc.) render hours rather than falling back to "sessions".
-  const metricUnit: MetricUnit = (() => {
-    switch (primaryMetric) {
-      case "distance_meters":
-        return userSettings.distanceUnit;
-      case "elevation_meters":
-        return userSettings.elevationUnit;
-      case "time_minutes":
-        return "hours";
-      case "activities":
-        return "sessions";
-      default:
-        return sportInfo?.hasDistance ? userSettings.distanceUnit : "sessions";
-    }
-  })();
+  const metricUnit: MetricUnit = getDisplayUnitForMetric(
+    primaryMetric,
+    userSettings,
+    sportInfo?.hasDistance ? userSettings.distanceUnit : "sessions"
+  );
 
   // Convert metrics to chart data format
   const chartData: DistanceEntry[] = useMemo(() => {
@@ -186,7 +176,7 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
             params: { sport, year: String(newYear) },
           });
         }}
-        routePrefix="/demo"
+        routePrefix={DEMO_ROUTE_PREFIX}
         priorYearData={{}}
       />
     </>
