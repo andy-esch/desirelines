@@ -22,7 +22,7 @@ describe("KPICards", () => {
   });
 
   const getDefaultProps = () => ({
-    currentDistance: 2450,
+    currentValue: 2450,
     averagePace: 8.3,
     yearContext: testYearContext, // Use the pre-created context
     nextGoal: { label: "Challenger", value: 3000 },
@@ -123,8 +123,8 @@ describe("KPICards", () => {
   });
 
   describe("no data states", () => {
-    it("shows no data message for current year when currentDistance is 0", () => {
-      render(<KPICards {...getDefaultProps()} currentDistance={0} />);
+    it("shows no data message for current year when currentValue is 0", () => {
+      render(<KPICards {...getDefaultProps()} currentValue={0} />);
 
       // All three cards show "--" when there's no data
       expect(screen.getAllByText("--")).toHaveLength(3);
@@ -132,9 +132,9 @@ describe("KPICards", () => {
       expect(screen.getByText("No data available")).toBeInTheDocument();
     });
 
-    it("shows year complete message for past year when currentDistance is 0", () => {
+    it("shows year complete message for past year when currentValue is 0", () => {
       const pastYearContext = createYearContext(2024);
-      render(<KPICards {...getDefaultProps()} currentDistance={0} yearContext={pastYearContext} />);
+      render(<KPICards {...getDefaultProps()} currentValue={0} yearContext={pastYearContext} />);
 
       expect(screen.getByText(/2024 complete · No data available/)).toBeInTheDocument();
     });
@@ -159,7 +159,7 @@ describe("KPICards", () => {
 
   describe("sessions unit", () => {
     it("displays correct title and unit for sessions", () => {
-      render(<KPICards {...getDefaultProps()} unit="sessions" currentDistance={100} />);
+      render(<KPICards {...getDefaultProps()} unit="sessions" currentValue={100} />);
 
       expect(screen.getByText("Current # Sessions")).toBeInTheDocument();
       const sessionsCard = screen.getByText("Current # Sessions").closest(".glass-panel-kpi");
@@ -172,7 +172,7 @@ describe("KPICards", () => {
   describe("metric-driven title", () => {
     it("renders 'Current Time' for time_minutes metric", () => {
       render(
-        <KPICards {...getDefaultProps()} unit="hours" metric="time_minutes" currentDistance={23} />
+        <KPICards {...getDefaultProps()} unit="hours" metric="time_minutes" currentValue={23} />
       );
 
       expect(screen.getByText("Current Time")).toBeInTheDocument();
@@ -185,7 +185,7 @@ describe("KPICards", () => {
           {...getDefaultProps()}
           unit="feet"
           metric="elevation_meters"
-          currentDistance={12000}
+          currentValue={12000}
         />
       );
 
@@ -194,7 +194,7 @@ describe("KPICards", () => {
 
     it("renders 'Current # Sessions' for activities metric regardless of unit", () => {
       render(
-        <KPICards {...getDefaultProps()} unit="sessions" metric="activities" currentDistance={50} />
+        <KPICards {...getDefaultProps()} unit="sessions" metric="activities" currentValue={50} />
       );
 
       expect(screen.getByText("Current # Sessions")).toBeInTheDocument();

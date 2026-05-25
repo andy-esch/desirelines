@@ -9,8 +9,10 @@ interface GoalControlsProps {
   goals: Goals;
   onGoalsChange: (goals: Goals) => Promise<void>;
   estimatedYearEnd: number;
-  unit?: MetricUnit | undefined; // Unit label (e.g., "mi", "km", "sessions")
-  sport?: string | undefined; // Sport name (e.g., "cycling", "running", "yoga")
+  /** Display unit label (e.g., "mi", "km", "sessions", "hours"). */
+  unit: MetricUnit;
+  /** Sport key (e.g., "cycling", "running", "yoga") — drives metric config lookup. */
+  sport: string;
   // Loading/error state from parent (useUserConfig hook)
   isSaving?: boolean | undefined;
   saveError?: Error | null | undefined;
@@ -21,8 +23,8 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   goals,
   onGoalsChange,
   estimatedYearEnd,
-  unit = "miles", // Default to miles
-  sport = "cycling", // Default to cycling
+  unit,
+  sport,
   isSaving = false,
   saveError = null,
   onClearSaveError,

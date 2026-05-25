@@ -8,19 +8,22 @@ import type { YearContext } from "../utils/yearContext";
 
 interface GoalSummaryTableProps {
   goals: Goals;
-  currentDistance: number;
+  /** Current cumulative value in display units (distance, time, sessions, or elevation). */
+  currentValue: number;
   yearContext: YearContext;
-  unit?: MetricUnit; // Unit label (e.g., "mi", "km", "sessions")
-  sport?: string; // Sport type for danger zone threshold lookup
+  /** Display unit label (e.g., "mi", "km", "sessions", "hours"). */
+  unit: MetricUnit;
+  /** Sport key (e.g., "cycling", "yoga") — drives the danger zone threshold lookup. */
+  sport: string;
   isLoading?: boolean; // Whether data is still loading
 }
 
 const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   goals,
-  currentDistance,
+  currentValue,
   yearContext,
-  unit = "miles",
-  sport = "cycling",
+  unit,
+  sport,
   isLoading = false,
 }) => {
   const { year, isPastYear, daysElapsed, daysRemaining } = yearContext;
@@ -32,8 +35,8 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   const calculateDailyPaceNeeded = (goalValue: number): number => {
     if (daysRemaining <= 0) return 0;
 
-    const distanceRemaining = Math.max(0, goalValue - currentDistance);
-    return distanceRemaining / daysRemaining;
+    const remaining = Math.max(0, goalValue - currentValue);
+    return remaining / daysRemaining;
   };
 
   // Helper to check if pace is in danger zone
@@ -42,7 +45,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   };
 
   const calculateProgress = (goalValue: number): number => {
-    return goalValue > 0 ? (currentDistance / goalValue) * 100 : 0;
+    return goalValue > 0 ? (currentValue / goalValue) * 100 : 0;
   };
 
   /**
@@ -61,8 +64,8 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
    */
   const calculatePaceRatio = (goalValue: number): number => {
     const proratedGoal = calculateProratedGoal(goalValue);
-    if (proratedGoal === 0) return currentDistance > 0 ? Infinity : 1;
-    return currentDistance / proratedGoal;
+    if (proratedGoal === 0) return currentValue > 0 ? Infinity : 1;
+    return currentValue / proratedGoal;
   };
 
   const getStatusContent = (goalValue: number): React.ReactNode => {
@@ -117,7 +120,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
             <tbody>
               {sortedGoals.map((goal) => {
                 const progress = isLoading ? 0 : calculateProgress(goal.value);
-                const remaining = isLoading ? 0 : Math.max(0, goal.value - currentDistance);
+                const remaining = isLoading ? 0 : Math.max(0, goal.value - currentValue);
                 const paceNeeded = isLoading ? 0 : calculateDailyPaceNeeded(goal.value);
                 const status = isLoading ? "Loading..." : getStatusContent(goal.value);
                 const isDangerous = !isLoading && isPaceDangerous(paceNeeded);

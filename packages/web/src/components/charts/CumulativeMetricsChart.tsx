@@ -14,7 +14,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
-import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
+import { getMetricUnitLabel, isSessionsUnit, type MetricUnit } from "../../utils/units";
 import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { useCumulativeChartData } from "../../hooks/useCumulativeChartData";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
@@ -229,7 +229,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
   const dragAnchor = useRef<number | undefined>(undefined);
 
   // Derive display values
-  const isSessionsMode = unit === "sessions";
+  const isSessionsMode = isSessionsUnit(unit);
   const chartTitle = getCumulativeChartTitle(metric, unit);
   const unitLabel = getMetricUnitLabel(unit);
 

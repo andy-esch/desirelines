@@ -196,7 +196,7 @@ export default function SportPageContent({
           )}
 
           <KPICards
-            currentDistance={currentValue}
+            currentValue={currentValue}
             nextGoal={nextGoal}
             nextGoalProgress={nextGoalProgress}
             nextGoalGap={nextGoalGap}
@@ -220,7 +220,7 @@ export default function SportPageContent({
           ) : (
             <GoalSummaryTable
               goals={goals}
-              currentDistance={currentValue}
+              currentValue={currentValue}
               yearContext={yearContext}
               unit={unit}
               sport={sport}
@@ -272,6 +272,7 @@ export default function SportPageContent({
                 error={error}
                 showFullYear={showFullYear}
                 unit={unit}
+                metric={activeMetric}
                 sport={sport}
                 onRetry={onRetry}
               />
