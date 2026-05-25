@@ -14,7 +14,13 @@ import { logApiError } from "../api/errors";
 // Union type for all supported configuration sections
 type ConfigData = GoalsForYear | AnnotationsForYear | Preferences;
 
-// Default goals for unauthenticated users (localStorage fallback)
+// Last-resort fallback when neither localStorage nor a caller-supplied default
+// is available. Callers (useSportPageData, DemoSportPage) almost always pass an
+// explicit, sport-aware `defaultValue`, so this rarely fires — but it must be
+// well-formed if it does. `metric` is intentionally empty (sport-agnostic) and
+// `storageVersion` is omitted so the migration treats these as legacy values
+// (display-unit miles) and either converts them on save or replaces them with
+// the caller's defaults on first render.
 const DEFAULT_GOALS: GoalsForYear = {
   goals: [
     {

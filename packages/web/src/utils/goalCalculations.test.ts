@@ -6,7 +6,10 @@ import {
   generateDefaultGoals,
   calculateActualPacing,
   calculateDynamicPacingGoal,
+  goalToDisplay,
+  goalToStorage,
   validateGoals,
+  type GoalUnitContext,
   type Goals,
 } from "./goalCalculations";
 import type { DistanceEntry } from "../types/activity";
@@ -315,5 +318,72 @@ describe("calculateDynamicPacingGoal", () => {
   it("handles empty distance data", () => {
     const pacing = calculateDynamicPacingGoal([], 2500, 2024, new Date(2024, 11, 31));
     expect(pacing).toEqual([]);
+  });
+});
+
+describe("goal display ↔ storage round-trip", () => {
+  // Goal values come through the UI as integer display units (parseInt in
+  // useGoalManager.handleSaveEdit); these tests pin that storage→display
+  // and display→storage are inverses up to rounding.
+  const cyclingMi: GoalUnitContext = { hasDistance: true, isTime: false, distanceUnit: "miles" };
+  const cyclingKm: GoalUnitContext = {
+    hasDistance: true,
+    isTime: false,
+    distanceUnit: "kilometers",
+  };
+  const yoga: GoalUnitContext = { hasDistance: false, isTime: true, distanceUnit: "miles" };
+  const sessions: GoalUnitContext = { hasDistance: false, isTime: false, distanceUnit: "miles" };
+
+  // Realistic per-year goal values across the supported sports.
+  const DISTANCE_GOALS_MI = [100, 500, 1000, 2000, 2400, 3000, 5000, 10000];
+  const DISTANCE_GOALS_KM = [200, 1000, 1609, 2500, 5000, 10000];
+  const TIME_GOALS_HR = [10, 25, 50, 100, 150, 200];
+  const SESSION_GOALS = [10, 50, 100, 200];
+
+  it.each(DISTANCE_GOALS_MI)("preserves %d mi after storage round-trip", (mi) => {
+    const stored = goalToStorage(mi, cyclingMi);
+    expect(goalToDisplay(stored, cyclingMi)).toBe(mi);
+  });
+
+  it.each(DISTANCE_GOALS_KM)("preserves %d km after storage round-trip", (km) => {
+    const stored = goalToStorage(km, cyclingKm);
+    expect(goalToDisplay(stored, cyclingKm)).toBe(km);
+  });
+
+  it.each(TIME_GOALS_HR)("preserves %d hours after storage round-trip", (hr) => {
+    const stored = goalToStorage(hr, yoga);
+    expect(goalToDisplay(stored, yoga)).toBe(hr);
+  });
+
+  it.each(SESSION_GOALS)("preserves %d sessions (unitless) after round-trip", (n) => {
+    const stored = goalToStorage(n, sessions);
+    expect(goalToDisplay(stored, sessions)).toBe(n);
+  });
+
+  it("converts between distance units via canonical storage", () => {
+    // 1000 mi stored canonically should display as ~1609 km, and vice versa.
+    const stored = goalToStorage(1000, cyclingMi);
+    expect(goalToDisplay(stored, cyclingKm)).toBe(1609);
+
+    const stored2 = goalToStorage(1609, cyclingKm);
+    expect(goalToDisplay(stored2, cyclingMi)).toBe(1000);
+  });
+
+  it("stores distance in meters (canonical)", () => {
+    // 1 mi = 1609.344 m, rounded to 1609
+    expect(goalToStorage(1, cyclingMi)).toBe(1609);
+    // 1 km = 1000 m exactly
+    expect(goalToStorage(1, cyclingKm)).toBe(1000);
+  });
+
+  it("stores time in minutes (canonical)", () => {
+    // 1 hr = 60 min
+    expect(goalToStorage(1, yoga)).toBe(60);
+    expect(goalToStorage(2, yoga)).toBe(120);
+  });
+
+  it("leaves session/unitless values unchanged in storage", () => {
+    expect(goalToStorage(42, sessions)).toBe(42);
+    expect(goalToDisplay(42, sessions)).toBe(42);
   });
 });

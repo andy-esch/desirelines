@@ -20,6 +20,7 @@ import type { DistanceEntry } from "../types/activity";
 import { createYearContext } from "../utils/yearContext";
 import { getPrimaryMetric, isTimeSport } from "../utils/sportConfig";
 import { convertMetricsToChartData } from "../hooks/useSportPageData";
+import { GOAL_STORAGE_VERSION } from "../services/userConfigService";
 import SportPageContent from "../components/SportPageContent";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
 
@@ -131,7 +132,10 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     setGoals(newGoals);
     // Persist canonical values; convert display → storage on write.
     const canonical = newGoals.map((g) => ({ ...g, value: goalToStorage(g.value, goalCtx) }));
-    localStorage.setItem(storageKey, JSON.stringify({ goals: canonical }));
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({ goals: canonical, storageVersion: GOAL_STORAGE_VERSION })
+    );
     return Promise.resolve();
   };
 

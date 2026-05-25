@@ -78,7 +78,9 @@ function SportTable({
                   </span>
                 </td>
                 <td className="align-middle">
-                  <span className="text-sm">{sport.metrics.map(getMetricDisplayLabel).join(", ")}</span>
+                  <span className="text-sm">
+                    {sport.metrics.map(getMetricDisplayLabel).join(", ")}
+                  </span>
                 </td>
                 <td className="align-middle text-right">
                   {isDisabled ? (

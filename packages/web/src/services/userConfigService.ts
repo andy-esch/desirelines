@@ -8,13 +8,29 @@ import { logger } from "../lib/logger";
 import type {
   UserConfig,
   SportGoalsForYear,
-  GoalsForYear,
+  GoalsForYear as ProtoGoalsForYear,
   AnnotationsForYear,
   Preferences,
   Metadata,
   Goal,
   Annotation,
 } from "../types/generated/user_config";
+
+/**
+ * Web-side `GoalsForYear` shape.
+ *
+ * Extends the protobuf-generated type with `storageVersion`, an optional
+ * marker that records the unit convention of `goal.value`:
+ *   undefined / 1 → legacy display units (miles, hours)
+ *   2             → canonical units (meters, minutes)
+ *
+ * The proto schema is intentionally not updated for this — only the web client
+ * cares about display vs. canonical units, and the Firestore Zod schema
+ * (`GoalsForYearSchema`) is `.passthrough()`, so the extra field round-trips.
+ */
+export interface GoalsForYear extends ProtoGoalsForYear {
+  storageVersion?: number;
+}
 
 /**
  * Zod schemas for runtime validation of Firestore UserConfig documents.
@@ -80,8 +96,16 @@ const GoalSchema = z
 const GoalsForYearSchema = z
   .object({
     goals: z.array(GoalSchema).optional().default([]),
+    // `storageVersion` marks the unit convention of `goal.value`:
+    //   undefined / 1 → legacy display units (miles, hours)
+    //   2             → canonical units (meters, minutes)
+    // Migration logic upgrades legacy payloads and stamps version 2 going forward.
+    storageVersion: z.number().int().optional(),
   })
   .passthrough();
+
+/** Canonical storage version for goal values (meters for distance, minutes for time). */
+export const GOAL_STORAGE_VERSION = 2;
 
 const SportGoalsForYearSchema = z
   .object({
@@ -558,11 +582,11 @@ export class UserConfigService {
   }
 }
 
-// Re-export protobuf types for convenience
+// Re-export protobuf types for convenience.
+// GoalsForYear is declared above (extends ProtoGoalsForYear with storageVersion).
 export type {
   UserConfig,
   SportGoalsForYear,
-  GoalsForYear,
   AnnotationsForYear,
   Preferences,
   Metadata,

@@ -42,11 +42,7 @@ export function useGoalMigration(
 
     // Only distance and time sports have a display↔canonical conversion. Sports
     // backed by sessions (or anything else without a unit) need no migration.
-    const kind: "distance" | "time" | null = hasDistance
-      ? "distance"
-      : isTime
-        ? "time"
-        : null;
+    const kind: "distance" | "time" | null = hasDistance ? "distance" : isTime ? "time" : null;
     if (kind === null) return;
 
     if (!isGoalUnitMigrated(userId, year, sport) && goalsData.goals.length > 0) {

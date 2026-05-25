@@ -1,6 +1,6 @@
 import { MILES_TO_METERS, hoursToMinutes } from "./units";
 import { logger } from "../lib/logger";
-import type { GoalsForYear } from "../services/userConfigService";
+import { GOAL_STORAGE_VERSION, type GoalsForYear } from "../services/userConfigService";
 
 /**
  * Goal Unit Migration
@@ -40,17 +40,17 @@ export function markGoalUnitMigrated(userId: string, year: number, sport: string
 }
 
 /**
- * Convert goals from display units to canonical storage units.
+ * Convert goals from display units to canonical storage units, stamping the
+ * resulting payload with the current storageVersion so future loads can skip
+ * the heuristic and trust the marker.
  *
  * Distance sports: miles → meters. Time sports: hours → minutes.
  * The caller decides which kind based on the sport's primary metric.
  */
-function convertGoalsToCanonical(
-  goals: GoalsForYear,
-  kind: "distance" | "time"
-): GoalsForYear {
+function convertGoalsToCanonical(goals: GoalsForYear, kind: "distance" | "time"): GoalsForYear {
   const factor = kind === "distance" ? MILES_TO_METERS : 0;
   return {
+    ...goals,
     goals: goals.goals.map((goal) => ({
       ...goal,
       value:
@@ -58,7 +58,13 @@ function convertGoalsToCanonical(
           ? Math.round(goal.value * factor)
           : Math.round(hoursToMinutes(goal.value)),
     })),
+    storageVersion: GOAL_STORAGE_VERSION,
   };
+}
+
+/** Stamp an existing canonical payload with the storageVersion marker. */
+function stampVersion(goals: GoalsForYear): GoalsForYear {
+  return { ...goals, storageVersion: GOAL_STORAGE_VERSION };
 }
 
 /**
@@ -77,12 +83,8 @@ const DISTANCE_METERS_HEURISTIC = 50000;
  */
 const TIME_MINUTES_HEURISTIC = 1000;
 
-function isLikelyAlreadyCanonical(
-  goals: GoalsForYear,
-  kind: "distance" | "time"
-): boolean {
-  const threshold =
-    kind === "distance" ? DISTANCE_METERS_HEURISTIC : TIME_MINUTES_HEURISTIC;
+function isLikelyAlreadyCanonical(goals: GoalsForYear, kind: "distance" | "time"): boolean {
+  const threshold = kind === "distance" ? DISTANCE_METERS_HEURISTIC : TIME_MINUTES_HEURISTIC;
   return goals.goals.some((goal) => goal.value > threshold);
 }
 
@@ -104,19 +106,29 @@ export function migrateGoalUnitsIfNeeded(
   sport: string,
   kind: "distance" | "time"
 ): { goals: GoalsForYear; needsSave: boolean } {
-  // If already migrated (localStorage flag), return as-is
-  if (isGoalUnitMigrated(userId, year, sport)) {
+  // Self-describing: if the payload says it's at the current canonical
+  // version, trust the marker and skip every other check.
+  if (goals.storageVersion === GOAL_STORAGE_VERSION) {
     return { goals, needsSave: false };
+  }
+
+  // Legacy path: data without a storageVersion stamp. The localStorage flag
+  // and value-range heuristic remain as the recovery hatch for that data.
+  if (isGoalUnitMigrated(userId, year, sport)) {
+    // Migration ran on a previous load but the payload was never stamped
+    // (pre-version-field code). Stamp it now so subsequent loads skip the
+    // legacy path entirely.
+    return { goals: stampVersion(goals), needsSave: true };
   }
 
   // Safety heuristic: if any goal value is in the "canonical" range, assume
   // already migrated. Prevents double-migration if localStorage flag was lost.
   if (isLikelyAlreadyCanonical(goals, kind)) {
     logger.info(
-      `[Migration] Goals for ${year}/${sport} appear to already be in canonical units, skipping conversion`
+      `[Migration] Goals for ${year}/${sport} appear to already be in canonical units, stamping version marker`
     );
     markGoalUnitMigrated(userId, year, sport);
-    return { goals, needsSave: false };
+    return { goals: stampVersion(goals), needsSave: true };
   }
 
   // Not migrated - convert from display to canonical
