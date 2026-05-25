@@ -2,6 +2,7 @@ import { useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   UserConfigService,
+  parseConfigData,
   type UserConfig,
   type GoalsForYear,
   type AnnotationsForYear,
@@ -317,45 +318,67 @@ export function useUserConfig(
     mutation.reset();
   }, [mutation]);
 
-  // MIGRATION: LocalStorage -> Firestore
-  // When a user signs in, migrate their demo data if no remote data exists
+  // MIGRATION + CLEANUP: localStorage → Firestore
+  //
+  // Two paths, both gated on the user being authenticated and the auth/data
+  // load having settled:
+  //
+  //   1. **Migration** (Firestore empty for this section): if there's a demo
+  //      localStorage entry, validate it against the section's Zod schema and
+  //      promote it into Firestore. Delete on success.
+  //   2. **Cleanup** (Firestore already has data for this section): the demo
+  //      entry is orphaned — Firestore is the source of truth and a user
+  //      signing in with both populated would otherwise leave the localStorage
+  //      key sitting around forever. Drop it.
   const migrating = useRef(false);
   useEffect(() => {
-    // Only run if authenticated (not LS mode), finished loading, and no remote data exists
-    const hasNoData = data === null || data === undefined;
-    if (isLocalStorageMode || isLoading || !hasNoData || !configService || migrating.current)
-      return;
+    if (isLocalStorageMode || isLoading || !configService || migrating.current) return;
 
     const key = getStorageKey("default", configType, year, sport);
     const localDataRaw = localStorage.getItem(key);
+    if (!localDataRaw) return;
 
-    if (localDataRaw) {
-      try {
-        const localData = JSON.parse(localDataRaw) as unknown;
-        if (localData && typeof localData === "object") {
-          migrating.current = true;
-          mutation
-            .mutateAsync(localData as ConfigData)
-            .then(() => {
-              localStorage.removeItem(key);
-            })
-            .catch((err) => {
-              logApiError(err, `[useUserConfig] Migration failed for ${key}`);
-            })
-            .finally(() => {
-              migrating.current = false;
-            });
-        } else {
-          logApiError(
-            new Error("Invalid migration data format"),
-            `[useUserConfig] localStorage data for ${key} is not an object`
-          );
-          localStorage.removeItem(key);
-        }
-      } catch (err) {
-        logApiError(err, `[useUserConfig] Invalid localStorage data for ${key}, clearing`);
-        localStorage.removeItem(key);
+    const hasRemoteData = data !== null && data !== undefined;
+
+    // Path 2 — Firestore is authoritative; the demo entry is orphaned.
+    if (hasRemoteData) {
+      localStorage.removeItem(key);
+      return;
+    }
+
+    // Path 1 — Firestore is empty; try to migrate the demo entry into it.
+    try {
+      const parsedJson = JSON.parse(localDataRaw) as unknown;
+      // Validate the payload's shape against the Zod schema before trusting
+      // it. Without this we'd happily promote any malformed demo blob into
+      // Firestore — see the goal-storage incident where raw display values
+      // leaked in via this path.
+      const parseResult = parseConfigData(configType, parsedJson);
+      if (parseResult.ok) {
+        migrating.current = true;
+        mutation
+          .mutateAsync(parseResult.data)
+          .then(() => {
+            localStorage.removeItem(key);
+          })
+          .catch((err) => {
+            logApiError(err, `[useUserConfig] Migration failed for ${key}`);
+          })
+          .finally(() => {
+            migrating.current = false;
+          });
+      } else {
+        // Don't delete: leave the entry in place so it can be inspected
+        // during diagnosis rather than silently dropping (potentially
+        // recoverable) data.
+        logApiError(
+          parseResult.error,
+          `[useUserConfig] localStorage data at ${key} failed schema validation; not migrating`
+        );
       }
+    } catch (err) {
+      logApiError(err, `[useUserConfig] Invalid localStorage data for ${key}, clearing`);
+      localStorage.removeItem(key);
     }
   }, [isLocalStorageMode, isLoading, data, configType, year, sport, configService, mutation]);
 

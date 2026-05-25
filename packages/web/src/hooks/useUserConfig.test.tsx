@@ -15,7 +15,13 @@ vi.mock("../services/userConfigService", () => {
   MockUserConfigService.prototype.subscribeToConfigSection = vi.fn(() => vi.fn());
   MockUserConfigService.prototype.getConfig = vi.fn();
   MockUserConfigService.prototype.subscribeToConfig = vi.fn(() => vi.fn());
-  return { UserConfigService: MockUserConfigService };
+  // Identity-passing schema validator — the tests pass already-shaped fixtures,
+  // so we don't need to exercise the real Zod schema here.
+  const parseConfigData = vi.fn((_configType: string, data: unknown) => ({
+    ok: true as const,
+    data: data as object,
+  }));
+  return { UserConfigService: MockUserConfigService, parseConfigData };
 });
 
 // Mock useAuth with dynamic return value

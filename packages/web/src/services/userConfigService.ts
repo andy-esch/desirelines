@@ -146,6 +146,41 @@ export const UserConfigSchema = z
   .passthrough();
 
 /**
+ * Validate a config payload (parsed JSON) against the Zod schema for its type.
+ *
+ * Used by the localStorage→Firestore sign-in migration to reject malformed or
+ * out-of-shape demo data before it's written into the source of truth.
+ *
+ * Returns the parsed (and defaulted) value on success, or `null` on failure;
+ * callers can `logApiError(parseResult.error)` for diagnostic context.
+ */
+export function parseConfigData(
+  configType: "goals" | "annotations" | "preferences",
+  data: unknown
+):
+  | { ok: true; data: GoalsForYear }
+  | { ok: true; data: AnnotationsForYear }
+  | { ok: true; data: Preferences }
+  | { ok: false; error: z.ZodError } {
+  if (configType === "goals") {
+    const result = GoalsForYearSchema.safeParse(data);
+    return result.success
+      ? { ok: true, data: result.data as GoalsForYear }
+      : { ok: false, error: result.error };
+  }
+  if (configType === "annotations") {
+    const result = AnnotationsForYearSchema.safeParse(data);
+    return result.success
+      ? { ok: true, data: result.data as AnnotationsForYear }
+      : { ok: false, error: result.error };
+  }
+  const result = PreferencesSchema.safeParse(data);
+  return result.success
+    ? { ok: true, data: result.data as Preferences }
+    : { ok: false, error: result.error };
+}
+
+/**
  * Compile-time drift guard: tsc will error here if the Zod schema's output
  * type diverges from the proto-generated UserConfig (e.g., proto adds a
  * required field that the schema doesn't produce).
