@@ -45,23 +45,45 @@ describe("useGoalMigration", () => {
   });
 
   it("does nothing when goalsData is null", () => {
-    renderHook(() => useGoalMigration(null, USER_ID, 2026, "cycling", true, updateGoals));
+    renderHook(() => useGoalMigration(null, USER_ID, 2026, "cycling", true, false, updateGoals));
 
     expect(mockMigrateGoalUnitsIfNeeded).not.toHaveBeenCalled();
     expect(updateGoals).not.toHaveBeenCalled();
   });
 
-  it("does nothing for non-distance sports", () => {
-    renderHook(() => useGoalMigration(GOALS_DATA, USER_ID, 2026, "yoga", false, updateGoals));
+  it("does nothing for sports without a canonical unit (sessions)", () => {
+    renderHook(() =>
+      useGoalMigration(GOALS_DATA, USER_ID, 2026, "racket_sports", false, false, updateGoals)
+    );
 
     expect(mockMigrateGoalUnitsIfNeeded).not.toHaveBeenCalled();
     expect(updateGoals).not.toHaveBeenCalled();
+  });
+
+  it("runs time-sport migration with kind=time", () => {
+    mockIsGoalUnitMigrated.mockReturnValue(false);
+    mockMigrateGoalUnitsIfNeeded.mockReturnValue({
+      goals: GOALS_DATA,
+      needsSave: false,
+    });
+
+    renderHook(() => useGoalMigration(GOALS_DATA, USER_ID, 2026, "yoga", false, true, updateGoals));
+
+    expect(mockMigrateGoalUnitsIfNeeded).toHaveBeenCalledWith(
+      GOALS_DATA,
+      USER_ID,
+      2026,
+      "yoga",
+      "time"
+    );
   });
 
   it("does nothing when already migrated", () => {
     mockIsGoalUnitMigrated.mockReturnValue(true);
 
-    renderHook(() => useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, updateGoals));
+    renderHook(() =>
+      useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, false, updateGoals)
+    );
 
     expect(mockMigrateGoalUnitsIfNeeded).not.toHaveBeenCalled();
     expect(updateGoals).not.toHaveBeenCalled();
@@ -71,7 +93,9 @@ describe("useGoalMigration", () => {
     mockIsGoalUnitMigrated.mockReturnValue(false);
     const emptyGoals: GoalsForYear = { goals: [] };
 
-    renderHook(() => useGoalMigration(emptyGoals, USER_ID, 2026, "cycling", true, updateGoals));
+    renderHook(() =>
+      useGoalMigration(emptyGoals, USER_ID, 2026, "cycling", true, false, updateGoals)
+    );
 
     expect(mockMigrateGoalUnitsIfNeeded).not.toHaveBeenCalled();
   });
@@ -83,9 +107,17 @@ describe("useGoalMigration", () => {
       needsSave: true,
     });
 
-    renderHook(() => useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, updateGoals));
+    renderHook(() =>
+      useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, false, updateGoals)
+    );
 
-    expect(mockMigrateGoalUnitsIfNeeded).toHaveBeenCalledWith(GOALS_DATA, USER_ID, 2026, "cycling");
+    expect(mockMigrateGoalUnitsIfNeeded).toHaveBeenCalledWith(
+      GOALS_DATA,
+      USER_ID,
+      2026,
+      "cycling",
+      "distance"
+    );
     expect(updateGoals).toHaveBeenCalledWith(MIGRATED_GOALS);
 
     // Wait for the async save to resolve
@@ -104,7 +136,9 @@ describe("useGoalMigration", () => {
     updateGoals.mockRejectedValue(saveError);
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    renderHook(() => useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, updateGoals));
+    renderHook(() =>
+      useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, false, updateGoals)
+    );
 
     await vi.waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -124,7 +158,9 @@ describe("useGoalMigration", () => {
       needsSave: false,
     });
 
-    renderHook(() => useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, updateGoals));
+    renderHook(() =>
+      useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, false, updateGoals)
+    );
 
     expect(updateGoals).not.toHaveBeenCalled();
     expect(mockMarkGoalUnitMigrated).toHaveBeenCalledWith(USER_ID, 2026, "cycling");
@@ -138,7 +174,7 @@ describe("useGoalMigration", () => {
     });
 
     const { rerender } = renderHook(() =>
-      useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, updateGoals)
+      useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, false, updateGoals)
     );
 
     expect(mockMigrateGoalUnitsIfNeeded).toHaveBeenCalledTimes(1);
@@ -158,7 +194,7 @@ describe("useGoalMigration", () => {
 
     let sport = "cycling";
     const { rerender } = renderHook(() =>
-      useGoalMigration(GOALS_DATA, USER_ID, 2026, sport, true, updateGoals)
+      useGoalMigration(GOALS_DATA, USER_ID, 2026, sport, true, false, updateGoals)
     );
 
     expect(mockMigrateGoalUnitsIfNeeded).toHaveBeenCalledTimes(1);
@@ -166,7 +202,8 @@ describe("useGoalMigration", () => {
       GOALS_DATA,
       USER_ID,
       2026,
-      "cycling"
+      "cycling",
+      "distance"
     );
 
     // Navigate to a different sport
@@ -178,7 +215,8 @@ describe("useGoalMigration", () => {
       GOALS_DATA,
       USER_ID,
       2026,
-      "running"
+      "running",
+      "distance"
     );
   });
 
@@ -189,10 +227,18 @@ describe("useGoalMigration", () => {
       needsSave: false,
     });
 
-    renderHook(() => useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, updateGoals));
+    renderHook(() =>
+      useGoalMigration(GOALS_DATA, USER_ID, 2026, "cycling", true, false, updateGoals)
+    );
 
     expect(mockIsGoalUnitMigrated).toHaveBeenCalledWith(USER_ID, 2026, "cycling");
-    expect(mockMigrateGoalUnitsIfNeeded).toHaveBeenCalledWith(GOALS_DATA, USER_ID, 2026, "cycling");
+    expect(mockMigrateGoalUnitsIfNeeded).toHaveBeenCalledWith(
+      GOALS_DATA,
+      USER_ID,
+      2026,
+      "cycling",
+      "distance"
+    );
     expect(mockMarkGoalUnitMigrated).toHaveBeenCalledWith(USER_ID, 2026, "cycling");
   });
 });

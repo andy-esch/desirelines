@@ -75,6 +75,7 @@ vi.mock("../utils/dateCalculations", () => ({
 
 vi.mock("../utils/sportConfig", () => ({
   getPrimaryMetric: () => "distance",
+  isTimeSport: () => false,
 }));
 
 vi.mock("../config/metricConfig", () => ({
@@ -99,6 +100,10 @@ vi.mock("../utils/units", () => ({
 
 vi.mock("../utils/goalCalculations", () => ({
   estimateYearEndDistance: () => 1000,
+  // Identity converters keep test fixtures readable; the actual conversion is
+  // exercised in goalCalculations / migration unit tests.
+  goalToStorage: (value: number) => value,
+  goalToDisplay: (value: number) => value,
 }));
 
 // Stub SportPageContent to expose callbacks via test buttons

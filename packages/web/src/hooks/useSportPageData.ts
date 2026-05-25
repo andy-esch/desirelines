@@ -22,10 +22,7 @@ import {
   convertElevation,
   getDisplayUnitForMetric,
   getUserSettings,
-  goalMetersToDisplay,
-  goalDisplayToMeters,
   minutesToHours,
-  hoursToMinutes,
   type MetricUnit,
   type DistanceUnit,
   type ElevationUnit,
@@ -33,6 +30,9 @@ import {
 import {
   generateDefaultGoals,
   estimateYearEndDistance,
+  goalToDisplay,
+  goalToStorage,
+  type GoalUnitContext,
   type Goals,
 } from "../utils/goalCalculations";
 import { useAuth } from "./useAuth";
@@ -45,11 +45,12 @@ import { useSidebarSportData } from "./useSidebarSportData";
 import { usePriorYearMetrics } from "./usePriorYearMetrics";
 import { getMetricConfig, getMetricFieldName } from "../config/metricConfig";
 import { getSportMetrics, getPrimaryMetric, isTimeSport } from "../utils/sportConfig";
-import type { GoalsForYear } from "../services/userConfigService";
+import { GOAL_STORAGE_VERSION, type GoalsForYear } from "../services/userConfigService";
 import { calculateAveragePace } from "../utils/dateCalculations";
 import type { DistanceEntry } from "../types/activity";
 import type { SportMetrics } from "../api/activities";
 import { createYearContext, type YearContext } from "../utils/yearContext";
+import { logger } from "../lib/logger";
 
 export interface SportPageData {
   // Core
@@ -99,31 +100,6 @@ export interface SportPageData {
   priorYearData: Record<number, DistanceEntry[]>;
   showPriorYears: boolean;
   onPriorYearsChange: (show: boolean) => void;
-}
-
-/** Context needed to convert a goal value between display units and storage units. */
-interface GoalUnitContext {
-  hasDistance: boolean;
-  isTime: boolean;
-  distanceUnit: DistanceUnit;
-}
-
-/**
- * Convert a goal value from display units (miles/km/hours) to storage units
- * (meters/minutes). Stored values are unit-stable across user preference
- * changes; display values follow the user's current setting.
- */
-function goalToStorage(displayValue: number, ctx: GoalUnitContext): number {
-  if (ctx.hasDistance) return Math.round(goalDisplayToMeters(displayValue, ctx.distanceUnit));
-  if (ctx.isTime) return Math.round(hoursToMinutes(displayValue));
-  return displayValue;
-}
-
-/** Inverse of `goalToStorage`. */
-function goalToDisplay(storageValue: number, ctx: GoalUnitContext): number {
-  if (ctx.hasDistance) return Math.round(goalMetersToDisplay(storageValue, ctx.distanceUnit));
-  if (ctx.isTime) return Math.round(minutesToHours(storageValue));
-  return storageValue;
 }
 
 /** Convert raw sport metrics to chart-ready DistanceEntry[] based on the active metric and user settings. */
@@ -255,6 +231,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
         createdAt: now,
         updatedAt: now,
       })),
+      storageVersion: GOAL_STORAGE_VERSION,
     };
     /* eslint-disable react-hooks/preserve-manual-memoization -- intentional: new Date() is impure, compiler can't auto-memoize */
   }, [
@@ -277,16 +254,26 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   } = useUserConfig("goals", year, sport, defaultGoalsForYear);
 
   // One-time migration: convert goals from legacy miles format to meters
-  useGoalMigration(goalsData, user?.uid ?? "", year, sport, hasDistance, updateGoals);
+  useGoalMigration(goalsData, user?.uid ?? "", year, sport, hasDistance, isTime, updateGoals);
 
-  // Convert goals from storage units to display units for UI
+  // Convert goals from storage units to display units for UI.
+  // Warns once per render if a goal's stored `metric` disagrees with the
+  // sport's primary metric — catches stale data (e.g. a goal copied across
+  // sports, or a primaryMetric config change that left old records behind).
   const goalCtx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
   const goals: Goals = goalsData?.goals
-    ? goalsData.goals.map((g) => ({
-        id: g.id,
-        value: goalToDisplay(g.value, goalCtx),
-        label: g.label,
-      }))
+    ? goalsData.goals.map((g) => {
+        if (g.metric && g.metric !== primaryMetric) {
+          logger.warn(
+            `[useSportPageData] Goal ${g.id} for ${sport}/${year} has metric=${g.metric} but sport primary metric is ${primaryMetric}`
+          );
+        }
+        return {
+          id: g.id,
+          value: goalToDisplay(g.value, goalCtx),
+          label: g.label,
+        };
+      })
     : [];
 
   // Handle goals change: convert from display units back to storage units
@@ -304,6 +291,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
         createdAt:
           goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
       })),
+      storageVersion: GOAL_STORAGE_VERSION,
     };
     await updateGoals(updatedGoalsForYear);
   };

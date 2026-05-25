@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
+import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { CheckIcon, CloseIcon, EyeIcon, EyeSlashIcon } from "../icons";
 import NeonSpinner from "../NeonSpinner";
 import { InlineAlert } from "../InlineAlert";
@@ -15,17 +16,6 @@ interface SportEntry {
   displayName: string;
   stravaTypes: string[];
   metrics: string[];
-}
-
-/** Format metric key for display (e.g., "distance_meters" -> "Distance") */
-function formatMetricLabel(metric: string): string {
-  const labels: Record<string, string> = {
-    distance_meters: "Distance",
-    time_minutes: "Time",
-    elevation_meters: "Elevation",
-    activities: "Activities",
-  };
-  return labels[metric] || metric;
 }
 
 /** Check if a Set and array have the same elements */
@@ -88,7 +78,9 @@ function SportTable({
                   </span>
                 </td>
                 <td className="align-middle">
-                  <span className="text-sm">{sport.metrics.map(formatMetricLabel).join(", ")}</span>
+                  <span className="text-sm">
+                    {sport.metrics.map(getMetricDisplayLabel).join(", ")}
+                  </span>
                 </td>
                 <td className="align-middle text-right">
                   {isDisabled ? (
