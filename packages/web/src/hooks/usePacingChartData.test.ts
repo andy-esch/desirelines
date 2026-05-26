@@ -254,18 +254,36 @@ describe("usePacingChartData", () => {
       expect(result.current.naturalYMax).toBeCloseTo(28.75, 1);
     });
 
-    it("should determine if danger zone should be shown", () => {
+    it("hides the danger zone when actual + goal paces are far below threshold", () => {
+      // Cycling threshold = 20 mi/day. User on track at ~3/day, requires ~5/day.
+      // Max data is 5, ratio 5/20 = 0.25 — well below the proximity gate.
       const { result } = renderHook(() =>
         usePacingChartData({
-          year,
-          goals,
-          distanceData,
+          year: 2024,
+          goals: [{ id: "1", value: 1800, label: "Easy" }], // ~5/day
+          distanceData: [{ x: "2024-01-01T00:00:00Z", y: 3 }],
           showFullYear: true,
           sport: "cycling",
         })
       );
 
-      expect(typeof result.current.shouldShowDangerZone).toBe("boolean");
+      expect(result.current.shouldShowDangerZone).toBe(false);
+    });
+
+    it("shows the danger zone when a goal pacing line approaches threshold", () => {
+      // Cycling threshold = 20 mi/day. Goal demands ~18/day → 18/20 = 0.9, above
+      // the 0.75 proximity gate.
+      const { result } = renderHook(() =>
+        usePacingChartData({
+          year: 2024,
+          goals: [{ id: "1", value: 6588, label: "Stretch" }], // ~18/day
+          distanceData: [{ x: "2024-01-01T00:00:00Z", y: 3 }],
+          showFullYear: true,
+          sport: "cycling",
+        })
+      );
+
+      expect(result.current.shouldShowDangerZone).toBe(true);
     });
   });
 

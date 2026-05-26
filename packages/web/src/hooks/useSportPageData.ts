@@ -253,7 +253,9 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     clearSaveError: clearGoalsSaveError,
   } = useUserConfig("goals", year, sport, defaultGoalsForYear);
 
-  // One-time migration: convert goals from legacy miles format to meters
+  // One-time migration: convert legacy display-unit goal values to canonical
+  // storage units (miles → meters for distance sports, hours → minutes for
+  // time sports). No-op for sports without a canonical unit (e.g. sessions).
   useGoalMigration(goalsData, user?.uid ?? "", year, sport, hasDistance, isTime, updateGoals);
 
   // Convert goals from storage units to display units for UI.

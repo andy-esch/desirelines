@@ -351,7 +351,7 @@ export function CumulativeChartPresenter({
               strokeWidth={DANGER_ZONE_CONFIG.line.strokeWidth}
               strokeDasharray={DANGER_ZONE_CONFIG.line.strokeDasharray}
               dot={false}
-              name={`Max Achievable (${dangerZone.threshold}/day)`}
+              name={`Max Achievable (${dangerZone.threshold.toFixed(1)} ${unitLabel}/day)`}
               isAnimationActive={false}
             />
           )}

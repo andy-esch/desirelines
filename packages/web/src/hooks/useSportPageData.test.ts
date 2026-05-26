@@ -6,6 +6,7 @@ import { useSportData } from "./useSportData";
 import { useUserConfig } from "./useUserConfig";
 import { useSidebarSportData } from "./useSidebarSportData";
 import { usePriorYearMetrics } from "./usePriorYearMetrics";
+import { logger } from "../lib/logger";
 
 // Mock all dependency hooks
 vi.mock("./useAuth");
@@ -116,5 +117,81 @@ describe("useSportPageData", () => {
 
     expect(result.current.currentValue).toBe(0);
     expect(result.current.chartData).toEqual([]);
+  });
+
+  it("warns when a goal's stored metric disagrees with the sport's primary metric", () => {
+    // Cycling's primary metric is distance_meters. A goal stored with
+    // metric: "time_minutes" indicates data corruption (e.g. copied across
+    // sports). The warning is a diagnostic, not user-facing — but it should
+    // still fire so the issue surfaces in logs.
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+
+    // First useUserConfig call returns preferences; second returns goals.
+    // Match the ordering useSportPageData uses.
+    vi.mocked(useUserConfig)
+      .mockReturnValueOnce({
+        data: { distanceUnit: "miles", elevationUnit: "feet" },
+        isLoading: false,
+        error: null,
+        updateData: vi.fn(),
+      } as any)
+      .mockReturnValueOnce({
+        data: {
+          goals: [
+            {
+              id: "stale",
+              value: 1609344,
+              label: "Stale",
+              metric: "time_minutes", // ← deliberately wrong for cycling
+              createdAt: "2025-01-01T00:00:00Z",
+              updatedAt: "2025-01-01T00:00:00Z",
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+        updateData: vi.fn(),
+      } as any);
+
+    renderHook(() => useSportPageData("cycling", 2026));
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("metric=time_minutes but sport primary metric is distance_meters")
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("does not warn when a goal's metric matches the sport's primary metric", () => {
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+
+    vi.mocked(useUserConfig)
+      .mockReturnValueOnce({
+        data: { distanceUnit: "miles", elevationUnit: "feet" },
+        isLoading: false,
+        error: null,
+        updateData: vi.fn(),
+      } as any)
+      .mockReturnValueOnce({
+        data: {
+          goals: [
+            {
+              id: "ok",
+              value: 1609344,
+              label: "OK",
+              metric: "distance_meters",
+              createdAt: "2025-01-01T00:00:00Z",
+              updatedAt: "2025-01-01T00:00:00Z",
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+        updateData: vi.fn(),
+      } as any);
+
+    renderHook(() => useSportPageData("cycling", 2026));
+
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("metric="));
+    warnSpy.mockRestore();
   });
 });

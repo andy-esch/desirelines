@@ -11,6 +11,18 @@ info:
     ## Pagination
     The `/v1/activities` list endpoint uses cursor-based pagination.
     Use `next_cursor` from the response to fetch subsequent pages.
+
+    ## Versioning policy
+    `/v1/` is **additive-only**: new optional response fields, new endpoints,
+    and new optional query params can ship at any time. Existing fields are
+    not removed, retyped, or semantically repurposed in place — if a field's
+    meaning needs to change, add a new field. The frontend's Zod contracts
+    use `.passthrough()` so new fields don't trigger validation errors.
+
+    A truly breaking change (which should be rare on a small app) means
+    introducing a new endpoint or, only if there's no other option, a `/v2/`
+    surface alongside `/v1/`. No formal sunset policy — the frontend is the
+    sole consumer and migrates in lockstep.
   version: 1.0.0
   contact:
     name: Desirelines

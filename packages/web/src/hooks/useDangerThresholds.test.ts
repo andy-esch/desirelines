@@ -105,16 +105,76 @@ describe("useDangerThresholds", () => {
   });
 });
 
-describe("resolveDangerPace", () => {
-  it("converts minutes to hours for time thresholds", () => {
-    expect(resolveDangerPace({ valuePerDay: 120, unit: "minutes" }, "miles", "feet")).toBeCloseTo(
-      2,
-      5
-    );
+describe("resolveDangerPace — per-kind unit resolution", () => {
+  describe("distance", () => {
+    it("converts miles → kilometers when user prefers km", () => {
+      const result = resolveDangerPace({ valuePerDay: 20, unit: "miles" }, "kilometers", "feet");
+      expect(result).toBeCloseTo(32.19, 1);
+    });
+
+    it("converts kilometers → miles when user prefers miles", () => {
+      const result = resolveDangerPace({ valuePerDay: 32, unit: "kilometers" }, "miles", "feet");
+      expect(result).toBeCloseTo(19.88, 1);
+    });
+
+    it("passes through when source and target distance units match", () => {
+      expect(resolveDangerPace({ valuePerDay: 20, unit: "miles" }, "miles", "feet")).toBeCloseTo(
+        20,
+        5
+      );
+      expect(
+        resolveDangerPace({ valuePerDay: 32, unit: "kilometers" }, "kilometers", "feet")
+      ).toBeCloseTo(32, 5);
+    });
+
+    it("handles meters as a source unit", () => {
+      // 32186.88 m = 20 mi
+      const result = resolveDangerPace({ valuePerDay: 32186.88, unit: "meters" }, "miles", "feet");
+      expect(result).toBeCloseTo(20, 1);
+    });
   });
 
-  it("passes through hours and sessions", () => {
-    expect(resolveDangerPace({ valuePerDay: 1.5, unit: "hours" }, "miles", "feet")).toBe(1.5);
-    expect(resolveDangerPace({ valuePerDay: 3, unit: "sessions" }, "miles", "feet")).toBe(3);
+  describe("elevation", () => {
+    it("converts feet → meters when user prefers metric elevation", () => {
+      // 10000 ft = 3048 m
+      const result = resolveDangerPace({ valuePerDay: 10000, unit: "feet" }, "miles", "meters");
+      expect(result).toBeCloseTo(3048, 0);
+    });
+
+    it("passes through feet when user prefers imperial elevation", () => {
+      expect(resolveDangerPace({ valuePerDay: 5000, unit: "feet" }, "miles", "feet")).toBeCloseTo(
+        5000,
+        5
+      );
+    });
+  });
+
+  describe("time", () => {
+    it("converts minutes → hours (the canonical → display direction)", () => {
+      expect(resolveDangerPace({ valuePerDay: 120, unit: "minutes" }, "miles", "feet")).toBeCloseTo(
+        2,
+        5
+      );
+    });
+
+    it("passes through hours unchanged regardless of distance/elevation prefs", () => {
+      // Time resolution doesn't depend on distance/elevation prefs.
+      expect(resolveDangerPace({ valuePerDay: 1.5, unit: "hours" }, "miles", "feet")).toBe(1.5);
+      expect(resolveDangerPace({ valuePerDay: 1.5, unit: "hours" }, "kilometers", "meters")).toBe(
+        1.5
+      );
+    });
+  });
+
+  describe("sessions", () => {
+    it("passes through unitless session counts", () => {
+      expect(resolveDangerPace({ valuePerDay: 3, unit: "sessions" }, "miles", "feet")).toBe(3);
+    });
+
+    it("is invariant to distance/elevation prefs", () => {
+      expect(resolveDangerPace({ valuePerDay: 3, unit: "sessions" }, "kilometers", "meters")).toBe(
+        3
+      );
+    });
   });
 });
