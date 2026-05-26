@@ -214,6 +214,37 @@ describe("useUserConfig", () => {
       // caller's null-handling path.
       expect(result.current.data).toBeNull();
     });
+
+    it("falls back to default when localStorage data fails schema validation", async () => {
+      // Demo-mode read path mirrors the sign-in migration: corrupted
+      // localStorage shouldn't surface junk to the consumer. parseConfigData
+      // rejects the blob → readFromLocalStorage returns the caller default.
+      const callerDefault: GoalsForYear = {
+        goals: [
+          {
+            id: "fallback",
+            value: 999,
+            label: "Fallback",
+            metric: "distance_meters",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
+      localStorageMock.getItem.mockReturnValue('{"goals":"not an array"}');
+      mockedParseConfigData.mockReturnValueOnce({
+        ok: false,
+        error: { issues: [] } as any,
+      });
+
+      const { result } = renderHook(
+        () => useUserConfig("goals", 2025, "cycling", callerDefault),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.data).toEqual(callerDefault);
+    });
   });
 
   describe("Subscription Lifecycle", () => {

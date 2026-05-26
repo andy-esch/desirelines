@@ -81,6 +81,23 @@ function readFromLocalStorage(
  * - "goals" → data is GoalsForYear | null (requires year and sport)
  * - "annotations" → data is AnnotationsForYear | null (requires year)
  * - "preferences" → data is Preferences | null
+ *
+ * Beyond the basic query/mutation, the hook also owns two boundary effects:
+ *
+ *   1. **Sign-in migration**: when the user authenticates, demo localStorage
+ *      data for the same section is Zod-validated and promoted into
+ *      Firestore (`parseConfigData` is the gate — see `userConfigService.ts`).
+ *      Malformed payloads are logged and left in place for diagnosis.
+ *   2. **Orphan localStorage cleanup**: when Firestore already has data for
+ *      the section, any leftover demo localStorage entry is deleted on next
+ *      render — so a user who signed up, played in demo, then signed in
+ *      doesn't accumulate stale localStorage forever.
+ *
+ * Both effects live inside the hook (search "MIGRATION + CLEANUP" in the
+ * body) and run automatically; callers don't need to coordinate them.
+ *
+ * Demo-mode reads (`readFromLocalStorage` below) apply the same Zod
+ * validation, so corrupted localStorage can't surface junk to consumers.
  */
 
 // Overload for "goals" - year and sport are required
