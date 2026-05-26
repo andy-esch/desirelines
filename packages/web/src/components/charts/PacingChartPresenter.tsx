@@ -126,7 +126,7 @@ function DangerZoneOverlay({
         strokeWidth={line.strokeWidth}
         strokeDasharray={line.strokeDasharray}
         label={{
-          value: `Zone of Unachievability (${threshold} ${unitLabel}/day)`,
+          value: `Zone of Unachievability (${threshold.toFixed(1)} ${unitLabel}/day)`,
           position: label.position,
           fill: label.fill,
           fontSize: label.fontSize,

@@ -3,7 +3,7 @@ import type { PacingChartDataPoint, CurrentChartValues, PacingGoalData } from ".
 import type { Goals } from "../utils/goalCalculations";
 import { calculateActualPacing, calculateDynamicPacingGoal } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
-import { calculatePacingYAxisMax } from "../utils/chartScaling";
+import { calculatePacingYAxisMax, shouldShowDangerZone } from "../utils/chartScaling";
 import { useDangerThresholds } from "./useDangerThresholds";
 
 import { getCurrentLocalDate } from "../utils/dateUtils";
@@ -112,9 +112,11 @@ export function usePacingChartData({
   const maxActualPace = Math.max(...actualPacing.map((p) => p.y), currentValues.actual, 0);
   const maxGoalPace = Math.max(...currentValues.goals.map((g) => g.value), 0);
 
+  // Decide whether to draw the danger zone *first* — Y-axis sizing depends on it.
+  // Showing the overlay when the user is comfortably below the threshold just
+  // squashes the meaningful pacing data into the bottom of the chart.
+  const showDangerZone = shouldShowDangerZone(maxActualPace, maxGoalPace, dangerThreshold);
   const naturalYMax = calculatePacingYAxisMax(maxActualPace, maxGoalPace, dangerThreshold);
-
-  const shouldShowDangerZone = dangerThreshold <= naturalYMax;
 
   return {
     // Date range
@@ -130,6 +132,6 @@ export function usePacingChartData({
     // Danger zone
     dangerThreshold,
     naturalYMax,
-    shouldShowDangerZone,
+    shouldShowDangerZone: showDangerZone,
   };
 }

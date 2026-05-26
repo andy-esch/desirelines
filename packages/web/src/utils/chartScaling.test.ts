@@ -3,6 +3,7 @@ import {
   roundToCleanMax,
   calculatePacingYAxisMax,
   calculateCumulativeYAxisMax,
+  shouldShowDangerZone,
 } from "./chartScaling";
 
 describe("chartScaling utilities", () => {
@@ -49,16 +50,23 @@ describe("chartScaling utilities", () => {
       expect(calculatePacingYAxisMax(10, 5, Infinity)).toBeCloseTo(11.5, 1);
     });
 
-    it("ensures danger threshold + 10% is visible", () => {
-      // pace 10, goal 5, threshold 20
-      // targetMax = 10 * 1.15 = 11.5
-      // dangerPadding = 20 * 1.1 = 22
-      // should return 22
-      expect(calculatePacingYAxisMax(10, 5, 20)).toBe(22);
+    it("does NOT inflate axis to show danger threshold when data is comfortably below it", () => {
+      // pace 10, goal 5, threshold 20 → ratio 10/20 = 0.5, below 0.75 proximity.
+      // Showing the danger line at 22 would compress the data (max 10) into the
+      // bottom half of the chart. Keep the axis tight to the data instead.
+      expect(calculatePacingYAxisMax(10, 5, 20)).toBeCloseTo(11.5, 1);
     });
 
-    it("caps the axis at 2x danger threshold for unrealistic goals", () => {
-      // pace 10, goal 100 (unrealistic), threshold 20
+    it("DOES inflate axis to show danger threshold when data is close (>=75%)", () => {
+      // pace 16, goal 5, threshold 20 → ratio 16/20 = 0.8, above proximity.
+      // The user is approaching the danger zone, so the overlay is meaningful.
+      // dangerPadding = 20 * 1.1 = 22
+      expect(calculatePacingYAxisMax(16, 5, 20)).toBe(22);
+    });
+
+    it("caps the axis at 2x danger threshold for unrealistic goals (when zone is shown)", () => {
+      // pace 10, goal 100 (unrealistic), threshold 20.
+      // goal exceeds threshold so the zone is visible.
       // targetMax = 100 * 1.15 = 115
       // cap = max(20 * 2, 10 * 1.2) = 40
       // should return 40
@@ -66,7 +74,7 @@ describe("chartScaling utilities", () => {
     });
 
     it("does not cap actual data if it exceeds the realistic cap", () => {
-      // user is doing 50, but danger threshold is 20
+      // user is doing 50, danger threshold 20 — zone is shown.
       // targetMax = 50 * 1.15 = 57.5
       // absoluteCap = max(20 * 2, 50 * 1.2) = 60
       // 57.5 < 60, so it should stay 57.5
@@ -76,6 +84,32 @@ describe("chartScaling utilities", () => {
     it("returns sensible default when no data or goals", () => {
       expect(calculatePacingYAxisMax(0, 0, 20)).toBe(30); // 20 * 1.5
       expect(calculatePacingYAxisMax(0, 0, Infinity)).toBe(30);
+    });
+  });
+
+  describe("shouldShowDangerZone", () => {
+    it("hides the zone when data is comfortably below the threshold", () => {
+      // Max data 10, threshold 20 → 50% of threshold, well below proximity gate.
+      expect(shouldShowDangerZone(10, 5, 20)).toBe(false);
+    });
+
+    it("shows the zone when data approaches the threshold (>=75%)", () => {
+      expect(shouldShowDangerZone(15, 5, 20)).toBe(true); // 15/20 = 0.75 exactly
+      expect(shouldShowDangerZone(18, 5, 20)).toBe(true);
+    });
+
+    it("shows the zone when a goal pacing line exceeds the threshold", () => {
+      // Actual data is low but a goal demands an unrealistic pace.
+      expect(shouldShowDangerZone(5, 25, 20)).toBe(true);
+    });
+
+    it("never shows the zone when there is no threshold", () => {
+      expect(shouldShowDangerZone(100, 100, Infinity)).toBe(false);
+    });
+
+    it("hides the zone when there's no data and the threshold exists", () => {
+      // Edge case: 0/20 = 0 → below proximity.
+      expect(shouldShowDangerZone(0, 0, 20)).toBe(false);
     });
   });
 
