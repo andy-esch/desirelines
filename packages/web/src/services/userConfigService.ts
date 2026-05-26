@@ -225,8 +225,22 @@ function createUserFriendlyError(error: unknown, operation: string): Error {
 }
 
 /**
- * Current schema version for user config
- * Increment when making breaking changes to the data structure
+ * Current schema version stamped on user-config writes.
+ *
+ * Schema evolution is **additive-only**: new optional fields can be added at
+ * any time, but existing fields are never removed, retyped, or semantically
+ * repurposed in place. Under that rule, any prior-version document is still
+ * valid under the current schema by definition, so no migration step runs
+ * on read.
+ *
+ * The version is kept as an informational stamp (useful for telemetry and
+ * for future "did we hit a snapshot point" debugging) and is bumped only
+ * when we ship a new shape — bumping is record-keeping, not gating.
+ *
+ * If the additive-only rule ever needs to be broken, build a versioned
+ * migration registry (`Record<fromVersion, (cfg) => UserConfig>`) keyed by
+ * version pairs and run it on read. Not currently warranted — the app is
+ * single-tenant and the frontend is the sole writer.
  */
 const CURRENT_SCHEMA_VERSION = "2.1";
 
@@ -327,23 +341,6 @@ export class UserConfigService {
   }
 
   /**
-   * Validate schema version and warn if there's a mismatch
-   */
-  private validateSchemaVersion(config: UserConfig): void {
-    if (!config.schemaVersion) {
-      logger.warn(`⚠️ User config is missing schema version. Expected: ${CURRENT_SCHEMA_VERSION}`);
-      return;
-    }
-
-    if (config.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-      logger.warn(
-        `⚠️ Schema version mismatch! Config has: ${config.schemaVersion}, Code expects: ${CURRENT_SCHEMA_VERSION}. ` +
-          `Data will be auto-upgraded on next write.`
-      );
-    }
-  }
-
-  /**
    * Get the full user configuration
    */
   async getConfig(): Promise<UserConfig | null> {
@@ -352,9 +349,6 @@ export class UserConfigService {
         schema: UserConfigSchema,
       });
 
-      if (config) {
-        this.validateSchemaVersion(config);
-      }
       return config;
     } catch (error) {
       logger.error("Error fetching user config:", error);
@@ -478,10 +472,9 @@ export class UserConfigService {
         annotations: {},
       };
 
-      // Ensure schema version is updated for existing configs
-      if (config.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-        config.schemaVersion = CURRENT_SCHEMA_VERSION;
-      }
+      // Always stamp the current schema version on write — informational
+      // under the additive-only policy (see CURRENT_SCHEMA_VERSION doc).
+      config.schemaVersion = CURRENT_SCHEMA_VERSION;
 
       // Update specific section
       if (year !== undefined && sport !== undefined && configType === "goals") {
@@ -534,12 +527,7 @@ export class UserConfigService {
   subscribeToConfig(callback: (config: UserConfig | null) => void): () => void {
     return this.databaseService.subscribeToDocument<UserConfig>(
       this.getDocPath(),
-      (config) => {
-        if (config) {
-          this.validateSchemaVersion(config);
-        }
-        callback(config);
-      },
+      callback,
       (error) => {
         logger.error("Error in config subscription:", error);
         callback(null);

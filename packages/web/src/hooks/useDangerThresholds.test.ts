@@ -129,11 +129,7 @@ describe("resolveDangerPace — per-kind unit resolution", () => {
 
     it("handles meters as a source unit", () => {
       // 32186.88 m = 20 mi
-      const result = resolveDangerPace(
-        { valuePerDay: 32186.88, unit: "meters" },
-        "miles",
-        "feet"
-      );
+      const result = resolveDangerPace({ valuePerDay: 32186.88, unit: "meters" }, "miles", "feet");
       expect(result).toBeCloseTo(20, 1);
     });
   });
@@ -155,9 +151,10 @@ describe("resolveDangerPace — per-kind unit resolution", () => {
 
   describe("time", () => {
     it("converts minutes → hours (the canonical → display direction)", () => {
-      expect(
-        resolveDangerPace({ valuePerDay: 120, unit: "minutes" }, "miles", "feet")
-      ).toBeCloseTo(2, 5);
+      expect(resolveDangerPace({ valuePerDay: 120, unit: "minutes" }, "miles", "feet")).toBeCloseTo(
+        2,
+        5
+      );
     });
 
     it("passes through hours unchanged regardless of distance/elevation prefs", () => {
@@ -175,9 +172,9 @@ describe("resolveDangerPace — per-kind unit resolution", () => {
     });
 
     it("is invariant to distance/elevation prefs", () => {
-      expect(
-        resolveDangerPace({ valuePerDay: 3, unit: "sessions" }, "kilometers", "meters")
-      ).toBe(3);
+      expect(resolveDangerPace({ valuePerDay: 3, unit: "sessions" }, "kilometers", "meters")).toBe(
+        3
+      );
     });
   });
 });

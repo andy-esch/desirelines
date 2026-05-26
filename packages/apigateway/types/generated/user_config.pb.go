@@ -217,7 +217,16 @@ func (x *SportGoalsForYear) GetSports() map[string]*GoalsForYear {
 	return nil
 }
 
-// Goals for a specific sport in a specific year
+// Goals for a specific sport in a specific year.
+//
+// The frontend extends this payload with an optional `storageVersion` integer
+// field on the wire (see `packages/web/src/services/userConfigService.ts`).
+// `storageVersion: 2` marks the payload as carrying canonical-units `value`s
+// (see UNIT CONVENTIONS below). The field is intentionally NOT in this proto
+// because no backend consumer needs it — it's a wire-only marker for the web
+// client's migration logic, and the Firestore Zod schema is `.passthrough()`
+// so it round-trips cleanly. If backends ever need to interpret goal values,
+// add it here and regenerate.
 type GoalsForYear struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -265,14 +274,22 @@ func (x *GoalsForYear) GetGoals() []*Goal {
 	return nil
 }
 
-// A single goal with a target value
-// UNIT CONVENTIONS:
-// - For distance-based sports (cycling, running, etc.): value is in METERS
-// - For time-based sports (yoga, workout, etc.): value is in MINUTES
-// - For session-based sports: value is the number of sessions
-// The frontend converts to display units (miles/km, hours) based on user preferences.
-// The `metric` field records which metric this goal tracks (e.g., "distance_meters",
-// "time_minutes", "activities"). Empty string means legacy goal — infer from sport config.
+// A single goal with a target value.
+//
+// UNIT CONVENTIONS (canonical storage):
+//   - distance-based sports (cycling, running, etc.): value is METERS
+//   - time-based sports (yoga, workout, etc.):        value is MINUTES
+//   - session-based sports:                            value is COUNT
+//
+// The `metric` field records which canonical unit applies — "distance_meters",
+// "time_minutes", "elevation_meters", or "activities". Empty string is a
+// legacy marker; consumers infer the unit from the sport's primary_metric in
+// `schemas/sports/sport_types.json`.
+//
+// The frontend converts to display units (miles/km, hours) based on user
+// preferences at read/write boundaries — see `goalToStorage` / `goalToDisplay`
+// in `packages/web/src/utils/goalCalculations.ts`. Display values never reach
+// this proto; the contract is "value is canonical, period."
 type Goal struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  isGoalUnitMigrated,
-  markGoalUnitMigrated,
-  migrateGoalUnitsIfNeeded,
-} from "./migration";
+import { isGoalUnitMigrated, markGoalUnitMigrated, migrateGoalUnitsIfNeeded } from "./migration";
 import { GOAL_STORAGE_VERSION, type GoalsForYear } from "../services/userConfigService";
 import { MILES_TO_METERS, hoursToMinutes } from "./units";
 
