@@ -19,10 +19,22 @@ const SCALING_CONFIG = {
   DATA_SAFETY_MULTIPLIER: 1.2,
   /**
    * Threshold proximity required to render the "Zone of Unachievability" overlay.
-   * The ZOU only shows when the chart's data range reaches 75% of the danger
-   * threshold — at that point a user is close enough that the warning is
-   * actionable. Below it, the overlay would only inflate the Y-axis and
-   * compress the actually-useful pacing data.
+   * The ZOU only shows when the chart's data range reaches this fraction of
+   * the danger threshold — close enough that the warning is actionable. Below
+   * it, the overlay only inflates the Y-axis and compresses the actually-
+   * useful pacing data.
+   *
+   * Why 0.75: on cycling's 20 mi/day default threshold this triggers at
+   * 15 mi/day — enough advance warning that a user can adjust their pace
+   * before they're already over the line, but not so eager that it fires
+   * during normal training. Lower (e.g. 0.5) would show the overlay during
+   * routine pacing and squash the meaningful data; higher (e.g. 0.9) would
+   * only warn once the user is essentially already in trouble.
+   *
+   * The right value is sport-dependent — yoga's 2 hr/day threshold at 0.75
+   * is 1.5 hr/day, which is much more achievable than cycling's 15 mi/day.
+   * A follow-up task is open to move this per-sport into sport_types.json
+   * alongside `dangerPace`.
    */
   DANGER_ZONE_PROXIMITY: 0.75,
 };
@@ -40,7 +52,11 @@ export function shouldShowDangerZone(
   maxGoalPace: number,
   dangerThreshold: number
 ): boolean {
-  if (dangerThreshold === Infinity) return false;
+  // Belt-and-braces: Zod validates `dangerPace.valuePerDay` at the schema
+  // boundary so NaN shouldn't reach here, and even if it did the comparison
+  // below would fall through to false. The explicit guard documents intent
+  // and protects against a future refactor that flips the comparison.
+  if (dangerThreshold === Infinity || Number.isNaN(dangerThreshold)) return false;
   const maxData = Math.max(maxActualPace, maxGoalPace);
   return maxData >= dangerThreshold * SCALING_CONFIG.DANGER_ZONE_PROXIMITY;
 }

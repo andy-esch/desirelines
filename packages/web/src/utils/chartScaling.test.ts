@@ -107,6 +107,12 @@ describe("chartScaling utilities", () => {
       expect(shouldShowDangerZone(100, 100, Infinity)).toBe(false);
     });
 
+    it("returns false when the threshold is NaN (defensive guard)", () => {
+      // NaN shouldn't reach the function in practice (Zod validates the
+      // schema boundary), but the explicit guard documents the contract.
+      expect(shouldShowDangerZone(100, 100, NaN)).toBe(false);
+    });
+
     it("hides the zone when there's no data and the threshold exists", () => {
       // Edge case: 0/20 = 0 → below proximity.
       expect(shouldShowDangerZone(0, 0, 20)).toBe(false);
