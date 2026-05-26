@@ -18,7 +18,7 @@ describe("validateApiResponse", () => {
     const schema = z.object({ ok: z.boolean() });
     const data = { ok: true, extra: "passes through" };
     const result = validateApiResponse<{ ok: boolean }>(schema, data, "test");
-    expect(result).toBe(data); // same reference — never transforms
+    expect(result).toBe(data);
     expect(warnSpy).not.toHaveBeenCalled();
   });
 

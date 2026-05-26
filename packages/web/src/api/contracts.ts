@@ -1,25 +1,25 @@
 /**
  * API Response Contracts
  *
- * Zod schemas for the public API responses consumed in `activities.ts`. The
- * schemas are intentionally **loose** — they validate only the structural
- * fields the frontend actually reads, not every proto-defined field. The
- * goal is to catch contract drift (a renamed field, a type that flipped from
- * array to object), not to enforce wire format exhaustively.
- *
- * Validation runs **only in development** (`import.meta.env.DEV`) so there is
- * zero production overhead. Failures are logged via `logger.warn` and the
- * raw data is returned anyway — we observe drift loudly without breaking
- * the user's session if a backend deploys an unexpected response.
+ * Loose Zod schemas for the public API responses consumed in `activities.ts`.
+ * Schemas validate only the structural fields the frontend reads — every
+ * object uses `.passthrough()` so unknown fields don't trigger false
+ * positives. The goal is contract-drift detection (renamed fields, types
+ * that flipped from array to object), not exhaustive wire-format enforcement.
  */
 
 import { z } from "zod";
 import { logger } from "../lib/logger";
 
 /**
- * Run a Zod schema against an API response in dev only, log on failure,
- * and pass the data through unchanged. Designed to surface backend contract
- * drift during local development without ever blocking a real user.
+ * Run a schema against an API response in dev only, log on failure, and pass
+ * the data through unchanged. Surfaces backend contract drift during local
+ * development without ever blocking a real user; zero production overhead.
+ *
+ * The `as T` cast is intentionally unchecked — the proto-generated type is
+ * the source of truth, the schema is a loose runtime sentinel. They share
+ * the same structural shape but TypeScript can't prove it from a Zod schema
+ * alone.
  */
 export function validateApiResponse<T>(schema: z.ZodSchema, data: unknown, endpoint: string): T {
   if (import.meta.env.DEV) {
@@ -31,17 +31,12 @@ export function validateApiResponse<T>(schema: z.ZodSchema, data: unknown, endpo
       );
     }
   }
-  // Return the original data — schemas here observe, they don't transform.
   return data as T;
 }
 
-// =============================================================================
-// Endpoint schemas
-//
-// Each schema covers the fields the frontend actually reads. `.passthrough()`
-// keeps additional/unknown fields from triggering false positives — we only
-// want to know when a field we *use* changes shape.
-// =============================================================================
+// ---------------------------------------------------------------------------
+// Endpoint schemas — one per public function in `activities.ts`.
+// ---------------------------------------------------------------------------
 
 const MetricsEntrySchema = z
   .object({
@@ -111,8 +106,7 @@ export const AllSportsMetricsResponseSchema = z
   })
   .passthrough();
 
-// Activity has many fields; just spot-check the ones the UI reads at the top
-// level. The list endpoint shape is also intentionally loose.
+// Activity has many fields; spot-check the top-level shape only.
 const ActivitySchema = z
   .object({
     id: z.number(),

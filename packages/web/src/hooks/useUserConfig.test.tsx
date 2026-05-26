@@ -237,10 +237,9 @@ describe("useUserConfig", () => {
         error: { issues: [] } as any,
       });
 
-      const { result } = renderHook(
-        () => useUserConfig("goals", 2025, "cycling", callerDefault),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling", callerDefault), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => expect(result.current.loading).toBe(false));
       expect(result.current.data).toEqual(callerDefault);

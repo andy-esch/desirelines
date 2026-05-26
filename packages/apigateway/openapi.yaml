@@ -15,12 +15,15 @@ info:
     ## Versioning policy
     `/v1/` is **additive-only**: response fields, query params, and endpoints
     may be added at any time, but existing fields are never removed, retyped,
-    or repurposed. The frontend's Zod contracts use `.passthrough()` so new
-    fields don't trigger validation errors. Breaking changes ship as a
-    parallel `/v2/` surface with a coexistence window of ≥30 days of zero
-    `/v1/` traffic before the old endpoints are retired. See
-    `docs/adr/0001-api-versioning-policy-—-additive-only-for-v1.md` for the
-    full policy.
+    or repurposed. Optional fields cannot become required; status code
+    semantics are fixed (empty data is 200 with empty arrays — see
+    `packages/web/src/api/activities.ts` for the full status-code contract).
+    The frontend's Zod contracts use `.passthrough()` so new fields don't
+    trigger validation errors.
+
+    Breaking changes ship as a parallel `/v2/` surface with a coexistence
+    window of ≥30 days of zero `/v1/` traffic before the old endpoints are
+    retired.
   version: 1.0.0
   contact:
     name: Desirelines
