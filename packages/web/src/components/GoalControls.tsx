@@ -1,6 +1,7 @@
 import React from "react";
 import { type Goals, validateGoals, generateDefaultGoals } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
+import { getMetricConfig } from "../config/metricConfig";
 import type { MetricUnit } from "../utils/units";
 import { useGoalManager } from "../hooks/useGoalManager";
 import { InlineAlert } from "./InlineAlert";
@@ -197,13 +198,21 @@ const GoalControls: React.FC<GoalControlsProps> = ({
         </button>
         <button
           className="btn btn-sm btn-ghost-slate flex items-center justify-center gap-1"
-          onClick={() =>
+          onClick={() => {
+            // Use the sport's own roundingFactor + defaultGoalValue so reset
+            // produces sport-appropriate buckets (running: 10/1000, yoga: 10/100,
+            // cycling: 100/2500). Defaulting both to 100 here silently broke
+            // reset for non-cycling sports — caught in PR review.
+            const metricConfig = getMetricConfig(sport);
             void saveGoals(
-              generateDefaultGoals(estimatedYearEnd, undefined, undefined, {
-                metric: primaryMetric,
-              })
-            )
-          }
+              generateDefaultGoals(
+                estimatedYearEnd,
+                metricConfig.roundingFactor,
+                metricConfig.defaultGoalValue,
+                { metric: primaryMetric }
+              )
+            );
+          }}
           disabled={isSaving}
         >
           <svg

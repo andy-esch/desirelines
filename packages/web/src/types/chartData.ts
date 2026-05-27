@@ -5,6 +5,7 @@
  * chart data for Recharts components.
  */
 import type { DistanceEntry } from "./activity";
+import type { Goal } from "../utils/goalCalculations";
 
 /**
  * Base interface for merged chart data points.
@@ -49,12 +50,14 @@ export interface CurrentChartValues {
   average?: number | undefined;
 }
 
-/** Goal metadata shared between cumulative and pacing charts */
-interface GoalMeta {
-  id: string;
-  value: number;
-  label?: string | undefined;
-}
+/**
+ * Goal metadata shared between cumulative and pacing charts.
+ *
+ * Charts only need the legend-rendering subset of `Goal` (id, value, label) —
+ * they don't care about metric / timestamps. Deriving this from `Goal` via
+ * `Pick` keeps the two shapes in lockstep instead of drifting independently.
+ */
+type GoalMeta = Pick<Goal, "id" | "value" | "label">;
 
 /**
  * Goal line data for cumulative chart rendering.
