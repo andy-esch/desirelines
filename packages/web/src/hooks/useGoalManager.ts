@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { type Goals, type Goal, validateGoalValue } from "../utils/goalCalculations";
+import { type Goals, type Goal, buildGoal, validateGoalValue } from "../utils/goalCalculations";
 import { getMetricConfig } from "../config/metricConfig";
 import { logApiError } from "../api/errors";
 
@@ -8,6 +8,13 @@ interface UseGoalManagerProps {
   onGoalsChange: (goals: Goals) => Promise<void>;
   estimatedYearEnd: number;
   sport: string;
+  /**
+   * Sport's primary metric (e.g. "distance_meters"). Required so newly-added
+   * goals carry the right `metric` from the moment of creation — closes the
+   * "where does metric come from?" gap from issue #2 of
+   * harden-user-config-goal-data-integrity.
+   */
+  primaryMetric: string;
 }
 
 /**
@@ -26,6 +33,7 @@ export function useGoalManager({
   onGoalsChange,
   estimatedYearEnd,
   sport,
+  primaryMetric,
 }: UseGoalManagerProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -71,7 +79,8 @@ export function useGoalManager({
   const handleGoalValueChange = (id: string, value: number) => {
     // Round based on sport type (100 for cycling, 10 for running/yoga)
     const rounded = Math.round(value / roundingFactor) * roundingFactor;
-    const updated = goals.map((g) => (g.id === id ? { ...g, value: rounded } : g));
+    const now = new Date().toISOString();
+    const updated = goals.map((g) => (g.id === id ? { ...g, value: rounded, updatedAt: now } : g));
     void saveGoals(updated);
   };
 
@@ -104,7 +113,8 @@ export function useGoalManager({
     }
 
     // Don't round manual text entry - allow any positive integer
-    const updated = goals.map((g) => (g.id === id ? { ...g, value } : g));
+    const now = new Date().toISOString();
+    const updated = goals.map((g) => (g.id === id ? { ...g, value, updatedAt: now } : g));
     void saveGoals(updated);
     setEditingId(null);
     setEditValidationError(null);
@@ -113,7 +123,8 @@ export function useGoalManager({
   const handleGoalLabelChange = (id: string, label: string) => {
     // Use goalsRef to ensure we work with latest state in async callbacks
     const currentGoals = goalsRef.current;
-    const updated = currentGoals.map((g) => (g.id === id ? { ...g, label } : g));
+    const now = new Date().toISOString();
+    const updated = currentGoals.map((g) => (g.id === id ? { ...g, label, updatedAt: now } : g));
     void saveGoals(updated);
   };
 
@@ -160,11 +171,15 @@ export function useGoalManager({
       newValue += incrementSize;
     }
 
-    const newGoal: Goal = {
+    // Stamp full proto metadata at creation. Centralising this in buildGoal
+    // (and threading `primaryMetric` as a prop) closes the "partial goal"
+    // gap from harden-user-config-goal-data-integrity #2.
+    const newGoal: Goal = buildGoal({
       id: Date.now().toString(),
       value: newValue,
       label: `Goal ${goals.length + 1}`,
-    };
+      metric: primaryMetric,
+    });
     void saveGoals([...goals, newGoal]);
   };
 

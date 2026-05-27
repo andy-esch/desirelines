@@ -1,6 +1,7 @@
 import React from "react";
 import { type Goals, validateGoals, generateDefaultGoals } from "../utils/goalCalculations";
 import { GOAL_COLORS } from "../constants/chartColors";
+import { getMetricConfig } from "../config/metricConfig";
 import type { MetricUnit } from "../utils/units";
 import { useGoalManager } from "../hooks/useGoalManager";
 import { InlineAlert } from "./InlineAlert";
@@ -13,6 +14,12 @@ interface GoalControlsProps {
   unit: MetricUnit;
   /** Sport key (e.g., "cycling", "running", "yoga") — drives metric config lookup. */
   sport: string;
+  /**
+   * Sport's primary metric (e.g. "distance_meters"). Required so newly-added
+   * and reset goals carry the correct `metric` from creation — see
+   * harden-user-config-goal-data-integrity #2.
+   */
+  primaryMetric: string;
   // Loading/error state from parent (useUserConfig hook)
   isSaving?: boolean | undefined;
   saveError?: Error | null | undefined;
@@ -25,6 +32,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   estimatedYearEnd,
   unit,
   sport,
+  primaryMetric,
   isSaving = false,
   saveError = null,
   onClearSaveError,
@@ -54,6 +62,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     onGoalsChange,
     estimatedYearEnd,
     sport,
+    primaryMetric,
   });
 
   const validation = validateGoals(goals);
@@ -189,7 +198,21 @@ const GoalControls: React.FC<GoalControlsProps> = ({
         </button>
         <button
           className="btn btn-sm btn-ghost-slate flex items-center justify-center gap-1"
-          onClick={() => void saveGoals(generateDefaultGoals(estimatedYearEnd))}
+          onClick={() => {
+            // Use the sport's own roundingFactor + defaultGoalValue so reset
+            // produces sport-appropriate buckets (running: 10/1000, yoga: 10/100,
+            // cycling: 100/2500). Defaulting both to 100 here silently broke
+            // reset for non-cycling sports — caught in PR review.
+            const metricConfig = getMetricConfig(sport);
+            void saveGoals(
+              generateDefaultGoals(
+                estimatedYearEnd,
+                metricConfig.roundingFactor,
+                metricConfig.defaultGoalValue,
+                { metric: primaryMetric }
+              )
+            );
+          }}
           disabled={isSaving}
         >
           <svg

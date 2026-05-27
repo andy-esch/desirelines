@@ -36,6 +36,11 @@ export interface SportPageContentProps {
   // Units
   unit: MetricUnit;
 
+  // Sport metrics
+  /** Sport's primary metric — passed to GoalControls so newly-added goals
+   * carry the right `metric` from creation. */
+  primaryMetric: string;
+
   // Goals
   goals: Goals;
   /** Goals to pass to charts (pre-filtered: empty when not viewing primary metric) */
@@ -88,6 +93,7 @@ export default function SportPageContent({
   error,
   onRetry,
   unit,
+  primaryMetric,
   goals,
   chartGoals,
   onGoalsChange,
@@ -156,6 +162,7 @@ export default function SportPageContent({
               estimatedYearEnd={estimatedYearEnd}
               unit={unit}
               sport={sport}
+              primaryMetric={primaryMetric}
               isSaving={isGoalsSaving}
               saveError={goalsSaveError}
               onClearSaveError={onClearGoalsSaveError}

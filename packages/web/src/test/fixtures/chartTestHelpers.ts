@@ -95,9 +95,14 @@ export const sampleDistanceData = {
 // ============================================================================
 
 /**
- * Generate a goal object.
+ * Build a chart-shaped goal record (`GoalMeta`).
+ *
+ * Chart presenters only render the legend-relevant subset of `Goal` — id,
+ * value, and label. This helper is *not* a full `Goal` constructor; for that,
+ * use `testGoal` from `utils/goalTestFixtures`. Naming this `createGoalMeta`
+ * keeps the difference obvious.
  */
-export function createGoal(options: { id?: string; value: number; label?: string }) {
+export function createGoalMeta(options: { id?: string; value: number; label?: string }) {
   return {
     id: options.id || `goal-${Date.now()}`,
     value: options.value,
@@ -106,24 +111,24 @@ export function createGoal(options: { id?: string; value: number; label?: string
 }
 
 /**
- * Sample goal configurations.
+ * Sample goal configurations (chart-meta shape).
  */
 export const sampleGoals = {
   /** Single goal */
-  single: () => [createGoal({ id: "1", value: 3000, label: "Base Goal" })],
+  single: () => [createGoalMeta({ id: "1", value: 3000, label: "Base Goal" })],
 
   /** Two goals - typical setup */
   dual: () => [
-    createGoal({ id: "1", value: 3000, label: "Base Goal" }),
-    createGoal({ id: "2", value: 5000, label: "Stretch Goal" }),
+    createGoalMeta({ id: "1", value: 3000, label: "Base Goal" }),
+    createGoalMeta({ id: "2", value: 5000, label: "Stretch Goal" }),
   ],
 
   /** Multiple goals */
   multiple: () => [
-    createGoal({ id: "1", value: 2000, label: "Minimum" }),
-    createGoal({ id: "2", value: 3000, label: "Target" }),
-    createGoal({ id: "3", value: 4000, label: "Stretch" }),
-    createGoal({ id: "4", value: 5000, label: "Epic" }),
+    createGoalMeta({ id: "1", value: 2000, label: "Minimum" }),
+    createGoalMeta({ id: "2", value: 3000, label: "Target" }),
+    createGoalMeta({ id: "3", value: 4000, label: "Stretch" }),
+    createGoalMeta({ id: "4", value: 5000, label: "Epic" }),
   ],
 
   /** No goals */

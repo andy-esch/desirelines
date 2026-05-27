@@ -500,8 +500,18 @@ export class UserConfigService {
       // Update timestamp
       config.lastUpdated = new Date().toISOString();
 
-      // Use merge to avoid overwriting other fields
-      await this.databaseService.setDocument(this.getDocPath(), config, { merge: true });
+      // Validate the merged document against UserConfigSchema before writing.
+      // The schema-on-write guard catches the bug class from 2026-03-23 — a
+      // numeric `Goal.metric` rejected on read but persisted earlier without
+      // complaint. Validation happens on the full merged doc, not the partial
+      // section, because the partial would always be incomplete by definition
+      // (e.g. a goals-only update has no `userId` or `preferences`).
+      //
+      // Use merge to avoid overwriting other fields.
+      await this.databaseService.setDocument(this.getDocPath(), config, {
+        merge: true,
+        schema: UserConfigSchema,
+      });
     } catch (error) {
       logger.error("Error updating user config:", error);
       throw createUserFriendlyError(error, "save your changes");

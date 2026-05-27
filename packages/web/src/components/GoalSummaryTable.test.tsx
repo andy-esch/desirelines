@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import GoalSummaryTable from "./GoalSummaryTable";
 import type { Goals } from "../utils/goalCalculations";
+import { testGoal, testGoals } from "../utils/goalTestFixtures";
 import { createYearContext } from "../utils/yearContext";
 
 // useDangerThresholds pulls from useUserConfig/useAuth at runtime, which require
@@ -34,11 +35,11 @@ describe("GoalSummaryTable", () => {
     vi.useRealTimers();
   });
 
-  const baseGoals: Goals = [
+  const baseGoals: Goals = testGoals([
     { id: "1", value: 1000, label: "Conservative" },
     { id: "2", value: 2000, label: "Target" },
     { id: "3", value: 3000, label: "Stretch" },
-  ];
+  ]);
 
   describe("Rendering", () => {
     it("renders table with all goals", () => {
@@ -78,7 +79,7 @@ describe("GoalSummaryTable", () => {
     it("uses provided unit label", () => {
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 100, label: "Yoga Goal" }]}
+          goals={testGoals([{ id: "1", value: 100, label: "Yoga Goal" }])}
           currentValue={50}
           yearContext={createYearContext(2025)}
           unit="sessions"
@@ -91,11 +92,11 @@ describe("GoalSummaryTable", () => {
     });
 
     it("sorts goals by value", () => {
-      const unsortedGoals: Goals = [
+      const unsortedGoals: Goals = testGoals([
         { id: "1", value: 3000, label: "Third" },
         { id: "2", value: 1000, label: "First" },
         { id: "3", value: 2000, label: "Second" },
-      ];
+      ]);
 
       const { container } = render(
         <GoalSummaryTable
@@ -118,7 +119,7 @@ describe("GoalSummaryTable", () => {
     it("calculates progress percentage correctly", () => {
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 2000, label: "Test Goal" }])}
           currentValue={1000}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -133,7 +134,7 @@ describe("GoalSummaryTable", () => {
     it("caps progress at 100%", () => {
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={1500}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -149,7 +150,7 @@ describe("GoalSummaryTable", () => {
     it("calculates remaining distance correctly", () => {
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 2000, label: "Test Goal" }])}
           currentValue={1500}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -164,7 +165,7 @@ describe("GoalSummaryTable", () => {
     it("shows 0 remaining when goal is exceeded", () => {
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={1500}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -189,7 +190,7 @@ describe("GoalSummaryTable", () => {
     it('shows "Achieved" with check icon for completed goals', () => {
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={1000}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -205,7 +206,7 @@ describe("GoalSummaryTable", () => {
       // Need 454 * 1.1 = 500+ miles for "Ahead"
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={550}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -221,7 +222,7 @@ describe("GoalSummaryTable", () => {
       // Pace ratio 0.9-1.1 = 409-499 miles
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={450}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -237,7 +238,7 @@ describe("GoalSummaryTable", () => {
       // Pace ratio 0.75-0.9 = 341-408 miles
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={370}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -253,7 +254,7 @@ describe("GoalSummaryTable", () => {
       // Pace ratio 0.5-0.75 = 227-340 miles
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={280}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -269,7 +270,7 @@ describe("GoalSummaryTable", () => {
       // Pace ratio < 0.5 = less than 227 miles
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={100}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -288,7 +289,7 @@ describe("GoalSummaryTable", () => {
       // Pace needed: 4100 / 200 = 20.5 mi/day (exceeds threshold)
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 4100, label: "Dangerous Goal" }]}
+          goals={testGoals([{ id: "1", value: 4100, label: "Dangerous Goal" }])}
           currentValue={0}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -306,7 +307,7 @@ describe("GoalSummaryTable", () => {
       // Pace needed: 2100 / 200 = 10.5 mi/day (exceeds threshold)
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 2100, label: "Dangerous Goal" }]}
+          goals={testGoals([{ id: "1", value: 2100, label: "Dangerous Goal" }])}
           currentValue={0}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -324,7 +325,7 @@ describe("GoalSummaryTable", () => {
       // Pace needed: 24100 / 200 = 120.5 min/day (exceeds threshold)
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 24100, label: "Dangerous Goal" }]}
+          goals={testGoals([{ id: "1", value: 24100, label: "Dangerous Goal" }])}
           currentValue={0}
           yearContext={createYearContext(2025)}
           unit="minutes"
@@ -341,7 +342,7 @@ describe("GoalSummaryTable", () => {
       // Pace needed: 1000 / 200 = 5 mi/day (safe for cycling)
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Safe Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Safe Goal" }])}
           currentValue={0}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -356,7 +357,7 @@ describe("GoalSummaryTable", () => {
     it("shows warning icon for dangerous goals", () => {
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 4100, label: "Dangerous Goal" }]}
+          goals={testGoals([{ id: "1", value: 4100, label: "Dangerous Goal" }])}
           currentValue={0}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -371,7 +372,7 @@ describe("GoalSummaryTable", () => {
     it("shows warning banner when dangerous goals exist", () => {
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 4100, label: "Dangerous Goal" }]}
+          goals={testGoals([{ id: "1", value: 4100, label: "Dangerous Goal" }])}
           currentValue={0}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -389,7 +390,7 @@ describe("GoalSummaryTable", () => {
     it("does not show warning banner when all goals are safe", () => {
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Safe Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Safe Goal" }])}
           currentValue={0}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -405,7 +406,7 @@ describe("GoalSummaryTable", () => {
     it("shows daily pace column for current year", () => {
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 2000, label: "Test Goal" }])}
           currentValue={1000}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -419,7 +420,7 @@ describe("GoalSummaryTable", () => {
     it("hides daily pace column for past years", () => {
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 2000, label: "Test Goal" }])}
           currentValue={1000}
           yearContext={createYearContext(2024)}
           unit="miles"
@@ -436,7 +437,7 @@ describe("GoalSummaryTable", () => {
       // Pace needed: 1000 / 200 = 5.0 mi/day
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 2000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 2000, label: "Test Goal" }])}
           currentValue={1000}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -451,7 +452,7 @@ describe("GoalSummaryTable", () => {
     it("shows 0 pace when goal is already achieved", () => {
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={1500}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -505,7 +506,7 @@ describe("GoalSummaryTable", () => {
     it("handles goals with no label", () => {
       render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000 }]}
+          goals={[testGoal({ id: "1", value: 1000, label: "" })]}
           currentValue={500}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -519,7 +520,7 @@ describe("GoalSummaryTable", () => {
     it("handles zero current distance", () => {
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 1000, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={0}
           yearContext={createYearContext(2025)}
           unit="miles"
@@ -535,7 +536,7 @@ describe("GoalSummaryTable", () => {
     it("handles zero goal value", () => {
       const { container } = render(
         <GoalSummaryTable
-          goals={[{ id: "1", value: 0, label: "Test Goal" }]}
+          goals={testGoals([{ id: "1", value: 0, label: "Test Goal" }])}
           currentValue={0}
           yearContext={createYearContext(2025)}
           unit="miles"

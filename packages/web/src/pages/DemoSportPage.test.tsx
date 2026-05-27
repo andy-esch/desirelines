@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DemoSportPage from "./DemoSportPage";
+import type * as GoalCalcModule from "../utils/goalCalculations";
 import { renderWithRouter } from "../test/renderWithRouter";
 
 const mockNavigate = vi.fn();
@@ -98,13 +99,19 @@ vi.mock("../utils/units", () => ({
   },
 }));
 
-vi.mock("../utils/goalCalculations", () => ({
-  estimateYearEndDistance: () => 1000,
-  // Identity converters keep test fixtures readable; the actual conversion is
-  // exercised in goalCalculations / migration unit tests.
-  goalToStorage: (value: number) => value,
-  goalToDisplay: (value: number) => value,
-}));
+vi.mock("../utils/goalCalculations", async (importOriginal) => {
+  // Keep `buildGoal` (and any other future helpers DemoSportPage imports)
+  // available from the real module; only stub the math we don't care about.
+  const actual = await importOriginal<typeof GoalCalcModule>();
+  return {
+    ...actual,
+    estimateYearEndDistance: () => 1000,
+    // Identity converters keep test fixtures readable; the actual conversion is
+    // exercised in goalCalculations / migration unit tests.
+    goalToStorage: (value: number) => value,
+    goalToDisplay: (value: number) => value,
+  };
+});
 
 // Stub SportPageContent to expose callbacks via test buttons
 vi.mock("../components/SportPageContent", () => ({

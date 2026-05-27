@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import GoalControls from "./GoalControls";
 import type { Goals } from "../utils/goalCalculations";
+import { testGoals } from "../utils/goalTestFixtures";
 
 describe("GoalControls", () => {
-  const mockGoals: Goals = [
+  const mockGoals: Goals = testGoals([
     { id: "1", value: 1000, label: "Base" },
     { id: "2", value: 2000, label: "Target" },
-  ];
+  ]);
 
   // Create async mock that resolves immediately by default
   const createAsyncMock = () => vi.fn().mockResolvedValue(undefined);
@@ -19,6 +20,7 @@ describe("GoalControls", () => {
     currentDistance: 1500,
     unit: "miles" as const,
     sport: "cycling",
+    primaryMetric: "distance_meters",
   };
 
   beforeEach(() => {
@@ -274,6 +276,54 @@ describe("GoalControls", () => {
 
       // Dismiss button should not be present
       expect(screen.queryByLabelText("Dismiss")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Reset button", () => {
+    // Pin sport-specific reset behavior. Earlier code defaulted granularity to
+    // 100 for every sport, which produced cycling-shaped goals (e.g. 2400/2500/2600)
+    // even on running and yoga. The fix routes through getMetricConfig(sport).
+    it("produces running-shaped goals when reset on a running page", () => {
+      const onGoalsChange = createAsyncMock();
+      render(
+        <GoalControls
+          {...defaultProps}
+          sport="running"
+          primaryMetric="distance_meters"
+          estimatedYearEnd={0}
+          onGoalsChange={onGoalsChange}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /reset/i }));
+
+      // Running config: roundingFactor=10, defaultGoalValue=1000.
+      // Expect: Conservative 990, Target 1000, Stretch 1010.
+      const saved = onGoalsChange.mock.calls[0]![0] as Goals;
+      expect(saved.map((g) => g.value)).toEqual([990, 1000, 1010]);
+      saved.forEach((goal) => {
+        expect(goal.metric).toBe("distance_meters");
+        expect(goal.createdAt).toEqual(expect.any(String));
+      });
+    });
+
+    it("produces cycling-shaped goals when reset on a cycling page", () => {
+      const onGoalsChange = createAsyncMock();
+      render(
+        <GoalControls
+          {...defaultProps}
+          sport="cycling"
+          estimatedYearEnd={0}
+          onGoalsChange={onGoalsChange}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /reset/i }));
+
+      // Cycling config: roundingFactor=100, defaultGoalValue=2500.
+      // Expect: Conservative 2400, Target 2500, Stretch 2600.
+      const saved = onGoalsChange.mock.calls[0]![0] as Goals;
+      expect(saved.map((g) => g.value)).toEqual([2400, 2500, 2600]);
     });
   });
 });

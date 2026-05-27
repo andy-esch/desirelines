@@ -94,19 +94,60 @@ export function getTargetGoalValue(
 }
 
 /**
- * Individual goal with unique value
+ * Individual goal — aligned with proto `Goal` so a display-layer goal can
+ * round-trip to Firestore without late-stage field bolt-on.
+ *
+ * `value` is display-unit in the UI layer and storage-unit (meters / minutes
+ * / unitless) once converted by `goalToStorage`. The shape itself is
+ * identical across both layers, which is what closes the bug class from
+ * 2026-03-23 (partial goal writes leaking into Firestore).
  */
 export interface Goal {
-  id: string; // Unique identifier
-  value: number; // Display-unit value (miles/km for distance sports, raw count for session sports)
-  label?: string; // Optional user label
-  metric?: string; // e.g., "distance_meters", "time_minutes", "activities"
+  /** Unique identifier */
+  id: string;
+  /**
+   * Display-unit value in the UI layer (miles/km for distance sports, hours
+   * for time sports, raw count otherwise). Converted to canonical storage
+   * units via `goalToStorage` before persisting.
+   */
+  value: number;
+  /** User label; default "" matches the proto string default. */
+  label: string;
+  /** Sport metric key (e.g. "distance_meters", "time_minutes", "activities"). */
+  metric: string;
+  /** ISO timestamp stamped at goal creation. */
+  createdAt: string;
+  /** ISO timestamp stamped on every modification. */
+  updatedAt: string;
 }
 
 /**
  * Array of goals (1-5 goals)
  */
 export type Goals = Goal[];
+
+/**
+ * Build a fresh `Goal` with all proto fields populated.
+ *
+ * Centralises the "what's a complete goal?" answer so every caller (default
+ * generation, hand-add via UI, demo seeds) goes through the same constructor
+ * — no caller can accidentally produce a partial goal.
+ *
+ * `now` is injectable for deterministic tests; defaults to the wall clock.
+ */
+export function buildGoal(
+  fields: { id: string; value: number; label: string; metric: string },
+  now: string = new Date().toISOString()
+): Goal {
+  return {
+    id: fields.id,
+    value: fields.value,
+    label: fields.label,
+    metric: fields.metric,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 /**
  * Calculate a straight "desire line" with daily goal from Jan 1 to Dec 31
@@ -197,23 +238,38 @@ export function estimateYearEndDistance(
 }
 
 /**
- * Helper: Generate default goals based on estimated year-end distance
- * Uses granularity for rounding and rounds up for motivation
- * Returns 3 default goals: Conservative, Target, Stretch
+ * Goal-generation context: sport-specific metric + injectable clock for tests.
  *
- * All goals are guaranteed to be:
- * - Greater than 0
- * - Unique (no duplicates)
+ * Both `generateDefaultGoals` and the reset button in `GoalControls` thread
+ * this through so every newly-minted goal arrives with its proto metadata
+ * already populated — no later code path needs to bolt fields on.
+ */
+export interface GoalGenerationOptions {
+  /** Sport metric key (e.g. "distance_meters", "time_minutes"). Required. */
+  metric: string;
+  /** ISO timestamp to stamp on createdAt/updatedAt. Defaults to wall clock; injectable for tests. */
+  now?: string;
+}
+
+/**
+ * Helper: Generate default goals based on estimated year-end distance.
+ *
+ * Returns 3 default goals (Conservative, Target, Stretch), all guaranteed to be
+ * greater than 0 and unique. Every goal carries full proto metadata (`metric`,
+ * `createdAt`, `updatedAt`) so the result can be written to Firestore without
+ * further enrichment.
  *
  * @param estimatedDistance - Estimated year-end distance/value
  * @param granularity - Rounding increment (default 100)
- * @param minValue - Minimum base value for goal generation (default: granularity)
- *                   Use this to ensure meaningful goals when no data exists
+ * @param minValue - Minimum base value for goal generation (default: granularity).
+ *                   Use to ensure meaningful goals when no data exists.
+ * @param options - Sport context (`metric`) + optional `now` for deterministic timestamps.
  */
 export function generateDefaultGoals(
   estimatedDistance: number,
   granularity: number = 100,
-  minValue?: number
+  minValue: number | undefined,
+  options: GoalGenerationOptions
 ): Goals {
   // Ensure we have a meaningful base value for goal generation
   // minValue prevents meaningless goals (like 0, 0, 100) when there's no data
@@ -233,22 +289,13 @@ export function generateDefaultGoals(
     conservativeValue = Math.max(1, Math.round(granularity / 2));
   }
 
+  const now = options.now ?? new Date().toISOString();
+  const metric = options.metric;
+
   return [
-    {
-      id: "1",
-      value: conservativeValue,
-      label: "Conservative",
-    },
-    {
-      id: "2",
-      value: rounded,
-      label: "Target",
-    },
-    {
-      id: "3",
-      value: rounded + granularity,
-      label: "Stretch",
-    },
+    buildGoal({ id: "1", value: conservativeValue, label: "Conservative", metric }, now),
+    buildGoal({ id: "2", value: rounded, label: "Target", metric }, now),
+    buildGoal({ id: "3", value: rounded + granularity, label: "Stretch", metric }, now),
   ];
 }
 

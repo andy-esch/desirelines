@@ -29,6 +29,7 @@ export default function SportPage({ sport, year }: SportPageProps) {
       error={data.error}
       onRetry={data.retry}
       unit={data.unit}
+      primaryMetric={data.primaryMetric}
       goals={data.goals}
       chartGoals={data.chartGoals}
       onGoalsChange={data.onGoalsChange}

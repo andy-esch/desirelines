@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildGoal,
   calculateDesireLine,
   calculateCurrentAverageLine,
   estimateYearEndDistance,
@@ -12,7 +13,11 @@ import {
   type GoalUnitContext,
   type Goals,
 } from "./goalCalculations";
+import { testGoals } from "./goalTestFixtures";
 import type { DistanceEntry } from "../types/activity";
+
+const FIXTURE_NOW = "2025-01-01T00:00:00.000Z";
+const defaultOpts = { metric: "distance_meters", now: FIXTURE_NOW };
 
 describe("calculateDesireLine", () => {
   it("generates straight line from 0 to target", () => {
@@ -107,23 +112,26 @@ describe("estimateYearEndDistance", () => {
 
 describe("generateDefaultGoals", () => {
   it("generates 3 goals with 100-mile granularity", () => {
-    const goals = generateDefaultGoals(2650);
+    const goals = generateDefaultGoals(2650, 100, undefined, defaultOpts);
     // 2650 rounds UP to 2700 (Math.ceil(2650 / 100) * 100)
     expect(goals).toHaveLength(3);
-    expect(goals[0]).toEqual({ id: "1", value: 2600, label: "Conservative" });
-    expect(goals[1]).toEqual({ id: "2", value: 2700, label: "Target" });
-    expect(goals[2]).toEqual({ id: "3", value: 2800, label: "Stretch" });
+    expect(goals[0]?.value).toBe(2600);
+    expect(goals[0]?.label).toBe("Conservative");
+    expect(goals[1]?.value).toBe(2700);
+    expect(goals[1]?.label).toBe("Target");
+    expect(goals[2]?.value).toBe(2800);
+    expect(goals[2]?.label).toBe("Stretch");
   });
 
   it("handles exact multiples of 100", () => {
-    const goals = generateDefaultGoals(2500);
+    const goals = generateDefaultGoals(2500, 100, undefined, defaultOpts);
     expect(goals[0]?.value).toBe(2400);
     expect(goals[1]?.value).toBe(2500);
     expect(goals[2]?.value).toBe(2600);
   });
 
   it("supports custom granularity", () => {
-    const goals = generateDefaultGoals(2650, 1000);
+    const goals = generateDefaultGoals(2650, 1000, undefined, defaultOpts);
     // Rounds up to 3000
     expect(goals[0]?.value).toBe(2000);
     expect(goals[1]?.value).toBe(3000);
@@ -131,7 +139,7 @@ describe("generateDefaultGoals", () => {
   });
 
   it("ensures all goals are unique and > 0 for small estimates", () => {
-    const goals = generateDefaultGoals(50);
+    const goals = generateDefaultGoals(50, 100, undefined, defaultOpts);
     // Rounds up to 100. Instead of 0 for conservative (which is invalid),
     // uses half-granularity (50) to ensure all goals are unique and > 0
     expect(goals[0]?.value).toBe(50);
@@ -149,41 +157,77 @@ describe("generateDefaultGoals", () => {
 
   it("uses minValue to ensure meaningful goals when no data exists", () => {
     // Simulates cycling with no data: estimatedDistance=0, granularity=100, minValue=2500
-    const cyclingGoals = generateDefaultGoals(0, 100, 2500);
+    const cyclingGoals = generateDefaultGoals(0, 100, 2500, defaultOpts);
     expect(cyclingGoals[0]?.value).toBe(2400); // Conservative
     expect(cyclingGoals[1]?.value).toBe(2500); // Target
     expect(cyclingGoals[2]?.value).toBe(2600); // Stretch
 
     // Simulates yoga with no data: estimatedDistance=0, granularity=10, minValue=100
-    const yogaGoals = generateDefaultGoals(0, 10, 100);
+    const yogaGoals = generateDefaultGoals(0, 10, 100, defaultOpts);
     expect(yogaGoals[0]?.value).toBe(90); // Conservative
     expect(yogaGoals[1]?.value).toBe(100); // Target
     expect(yogaGoals[2]?.value).toBe(110); // Stretch
 
     // Simulates running with no data: estimatedDistance=0, granularity=10, minValue=1000
-    const runningGoals = generateDefaultGoals(0, 10, 1000);
+    const runningGoals = generateDefaultGoals(0, 10, 1000, defaultOpts);
     expect(runningGoals[0]?.value).toBe(990); // Conservative
     expect(runningGoals[1]?.value).toBe(1000); // Target
     expect(runningGoals[2]?.value).toBe(1010); // Stretch
   });
 
-  it("returns Goals type with id and label", () => {
-    const goals = generateDefaultGoals(1000);
+  it("stamps every required proto field on each goal", () => {
+    // The shape returned by `generateDefaultGoals` is what the reset button in
+    // GoalControls writes to Firestore. Pin every field so no future code path
+    // can sneak a partial goal through this constructor.
+    const goals = generateDefaultGoals(1000, 100, undefined, defaultOpts);
     goals.forEach((goal) => {
-      expect(goal).toHaveProperty("id");
-      expect(goal).toHaveProperty("value");
-      expect(goal).toHaveProperty("label");
+      expect(goal.id).toEqual(expect.any(String));
+      expect(goal.value).toEqual(expect.any(Number));
+      expect(goal.label).toEqual(expect.any(String));
+      expect(goal.metric).toBe("distance_meters");
+      expect(goal.createdAt).toBe(FIXTURE_NOW);
+      expect(goal.updatedAt).toBe(FIXTURE_NOW);
     });
+  });
+
+  it("respects the provided metric for sport-specific defaults", () => {
+    const goals = generateDefaultGoals(100, 10, undefined, {
+      metric: "time_minutes",
+      now: FIXTURE_NOW,
+    });
+    goals.forEach((goal) => {
+      expect(goal.metric).toBe("time_minutes");
+    });
+  });
+});
+
+describe("buildGoal", () => {
+  it("populates createdAt and updatedAt from the supplied timestamp", () => {
+    const goal = buildGoal(
+      { id: "1", value: 100, label: "Conservative", metric: "distance_meters" },
+      FIXTURE_NOW
+    );
+    expect(goal.createdAt).toBe(FIXTURE_NOW);
+    expect(goal.updatedAt).toBe(FIXTURE_NOW);
+  });
+
+  it("defaults the timestamp to the wall clock when not provided", () => {
+    const before = Date.now();
+    const goal = buildGoal({ id: "1", value: 100, label: "x", metric: "distance_meters" });
+    const after = Date.now();
+    expect(new Date(goal.createdAt).getTime()).toBeGreaterThanOrEqual(before);
+    expect(new Date(goal.createdAt).getTime()).toBeLessThanOrEqual(after);
+    expect(goal.createdAt).toBe(goal.updatedAt);
   });
 });
 
 describe("validateGoals", () => {
   it("validates correct goals", () => {
-    const goals: Goals = [
+    const goals: Goals = testGoals([
       { id: "1", value: 1000 },
       { id: "2", value: 2000 },
       { id: "3", value: 3000 },
-    ];
+    ]);
     const result = validateGoals(goals);
     expect(result.valid).toBe(true);
     expect(result.error).toBeUndefined();
@@ -196,41 +240,41 @@ describe("validateGoals", () => {
   });
 
   it("rejects more than 5 goals", () => {
-    const goals: Goals = [
+    const goals: Goals = testGoals([
       { id: "1", value: 1000 },
       { id: "2", value: 2000 },
       { id: "3", value: 3000 },
       { id: "4", value: 4000 },
       { id: "5", value: 5000 },
       { id: "6", value: 6000 },
-    ];
+    ]);
     const result = validateGoals(goals);
     expect(result.valid).toBe(false);
     expect(result.error).toBe("Maximum 5 goals allowed");
   });
 
   it("rejects duplicate goal values", () => {
-    const goals: Goals = [
+    const goals: Goals = testGoals([
       { id: "1", value: 2000 },
       { id: "2", value: 2000 },
       { id: "3", value: 3000 },
-    ];
+    ]);
     const result = validateGoals(goals);
     expect(result.valid).toBe(false);
     expect(result.error).toBe("All goal values must be unique");
   });
 
   it("accepts 1-5 goals with unique values", () => {
-    const oneGoal: Goals = [{ id: "1", value: 1000 }];
+    const oneGoal: Goals = testGoals([{ id: "1", value: 1000 }]);
     expect(validateGoals(oneGoal).valid).toBe(true);
 
-    const fiveGoals: Goals = [
+    const fiveGoals: Goals = testGoals([
       { id: "1", value: 1000 },
       { id: "2", value: 2000 },
       { id: "3", value: 3000 },
       { id: "4", value: 4000 },
       { id: "5", value: 5000 },
-    ];
+    ]);
     expect(validateGoals(fiveGoals).valid).toBe(true);
   });
 });

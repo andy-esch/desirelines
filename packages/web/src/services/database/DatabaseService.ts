@@ -23,6 +23,26 @@ export interface SubscribeDocumentOptions<T> {
   schema?: z.ZodType<T>;
 }
 
+/**
+ * Options for setDocument
+ */
+export interface SetDocumentOptions<T> {
+  /** When true, shallow-merge `data` into the existing document instead of overwriting. */
+  merge?: boolean;
+  /**
+   * Zod schema for runtime validation. When provided, `data` is validated
+   * **before** the database call — a validation failure throws synchronously
+   * and the write does not happen.
+   *
+   * Mirrors the read-side `GetDocumentOptions.schema` pattern so the same
+   * schema can guard reads and writes. Use this on any setDocument call that
+   * targets a typed collection (e.g. user config) to make malformed writes
+   * fail loudly at the source instead of silently persisting and breaking
+   * later reads.
+   */
+  schema?: z.ZodType<T>;
+}
+
 export interface DatabaseService {
   /**
    * Get a document by path
@@ -36,9 +56,11 @@ export interface DatabaseService {
    * Set a document (creates or overwrites)
    * @param path Document path
    * @param data Document data
-   * @param options Optional settings (merge: true to merge with existing)
+   * @param options Optional settings — `merge` shallow-merges into the
+   *   existing doc; `schema` validates `data` before the write (throws on
+   *   failure, write does not happen).
    */
-  setDocument<T>(path: string, data: T, options?: { merge?: boolean }): Promise<void>;
+  setDocument<T>(path: string, data: T, options?: SetDocumentOptions<T>): Promise<void>;
 
   /**
    * Delete a document
