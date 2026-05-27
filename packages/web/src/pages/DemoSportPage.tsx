@@ -101,8 +101,11 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
           // Legacy demo payloads may lack proto metadata (pre-#2 fix); fill
           // defaults so the resulting Goals always satisfy the type.
           const now = new Date().toISOString();
-          return parsed.goals.map((g) =>
-            buildGoal(
+          return parsed.goals.map((g) => {
+            // buildGoal sets createdAt === updatedAt (fresh-goal contract); when
+            // loading an existing record we honor the stored updatedAt if any,
+            // so editing history isn't silently reset to the load time.
+            const goal = buildGoal(
               {
                 id: g.id ?? now,
                 value: typeof g.value === "number" ? goalToDisplay(g.value, goalCtx) : 0,
@@ -110,8 +113,9 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
                 metric: g.metric ?? primaryMetric,
               },
               g.createdAt ?? now
-            )
-          );
+            );
+            return g.updatedAt ? { ...goal, updatedAt: g.updatedAt } : goal;
+          });
         }
       } catch {
         // Fall back to defaults
