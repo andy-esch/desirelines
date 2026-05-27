@@ -18,6 +18,7 @@ import { logger } from "../../lib/logger";
 import type {
   DatabaseService,
   GetDocumentOptions,
+  SetDocumentOptions,
   SubscribeDocumentOptions,
 } from "./DatabaseService";
 
@@ -77,7 +78,19 @@ export class FirestoreService implements DatabaseService {
     return data as T;
   }
 
-  async setDocument<T>(path: string, data: T, options?: { merge?: boolean }): Promise<void> {
+  async setDocument<T>(path: string, data: T, options?: SetDocumentOptions<T>): Promise<void> {
+    // Validate before the network call. We deliberately throw rather than
+    // log-and-write because the original bug class this guard targets is
+    // *silent* bad data — a write that succeeds and only fails later on read.
+    // See the harden-user-config-goal-data-integrity task for context.
+    if (options?.schema) {
+      const result = options.schema.safeParse(data);
+      if (!result.success) {
+        logger.error("Firestore data validation failed on write:", result.error);
+        throw new Error(`Data validation failed for document at ${path}: ${result.error.message}`);
+      }
+    }
+
     const docRef = doc(db, path);
     await setDoc(docRef, data as Record<string, unknown>, {
       merge: options?.merge ?? false,

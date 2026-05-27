@@ -1,18 +1,21 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { useGoalManager } from "./useGoalManager";
+import { testGoals } from "../utils/goalTestFixtures";
+import type { Goal } from "../utils/goalCalculations";
 
 describe("useGoalManager", () => {
-  const initialGoals = [
+  const initialGoals = testGoals([
     { id: "1", value: 1000, label: "Goal 1" },
     { id: "2", value: 2000, label: "Goal 2" },
-  ];
+  ]);
   const onGoalsChange = vi.fn().mockResolvedValue(undefined);
   const defaultProps = {
     goals: initialGoals,
     onGoalsChange,
     estimatedYearEnd: 3000,
     sport: "cycling",
+    primaryMetric: "distance_meters",
   };
 
   beforeEach(() => {
@@ -37,10 +40,33 @@ describe("useGoalManager", () => {
       result.current.handleIncrement("1", 100);
     });
 
-    expect(onGoalsChange).toHaveBeenCalledWith([
-      { id: "1", value: 1100, label: "Goal 1" },
-      { id: "2", value: 2000, label: "Goal 2" },
+    expect(onGoalsChange).toHaveBeenCalledTimes(1);
+    const saved = onGoalsChange.mock.calls[0]![0] as Goal[];
+    expect(saved).toHaveLength(2);
+    expect(saved[0]!.id).toBe("1");
+    expect(saved[0]!.value).toBe(1100);
+    expect(saved[1]!.id).toBe("2");
+    expect(saved[1]!.value).toBe(2000);
+  });
+
+  it("should bump updatedAt on the mutated goal but leave siblings untouched", async () => {
+    const original = testGoals([
+      { id: "1", value: 1000, label: "Goal 1", createdAt: "2024-06-01T00:00:00.000Z" },
+      { id: "2", value: 2000, label: "Goal 2", createdAt: "2024-06-01T00:00:00.000Z" },
     ]);
+    const { result } = renderHook(() => useGoalManager({ ...defaultProps, goals: original }));
+
+    await act(async () => {
+      result.current.handleIncrement("1", 100);
+    });
+
+    const saved = onGoalsChange.mock.calls[0]![0] as Goal[];
+    // Goal 1 was mutated → updatedAt is fresh (not the fixture stamp).
+    expect(saved[0]!.updatedAt).not.toBe("2025-01-01T00:00:00.000Z");
+    expect(saved[0]!.createdAt).toBe("2024-06-01T00:00:00.000Z");
+    // Goal 2 was untouched → both timestamps unchanged.
+    expect(saved[1]!.updatedAt).toBe(original[1]!.updatedAt);
+    expect(saved[1]!.createdAt).toBe("2024-06-01T00:00:00.000Z");
   });
 
   it("should handle starting edit", () => {
@@ -72,10 +98,9 @@ describe("useGoalManager", () => {
       result.current.handleSaveEdit("1");
     });
 
-    expect(onGoalsChange).toHaveBeenCalledWith([
-      { id: "1", value: 1500, label: "Goal 1" },
-      { id: "2", value: 2000, label: "Goal 2" },
-    ]);
+    const saved = onGoalsChange.mock.calls[0]![0] as Goal[];
+    expect(saved[0]!.value).toBe(1500);
+    expect(saved[1]!.value).toBe(2000);
     expect(result.current.editingId).toBeNull();
   });
 
@@ -96,21 +121,45 @@ describe("useGoalManager", () => {
 
     expect(result.current.editValidationError).not.toBeNull();
     expect(onGoalsChange).not.toHaveBeenCalledWith(
-      expect.arrayContaining([{ id: "1", value: -100 }])
+      expect.arrayContaining([expect.objectContaining({ id: "1", value: -100 })])
     );
   });
 
-  it("should handle adding a goal", async () => {
+  it("should handle adding a goal with full proto metadata", async () => {
     const { result } = renderHook(() => useGoalManager(defaultProps));
 
     await act(async () => {
       result.current.handleAddGoal();
     });
 
-    expect(onGoalsChange).toHaveBeenCalled();
-    const callArgs = onGoalsChange.mock.calls[0]![0];
+    expect(onGoalsChange).toHaveBeenCalledTimes(1);
+    const callArgs = onGoalsChange.mock.calls[0]![0] as Goal[];
     expect(callArgs).toHaveLength(3);
-    expect(callArgs[2]!.label).toBe("Goal 3");
+
+    const newGoal = callArgs[2]!;
+    // The added goal must carry every proto field — no later code path can
+    // "bolt on" missing fields. This is the core invariant from #2.
+    expect(newGoal.id).toEqual(expect.any(String));
+    expect(newGoal.value).toEqual(expect.any(Number));
+    expect(newGoal.label).toBe("Goal 3");
+    expect(newGoal.metric).toBe("distance_meters");
+    expect(newGoal.createdAt).toEqual(expect.any(String));
+    expect(newGoal.updatedAt).toEqual(expect.any(String));
+    // ISO timestamps should be roughly now.
+    expect(new Date(newGoal.createdAt).getTime()).toBeGreaterThan(Date.now() - 5_000);
+  });
+
+  it("should respect primaryMetric when adding a goal", async () => {
+    const { result } = renderHook(() =>
+      useGoalManager({ ...defaultProps, primaryMetric: "time_minutes" })
+    );
+
+    await act(async () => {
+      result.current.handleAddGoal();
+    });
+
+    const saved = onGoalsChange.mock.calls[0]![0] as Goal[];
+    expect(saved[2]!.metric).toBe("time_minutes");
   });
 
   it("should handle removing a goal", async () => {
@@ -120,7 +169,9 @@ describe("useGoalManager", () => {
       result.current.handleRemoveGoal("1");
     });
 
-    expect(onGoalsChange).toHaveBeenCalledWith([{ id: "2", value: 2000, label: "Goal 2" }]);
+    const saved = onGoalsChange.mock.calls[0]![0] as Goal[];
+    expect(saved).toHaveLength(1);
+    expect(saved[0]!.id).toBe("2");
   });
 
   it("should handle save errors", async () => {
@@ -167,10 +218,10 @@ describe("useGoalManager", () => {
     // Should call save for both edits
     expect(onGoalsChange).toHaveBeenCalledTimes(2);
     expect(onGoalsChange).toHaveBeenCalledWith(
-      expect.arrayContaining([{ id: "1", value: 1000, label: "Updated 1" }])
+      expect.arrayContaining([expect.objectContaining({ id: "1", label: "Updated 1" })])
     );
     expect(onGoalsChange).toHaveBeenCalledWith(
-      expect.arrayContaining([{ id: "2", value: 2000, label: "Updated 2" }])
+      expect.arrayContaining([expect.objectContaining({ id: "2", label: "Updated 2" })])
     );
 
     vi.useRealTimers();

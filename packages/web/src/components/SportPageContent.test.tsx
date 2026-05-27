@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import SportPageContent, { type SportPageContentProps } from "./SportPageContent";
 import { createYearContext } from "../utils/yearContext";
+import { testGoal, testGoals } from "../utils/goalTestFixtures";
 import { renderWithRouter } from "../test/renderWithRouter";
 
 // Mock heavy chart components to keep tests fast and focused on layout logic
@@ -69,18 +70,19 @@ const baseProps: SportPageContentProps = {
   isLoading: false,
   error: null,
   unit: "miles",
-  goals: [
+  primaryMetric: "distance_meters",
+  goals: testGoals([
     { id: "1", value: 1000, label: "Conservative" },
     { id: "2", value: 2000, label: "Target" },
-  ],
-  chartGoals: [
+  ]),
+  chartGoals: testGoals([
     { id: "1", value: 1000, label: "Conservative" },
     { id: "2", value: 2000, label: "Target" },
-  ],
+  ]),
   onGoalsChange: vi.fn(),
   isGoalsSaving: false,
   goalsSaveError: null,
-  nextGoal: { id: "1", value: 1000, label: "Conservative" },
+  nextGoal: testGoal({ id: "1", value: 1000, label: "Conservative" }),
   nextGoalProgress: 30,
   nextGoalGap: 700,
   paceNeededForNextGoal: 2.5,

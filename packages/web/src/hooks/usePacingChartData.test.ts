@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { usePacingChartData } from "./usePacingChartData";
+import { testGoals } from "../utils/goalTestFixtures";
 
 // Mock dependencies
 vi.mock("./useUserConfig", () => ({
@@ -37,10 +38,10 @@ vi.mock("./usePublicSportConfig", () => ({
 describe("usePacingChartData", () => {
   // Test fixtures
   const year = 2024;
-  const goals = [
+  const goals = testGoals([
     { id: "1", value: 3000, label: "Base Goal" },
     { id: "2", value: 5000, label: "Stretch Goal" },
-  ];
+  ]);
   const distanceData = [
     { x: "2024-01-01T00:00:00Z", y: 10 },
     { x: "2024-01-02T00:00:00Z", y: 25 },
@@ -223,7 +224,7 @@ describe("usePacingChartData", () => {
       const { result } = renderHook(() =>
         usePacingChartData({
           year: 2024,
-          goals: [{ id: "1", value: 36600, label: "Extreme" }], // Requires 100/day
+          goals: testGoals([{ id: "1", value: 36600, label: "Extreme" }]), // Requires 100/day
           distanceData: [{ x: "2024-01-01T00:00:00Z", y: 10 }],
           showFullYear: true,
           sport: "cycling",
@@ -241,7 +242,7 @@ describe("usePacingChartData", () => {
       const { result } = renderHook(() =>
         usePacingChartData({
           year: 2024,
-          goals: [{ id: "1", value: 3660, label: "Easy" }], // Requires 10/day
+          goals: testGoals([{ id: "1", value: 3660, label: "Easy" }]), // Requires 10/day
           distanceData: [{ x: "2024-01-01T00:00:00Z", y: 25 }],
           showFullYear: true,
           sport: "cycling",
@@ -260,7 +261,7 @@ describe("usePacingChartData", () => {
       const { result } = renderHook(() =>
         usePacingChartData({
           year: 2024,
-          goals: [{ id: "1", value: 1800, label: "Easy" }], // ~5/day
+          goals: testGoals([{ id: "1", value: 1800, label: "Easy" }]), // ~5/day
           distanceData: [{ x: "2024-01-01T00:00:00Z", y: 3 }],
           showFullYear: true,
           sport: "cycling",
@@ -276,7 +277,7 @@ describe("usePacingChartData", () => {
       const { result } = renderHook(() =>
         usePacingChartData({
           year: 2024,
-          goals: [{ id: "1", value: 6588, label: "Stretch" }], // ~18/day
+          goals: testGoals([{ id: "1", value: 6588, label: "Stretch" }]), // ~18/day
           distanceData: [{ x: "2024-01-01T00:00:00Z", y: 3 }],
           showFullYear: true,
           sport: "cycling",

@@ -5,7 +5,7 @@
  * Use setMockData() and clearMockData() to control test state.
  */
 
-import type { DatabaseService } from "./DatabaseService";
+import type { DatabaseService, SetDocumentOptions } from "./DatabaseService";
 
 export class MockDatabaseService implements DatabaseService {
   private data = new Map<string, unknown>();
@@ -16,7 +16,18 @@ export class MockDatabaseService implements DatabaseService {
     return Promise.resolve((data as T) ?? null);
   }
 
-  setDocument<T>(path: string, data: T, options?: { merge?: boolean }): Promise<void> {
+  setDocument<T>(path: string, data: T, options?: SetDocumentOptions<T>): Promise<void> {
+    // Mirror FirestoreService: validate before the (mock) write so tests
+    // exercise the same failure path as production.
+    if (options?.schema) {
+      const result = options.schema.safeParse(data);
+      if (!result.success) {
+        return Promise.reject(
+          new Error(`Data validation failed for document at ${path}: ${result.error.message}`)
+        );
+      }
+    }
+
     if (options?.merge) {
       const existing = this.data.get(path) ?? {};
       this.data.set(path, { ...existing, ...(data as object) });

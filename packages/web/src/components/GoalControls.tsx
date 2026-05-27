@@ -13,6 +13,12 @@ interface GoalControlsProps {
   unit: MetricUnit;
   /** Sport key (e.g., "cycling", "running", "yoga") — drives metric config lookup. */
   sport: string;
+  /**
+   * Sport's primary metric (e.g. "distance_meters"). Required so newly-added
+   * and reset goals carry the correct `metric` from creation — see
+   * harden-user-config-goal-data-integrity #2.
+   */
+  primaryMetric: string;
   // Loading/error state from parent (useUserConfig hook)
   isSaving?: boolean | undefined;
   saveError?: Error | null | undefined;
@@ -25,6 +31,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   estimatedYearEnd,
   unit,
   sport,
+  primaryMetric,
   isSaving = false,
   saveError = null,
   onClearSaveError,
@@ -54,6 +61,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     onGoalsChange,
     estimatedYearEnd,
     sport,
+    primaryMetric,
   });
 
   const validation = validateGoals(goals);
@@ -189,7 +197,13 @@ const GoalControls: React.FC<GoalControlsProps> = ({
         </button>
         <button
           className="btn btn-sm btn-ghost-slate flex items-center justify-center gap-1"
-          onClick={() => void saveGoals(generateDefaultGoals(estimatedYearEnd))}
+          onClick={() =>
+            void saveGoals(
+              generateDefaultGoals(estimatedYearEnd, undefined, undefined, {
+                metric: primaryMetric,
+              })
+            )
+          }
           disabled={isSaving}
         >
           <svg

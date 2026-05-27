@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { useCumulativeChartData } from "./useCumulativeChartData";
+import { testGoals } from "../utils/goalTestFixtures";
 
 // Stub user-config-backed dependencies that useDangerThresholds pulls in.
 vi.mock("./useUserConfig", () => ({
@@ -30,7 +31,7 @@ vi.mock("./usePublicSportConfig", () => ({
 
 describe("useCumulativeChartData", () => {
   const year = 2024;
-  const goals = [{ id: "1", value: 1000, label: "Goal 1" }];
+  const goals = testGoals([{ id: "1", value: 1000, label: "Goal 1" }]);
   const distanceData = [
     { x: "2024-01-01T00:00:00Z", y: 10 },
     { x: "2024-01-02T00:00:00Z", y: 20 },

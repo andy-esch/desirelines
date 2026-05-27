@@ -68,6 +68,11 @@ export interface SportPageData {
   // Units
   unit: MetricUnit;
 
+  // Sport metrics
+  /** Sport's primary metric (e.g. "distance_meters"). Required by GoalControls
+   * so newly-added goals carry the right `metric` from creation. */
+  primaryMetric: string;
+
   // Goals
   goals: Goals;
   chartGoals: Goals;
@@ -217,19 +222,26 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // perpetually unstable, causing useUserConfig to re-trigger on every render.
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
     const { roundingFactor, defaultGoalValue } = primaryMetricConfig;
-    const generatedGoals = generateDefaultGoals(estimatedYearEnd, roundingFactor, defaultGoalValue);
     const now = new Date().toISOString();
     const goalMetric = getPrimaryMetric(sport, sportConfig);
+    // generateDefaultGoals now stamps metric/createdAt/updatedAt itself, so the
+    // map below only converts display→storage units.
+    const generatedGoals = generateDefaultGoals(
+      estimatedYearEnd,
+      roundingFactor,
+      defaultGoalValue,
+      { metric: goalMetric, now }
+    );
     const ctx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
 
     return {
       goals: generatedGoals.map((goal) => ({
         id: goal.id,
         value: goalToStorage(goal.value, ctx),
-        label: goal.label || "",
-        metric: goalMetric,
-        createdAt: now,
-        updatedAt: now,
+        label: goal.label,
+        metric: goal.metric,
+        createdAt: goal.createdAt,
+        updatedAt: goal.updatedAt,
       })),
       storageVersion: GOAL_STORAGE_VERSION,
     };
@@ -259,9 +271,11 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   useGoalMigration(goalsData, user?.uid ?? "", year, sport, hasDistance, isTime, updateGoals);
 
   // Convert goals from storage units to display units for UI.
-  // Warns once per render if a goal's stored `metric` disagrees with the
-  // sport's primary metric — catches stale data (e.g. a goal copied across
-  // sports, or a primaryMetric config change that left old records behind).
+  // Carries all proto fields through to the display layer so a later write
+  // doesn't need to re-derive metric/createdAt/updatedAt — closes the bolt-on
+  // gap from harden-user-config-goal-data-integrity #2. Still warns once per
+  // render if a goal's `metric` disagrees with the sport's primary metric
+  // (catches stale data, e.g. a goal copied across sports).
   const goalCtx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
   const goals: Goals = goalsData?.goals
     ? goalsData.goals.map((g) => {
@@ -274,24 +288,29 @@ export function useSportPageData(sport: string, year: number): SportPageData {
           id: g.id,
           value: goalToDisplay(g.value, goalCtx),
           label: g.label,
+          metric: g.metric,
+          createdAt: g.createdAt,
+          updatedAt: g.updatedAt,
         };
       })
     : [];
 
-  // Handle goals change: convert from display units back to storage units
-  // No manual useCallback — the React Compiler auto-memoizes this. The new Date()
-  // calls are inside the callback body (lazy), so they don't break memoization.
+  // Handle goals change: pure unit conversion. All proto metadata
+  // (metric/createdAt/updatedAt) is already on each Goal — useGoalManager
+  // stamps it on creation and refreshes `updatedAt` on every mutation. This
+  // hook no longer fabricates fields, which means any code path that calls
+  // updateGoals with malformed data will surface the bug here (and via the
+  // write-side schema guard in UserConfigService) instead of silently
+  // persisting partial records.
   const handleGoalsChange = async (newGoals: Goals) => {
-    const goalMetric = getPrimaryMetric(sport, sportConfig);
     const updatedGoalsForYear: GoalsForYear = {
       goals: newGoals.map((goal) => ({
         id: goal.id,
         value: goalToStorage(goal.value, goalCtx),
-        label: goal.label || "",
-        metric: goalMetric,
-        updatedAt: new Date().toISOString(),
-        createdAt:
-          goalsData?.goals?.find((g) => g.id === goal.id)?.createdAt || new Date().toISOString(),
+        label: goal.label,
+        metric: goal.metric,
+        createdAt: goal.createdAt,
+        updatedAt: goal.updatedAt,
       })),
       storageVersion: GOAL_STORAGE_VERSION,
     };
@@ -322,6 +341,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     error,
     retry,
     unit: metricUnit,
+    primaryMetric,
     goals,
     chartGoals: isViewingPrimaryMetric ? goals : [],
     onGoalsChange: handleGoalsChange,

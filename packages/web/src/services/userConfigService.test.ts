@@ -627,6 +627,71 @@ describe("UserConfigService", () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith("Error updating user config:", error);
       consoleErrorSpy.mockRestore();
     });
+
+    /**
+     * Write-side schema validation guard.
+     *
+     * The bug class from 2026-03-23 was: bad data (numeric `Goal.metric`)
+     * persisted to Firestore and only failed later on read. With the schema
+     * passed to `setDocument`, malformed data should fail at the write call.
+     * UserConfigSchema uses `.passthrough()`, so extra fields don't trip the
+     * guard — only type mismatches do.
+     */
+    it("rejects writes whose Goal.metric is the wrong type", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const mockDocSnap = { exists: () => false };
+      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
+
+      const malformedGoals = {
+        goals: [
+          {
+            id: "1",
+            value: 1000,
+            label: "Bad goal",
+            // The original bug: numeric instead of string. Schema must reject.
+            metric: 0 as unknown as string,
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
+
+      await expect(
+        service.updateConfigSection(
+          "goals",
+          malformedGoals as unknown as GoalsForYear,
+          2025,
+          "cycling"
+        )
+      ).rejects.toThrow(/Data validation failed/);
+
+      // The setDoc call must not have happened — the write was blocked at
+      // validation time, not just logged.
+      expect(firestore.setDoc).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("permits writes when the merged document validates", async () => {
+      const mockDocSnap = { exists: () => false };
+      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
+
+      const validGoals: GoalsForYear = {
+        goals: [
+          {
+            id: "1",
+            value: 1000,
+            label: "Good goal",
+            metric: "distance_meters",
+            createdAt: "2025-01-01T00:00:00Z",
+            updatedAt: "2025-01-01T00:00:00Z",
+          },
+        ],
+      };
+
+      await service.updateConfigSection("goals", validGoals, 2025, "cycling");
+
+      expect(firestore.setDoc).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("deleteConfig", () => {

@@ -3,9 +3,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCurrentYear } from "../hooks/useCurrentYear";
 import { getDisplayUnitForMetric, getUserSettings, type MetricUnit } from "../utils/units";
 import {
+  buildGoal,
   estimateYearEndDistance,
   goalToDisplay,
   goalToStorage,
+  type Goal,
   type GoalUnitContext,
   type Goals,
 } from "../utils/goalCalculations";
@@ -93,31 +95,54 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     const stored = localStorage.getItem(storageKey);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored) as { goals?: Goals } | null;
+        const parsed = JSON.parse(stored) as { goals?: Partial<Goal>[] } | null;
         if (Array.isArray(parsed?.goals)) {
           // Stored canonical → convert to display for the UI.
-          return parsed.goals.map((g) => ({ ...g, value: goalToDisplay(g.value, goalCtx) }));
+          // Legacy demo payloads may lack proto metadata (pre-#2 fix); fill
+          // defaults so the resulting Goals always satisfy the type.
+          const now = new Date().toISOString();
+          return parsed.goals.map((g) =>
+            buildGoal(
+              {
+                id: g.id ?? now,
+                value: typeof g.value === "number" ? goalToDisplay(g.value, goalCtx) : 0,
+                label: g.label ?? "",
+                metric: g.metric ?? primaryMetric,
+              },
+              g.createdAt ?? now
+            )
+          );
         }
       } catch {
         // Fall back to defaults
       }
     }
+    const now = new Date().toISOString();
     const demoGoals = getDemoGoalsForSport(sport);
     if (demoGoals) {
       // Demo defaults are already in display units — keep them that way for the UI.
       return [
-        { id: "1", value: demoGoals.conservative, label: "Conservative" },
-        { id: "2", value: demoGoals.target, label: "Target" },
-        { id: "3", value: demoGoals.stretch, label: "Stretch" },
+        buildGoal(
+          { id: "1", value: demoGoals.conservative, label: "Conservative", metric: primaryMetric },
+          now
+        ),
+        buildGoal(
+          { id: "2", value: demoGoals.target, label: "Target", metric: primaryMetric },
+          now
+        ),
+        buildGoal(
+          { id: "3", value: demoGoals.stretch, label: "Stretch", metric: primaryMetric },
+          now
+        ),
       ];
     }
     return [
-      { id: "1", value: 2000, label: "Conservative" },
-      { id: "2", value: 2500, label: "Target" },
-      { id: "3", value: 3000, label: "Stretch" },
+      buildGoal({ id: "1", value: 2000, label: "Conservative", metric: primaryMetric }, now),
+      buildGoal({ id: "2", value: 2500, label: "Target", metric: primaryMetric }, now),
+      buildGoal({ id: "3", value: 3000, label: "Stretch", metric: primaryMetric }, now),
     ];
     // goalCtx is derived from sport/userSettings; including them transitively.
-  }, [storageKey, sport, goalCtx]);
+  }, [storageKey, sport, goalCtx, primaryMetric]);
 
   const [goals, setGoals] = useState<Goals>(loadGoals);
   const [prevStorageKey, setPrevStorageKey] = useState(storageKey);
@@ -173,6 +198,7 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
         isLoading={isLoading}
         error={error}
         unit={metricUnit}
+        primaryMetric={primaryMetric}
         goals={goals}
         chartGoals={goals}
         onGoalsChange={handleGoalsChange}
