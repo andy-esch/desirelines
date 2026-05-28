@@ -118,10 +118,17 @@ resource "google_bigquery_table" "activities_staging" {
   # Same schema as main activities table
   schema = jsonencode(jsondecode(file("${path.module}/../../../schemas/bigquery/activities_full.json")).schema)
 
-  # Same partitioning and clustering as main table for performance
+  # Same partitioning and clustering as main table for performance.
+  # Defense-in-depth: staging rows are deleted post-MERGE in
+  # _cleanup_staging; a 7-day partition expiration caps the blast radius
+  # if that DELETE ever silently fails (IAM regression, schema drift).
+  # Backfill MERGE+DELETE completes in minutes, so even years-old
+  # activities (partitioned by their own start_date) are gone long before
+  # the partition expires.
   time_partitioning {
-    type  = "DAY"
-    field = "start_date"
+    type          = "DAY"
+    field         = "start_date"
+    expiration_ms = 7 * 24 * 60 * 60 * 1000
   }
 
   clustering = ["sport_type", "start_date"]
