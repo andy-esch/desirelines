@@ -31,6 +31,13 @@ var (
 	ErrActivityNotFound = ports.ErrActivityNotFound
 	ErrStravaAuth       = errors.New("strava: authentication failed after retry")
 	ErrStravaAPI        = errors.New("strava: API error")
+
+	// errRefreshTokenRejected marks a 400/401 response from Strava's
+	// /oauth/token endpoint. The stored refresh token itself has been
+	// invalidated (revoked, rotated, or wrong), so retrying with the same
+	// refresh token will fail the same way — refreshAndPersist treats this
+	// as non-retryable and returns immediately.
+	errRefreshTokenRejected = errors.New("strava: refresh token rejected")
 )
 
 const (
@@ -345,6 +352,16 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 				"correlation_id", cid, "owner_id", ownerID, "refresh_reason", reason)
 			return newTokens, nil
 		}
+		// 400/401 from /oauth/token means the refresh token itself has been
+		// rejected; retrying with the same token cannot recover. Surface
+		// immediately rather than burning a backoff and a second call.
+		// strava.refresh_rejected makes this branch filterable in Cloud Trace
+		// without log-mining (mirrors strava.token_conflict and the audit's
+		// recommendation for the M1 rate-limit case).
+		if errors.Is(err, errRefreshTokenRejected) {
+			trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.refresh_rejected", true))
+			return nil, err
+		}
 		lastErr = err
 		if attempt < tokenRetryAttempts-1 {
 			backoff := min(tokenRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
@@ -399,7 +416,11 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &stravaAPIError{statusCode: resp.StatusCode}
+		apiErr := &stravaAPIError{statusCode: resp.StatusCode}
+		if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized {
+			return nil, fmt.Errorf("%w: %w", errRefreshTokenRejected, apiErr)
+		}
+		return nil, apiErr
 	}
 
 	var tokenResp tokenResponse
