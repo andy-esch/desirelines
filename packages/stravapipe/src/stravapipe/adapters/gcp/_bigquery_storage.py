@@ -64,6 +64,7 @@ Key gotchas (read before changing anything here):
 from collections.abc import Sequence
 from contextlib import suppress
 from datetime import UTC, datetime
+import math
 import threading
 from typing import Any
 
@@ -158,7 +159,13 @@ def _coerce_to_proto_type(value: Any, proto_type: int) -> Any:
     if proto_type == FieldDescriptor.TYPE_STRING:
         return str(value)
     if proto_type == FieldDescriptor.TYPE_INT64:
-        if isinstance(value, float) and value != int(value):
+        if isinstance(value, float) and (
+            not math.isfinite(value) or value != int(value)
+        ):
+            # Non-finite (NaN, ±inf) would otherwise crash int() with
+            # ValueError/OverflowError; surface as TypeError so it's
+            # indistinguishable from the precision-loss case at the
+            # call site.
             raise TypeError(
                 f"Cannot coerce float {value!r} to INT64 without precision loss"
             )

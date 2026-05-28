@@ -129,6 +129,13 @@ class TestCoercion:
         with pytest.raises(TypeError, match="precision loss"):
             _coerce_to_proto_type(1.9, FieldDescriptor.TYPE_INT64)
 
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_coerce_nonfinite_float_to_int_rejected(self, value: float):
+        # NaN/±inf would otherwise crash int() with ValueError/OverflowError;
+        # the helper must surface them as TypeError to match precision-loss.
+        with pytest.raises(TypeError, match="precision loss"):
+            _coerce_to_proto_type(value, FieldDescriptor.TYPE_INT64)
+
     def test_coerce_int_to_bool_allowed(self):
         # int → bool is well-defined (0/non-zero) and used by Pydantic
         # fields that survived JSON round-tripping as numerics.
