@@ -980,3 +980,56 @@ func TestFetchActivity_RetryEmitsSpanEvents(t *testing.T) {
 		t.Error("strava.exhausted not set to true on terminal failure")
 	}
 }
+
+// TestJitterBackoff verifies AWS-style full jitter: sampled durations
+// fall in [0, nominal) and the helper handles the zero/negative edge.
+// 1000 samples is enough to surface a regression where the cap was
+// dropped or the formula collapsed to a constant; the test is timing-
+// independent (no sleeps) so it stays fast and deterministic.
+func TestJitterBackoff(t *testing.T) {
+	t.Run("samples fall in [0, nominal)", func(t *testing.T) {
+		const nominal = 1 * time.Second
+		for range 1000 {
+			got := jitterBackoff(nominal)
+			if got < 0 || got >= nominal {
+				t.Fatalf("jitterBackoff(%v) = %v, want [0, %v)", nominal, got, nominal)
+			}
+		}
+	})
+
+	t.Run("zero nominal returns zero", func(t *testing.T) {
+		if got := jitterBackoff(0); got != 0 {
+			t.Errorf("jitterBackoff(0) = %v, want 0", got)
+		}
+	})
+
+	t.Run("negative nominal returns zero (defensive)", func(t *testing.T) {
+		if got := jitterBackoff(-1 * time.Second); got != 0 {
+			t.Errorf("jitterBackoff(-1s) = %v, want 0", got)
+		}
+	})
+
+	t.Run("distribution is not collapsed to a constant", func(t *testing.T) {
+		// Catches a regression where the formula loses its random
+		// component. Across 100 samples of a 1-second window, the
+		// observed range should span a meaningful chunk of [0, 1s).
+		const nominal = 1 * time.Second
+		var lo, hi time.Duration = nominal, 0
+		for range 100 {
+			d := jitterBackoff(nominal)
+			if d < lo {
+				lo = d
+			}
+			if d > hi {
+				hi = d
+			}
+		}
+		// With a uniform sample of n=100 over [0, 1s), the observed
+		// max-min should comfortably exceed 500ms. Set the bar at
+		// 100ms — generous enough to never flake, tight enough to
+		// catch a constant-return regression.
+		if spread := hi - lo; spread < 100*time.Millisecond {
+			t.Errorf("jitter spread = %v, want >= 100ms (looks collapsed)", spread)
+		}
+	})
+}

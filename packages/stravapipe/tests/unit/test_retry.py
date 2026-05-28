@@ -157,7 +157,7 @@ class TestRetryOnFailure:
             mock_sleep.assert_called_once_with(60)  # Default fallback
 
     def test_exponential_backoff(self):
-        """Test exponential backoff timing."""
+        """Nominal backoff progression with jitter pinned to the upper bound."""
         call_count = 0
 
         @retry_on_failure(max_attempts=3, backoff_seconds=1.0, exponential_backoff=True)
@@ -168,17 +168,22 @@ class TestRetryOnFailure:
                 raise requests.exceptions.ConnectionError("Network error")
             return "success"
 
-        with patch("time.sleep") as mock_sleep:
+        # Pin jitter to its upper bound so we can assert the nominal
+        # exponential progression (1.0, 2.0). Jitter is exercised
+        # separately in test_jitter_is_applied below.
+        with (
+            patch("time.sleep") as mock_sleep,
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _, b: b),
+        ):
             result = failing_func()
             assert result == "success"
 
-            # Should have slept twice: 1.0 seconds, then 2.0 seconds
             expected_calls = [1.0, 2.0]
             actual_calls = [call[0][0] for call in mock_sleep.call_args_list]
             assert actual_calls == expected_calls
 
     def test_linear_backoff(self):
-        """Test linear backoff timing."""
+        """Linear (non-exponential) backoff with jitter pinned to the upper bound."""
         call_count = 0
 
         @retry_on_failure(
@@ -191,14 +196,54 @@ class TestRetryOnFailure:
                 raise requests.exceptions.ConnectionError("Network error")
             return "success"
 
-        with patch("time.sleep") as mock_sleep:
+        with (
+            patch("time.sleep") as mock_sleep,
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _, b: b),
+        ):
             result = failing_func()
             assert result == "success"
 
-            # Should have slept twice: 0.5 seconds each time
             expected_calls = [0.5, 0.5]
             actual_calls = [call[0][0] for call in mock_sleep.call_args_list]
             assert actual_calls == expected_calls
+
+    def test_jitter_is_applied(self):
+        """Full jitter samples from [0, base * 2^attempt) per AWS guidance.
+
+        Without jitter, concurrent failing requests retry in lockstep,
+        amplifying load on a recovering endpoint. The test pins
+        ``random.uniform`` to a fixed fraction (0.5) so the assertion
+        is deterministic, but checks the bound argument matches the
+        nominal exponential value — verifying jitter receives the
+        right window.
+        """
+        call_count = 0
+
+        @retry_on_failure(max_attempts=3, backoff_seconds=1.0, exponential_backoff=True)
+        def failing_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise requests.exceptions.ConnectionError("Network error")
+            return "success"
+
+        with (
+            patch("time.sleep") as mock_sleep,
+            patch(
+                "stravapipe.retry.random.uniform", side_effect=lambda a, b: (a + b) / 2
+            ) as mock_uniform,
+        ):
+            failing_func()
+
+            # Both calls should request jitter over [0, nominal]:
+            # attempt 0 → nominal 1.0; attempt 1 → nominal 2.0.
+            assert mock_uniform.call_args_list == [
+                ((0, 1.0),),
+                ((0, 2.0),),
+            ]
+            # Sleeps are the midpoint of each window.
+            actual_sleeps = [call[0][0] for call in mock_sleep.call_args_list]
+            assert actual_sleeps == [0.5, 1.0]
 
     @pytest.mark.parametrize("status_code", [500, 502, 503, 504])
     def test_all_5xx_errors_are_retried(self, status_code):

@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from functools import wraps
 import logging
+import random
 import time
 from typing import Any, TypeVar, cast
 
@@ -128,9 +129,16 @@ def retry_on_failure(
 
                 # Don't sleep on the last attempt
                 if attempt < max_attempts - 1:
-                    delay = backoff_seconds
+                    nominal = backoff_seconds
                     if exponential_backoff:
-                        delay *= 2**attempt
+                        nominal *= 2**attempt
+                    # Full jitter (AWS "Exponential Backoff And Jitter"):
+                    # `sleep = random_between(0, base * 2^attempt)`. Prevents
+                    # concurrent failing requests (backfill bursts, post-
+                    # outage webhook catch-up) from re-firing in lockstep
+                    # and amplifying load on a recovering Strava endpoint.
+                    # Mirrors the Go-side jitter in `dispatcher/adapters/strava/client.go`.
+                    delay = random.uniform(0, nominal)
 
                     logger.warning(
                         "Request failed (attempt %d/%d), retrying in %.1f seconds: %s",
