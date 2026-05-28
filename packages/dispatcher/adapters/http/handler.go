@@ -3,6 +3,7 @@ package httpadapter
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -242,7 +243,15 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(verifyToken)) != 1 {
+	// Hash both sides to fixed-size 32-byte digests before the
+	// constant-time compare. subtle.ConstantTimeCompare returns early
+	// when input lengths differ — comparing the digests means the
+	// compare always runs over the same byte count regardless of the
+	// inbound token's length, eliminating any length-based timing
+	// channel on the configured verifyToken.
+	tokenHash := sha256.Sum256([]byte(token))
+	verifyTokenHash := sha256.Sum256([]byte(verifyToken))
+	if token == "" || subtle.ConstantTimeCompare(tokenHash[:], verifyTokenHash[:]) != 1 {
 		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
 		apiErr.Code = ErrCodeInvalidVerifyToken
 		apierrors.WriteError(w, r, apiErr, h.logger)
