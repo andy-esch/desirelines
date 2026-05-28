@@ -226,7 +226,23 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if subtle.ConstantTimeCompare([]byte(token), []byte(verifyToken)) != 1 {
+	// Defense-in-depth: subtle.ConstantTimeCompare returns 1 when both
+	// slices are empty, so an empty configured verifyToken would let any
+	// caller pass verification and echo hub.challenge. The secret loader
+	// already rejects empty tokens; this guard makes the handler safe even
+	// against a SecretProvider that returns ("", nil).
+	if verifyToken == "" {
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Configuration error",
+			"Verify token is not configured",
+		)
+		apiErr.Code = ErrCodeConfigError
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
+	}
+
+	if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(verifyToken)) != 1 {
 		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
 		apiErr.Code = ErrCodeInvalidVerifyToken
 		apierrors.WriteError(w, r, apiErr, h.logger)

@@ -371,3 +371,59 @@ func TestSecretCache_FallbackToCachedValues(t *testing.T) {
 		t.Errorf("Expected fallback to cached values, got token=%s, id=%d", token, id)
 	}
 }
+
+// TestSecretCache_RejectsEmptyVerifyTokenFile pins the H1 fix: a verify
+// token file that contains only whitespace (truncated deploy, accidental
+// newline-only file, mis-rendered Secret Manager mount) must produce an
+// error rather than caching "" — otherwise subtle.ConstantTimeCompare
+// in handleVerification would return 1 for empty-vs-empty and any caller
+// could echo back hub.challenge.
+func TestSecretCache_RejectsEmptyVerifyTokenFile(t *testing.T) {
+	// Clear env so the loader can't recover by falling back to env.
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
+
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{"empty file", ""},
+		{"whitespace only", "   \n\t  \n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenPath, subIDPath, cleanup := setupTempSecrets(t, tc.content, "42")
+			defer cleanup()
+
+			log := gcplog.NewNoOpLogger()
+			cache := env.NewSecretCache(tokenPath, subIDPath, time.Minute, log)
+
+			token, _, err := cache.GetSecrets()
+			if err == nil {
+				t.Fatalf("Expected error for %s verify token file, got token=%q nil err", tc.name, token)
+			}
+			if token != "" {
+				t.Errorf("Empty/whitespace verify token leaked through cache: got %q", token)
+			}
+		})
+	}
+}
+
+// TestSecretCache_RejectsEmptyVerifyTokenEnv is the env-fallback counterpart
+// of the H1 fix: when the verify token file is missing and the env var is
+// unset/empty, the loader must error instead of caching "".
+func TestSecretCache_RejectsEmptyVerifyTokenEnv(t *testing.T) {
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "42")
+
+	log := gcplog.NewNoOpLogger()
+	cache := env.NewSecretCache("/dev/null/invalid_token", "/dev/null/invalid_sub", time.Minute, log)
+
+	token, _, err := cache.GetSecrets()
+	if err == nil {
+		t.Fatalf("Expected error for empty STRAVA_WEBHOOK_VERIFY_TOKEN, got token=%q nil err", token)
+	}
+	if token != "" {
+		t.Errorf("Empty env verify token leaked through cache: got %q", token)
+	}
+}

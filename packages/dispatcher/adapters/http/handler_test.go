@@ -126,6 +126,37 @@ func TestHandler_HandleVerification(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedCode:   "INVALID_CHALLENGE",
 		},
+		{
+			// H1: subtle.ConstantTimeCompare returns 1 for empty-vs-empty.
+			// A SecretProvider that yields ("", nil) must not let the handler
+			// echo hub.challenge back to an arbitrary caller.
+			name:   "Empty configured verify token",
+			method: "GET",
+			queryParams: map[string]string{
+				"hub.mode":         "subscribe",
+				"hub.challenge":    "challenge-token",
+				"hub.verify_token": "",
+			},
+			mockVerify:     "",
+			expectedStatus: http.StatusInternalServerError,
+			expectedCode:   "CONFIG_ERROR",
+		},
+		{
+			// H1 (inbound side): empty hub.verify_token from caller must be
+			// rejected as unauthorized regardless of how the configured
+			// verifyToken compares — defense-in-depth against any future
+			// loosening of the loader-side guard.
+			name:   "Empty inbound verify token",
+			method: "GET",
+			queryParams: map[string]string{
+				"hub.mode":         "subscribe",
+				"hub.challenge":    "challenge-token",
+				"hub.verify_token": "",
+			},
+			mockVerify:     "valid-token",
+			expectedStatus: http.StatusUnauthorized,
+			expectedCode:   "INVALID_VERIFY_TOKEN",
+		},
 	}
 
 	for _, tt := range tests {
