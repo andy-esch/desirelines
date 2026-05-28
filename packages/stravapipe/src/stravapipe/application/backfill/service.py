@@ -15,7 +15,9 @@ import logging
 import time
 from typing import Protocol
 
-from stravapipe.adapters.gcp import ActivitiesWriter
+from google.api_core import exceptions as gapi_exceptions
+
+from stravapipe.adapters.gcp import ActivitiesWriter, MergeResult
 from stravapipe.domain import (
     DetailedStravaActivity,
     StandardActivity,
@@ -28,6 +30,24 @@ logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 100
 BQ_MAX_BATCH_SIZE = 10_000
+
+# Bounded in-batch retry around the BQ Storage Write API. Cloud Run Jobs
+# have no Pub/Sub redelivery to absorb transients — a single 503 in a
+# 1000-activity backfill would mark the chunk as failed and force a full
+# job re-run (re-fetching every Strava activity and re-spending rate-limit
+# quota). Webhook-path semantics are unchanged: this lives in the
+# application layer, not in `BigQueryStorageWriter._send_serialized`.
+#
+# Non-retryable exceptions (InvalidArgument, PermissionDenied, NotFound,
+# etc.) propagate immediately to the outer try/except in
+# `_insert_to_bigquery` so the batch is logged + counted exactly once.
+_BQ_RETRY_ATTEMPTS = 3
+_BQ_RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    gapi_exceptions.RetryError,
+    gapi_exceptions.ServiceUnavailable,
+    gapi_exceptions.DeadlineExceeded,
+    TimeoutError,
+)
 
 
 @dataclass
@@ -319,7 +339,9 @@ class BackfillService:
             batch = list(activities[i : i + BQ_MAX_BATCH_SIZE])
 
             try:
-                result = self._bq_writer.write_activities_batch(batch)
+                result = self._write_batch_with_retry(
+                    batch, batch_num=batch_num, total_batches=total_batches
+                )
                 rows_affected = result["rows_affected"]
                 inserted_count += rows_affected
 
@@ -334,3 +356,40 @@ class BackfillService:
                 logger.exception("BQ batch %d/%d failed", batch_num, total_batches)
 
         return inserted_count, error_count
+
+    def _write_batch_with_retry(
+        self,
+        batch: list[DetailedStravaActivity | SummaryStravaActivity],
+        *,
+        batch_num: int,
+        total_batches: int,
+    ) -> MergeResult:
+        """Call the BQ writer with bounded exponential-backoff retry.
+
+        Retries only the transient classes in ``_BQ_RETRYABLE_EXCEPTIONS``;
+        everything else (schema drift, IAM, missing table, …) is
+        re-raised on the first attempt so the caller logs + counts the
+        batch as errored exactly once.
+        """
+        assert self._bq_writer is not None
+        for attempt in range(1, _BQ_RETRY_ATTEMPTS + 1):
+            try:
+                return self._bq_writer.write_activities_batch(batch)
+            except _BQ_RETRYABLE_EXCEPTIONS as exc:
+                if attempt == _BQ_RETRY_ATTEMPTS:
+                    raise
+                backoff = 2 ** (attempt - 1)
+                logger.warning(
+                    "BQ batch %d/%d transient failure "
+                    "(attempt %d/%d: %s) — retrying in %ds",
+                    batch_num,
+                    total_batches,
+                    attempt,
+                    _BQ_RETRY_ATTEMPTS,
+                    type(exc).__name__,
+                    backoff,
+                )
+                time.sleep(backoff)
+        # Unreachable: the loop returns on success or re-raises on the
+        # final attempt. Present to satisfy mypy's exhaustiveness check.
+        raise RuntimeError("unreachable")

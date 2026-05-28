@@ -20,7 +20,6 @@ Usage (local):
     Per-user OAuth tokens are fetched from Firestore via ATHLETE_ID.
 """
 
-import logging
 import sys
 
 from google.cloud.firestore_v1 import Client as FirestoreClient
@@ -32,25 +31,33 @@ from stravapipe.adapters.strava import create_strava_activities_repo
 from stravapipe.application.backfill import BackfillService
 from stravapipe.config.backfill import load_backfill_config
 from stravapipe.domain import StravaTokenSet
+from stravapipe.shared.correlation import new_correlation_id
+from stravapipe.shared.logging import setup_logging
+from stravapipe.shared.tracing import setup_tracing
 
-logger = logging.getLogger(__name__)
+logger = setup_logging(__name__)
 
 
 def main() -> None:
     """Run the backfill job."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    # One correlation_id per Cloud Run Job execution — pins every log
+    # line and span emitted by this run to a single identifier in Cloud
+    # Logging, matching the per-message correlation already used by the
+    # FastAPI services.
+    new_correlation_id()
+    tracer = setup_tracing("desirelines-backfill")
 
     logger.info("Loading backfill configuration...")
     config = load_backfill_config()
 
     logger.info(
-        "Backfill configuration: athlete_id=%s, years=%s, bq=%s",
-        config.athlete_id,
-        config.years,
-        config.gcp_bigquery_dataset is not None,
+        "Backfill configuration loaded",
+        extra={
+            "athlete_id": config.athlete_id,
+            "years": list(config.years),
+            "gcp_project_id": config.gcp_project_id,
+            "bq_dataset": config.gcp_bigquery_dataset,
+        },
     )
 
     # --- Wire up dependencies ---
@@ -85,6 +92,7 @@ def main() -> None:
         bq_writer = make_write_activities(
             project_id=config.gcp_project_id,
             bq_dataset=config.gcp_bigquery_dataset,
+            tracer=tracer,
         )
 
     # --- Run backfill ---

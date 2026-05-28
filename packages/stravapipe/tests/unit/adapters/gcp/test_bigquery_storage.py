@@ -118,6 +118,35 @@ class TestCoercion:
     def test_coerce_passthrough_unknown_type(self):
         assert _coerce_to_proto_type(b"raw", FieldDescriptor.TYPE_BYTES) == b"raw"
 
+    def test_coerce_whole_float_to_int_allowed(self):
+        # Whole-valued floats (Pydantic often emits these for INT64 fields
+        # whose JSON source had no decimal) coerce cleanly.
+        assert _coerce_to_proto_type(7.0, FieldDescriptor.TYPE_INT64) == 7
+
+    def test_coerce_lossy_float_to_int_rejected(self):
+        # `int(1.9)` is 1 — silent truncation. Surfaces as a test failure
+        # rather than a wrong row in BQ.
+        with pytest.raises(TypeError, match="precision loss"):
+            _coerce_to_proto_type(1.9, FieldDescriptor.TYPE_INT64)
+
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_coerce_nonfinite_float_to_int_rejected(self, value: float):
+        # NaN/±inf would otherwise crash int() with ValueError/OverflowError;
+        # the helper must surface them as TypeError to match precision-loss.
+        with pytest.raises(TypeError, match="precision loss"):
+            _coerce_to_proto_type(value, FieldDescriptor.TYPE_INT64)
+
+    def test_coerce_int_to_bool_allowed(self):
+        # int → bool is well-defined (0/non-zero) and used by Pydantic
+        # fields that survived JSON round-tripping as numerics.
+        assert _coerce_to_proto_type(1, FieldDescriptor.TYPE_BOOL) is True
+        assert _coerce_to_proto_type(0, FieldDescriptor.TYPE_BOOL) is False
+
+    def test_coerce_str_to_bool_rejected(self):
+        # `bool("False")` is `True` — the canonical footgun.
+        with pytest.raises(TypeError, match="str"):
+            _coerce_to_proto_type("False", FieldDescriptor.TYPE_BOOL)
+
 
 class TestIsoToMicros:
     def test_z_suffix(self):

@@ -64,6 +64,7 @@ Key gotchas (read before changing anything here):
 from collections.abc import Sequence
 from contextlib import suppress
 from datetime import UTC, datetime
+import math
 import threading
 from typing import Any
 
@@ -74,6 +75,17 @@ from google.protobuf.descriptor import FieldDescriptor
 
 from stravapipe.domain import DetailedStravaActivity, SummaryStravaActivity
 from stravapipe.types.generated import bq_activities_pb2
+
+# Bounds the wait on a single AppendRowsRequest's gRPC future. A hung
+# stream (server-side stall, half-closed-but-still-`is_active`) without
+# this would block until Cloud Run's request timeout (~5 min default)
+# 504s the handler, inflating the unacked-message backlog and burning
+# the `oldest-unacked-message` alert. 30s is generous for the typical
+# webhook row and well above the wire time even for a 100-row backfill
+# batch (the 10 MB request cap is far below that). On TimeoutError the
+# existing drop-and-reopen branch kicks in cleanly.
+_SEND_TIMEOUT_SECONDS: float = 30.0
+
 
 # ---------------------------------------------------------------------------
 # TIMESTAMP path tracking
@@ -138,14 +150,33 @@ def _coerce_to_proto_type(value: Any, proto_type: int) -> Any:
     schema-parity test in ``test_bigquery_storage.py`` is the safety
     net that surfaces new drift as a test failure rather than a prod
     incident.
+
+    Two lossy coercions are rejected explicitly so they surface as
+    test failures rather than silently bad data: a ``float`` with a
+    fractional part going to ``INT64`` (``int(1.9) == 1``) and any
+    ``str`` going to ``BOOL`` (``bool("False") is True``).
     """
     if proto_type == FieldDescriptor.TYPE_STRING:
         return str(value)
     if proto_type == FieldDescriptor.TYPE_INT64:
+        if isinstance(value, float) and (
+            not math.isfinite(value) or value != int(value)
+        ):
+            # Non-finite (NaN, ±inf) would otherwise crash int() with
+            # ValueError/OverflowError; surface as TypeError so it's
+            # indistinguishable from the precision-loss case at the
+            # call site.
+            raise TypeError(
+                f"Cannot coerce float {value!r} to INT64 without precision loss"
+            )
         return int(value)
     if proto_type == FieldDescriptor.TYPE_DOUBLE:
         return float(value)
     if proto_type == FieldDescriptor.TYPE_BOOL:
+        if isinstance(value, str):
+            raise TypeError(
+                f"Cannot coerce str {value!r} to BOOL (bool('False') is True)"
+            )
         return bool(value)
     return value
 
@@ -418,7 +449,7 @@ class BigQueryStorageWriter:
             try:
                 stream = self._get_or_open_stream()
                 future = stream.send(request)
-                future.result()  # type: ignore[no-untyped-call]
+                future.result(timeout=_SEND_TIMEOUT_SECONDS)  # type: ignore[no-untyped-call]
             except Exception:
                 self._drop_stream()
                 raise
