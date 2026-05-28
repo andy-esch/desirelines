@@ -209,7 +209,12 @@ func (c *SecretCache) loadSecrets() (string, int32, error) {
 }
 
 // loadSecretsFromEnv loads secrets from environment variables.
-// Used as fallback when secrets file doesn't exist.
+// Used as fallback when secrets file doesn't exist. Defers any
+// mutation of c until every env var has parsed and validated, so a
+// partial failure cannot leave c with a fresh verifyToken paired
+// against a stale subscriptionID — the cached-fallback branch in
+// GetSecrets would then return the mismatched pair without surfacing
+// the error.
 func (c *SecretCache) loadSecretsFromEnv() error {
 	verifyToken := config.GetEnvOrDefault("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
 	if verifyToken == "" {
@@ -217,7 +222,6 @@ func (c *SecretCache) loadSecretsFromEnv() error {
 		// constant-time compare in handleVerification.
 		return fmt.Errorf("verify token not found in environment (STRAVA_WEBHOOK_VERIFY_TOKEN)")
 	}
-	c.verifyToken = verifyToken
 
 	subIDStr := config.GetEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
 	if subIDStr == "" {
@@ -233,6 +237,7 @@ func (c *SecretCache) loadSecretsFromEnv() error {
 		return fmt.Errorf("STRAVA_WEBHOOK_SUBSCRIPTION_ID must be between 0 and %d", math.MaxInt32)
 	}
 
+	c.verifyToken = verifyToken
 	c.subscriptionID = int32(parsed) //nolint:gosec // Validated above
 	return nil
 }

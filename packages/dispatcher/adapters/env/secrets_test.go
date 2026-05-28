@@ -264,6 +264,34 @@ func TestSecretCache_LoadSecretsFromEnv_MissingSubID(t *testing.T) {
 	}
 }
 
+// TestSecretCache_LoadSecretsFromEnv_PartialFailureDoesNotCacheVerifyToken
+// pins the no-partial-update invariant: if env-fallback fails partway
+// through (valid verifyToken but invalid subscriptionID), the cache must
+// not retain the fresh verifyToken — otherwise GetSecrets's "use cached
+// values if available" fallback would return a mismatched (new token,
+// stale subID) pair without surfacing the error.
+func TestSecretCache_LoadSecretsFromEnv_PartialFailureDoesNotCacheVerifyToken(t *testing.T) {
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "fresh-token")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "not-a-number")
+
+	log := gcplog.NewNoOpLogger()
+	cache := env.NewSecretCache("/dev/null/invalid_token", "/dev/null/invalid_sub", time.Minute, log)
+
+	// First call: subID parse fails. We expect an error AND no cached state.
+	_, _, err := cache.GetSecrets()
+	if err == nil {
+		t.Fatal("Expected error for invalid subscription ID, got nil")
+	}
+
+	// Second call: still failing inputs. If the first call had cached the
+	// verifyToken, the cached-fallback branch would now silently return
+	// it with subscriptionID=0. Demand the same error instead.
+	token, subID, err := cache.GetSecrets()
+	if err == nil {
+		t.Fatalf("Expected error on second call; got cached state (token=%q, subID=%d)", token, subID)
+	}
+}
+
 func TestSecretCache_HashFailsNoCacheFallbackToEnvFails(t *testing.T) {
 	// First call: hashFiles fails, no cached values, env vars not set -> error.
 	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
