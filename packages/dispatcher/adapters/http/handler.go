@@ -3,6 +3,7 @@ package httpadapter
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -74,6 +75,13 @@ const (
 // maxChallengeLength is the maximum allowed length for hub.challenge.
 // Strava sends short random strings; 256 bytes is generous.
 const maxChallengeLength = 256
+
+// handleEventDeadline bounds per-request work end-to-end so the worst-case
+// product of Strava httpClientTimeout × retries and the PubSub publish
+// timeout cannot compose past one budget. Strava's webhook spec wants 2s;
+// 10s leaves headroom for one Strava call + one PubSub publish while
+// staying well under Cloud Run's default 60s request timeout.
+const handleEventDeadline = 10 * time.Second
 
 // Handler orchestrates the webhook processing.
 type Handler struct {
@@ -219,7 +227,31 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if subtle.ConstantTimeCompare([]byte(token), []byte(verifyToken)) != 1 {
+	// Defense-in-depth: subtle.ConstantTimeCompare returns 1 when both
+	// slices are empty, so an empty configured verifyToken would let any
+	// caller pass verification and echo hub.challenge. The secret loader
+	// already rejects empty tokens; this guard makes the handler safe even
+	// against a SecretProvider that returns ("", nil).
+	if verifyToken == "" {
+		apiErr := apierrors.NewAPIErrorWithLog(
+			http.StatusInternalServerError,
+			"Configuration error",
+			"Verify token is not configured",
+		)
+		apiErr.Code = ErrCodeConfigError
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
+	}
+
+	// Hash both sides to fixed-size 32-byte digests before the
+	// constant-time compare. subtle.ConstantTimeCompare returns early
+	// when input lengths differ — comparing the digests means the
+	// compare always runs over the same byte count regardless of the
+	// inbound token's length, eliminating any length-based timing
+	// channel on the configured verifyToken.
+	tokenHash := sha256.Sum256([]byte(token))
+	verifyTokenHash := sha256.Sum256([]byte(verifyToken))
+	if token == "" || subtle.ConstantTimeCompare(tokenHash[:], verifyTokenHash[:]) != 1 {
 		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
 		apiErr.Code = ErrCodeInvalidVerifyToken
 		apierrors.WriteError(w, r, apiErr, h.logger)
@@ -247,12 +279,18 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 // keeps it under golangci-lint's gocyclo cap and makes the operational
 // pipeline scannable at a glance.
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
+	// Cap total per-request work under handleEventDeadline so downstream
+	// timeouts (Strava client + retries, PubSub publish) compose under a
+	// single budget instead of stacking independently.
+	ctx, cancel := context.WithTimeout(r.Context(), handleEventDeadline)
+	defer cancel()
+
 	// Capture the receive timestamp before any work — this becomes the
 	// anchor for SLO 3 (data freshness): the time from "Strava POSTed
 	// the webhook" to "row visible in postgres." Stashing on the context
 	// here lets the publisher stamp it as a Pub/Sub attribute later
 	// without needing to thread the timestamp through every helper.
-	ctx := pubsubadapter.WithWebhookReceivedAt(r.Context(), time.Now())
+	ctx = pubsubadapter.WithWebhookReceivedAt(ctx, time.Now())
 	r = r.WithContext(ctx)
 
 	body, ok := h.readAndValidateBody(w, r)

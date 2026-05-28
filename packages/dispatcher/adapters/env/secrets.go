@@ -165,7 +165,14 @@ func (c *SecretCache) loadSecrets() (string, int32, error) {
 			return "", 0, fmt.Errorf("verify token not found in file or environment")
 		}
 	} else {
+		// Reject whitespace-only / empty files: caching "" would let
+		// subtle.ConstantTimeCompare(\"\", \"\") return 1 and any caller
+		// could echo back hub.challenge. See packages/dispatcher/adapters/http/handler.go
+		// handleVerification.
 		verifyToken = strings.TrimSpace(string(tokenBytes))
+		if verifyToken == "" {
+			return "", 0, fmt.Errorf("verify token file %q is empty after trimming whitespace", c.verifyTokenPath)
+		}
 	}
 
 	// 2. Load Subscription ID
@@ -202,9 +209,19 @@ func (c *SecretCache) loadSecrets() (string, int32, error) {
 }
 
 // loadSecretsFromEnv loads secrets from environment variables.
-// Used as fallback when secrets file doesn't exist.
+// Used as fallback when secrets file doesn't exist. Defers any
+// mutation of c until every env var has parsed and validated, so a
+// partial failure cannot leave c with a fresh verifyToken paired
+// against a stale subscriptionID — the cached-fallback branch in
+// GetSecrets would then return the mismatched pair without surfacing
+// the error.
 func (c *SecretCache) loadSecretsFromEnv() error {
-	c.verifyToken = config.GetEnvOrDefault("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+	verifyToken := config.GetEnvOrDefault("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+	if verifyToken == "" {
+		// See loadSecrets: empty verify token must never reach the
+		// constant-time compare in handleVerification.
+		return fmt.Errorf("verify token not found in environment (STRAVA_WEBHOOK_VERIFY_TOKEN)")
+	}
 
 	subIDStr := config.GetEnvOrDefault("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
 	if subIDStr == "" {
@@ -220,6 +237,7 @@ func (c *SecretCache) loadSecretsFromEnv() error {
 		return fmt.Errorf("STRAVA_WEBHOOK_SUBSCRIPTION_ID must be between 0 and %d", math.MaxInt32)
 	}
 
+	c.verifyToken = verifyToken
 	c.subscriptionID = int32(parsed) //nolint:gosec // Validated above
 	return nil
 }

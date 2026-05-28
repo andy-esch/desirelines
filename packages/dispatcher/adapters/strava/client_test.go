@@ -452,6 +452,52 @@ func TestFetchActivity_Repeated401StopsAfterOneRefresh(t *testing.T) {
 	}
 }
 
+// TestFetchActivity_RefreshToken401_DoesNotRetry verifies that a 401 from
+// Strava's /oauth/token endpoint is not retried inside refreshAndPersist:
+// the stored refresh token has been rejected and another attempt with the
+// same value would fail identically. Proactive refresh path (expired
+// access token) is the easiest way to drive the loop end-to-end.
+func TestFetchActivity_RefreshToken401_DoesNotRetry(t *testing.T) {
+	var tokenRefreshCount atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == testTokenPath {
+			tokenRefreshCount.Add(1)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "expired", RefreshToken: "revoked", ExpiresAt: pastExpiry()},
+		},
+	}
+	client, sr := newRecordingTestClient(server, tokenStore)
+
+	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected error when refresh token is rejected")
+	}
+	if !errors.Is(err, ErrStravaAuth) {
+		t.Errorf("expected ErrStravaAuth, got %v", err)
+	}
+
+	if tokenRefreshCount.Load() != 1 {
+		t.Errorf("expected 1 token refresh call, got %d (must short-circuit on 401 from /oauth/token)", tokenRefreshCount.Load())
+	}
+
+	// strava.refresh_rejected pins the short-circuit branch as filterable
+	// in Cloud Trace — regression guard against silent loss of this signal.
+	span := spanByName(t, sr, "strava.refresh_token")
+	if !spanAttrBool(span, "strava.refresh_rejected") {
+		t.Error("strava.refresh_rejected attribute not set on short-circuit branch")
+	}
+}
+
 // conflictTokenStore simulates the optimistic concurrency conflict scenario.
 // First GetTokens returns old tokens; WriteTokensIfUnmodified returns ErrTokenConflict;
 // second GetTokens returns the winner's tokens.

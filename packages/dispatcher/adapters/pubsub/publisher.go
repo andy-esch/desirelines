@@ -80,6 +80,9 @@ type Publisher struct {
 
 	mu     sync.RWMutex
 	closed bool
+	// inflight tracks Publish calls past the closed check so Close can
+	// drain them before tearing down the underlying gRPC client.
+	inflight sync.WaitGroup
 }
 
 // ValidateProjectID checks that a GCP project ID matches the required format.
@@ -143,7 +146,9 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 		p.mu.RUnlock()
 		return ErrPublisherClosed
 	}
+	p.inflight.Add(1)
 	p.mu.RUnlock()
+	defer p.inflight.Done()
 
 	// Ensure context has a deadline to prevent indefinite blocking
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
@@ -208,18 +213,26 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 	return nil
 }
 
-// Close releases resources held by the PubSub client.
+// Close releases resources held by the PubSub client. It blocks until all
+// in-flight Publish calls return so the underlying gRPC client is not torn
+// down mid-publish (which would drop messages on SIGTERM-driven shutdown).
 // After Close returns, subsequent Publish calls will return ErrPublisherClosed.
 // The context parameter is accepted for interface compatibility but is not used,
 // as the underlying PubSub client.Close() does not support context cancellation.
 func (p *Publisher) Close(_ context.Context) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.closed {
-		return nil // Already closed
+		p.mu.Unlock()
+		return nil
 	}
 	p.closed = true
+	p.mu.Unlock()
+
+	// Wait for in-flight Publish calls to finish before closing the
+	// underlying gRPC client. Subsequent Publish calls observe closed=true
+	// under the read lock and return ErrPublisherClosed without incrementing
+	// the WaitGroup, so this drain terminates.
+	p.inflight.Wait()
 
 	if p.client == nil {
 		return nil
