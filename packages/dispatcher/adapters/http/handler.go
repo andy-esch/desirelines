@@ -75,6 +75,13 @@ const (
 // Strava sends short random strings; 256 bytes is generous.
 const maxChallengeLength = 256
 
+// handleEventDeadline bounds per-request work end-to-end so the worst-case
+// product of Strava httpClientTimeout × retries and the PubSub publish
+// timeout cannot compose past one budget. Strava's webhook spec wants 2s;
+// 10s leaves headroom for one Strava call + one PubSub publish while
+// staying well under Cloud Run's default 60s request timeout.
+const handleEventDeadline = 10 * time.Second
+
 // Handler orchestrates the webhook processing.
 type Handler struct {
 	secretProvider     ports.SecretProvider
@@ -247,12 +254,18 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 // keeps it under golangci-lint's gocyclo cap and makes the operational
 // pipeline scannable at a glance.
 func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
+	// Cap total per-request work under handleEventDeadline so downstream
+	// timeouts (Strava client + retries, PubSub publish) compose under a
+	// single budget instead of stacking independently.
+	ctx, cancel := context.WithTimeout(r.Context(), handleEventDeadline)
+	defer cancel()
+
 	// Capture the receive timestamp before any work — this becomes the
 	// anchor for SLO 3 (data freshness): the time from "Strava POSTed
 	// the webhook" to "row visible in postgres." Stashing on the context
 	// here lets the publisher stamp it as a Pub/Sub attribute later
 	// without needing to thread the timestamp through every helper.
-	ctx := pubsubadapter.WithWebhookReceivedAt(r.Context(), time.Now())
+	ctx = pubsubadapter.WithWebhookReceivedAt(ctx, time.Now())
 	r = r.WithContext(ctx)
 
 	body, ok := h.readAndValidateBody(w, r)
