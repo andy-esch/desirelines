@@ -82,12 +82,16 @@ func spanAttrBool(s sdktrace.ReadOnlySpan, key string) bool {
 }
 
 // assertHTTPRetryEvent verifies a strava.retry event for an HTTP
-// failure: attempt present, a bounded status_code, and no free-form
-// error string (P1 — response bodies must not reach span attributes).
+// failure: attempt present, a bounded status_code, no free-form error
+// string (P1 — response bodies must not reach span attributes), and a
+// 'backoff' that parses as a duration in [0, maxRetryBackoff). The
+// backoff attribute is the actual (post-jitter) sleep, not the nominal
+// exponential value.
 func assertHTTPRetryEvent(t *testing.T, e sdktrace.Event, wantStatus int64) {
 	t.Helper()
-	var sawAttempt, sawError bool
+	var sawAttempt, sawError, sawBackoff bool
 	var gotStatus int64
+	var gotBackoff time.Duration
 	for _, a := range e.Attributes {
 		switch string(a.Key) {
 		case "attempt":
@@ -96,6 +100,13 @@ func assertHTTPRetryEvent(t *testing.T, e sdktrace.Event, wantStatus int64) {
 			gotStatus = a.Value.AsInt64()
 		case "error":
 			sawError = true
+		case "backoff":
+			sawBackoff = true
+			d, err := time.ParseDuration(a.Value.AsString())
+			if err != nil {
+				t.Errorf("strava.retry backoff %q does not parse as duration: %v", a.Value.AsString(), err)
+			}
+			gotBackoff = d
 		}
 	}
 	if !sawAttempt {
@@ -106,6 +117,17 @@ func assertHTTPRetryEvent(t *testing.T, e sdktrace.Event, wantStatus int64) {
 	}
 	if sawError {
 		t.Error("strava.retry carried a free-form 'error' for an HTTP failure; expected status_code only")
+	}
+	if !sawBackoff {
+		t.Errorf("strava.retry missing 'backoff' attribute: %+v", e.Attributes)
+	}
+	// Full-jitter sleep is in [0, nominal) and nominal is capped at
+	// maxRetryBackoff, so the actual recorded sleep must respect that
+	// ceiling. Catches regressions where jitter is dropped (would
+	// record the full exponential, e.g. 4s on attempt 3) or the cap
+	// is bypassed.
+	if gotBackoff < 0 || gotBackoff >= maxRetryBackoff {
+		t.Errorf("strava.retry backoff = %v, want in [0, %v)", gotBackoff, maxRetryBackoff)
 	}
 }
 

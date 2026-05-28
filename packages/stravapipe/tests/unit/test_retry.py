@@ -384,7 +384,14 @@ class TestRetrySpanEvents:
         return provider, exporter
 
     def test_network_error_emits_retry_events_and_exhausted(self):
-        """Network failures: strava.retry events + exhaustion attrs, no body."""
+        """Network failures: strava.retry events + exhaustion attrs, no body.
+
+        The ``backoff`` attribute should record the *actual* (post-jitter)
+        sleep so Cloud Trace surfaces the real delay distribution. We
+        pin ``random.uniform`` to a fixed fraction so the asserted values
+        are deterministic; without jitter the test would assert the
+        nominal exponential curve.
+        """
         provider, exporter = self._exporter()
         tracer = provider.get_tracer("test")
 
@@ -394,6 +401,7 @@ class TestRetrySpanEvents:
 
         with (
             patch("time.sleep"),
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _, b: b * 0.25),
             tracer.start_as_current_span("parent"),
             pytest.raises(requests.exceptions.ConnectionError),
         ):
@@ -402,9 +410,15 @@ class TestRetrySpanEvents:
         span = exporter.get_finished_spans()[0]
         events = [e for e in span.events if e.name == "strava.retry"]
         assert len(events) == 2  # max_attempts - 1
-        for i, e in enumerate(events, start=1):
+        # Attempt 1 nominal = 0.01 * 2^0 = 0.01 → 0.25 * 0.01 = 0.0025
+        # Attempt 2 nominal = 0.01 * 2^1 = 0.02 → 0.25 * 0.02 = 0.005
+        expected_backoffs = ["0.0025s", "0.005s"]
+        for i, (e, expected_backoff) in enumerate(
+            zip(events, expected_backoffs, strict=True), start=1
+        ):
             assert _attrs(e)["attempt"] == i
             assert _attrs(e)["error"] == "ConnectionError"
+            assert _attrs(e)["backoff"] == expected_backoff
             # Network errors have no HTTP status and never a response body.
             assert "status_code" not in _attrs(e)
         assert _attrs(span)["strava.attempts"] == 3
