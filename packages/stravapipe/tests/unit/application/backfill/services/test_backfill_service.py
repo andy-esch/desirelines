@@ -8,8 +8,9 @@ Follows the same patterns as test_write_service.py:
 """
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock, call, create_autospec
+from unittest.mock import MagicMock, call, create_autospec, patch
 
+from google.api_core import exceptions as gapi_exceptions
 import pytest
 
 from stravapipe.adapters.gcp import ActivitiesWriter
@@ -376,6 +377,122 @@ class TestBigQueryInsertion:
         # PG should still succeed
         assert result.total_pg_inserted == 3
         # BQ should report errors
+        assert result.year_stats[0].bq_errors == 3
+        assert result.success is False
+
+
+# =============================================================================
+# Tests: BigQuery Transient-Error Retry
+# =============================================================================
+
+
+class TestBigQueryRetry:
+    """Tests for the in-batch retry around `write_activities_batch`.
+
+    `time.sleep` is patched in every test so the exponential backoff
+    doesn't slow the suite — the call list is asserted to verify the
+    intended backoff schedule.
+    """
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            gapi_exceptions.ServiceUnavailable("503"),
+            gapi_exceptions.DeadlineExceeded("504"),
+            gapi_exceptions.RetryError("retry-error", cause=RuntimeError()),
+            TimeoutError("local-timeout"),
+        ],
+        ids=["ServiceUnavailable", "DeadlineExceeded", "RetryError", "TimeoutError"],
+    )
+    def test_transient_then_success_no_error(
+        self,
+        service_with_bq: BackfillService,
+        mock_strava_reader,
+        mock_activity_repo,
+        mock_bq_writer,
+        caplog,
+        exc: BaseException,
+    ):
+        """Each retryable exception class: 2 failures then success → no error."""
+        activities = make_activities(3, year=2024)
+        mock_strava_reader.read_activities_by_year.return_value = activities
+        mock_activity_repo.insert.return_value = True
+        mock_bq_writer.write_activities_batch.side_effect = [
+            exc,
+            exc,
+            {
+                "rows_affected": 3,
+                "execution_time_ms": 100,
+                "job_id": "test",
+                "query_preview": "",
+            },
+        ]
+
+        with (
+            patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep,
+            caplog.at_level(
+                "WARNING", logger="stravapipe.application.backfill.service"
+            ),
+        ):
+            result = service_with_bq.backfill_user("12345", years=[2024])
+
+        assert mock_bq_writer.write_activities_batch.call_count == 3
+        assert mock_sleep.call_args_list == [call(1), call(2)]
+        assert result.year_stats[0].bq_inserted == 3
+        assert result.year_stats[0].bq_errors == 0
+        assert result.success is True
+
+        retry_warnings = [
+            r for r in caplog.records if "transient failure" in r.getMessage()
+        ]
+        assert len(retry_warnings) == 2
+
+    def test_exhausts_retries_counts_batch_errored_once(
+        self,
+        service_with_bq: BackfillService,
+        mock_strava_reader,
+        mock_activity_repo,
+        mock_bq_writer,
+    ):
+        """Three transient failures: batch errored once; no 4th attempt."""
+        activities = make_activities(3, year=2024)
+        mock_strava_reader.read_activities_by_year.return_value = activities
+        mock_activity_repo.insert.return_value = True
+        mock_bq_writer.write_activities_batch.side_effect = (
+            gapi_exceptions.ServiceUnavailable("503")
+        )
+
+        with patch("stravapipe.application.backfill.service.time.sleep"):
+            result = service_with_bq.backfill_user("12345", years=[2024])
+
+        # Exactly 3 attempts — no 4th try after the cap.
+        assert mock_bq_writer.write_activities_batch.call_count == 3
+        # PG still succeeds; BQ counts the batch (3 activities) as errored once.
+        assert result.total_pg_inserted == 3
+        assert result.year_stats[0].bq_errors == 3
+        assert result.success is False
+
+    def test_non_retryable_surfaces_immediately(
+        self,
+        service_with_bq: BackfillService,
+        mock_strava_reader,
+        mock_activity_repo,
+        mock_bq_writer,
+    ):
+        """InvalidArgument (schema drift) is not retried — fail once."""
+        activities = make_activities(3, year=2024)
+        mock_strava_reader.read_activities_by_year.return_value = activities
+        mock_activity_repo.insert.return_value = True
+        mock_bq_writer.write_activities_batch.side_effect = (
+            gapi_exceptions.InvalidArgument("schema mismatch")
+        )
+
+        with patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep:
+            result = service_with_bq.backfill_user("12345", years=[2024])
+
+        # Exactly one attempt — InvalidArgument bypasses the retry loop.
+        assert mock_bq_writer.write_activities_batch.call_count == 1
+        mock_sleep.assert_not_called()
         assert result.year_stats[0].bq_errors == 3
         assert result.success is False
 
