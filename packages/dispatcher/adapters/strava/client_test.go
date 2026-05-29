@@ -1224,6 +1224,7 @@ func TestIsStravaCallSuccessful(t *testing.T) {
 		{"refresh token rejected", errRefreshTokenRejected, true},
 		{"caller canceled", context.Canceled, true},
 		{"http timeout (DeadlineExceeded)", context.DeadlineExceeded, false},
+		{"rate limited (429)", &stravaAPIError{statusCode: http.StatusTooManyRequests}, true},
 		{"strava 5xx", &stravaAPIError{statusCode: 503}, false},
 		{"unknown error counts as failure", errors.New("boom"), false},
 	}

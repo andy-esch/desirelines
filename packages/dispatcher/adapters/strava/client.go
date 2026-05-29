@@ -181,6 +181,16 @@ func newStravaBreaker(logger *slog.Logger, timeout time.Duration) *gobreaker.Cir
 // healthy from the dependency's perspective, even if the caller saw an
 // error.
 func isStravaCallSuccessful(err error) bool {
+	// 429 — our quota is exceeded, not evidence that Strava is down.
+	// Tripping the breaker on rate-limit doesn't help (Strava is fine,
+	// we just used too much) and the retry layer already honors the
+	// Retry-After header. Mirrors the Python side's
+	// `StravaRateLimitError` entry in `create_strava_breaker`'s
+	// exclude list.
+	var apiErr *stravaAPIError
+	if errors.As(err, &apiErr) && apiErr.statusCode == http.StatusTooManyRequests {
+		return true
+	}
 	switch {
 	case err == nil:
 		return true
