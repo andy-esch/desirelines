@@ -9,6 +9,13 @@ This module provides a layered architecture for Strava API access:
     StravaApiClient      - HTTP calls, 401 retry, error translation
            ↓
     StravaActivitiesRepo - Domain model conversion
+
+A single ``pybreaker.CircuitBreaker`` is shared across ``StravaTokenRepo``
+and ``StravaApiClient`` — outbound traffic to Strava goes through one
+breaker so an outage trips it once and fails-fast for every concurrent
+caller until the dependency recovers. The breaker wraps the retry loop
+(not vice versa) per Microsoft's combined-pattern guidance; matches the
+Go side in ``packages/dispatcher/adapters/strava/client.go``.
 """
 
 from collections.abc import Callable, Sequence
@@ -17,6 +24,7 @@ import logging
 import threading
 from typing import Any
 
+import pybreaker
 import requests
 
 from stravapipe.config.common import StravaApiConfig
@@ -29,6 +37,7 @@ from stravapipe.domain import (
 from stravapipe.exceptions import (
     ActivityNotFoundError,
     StravaApiError,
+    StravaRateLimitError,
     StravaTokenError,
 )
 from stravapipe.ports.out.read import (
@@ -43,6 +52,79 @@ logger = logging.getLogger(__name__)
 # HTTP status code constants used by Strava API error handling.
 HTTP_UNAUTHORIZED = 401
 HTTP_NOT_FOUND = 404
+# HTTP 503 is used to wrap CircuitBreakerError — the dependency is
+# presumed unavailable. Callers that already treat 5xx as transient
+# (Pub/Sub redelivery on the webhook path; retry loops on the backfill
+# path) get the right behavior with no new error-handling branches.
+HTTP_SERVICE_UNAVAILABLE = 503
+
+# Circuit-breaker thresholds for outbound Strava-API calls. Matches the
+# Go-side constants in `packages/dispatcher/adapters/strava/client.go`:
+# 5 consecutive operation failures opens the breaker; 30s open-state
+# cool-off before half-open probes. Per-request signals (404, 401, 429)
+# are excluded so they don't push the breaker toward open — the breaker
+# only counts evidence that Strava itself is down.
+_BREAKER_FAILURE_THRESHOLD = 5
+_BREAKER_RESET_TIMEOUT_SECONDS = 30
+
+
+class _BreakerLogger(pybreaker.CircuitBreakerListener):
+    """Logs Strava circuit breaker state transitions at WARNING.
+
+    Mirrors the Go side's ``OnStateChange`` callback shape so a
+    Strava outage produces equivalent diagnostic noise in both
+    languages.
+    """
+
+    def state_change(
+        self,
+        cb: pybreaker.CircuitBreaker,
+        old_state: pybreaker.CircuitBreakerState | None,
+        new_state: pybreaker.CircuitBreakerState,
+    ) -> None:
+        logger.warning(
+            "Strava circuit breaker state change",
+            extra={
+                "breaker": cb.name,
+                "from": old_state.name if old_state is not None else None,
+                "to": new_state.name,
+            },
+        )
+
+
+def create_strava_breaker(
+    *,
+    fail_max: int = _BREAKER_FAILURE_THRESHOLD,
+    reset_timeout: int = _BREAKER_RESET_TIMEOUT_SECONDS,
+) -> pybreaker.CircuitBreaker:
+    """Build the shared Strava circuit breaker.
+
+    ``fail_max`` / ``reset_timeout`` are parameterized so tests can use
+    short values; production callers should rely on the defaults. The
+    ``exclude`` list captures per-request signals that should NOT count
+    toward Strava-side health — 404 (per-activity), 401 (per-user
+    token), 429 (per-user rate limit). Everything else (5xx, network,
+    timeout) counts as a Strava failure.
+
+    **Contract for excluded exception types:** the exclusion list is
+    semantic, not structural. ``StravaTokenError`` and
+    ``StravaRateLimitError`` MUST only be raised for *permanent*
+    per-user signals — a 401 ``invalid_grant`` from the OAuth endpoint
+    or a 429 quota exceeded. If a transient failure on the token
+    endpoint (a 503 from Strava's OAuth side, a connection reset)
+    were ever wrapped as ``StravaTokenError``, the breaker would
+    silently miss the outage. The current call sites in
+    ``StravaTokenRepo._do_refresh`` honor this: 401 → ``StravaTokenError``,
+    everything else → ``StravaApiError`` (or the original ``requests``
+    exception), both of which count as breaker failures.
+    """
+    return pybreaker.CircuitBreaker(
+        fail_max=fail_max,
+        reset_timeout=reset_timeout,
+        exclude=[ActivityNotFoundError, StravaTokenError, StravaRateLimitError],
+        listeners=[_BreakerLogger()],
+        name="strava-api",
+    )
 
 
 # =============================================================================
@@ -58,12 +140,29 @@ class StravaTokenRepo(ReadStravaToken):
     """
 
     def __init__(
-        self, tokens: StravaTokenSet, api_config: StravaApiConfig | None = None
+        self,
+        tokens: StravaTokenSet,
+        api_config: StravaApiConfig | None = None,
+        breaker: pybreaker.CircuitBreaker | None = None,
     ):
         self._tokens = tokens
         self._api_config = api_config or StravaApiConfig()
+        # Default to a private breaker so a bare StravaTokenRepo (e.g. in
+        # ad-hoc scripts) is still self-contained. Production code wires
+        # the same breaker into StravaTokenRepo + StravaApiClient via the
+        # factory so they share circuit state.
+        self._breaker = breaker if breaker is not None else create_strava_breaker()
 
     def refresh(self) -> StravaTokenSet:
+        try:
+            return self._breaker.call(self._do_refresh)
+        except pybreaker.CircuitBreakerError as exc:
+            raise StravaApiError(
+                f"Strava circuit breaker open: {exc}",
+                status_code=HTTP_SERVICE_UNAVAILABLE,
+            ) from exc
+
+    def _do_refresh(self) -> StravaTokenSet:
         @retry_on_failure(
             max_attempts=self._api_config.token_retry_attempts,
             backoff_seconds=self._api_config.token_retry_backoff,
@@ -186,15 +285,21 @@ class StravaApiClient:
         self,
         token_manager: StravaTokenManager,
         api_config: StravaApiConfig | None = None,
+        breaker: pybreaker.CircuitBreaker | None = None,
     ):
         """Initialize API client.
 
         Args:
             token_manager: Manager for getting/refreshing access tokens
             api_config: API configuration (URLs, timeouts, retry settings)
+            breaker: Shared circuit breaker for outbound Strava calls.
+                When None, a private breaker is created — production code
+                should pass the same breaker as StravaTokenRepo so they
+                share circuit state.
         """
         self._token_manager = token_manager
         self._api_config = api_config or StravaApiConfig()
+        self._breaker = breaker if breaker is not None else create_strava_breaker()
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with current access token."""
@@ -213,9 +318,21 @@ class StravaApiClient:
         Raises:
             ActivityNotFoundError: If activity doesn't exist (404)
             StravaTokenError: If authentication fails after retry (401)
-            StravaApiError: For other API errors
+            StravaApiError: For other API errors, including when the
+                circuit breaker is open (status_code=503).
         """
-        return self._get_activity_with_retry(activity_id, _token_refresh_count=0)
+        try:
+            return self._breaker.call(
+                self._get_activity_with_retry,
+                activity_id,
+                _token_refresh_count=0,
+            )
+        except pybreaker.CircuitBreakerError as exc:
+            raise StravaApiError(
+                f"Strava circuit breaker open: {exc}",
+                status_code=HTTP_SERVICE_UNAVAILABLE,
+                activity_id=activity_id,
+            ) from exc
 
     def _get_activity_with_retry(
         self, activity_id: int, *, _token_refresh_count: int
@@ -273,15 +390,23 @@ class StravaApiClient:
 
         Raises:
             StravaTokenError: If authentication fails after retry
-            StravaApiError: For other API errors
+            StravaApiError: For other API errors, including when the
+                circuit breaker is open (status_code=503).
         """
-        return self._list_activities_with_retry(
-            before=before,
-            after=after,
-            page=page,
-            per_page=per_page,
-            _token_refresh_count=0,
-        )
+        try:
+            return self._breaker.call(
+                self._list_activities_with_retry,
+                before=before,
+                after=after,
+                page=page,
+                per_page=per_page,
+                _token_refresh_count=0,
+            )
+        except pybreaker.CircuitBreakerError as exc:
+            raise StravaApiError(
+                f"Strava circuit breaker open: {exc}",
+                status_code=HTTP_SERVICE_UNAVAILABLE,
+            ) from exc
 
     def _list_activities_with_retry(
         self,
@@ -497,6 +622,7 @@ class StravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivities):
 def create_strava_activities_repo(
     tokens: StravaTokenSet,
     api_config: StravaApiConfig | None = None,
+    breaker: pybreaker.CircuitBreaker | None = None,
 ) -> StravaActivitiesRepo:
     """Create a fully-wired StravaActivitiesRepo.
 
@@ -507,15 +633,23 @@ def create_strava_activities_repo(
         tokens: Strava OAuth tokens (client_id, client_secret, refresh_token,
                 and optionally access_token)
         api_config: Optional API configuration (URLs, timeouts, retry settings)
+        breaker: Optional circuit breaker. Defaults to a fresh shared
+            instance — production code generally wants the default since
+            each composition root creates a long-lived repo and the
+            breaker state should live for the process lifetime. Tests
+            can pass a breaker with a short ``reset_timeout``.
 
     Returns:
         Configured StravaActivitiesRepo ready for use
     """
     config = api_config or StravaApiConfig()
+    # One breaker shared across the token-refresh and API-call paths
+    # so an outage trips it once for the entire Strava dependency.
+    shared_breaker = breaker if breaker is not None else create_strava_breaker()
 
     # Build the dependency chain
-    token_repo = StravaTokenRepo(tokens, config)
+    token_repo = StravaTokenRepo(tokens, config, breaker=shared_breaker)
     token_manager = StravaTokenManager(token_repo, tokens.access_token)
-    api_client = StravaApiClient(token_manager, config)
+    api_client = StravaApiClient(token_manager, config, breaker=shared_breaker)
 
     return StravaActivitiesRepo(api_client)

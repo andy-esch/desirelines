@@ -18,6 +18,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
+	"github.com/sony/gobreaker/v2"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -74,6 +75,17 @@ const (
 )
 
 const (
+	// Circuit-breaker thresholds for outbound Strava-API calls.
+	// Combined with retry: breaker wraps retry, so the breaker counts
+	// exhausted operations (not individual HTTP failures), per Microsoft's
+	// "Combining the Circuit Breaker pattern with the Retry pattern"
+	// guidance and the audit's 2026-05-28-arch-failure-modes M1 follow-up.
+	// 5 consecutive operations failing is a strong signal Strava itself
+	// is down; 30s open-state gives the dependency time to recover before
+	// half-open probes.
+	breakerFailureThreshold = 5
+	breakerOpenTimeout      = 30 * time.Second
+
 	// tokenExpirySkew triggers a proactive token refresh this long
 	// before the stored access token's nominal expiry. Covers clock
 	// drift and in-flight request time; well under Strava's ~6h token
@@ -98,8 +110,10 @@ type tokenResponse struct {
 }
 
 // Client implements ports.StravaClient by calling the Strava REST API.
-// Stateless: each FetchActivity call reads tokens from the TokenStore
-// and writes back refreshed tokens after a token refresh.
+// Stateless wrt per-user tokens (read from the TokenStore on each call),
+// but holds a *shared* circuit breaker whose state is process-wide for
+// the service instance — so a Strava outage trips once and fails-fast
+// for every concurrent caller until the dependency recovers.
 type Client struct {
 	httpClient   *http.Client
 	clientID     string
@@ -110,6 +124,7 @@ type Client struct {
 	logger       *slog.Logger
 	histogram    metric.Float64Histogram
 	tracer       trace.Tracer
+	breaker      *gobreaker.CircuitBreaker[[]byte]
 }
 
 // Compile-time check that Client implements StravaClient.
@@ -132,6 +147,75 @@ func NewClient(clientID, clientSecret string, tokenStore ports.TokenStore, logge
 		logger:       logger,
 		histogram:    histogram,
 		tracer:       tracer,
+		breaker:      newStravaBreaker(logger, breakerOpenTimeout),
+	}
+}
+
+// newStravaBreaker builds the circuit breaker shared across all Strava
+// outbound calls on a Client. `timeout` parameterizes the open-state
+// duration so tests can use a short value; production calls pass
+// breakerOpenTimeout (30s).
+func newStravaBreaker(logger *slog.Logger, timeout time.Duration) *gobreaker.CircuitBreaker[[]byte] {
+	return gobreaker.NewCircuitBreaker[[]byte](gobreaker.Settings{
+		Name:    "strava-api",
+		Timeout: timeout,
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			return counts.ConsecutiveFailures >= breakerFailureThreshold
+		},
+		OnStateChange: func(name string, from, to gobreaker.State) {
+			logger.Warn("Strava circuit breaker state change",
+				"breaker", name,
+				"from", from.String(),
+				"to", to.String(),
+			)
+		},
+		IsSuccessful: isStravaCallSuccessful,
+	})
+}
+
+// isStravaCallSuccessful returns true when an outcome should NOT count
+// as a Strava-side failure — i.e., it's a per-request signal (404/auth/
+// caller-canceled) rather than evidence that Strava itself is down.
+// Name matches gobreaker's “Settings.IsSuccessful“ parameter: the
+// breaker calls this "successful" because it tracks outcomes that look
+// healthy from the dependency's perspective, even if the caller saw an
+// error.
+func isStravaCallSuccessful(err error) bool {
+	// 429 — our quota is exceeded, not evidence that Strava is down.
+	// Tripping the breaker on rate-limit doesn't help (Strava is fine,
+	// we just used too much) and the retry layer already honors the
+	// Retry-After header. Mirrors the Python side's
+	// `StravaRateLimitError` entry in `create_strava_breaker`'s
+	// exclude list.
+	var apiErr *stravaAPIError
+	if errors.As(err, &apiErr) && apiErr.statusCode == http.StatusTooManyRequests {
+		return true
+	}
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, ports.ErrActivityNotFound):
+		// 404 — the activity doesn't exist. Strava is fine.
+		return true
+	case errors.Is(err, ErrStravaAuth):
+		// 401 after refresh — the user's tokens are bad. Strava is fine.
+		return true
+	case errors.Is(err, errRefreshTokenRejected):
+		// Refresh token rejected at /oauth/token. Per-user, not Strava.
+		return true
+	case errors.Is(err, context.Canceled):
+		// Caller canceled the context — no signal about Strava's health.
+		return true
+	default:
+		// 5xx / network / decode / DeadlineExceeded → Strava-side failure.
+		// DeadlineExceeded specifically: Go's http.Client wraps its own
+		// Timeout (httpClientTimeout = 10s) as context.DeadlineExceeded,
+		// and a Strava endpoint that can't answer in 10s IS evidence
+		// the dependency is degraded. Caller-supplied deadlines could
+		// also fire here in principle, but at our scope they are all
+		// orders of magnitude longer than the HTTP timeout, so this
+		// branch is dominated by Strava-side slowness.
+		return false
 	}
 }
 
@@ -162,13 +246,37 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 	)
 	defer func() { spanDone(err) }()
 
-	cid := gcplog.CorrelationIDFromContext(ctx)
-
+	// GetTokens hits Firestore, not Strava — keep it outside the breaker
+	// so a Firestore outage doesn't trip the Strava circuit.
 	tokens, err := c.tokenStore.GetTokens(ctx, ownerID)
 	if err != nil {
 		err = fmt.Errorf("get tokens for athlete %d: %w", ownerID, err)
 		return nil, err
 	}
+
+	// Breaker wraps the retry loop (not vice versa): the breaker counts
+	// exhausted *operations* as failures, not individual HTTP attempts,
+	// which is what Microsoft's combined-pattern guidance prescribes.
+	body, err := c.breaker.Execute(func() ([]byte, error) {
+		return c.fetchActivityWithTokens(ctx, ownerID, activityID, tokens)
+	})
+	if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
+		// Fail-fast path: Strava is presumed down. Surface as ErrStravaAPI
+		// so the dispatcher handler treats it as transient (500 → Strava
+		// retries), but stamp the span so the breaker-open case is
+		// filterable in Cloud Trace without log-mining.
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.breaker_open", true))
+		err = fmt.Errorf("%w: circuit breaker open: %w", ErrStravaAPI, err)
+		return nil, err
+	}
+	return body, err
+}
+
+// fetchActivityWithTokens runs the proactive-refresh + retry-loop body
+// that talks to Strava. Extracted so `FetchActivity` can wrap it with
+// the circuit breaker; on its own it has no breaker awareness.
+func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityID int64, tokens *stravatoken.Data) ([]byte, error) {
+	cid := gcplog.CorrelationIDFromContext(ctx)
 
 	// Refresh-ahead: refresh proactively when there is no stored token
 	// or it is at/under the expiry skew window, so we never send a
@@ -177,8 +285,19 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 	if reason := proactiveRefreshReason(tokens, time.Now()); reason != "" {
 		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, reason)
 		if refreshErr != nil {
-			err = fmt.Errorf("%w: proactive token refresh failed: %w", ErrStravaAuth, refreshErr)
-			return nil, err
+			// Only wrap as ErrStravaAuth when the underlying cause is a
+			// permanent rejection of the refresh token (revoked, rotated,
+			// or wrong). Transient failures (network errors, OAuth-endpoint
+			// 5xx, decode errors) must propagate as their own type so:
+			//   - the circuit breaker counts them as Strava-side failures
+			//     (ErrStravaAuth is excluded by isStravaCallSuccessful)
+			//   - the caller does not treat a temporary Strava outage as
+			//     evidence the user's refresh token is dead (which would
+			//     drive false re-link prompts at multi-user scale)
+			if errors.Is(refreshErr, errRefreshTokenRejected) {
+				return nil, fmt.Errorf("%w: proactive token refresh failed: %w", ErrStravaAuth, refreshErr)
+			}
+			return nil, fmt.Errorf("proactive token refresh failed: %w", refreshErr)
 		}
 		tokens = refreshedTokens
 	}
@@ -195,8 +314,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 
 		// 404 is not retryable
 		if errors.Is(fetchErr, ErrActivityNotFound) {
-			err = fetchErr
-			return nil, err
+			return nil, fetchErr
 		}
 
 		// 401: refresh token once and retry. A second 401 after refresh
@@ -204,15 +322,18 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 		// both Strava's token endpoint and Firestore.
 		if isAuthError(fetchErr) {
 			if authRefreshed {
-				err = fmt.Errorf("%w: still unauthorized after token refresh", ErrStravaAuth)
-				return nil, err
+				return nil, fmt.Errorf("%w: still unauthorized after token refresh", ErrStravaAuth)
 			}
 			c.logger.Warn("Strava 401, refreshing token",
 				"correlation_id", cid, "activity_id", activityID, "owner_id", ownerID)
 			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, refreshReasonReactive401)
 			if refreshErr != nil {
-				err = fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
-				return nil, err
+				// Same wrapping rule as the proactive path above — see
+				// comment there for the full rationale.
+				if errors.Is(refreshErr, errRefreshTokenRejected) {
+					return nil, fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
+				}
+				return nil, fmt.Errorf("token refresh failed: %w", refreshErr)
 			}
 			tokens = refreshedTokens
 			authRefreshed = true
@@ -245,8 +366,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 		attribute.Int("strava.attempts", activityRetryAttempts),
 		attribute.Bool("strava.exhausted", true),
 	)
-	err = fmt.Errorf("%w: %w", ErrStravaAPI, lastErr)
-	return nil, err
+	return nil, fmt.Errorf("%w: %w", ErrStravaAPI, lastErr)
 }
 
 // doFetchActivity performs a single GET request to the Strava activities endpoint.

@@ -7,6 +7,7 @@ require (
 	cloud.google.com/go/pubsub/v2 v2.6.0
 	github.com/andy-esch/desirelines/packages/shared v0.0.0
 	github.com/go-chi/chi/v5 v5.3.0
+	github.com/sony/gobreaker/v2 v2.4.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/metric v1.43.0
