@@ -1,6 +1,7 @@
 package strava
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
+	"github.com/sony/gobreaker/v2"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -139,10 +141,15 @@ const (
 	testSmallActivityID int64 = 1
 )
 
+// testBreakerTimeout shortens the open-state cool-off so breaker tests
+// don't sleep the production 30s waiting for half-open.
+const testBreakerTimeout = 50 * time.Millisecond
+
 // newTestClient creates a Client pointing at the given test server with a token store.
 func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client {
 	noopProviders := otel.NoopProviders()
 	noopHist, _ := noopProviders.Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
+	logger := gcplog.NewNoOpLogger()
 	return &Client{
 		httpClient:   server.Client(),
 		clientID:     "test-id",
@@ -150,9 +157,10 @@ func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client
 		tokenStore:   tokenStore,
 		tokenURL:     server.URL + testTokenPath,
 		apiBase:      server.URL + "/api/v3",
-		logger:       gcplog.NewNoOpLogger(),
+		logger:       logger,
 		histogram:    noopHist,
 		tracer:       noopProviders.Tracer,
+		breaker:      newStravaBreaker(logger, testBreakerTimeout),
 	}
 }
 
@@ -1054,4 +1062,205 @@ func TestJitterBackoff(t *testing.T) {
 			t.Errorf("jitter spread = %v, want >= 100ms (looks collapsed)", spread)
 		}
 	})
+}
+
+// TestCircuitBreaker_TripsAfterConsecutiveFailures verifies the breaker
+// opens after the configured threshold of consecutive failing
+// operations and short-circuits subsequent calls before any HTTP
+// request leaves the process.
+func TestCircuitBreaker_TripsAfterConsecutiveFailures(t *testing.T) {
+	var serverHits int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		serverHits++
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, err := w.Write([]byte(`{"error":"down"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	// Drive the breaker to OPEN. Each FetchActivity exhausts its
+	// internal retry loop (activityRetryAttempts requests) and counts
+	// as ONE breaker operation.
+	for range breakerFailureThreshold {
+		_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+		if err == nil {
+			t.Fatal("expected error while server is 500")
+		}
+	}
+	hitsAfterTrip := serverHits
+
+	// Next call should fail-fast with no HTTP request.
+	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected error on fail-fast call after breaker opens")
+	}
+	if !errors.Is(err, ErrStravaAPI) {
+		t.Errorf("breaker-open error not wrapped as ErrStravaAPI: %v", err)
+	}
+	if serverHits != hitsAfterTrip {
+		t.Errorf("server hit during fail-fast: hits before=%d after=%d", hitsAfterTrip, serverHits)
+	}
+	if state := client.breaker.State(); state != gobreaker.StateOpen {
+		t.Errorf("breaker state = %v, want %v", state, gobreaker.StateOpen)
+	}
+}
+
+// TestCircuitBreaker_BreakerOpenStampsSpan verifies the strava.breaker_open
+// span attribute is set on the fail-fast path so Cloud Trace surfaces
+// the breaker-open case without log-mining.
+func TestCircuitBreaker_BreakerOpenStampsSpan(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, err := w.Write([]byte(`{"error":"down"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client, sr := newRecordingTestClient(server, tokenStore)
+
+	for range breakerFailureThreshold {
+		if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err == nil {
+			t.Fatal("expected error during pre-trip failures")
+		}
+	}
+	// Fail-fast call: this is the one whose span should carry the attr.
+	if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err == nil {
+		t.Fatal("expected error on fail-fast call")
+	}
+
+	// The most recent span is the fail-fast one; earlier spans are the
+	// pre-trip failures (no breaker_open attr).
+	spans := sr.Ended()
+	failFastSpan := spans[len(spans)-1]
+	if !spanAttrBool(failFastSpan, "strava.breaker_open") {
+		t.Error("strava.breaker_open attribute not set on fail-fast span")
+	}
+}
+
+// TestCircuitBreaker_404DoesNotCount asserts that per-request errors
+// (not Strava-side failures) don't push the breaker toward open. The
+// breaker's contract is "trip when the dependency is down" — 404s are
+// per-activity, not per-Strava.
+func TestCircuitBreaker_404DoesNotCount(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		if _, err := w.Write([]byte(`{"error":"not found"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	// More attempts than the failure threshold — if 404 counted, the
+	// breaker would trip.
+	for range breakerFailureThreshold + 2 {
+		_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+		if !errors.Is(err, ErrActivityNotFound) {
+			t.Fatalf("expected ErrActivityNotFound, got %v", err)
+		}
+	}
+	if state := client.breaker.State(); state != gobreaker.StateClosed {
+		t.Errorf("breaker tripped on 404s; state = %v, want Closed", state)
+	}
+}
+
+// TestIsStravaFailureCountable enumerates the per-error classification
+// that drives the breaker. Catches regressions where a new error
+// sentinel is introduced without deciding which side of the breaker
+// counts it.
+func TestIsStravaFailureCountable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool // true = NOT counted as Strava failure
+	}{
+		{"nil success", nil, true},
+		{"404 activity not found", ports.ErrActivityNotFound, true},
+		{"401 after refresh (ErrStravaAuth)", ErrStravaAuth, true},
+		{"refresh token rejected", errRefreshTokenRejected, true},
+		{"caller canceled", context.Canceled, true},
+		{"caller deadline", context.DeadlineExceeded, true},
+		{"strava 5xx", &stravaAPIError{statusCode: 503}, false},
+		{"unknown error counts as failure", errors.New("boom"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isStravaFailureCountable(tt.err); got != tt.want {
+				t.Errorf("isStravaFailureCountable(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestCircuitBreaker_RecoversAfterTimeout verifies the breaker closes
+// again once the open-timeout elapses and a probe succeeds — the
+// "half-open" recovery path Microsoft's pattern guidance describes.
+func TestCircuitBreaker_RecoversAfterTimeout(t *testing.T) {
+	var serverDown atomic.Bool
+	serverDown.Store(true)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if serverDown.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			if _, err := w.Write([]byte(`{"error":"down"}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	for range breakerFailureThreshold {
+		if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err == nil {
+			t.Fatal("expected error while server is down")
+		}
+	}
+	if state := client.breaker.State(); state != gobreaker.StateOpen {
+		t.Fatalf("breaker not open after failure threshold; state = %v", state)
+	}
+
+	// "Recover" Strava and wait for the open-timeout to elapse.
+	serverDown.Store(false)
+	time.Sleep(testBreakerTimeout + 10*time.Millisecond)
+
+	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err != nil {
+		t.Fatalf("expected success after recovery, got: %v", err)
+	}
+	if !bytes.Contains(body, []byte("12345")) {
+		t.Errorf("unexpected body after recovery: %s", body)
+	}
+	if state := client.breaker.State(); state != gobreaker.StateClosed {
+		t.Errorf("breaker did not close after recovery; state = %v", state)
+	}
 }
