@@ -819,8 +819,8 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
 }
 
 # Alert-shape convention for `webhook_owner_check_*`:
-#   duration=0s + trigger.count=1 → single event (use when one occurrence is the signal).
-#   duration > 0 (no trigger)     → sustained rate (use when one-offs are noise).
+#   duration=0s  → single event (use when one occurrence is the signal).
+#   duration > 0 → sustained rate (use when one-offs are noise).
 
 # HIGH: Orphan tokens — an allowlisted athlete's webhook arrived but the
 # dispatcher had no Firestore tokens for them. This indicates real data loss
@@ -882,10 +882,6 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_RATE"
         cross_series_reducer = "REDUCE_SUM"
-      }
-
-      trigger {
-        count = 1
       }
     }
   }
