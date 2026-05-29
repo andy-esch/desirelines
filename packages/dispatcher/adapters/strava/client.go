@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
@@ -223,7 +222,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 
 		lastErr = fetchErr
 		if attempt < activityRetryAttempts-1 {
-			nominal := min(activityRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
+			nominal := min(activityRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
 			backoff := jitterBackoff(nominal)
 			trace.SpanFromContext(ctx).AddEvent("strava.retry",
 				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, fetchErr)...))
@@ -366,7 +365,7 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 		}
 		lastErr = err
 		if attempt < tokenRetryAttempts-1 {
-			nominal := min(tokenRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
+			nominal := min(tokenRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
 			backoff := jitterBackoff(nominal)
 			trace.SpanFromContext(ctx).AddEvent("strava.retry",
 				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, err)...))
