@@ -818,12 +818,17 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
   }
 }
 
+# Alert-shape convention for `webhook_owner_check_*`:
+#   duration=0s + trigger.count=1 → single event (use when one occurrence is the signal).
+#   duration > 0 (no trigger)     → sustained rate (use when one-offs are noise).
+
 # HIGH: Orphan tokens — an allowlisted athlete's webhook arrived but the
 # dispatcher had no Firestore tokens for them. This indicates real data loss
 # (Firestore wipe, deauth/re-auth race, partial migration) rather than the
 # expected stray-webhook case. Distinct from STRAVA_FETCH_FAILED 5xx alerts
 # because the dispatcher acks orphans with 200 to stop Strava retries — the
-# orphan condition is ONLY visible via this counter label.
+# orphan condition is ONLY visible via this counter label. Fires on the
+# first event; orphan is a one-shot signal.
 #
 # Stray (`result=stray`) is intentionally NOT alerted — those are routine
 # byproducts of cross-env or post-deauth Strava grants, ack'd silently.
@@ -865,11 +870,11 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
   }
 
   conditions {
-    display_name = "owner_check{result=orphan} rate > 0 for 5m"
+    display_name = "owner_check{result=orphan} > 0 (single event)"
 
     condition_threshold {
       filter          = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/owner_check\" AND resource.type=\"generic_task\" AND metric.labels.result=\"orphan\""
-      duration        = "300s"
+      duration        = "0s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0
 
@@ -877,6 +882,10 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_RATE"
         cross_series_reducer = "REDUCE_SUM"
+      }
+
+      trigger {
+        count = 1
       }
     }
   }
