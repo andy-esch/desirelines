@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from functools import wraps
 import logging
+import random
 import time
 from typing import Any, TypeVar, cast
 
@@ -32,6 +33,10 @@ def _add_retry_event(
     Mirrors the dispatcher's Go ``strava.retry`` events so retries are
     visible cross-language in Cloud Trace. ``status_code`` is preferred;
     ``error`` is a bounded exception type name, never a response body.
+
+    ``backoff_seconds`` is the *actual* (post-jitter) sleep duration, not
+    the nominal exponential value — so Cloud Trace surfaces the real
+    delay distribution rather than the deterministic curve.
     """
     attrs: dict[str, Any] = {"attempt": attempt, "backoff": f"{backoff_seconds:g}s"}
     if status_code is not None:
@@ -53,15 +58,27 @@ def retry_on_failure(
     backoff_seconds: float = 1.0,
     exponential_backoff: bool = True,
 ) -> Callable[[F], F]:
-    """Retry decorator for API calls with exponential backoff.
+    """Retry decorator for API calls with exponential backoff and full jitter.
 
     Retries on: 429 (rate limit), 5xx (server errors), connection errors,
     and timeouts. All other HTTP errors are raised immediately.
 
+    Backoff applies AWS "full jitter" — the actual sleep on retry ``n`` is
+    sampled uniformly from ``[0, base * 2^n)`` (or ``[0, base)`` when
+    ``exponential_backoff=False``). Without jitter, concurrent failing
+    requests retry in lockstep and amplify load on a recovering endpoint
+    (https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/).
+    Mirrors the Go-side ``jitterBackoff`` in
+    ``packages/dispatcher/adapters/strava/client.go``.
+
     Args:
-        max_attempts: Maximum number of retry attempts
-        backoff_seconds: Initial delay between retries
-        exponential_backoff: Whether to use exponential backoff
+        max_attempts: Maximum number of retry attempts.
+        backoff_seconds: Upper bound of the jitter window on the first
+            retry (and the base of the exponential progression when
+            ``exponential_backoff=True``). NOT the deterministic sleep.
+        exponential_backoff: If True, the jitter window doubles each
+            attempt (`base`, `2*base`, `4*base`, …). If False, every
+            attempt samples from `[0, base)`.
     """
 
     def decorator(func: F) -> F:
@@ -128,9 +145,16 @@ def retry_on_failure(
 
                 # Don't sleep on the last attempt
                 if attempt < max_attempts - 1:
-                    delay = backoff_seconds
+                    nominal = backoff_seconds
                     if exponential_backoff:
-                        delay *= 2**attempt
+                        nominal *= 2**attempt
+                    # Full jitter (AWS "Exponential Backoff And Jitter"):
+                    # `sleep = random_between(0, base * 2^attempt)`. Prevents
+                    # concurrent failing requests (backfill bursts, post-
+                    # outage webhook catch-up) from re-firing in lockstep
+                    # and amplifying load on a recovering Strava endpoint.
+                    # Mirrors the Go-side jitter in `dispatcher/adapters/strava/client.go`.
+                    delay = random.uniform(0, nominal)
 
                     logger.warning(
                         "Request failed (attempt %d/%d), retrying in %.1f seconds: %s",

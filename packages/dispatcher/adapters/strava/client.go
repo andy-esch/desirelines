@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"strings"
@@ -222,7 +222,8 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 
 		lastErr = fetchErr
 		if attempt < activityRetryAttempts-1 {
-			backoff := min(activityRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
+			nominal := min(activityRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
+			backoff := jitterBackoff(nominal)
 			trace.SpanFromContext(ctx).AddEvent("strava.retry",
 				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, fetchErr)...))
 			c.logger.Warn("Strava fetch retry",
@@ -364,7 +365,8 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 		}
 		lastErr = err
 		if attempt < tokenRetryAttempts-1 {
-			backoff := min(tokenRetryBackoff*time.Duration(math.Pow(2, float64(attempt))), maxRetryBackoff)
+			nominal := min(tokenRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
+			backoff := jitterBackoff(nominal)
 			trace.SpanFromContext(ctx).AddEvent("strava.retry",
 				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, err)...))
 			c.logger.Warn("Token refresh retry",
@@ -465,6 +467,23 @@ type stravaAPIError struct {
 
 func (e *stravaAPIError) Error() string {
 	return fmt.Sprintf("strava API error: HTTP %d", e.statusCode)
+}
+
+// jitterBackoff applies AWS-style full jitter to a nominal exponential
+// backoff: returns a uniformly-random duration in [0, nominal). Without
+// jitter, concurrent failing requests retry in lockstep, amplifying load
+// on a recovering endpoint (AWS Architecture Blog, "Exponential Backoff
+// And Jitter", 2015). Mirrored on the Python side in
+// `packages/stravapipe/src/stravapipe/retry.py`. A zero or negative
+// nominal is returned as 0 — defensive; callers don't produce those.
+func jitterBackoff(nominal time.Duration) time.Duration {
+	if nominal <= 0 {
+		return 0
+	}
+	// math/rand/v2 is the right choice for backoff jitter — it's a
+	// retry-spread mechanism, not a credential. crypto/rand would be
+	// 10× slower and pointless here.
+	return time.Duration(rand.Int64N(int64(nominal))) //nolint:gosec // non-cryptographic jitter
 }
 
 // retryEventAttrs builds the strava.retry span-event attributes. HTTP

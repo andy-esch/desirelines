@@ -157,7 +157,7 @@ class TestRetryOnFailure:
             mock_sleep.assert_called_once_with(60)  # Default fallback
 
     def test_exponential_backoff(self):
-        """Test exponential backoff timing."""
+        """Nominal backoff progression with jitter pinned to the upper bound."""
         call_count = 0
 
         @retry_on_failure(max_attempts=3, backoff_seconds=1.0, exponential_backoff=True)
@@ -168,17 +168,22 @@ class TestRetryOnFailure:
                 raise requests.exceptions.ConnectionError("Network error")
             return "success"
 
-        with patch("time.sleep") as mock_sleep:
+        # Pin jitter to its upper bound so we can assert the nominal
+        # exponential progression (1.0, 2.0). Jitter is exercised
+        # separately in test_jitter_is_applied below.
+        with (
+            patch("time.sleep") as mock_sleep,
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _, b: b),
+        ):
             result = failing_func()
             assert result == "success"
 
-            # Should have slept twice: 1.0 seconds, then 2.0 seconds
             expected_calls = [1.0, 2.0]
             actual_calls = [call[0][0] for call in mock_sleep.call_args_list]
             assert actual_calls == expected_calls
 
     def test_linear_backoff(self):
-        """Test linear backoff timing."""
+        """Linear (non-exponential) backoff with jitter pinned to the upper bound."""
         call_count = 0
 
         @retry_on_failure(
@@ -191,14 +196,54 @@ class TestRetryOnFailure:
                 raise requests.exceptions.ConnectionError("Network error")
             return "success"
 
-        with patch("time.sleep") as mock_sleep:
+        with (
+            patch("time.sleep") as mock_sleep,
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _, b: b),
+        ):
             result = failing_func()
             assert result == "success"
 
-            # Should have slept twice: 0.5 seconds each time
             expected_calls = [0.5, 0.5]
             actual_calls = [call[0][0] for call in mock_sleep.call_args_list]
             assert actual_calls == expected_calls
+
+    def test_jitter_is_applied(self):
+        """Full jitter samples from [0, base * 2^attempt) per AWS guidance.
+
+        Without jitter, concurrent failing requests retry in lockstep,
+        amplifying load on a recovering endpoint. The test pins
+        ``random.uniform`` to a fixed fraction (0.5) so the assertion
+        is deterministic, but checks the bound argument matches the
+        nominal exponential value — verifying jitter receives the
+        right window.
+        """
+        call_count = 0
+
+        @retry_on_failure(max_attempts=3, backoff_seconds=1.0, exponential_backoff=True)
+        def failing_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise requests.exceptions.ConnectionError("Network error")
+            return "success"
+
+        with (
+            patch("time.sleep") as mock_sleep,
+            patch(
+                "stravapipe.retry.random.uniform", side_effect=lambda a, b: (a + b) / 2
+            ) as mock_uniform,
+        ):
+            failing_func()
+
+            # Both calls should request jitter over [0, nominal]:
+            # attempt 0 → nominal 1.0; attempt 1 → nominal 2.0.
+            assert mock_uniform.call_args_list == [
+                ((0, 1.0),),
+                ((0, 2.0),),
+            ]
+            # Sleeps are the midpoint of each window.
+            actual_sleeps = [call[0][0] for call in mock_sleep.call_args_list]
+            assert actual_sleeps == [0.5, 1.0]
 
     @pytest.mark.parametrize("status_code", [500, 502, 503, 504])
     def test_all_5xx_errors_are_retried(self, status_code):
@@ -339,7 +384,14 @@ class TestRetrySpanEvents:
         return provider, exporter
 
     def test_network_error_emits_retry_events_and_exhausted(self):
-        """Network failures: strava.retry events + exhaustion attrs, no body."""
+        """Network failures: strava.retry events + exhaustion attrs, no body.
+
+        The ``backoff`` attribute should record the *actual* (post-jitter)
+        sleep so Cloud Trace surfaces the real delay distribution. We
+        pin ``random.uniform`` to a fixed fraction so the asserted values
+        are deterministic; without jitter the test would assert the
+        nominal exponential curve.
+        """
         provider, exporter = self._exporter()
         tracer = provider.get_tracer("test")
 
@@ -349,6 +401,7 @@ class TestRetrySpanEvents:
 
         with (
             patch("time.sleep"),
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _, b: b * 0.25),
             tracer.start_as_current_span("parent"),
             pytest.raises(requests.exceptions.ConnectionError),
         ):
@@ -357,9 +410,15 @@ class TestRetrySpanEvents:
         span = exporter.get_finished_spans()[0]
         events = [e for e in span.events if e.name == "strava.retry"]
         assert len(events) == 2  # max_attempts - 1
-        for i, e in enumerate(events, start=1):
+        # Attempt 1 nominal = 0.01 * 2^0 = 0.01 → 0.25 * 0.01 = 0.0025
+        # Attempt 2 nominal = 0.01 * 2^1 = 0.02 → 0.25 * 0.02 = 0.005
+        expected_backoffs = ["0.0025s", "0.005s"]
+        for i, (e, expected_backoff) in enumerate(
+            zip(events, expected_backoffs, strict=True), start=1
+        ):
             assert _attrs(e)["attempt"] == i
             assert _attrs(e)["error"] == "ConnectionError"
+            assert _attrs(e)["backoff"] == expected_backoff
             # Network errors have no HTTP status and never a response body.
             assert "status_code" not in _attrs(e)
         assert _attrs(span)["strava.attempts"] == 3
