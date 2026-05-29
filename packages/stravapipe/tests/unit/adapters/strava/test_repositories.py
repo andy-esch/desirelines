@@ -7,8 +7,10 @@ Tests the layered architecture:
 - StravaActivitiesRepo: Domain model conversion
 """
 
+from datetime import UTC, datetime, timedelta
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from requests_mock import Mocker
@@ -19,6 +21,7 @@ from stravapipe.adapters.strava._repositories import (
     StravaTokenManager,
     StravaTokenRepo,
     create_strava_activities_repo,
+    create_strava_breaker,
 )
 from stravapipe.config import StravaApiConfig
 from stravapipe.domain import (
@@ -519,3 +522,152 @@ class TestStravaActivitiesRepoByYear:
             result = activities_repo.read_activities_by_year(2020)
 
         assert result == []
+
+
+class TestStravaCircuitBreaker:
+    """Circuit-breaker behavior on the shared Strava breaker.
+
+    Time.sleep is patched in every test so the retry backoff inside
+    `_get_activity_with_retry` doesn't slow the suite. Tests use a
+    breaker with short ``reset_timeout`` so the half-open recovery
+    path completes in milliseconds.
+    """
+
+    @staticmethod
+    def _build_client(token_manager_with_token, api_config, breaker) -> StravaApiClient:
+        return StravaApiClient(token_manager_with_token, api_config, breaker=breaker)
+
+    def test_trips_after_consecutive_failures(
+        self, token_manager_with_token, api_config
+    ):
+        """5 consecutive 5xx failures open the breaker; next call fails-fast."""
+        breaker = create_strava_breaker(fail_max=5, reset_timeout=60)
+        client = self._build_client(token_manager_with_token, api_config, breaker)
+        activity_id = 11111
+
+        with (
+            Mocker() as m,
+            patch("stravapipe.retry.time.sleep"),
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _a, _b: 0),
+        ):
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            m.get(endpoint, status_code=500, text="Server Error")
+
+            # Drive the breaker to OPEN. Each call exhausts the retry
+            # loop and counts as one breaker failure.
+            for _ in range(5):
+                with pytest.raises(StravaApiError):
+                    client.get_activity(activity_id)
+            hits_after_trip = m.call_count
+
+            # Fail-fast call: no new HTTP request.
+            with pytest.raises(StravaApiError) as exc_info:
+                client.get_activity(activity_id)
+            assert m.call_count == hits_after_trip
+            assert exc_info.value.status_code == 503
+            assert "circuit breaker open" in str(exc_info.value)
+            assert breaker.current_state == "open"
+
+    def test_404_does_not_count_as_failure(self, token_manager_with_token, api_config):
+        """ActivityNotFoundError is per-activity, not Strava-down."""
+        breaker = create_strava_breaker(fail_max=5, reset_timeout=60)
+        client = self._build_client(token_manager_with_token, api_config, breaker)
+        activity_id = 22222
+
+        with (
+            Mocker() as m,
+            patch("stravapipe.retry.time.sleep"),
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _a, _b: 0),
+        ):
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            m.get(endpoint, status_code=404)
+
+            # More attempts than the failure threshold; if 404 counted,
+            # the breaker would open and the last call would fail-fast.
+            for _ in range(7):
+                with pytest.raises(ActivityNotFoundError):
+                    client.get_activity(activity_id)
+
+            assert breaker.current_state == "closed"
+
+    def test_recovers_after_reset_timeout(
+        self, token_manager_with_token, api_config, activity_json
+    ):
+        """After ``reset_timeout`` the breaker probes; a success closes it.
+
+        Backdates ``_state_storage.opened_at`` instead of sleeping so
+        the test runs in milliseconds instead of seconds. Mutating
+        private state is fragile against pybreaker upgrades, but the
+        alternative — `time.sleep(reset_timeout)` — would slow this
+        test by orders of magnitude.
+        """
+        breaker = create_strava_breaker(fail_max=5, reset_timeout=60)
+        client = self._build_client(token_manager_with_token, api_config, breaker)
+        activity_id = activity_json["id"]
+
+        with (
+            Mocker() as m,
+            patch("stravapipe.retry.time.sleep"),
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _a, _b: 0),
+        ):
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            # `_fetch` returns the requests.Response without raising on
+            # 5xx, so @retry_on_failure never sees an exception — each
+            # get_activity makes exactly ONE HTTP call, not three. 5
+            # breaker failures = 5 hits at 500; the 6th hit is the
+            # half-open probe and returns 200.
+            down = {"status_code": 500, "text": "Server Error"}
+            up = {"json": activity_json, "status_code": 200}
+            m.get(endpoint, [down] * 5 + [up])
+
+            for _ in range(5):
+                with pytest.raises(StravaApiError):
+                    client.get_activity(activity_id)
+            assert breaker.current_state == "open"
+
+            # Fast-forward past reset_timeout without sleeping.
+            breaker._state_storage.opened_at = datetime.now(UTC) - timedelta(
+                seconds=120
+            )
+
+            result = client.get_activity(activity_id)
+            assert result["id"] == activity_id
+            assert breaker.current_state == "closed"
+
+    def test_shared_breaker_across_token_and_api_paths(
+        self, tokenset_with_access, api_config
+    ):
+        """Failures at the token endpoint trip the same breaker the API uses.
+
+        Verifies the factory wires one breaker into both StravaTokenRepo
+        and StravaApiClient — an outage on either endpoint short-circuits
+        both paths.
+        """
+        breaker = create_strava_breaker(fail_max=2, reset_timeout=60)
+        repo = create_strava_activities_repo(
+            tokenset_with_access, api_config, breaker=breaker
+        )
+        activity_id = 33333
+
+        with (
+            Mocker() as m,
+            patch("stravapipe.retry.time.sleep"),
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _a, _b: 0),
+        ):
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            # Two API failures trip the (fail_max=2) breaker.
+            m.get(endpoint, status_code=500, text="Server Error")
+            for _ in range(2):
+                with pytest.raises(StravaApiError):
+                    repo.read_activity_by_id(activity_id)
+            assert breaker.current_state == "open"
+
+            # Token refresh through the SAME breaker also fail-fasts.
+            m.post(api_config.token_url, json={"access_token": "x"})
+            token_repo = StravaTokenRepo(
+                tokens=tokenset_with_access, api_config=api_config, breaker=breaker
+            )
+            with pytest.raises(StravaApiError) as exc_info:
+                token_repo.refresh()
+            assert exc_info.value.status_code == 503
+            assert "circuit breaker open" in str(exc_info.value)
