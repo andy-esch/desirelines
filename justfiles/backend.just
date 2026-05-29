@@ -39,10 +39,10 @@ py-typecheck +args='':
         pants check packages/stravapipe::
     else
         echo "🐍 Running Python type checking with mypy (fast)..."
-        # --no-warn-unused-configs: the `tests.*` override is intentionally
-        # only consumed by `pants check` (which covers tests); this local
-        # run scopes to `src/` and would otherwise emit a benign note.
-        cd packages/stravapipe && uv run mypy --no-warn-unused-configs src/ {{args}}
+        # Include tests/ so the local check matches pants' scope —
+        # previously this only ran on src/ and let test-only type
+        # errors slip through to CI.
+        cd packages/stravapipe && uv run mypy src/ tests/ {{args}}
     fi
 
 # Workspace members — keep in sync with `go.work`'s `use (...)` block.

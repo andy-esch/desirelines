@@ -714,7 +714,7 @@ class TestStravaCircuitBreaker:
         TestIsStravaCallSuccessful classification matrix.
         """
         breaker = create_strava_breaker()
-        excluded = set(breaker.excluded_exceptions)
+        excluded = breaker.excluded_exceptions
         # Per-request signals — Strava is fine, the request just failed.
         assert ActivityNotFoundError in excluded
         assert StravaTokenError in excluded
