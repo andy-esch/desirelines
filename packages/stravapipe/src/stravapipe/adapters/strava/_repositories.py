@@ -105,6 +105,18 @@ def create_strava_breaker(
     toward Strava-side health — 404 (per-activity), 401 (per-user
     token), 429 (per-user rate limit). Everything else (5xx, network,
     timeout) counts as a Strava failure.
+
+    **Contract for excluded exception types:** the exclusion list is
+    semantic, not structural. ``StravaTokenError`` and
+    ``StravaRateLimitError`` MUST only be raised for *permanent*
+    per-user signals — a 401 ``invalid_grant`` from the OAuth endpoint
+    or a 429 quota exceeded. If a transient failure on the token
+    endpoint (a 503 from Strava's OAuth side, a connection reset)
+    were ever wrapped as ``StravaTokenError``, the breaker would
+    silently miss the outage. The current call sites in
+    ``StravaTokenRepo._do_refresh`` honor this: 401 → ``StravaTokenError``,
+    everything else → ``StravaApiError`` (or the original ``requests``
+    exception), both of which count as breaker failures.
     """
     return pybreaker.CircuitBreaker(
         fail_max=fail_max,

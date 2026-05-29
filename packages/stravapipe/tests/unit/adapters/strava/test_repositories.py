@@ -33,6 +33,7 @@ from stravapipe.domain import (
 from stravapipe.exceptions import (
     ActivityNotFoundError,
     StravaApiError,
+    StravaRateLimitError,
     StravaTokenError,
 )
 
@@ -527,10 +528,11 @@ class TestStravaActivitiesRepoByYear:
 class TestStravaCircuitBreaker:
     """Circuit-breaker behavior on the shared Strava breaker.
 
-    Time.sleep is patched in every test so the retry backoff inside
-    `_get_activity_with_retry` doesn't slow the suite. Tests use a
-    breaker with short ``reset_timeout`` so the half-open recovery
-    path completes in milliseconds.
+    ``time.sleep`` and ``random.uniform`` are patched in every test so
+    the retry backoff inside ``_get_activity_with_retry`` doesn't slow
+    the suite. The recovery test backdates the breaker's internal
+    ``opened_at`` instead of sleeping past ``reset_timeout`` so the
+    whole class runs in milliseconds.
     """
 
     @staticmethod
@@ -671,3 +673,52 @@ class TestStravaCircuitBreaker:
                 token_repo.refresh()
             assert exc_info.value.status_code == 503
             assert "circuit breaker open" in str(exc_info.value)
+
+    def test_token_endpoint_5xx_counts_as_failure(self, tokenset, api_config):
+        """A 5xx on /oauth/token must count toward the breaker.
+
+        Mirrors the Go-side `TestCircuitBreaker_TokenEndpoint5xxCountsAsFailure`:
+        token-endpoint outages would silently bypass the breaker if
+        ``StravaTokenError`` were raised for transient failures (the
+        ``exclude`` list would swallow them). The current
+        ``_do_refresh`` correctly raises ``StravaApiError`` for non-401
+        failures, which counts; this test pins that contract.
+        """
+        breaker = create_strava_breaker(fail_max=3, reset_timeout=60)
+        token_repo = StravaTokenRepo(
+            tokens=tokenset, api_config=api_config, breaker=breaker
+        )
+
+        with (
+            Mocker() as m,
+            patch("stravapipe.retry.time.sleep"),
+            patch("stravapipe.retry.random.uniform", side_effect=lambda _a, _b: 0),
+        ):
+            m.post(api_config.token_url, status_code=503, text="oauth down")
+            for _ in range(3):
+                with pytest.raises(StravaApiError) as exc_info:
+                    token_repo.refresh()
+                # Not the StravaTokenError subclass — that would be
+                # excluded by the breaker. Must be the parent class.
+                assert not isinstance(exc_info.value, StravaTokenError)
+
+        assert breaker.current_state == "open"
+
+    def test_breaker_excludes_per_request_signals(self):
+        """The breaker's ``exclude`` list must cover per-request errors.
+
+        Catches regressions where a new per-request exception type is
+        introduced (e.g. a 410 Gone wrapper) without being added to the
+        exclude list — a missed exclusion would let routine 404s push
+        the breaker toward open. Mirror of the Go-side
+        TestIsStravaCallSuccessful classification matrix.
+        """
+        breaker = create_strava_breaker()
+        excluded = set(breaker.excluded_exceptions)
+        # Per-request signals — Strava is fine, the request just failed.
+        assert ActivityNotFoundError in excluded
+        assert StravaTokenError in excluded
+        assert StravaRateLimitError in excluded
+        # Strava-side signals must NOT be excluded — they're the whole
+        # point of the breaker.
+        assert StravaApiError not in excluded

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -698,8 +699,20 @@ func TestFetchActivity_TokenRefreshReturnsNoAccessToken(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when token response has empty access_token")
 	}
-	if !errors.Is(err, ErrStravaAuth) {
-		t.Errorf("expected ErrStravaAuth, got %v", err)
+	// Empty-access-token is a Strava-side malformed response (200 with
+	// missing field), NOT a permanent rejection of the user's refresh
+	// token. Must NOT wrap as ErrStravaAuth — that would (a) exclude
+	// the failure from the circuit breaker and (b) misclassify a
+	// transient Strava issue as a user-side credential problem.
+	if errors.Is(err, ErrStravaAuth) {
+		t.Errorf("transient token-response error must not wrap as ErrStravaAuth: %v", err)
+	}
+	if !errors.Is(err, errRefreshTokenRejected) {
+		// Sanity: the underlying error is the "missing access_token"
+		// surface, not a refresh-token-rejected sentinel.
+		if !strings.Contains(err.Error(), "missing access_token") {
+			t.Errorf("expected 'missing access_token' in error, got %v", err)
+		}
 	}
 }
 
@@ -732,8 +745,12 @@ func TestFetchActivity_TokenRefreshInvalidJSON(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when token endpoint returns invalid JSON")
 	}
-	if !errors.Is(err, ErrStravaAuth) {
-		t.Errorf("expected ErrStravaAuth, got %v", err)
+	// Invalid JSON is a Strava-side malformed response, NOT a permanent
+	// rejection of the user's refresh token. Must NOT wrap as
+	// ErrStravaAuth — see TestFetchActivity_TokenRefreshReturnsNoAccessToken
+	// for the full rationale.
+	if errors.Is(err, ErrStravaAuth) {
+		t.Errorf("transient token-decode error must not wrap as ErrStravaAuth: %v", err)
 	}
 }
 
@@ -800,8 +817,15 @@ func TestFetchActivity_WriteBackFailureReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when token write-back fails")
 	}
-	if !errors.Is(err, ErrStravaAuth) {
-		t.Errorf("expected ErrStravaAuth, got %v", err)
+	// Firestore write-back failure is neither a Strava-auth issue
+	// (user's tokens are actually fine) nor a permanent refresh-token
+	// rejection. Must NOT wrap as ErrStravaAuth — the new contract is
+	// that ErrStravaAuth is reserved for errRefreshTokenRejected paths.
+	if errors.Is(err, ErrStravaAuth) {
+		t.Errorf("write-back failure must not wrap as ErrStravaAuth: %v", err)
+	}
+	if !strings.Contains(err.Error(), "firestore write failed") {
+		t.Errorf("expected underlying write-back error in chain, got %v", err)
 	}
 }
 
@@ -1184,11 +1208,11 @@ func TestCircuitBreaker_404DoesNotCount(t *testing.T) {
 	}
 }
 
-// TestIsStravaFailureCountable enumerates the per-error classification
+// TestIsStravaCallSuccessful enumerates the per-error classification
 // that drives the breaker. Catches regressions where a new error
 // sentinel is introduced without deciding which side of the breaker
 // counts it.
-func TestIsStravaFailureCountable(t *testing.T) {
+func TestIsStravaCallSuccessful(t *testing.T) {
 	tests := []struct {
 		name string
 		err  error
@@ -1199,14 +1223,14 @@ func TestIsStravaFailureCountable(t *testing.T) {
 		{"401 after refresh (ErrStravaAuth)", ErrStravaAuth, true},
 		{"refresh token rejected", errRefreshTokenRejected, true},
 		{"caller canceled", context.Canceled, true},
-		{"caller deadline", context.DeadlineExceeded, true},
+		{"http timeout (DeadlineExceeded)", context.DeadlineExceeded, false},
 		{"strava 5xx", &stravaAPIError{statusCode: 503}, false},
 		{"unknown error counts as failure", errors.New("boom"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isStravaFailureCountable(tt.err); got != tt.want {
-				t.Errorf("isStravaFailureCountable(%v) = %v, want %v", tt.err, got, tt.want)
+			if got := isStravaCallSuccessful(tt.err); got != tt.want {
+				t.Errorf("isStravaCallSuccessful(%v) = %v, want %v", tt.err, got, tt.want)
 			}
 		})
 	}
@@ -1249,9 +1273,12 @@ func TestCircuitBreaker_RecoversAfterTimeout(t *testing.T) {
 		t.Fatalf("breaker not open after failure threshold; state = %v", state)
 	}
 
-	// "Recover" Strava and wait for the open-timeout to elapse.
+	// "Recover" Strava and wait for the open-timeout to elapse. The
+	// buffer is 30ms (not 10ms) so the test stays robust under CI
+	// scheduling pressure — sleeps shorter than that have flaked in
+	// loaded environments.
 	serverDown.Store(false)
-	time.Sleep(testBreakerTimeout + 10*time.Millisecond)
+	time.Sleep(testBreakerTimeout + 30*time.Millisecond)
 
 	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
 	if err != nil {
@@ -1262,5 +1289,48 @@ func TestCircuitBreaker_RecoversAfterTimeout(t *testing.T) {
 	}
 	if state := client.breaker.State(); state != gobreaker.StateClosed {
 		t.Errorf("breaker did not close after recovery; state = %v", state)
+	}
+}
+
+// TestCircuitBreaker_TokenEndpoint5xxCountsAsFailure verifies that a
+// proactive-refresh failure caused by Strava's /oauth/token endpoint
+// returning 5xx is NOT swallowed by the ErrStravaAuth wrap and DOES
+// drive the breaker toward open. Regression guard for the bug gemini
+// flagged: wrapping transient token-refresh failures as ErrStravaAuth
+// hides the failure from the breaker (excluded by isStravaCallSuccessful)
+// and risks misclassifying a Strava outage as a per-user auth issue.
+func TestCircuitBreaker_TokenEndpoint5xxCountsAsFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == testTokenPath {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			if _, err := w.Write([]byte(`{"error":"oauth down"}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	// pastExpiry triggers proactive refresh on every FetchActivity,
+	// so each call hits the (failing) token endpoint.
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "old", RefreshToken: "r", ExpiresAt: pastExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	for range breakerFailureThreshold {
+		_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+		if err == nil {
+			t.Fatal("expected error while token endpoint is 5xx")
+		}
+		if errors.Is(err, ErrStravaAuth) {
+			t.Errorf("token-endpoint 5xx must not wrap as ErrStravaAuth: %v", err)
+		}
+	}
+	if state := client.breaker.State(); state != gobreaker.StateOpen {
+		t.Errorf("breaker did not open from token-endpoint 5xx failures; state = %v", state)
 	}
 }

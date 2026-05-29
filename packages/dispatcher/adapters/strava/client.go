@@ -169,16 +169,18 @@ func newStravaBreaker(logger *slog.Logger, timeout time.Duration) *gobreaker.Cir
 				"to", to.String(),
 			)
 		},
-		IsSuccessful: isStravaFailureCountable,
+		IsSuccessful: isStravaCallSuccessful,
 	})
 }
 
-// isStravaFailureCountable returns true when an error should NOT count
+// isStravaCallSuccessful returns true when an outcome should NOT count
 // as a Strava-side failure — i.e., it's a per-request signal (404/auth/
 // caller-canceled) rather than evidence that Strava itself is down.
-// gobreaker calls this "IsSuccessful" because the breaker tracks
-// "outcomes that look healthy from the dependency's perspective."
-func isStravaFailureCountable(err error) bool {
+// Name matches gobreaker's “Settings.IsSuccessful“ parameter: the
+// breaker calls this "successful" because it tracks outcomes that look
+// healthy from the dependency's perspective, even if the caller saw an
+// error.
+func isStravaCallSuccessful(err error) bool {
 	switch {
 	case err == nil:
 		return true
@@ -191,11 +193,18 @@ func isStravaFailureCountable(err error) bool {
 	case errors.Is(err, errRefreshTokenRejected):
 		// Refresh token rejected at /oauth/token. Per-user, not Strava.
 		return true
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		// Caller bailed before Strava could answer. No dependency signal.
+	case errors.Is(err, context.Canceled):
+		// Caller canceled the context — no signal about Strava's health.
 		return true
 	default:
-		// 5xx / network / timeout / decode → Strava-side failure.
+		// 5xx / network / decode / DeadlineExceeded → Strava-side failure.
+		// DeadlineExceeded specifically: Go's http.Client wraps its own
+		// Timeout (httpClientTimeout = 10s) as context.DeadlineExceeded,
+		// and a Strava endpoint that can't answer in 10s IS evidence
+		// the dependency is degraded. Caller-supplied deadlines could
+		// also fire here in principle, but at our scope they are all
+		// orders of magnitude longer than the HTTP timeout, so this
+		// branch is dominated by Strava-side slowness.
 		return false
 	}
 }
@@ -266,7 +275,19 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 	if reason := proactiveRefreshReason(tokens, time.Now()); reason != "" {
 		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, reason)
 		if refreshErr != nil {
-			return nil, fmt.Errorf("%w: proactive token refresh failed: %w", ErrStravaAuth, refreshErr)
+			// Only wrap as ErrStravaAuth when the underlying cause is a
+			// permanent rejection of the refresh token (revoked, rotated,
+			// or wrong). Transient failures (network errors, OAuth-endpoint
+			// 5xx, decode errors) must propagate as their own type so:
+			//   - the circuit breaker counts them as Strava-side failures
+			//     (ErrStravaAuth is excluded by isStravaCallSuccessful)
+			//   - the caller does not treat a temporary Strava outage as
+			//     evidence the user's refresh token is dead (which would
+			//     drive false re-link prompts at multi-user scale)
+			if errors.Is(refreshErr, errRefreshTokenRejected) {
+				return nil, fmt.Errorf("%w: proactive token refresh failed: %w", ErrStravaAuth, refreshErr)
+			}
+			return nil, fmt.Errorf("proactive token refresh failed: %w", refreshErr)
 		}
 		tokens = refreshedTokens
 	}
@@ -297,7 +318,12 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 				"correlation_id", cid, "activity_id", activityID, "owner_id", ownerID)
 			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, refreshReasonReactive401)
 			if refreshErr != nil {
-				return nil, fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
+				// Same wrapping rule as the proactive path above — see
+				// comment there for the full rationale.
+				if errors.Is(refreshErr, errRefreshTokenRejected) {
+					return nil, fmt.Errorf("%w: token refresh failed: %w", ErrStravaAuth, refreshErr)
+				}
+				return nil, fmt.Errorf("token refresh failed: %w", refreshErr)
 			}
 			tokens = refreshedTokens
 			authRefreshed = true
