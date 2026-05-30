@@ -178,6 +178,32 @@ func TestTokenStore_WriteIfUnmodified_PreservesOAuthFields(t *testing.T) {
 	}
 }
 
+// TestTokenStore_WriteTokensIfUnmodified_NotFoundReturnsErrTokenNotFound
+// covers the deauth/refresh race: GetTokens snapshot the version, the
+// deauth handler deleted the doc, then WriteTokensIfUnmodified's
+// transaction-internal tx.Get found nothing. The store maps the
+// Firestore NotFound to ports.ErrTokenNotFound so callers can route
+// to the orphan path instead of treating it as an auth error.
+func TestTokenStore_WriteTokensIfUnmodified_NotFoundReturnsErrTokenNotFound(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	athleteID := int64(33333)
+	// No seedTokens — doc doesn't exist, simulating the racing delete.
+
+	err := store.WriteTokensIfUnmodified(ctx, athleteID, &stravatoken.Data{
+		AccessToken:   "new-access",
+		RefreshToken:  "new-refresh",
+		ExpiresAt:     time.Now().Add(6 * time.Hour).Unix(),
+		LastRefreshed: time.Now().Truncate(time.Millisecond),
+	}, time.Now().Add(-1*time.Hour))
+	if err == nil {
+		t.Fatal("expected error writing to non-existent doc")
+	}
+	if err != ports.ErrTokenNotFound {
+		t.Errorf("expected ErrTokenNotFound, got %v", err)
+	}
+}
+
 func TestTokenStore_DeleteTokens(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

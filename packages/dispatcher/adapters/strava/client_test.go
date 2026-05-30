@@ -829,6 +829,55 @@ func TestFetchActivity_WriteBackFailureReturnsError(t *testing.T) {
 	}
 }
 
+// TestFetchActivity_TokensDeletedMidRefresh_SurfacesErrTokenNotFound covers
+// the deauth/refresh race: GetTokens succeeded, Strava 401 triggered
+// reactive refresh, refresh succeeded, but write-back found the doc
+// deleted (deauth handler raced in). The write returns
+// ports.ErrTokenNotFound; FetchActivity must propagate it so the
+// dispatcher handler routes to the orphan ack path instead of looping
+// through Strava retries.
+func TestFetchActivity_TokensDeletedMidRefresh_SurfacesErrTokenNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "new-access-token",
+				"refresh_token": "new-refresh-token",
+				"expires_at":    1234567890,
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case testActivityPath:
+			w.WriteHeader(http.StatusUnauthorized)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		},
+		WriteErr: ports.ErrTokenNotFound,
+	}
+	client := newTestClient(server, tokenStore)
+
+	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected error when write-back hits NotFound")
+	}
+	if !errors.Is(err, ports.ErrTokenNotFound) {
+		t.Errorf("expected ErrTokenNotFound to propagate, got %v", err)
+	}
+	// Must NOT wrap as ErrStravaAuth — that would cause the handler
+	// to 500 and Strava to retry instead of routing to the orphan path.
+	if errors.Is(err, ErrStravaAuth) {
+		t.Errorf("ErrTokenNotFound from write-back must not wrap as ErrStravaAuth: %v", err)
+	}
+}
+
 func TestProactiveRefreshReason(t *testing.T) {
 	// Fixed clock. tokenExpirySkew is 5m (300s); now+skew = 1_000_000_300.
 	now := time.Unix(1_000_000_000, 0)

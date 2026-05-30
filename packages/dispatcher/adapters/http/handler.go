@@ -303,11 +303,13 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Stamp identity before any authorization check so subscription-
+	// mismatch (401) traces remain correlatable by athlete_id.
+	stampWebhookIDsOnSpan(ctx, webhook)
+
 	if !h.checkSubscriptionID(w, r, webhook) {
 		return
 	}
-
-	stampWebhookIDsOnSpan(ctx, webhook)
 
 	correlationID := chiMiddleware.GetReqID(ctx)
 	ctx = gcplog.WithCorrelationID(ctx, correlationID)
