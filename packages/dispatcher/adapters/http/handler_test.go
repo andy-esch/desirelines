@@ -1339,3 +1339,71 @@ func TestHandler_WebhookValidationSpans(t *testing.T) {
 		t.Errorf("check_subscription_id desirelines.subscription_match = %v (set=%v), want true", v, ok)
 	}
 }
+
+// TestHandler_SubscriptionMismatchSpanCarriesAthleteID verifies that
+// `stampWebhookIDsOnSpan` runs before the subscription-id authorization
+// check, so 401 traces remain correlatable by athlete in Cloud Trace.
+// Regression guard for L2 (audit 2026-05-27-dispatcher).
+func TestHandler_SubscriptionMismatchSpanCarriesAthleteID(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	tracer := tp.Tracer("test")
+
+	handler := NewHandler(
+		&portstest.MockPublisher{},
+		&portstest.MockPublisher{},
+		// Configured subscription ID DIFFERS from the payload's, so the
+		// check_subscription_id step rejects the request as 401.
+		&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID + 1},
+		&portstest.MockStravaClient{},
+		&portstest.MockTokenStore{},
+		&portstest.MockAllowlist{Allowed: true},
+		gcplog.NewNoOpLogger(),
+		&HandlerConfig{Tracer: tracer},
+	)
+	router := handler.RegisterRoutes()
+
+	payload, err := json.Marshal(webhookproto.StravaWebhookJSON{
+		AspectType:     "create",
+		ObjectType:     "activity",
+		ObjectID:       testObjectID,
+		OwnerID:        testOwnerID,
+		EventTime:      testEventTime,
+		SubscriptionID: testSubscriptionID,
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	// Server span the production path gets from otelhttp.NewHandler.
+	// Stamping operates on the active span in ctx; without this, the
+	// stamps land on a no-op span and the test can't observe them.
+	ctx, parentSpan := tracer.Start(context.Background(), "dispatcher.handle_event")
+	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload)).WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	parentSpan.End()
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", w.Code)
+	}
+
+	var parent sdktrace.ReadOnlySpan
+	for _, s := range sr.Ended() {
+		if s.Name() == "dispatcher.handle_event" {
+			parent = s
+			break
+		}
+	}
+	if parent == nil {
+		t.Fatalf("parent span not found in %v", endedSpanNames(sr))
+	}
+
+	if v, ok := spanAttrInt(parent, "desirelines.athlete_id"); !ok || v != testOwnerID {
+		t.Errorf("desirelines.athlete_id = %d (set=%v), want %d — stamp must run before subscription-id check", v, ok, testOwnerID)
+	}
+	if v, ok := spanAttrInt(parent, "desirelines.activity_id"); !ok || v != testObjectID {
+		t.Errorf("desirelines.activity_id = %d (set=%v), want %d", v, ok, testObjectID)
+	}
+}

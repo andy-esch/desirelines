@@ -106,6 +106,13 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 	err = s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
 		snap, getErr := tx.Get(ref)
 		if getErr != nil {
+			// Doc was deleted between GetTokens and this transaction —
+			// almost always the deauth/refresh race. Surface the
+			// sentinel so the handler can ack as orphan instead of
+			// looping through Strava retries.
+			if grpcstatus.Code(getErr) == codes.NotFound {
+				return ports.ErrTokenNotFound
+			}
 			return fmt.Errorf("read tokens in transaction: %w", getErr)
 		}
 
@@ -131,6 +138,10 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 	if err != nil {
 		if errors.Is(err, ports.ErrTokenConflict) {
 			err = ports.ErrTokenConflict
+			return err
+		}
+		if errors.Is(err, ports.ErrTokenNotFound) {
+			err = ports.ErrTokenNotFound
 			return err
 		}
 		err = fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)

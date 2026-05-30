@@ -203,6 +203,9 @@ func isStravaCallSuccessful(err error) bool {
 	case errors.Is(err, errRefreshTokenRejected):
 		// Refresh token rejected at /oauth/token. Per-user, not Strava.
 		return true
+	case errors.Is(err, ports.ErrTokenNotFound):
+		// Tokens deleted mid-refresh (deauth/refresh race). Per-user, not Strava.
+		return true
 	case errors.Is(err, context.Canceled):
 		// Caller canceled the context — no signal about Strava's health.
 		return true
@@ -455,6 +458,14 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 						return nil, err
 					}
 					return winner, nil
+				}
+				if errors.Is(writeErr, ports.ErrTokenNotFound) {
+					// Tokens were deleted mid-refresh (deauth/refresh race).
+					// Propagate the sentinel so the handler treats it as
+					// orphan (ack 200) instead of looping through Strava
+					// retries.
+					err = writeErr
+					return nil, err
 				}
 				err = fmt.Errorf("write-back tokens for athlete %d: %w", ownerID, writeErr)
 				return nil, err
