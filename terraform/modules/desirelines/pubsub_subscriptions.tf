@@ -44,8 +44,8 @@ resource "google_pubsub_subscription" "bq_inserter" {
     maximum_backoff = "600s"
   }
 
-  # Long ack deadline for potentially slow BigQuery operations
-  ack_deadline_seconds = 600
+  # Cloud Run kills the request at 60s; this buffers the round-trip.
+  ack_deadline_seconds = 120
 
   # Retain messages for 7 days (matches topic retention)
   message_retention_duration = "604800s"
@@ -97,8 +97,8 @@ resource "google_pubsub_subscription" "postgres_writer" {
     maximum_backoff = "600s"
   }
 
-  # Ack deadline for PostgreSQL operations
-  ack_deadline_seconds = 600
+  # Cloud Run kills the request at 60s; this buffers the round-trip.
+  ack_deadline_seconds = 120
 
   # Retain messages for 7 days (matches topic retention)
   message_retention_duration = "604800s"
@@ -150,8 +150,8 @@ resource "google_pubsub_subscription" "deletion_service" {
     maximum_backoff = "600s"
   }
 
-  # Long ack deadline for multi-store deletion operations
-  ack_deadline_seconds = 600
+  # Cloud Run kills the request at 60s; this buffers the round-trip.
+  ack_deadline_seconds = 120
 
   # Retain messages for 7 days (matches topic retention)
   message_retention_duration = "604800s"
