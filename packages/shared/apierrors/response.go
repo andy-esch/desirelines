@@ -50,12 +50,15 @@ func WriteError(w http.ResponseWriter, r *http.Request, err APIError, logger *sl
 	requestID := RequestIDFromContext(r.Context())
 	traceID := traceIDFromContext(r.Context())
 
-	// Log error with context
+	// Log error with context. request_id and correlation_id carry the
+	// same value (chi-generated request ID); both names are emitted so
+	// Cloud Logging filters keyed on either field match.
 	logAttrs := []any{
 		"path", r.URL.Path,
 		"method", r.Method,
 		"status", err.Status,
 		"request_id", requestID,
+		"correlation_id", requestID,
 	}
 	if err.Code != "" {
 		logAttrs = append(logAttrs, "code", err.Code)
@@ -83,7 +86,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err APIError, logger *sl
 		TraceID:   traceID,
 	}
 	if encErr := json.NewEncoder(w).Encode(response); encErr != nil {
-		logger.Error("Failed to encode error response", "error", encErr, "request_id", requestID)
+		logger.Error("Failed to encode error response", "error", encErr, "request_id", requestID, "correlation_id", requestID)
 	}
 }
 
