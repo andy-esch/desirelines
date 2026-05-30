@@ -4,3 +4,10 @@
 dev_project_number      = "YOUR_DEV_PROJECT_NUMBER"
 prod_project_number     = "YOUR_PROD_PROJECT_NUMBER"
 github_actions_sa_email = "github-actions-deploy@desirelines-dev.iam.gserviceaccount.com"
+
+# REQUIRED — omitting this defaults to [], which DESTROYS the ci-deploy reader
+# grants and skips the tag-writer bindings. List both deploy SAs:
+ci_deploy_sa_emails = [
+  "ci-deploy@desirelines-dev.iam.gserviceaccount.com",
+  "ci-deploy@desirelines-prod.iam.gserviceaccount.com",
+]

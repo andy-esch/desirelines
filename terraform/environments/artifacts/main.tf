@@ -29,8 +29,24 @@ resource "google_artifact_registry_repository" "services" {
   description   = "Container registry for desirelines Cloud Run services (shared across all environments)"
   format        = "DOCKER"
 
-  # Cleanup policies: manage image and build cache retention
-  cleanup_policy_dry_run = false
+  # Cleanup policies: manage image and build cache retention.
+  #
+  # KEEP precedence (per GCP docs): "If an artifact version matches criteria in
+  # both a delete policy and a keep policy, Artifact Registry applies the keep
+  # policy." This is semantic, not declaration-order dependent. The two KEEP
+  # rules below (recent-5 + live-env tags) are what make the tagged-DELETE safe.
+  #
+  # ROLLOUT — dry_run stays TRUE until the tag prerequisite is satisfied:
+  #   1. Deploy pipeline stamps each env's live image with a stable `prod` /
+  #      `dev` tag (in addition to the git SHA); back-stamp current live images
+  #      once (gcloud artifacts docker tags add ...).
+  #   2. Apply with dry_run = true. Wait ~1 day, then inspect Artifact Registry
+  #      Data Access audit logs to confirm nothing unexpected is flagged for
+  #      deletion (especially that the prod/dev images are protected).
+  #   3. Flip dry_run = false to make deletion active.
+  # While dry_run = true the existing untagged/buildcache deletes are also
+  # only logged, not enforced — acceptable for the short verification window.
+  cleanup_policy_dry_run = true
 
   # Keep last 5 tagged versions of each service image
   cleanup_policies {
@@ -38,6 +54,37 @@ resource "google_artifact_registry_repository" "services" {
     action = "KEEP"
     most_recent_versions {
       keep_count = 5
+    }
+  }
+
+  # Always retain the image each environment is currently running, regardless
+  # of age. tag_prefixes requires tag_state = TAGGED; "prod"/"dev" can't collide
+  # with a git-SHA tag (SHAs are hex).
+  #
+  # TAG SOURCE — these stable tags are NOT emitted by the image build. The build
+  # job in desirelines/.github/workflows/deploy.yml tags each image only
+  # `:latest` + `:<git-sha>` (build-images job, "tags:" ~L82-84). The `prod` /
+  # `dev` tags are stamped at deploy time by the desirelines-deploy repo's
+  # .github/workflows/deploy.yml (deploy-dev / deploy-prod jobs). Until that
+  # stamping step exists + current live images are back-stamped, this KEEP
+  # matches nothing — hence dry_run stays true (see rollout note above).
+  cleanup_policies {
+    id     = "keep-live-env-images"
+    action = "KEEP"
+    condition {
+      tag_state    = "TAGGED"
+      tag_prefixes = ["prod", "dev"]
+    }
+  }
+
+  # Trim accumulated tagged images for cost. Safe because the two KEEP policies
+  # above protect the recent-5 and the live prod/dev images from this rule.
+  cleanup_policies {
+    id     = "delete-old-tagged"
+    action = "DELETE"
+    condition {
+      tag_state  = "TAGGED"
+      older_than = "2592000s" # 30 days
     }
   }
 
@@ -113,5 +160,36 @@ resource "google_artifact_registry_repository_iam_member" "ci_deploy_pull" {
   location   = var.gcp_region
   repository = google_artifact_registry_repository.services.name
   role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${each.value}"
+}
+
+# ==============================================================================
+# IAM: Allow ci-deploy SAs to stamp the stable `prod` / `dev` env tags
+# ==============================================================================
+# The deploy repo's deploy.yml (deploy-dev / deploy-prod jobs, "Stamp stable
+# env tag" steps) runs `gcloud artifacts docker tags add` to move the prod/dev
+# tags onto the freshly-deployed image. That needs tag-write, which reader does
+# not grant. Rather than the broad `roles/artifactregistry.writer` (push +
+# delete versions — flagged as over-broad for ci-deploy in the 2026-03-17
+# terraform audit), grant a minimal custom role with only the two tag-mutation
+# permissions, scoped to this single repo. Reads (resolving the source digest)
+# are already covered by ci_deploy_pull above.
+resource "google_project_iam_custom_role" "tag_writer" {
+  project     = var.gcp_project_id
+  role_id     = "artifactRegistryTagWriter"
+  title       = "Artifact Registry Tag Writer"
+  description = "Create/update tags only (e.g. stable prod/dev env tags); no image push or version delete."
+  permissions = [
+    "artifactregistry.tags.create",
+    "artifactregistry.tags.update",
+  ]
+}
+
+resource "google_artifact_registry_repository_iam_member" "ci_deploy_tag_writer" {
+  for_each   = toset(var.ci_deploy_sa_emails)
+  project    = var.gcp_project_id
+  location   = var.gcp_region
+  repository = google_artifact_registry_repository.services.name
+  role       = google_project_iam_custom_role.tag_writer.id
   member     = "serviceAccount:${each.value}"
 }

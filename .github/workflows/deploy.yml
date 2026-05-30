@@ -79,6 +79,12 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
+          # Build tags only: :latest (moving) + :<git-sha> (immutable, what
+          # deploys pin to). Stable env tags `prod`/`dev` are NOT set here —
+          # they're stamped at deploy time by the desirelines-deploy repo and
+          # are what the Artifact Registry cleanup policy protects from
+          # age-based deletion (desirelines/terraform/environments/artifacts/
+          # main.tf, keep-live-env-images).
           tags: |
             ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:latest
             ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:${{ steps.metadata.outputs.git_sha }}
