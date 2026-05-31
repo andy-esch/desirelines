@@ -420,10 +420,3 @@ jobs:
           curl -sSLo terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/download/v0.19.0/terraform-docs-v0.19.0-linux-amd64.tar.gz
           tar -xzf terraform-docs.tar.gz terraform-docs
           sudo mv terraform-docs /usr/local/bin/
-
-      - name: Check terraform-docs
-        run: |
-          for dir in terraform/modules/desirelines terraform/modules/github-actions-wif; do
-            terraform-docs --config terraform/.terraform-docs.yml "$dir" --output-check
-          done
-

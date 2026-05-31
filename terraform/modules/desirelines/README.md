@@ -32,7 +32,7 @@ module "desirelines" {
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.12 |
 | <a name="requirement_external"></a> [external](#requirement\_external) | ~> 2.3 |
 | <a name="requirement_google"></a> [google](#requirement\_google) | ~> 7.22 |
@@ -41,16 +41,16 @@ module "desirelines" {
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_external"></a> [external](#provider\_external) | 2.4.0 |
-| <a name="provider_google"></a> [google](#provider\_google) | 7.32.0 |
-| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 7.32.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | 7.33.0 |
+| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 7.33.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [google-beta_google_firebase_hosting_custom_domain.app_subdomain](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_firebase_hosting_custom_domain) | resource |
 | [google-beta_google_firebase_hosting_site.web_app](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_firebase_hosting_site) | resource |
 | [google-beta_google_firebase_web_app.web_app](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_firebase_web_app) | resource |
@@ -200,7 +200,7 @@ module "desirelines" {
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_environment"></a> [environment](#input\_environment) | Environment name (local, dev, prod) | `string` | n/a | yes |
 | <a name="input_external_artifact_registry"></a> [external\_artifact\_registry](#input\_external\_artifact\_registry) | Artifact Registry URL for container images. Format: REGION-docker.pkg.dev/PROJECT\_ID/REPO\_NAME | `string` | n/a | yes |
 | <a name="input_gcp_project_id"></a> [gcp\_project\_id](#input\_gcp\_project\_id) | Google Cloud Project ID | `string` | n/a | yes |
@@ -222,7 +222,7 @@ module "desirelines" {
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_alert_policy_ids"></a> [alert\_policy\_ids](#output\_alert\_policy\_ids) | IDs of created alert policies |
 | <a name="output_application_config"></a> [application\_config](#output\_application\_config) | Configuration values needed by the applications |
 | <a name="output_bigquery_dataset_id"></a> [bigquery\_dataset\_id](#output\_bigquery\_dataset\_id) | ID of the BigQuery dataset |

@@ -77,20 +77,20 @@ infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_service
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.12 |
 | <a name="requirement_google"></a> [google](#requirement\_google) | ~> 7.22 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_google"></a> [google](#provider\_google) | 7.32.0 |
+| ---- | ------- |
+| <a name="provider_google"></a> [google](#provider\_google) | 7.33.0 |
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [google_iam_workload_identity_pool.github_actions](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool) | resource |
 | [google_iam_workload_identity_pool_provider.github](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool_provider) | resource |
 | [google_project_iam_member.additional_roles](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
@@ -105,7 +105,7 @@ infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_service
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_environment"></a> [environment](#input\_environment) | Environment name (dev, prod, etc.) | `string` | n/a | yes |
 | <a name="input_github_repository"></a> [github\_repository](#input\_github\_repository) | GitHub repository in format 'owner/repo' (e.g., 'andy-esch/desirelines') | `string` | n/a | yes |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | GCP project ID | `string` | n/a | yes |
@@ -124,7 +124,7 @@ infisical run --env=dev --path=/ci/deploy -- terraform output github_wif_service
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_github_secrets_instructions"></a> [github\_secrets\_instructions](#output\_github\_secrets\_instructions) | Instructions for adding GitHub secrets |
 | <a name="output_service_account_id"></a> [service\_account\_id](#output\_service\_account\_id) | Service account ID |
 | <a name="output_service_account_unique_id"></a> [service\_account\_unique\_id](#output\_service\_account\_unique\_id) | Service account unique ID |
