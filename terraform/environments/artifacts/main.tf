@@ -33,20 +33,17 @@ resource "google_artifact_registry_repository" "services" {
   #
   # KEEP precedence (per GCP docs): "If an artifact version matches criteria in
   # both a delete policy and a keep policy, Artifact Registry applies the keep
-  # policy." This is semantic, not declaration-order dependent. The two KEEP
-  # rules below (recent-5 + live-env tags) are what make the tagged-DELETE safe.
+  # policy." Semantic, not declaration-order dependent. The two KEEP rules
+  # (recent-5 + live-env tags) protect the live prod/dev images and the newest
+  # builds from the tagged-DELETE.
   #
-  # ROLLOUT — dry_run stays TRUE until the tag prerequisite is satisfied:
-  #   1. Deploy pipeline stamps each env's live image with a stable `prod` /
-  #      `dev` tag (in addition to the git SHA); back-stamp current live images
-  #      once (gcloud artifacts docker tags add ...).
-  #   2. Apply with dry_run = true. Wait ~1 day, then inspect Artifact Registry
-  #      Data Access audit logs to confirm nothing unexpected is flagged for
-  #      deletion (especially that the prod/dev images are protected).
-  #   3. Flip dry_run = false to make deletion active.
-  # While dry_run = true the existing untagged/buildcache deletes are also
-  # only logged, not enforced — acceptable for the short verification window.
-  cleanup_policy_dry_run = true
+  # Cleanup is ACTIVE (dry_run = false): it trims tagged images older than 30d
+  # that are neither the live prod/dev tag nor in the recent-5. The live prod/dev
+  # tags are stamped at deploy time (see README.md → "Where prod/dev tags come
+  # from"); if stamping ever lapses, the live image loses protection. To preview
+  # what would be removed before a policy change, run the registry query in
+  # README.md ("Verifying what would be deleted") or temporarily set dry_run.
+  cleanup_policy_dry_run = false
 
   # Keep last 5 tagged versions of each service image
   cleanup_policies {
@@ -65,9 +62,9 @@ resource "google_artifact_registry_repository" "services" {
   # job in desirelines/.github/workflows/deploy.yml tags each image only
   # `:latest` + `:<git-sha>` (build-images job, "tags:" ~L82-84). The `prod` /
   # `dev` tags are stamped at deploy time by the desirelines-deploy repo's
-  # .github/workflows/deploy.yml (deploy-dev / deploy-prod jobs). Until that
-  # stamping step exists + current live images are back-stamped, this KEEP
-  # matches nothing — hence dry_run stays true (see rollout note above).
+  # .github/workflows/deploy.yml (deploy-dev / deploy-prod jobs): `dev` follows
+  # every main merge, `prod` moves on release. If stamping ever lapses this KEEP
+  # stops protecting the live image — the stamp step warns loudly on failure.
   cleanup_policies {
     id     = "keep-live-env-images"
     action = "KEEP"
@@ -198,4 +195,29 @@ resource "google_artifact_registry_repository_iam_member" "ci_deploy_tag_writer"
   repository = google_artifact_registry_repository.services.name
   role       = google_project_iam_custom_role.tag_writer.id
   member     = "serviceAccount:${each.value}"
+}
+
+# ==============================================================================
+# Audit logging: capture Artifact Registry write/delete activity
+# ==============================================================================
+# Surfaces cleanup-policy version deletions (and pushes/tag moves) in Cloud
+# Logging so the retention policy has an auditable trail — see README.md for the
+# Logs Explorer / gcloud queries.
+#
+# DATA_WRITE only, deliberately:
+#   - DATA_WRITE = pushes, tag create/delete, version deletions (cleanup). Low
+#     volume, worth keeping.
+#   - DATA_READ is OMITTED: it logs every image pull (every Cloud Run cold start
+#     and deploy) — high volume, real cost, little value for a single-user repo.
+#   - Tag-stamping CreateTag/DeleteTag already land in Admin Activity logs
+#     (always on, free); this only adds the write/delete data-plane trail.
+# This project is dedicated to the registry, so a project-level config is
+# effectively scoped to Artifact Registry.
+resource "google_project_iam_audit_config" "artifact_registry" {
+  project = var.gcp_project_id
+  service = "artifactregistry.googleapis.com"
+
+  audit_log_config {
+    log_type = "DATA_WRITE"
+  }
 }
