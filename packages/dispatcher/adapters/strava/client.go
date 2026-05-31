@@ -669,17 +669,20 @@ func jitterBackoff(nominal time.Duration) time.Duration {
 }
 
 // retryBackoff is the sleep before the next attempt: full-jittered
-// exponential backoff (nominal already capped by the caller), floored at
-// Strava's Retry-After when err is a *rateLimitError. Jitter still spreads
-// the static path, but we never sleep *less* than Strava asked — sleeping the
-// 10s static cap when Strava said 60s just guarantees another 429.
+// exponential backoff (nominal already capped by the caller). On a
+// *rateLimitError it honors Strava's Retry-After as a floor — we never sleep
+// *less* than Strava asked (sleeping the 10s static cap when Strava said 60s
+// just guarantees another 429) — but adds jitter *on top* of that floor so a
+// burst of concurrent rate-limited retries (e.g. a backfill that all 429 with
+// the same Retry-After) doesn't resynchronize and immediately re-trip the
+// limit. Result is always >= retryAfter.
 func retryBackoff(nominal time.Duration, err error) time.Duration {
-	backoff := jitterBackoff(nominal)
+	jittered := jitterBackoff(nominal)
 	var rlErr *rateLimitError
-	if errors.As(err, &rlErr) && rlErr.retryAfter > backoff {
-		return rlErr.retryAfter
+	if errors.As(err, &rlErr) && rlErr.retryAfter > jittered {
+		return rlErr.retryAfter + jittered
 	}
-	return backoff
+	return jittered
 }
 
 // stampRateLimited records the rate-limit span attributes when err is a

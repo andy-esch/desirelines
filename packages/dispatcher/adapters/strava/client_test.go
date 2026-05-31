@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1275,6 +1276,10 @@ func TestIsStravaCallSuccessful(t *testing.T) {
 		{"http timeout (DeadlineExceeded)", context.DeadlineExceeded, false},
 		{"rate limited (429)", &stravaAPIError{statusCode: http.StatusTooManyRequests}, true},
 		{"rate limited (typed err)", &rateLimitError{retryAfter: 5 * time.Second}, true},
+		// The shape FetchActivity returns when retries exhaust on 429: the
+		// rateLimitError wrapped behind ErrStravaAPI. Must still be found via
+		// errors.As so a persistent rate limit never trips the breaker.
+		{"rate limited (exhausted, wrapped in ErrStravaAPI)", fmt.Errorf("%w: %w", ErrStravaAPI, &rateLimitError{retryAfter: time.Second}), true},
 		{"strava 5xx", &stravaAPIError{statusCode: 503}, false},
 		{"unknown error counts as failure", errors.New("boom"), false},
 	}
