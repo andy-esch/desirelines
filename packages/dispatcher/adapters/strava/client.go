@@ -59,6 +59,13 @@ const (
 	// if retry attempt counts are ever increased.
 	maxRetryBackoff = 10 * time.Second
 
+	// maxRetryAfter caps a 429 Retry-After. It bounds the synchronous
+	// in-request sleep — Cloud Run's request timeout is 60s, so a longer wait
+	// can't be honored anyway (the request would be killed mid-sleep) — and
+	// guards against int64 overflow from a pathological header. Values at/under
+	// this still override the static maxRetryBackoff; a larger ask is clamped.
+	maxRetryAfter = 60 * time.Second
+
 	// httpClientTimeout is the timeout for individual HTTP requests to the Strava API.
 	httpClientTimeout = 10 * time.Second
 
@@ -182,6 +189,11 @@ func newStravaBreaker(logger *slog.Logger, timeout time.Duration) *gobreaker.Cir
 // healthy from the dependency's perspective, even if the caller saw an
 // error.
 func isStravaCallSuccessful(err error) bool {
+	// Hot path first: a successful call is the vast majority of outcomes, so
+	// return before any reflection-based errors.As/errors.Is work.
+	if err == nil {
+		return true
+	}
 	// 429 — our quota is exceeded, not evidence that Strava is down.
 	// Tripping the breaker on rate-limit doesn't help (Strava is fine,
 	// we just used too much) and the retry layer already honors the
@@ -199,8 +211,6 @@ func isStravaCallSuccessful(err error) bool {
 		return true
 	}
 	switch {
-	case err == nil:
-		return true
 	case errors.Is(err, ports.ErrActivityNotFound):
 		// 404 — the activity doesn't exist. Strava is fine.
 		return true
@@ -624,7 +634,7 @@ func (e *stravaAPIError) Error() string {
 }
 
 // rateLimitError marks a 429 from Strava. retryAfter carries the parsed
-// Retry-After delay (0 when the header is absent or unparseable). The retry
+// Retry-After delay (0 when absent/unparseable, clamped to maxRetryAfter). The retry
 // loops floor their backoff at retryAfter — Strava is the authority on quota
 // timing — and isStravaCallSuccessful treats this as a per-quota signal, not
 // evidence Strava is down, so 429s never trip the circuit breaker.
@@ -640,15 +650,21 @@ func (e *rateLimitError) Error() string {
 // (RFC 7231 §7.1.3). The HTTP-date form is spec-legal but Strava emits
 // delta-seconds in practice — fall back to 0 on an absent, negative, or
 // unparseable value so the static backoff dominates rather than the caller
-// tripping on a bad header.
+// tripping on a bad header. The result is clamped to maxRetryAfter.
 func parseRetryAfter(h string) time.Duration {
 	if h == "" {
 		return 0
 	}
-	if secs, err := strconv.Atoi(h); err == nil && secs >= 0 {
-		return time.Duration(secs) * time.Second
+	secs, err := strconv.Atoi(h)
+	if err != nil || secs < 0 {
+		return 0
 	}
-	return 0
+	// Compare in seconds *before* multiplying to nanoseconds, so a pathological
+	// header (e.g. "99999999999") can't overflow the int64 Duration.
+	if secs >= int(maxRetryAfter/time.Second) {
+		return maxRetryAfter
+	}
+	return time.Duration(secs) * time.Second
 }
 
 // jitterBackoff applies AWS-style full jitter to a nominal exponential

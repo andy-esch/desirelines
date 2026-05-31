@@ -1405,6 +1405,11 @@ func TestParseRetryAfter(t *testing.T) {
 		// HTTP-date form is spec-legal but unsupported (Strava emits
 		// delta-seconds); must fall back to 0 rather than misparse.
 		{"http-date", "Wed, 21 Oct 2026 07:28:00 GMT", 0},
+		// Values above the cap are clamped (can't honor a >60s sleep in a 60s
+		// request budget anyway).
+		{"above cap clamped", "120", maxRetryAfter},
+		// Pathological value: clamped before the multiply, so no int64 overflow.
+		{"huge value clamped (overflow-safe)", "99999999999", maxRetryAfter},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
