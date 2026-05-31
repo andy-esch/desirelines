@@ -11,6 +11,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -187,6 +188,12 @@ func isStravaCallSuccessful(err error) bool {
 	// Retry-After header. Mirrors the Python side's
 	// `StravaRateLimitError` entry in `create_strava_breaker`'s
 	// exclude list.
+	var rlErr *rateLimitError
+	if errors.As(err, &rlErr) {
+		return true
+	}
+	// Belt-and-suspenders: 429 now surfaces as *rateLimitError, but keep the
+	// old status-code check in case any path still yields a 429 this way.
 	var apiErr *stravaAPIError
 	if errors.As(err, &apiErr) && apiErr.statusCode == http.StatusTooManyRequests {
 		return true
@@ -345,9 +352,15 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 		}
 
 		lastErr = fetchErr
+
+		// On 429, stamp the span so rate-limited fetches stay filterable in
+		// Cloud Trace even when the loop exhausts (stamped before the
+		// retry-vs-give-up branch below).
+		stampRateLimited(ctx, fetchErr)
+
 		if attempt < activityRetryAttempts-1 {
 			nominal := min(activityRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
-			backoff := jitterBackoff(nominal)
+			backoff := retryBackoff(nominal, fetchErr)
 			trace.SpanFromContext(ctx).AddEvent("strava.retry",
 				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, fetchErr)...))
 			c.logger.Warn("Strava fetch retry",
@@ -406,6 +419,8 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 		return nil, ErrActivityNotFound
 	case http.StatusUnauthorized:
 		return nil, &authError{statusCode: resp.StatusCode}
+	case http.StatusTooManyRequests:
+		return nil, &rateLimitError{retryAfter: parseRetryAfter(resp.Header.Get("Retry-After"))}
 	default:
 		return nil, &stravaAPIError{statusCode: resp.StatusCode}
 	}
@@ -495,9 +510,12 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 			return nil, err
 		}
 		lastErr = err
+
+		stampRateLimited(ctx, err)
+
 		if attempt < tokenRetryAttempts-1 {
 			nominal := min(tokenRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
-			backoff := jitterBackoff(nominal)
+			backoff := retryBackoff(nominal, err)
 			trace.SpanFromContext(ctx).AddEvent("strava.retry",
 				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, err)...))
 			c.logger.Warn("Token refresh retry",
@@ -548,6 +566,11 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 		return nil, fmt.Errorf("failed to read token response body: %w", err)
 	}
 
+	if resp.StatusCode == http.StatusTooManyRequests {
+		// Token endpoint is rate-limited — honor Retry-After in the retry
+		// loop rather than burning a static backoff on a call we know 429s.
+		return nil, &rateLimitError{retryAfter: parseRetryAfter(resp.Header.Get("Retry-After"))}
+	}
 	if resp.StatusCode != http.StatusOK {
 		apiErr := &stravaAPIError{statusCode: resp.StatusCode}
 		if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized {
@@ -600,6 +623,34 @@ func (e *stravaAPIError) Error() string {
 	return fmt.Sprintf("strava API error: HTTP %d", e.statusCode)
 }
 
+// rateLimitError marks a 429 from Strava. retryAfter carries the parsed
+// Retry-After delay (0 when the header is absent or unparseable). The retry
+// loops floor their backoff at retryAfter — Strava is the authority on quota
+// timing — and isStravaCallSuccessful treats this as a per-quota signal, not
+// evidence Strava is down, so 429s never trip the circuit breaker.
+type rateLimitError struct {
+	retryAfter time.Duration
+}
+
+func (e *rateLimitError) Error() string {
+	return fmt.Sprintf("strava 429 rate limited (retry_after=%s)", e.retryAfter)
+}
+
+// parseRetryAfter parses a Retry-After header in delta-seconds form
+// (RFC 7231 §7.1.3). The HTTP-date form is spec-legal but Strava emits
+// delta-seconds in practice — fall back to 0 on an absent, negative, or
+// unparseable value so the static backoff dominates rather than the caller
+// tripping on a bad header.
+func parseRetryAfter(h string) time.Duration {
+	if h == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(h); err == nil && secs >= 0 {
+		return time.Duration(secs) * time.Second
+	}
+	return 0
+}
+
 // jitterBackoff applies AWS-style full jitter to a nominal exponential
 // backoff: returns a uniformly-random duration in [0, nominal). Without
 // jitter, concurrent failing requests retry in lockstep, amplifying load
@@ -617,6 +668,34 @@ func jitterBackoff(nominal time.Duration) time.Duration {
 	return time.Duration(rand.Int64N(int64(nominal))) //nolint:gosec // non-cryptographic jitter
 }
 
+// retryBackoff is the sleep before the next attempt: full-jittered
+// exponential backoff (nominal already capped by the caller), floored at
+// Strava's Retry-After when err is a *rateLimitError. Jitter still spreads
+// the static path, but we never sleep *less* than Strava asked — sleeping the
+// 10s static cap when Strava said 60s just guarantees another 429.
+func retryBackoff(nominal time.Duration, err error) time.Duration {
+	backoff := jitterBackoff(nominal)
+	var rlErr *rateLimitError
+	if errors.As(err, &rlErr) && rlErr.retryAfter > backoff {
+		return rlErr.retryAfter
+	}
+	return backoff
+}
+
+// stampRateLimited records the rate-limit span attributes when err is a
+// *rateLimitError, so 429s are filterable in Cloud Trace even when the retry
+// loop exhausts. No-op for any other error. Attributes are bounded scalars
+// (bool + int) per docs/architecture/observability.md.
+func stampRateLimited(ctx context.Context, err error) {
+	var rlErr *rateLimitError
+	if errors.As(err, &rlErr) {
+		trace.SpanFromContext(ctx).SetAttributes(
+			attribute.Bool("strava.rate_limited", true),
+			attribute.Int64("strava.retry_after_ms", rlErr.retryAfter.Milliseconds()),
+		)
+	}
+}
+
 // retryEventAttrs builds the strava.retry span-event attributes. HTTP
 // failures contribute a bounded status_code; transport/decode errors
 // contribute their (short, body-free) message.
@@ -627,7 +706,10 @@ func retryEventAttrs(attempt int, backoff time.Duration, err error) []attribute.
 	}
 	var apiErr *stravaAPIError
 	var authErr *authError
+	var rlErr *rateLimitError
 	switch {
+	case errors.As(err, &rlErr):
+		attrs = append(attrs, attribute.Int("status_code", http.StatusTooManyRequests))
 	case errors.As(err, &apiErr):
 		attrs = append(attrs, attribute.Int("status_code", apiErr.statusCode))
 	case errors.As(err, &authErr):
