@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1274,6 +1275,11 @@ func TestIsStravaCallSuccessful(t *testing.T) {
 		{"caller canceled", context.Canceled, true},
 		{"http timeout (DeadlineExceeded)", context.DeadlineExceeded, false},
 		{"rate limited (429)", &stravaAPIError{statusCode: http.StatusTooManyRequests}, true},
+		{"rate limited (typed err)", &rateLimitError{retryAfter: 5 * time.Second}, true},
+		// The shape FetchActivity returns when retries exhaust on 429: the
+		// rateLimitError wrapped behind ErrStravaAPI. Must still be found via
+		// errors.As so a persistent rate limit never trips the breaker.
+		{"rate limited (exhausted, wrapped in ErrStravaAPI)", fmt.Errorf("%w: %w", ErrStravaAPI, &rateLimitError{retryAfter: time.Second}), true},
 		{"strava 5xx", &stravaAPIError{statusCode: 503}, false},
 		{"unknown error counts as failure", errors.New("boom"), false},
 	}
@@ -1382,5 +1388,123 @@ func TestCircuitBreaker_TokenEndpoint5xxCountsAsFailure(t *testing.T) {
 	}
 	if state := client.breaker.State(); state != gobreaker.StateOpen {
 		t.Errorf("breaker did not open from token-endpoint 5xx failures; state = %v", state)
+	}
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want time.Duration
+	}{
+		{"empty", "", 0},
+		{"zero", "0", 0},
+		{"positive delta-seconds", "5", 5 * time.Second},
+		{"negative", "-1", 0},
+		{"non-numeric", "not-a-number", 0},
+		// HTTP-date form is spec-legal but unsupported (Strava emits
+		// delta-seconds); must fall back to 0 rather than misparse.
+		{"http-date", "Wed, 21 Oct 2026 07:28:00 GMT", 0},
+		// Values above the cap are clamped (can't honor a >60s sleep in a 60s
+		// request budget anyway).
+		{"above cap clamped", "120", maxRetryAfter},
+		// Pathological value: clamped before the multiply, so no int64 overflow.
+		{"huge value clamped (overflow-safe)", "99999999999", maxRetryAfter},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := parseRetryAfter(tc.in); got != tc.want {
+				t.Errorf("parseRetryAfter(%q) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestFetchActivity_429HonorsRetryAfter proves the retry loop floors its
+// backoff at Strava's Retry-After. Retry-After is 2s; the static backoff on
+// the first attempt is capped at activityRetryBackoff (1s) and jittered into
+// [0,1s), so an elapsed of ≥1.5s can only come from the Retry-After floor.
+func TestFetchActivity_429HonorsRetryAfter(t *testing.T) {
+	expectedBody := `{"id":12345,"name":"Morning Run"}`
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != testActivityPath {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if calls.Add(1) == 1 {
+			w.Header().Set("Retry-After", "2")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(expectedBody)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	start := time.Now()
+	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("FetchActivity() error = %v", err)
+	}
+	if string(body) != expectedBody {
+		t.Errorf("body = %s, want %s", string(body), expectedBody)
+	}
+	if elapsed < 1500*time.Millisecond {
+		t.Errorf("elapsed = %v, want ≥ 1.5s — Retry-After (2s) was not honored "+
+			"(static backoff alone is capped under 1s on the first attempt)", elapsed)
+	}
+}
+
+// TestFetchActivity_429StampsSpanAttribute asserts the rate-limit span
+// attributes land on the fetch span so 429s are filterable in Cloud Trace.
+func TestFetchActivity_429StampsSpanAttribute(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != testActivityPath {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if calls.Add(1) == 1 {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client, sr := newRecordingTestClient(server, tokenStore)
+
+	if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err != nil {
+		t.Fatalf("FetchActivity() error = %v", err)
+	}
+
+	span := spanByName(t, sr, "strava.fetch_activity")
+	if !spanAttrBool(span, "strava.rate_limited") {
+		t.Error("strava.rate_limited not set to true on a 429 fetch")
+	}
+	if got := spanAttrInt(span, "strava.retry_after_ms"); got <= 0 {
+		t.Errorf("strava.retry_after_ms = %d, want > 0", got)
 	}
 }
