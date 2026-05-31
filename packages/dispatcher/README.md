@@ -146,11 +146,11 @@ go test ./...
 ### Benchmarks
 
 ```bash
-# All dispatcher benchmarks (no unit tests):
-go test ./packages/dispatcher/... -run '^$' -bench . -benchmem
+# All dispatcher benchmarks (no unit tests; run from packages/dispatcher/):
+go test ./... -run '^$' -bench . -benchmem
 
 # A single package, e.g. the secret cache:
-go test ./packages/dispatcher/adapters/env/ -run '^$' -bench BenchmarkSecretCache -benchmem
+go test ./adapters/env/ -run '^$' -bench BenchmarkSecretCache -benchmem
 ```
 
 ## Performance
