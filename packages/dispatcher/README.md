@@ -107,6 +107,40 @@ go run ./cmd/dispatcher
 go test ./...
 ```
 
+### Benchmarks
+
+```bash
+# All dispatcher benchmarks (no unit tests):
+go test ./packages/dispatcher/... -run '^$' -bench . -benchmem
+
+# A single package, e.g. the secret cache:
+go test ./packages/dispatcher/adapters/env/ -run '^$' -bench BenchmarkSecretCache -benchmem
+```
+
+## Performance
+
+Baseline numbers (Apple M5, go1.26.3, `-benchmem`). Treat these as
+order-of-magnitude reference for regression-spotting, not hard SLOs — absolute
+ns/op vary by machine. Re-run with the commands above.
+
+| Benchmark | ns/op | B/op | allocs/op | Notes |
+| --- | --- | --- | --- | --- |
+| `SecretCache_GetSecrets_CacheHit` | ~21 | 0 | 0 | Hot path (RLock + TTL check); runs every request |
+| `SecretCache_GetSecrets_Concurrent` | ~99 | 0 | 0 | Cache hit under parallel readers (lock contention) |
+| `SecretCache_GetSecrets_CacheMiss` | ~17,000 | ~66k | 12 | TTL-expiry re-check: re-reads + SHA256-hashes both secret files (once per TTL interval) |
+| `Webhook_Validate` | ~1.3 | 0 | 0 | Pure proto validation, every POST |
+| `Webhook_Parse` | ~770 | ~408 | 8 | JSON → protobuf decode |
+| `Handler_ServeHTTP_ValidWebhook` | ~4,200 | ~12k | 96 | Full request lifecycle (mocked publisher/Strava) |
+| `Handler_ServeHTTP_Verification` | ~3,200 | ~10k | 66 | GET subscription-verification handshake |
+| `Handler_ServeHTTP_Concurrent` | ~2,000 | ~12k | 96 | Valid webhook under parallel load |
+
+The cache hot path is effectively free (~21 ns, 0 allocs), so the secret cache
+is not a request-path bottleneck; the per-TTL re-check (~17 µs) is amortized
+across an entire TTL window. Handler cost is dominated by request setup, not
+secret access. The optimization ideas below the line in
+`adapters/http/benchmark_test.go`'s sibling notes are only worth pursuing if a
+profile shows a specific hot spot — current numbers don't warrant it.
+
 ## Deployment
 
 ```bash
