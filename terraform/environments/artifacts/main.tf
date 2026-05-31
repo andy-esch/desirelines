@@ -171,17 +171,23 @@ resource "google_artifact_registry_repository_iam_member" "ci_deploy_pull" {
 # tags onto the freshly-deployed image. That needs tag-write, which reader does
 # not grant. Rather than the broad `roles/artifactregistry.writer` (push +
 # delete versions — flagged as over-broad for ci-deploy in the 2026-03-17
-# terraform audit), grant a minimal custom role with only the two tag-mutation
+# terraform audit), grant a minimal custom role with only tag-mutation
 # permissions, scoped to this single repo. Reads (resolving the source digest)
 # are already covered by ci_deploy_pull above.
+#
+# tags.delete is required: re-pointing an existing tag (the steady-state case,
+# once prod/dev already exist) is a delete+create, not an update — confirmed at
+# runtime by a PERMISSION_DENIED on tags.delete. Still tag-only: no
+# versions.delete, so images themselves can't be removed by this role.
 resource "google_project_iam_custom_role" "tag_writer" {
   project     = var.gcp_project_id
   role_id     = "artifactRegistryTagWriter"
   title       = "Artifact Registry Tag Writer"
-  description = "Create/update tags only (e.g. stable prod/dev env tags); no image push or version delete."
+  description = "Create/update/delete tags only (move stable prod/dev env tags); no image push or version delete."
   permissions = [
     "artifactregistry.tags.create",
     "artifactregistry.tags.update",
+    "artifactregistry.tags.delete",
   ]
 }
 
