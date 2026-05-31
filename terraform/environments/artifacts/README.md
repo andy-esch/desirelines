@@ -47,8 +47,9 @@ history is ever needed.
 
 ### Activation / dry-run
 
-`cleanup_policy_dry_run` gates whether DELETE policies actually delete. Keep it
-`true` while verifying (see below), then flip to `false` to activate.
+Cleanup is **active** (`cleanup_policy_dry_run = false`). `dry_run` gates whether
+the DELETE policies actually delete; set it back to `true` if you want to preview
+a policy change before it takes effect, then confirm with the query below.
 
 ## Verifying what would be deleted
 
@@ -85,14 +86,18 @@ protoPayload.serviceName="artifactregistry.googleapis.com"
 protoPayload.methodName=~"CreateTag|DeleteTag"
 ```
 
-Cleanup-policy version deletions and pushes require **Data Access** logging,
-enabled via the `google_project_iam_audit_config` resource here (`DATA_WRITE`
-only — `DATA_READ` is intentionally off to avoid logging every image pull):
+Image pushes and version deletions (including cleanup-policy deletions) are
+**Data Access** logs, enabled via the `google_project_iam_audit_config` resource
+here (`DATA_WRITE` only — `DATA_READ` is intentionally off to avoid logging every
+image pull). DOCKER-format repos use a `Docker-*` method convention: cleanup
+deletions surface as `DeleteVersion` (and/or `Docker-DeleteManifest`), pushes as
+`Docker-PutManifest` (per
+[AR audit-logging docs](https://cloud.google.com/artifact-registry/docs/audit-logging)):
 
 ```
 logName="projects/desirelines-artifacts/logs/cloudaudit.googleapis.com%2Fdata_access"
 protoPayload.serviceName="artifactregistry.googleapis.com"
-protoPayload.methodName=~"DeleteVersion|UploadArtifact"
+protoPayload.methodName=~"DeleteVersion|Docker-DeleteManifest|Docker-PutManifest"
 protoPayload.resourceName=~"repositories/desirelines-services"
 ```
 
@@ -101,7 +106,7 @@ gcloud equivalent:
 ```bash
 gcloud logging read \
   'protoPayload.serviceName="artifactregistry.googleapis.com"
-   AND protoPayload.methodName=~"DeleteVersion|DeleteTag|CreateTag"
+   AND protoPayload.methodName=~"DeleteVersion|Docker-DeleteManifest|Docker-PutManifest|CreateTag|DeleteTag"
    AND protoPayload.resourceName=~"repositories/desirelines-services"' \
   --project=desirelines-artifacts --freshness=2d \
   --format="table(timestamp.date('%Y-%m-%d %H:%M'), protoPayload.methodName, protoPayload.resourceName)"

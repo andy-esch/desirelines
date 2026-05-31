@@ -33,20 +33,17 @@ resource "google_artifact_registry_repository" "services" {
   #
   # KEEP precedence (per GCP docs): "If an artifact version matches criteria in
   # both a delete policy and a keep policy, Artifact Registry applies the keep
-  # policy." This is semantic, not declaration-order dependent. The two KEEP
-  # rules below (recent-5 + live-env tags) are what make the tagged-DELETE safe.
+  # policy." Semantic, not declaration-order dependent. The two KEEP rules
+  # (recent-5 + live-env tags) protect the live prod/dev images and the newest
+  # builds from the tagged-DELETE.
   #
-  # ROLLOUT — dry_run stays TRUE until the tag prerequisite is satisfied:
-  #   1. Deploy pipeline stamps each env's live image with a stable `prod` /
-  #      `dev` tag (in addition to the git SHA); back-stamp current live images
-  #      once (gcloud artifacts docker tags add ...).
-  #   2. Apply with dry_run = true. Wait ~1 day, then inspect Artifact Registry
-  #      Data Access audit logs to confirm nothing unexpected is flagged for
-  #      deletion (especially that the prod/dev images are protected).
-  #   3. Flip dry_run = false to make deletion active.
-  # While dry_run = true the existing untagged/buildcache deletes are also
-  # only logged, not enforced — acceptable for the short verification window.
-  cleanup_policy_dry_run = true
+  # Cleanup is ACTIVE (dry_run = false): it trims tagged images older than 30d
+  # that are neither the live prod/dev tag nor in the recent-5. The live prod/dev
+  # tags are stamped at deploy time (see README.md → "Where prod/dev tags come
+  # from"); if stamping ever lapses, the live image loses protection. To preview
+  # what would be removed before a policy change, run the registry query in
+  # README.md ("Verifying what would be deleted") or temporarily set dry_run.
+  cleanup_policy_dry_run = false
 
   # Keep last 5 tagged versions of each service image
   cleanup_policies {
@@ -65,9 +62,9 @@ resource "google_artifact_registry_repository" "services" {
   # job in desirelines/.github/workflows/deploy.yml tags each image only
   # `:latest` + `:<git-sha>` (build-images job, "tags:" ~L82-84). The `prod` /
   # `dev` tags are stamped at deploy time by the desirelines-deploy repo's
-  # .github/workflows/deploy.yml (deploy-dev / deploy-prod jobs). Until that
-  # stamping step exists + current live images are back-stamped, this KEEP
-  # matches nothing — hence dry_run stays true (see rollout note above).
+  # .github/workflows/deploy.yml (deploy-dev / deploy-prod jobs): `dev` follows
+  # every main merge, `prod` moves on release. If stamping ever lapses this KEEP
+  # stops protecting the live image — the stamp step warns loudly on failure.
   cleanup_policies {
     id     = "keep-live-env-images"
     action = "KEEP"
