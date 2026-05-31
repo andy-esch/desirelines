@@ -199,3 +199,28 @@ resource "google_artifact_registry_repository_iam_member" "ci_deploy_tag_writer"
   role       = google_project_iam_custom_role.tag_writer.id
   member     = "serviceAccount:${each.value}"
 }
+
+# ==============================================================================
+# Audit logging: capture Artifact Registry write/delete activity
+# ==============================================================================
+# Surfaces cleanup-policy version deletions (and pushes/tag moves) in Cloud
+# Logging so the retention policy has an auditable trail — see README.md for the
+# Logs Explorer / gcloud queries.
+#
+# DATA_WRITE only, deliberately:
+#   - DATA_WRITE = pushes, tag create/delete, version deletions (cleanup). Low
+#     volume, worth keeping.
+#   - DATA_READ is OMITTED: it logs every image pull (every Cloud Run cold start
+#     and deploy) — high volume, real cost, little value for a single-user repo.
+#   - Tag-stamping CreateTag/DeleteTag already land in Admin Activity logs
+#     (always on, free); this only adds the write/delete data-plane trail.
+# This project is dedicated to the registry, so a project-level config is
+# effectively scoped to Artifact Registry.
+resource "google_project_iam_audit_config" "artifact_registry" {
+  project = var.gcp_project_id
+  service = "artifactregistry.googleapis.com"
+
+  audit_log_config {
+    log_type = "DATA_WRITE"
+  }
+}
