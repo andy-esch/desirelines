@@ -1,0 +1,47 @@
+"""Unit tests for the shared metrics module's MeterProvider views."""
+
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import (
+    HistogramDataPoint,
+    InMemoryMetricReader,
+)
+
+from stravapipe.shared.metrics import _EXTENDED_DURATION_BUCKETS, _metric_views
+
+
+def _record_and_get_bounds(name: str, value: float) -> list[float] | None:
+    """Record one value into a histogram and return its exported bucket bounds."""
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader], views=_metric_views())
+    provider.get_meter("desirelines.io").create_histogram(name).record(value)
+
+    data = reader.get_metrics_data()
+    if data is None:
+        return None
+    for rm in data.resource_metrics:
+        for sm in rm.scope_metrics:
+            for metric in sm.metrics:
+                if metric.name != name:
+                    continue
+                point = metric.data.data_points[0]
+                if isinstance(point, HistogramDataPoint):
+                    return list(point.explicit_bounds)
+    return None
+
+
+def test_duration_histogram_gets_extended_buckets() -> None:
+    # A `*.duration` histogram must resolve past the 10s default ceiling —
+    # otherwise a >10s value (e.g. cold-start webhook freshness) clips and the
+    # P95 is unmeasurable (the bug that hid SLO 3's data).
+    bounds = _record_and_get_bounds("desirelines.io/webhook/end_to_end.duration", 15000)
+    assert bounds is not None, "histogram was not exported"
+    assert bounds[-1] == 60000
+    assert [float(b) for b in bounds] == [float(b) for b in _EXTENDED_DURATION_BUCKETS]
+
+
+def test_non_duration_histogram_keeps_default_buckets() -> None:
+    # The extended-bucket view is scoped to `*.duration`; other histograms keep
+    # the OTel default boundaries (which top out at 10s).
+    bounds = _record_and_get_bounds("desirelines.io/test/widget.count", 15000)
+    assert bounds is not None
+    assert bounds[-1] != 60000
