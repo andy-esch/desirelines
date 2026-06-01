@@ -449,12 +449,14 @@ resource "google_monitoring_alert_policy" "old_messages" {
 # ============================================================================
 # Thresholds were initially shipped as placeholders. As of 2026-05-31 all six
 # are tuned: four (strava_api, firestore_operation, pubsub_publish,
-# postgres_pool) to ~2× observed 7-day P99; the latency pair
-# (http_request_latency, postgres_query_latency) sit at 15s with a 600s
-# duration. 15s is the first histogram-bucket boundary above the ~10s
-# scale-to-zero cold-start ceiling (boundary-aligned firing; aggregate P99 ~4s,
-# P50 ~55ms); the 600s duration exceeds the 5m rate window so a single cold
-# start can't page. See each policy's documentation for details.
+# postgres_pool) to ~2× observed 7-day P99. All five PromQL latency alerts use a
+# 600s alert duration — strictly greater than their 5m rate window — so a single
+# slow op clears the window before the duration elapses and can't page; only
+# sustained degradation fires. Thresholds are bucket-boundary-aligned where the
+# tuned value permits: http/postgres at 15s (first boundary above the ~10s
+# scale-to-zero cold-start ceiling); firestore (1000) and pubsub (500) already
+# land on boundaries; strava_api stays mid-bucket by design (2× its worst-op
+# P99). See each policy's documentation for details.
 #
 # Format: histogram-based latency alerts and the webhook-absence alert use
 # `condition_prometheus_query_language` (not `condition_threshold`) because
@@ -532,13 +534,14 @@ resource "google_monitoring_alert_policy" "strava_api_latency" {
 
   documentation {
     content = <<-EOT
-      **MEDIUM**: P99 Strava API call duration exceeded 1500ms for ≥5 minutes.
+      **MEDIUM**: P99 Strava API call duration sustained above 1500ms for ≥10 minutes.
       Strava's own latency dominates here; if this fires often, check Strava's status
       page before assuming it's us.
 
       Threshold tuned 2026-05-16 from 7-day observed P99 of 747.5ms (worst
       `operation` label). 2× margin gives headroom for legitimate burstiness
-      without page-fatigue.
+      without page-fatigue. 1500 is mid-bucket [1000,2500] by design (2× worst-op
+      P99) — re-derive from per-operation P99 before snapping it to a boundary.
     EOT
   }
 
@@ -553,7 +556,7 @@ resource "google_monitoring_alert_policy" "strava_api_latency" {
           )
         ) > 1500
       EOT
-      duration            = "300s"
+      duration            = "600s"
       evaluation_interval = "60s"
     }
   }
@@ -671,7 +674,7 @@ resource "google_monitoring_alert_policy" "firestore_operation_latency" {
 
   documentation {
     content = <<-EOT
-      **MEDIUM**: P99 Firestore operation duration exceeded 1000ms for ≥5 minutes.
+      **MEDIUM**: P99 Firestore operation duration sustained above 1000ms for ≥10 minutes.
 
       Threshold confirmed 2026-05-16 from 7-day observed P99 of 492.5ms (worst
       `operation` label). 2× observed = ~1000ms, which is what the initial
@@ -690,7 +693,7 @@ resource "google_monitoring_alert_policy" "firestore_operation_latency" {
           )
         ) > 1000
       EOT
-      duration            = "300s"
+      duration            = "600s"
       evaluation_interval = "60s"
     }
   }
@@ -710,7 +713,7 @@ resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
 
   documentation {
     content = <<-EOT
-      **MEDIUM**: P99 PubSub publish duration exceeded 500ms for ≥5 minutes.
+      **MEDIUM**: P99 PubSub publish duration sustained above 500ms for ≥10 minutes.
       Publish should be sub-100ms typically; sustained slowness here blocks the
       dispatcher's webhook response path.
 
@@ -730,7 +733,7 @@ resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
           )
         ) > 500
       EOT
-      duration            = "300s"
+      duration            = "600s"
       evaluation_interval = "60s"
     }
   }
