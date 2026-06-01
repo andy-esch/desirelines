@@ -447,13 +447,14 @@ resource "google_monitoring_alert_policy" "old_messages" {
 # ============================================================================
 # Application-metric Alerts (OTel histograms + gauges)
 # ============================================================================
-# Thresholds were initially shipped as placeholders. As of 2026-05-16, four of
-# six (strava_api, firestore_operation, pubsub_publish, postgres_pool) have
-# been tuned to ~2× observed 7-day P99 (see each policy's documentation for
-# specifics). The remaining two (http_request_latency, postgres_query_latency)
-# carry interim thresholds at 9000ms pending histogram bucket extension —
-# observed P95 and P99 both clip at the top finite bucket (~10s), so a
-# meaningful P99 threshold can't be derived from the current buckets.
+# Thresholds were initially shipped as placeholders. As of 2026-05-31 all six
+# are tuned: four (strava_api, firestore_operation, pubsub_publish,
+# postgres_pool) to ~2× observed 7-day P99; the latency pair
+# (http_request_latency, postgres_query_latency) sit at 15s with a 600s
+# duration. 15s is the first histogram-bucket boundary above the ~10s
+# scale-to-zero cold-start ceiling (boundary-aligned firing; aggregate P99 ~4s,
+# P50 ~55ms); the 600s duration exceeds the 5m rate window so a single cold
+# start can't page. See each policy's documentation for details.
 #
 # Format: histogram-based latency alerts and the webhook-absence alert use
 # `condition_prometheus_query_language` (not `condition_threshold`) because
@@ -572,21 +573,26 @@ resource "google_monitoring_alert_policy" "http_request_latency" {
 
   documentation {
     content = <<-EOT
-      **MEDIUM**: P99 HTTP request duration (across dispatcher + apigateway)
-      exceeded 9000ms (interim) for ≥5 minutes.
+      **MEDIUM**: P99 HTTP request duration (dispatcher + apigateway) sustained
+      above 15s for ≥10 minutes.
 
-      Interim threshold — observed P99 and P95 both clip at the top finite
-      histogram bucket (~10s), so the real tail is unmeasurable from the
-      current buckets. 9000ms catches a sustained "stuck at bucket ceiling"
-      condition (likely Neon scale-to-zero storm or a real degradation), at
-      the cost of being noisy during cold-start events. Re-tune after
-      `extend-otel-histogram-buckets-for-long-tail-latency` lands and
-      bucket resolution allows a meaningful P99.
+      Threshold 15s, tuned 2026-05-31: the first histogram-bucket boundary above
+      the ~10s scale-to-zero cold-start ceiling — boundary-aligned, so firing
+      depends on bucket counts, not on coarse within-bucket interpolation. 7-day
+      aggregate P99 is ~4.1s, P50 ~60ms; the tail is Cloud Run / Neon cold starts
+      which spike a sparse-traffic window's P99 to ~10s. The alert `duration`
+      (600s) is deliberately > the 5m rate window, so a single cold start clears
+      the window before firing — only sustained degradation pages. Min-instance
+      mitigation declined (keeps scale-to-zero cost savings).
+
+      **Action**:
+      1. Cold-start burst (isolated spikes on low traffic) vs sustained?
+      2. If sustained: check Cloud Run / Neon health and recent deploys.
     EOT
   }
 
   conditions {
-    display_name = "http/request.duration P99 > 9000ms (interim)"
+    display_name = "http/request.duration P99 > 15000ms"
 
     condition_prometheus_query_language {
       query               = <<-EOT
@@ -594,9 +600,9 @@ resource "google_monitoring_alert_policy" "http_request_latency" {
           sum by (le) (
             rate({__name__="workload.googleapis.com/desirelines.io/http/request.duration_bucket", monitored_resource="generic_task"}[5m])
           )
-        ) > 9000
+        ) > 15000
       EOT
-      duration            = "300s"
+      duration            = "600s"
       evaluation_interval = "60s"
     }
   }
@@ -616,21 +622,26 @@ resource "google_monitoring_alert_policy" "postgres_query_latency" {
 
   documentation {
     content = <<-EOT
-      **MEDIUM**: P99 Postgres query duration exceeded 9000ms (interim) for ≥5
-      minutes. Expected queries should be fast (indexed lookups, < 50ms
-      typical).
+      **MEDIUM**: P99 Postgres query duration sustained above 15s for ≥10
+      minutes. Typical queries are fast (~50ms; indexed lookups).
 
-      Interim threshold — observed P99 and P95 both clip at the top finite
-      histogram bucket (~10s), almost certainly Neon compute scale-to-zero
-      wake-up. 9000ms catches sustained "stuck at bucket ceiling" (real
-      degradation OR sustained cold-start storm). Re-tune after
-      `extend-otel-histogram-buckets-for-long-tail-latency` lands and
-      bucket resolution allows a meaningful P99.
+      Threshold 15s, tuned 2026-05-31: the first histogram-bucket boundary above
+      the ~10s scale-to-zero cold-start ceiling — boundary-aligned, so firing
+      depends on bucket counts, not on coarse within-bucket interpolation. 7-day
+      aggregate P99 is ~4.3s; the tail is Neon scale-to-zero compute wake on the
+      first query after idle, which spikes a sparse-traffic window's P99 to ~10s.
+      The alert `duration` (600s) is deliberately > the 5m rate window, so a
+      single wake clears the window before firing — only sustained degradation
+      pages. Always-on Neon declined (keeps scale-to-zero cost savings).
+
+      **Action**:
+      1. Isolated Neon wake (spikes on low traffic) vs sustained slow queries?
+      2. If sustained: inspect slow queries (missing index, lock contention) and recent migrations.
     EOT
   }
 
   conditions {
-    display_name = "postgres/query.duration P99 > 9000ms (interim)"
+    display_name = "postgres/query.duration P99 > 15000ms"
 
     condition_prometheus_query_language {
       query               = <<-EOT
@@ -638,9 +649,9 @@ resource "google_monitoring_alert_policy" "postgres_query_latency" {
           sum by (le, metric_operation) (
             rate({__name__="workload.googleapis.com/desirelines.io/postgres/query.duration_bucket", monitored_resource="generic_task"}[5m])
           )
-        ) > 9000
+        ) > 15000
       EOT
-      duration            = "300s"
+      duration            = "600s"
       evaluation_interval = "60s"
     }
   }
