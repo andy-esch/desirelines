@@ -22,7 +22,11 @@ from opentelemetry.metrics import (
 )
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.sdk.metrics.view import DropAggregation, View
+from opentelemetry.sdk.metrics.view import (
+    DropAggregation,
+    ExplicitBucketHistogramAggregation,
+    View,
+)
 from opentelemetry.sdk.resources import Resource
 
 logger = logging.getLogger(__name__)
@@ -30,8 +34,54 @@ logger = logging.getLogger(__name__)
 # Export interval matching Cloud Monitoring's minimum resolution
 _EXPORT_INTERVAL_MS = 60_000
 
+# Extended histogram buckets for `*.duration` metrics. The OTel default tops out
+# at 10s, which clipped webhook/end_to_end.duration (CREATE freshness runs past
+# 10s — Strava fetch + cold Cloud Run/Neon) and blocked SLO 3 calibration. The
+# wildcard view below applies these to every `.duration` histogram so a new one
+# can't silently clip. Mirrors the Go side's extendedDurationBuckets in
+# packages/shared/otel/provider.go.
+_EXTENDED_DURATION_BUCKETS = [
+    1,
+    5,
+    10,
+    25,
+    50,
+    75,
+    100,
+    250,
+    500,
+    750,
+    1000,
+    2500,
+    5000,
+    7500,
+    10000,
+    15000,
+    30000,
+    60000,
+]
+
 # Module-level reference for shutdown.
 _meter_provider: MeterProvider | None = None
+
+
+def _metric_views() -> list[View]:
+    """MeterProvider views. Extracted from setup_metrics for testability."""
+    return [
+        # Drop OTel SDK self-monitoring metrics (otel.sdk.processor.span.*).
+        # They're emitted by BatchSpanProcessor in opentelemetry-sdk >= 1.41,
+        # and Cloud Monitoring's create_metric_descriptor times out on them
+        # without adding actionable observability for our use case.
+        View(meter_name="opentelemetry-sdk", aggregation=DropAggregation()),
+        # Resolve every `*.duration` histogram past the 10s default ceiling
+        # (see _EXTENDED_DURATION_BUCKETS).
+        View(
+            instrument_name="*.duration",
+            aggregation=ExplicitBucketHistogramAggregation(
+                boundaries=_EXTENDED_DURATION_BUCKETS
+            ),
+        ),
+    ]
 
 
 def setup_metrics(service_name: str) -> Meter:
@@ -65,18 +115,10 @@ def setup_metrics(service_name: str) -> Meter:
             exporter, export_interval_millis=_EXPORT_INTERVAL_MS
         )
 
-        # Drop OTel SDK self-monitoring metrics (otel.sdk.processor.span.*).
-        # They're emitted by BatchSpanProcessor in opentelemetry-sdk >= 1.41,
-        # and Cloud Monitoring's create_metric_descriptor times out on them
-        # without adding actionable observability for our use case.
-        sdk_self_metrics_view = View(
-            meter_name="opentelemetry-sdk", aggregation=DropAggregation()
-        )
-
         provider = MeterProvider(
             resource=resource,
             metric_readers=[reader],
-            views=[sdk_self_metrics_view],
+            views=_metric_views(),
         )
         set_meter_provider(provider)
         _meter_provider = provider
