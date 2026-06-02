@@ -103,15 +103,18 @@ class TestActivityRepository:
         ).fetchone()
         assert row.name == "Evening Run"
 
-    def test_update_metadata_changes_type_and_sport(self, uow, db_session):
-        """update_metadata updates both type and sport columns.
+    def test_update_metadata_type_does_not_clobber_sport(self, uow, db_session):
+        """A bare `type` update writes `type` only and leaves `sport` intact.
 
-        Strava webhooks send 'type' (base type like "Ride") not 'sport_type'
-        (specific type like "MountainBikeRide"). While lossy, updating both
-        columns is better than leaving stale data - "Ride" is more correct
-        than "Run" if the user changed their activity type.
+        Strava's UPDATE webhook sends the broad `type` ("Ride") but not the
+        granular `sport_type` ("MountainBikeRide") that the `sport` column
+        holds. Writing the broad type into `sport` would corrupt the granular
+        value and break GROUP BY, so `update_metadata` must not touch `sport`.
+        The enriched (re-fetched) path uses `upsert` to refresh `sport`.
         """
+        # CREATE-time sport is the granular sport_type ("MountainBikeRide").
         activity = make_activity(activity_id=100005)
+        activity = activity.model_copy(update={"sport_type": "MountainBikeRide"})
 
         with uow:
             uow.activities.insert(activity)
@@ -127,8 +130,60 @@ class TestActivityRepository:
             text("SELECT type, sport FROM desirelines.activities WHERE id = :id"),
             {"id": 100005},
         ).fetchone()
+        assert row.type == "Ride"  # broad type updated
+        assert row.sport == "MountainBikeRide"  # granular sport preserved
+
+    def test_upsert_refreshes_sport_on_existing_row(self, uow, db_session):
+        """upsert refreshes every column (incl. granular `sport`), keeps created_at."""
+        # Existing row from CREATE.
+        original = make_activity(activity_id=100007, name="Old Name")
+        original = original.model_copy(update={"sport_type": "Run"})
+        with uow:
+            uow.activities.insert(original)
+            uow.commit()
+
+        created_row = db_session.execute(
+            text("SELECT created_at FROM desirelines.activities WHERE id = :id"),
+            {"id": 100007},
+        ).fetchone()
+
+        # Re-fetched activity after a type change Run -> MountainBikeRide.
+        refreshed = make_activity(activity_id=100007, name="New Name")
+        refreshed = refreshed.model_copy(
+            update={"type": "Ride", "sport_type": "MountainBikeRide"}
+        )
+        with uow:
+            result = uow.activities.upsert(refreshed)
+            uow.commit()
+
+        assert result is True
+        row = db_session.execute(
+            text(
+                "SELECT name, type, sport, created_at "
+                "FROM desirelines.activities WHERE id = :id"
+            ),
+            {"id": 100007},
+        ).fetchone()
+        assert row.name == "New Name"
         assert row.type == "Ride"
-        assert row.sport == "Ride"
+        assert row.sport == "MountainBikeRide"  # granular value refreshed
+        assert row.created_at == created_row.created_at  # preserved on conflict
+
+    def test_upsert_inserts_when_missing(self, uow, db_session):
+        """upsert inserts a row that doesn't exist yet (UPDATE before CREATE)."""
+        activity = make_activity(activity_id=100008)
+        activity = activity.model_copy(update={"sport_type": "GravelRide"})
+
+        with uow:
+            result = uow.activities.upsert(activity)
+            uow.commit()
+
+        assert result is True
+        row = db_session.execute(
+            text("SELECT sport FROM desirelines.activities WHERE id = :id"),
+            {"id": 100008},
+        ).fetchone()
+        assert row.sport == "GravelRide"
 
     def test_update_metadata_returns_false_for_missing(self, uow):
         """update_metadata returns False for non-existent activity."""

@@ -47,6 +47,24 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def upsert(self, activity: StandardActivity) -> bool:
+        """Insert activity, or refresh every column if it already exists.
+
+        Used for enriched UPDATE webhooks (a type change), where the dispatcher
+        re-fetched the full Strava activity so we can recover the granular
+        ``sport_type`` the webhook omits. Unlike ``insert`` (ON CONFLICT DO
+        NOTHING), this refreshes all columns from authoritative Strava data,
+        preserving the original ``created_at``. Always affects exactly one row.
+
+        Args:
+            activity: StandardActivity domain model (full, freshly fetched)
+
+        Returns:
+            True (an upsert always inserts or updates exactly one row)
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def exists(self, activity_id: int) -> bool:
         """Check if activity exists in database.
 

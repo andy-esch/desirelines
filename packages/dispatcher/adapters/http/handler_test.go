@@ -981,7 +981,9 @@ func TestHandler_EnrichmentBehavior_Create(t *testing.T) {
 	}
 }
 
-func TestHandler_EnrichmentBehavior_Update(t *testing.T) {
+// A title-only UPDATE carries no sport change, so the dispatcher does not
+// re-fetch — it publishes the bare event.
+func TestHandler_EnrichmentBehavior_Update_TitleOnly(t *testing.T) {
 	log := gcplog.NewNoOpLogger()
 	mockStrava := &portstest.MockStravaClient{}
 	mockPublisher := &portstest.MockPublisher{}
@@ -1013,12 +1015,153 @@ func TestHandler_EnrichmentBehavior_Update(t *testing.T) {
 
 	enriched := mockPublisher.Published[0]
 	if enriched.RawActivity != nil {
-		t.Error("expected no raw_activity for UPDATE event")
+		t.Error("expected no raw_activity for title-only UPDATE event")
 	}
 
 	// Verify Strava client was NOT called
 	if len(mockStrava.FetchedIDs) != 0 {
-		t.Errorf("expected no Strava fetch for UPDATE, got %v", mockStrava.FetchedIDs)
+		t.Errorf("expected no Strava fetch for title-only UPDATE, got %v", mockStrava.FetchedIDs)
+	}
+}
+
+// A type-change UPDATE must re-fetch the activity so the granular sport_type
+// (which Strava omits from the webhook) reaches downstream as raw_activity.
+func TestHandler_EnrichmentBehavior_Update_TypeChange(t *testing.T) {
+	log := gcplog.NewNoOpLogger()
+	rawActivity := []byte(`{"id":12345,"name":"Morning Ride","sport_type":"MountainBikeRide"}`)
+	mockStrava := &portstest.MockStravaClient{FetchResult: rawActivity}
+	mockPublisher := &portstest.MockPublisher{}
+
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	router := handler.RegisterRoutes()
+
+	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
+		AspectType:     "update",
+		ObjectType:     "activity",
+		ObjectID:       testObjectID,
+		OwnerID:        testOwnerID,
+		EventTime:      testEventTime,
+		SubscriptionID: testSubscriptionID,
+		Updates:        map[string]string{"type": "Ride"},
+	})
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal payload: %v", marshalErr)
+	}
+
+	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	enriched := mockPublisher.Published[0]
+	if enriched.RawActivity == nil {
+		t.Fatal("expected raw_activity to be set for type-change UPDATE event")
+	}
+	if !bytes.Equal(enriched.RawActivity, rawActivity) {
+		t.Errorf("raw_activity = %s, want %s", string(enriched.RawActivity), string(rawActivity))
+	}
+
+	// Verify Strava client WAS called for the changed activity.
+	if len(mockStrava.FetchedIDs) != 1 || mockStrava.FetchedIDs[0] != testObjectID {
+		t.Errorf("expected Strava fetch for activity %d, got %v", testObjectID, mockStrava.FetchedIDs)
+	}
+}
+
+// A type-change UPDATE whose activity was deleted before the fetch publishes a
+// bare event (no raw_activity); downstream then degrades to a no-clobber
+// metadata update rather than failing.
+func TestHandler_EnrichmentBehavior_Update_TypeChange_ActivityGone(t *testing.T) {
+	log := gcplog.NewNoOpLogger()
+	mockStrava := &portstest.MockStravaClient{FetchErr: ports.ErrActivityNotFound}
+	mockPublisher := &portstest.MockPublisher{}
+
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	router := handler.RegisterRoutes()
+
+	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
+		AspectType:     "update",
+		ObjectType:     "activity",
+		ObjectID:       testObjectID,
+		OwnerID:        testOwnerID,
+		EventTime:      testEventTime,
+		SubscriptionID: testSubscriptionID,
+		Updates:        map[string]string{"type": "Ride"},
+	})
+	if marshalErr != nil {
+		t.Fatalf("Failed to marshal payload: %v", marshalErr)
+	}
+
+	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(mockPublisher.Published) != 1 {
+		t.Fatalf("expected 1 published event, got %d", len(mockPublisher.Published))
+	}
+	if mockPublisher.Published[0].RawActivity != nil {
+		t.Error("expected no raw_activity when the activity was already deleted")
+	}
+	// The fetch was still attempted before falling back to a bare publish.
+	if len(mockStrava.FetchedIDs) != 1 {
+		t.Errorf("expected one Strava fetch attempt, got %v", mockStrava.FetchedIDs)
+	}
+}
+
+// TestShouldFetchActivity exhaustively covers the re-fetch gate: CREATE and
+// type-change UPDATE need the full activity; everything else does not.
+func TestShouldFetchActivity(t *testing.T) {
+	strptr := func(s string) *string { return &s }
+	cases := []struct {
+		name  string
+		event *generated.WebhookEvent
+		want  bool
+	}{
+		{
+			name:  "create always fetches",
+			event: &generated.WebhookEvent{AspectType: generated.AspectType_ASPECT_TYPE_CREATE},
+			want:  true,
+		},
+		{
+			name: "update with type change fetches",
+			event: &generated.WebhookEvent{
+				AspectType: generated.AspectType_ASPECT_TYPE_UPDATE,
+				Updates:    &generated.ActivityUpdates{Type: strptr("Ride")},
+			},
+			want: true,
+		},
+		{
+			name: "update title-only does not fetch",
+			event: &generated.WebhookEvent{
+				AspectType: generated.AspectType_ASPECT_TYPE_UPDATE,
+				Updates:    &generated.ActivityUpdates{Title: strptr("New title")},
+			},
+			want: false,
+		},
+		{
+			name:  "update with nil updates does not fetch",
+			event: &generated.WebhookEvent{AspectType: generated.AspectType_ASPECT_TYPE_UPDATE},
+			want:  false,
+		},
+		{
+			name:  "delete does not fetch",
+			event: &generated.WebhookEvent{AspectType: generated.AspectType_ASPECT_TYPE_DELETE},
+			want:  false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldFetchActivity(tc.event); got != tc.want {
+				t.Errorf("shouldFetchActivity() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

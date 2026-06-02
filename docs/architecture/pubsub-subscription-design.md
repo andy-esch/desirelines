@@ -30,7 +30,7 @@ Strava Webhook → Dispatcher (Cloud Run)
 - **Independent retry/SLA** — deauth events have a 48-hour compliance deadline ([Strava API Agreement Section 5.4](https://www.strava.com/legal/api)); activity events are best-effort
 - **Independent scaling** — deauth events are rare; activity events are frequent
 
-The dispatcher enriches activity CREATE events with full activity data from the Strava API before publishing. Downstream consumers receive `EnrichedEvent` messages with activity data inline and do not call the Strava API.
+The dispatcher enriches activity CREATE events — and type-change UPDATE events — with full activity data from the Strava API before publishing. (A type change is the one UPDATE that needs a re-fetch: Strava's webhook carries only the broad `type`, not the granular `sport_type` the `sport` column stores.) Title/private-only UPDATEs and DELETEs are published without a re-fetch. Downstream consumers receive `EnrichedEvent` messages with activity data inline and do not call the Strava API.
 
 ## Event Delivery Pattern
 
