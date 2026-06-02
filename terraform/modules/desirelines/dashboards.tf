@@ -12,6 +12,14 @@
 #
 # Alert policies live in `alerts.tf` / `uptime_checks.tf` / `readiness_probes.tf`;
 # SLO compliance + burn-rate alerts in `slos.tf`.
+#
+# Threshold-line convention (a tile's `thresholds = [{ value = ... }]`):
+#   - Match an SLO target exactly when one exists (visual cue for budget burn).
+#   - Match an alert threshold exactly when one exists (visual cue for paging risk).
+#   - Otherwise omit, OR keep only with an explicit `label` saying what it is
+#     (e.g. "informational" / "planned, not yet deployed"). A bare threshold
+#     with no paired SLO/alert misleads more than it informs.
+# See audit 2026-05-29-terraform-ci (M3) for the prior drift incident.
 # ============================================================================
 
 resource "google_monitoring_dashboard" "desirelines_observability" {
@@ -400,8 +408,12 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 label = "Milliseconds"
                 scale = "LINEAR"
               }
+              # Aligned to SLO 5 (apigateway latency: 95% < 1s). The prior
+              # 5000ms line predated SLOs and read 5× looser than the actual
+              # target, so the tile looked healthy while the SLO budget burned.
               thresholds = [{
-                value = 5000
+                value = 1000
+                label = "SLO 5 target (1s)"
               }]
             }
           }
@@ -518,6 +530,10 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 label = "Messages"
                 scale = "LINEAR"
               }
+              # Soft eyeball reference only — there is no backlog-count alert
+              # (the `old_messages` alert fires on oldest-unacked *age*, mirrored
+              # by the tile below). Kept as a visual "this is a lot of backlog"
+              # cue; not an SLO/alert boundary.
               thresholds = [{
                 value = 100
               }]
@@ -1058,8 +1074,14 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                 label = "Milliseconds"
                 scale = "LINEAR"
               }
+              # Planned SLO 3 (data freshness) target — SLO 3 is NOT yet
+              # deployed (slos.tf:17-20 tracks it as MQL-based, separate). Kept
+              # as the aspirational anchor the `wire-slo-3-freshness` task will
+              # calibrate against once ≥7-30d of data lands; labeled so an
+              # operator doesn't read it as an active SLO line.
               thresholds = [{
-                value = 3000 # SLO 3 target threshold; adjust if SLO 3 calibrates differently
+                value = 3000
+                label = "Planned SLO 3 target (not yet deployed)"
               }]
             }
           }
