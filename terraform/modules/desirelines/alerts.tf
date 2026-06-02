@@ -339,7 +339,16 @@ resource "google_monitoring_alert_policy" "dispatcher_bad_request_surge" {
 # log search don't already cover.
 resource "google_monitoring_alert_policy" "service_5xx_errors" {
   display_name = "🚨 Cloud Run: 5xx errors on non-SLO services"
-  combiner     = "OR"
+  # AND_WITH_MATCHING_RESOURCE: both the ratio AND the absolute-count floor
+  # must trip for the SAME service before paging. These services scale to
+  # zero and see near-zero traffic, so a single benign cold-start 503 (the
+  # hourly readiness probe waking an idle instance) is ~100% of volume and
+  # alone trips a bare 2% ratio. The count floor below gates that out: a real
+  # outage produces a sustained burst of 5xx, a cold-start race produces one
+  # or two. Matching-resource keeps the two conditions tied per service so a
+  # ratio spike on one and a count burst on another can't combine into a
+  # false page.
+  combiner = "AND_WITH_MATCHING_RESOURCE"
 
   documentation {
     content = <<-EOT
@@ -386,6 +395,32 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
       denominator_aggregations {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["resource.labels.service_name"]
+      }
+    }
+  }
+
+  # Minimum-volume floor — ANDed with the ratio above so a single isolated
+  # cold-start 503 can't page on its own. request_count is a DELTA counter;
+  # ALIGN_SUM over a 10-minute window with REDUCE_SUM gives the absolute 5xx
+  # count per service. threshold > 4 (≥5 in 10m) clears a transient cold-start
+  # event — even the worst case (probe + its one retry + a Pub/Sub redelivery
+  # all hitting the same cold instance) tops out at ~3-4 — while a sustained
+  # real outage easily exceeds it. The exact floor is a first cut; calibrate
+  # against real prod data (see the planning-repo SLO re-audit task).
+  conditions {
+    display_name = "Non-SLO service 5xx count ≥ 5 in 10m"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+      duration        = "0s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 4 # > 4 means ≥5 5xx in the 10m window
+
+      aggregations {
+        alignment_period     = "600s" # 10 minutes
+        per_series_aligner   = "ALIGN_SUM"
         cross_series_reducer = "REDUCE_SUM"
         group_by_fields      = ["resource.labels.service_name"]
       }

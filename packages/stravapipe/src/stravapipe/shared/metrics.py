@@ -73,6 +73,18 @@ def _metric_views() -> list[View]:
         # and Cloud Monitoring's create_metric_descriptor times out on them
         # without adding actionable observability for our use case.
         View(meter_name="opentelemetry-sdk", aggregation=DropAggregation()),
+        # Drop the SQLAlchemy connection-pool metrics (db.client.connections.*).
+        # SQLAlchemyInstrumentor (shared/tracing.py) auto-emits these against
+        # our generic_task resource, but Cloud Monitoring rejects the export
+        # every interval with INVALID_ARGUMENT ("One or more TimeSeries could
+        # not be written: timeSeries[0,1] ... written more frequently than the
+        # maximum sampling period") — the idle/used series collide on identical
+        # resource+label identity. The rejected write produces a noisy gRPC
+        # traceback per export and yields zero usable pool observability (the
+        # points never land). Wildcard so sibling pool metrics can't silently
+        # re-introduce the same noise. Same rationale as the opentelemetry-sdk
+        # drop above: a low-value auto-metric Cloud Monitoring chokes on.
+        View(instrument_name="db.client.connections.*", aggregation=DropAggregation()),
         # Resolve every `*.duration` histogram past the 10s default ceiling
         # (see _EXTENDED_DURATION_BUCKETS).
         View(

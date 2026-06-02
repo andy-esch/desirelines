@@ -30,7 +30,15 @@ resource "google_cloud_scheduler_job" "apigateway_readiness" {
   region      = var.gcp_region
 
   retry_config {
-    retry_count = 0 # one shot; failure is the signal
+    # One retry, not zero: these services scale to zero, so the hourly probe
+    # routinely wakes a cold (or being-replaced) single instance and the first
+    # request can 503 on the startup-probe race before the instance binds. The
+    # retry lands on the now-warm instance, so a transient cold-start blip reads
+    # as healthy while a genuine outage still fails attempt #2. Mirrors the
+    # in-app one-retry readiness policy (shared/readiness.py). min_backoff gives
+    # the cold start time to finish before the retry fires.
+    retry_count          = 1
+    min_backoff_duration = "30s"
   }
 
   http_target {
@@ -174,7 +182,15 @@ resource "google_cloud_scheduler_job" "python_readiness" {
   region      = var.gcp_region
 
   retry_config {
-    retry_count = 0 # one shot; failure is the signal
+    # One retry, not zero: these services scale to zero, so the hourly probe
+    # routinely wakes a cold (or being-replaced) single instance and the first
+    # request can 503 on the startup-probe race before the instance binds. The
+    # retry lands on the now-warm instance, so a transient cold-start blip reads
+    # as healthy while a genuine outage still fails attempt #2. Mirrors the
+    # in-app one-retry readiness policy (shared/readiness.py). min_backoff gives
+    # the cold start time to finish before the retry fires.
+    retry_count          = 1
+    min_backoff_duration = "30s"
   }
 
   http_target {

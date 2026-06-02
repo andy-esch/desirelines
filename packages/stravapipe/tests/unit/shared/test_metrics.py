@@ -45,3 +45,24 @@ def test_non_duration_histogram_keeps_default_buckets() -> None:
     bounds = _record_and_get_bounds("desirelines.io/test/widget.count", 15000)
     assert bounds is not None
     assert bounds[-1] != 60000
+
+
+def test_connection_pool_metrics_are_dropped() -> None:
+    # SQLAlchemyInstrumentor's db.client.connections.* metrics are dropped: Cloud
+    # Monitoring rejects them every export (duplicate-series INVALID_ARGUMENT),
+    # producing gRPC traceback noise and no usable data. The wildcard view must
+    # suppress them so nothing reaches the reader.
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader], views=_metric_views())
+    provider.get_meter("desirelines.io").create_up_down_counter(
+        "db.client.connections.usage"
+    ).add(1, {"state": "idle"})
+
+    data = reader.get_metrics_data()
+    exported = [
+        metric.name
+        for rm in (data.resource_metrics if data else [])
+        for sm in rm.scope_metrics
+        for metric in sm.metrics
+    ]
+    assert "db.client.connections.usage" not in exported
