@@ -442,6 +442,63 @@ class TestUpdateEventHandling:
             assert data["status"] == "skipped"
             assert data["reason"] == "not_found"
 
+    def test_update_event_enriched_refreshes_via_upsert(self, client):
+        """UPDATE carrying raw_activity (type change) refreshes the row via upsert."""
+        # Dispatcher re-fetched the activity, so the enriched UPDATE carries the
+        # full payload with the granular sport_type.
+        webhook = make_webhook_payload(
+            aspect_type="update", raw_activity=SAMPLE_RAW_ACTIVITY
+        )
+        webhook["updates"] = {"type": "Run"}
+
+        mock_uow = MagicMock()
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "updated"
+        # Enriched path upserts the full activity; it must NOT go through the
+        # lossy bare metadata path.
+        mock_uow.activities.upsert.assert_called_once()
+        mock_uow.activities.update_metadata.assert_not_called()
+        upserted = mock_uow.activities.upsert.call_args.args[0]
+        assert upserted.sport == "Run"  # granular sport_type from raw_activity
+
+    def test_update_event_bare_type_uses_metadata_path(self, client):
+        """UPDATE without raw_activity (fetch failed / title-only) stays on the
+        bare metadata path and never upserts."""
+        webhook = make_webhook_payload(aspect_type="update")  # no raw_activity
+        webhook["updates"] = {"type": "Ride"}
+
+        mock_uow = MagicMock()
+        mock_uow.activities.exists.return_value = True
+        mock_uow.activities.update_metadata.return_value = True
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "updated"
+        mock_uow.activities.upsert.assert_not_called()
+        mock_uow.activities.update_metadata.assert_called_once_with(
+            12345678, {"type": "Ride"}
+        )
+
 
 class TestDeleteEventHandling:
     """Tests for DELETE aspect_type handling."""
@@ -523,6 +580,23 @@ class TestErrorHandling:
             aspect_type="create",
             raw_activity={"clearly": "not a valid strava activity"},
         )
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(webhook),
+        )
+
+        assert response.status_code == 422
+        assert "raw_activity" in response.json()["detail"]
+
+    def test_malformed_raw_activity_on_update_returns_422(self, client):
+        """Enriched UPDATE with a malformed raw_activity also 422s (same parse path)."""
+        webhook = make_webhook_payload(
+            aspect_type="update",
+            raw_activity={"clearly": "not a valid strava activity"},
+        )
+        webhook["updates"] = {"type": "Ride"}
+
         response = client.post(
             "/",
             headers=make_cloudevent_headers(),
@@ -628,6 +702,39 @@ class TestFreshnessEmission:
         mock_histogram.record.assert_called_once()
         elapsed_ms, labels = mock_histogram.record.call_args.args
         assert 0 < elapsed_ms < 60_000
+        assert labels == {"aspect_type": "update"}
+
+    def test_enriched_update_emits_freshness_when_attribute_present(self, client):
+        """Enriched UPDATE (raw_activity) records freshness with aspect_type=update."""
+        import time
+
+        mock_histogram = self._mock_freshness_histogram()
+        mock_uow = MagicMock()
+
+        received_at_ms = int(time.time() * 1000) - 500
+
+        webhook = make_webhook_payload(
+            aspect_type="update", raw_activity=SAMPLE_RAW_ACTIVITY
+        )
+        webhook["updates"] = {"type": "Run"}
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(
+                    webhook, dispatcher_received_at_ms=received_at_ms
+                ),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "updated"
+        mock_uow.activities.upsert.assert_called_once()
+        mock_histogram.record.assert_called_once()
+        _elapsed_ms, labels = mock_histogram.record.call_args.args
         assert labels == {"aspect_type": "update"}
 
     def test_delete_emits_freshness_when_attribute_present(self, client):

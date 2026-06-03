@@ -15,11 +15,81 @@ from stravapipe.domain import StandardActivity
 from stravapipe.ports.out.postgres import ActivityRepository
 
 # Whitelist of allowed update keys and their corresponding SQL clauses
-# This prevents SQL injection by only allowing known, safe column updates
+# This prevents SQL injection by only allowing known, safe column updates.
+#
+# A bare `type` update writes ONLY the `type` column — never `sport`. Strava's
+# UPDATE webhook carries the broad `type` ("Ride") but not the granular
+# `sport_type` ("MountainBikeRide"); the `sport` column stores the latter
+# (domain `sport` property = `sport_type`). Writing the broad type into `sport`
+# would corrupt the granular value and break GROUP BY. `sport` is refreshed
+# only via `upsert()`, on the enriched (re-fetched) UPDATE path.
 _ALLOWED_UPDATE_CLAUSES: Final[dict[str, list[str]]] = {
     "title": ["name = :name"],
-    "type": ["type = :type", "sport = :sport"],
+    "type": ["type = :type"],
 }
+
+# Columns for a full activity write, in INSERT order. Single source of truth so
+# `insert` and `upsert` can't drift when a column is added — adding one here
+# (plus a line in `_activity_write_params`) updates both SQL statements and the
+# upsert SET clause below. `id` and `created_at` are insert-only: never in the
+# ON CONFLICT DO UPDATE SET, so the original `created_at` survives an upsert.
+_ACTIVITY_COLUMNS: Final[tuple[str, ...]] = (
+    "id",
+    "user_id",
+    "name",
+    "type",
+    "sport",
+    "start_date_local",
+    "distance",
+    "moving_time",
+    "elapsed_time",
+    "total_elevation_gain",
+    "average_speed",
+    "max_speed",
+    "average_heartrate",
+    "max_heartrate",
+    "year",
+    "created_at",
+    "updated_at",
+)
+_ACTIVITY_INSERT_ONLY_COLUMNS: Final[frozenset[str]] = frozenset({"id", "created_at"})
+
+_ACTIVITY_INSERT_SQL: Final[str] = (
+    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_COLUMNS)}) "
+    f"VALUES ({', '.join(f':{col}' for col in _ACTIVITY_COLUMNS)})"
+)
+_ACTIVITY_UPSERT_SET_SQL: Final[str] = ", ".join(
+    f"{col} = EXCLUDED.{col}"
+    for col in _ACTIVITY_COLUMNS
+    if col not in _ACTIVITY_INSERT_ONLY_COLUMNS
+)
+
+
+def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[str, Any]:
+    """Bind params for a full activity write (``insert`` / ``upsert``).
+
+    ``created_at`` and ``updated_at`` are both set to ``now``; on an upsert
+    conflict ``created_at`` isn't in the SET clause, so the original is kept.
+    """
+    return {
+        "id": activity.id,
+        "user_id": activity.user_id,
+        "name": activity.name,
+        "type": activity.type,
+        "sport": activity.sport,
+        "start_date_local": activity.start_date_local,
+        "distance": activity.distance,
+        "moving_time": activity.moving_time,
+        "elapsed_time": activity.elapsed_time,
+        "total_elevation_gain": activity.total_elevation_gain,
+        "average_speed": activity.average_speed,
+        "max_speed": activity.max_speed,
+        "average_heartrate": activity.average_heartrate,
+        "max_heartrate": activity.max_heartrate,
+        "year": activity.year,
+        "created_at": now,
+        "updated_at": now,
+    }
 
 
 class SqlAlchemyActivityRepository(ActivityRepository):
@@ -53,46 +123,35 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         Returns:
             True if inserted, False if already existed (conflict)
         """
-        query = text("""
-            INSERT INTO desirelines.activities (
-                id, user_id, name, type, sport, start_date_local,
-                distance, moving_time, elapsed_time, total_elevation_gain,
-                average_speed, max_speed, average_heartrate, max_heartrate,
-                year, created_at, updated_at
-            ) VALUES (
-                :id, :user_id, :name, :type, :sport, :start_date_local,
-                :distance, :moving_time, :elapsed_time, :total_elevation_gain,
-                :average_speed, :max_speed, :average_heartrate, :max_heartrate,
-                :year, :created_at, :updated_at
-            )
-            ON CONFLICT (id) DO NOTHING
-            RETURNING id
-        """)
-
-        now = datetime.now(UTC)
+        query = text(f"{_ACTIVITY_INSERT_SQL} ON CONFLICT (id) DO NOTHING RETURNING id")
         result = self._session.execute(
-            query,
-            {
-                "id": activity.id,
-                "user_id": activity.user_id,
-                "name": activity.name,
-                "type": activity.type,
-                "sport": activity.sport,
-                "start_date_local": activity.start_date_local,
-                "distance": activity.distance,
-                "moving_time": activity.moving_time,
-                "elapsed_time": activity.elapsed_time,
-                "total_elevation_gain": activity.total_elevation_gain,
-                "average_speed": activity.average_speed,
-                "max_speed": activity.max_speed,
-                "average_heartrate": activity.average_heartrate,
-                "max_heartrate": activity.max_heartrate,
-                "year": activity.year,
-                "created_at": now,
-                "updated_at": now,
-            },
+            query, _activity_write_params(activity, datetime.now(UTC))
         )
         # RETURNING id only returns a row if insert happened (not on conflict)
+        return result.fetchone() is not None
+
+    def upsert(self, activity: StandardActivity) -> bool:
+        """Insert activity, or refresh every column if it already exists.
+
+        Used for enriched UPDATE webhooks (a type change) where the dispatcher
+        re-fetched the full Strava activity. ON CONFLICT DO UPDATE refreshes all
+        columns from authoritative Strava data, preserving the original
+        `created_at`. Always affects one row, so always returns True.
+
+        Routes are intentionally not touched here: a type change doesn't alter
+        geometry, and the route was written on CREATE. (In the rare case the
+        row is *inserted* here — a type-change UPDATE arriving before its
+        CREATE — the route is left unpopulated; a later re-sync/backfill covers
+        that edge.)
+        """
+        query = text(
+            f"{_ACTIVITY_INSERT_SQL} "
+            f"ON CONFLICT (id) DO UPDATE SET {_ACTIVITY_UPSERT_SET_SQL} "
+            f"RETURNING id"
+        )
+        result = self._session.execute(
+            query, _activity_write_params(activity, datetime.now(UTC))
+        )
         return result.fetchone() is not None
 
     def insert_route(self, activity_id: int, geojson: str) -> bool:
@@ -167,13 +226,14 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             params["name"] = updates["title"]
 
         if "type" in updates:
-            # Strava webhooks send 'type' (base type like "Ride") not 'sport_type'
-            # (specific type like "MountainBikeRide"). While lossy, updating both
-            # columns is better than leaving stale data - "Ride" is more correct
-            # than "Run" if the user changed their activity type.
+            # Update `type` only. Strava's UPDATE webhook sends the broad `type`
+            # ("Ride"), not the granular `sport_type` ("MountainBikeRide") that
+            # the `sport` column holds — so we deliberately leave `sport` intact
+            # rather than clobber it with the lossy base type. When the
+            # dispatcher re-fetches the activity on a type change, the enriched
+            # path uses `upsert()` instead and refreshes `sport` correctly.
             set_clauses.extend(_ALLOWED_UPDATE_CLAUSES["type"])
             params["type"] = updates["type"]
-            params["sport"] = updates["type"]
 
         if not set_clauses:
             return None  # No valid updates provided

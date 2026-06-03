@@ -191,7 +191,7 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
             event, event_data, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         on_update=lambda event, event_data, cid: _handle_update(
-            event, cid, session_factory, pg_hist, tracer, freshness_hist
+            event, event_data, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
             event, cid, session_factory, pg_hist, tracer, freshness_hist
@@ -324,16 +324,91 @@ async def _handle_create(
     )
 
 
-async def _handle_update(
-    event: pb.WebhookEvent,
+def _handle_update_enriched(
+    activity_id: int,
+    raw_activity: Any,
     correlation_id: str,
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
     freshness_histogram: Histogram | None = None,
 ) -> WebhookResponse:
-    """Handle UPDATE events - update metadata if activity exists."""
+    """Refresh an existing activity from a re-fetched Strava payload.
+
+    Type-change UPDATEs arrive with the full ``raw_activity`` the dispatcher
+    re-fetched, so we parse it (same as CREATE) and ``upsert`` the whole row.
+    This is the only path that updates the granular ``sport`` column.
+    """
+    # ValidationError → 422 so Pub/Sub acks immediately; retrying a malformed
+    # payload will fail identically. Mirrors the CREATE path.
+    activity = validate_or_422(StandardActivity, raw_activity, context="raw_activity")
+
+    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
+    with (
+        record_span(
+            tracer,
+            "postgres.upsert",
+            db_attributes(
+                "postgresql",
+                "desirelines",
+                "UPDATE",
+                {"desirelines.activity_id": activity_id},
+            ),
+        ),
+        record_duration(pg_histogram, {"operation": "upsert"}),
+        uow,
+    ):
+        uow.activities.upsert(activity)
+        uow.commit()
+
+    _record_freshness(freshness_histogram, "update")
+    logger.info(
+        "Refreshed activity %s from enriched UPDATE",
+        activity_id,
+        extra={"user_id": activity.user_id},
+    )
+    return WebhookResponse(
+        status=ResponseStatus.UPDATED,
+        activity_id=activity_id,
+        correlation_id=correlation_id,
+    )
+
+
+async def _handle_update(
+    event: pb.WebhookEvent,
+    event_data: dict[str, Any],
+    correlation_id: str,
+    session_factory: sessionmaker[Session],
+    pg_histogram: Histogram | None = None,
+    tracer: Tracer | None = None,
+    freshness_histogram: Histogram | None = None,
+) -> WebhookResponse:
+    """Handle UPDATE events.
+
+    Two legs:
+
+    - **Enriched** (``raw_activity`` present): the dispatcher re-fetched the
+      full Strava activity because the `type` changed, so we refresh the whole
+      row via ``upsert`` — the only path that updates the granular ``sport``
+      column correctly. Same parse path as CREATE.
+    - **Bare** (no ``raw_activity``): a title/private-only change, or a
+      type-change whose dispatcher fetch failed. Apply only the metadata we
+      trust (``name`` / ``type``); never clobber ``sport`` with the broad type.
+    """
     activity_id = event.object_id
+
+    raw_activity = event_data.get("raw_activity")
+    if raw_activity is not None:
+        return _handle_update_enriched(
+            activity_id,
+            raw_activity,
+            correlation_id,
+            session_factory,
+            pg_histogram,
+            tracer,
+            freshness_histogram,
+        )
+
     updates = event.updates
 
     # Extract relevant updates from typed ActivityUpdates message

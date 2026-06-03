@@ -307,8 +307,10 @@ func (x *WebhookEvent) GetUpdates() *ActivityUpdates {
 }
 
 // EnrichedEvent wraps a WebhookEvent with optional activity data.
-// For CREATE events, raw_activity contains the full Strava API response (JSON bytes).
-// For UPDATE/DELETE events, raw_activity is not set.
+// raw_activity contains the full Strava API response (JSON bytes) for CREATE
+// events and for type-change UPDATE events (the dispatcher re-fetches the
+// activity so downstream can recover the granular sport_type the webhook
+// omits). It is not set for title/private-only UPDATEs or for DELETE events.
 type EnrichedEvent struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -316,8 +318,8 @@ type EnrichedEvent struct {
 
 	// The original webhook event with all metadata.
 	Event *WebhookEvent `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
-	// Raw Strava API JSON response for the activity.
-	// Only populated for CREATE events.
+	// Raw Strava API JSON response for the activity. Populated for CREATE events
+	// and type-change UPDATE events; absent for bare UPDATEs and DELETEs.
 	RawActivity []byte `protobuf:"bytes,2,opt,name=raw_activity,json=rawActivity,proto3,oneof" json:"raw_activity,omitempty"`
 }
 

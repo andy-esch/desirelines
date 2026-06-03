@@ -483,6 +483,25 @@ func (h *Handler) routeWebhookEvent(ctx context.Context, w http.ResponseWriter, 
 // Any deauth/re-auth race may briefly land in the orphan branch while tokens
 // are being rewritten; we ack so Strava stops retrying and the next event
 // processes normally once the new tokens are written.
+// shouldFetchActivity reports whether this event needs the full Strava activity
+// fetched and attached as EnrichedEvent.RawActivity.
+//
+// CREATE always needs it. A type-change UPDATE needs it too: Strava's webhook
+// carries only the broad `type` ("Ride"), not the granular `sport_type`
+// ("MountainBikeRide") that downstream persists in the `sport` column — so we
+// re-fetch to recover it. Title/private-only updates (and deletes) do not.
+func shouldFetchActivity(webhook *generated.WebhookEvent) bool {
+	switch webhook.AspectType {
+	case generated.AspectType_ASPECT_TYPE_CREATE:
+		return true
+	case generated.AspectType_ASPECT_TYPE_UPDATE:
+		u := webhook.GetUpdates()
+		return u != nil && u.Type != nil
+	default:
+		return false
+	}
+}
+
 func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, correlationID string) {
 	enriched := &generated.EnrichedEvent{Event: webhook}
 
@@ -529,14 +548,16 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 		return
 	}
 
-	if webhook.AspectType == generated.AspectType_ASPECT_TYPE_CREATE {
+	if shouldFetchActivity(webhook) {
 		rawActivity, fetchErr := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
 		switch {
 		case fetchErr == nil:
 			enriched.RawActivity = rawActivity
 		case errors.Is(fetchErr, ports.ErrActivityNotFound):
 			// Activity was deleted before we could fetch it — publish without
-			// activity data so downstream knows the deletion happened.
+			// activity data. Downstream then degrades gracefully: a CREATE
+			// records the deletion, a type-change UPDATE falls back to a bare
+			// metadata update (no sport clobber).
 			h.logger.Warn("Activity not found in Strava, publishing without activity data",
 				"correlation_id", correlationID,
 				"object_id", webhook.ObjectId)
