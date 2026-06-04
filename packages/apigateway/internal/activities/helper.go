@@ -85,17 +85,43 @@ func (h *Handler) mergeMultiSportMetrics(byStravaType map[string]*generated.Spor
 			result[category] = metrics
 			continue
 		}
-		// Merge: both have timeseries ordered by date, merge by index (same dense date range)
-		for i, entry := range metrics.Timeseries {
-			if i < len(existing.Timeseries) {
-				mergeFloat64PtrField(&existing.Timeseries[i].Distance, entry.Distance)
-				mergeFloat64PtrField(&existing.Timeseries[i].Elevation, entry.Elevation)
-				mergeFloat64PtrField(&existing.Timeseries[i].Time, entry.Time)
-				if existing.Timeseries[i].Activities != nil && entry.Activities != nil {
-					sum := *existing.Timeseries[i].Activities + *entry.Activities
-					existing.Timeseries[i].Activities = &sum
-				}
+		// Both timeseries are dense and date-aligned by construction: the
+		// postgres adapter's CROSS JOIN unnest(sports) × generate_series(date)
+		// emits one cell per (sport, date), so the ordered scan yields equal
+		// length with dates aligned by index. Verify that invariant rather than
+		// trusting it — a length mismatch or date misalignment means a producer
+		// or query changed, so bail (leave `existing` untouched) instead of
+		// silently summing across mismatched dates and corrupting totals.
+		if len(existing.Timeseries) != len(metrics.Timeseries) {
+			h.logger.Warn("multi-sport metrics merge skipped: timeseries length mismatch",
+				"category", category,
+				"existing_len", len(existing.Timeseries),
+				"incoming_len", len(metrics.Timeseries),
+			)
+			continue
+		}
+		mismatchIdx := -1
+		for i := range metrics.Timeseries {
+			if existing.Timeseries[i].Date != metrics.Timeseries[i].Date {
+				mismatchIdx = i
+				break
 			}
+		}
+		if mismatchIdx >= 0 {
+			h.logger.Warn("multi-sport metrics merge skipped: timeseries date misalignment",
+				"category", category,
+				"index", mismatchIdx,
+				"existing_date", existing.Timeseries[mismatchIdx].Date,
+				"incoming_date", metrics.Timeseries[mismatchIdx].Date,
+			)
+			continue
+		}
+		for i, entry := range metrics.Timeseries {
+			mergeFloat64PtrField(&existing.Timeseries[i].Distance, entry.Distance)
+			mergeFloat64PtrField(&existing.Timeseries[i].Elevation, entry.Elevation)
+			mergeFloat64PtrField(&existing.Timeseries[i].Time, entry.Time)
+			// nil-safe: previously dropped the count when one side was nil.
+			mergeInt32PtrField(&existing.Timeseries[i].Activities, entry.Activities)
 		}
 	}
 	return result
@@ -119,7 +145,10 @@ func (h *Handler) mergeMultiSportDailySummary(byStravaType map[string]*generated
 				mergeFloat64PtrField(&existingDaily.ElevationMeters, daily.ElevationMeters)
 				mergeFloat64PtrField(&existingDaily.TimeMinutes, daily.TimeMinutes)
 				existingDaily.Activities += daily.Activities
-				existingDaily.ActivityIds = append(existingDaily.ActivityIds, daily.ActivityIds...)
+				// Dedup defensively: an activity belongs to one sport type, so
+				// ids shouldn't repeat across a category merge — but appending
+				// blindly would double-count if that ever stopped holding.
+				existingDaily.ActivityIds = appendUniqueInt64(existingDaily.ActivityIds, daily.ActivityIds)
 			} else {
 				existing.Daily[date] = daily
 			}
@@ -139,4 +168,39 @@ func mergeFloat64PtrField(target **float64, source *float64) {
 		return
 	}
 	**target += *source
+}
+
+// mergeInt32PtrField adds source into *target, allocating if *target is nil.
+// Unlike a both-non-nil guard, this keeps the count when exactly one side is
+// set (existing nil + incoming non-nil would otherwise be silently dropped).
+func mergeInt32PtrField(target **int32, source *int32) {
+	if source == nil {
+		return
+	}
+	if *target == nil {
+		v := *source
+		*target = &v
+		return
+	}
+	**target += *source
+}
+
+// appendUniqueInt64 appends ids from src that aren't already in dst, preserving
+// order. Used to merge activity-id lists without double-counting.
+func appendUniqueInt64(dst, src []int64) []int64 {
+	if len(src) == 0 {
+		return dst
+	}
+	seen := make(map[int64]struct{}, len(dst)+len(src))
+	for _, id := range dst {
+		seen[id] = struct{}{}
+	}
+	for _, id := range src {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		dst = append(dst, id)
+	}
+	return dst
 }

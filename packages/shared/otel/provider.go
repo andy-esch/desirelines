@@ -195,6 +195,18 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 	otelglobal.SetTracerProvider(tp)
 	otelglobal.SetTextMapPropagator(newPropagator())
 
+	// The MeterProvider (mp) is deliberately NOT registered globally: we hand
+	// providers.Meter out by explicit DI and thread it through callers. The
+	// cost of that choice — otelhttp's built-in HTTP server metrics
+	// (http.server.{duration,request.size,response.size}), and any library that
+	// reaches for otel.GetMeterProvider() (HTTP/gRPC clients, future contrib
+	// instrumentations) — route to the global no-op MeterProvider and silently
+	// vanish. Our HTTP latency is covered explicitly by
+	// gcplog.HTTPRequestLoggerWithMetrics (desirelines.io/http/request.duration);
+	// the request/response size histograms have no equivalent and are
+	// intentionally dropped. If you add a contrib instrumentation that needs
+	// auto-metrics, register mp globally here too (otelglobal.SetMeterProvider).
+
 	logger.Info("OTel initialized",
 		"service", serviceName,
 		"metrics_export_interval", exportInterval,

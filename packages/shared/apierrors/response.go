@@ -36,11 +36,10 @@ func RequestIDFromContext(ctx context.Context) string {
 // a bug report so support can jump straight to the trace in Cloud Trace.
 // Omitted when no OTel span is active on the request.
 type ErrorResponse struct {
-	Error     string         `json:"error"`
-	Code      string         `json:"code,omitempty"`
-	RequestID string         `json:"requestId,omitempty"`
-	TraceID   string         `json:"traceId,omitempty"`
-	Details   map[string]any `json:"details,omitempty"`
+	Error     string `json:"error"`
+	Code      string `json:"code,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	TraceID   string `json:"traceId,omitempty"`
 }
 
 // WriteError writes a standardized JSON error response and logs the error.
