@@ -451,6 +451,11 @@ describe("useUserConfig", () => {
       });
       mockServiceInstance.updateConfigSection.mockResolvedValue(undefined);
 
+      // Clear getItem history from the unauthenticated read phase so the
+      // assertions below target the *migration's* read specifically (the
+      // pre-sign-in read also queried the anonymous key).
+      localStorageMock.getItem.mockClear();
+
       // Rerender to trigger effect
       rerender();
 
@@ -464,6 +469,15 @@ describe("useUserConfig", () => {
         );
         expect(localStorageMock.removeItem).toHaveBeenCalled();
       });
+
+      // Regression guard (audit C1): the migration must read the *anonymous*
+      // pre-sign-in key — not the old hardcoded "default", and not the
+      // signed-in uid (effectiveUserId resolves to the uid once authenticated).
+      expect(localStorageMock.getItem).toHaveBeenCalledWith(expect.stringContaining("anonymous"));
+      expect(localStorageMock.getItem).not.toHaveBeenCalledWith(expect.stringContaining("default"));
+      expect(localStorageMock.getItem).not.toHaveBeenCalledWith(
+        expect.stringContaining(mockUser.uid)
+      );
     });
 
     it("deletes orphan demo localStorage when Firestore already has data (Path 2)", async () => {
@@ -511,6 +525,14 @@ describe("useUserConfig", () => {
         expect(localStorageMock.removeItem).toHaveBeenCalled();
       });
       expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
+      // Regression guard (audit C1): the orphan removed is the *anonymous*
+      // pre-sign-in key, not "default" or the signed-in uid.
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith(
+        expect.stringContaining("anonymous")
+      );
+      expect(localStorageMock.removeItem).not.toHaveBeenCalledWith(
+        expect.stringContaining("default")
+      );
     });
 
     it("does not migrate or delete when localStorage data fails schema validation", async () => {
