@@ -328,7 +328,14 @@ export function useUserConfig(
   useEffect(() => {
     if (isLocalStorageMode || isLoading || !configService || migrating.current) return;
 
-    const key = getStorageKey("default", configType, year, sport);
+    // Read the key the *pre-sign-in* session wrote: the unauthenticated
+    // effectiveUserId, which is `userId ?? "anonymous"` (NOT `user.uid`). This
+    // effect only runs once signed in, so `effectiveUserId` here is the
+    // authenticated uid — using it (or the old hardcoded "default") reads a
+    // `userConfig_<uid|default>_*` key that nothing ever wrote, and the
+    // migration silently no-ops. See audit 2026-06-01-web C1.
+    const anonymousUserId = userId ?? "anonymous";
+    const key = getStorageKey(anonymousUserId, configType, year, sport);
     const localDataRaw = localStorage.getItem(key);
     if (!localDataRaw) return;
 
@@ -374,7 +381,17 @@ export function useUserConfig(
       logApiError(err, `[useUserConfig] Invalid localStorage data for ${key}, clearing`);
       localStorage.removeItem(key);
     }
-  }, [isLocalStorageMode, isLoading, data, configType, year, sport, configService, mutation]);
+  }, [
+    isLocalStorageMode,
+    isLoading,
+    data,
+    userId,
+    configType,
+    year,
+    sport,
+    configService,
+    mutation,
+  ]);
 
   return {
     data: data ?? defaultValue ?? null,
@@ -394,7 +411,7 @@ export function useUserConfig(
  * Use this when you need access to multiple config sections
  *
  * @param userId - Optional userId override. If not provided, uses authenticated user's UID
- *   (or "default" for unauthenticated users). Providing an explicit userId when authenticated
+ *   (or "anonymous" for unauthenticated users). Providing an explicit userId when authenticated
  *   will throw an error unless it matches the authenticated user's UID.
  * @param version - Config version (defaults to "v1")
  *

@@ -28,6 +28,8 @@ from opentelemetry.trace import (
 )
 from sqlalchemy.engine import Engine
 
+from stravapipe.shared.metrics import _otel_enabled, build_gcp_resource
+
 logger = logging.getLogger(__name__)
 
 # Module-level reference for shutdown.
@@ -42,7 +44,7 @@ def setup_tracing(service_name: str) -> Tracer:
     """
     global _tracer_provider  # noqa: PLW0603 — module-level singleton referenced by shutdown_tracing
 
-    if os.environ.get("ENABLE_OTEL_TRACING", "").lower() != "true":
+    if not _otel_enabled("ENABLE_OTEL_TRACING"):
         logger.info("OTel tracing disabled (ENABLE_OTEL_TRACING != true)")
         return get_tracer("desirelines.io")
 
@@ -76,23 +78,11 @@ def setup_tracing(service_name: str) -> Tracer:
             from opentelemetry.exporter.cloud_trace import (  # noqa: PLC0415
                 CloudTraceSpanExporter,
             )
-            from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
-                GoogleCloudResourceDetector,
-            )
 
-            # Detector first, explicit service.name second: OTel's
-            # Resource.merge() lets the `other` resource override on
-            # conflict, so the explicit attribute must be on the right-hand
-            # side to win. Mirrors the Go pattern in
-            # packages/shared/otel/provider.go (WithDetectors before
-            # WithAttributes). Without this order, `service.name` from the
-            # GCP detector or env vars (OTEL_SERVICE_NAME / K_SERVICE)
-            # silently clobbers ours, and Cloud Trace's "Service" column
-            # shows blank for spans emitted by these Python services.
-            gcp_resource = GoogleCloudResourceDetector().detect()
-            resource = gcp_resource.merge(
-                Resource.create({"service.name": service_name})
-            )
+            # Shared resource builder keeps metrics + tracing identical (the
+            # detector import lives inside it; mirrors the Go pattern in
+            # packages/shared/otel/provider.go).
+            resource = build_gcp_resource(service_name)
             exporter = CloudTraceSpanExporter()  # type: ignore[no-untyped-call, unused-ignore, assignment]
 
         processor = BatchSpanProcessor(exporter)
@@ -246,7 +236,9 @@ def record_span(
         with record_span(tracer, "postgres.insert", {"desirelines.activity_id": 123}):
             uow.activities.insert(activity)
 
-    On exception, records the error on the span; on success, sets OK status.
+    On exception, records the error and sets the span status to ERROR; on
+    success the status is left UNSET (OTel's default — instrumentation should
+    not force OK).
     """
     if tracer is None:
         yield

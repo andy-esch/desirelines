@@ -143,8 +143,9 @@ def _read_raw_connection_string() -> str:
     """Read connection string from secret mount or environment variable.
 
     Priority:
-    1. Secret volume at /etc/secrets/postgres/connection_string (Cloud Run)
-    2. POSTGRES_CONNECTION_STRING environment variable (local dev)
+    1. Secret volume at ``_SECRET_PATH``
+       (``/etc/secrets/INFISICAL_POSTGRES_CONN_WRITER/value``, Cloud Run / Infisical)
+    2. ``POSTGRES_CONNECTION_STRING`` environment variable (local dev)
 
     Returns:
         Raw connection string as stored.
@@ -212,7 +213,7 @@ def _validate_connection_string(conn_str: str) -> None:
 
 # Valid characters for application_name: alphanumeric, hyphen, underscore
 _APP_NAME_PATTERN = r"^[a-zA-Z0-9_-]+$"
-_APP_NAME_MAX_LENGTH = 64  # PostgreSQL truncates at 64 chars
+_APP_NAME_MAX_LENGTH = 63  # PostgreSQL truncates application_name at NAMEDATALEN-1 = 63
 
 
 def _validate_application_name(app_name: str) -> None:

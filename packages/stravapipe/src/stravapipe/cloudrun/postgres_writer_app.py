@@ -55,21 +55,34 @@ def _record_freshness(
 ) -> None:
     """Record end-to-end webhook freshness for SLO 3, if the inputs allow.
 
-    No-op when either (a) the histogram isn't available (e.g. a test
-    path without lifespan init) or (b) the dispatcher didn't stamp the
-    Pub/Sub `dispatcher_received_at_unix_ms` attribute (e.g. legacy
-    messages from before the freshness rollout). Both branches are
-    safe-by-design: the SLO measures forward-traffic only and silence
-    on absent inputs is intentional.
+    No-op when the histogram isn't available (e.g. a test path without
+    lifespan init). When the dispatcher didn't stamp the Pub/Sub
+    `dispatcher_received_at_unix_ms` attribute, we also skip — but log it
+    (with `aspect_type`) so a systematic gap is visible rather than silently
+    shrinking the SLO 3 sample.
 
     Called by each of `_handle_create`, `_handle_update`,
     `_handle_delete` on their success path. Skipped/DLQ events are
     governed by SLO 2 (webhook ingest success), not this metric.
     """
-    received_at_ms = get_dispatcher_received_at_ms()
-    if received_at_ms is None or freshness_histogram is None:
+    if freshness_histogram is None:
         return
-    elapsed_ms = (time.time() * 1000.0) - received_at_ms
+    received_at_ms = get_dispatcher_received_at_ms()
+    if received_at_ms is None:
+        # Missing-input skip. Log (don't stay silent) so the skip rate is
+        # observable in Cloud Logging — a systematic gap (dispatcher regression
+        # or a message class that never carries the stamp) would otherwise
+        # shrink the SLO 3 sample with zero signal.
+        logger.warning(
+            "Freshness not recorded: dispatcher_received_at_unix_ms absent",
+            extra={"aspect_type": aspect_type},
+        )
+        return
+    # Clamp clock-skew negatives: received_at is stamped on the dispatcher,
+    # time.time() on the writer — different wall clocks. Skew can make elapsed
+    # negative, which OTel's record() rejects and drops silently. Clamping to 0
+    # keeps fast UPDATE/DELETE samples (the realistic skew trigger) in the SLO.
+    elapsed_ms = max(0.0, (time.time() * 1000.0) - received_at_ms)
     freshness_histogram.record(elapsed_ms, {"aspect_type": aspect_type})
 
 
