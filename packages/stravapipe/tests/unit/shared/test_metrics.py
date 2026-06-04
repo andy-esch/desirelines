@@ -9,8 +9,8 @@ from opentelemetry.sdk.resources import Resource
 
 from stravapipe.shared.metrics import (
     _EXTENDED_DURATION_BUCKETS,
+    _merge_service_name,
     _metric_views,
-    merge_service_name,
 )
 
 
@@ -80,7 +80,7 @@ def test_merge_service_name_explicit_wins_over_detected() -> None:
     detected = Resource.create(
         {"service.name": "detected-by-gcp", "cloud.provider": "gcp"}
     )
-    merged = merge_service_name(detected, "desirelines-postgres-writer")
+    merged = _merge_service_name(detected, "desirelines-postgres-writer")
 
     assert merged.attributes["service.name"] == "desirelines-postgres-writer"
     # Non-conflicting detector attributes survive the merge.

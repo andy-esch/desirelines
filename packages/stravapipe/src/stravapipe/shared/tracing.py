@@ -28,7 +28,7 @@ from opentelemetry.trace import (
 )
 from sqlalchemy.engine import Engine
 
-from stravapipe.shared.metrics import merge_service_name
+from stravapipe.shared.metrics import _otel_enabled, build_gcp_resource
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def setup_tracing(service_name: str) -> Tracer:
     """
     global _tracer_provider  # noqa: PLW0603 — module-level singleton referenced by shutdown_tracing
 
-    if os.environ.get("ENABLE_OTEL_TRACING", "").lower() != "true":
+    if not _otel_enabled("ENABLE_OTEL_TRACING"):
         logger.info("OTel tracing disabled (ENABLE_OTEL_TRACING != true)")
         return get_tracer("desirelines.io")
 
@@ -78,15 +78,11 @@ def setup_tracing(service_name: str) -> Tracer:
             from opentelemetry.exporter.cloud_trace import (  # noqa: PLC0415
                 CloudTraceSpanExporter,
             )
-            from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
-                GoogleCloudResourceDetector,
-            )
 
-            # Shared helper keeps the explicit-service.name-wins merge identical
-            # to setup_metrics (see merge_service_name for the why; mirrors the
-            # Go pattern in packages/shared/otel/provider.go).
-            gcp_resource = GoogleCloudResourceDetector().detect()
-            resource = merge_service_name(gcp_resource, service_name)
+            # Shared resource builder keeps metrics + tracing identical (the
+            # detector import lives inside it; mirrors the Go pattern in
+            # packages/shared/otel/provider.go).
+            resource = build_gcp_resource(service_name)
             exporter = CloudTraceSpanExporter()  # type: ignore[no-untyped-call, unused-ignore, assignment]
 
         processor = BatchSpanProcessor(exporter)

@@ -96,7 +96,12 @@ def _metric_views() -> list[View]:
     ]
 
 
-def merge_service_name(base: Resource, service_name: str) -> Resource:
+def _otel_enabled(flag: str) -> bool:
+    """True when an ``ENABLE_OTEL_*`` env flag is set to "true" (case-insensitive)."""
+    return os.environ.get(flag, "").lower() == "true"
+
+
+def _merge_service_name(base: Resource, service_name: str) -> Resource:
     """Merge an explicit ``service.name`` onto ``base`` so it wins on conflict.
 
     OTel's ``Resource.merge()`` lets the ``other`` (right-hand) resource win, so
@@ -104,11 +109,27 @@ def merge_service_name(base: Resource, service_name: str) -> Resource:
     from the GCP detector or env vars (``OTEL_SERVICE_NAME`` / ``K_SERVICE``)
     clobbers ours, blanking per-service attribution in Cloud Monitoring / Cloud
     Trace.
-
-    Shared by ``setup_metrics`` here and ``setup_tracing`` in tracing.py so the
-    two providers can't drift — they did once (audit 2026-06-04-stravapipe M1).
     """
     return base.merge(Resource.create({"service.name": service_name}))
+
+
+def build_gcp_resource(service_name: str) -> Resource:
+    """Build the OTel ``Resource`` for a GCP Cloud Run service.
+
+    Detects GCP environment attributes and merges an explicit ``service.name``
+    that wins on conflict (see ``_merge_service_name``). Shared by
+    ``setup_metrics`` here and ``setup_tracing`` in tracing.py so the resource
+    is identical across providers — they drifted once
+    (audit 2026-06-04-stravapipe M1).
+
+    The GCP detector import is deferred to keep the dependency optional; an
+    ImportError propagates to the caller's setup ``try/except`` → no-op provider.
+    """
+    from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
+        GoogleCloudResourceDetector,
+    )
+
+    return _merge_service_name(GoogleCloudResourceDetector().detect(), service_name)
 
 
 def setup_metrics(service_name: str) -> Meter:
@@ -119,23 +140,20 @@ def setup_metrics(service_name: str) -> Meter:
     """
     global _meter_provider  # noqa: PLW0603 — module-level singleton referenced by shutdown_metrics
 
-    if os.environ.get("ENABLE_OTEL_METRICS", "").lower() != "true":
+    if not _otel_enabled("ENABLE_OTEL_METRICS"):
         logger.info("OTel metrics disabled (ENABLE_OTEL_METRICS != true)")
         return get_meter("desirelines.io")
 
     try:
-        # Deferred imports: GCP exporters are optional runtime deps. Importing
-        # them lazily inside the feature-flagged branch keeps `setup_metrics`
-        # a no-op when the packages aren't installed (e.g. local dev).
+        # Deferred import: the GCP exporter is an optional runtime dep. Importing
+        # it lazily inside the feature-flagged branch keeps `setup_metrics` a
+        # no-op when the package isn't installed (e.g. local dev). The detector
+        # import is likewise deferred inside build_gcp_resource.
         from opentelemetry.exporter.cloud_monitoring import (  # noqa: PLC0415
             CloudMonitoringMetricsExporter,
         )
-        from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
-            GoogleCloudResourceDetector,
-        )
 
-        gcp_resource = GoogleCloudResourceDetector().detect()
-        resource = merge_service_name(gcp_resource, service_name)
+        resource = build_gcp_resource(service_name)
 
         exporter = CloudMonitoringMetricsExporter()
         reader = PeriodicExportingMetricReader(
