@@ -1262,6 +1262,139 @@ func TestCircuitBreaker_404DoesNotCount(t *testing.T) {
 // that drives the breaker. Catches regressions where a new error
 // sentinel is introduced without deciding which side of the breaker
 // counts it.
+// A request cut short by the caller's budget/deadline (the shared
+// handleEventDeadline exhausted upstream — e.g. by a slow token read — before
+// the Strava HTTP call) must be breaker-neutral: it is not evidence Strava is
+// down. Regression guard for H1 (audit 2026-06-03-dispatcher): before the fix,
+// the bare ctx.Err() reached the breaker as a Strava failure and 5 of them
+// would trip it. handleEventDeadline == httpClientTimeout == 10s, so budget
+// exhaustion is realistic, not "orders of magnitude" away.
+func TestFetchActivity_CallerBudgetExhausted_DoesNotTripBreaker(t *testing.T) {
+	// The expired context makes http.Client.Do fail before the server is hit,
+	// so this handler should never run; the assertions below don't depend on it.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "tok", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	// Far more than breakerFailureThreshold consecutive caller-budget failures.
+	for i := 0; i < breakerFailureThreshold+3; i++ {
+		// Parent context already past its deadline before the Strava HTTP call.
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		_, err := client.FetchActivity(ctx, testOwnerID, testActivityID)
+		cancel()
+		if err == nil {
+			t.Fatalf("call %d: expected an error from an expired-budget request", i)
+		}
+		if errors.Is(err, gobreaker.ErrOpenState) {
+			t.Fatalf("call %d: breaker opened on caller-budget exhaustion — must stay neutral", i)
+		}
+	}
+	if state := client.breaker.State(); state != gobreaker.StateClosed {
+		t.Errorf("breaker = %v, want StateClosed: caller-budget failures must not trip the Strava breaker", state)
+	}
+}
+
+// A generic/transient Firestore fault on the in-breaker token write-back (M1)
+// must be breaker-neutral — it reflects Firestore's health, not Strava's.
+// Regression guard for M1 (audit 2026-06-03-dispatcher).
+func TestFetchActivity_FirestoreWriteBackFault_DoesNotTripBreaker(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			// Reactive refresh succeeds at Strava...
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "new-access",
+				"refresh_token": "new-refresh",
+				"expires_at":    futureExpiry(),
+			}); err != nil {
+				t.Errorf("encode: %v", err)
+			}
+		case testActivityPath:
+			// ...but the activity fetch 401s, forcing the reactive refresh.
+			w.WriteHeader(http.StatusUnauthorized)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "old", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+		// Generic Firestore fault on write-back — NOT a known token sentinel.
+		WriteErr: errors.New("firestore: Unavailable"),
+	}
+	client := newTestClient(server, tokenStore)
+
+	for i := 0; i < breakerFailureThreshold+3; i++ {
+		_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+		if err == nil {
+			t.Fatalf("call %d: expected an error when the token write-back faults", i)
+		}
+		if errors.Is(err, gobreaker.ErrOpenState) {
+			t.Fatalf("call %d: breaker opened on a Firestore write-back fault — must stay neutral", i)
+		}
+	}
+	if state := client.breaker.State(); state != gobreaker.StateClosed {
+		t.Errorf("breaker = %v, want StateClosed: Firestore faults must not trip the Strava breaker", state)
+	}
+}
+
+// The caller's budget can expire during the response *body read*, not just the
+// Do() handshake. That must stay breaker-neutral too. Regression guard for the
+// CI review on the H1 fix: server flushes headers (so Do() returns), then hangs
+// the body until the caller cancels mid-read.
+func TestFetchActivity_BudgetCutDuringBodyRead_IsBreakerNeutral(t *testing.T) {
+	bodyPhase := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush() // headers sent → client's Do() returns, body read begins
+		}
+		select {
+		case bodyPhase <- struct{}{}:
+		default:
+		}
+		<-r.Context().Done() // hang the body until the client cancels
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "tok", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-bodyPhase
+		cancel() // caller's budget ends mid body-read
+	}()
+
+	_, err := client.FetchActivity(ctx, testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected an error when the body read is cut by the caller")
+	}
+	if !errors.Is(err, errCallerContextEnded) {
+		t.Errorf("body-read budget cut = %v; want errCallerContextEnded", err)
+	}
+	if !isStravaCallSuccessful(err) {
+		t.Errorf("error %v classified as a Strava failure; a caller-budget body-read cut must be neutral", err)
+	}
+}
+
 func TestIsStravaCallSuccessful(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1282,6 +1415,24 @@ func TestIsStravaCallSuccessful(t *testing.T) {
 		{"rate limited (exhausted, wrapped in ErrStravaAPI)", fmt.Errorf("%w: %w", ErrStravaAPI, &rateLimitError{retryAfter: time.Second}), true},
 		{"strava 5xx", &stravaAPIError{statusCode: 503}, false},
 		{"unknown error counts as failure", errors.New("boom"), false},
+		// Caller's request budget/cancellation (parent ctx expired during the
+		// HTTP call) — neutral, NOT a Strava failure. This is the shape the
+		// Do() sites emit via ctx.Err(); distinct from the bare
+		// DeadlineExceeded above (http.Client.Timeout = Strava slow = failure).
+		{"caller budget exhausted (sentinel)", errCallerContextEnded, true},
+		{"caller budget exhausted (wrapping DeadlineExceeded)", fmt.Errorf("%w: %w", errCallerContextEnded, context.DeadlineExceeded), true},
+		// Backoff interrupted by the request budget: classified by the cause,
+		// not the bare ctx.Err(). A truncated 429 must stay neutral...
+		{"backoff interrupted, 429 cause", fmt.Errorf("strava backoff interrupted: %w (cause: %w)", context.DeadlineExceeded, &rateLimitError{retryAfter: time.Second}), true},
+		// ...while a truncated 5xx is still a real Strava failure.
+		{"backoff interrupted, 5xx cause", fmt.Errorf("strava backoff interrupted: %w (cause: %w)", context.DeadlineExceeded, &stravaAPIError{statusCode: 503}), false},
+		// Generic Firestore fault on the in-breaker token write-back / re-read
+		// (M1) — Firestore's health, not Strava's; must not trip the breaker.
+		{"token store unavailable (sentinel)", errTokenStoreUnavailable, true},
+		{"token store unavailable (write-back shape)", fmt.Errorf("%w: write-back tokens for athlete %d: %w", errTokenStoreUnavailable, int64(1), errors.New("firestore: Unavailable")), true},
+		// The conflict-reread shape wrapping a deleted-doc still surfaces
+		// ErrTokenNotFound for the handler's orphan path — and stays neutral.
+		{"token store unavailable wrapping ErrTokenNotFound", fmt.Errorf("%w: re-read: %w", errTokenStoreUnavailable, ports.ErrTokenNotFound), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
