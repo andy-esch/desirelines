@@ -96,15 +96,17 @@ def _metric_views() -> list[View]:
     ]
 
 
-def _merge_service_name(base: Resource, service_name: str) -> Resource:
-    """Merge an explicit ``service.name`` so it wins over ``base``.
+def merge_service_name(base: Resource, service_name: str) -> Resource:
+    """Merge an explicit ``service.name`` onto ``base`` so it wins on conflict.
 
-    OTel's ``Resource.merge()`` lets the ``other`` (right-hand) resource win on
-    conflict, so the explicit attribute must be the argument — otherwise a
-    ``service.name`` from the GCP detector or env vars (``OTEL_SERVICE_NAME`` /
-    ``K_SERVICE``) clobbers ours and Cloud Monitoring loses per-service
-    attribution of the custom histograms. Mirrors ``setup_tracing`` in
-    tracing.py (kept identical so the two providers can't drift).
+    OTel's ``Resource.merge()`` lets the ``other`` (right-hand) resource win, so
+    the explicit attribute must be the argument — otherwise a ``service.name``
+    from the GCP detector or env vars (``OTEL_SERVICE_NAME`` / ``K_SERVICE``)
+    clobbers ours, blanking per-service attribution in Cloud Monitoring / Cloud
+    Trace.
+
+    Shared by ``setup_metrics`` here and ``setup_tracing`` in tracing.py so the
+    two providers can't drift — they did once (audit 2026-06-04-stravapipe M1).
     """
     return base.merge(Resource.create({"service.name": service_name}))
 
@@ -133,7 +135,7 @@ def setup_metrics(service_name: str) -> Meter:
         )
 
         gcp_resource = GoogleCloudResourceDetector().detect()
-        resource = _merge_service_name(gcp_resource, service_name)
+        resource = merge_service_name(gcp_resource, service_name)
 
         exporter = CloudMonitoringMetricsExporter()
         reader = PeriodicExportingMetricReader(

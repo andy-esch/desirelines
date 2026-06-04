@@ -28,6 +28,8 @@ from opentelemetry.trace import (
 )
 from sqlalchemy.engine import Engine
 
+from stravapipe.shared.metrics import merge_service_name
+
 logger = logging.getLogger(__name__)
 
 # Module-level reference for shutdown.
@@ -80,19 +82,11 @@ def setup_tracing(service_name: str) -> Tracer:
                 GoogleCloudResourceDetector,
             )
 
-            # Detector first, explicit service.name second: OTel's
-            # Resource.merge() lets the `other` resource override on
-            # conflict, so the explicit attribute must be on the right-hand
-            # side to win. Mirrors the Go pattern in
-            # packages/shared/otel/provider.go (WithDetectors before
-            # WithAttributes). Without this order, `service.name` from the
-            # GCP detector or env vars (OTEL_SERVICE_NAME / K_SERVICE)
-            # silently clobbers ours, and Cloud Trace's "Service" column
-            # shows blank for spans emitted by these Python services.
+            # Shared helper keeps the explicit-service.name-wins merge identical
+            # to setup_metrics (see merge_service_name for the why; mirrors the
+            # Go pattern in packages/shared/otel/provider.go).
             gcp_resource = GoogleCloudResourceDetector().detect()
-            resource = gcp_resource.merge(
-                Resource.create({"service.name": service_name})
-            )
+            resource = merge_service_name(gcp_resource, service_name)
             exporter = CloudTraceSpanExporter()  # type: ignore[no-untyped-call, unused-ignore, assignment]
 
         processor = BatchSpanProcessor(exporter)
