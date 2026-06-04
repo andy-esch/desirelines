@@ -40,6 +40,25 @@ var (
 	// refresh token will fail the same way — refreshAndPersist treats this
 	// as non-retryable and returns immediately.
 	errRefreshTokenRejected = errors.New("strava: refresh token rejected")
+
+	// errCallerContextEnded marks a request cut short by the *caller's*
+	// context — the shared per-request budget (handleEventDeadline) expiring
+	// or an explicit cancellation — rather than by Strava. The HTTP call sites
+	// detect this via ctx.Err() and tag it so the breaker treats it as
+	// neutral. It is deliberately distinct from http.Client.Timeout (Strava
+	// genuinely slow), which leaves the caller ctx un-expired and must still
+	// count as a Strava failure.
+	errCallerContextEnded = errors.New("strava: caller context ended before completion")
+
+	// errTokenStoreUnavailable marks a generic/transient Firestore fault from
+	// the token-store calls that run *inside* the breakered closure (the
+	// refresh write-back and the post-conflict re-read). Those are Firestore's
+	// health, not Strava's — tagging them keeps a Firestore hiccup during a
+	// refresh burst from tripping the *Strava* breaker (the isolation the
+	// GetTokens-before-fetch comment promises). The known token sentinels
+	// (ErrTokenConflict, ErrTokenNotFound) are handled separately and still
+	// surface through the %w chain.
+	errTokenStoreUnavailable = errors.New("strava: token store unavailable")
 )
 
 const (
@@ -223,18 +242,29 @@ func isStravaCallSuccessful(err error) bool {
 	case errors.Is(err, ports.ErrTokenNotFound):
 		// Tokens deleted mid-refresh (deauth/refresh race). Per-user, not Strava.
 		return true
+	case errors.Is(err, errTokenStoreUnavailable):
+		// Generic Firestore fault on the in-breaker token write-back / re-read.
+		// Firestore's health, not Strava's — must not trip the Strava breaker.
+		return true
 	case errors.Is(err, context.Canceled):
 		// Caller canceled the context — no signal about Strava's health.
 		return true
+	case errors.Is(err, errCallerContextEnded):
+		// The caller's request budget/deadline ended the call (e.g. a slow
+		// upstream token read ate the shared handleEventDeadline budget, then
+		// the in-flight HTTP call hit the parent-ctx deadline). Not Strava's
+		// fault. The HTTP call sites tag this via ctx.Err(); a genuine Strava
+		// hang (http.Client.Timeout) leaves the caller ctx live and falls
+		// through to the default below.
+		return true
 	default:
-		// 5xx / network / decode / DeadlineExceeded → Strava-side failure.
-		// DeadlineExceeded specifically: Go's http.Client wraps its own
-		// Timeout (httpClientTimeout = 10s) as context.DeadlineExceeded,
-		// and a Strava endpoint that can't answer in 10s IS evidence
-		// the dependency is degraded. Caller-supplied deadlines could
-		// also fire here in principle, but at our scope they are all
-		// orders of magnitude longer than the HTTP timeout, so this
-		// branch is dominated by Strava-side slowness.
+		// 5xx / network / decode / Strava-side timeout → Strava failure.
+		// A context.DeadlineExceeded reaching *here* is http.Client.Timeout
+		// (httpClientTimeout = 10s): Strava couldn't answer in time, which IS
+		// evidence the dependency is degraded. Caller-budget deadlines are
+		// tagged errCallerContextEnded above (handleEventDeadline ==
+		// httpClientTimeout == 10s, so they are NOT orders of magnitude apart)
+		// and never reach this branch.
 		return false
 	}
 }
@@ -382,7 +412,12 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 			)
 			select {
 			case <-ctx.Done():
-				return nil, fmt.Errorf("strava backoff interrupted: %w", ctx.Err())
+				// Preserve the cause (e.g. *rateLimitError) so a retry cut
+				// short by the request budget is classified by *why* we were
+				// retrying, not mis-counted as a Strava failure for the bare
+				// ctx.Err(). A real 5xx cause still falls to the breaker's
+				// failure default.
+				return nil, fmt.Errorf("strava backoff interrupted: %w (cause: %w)", ctx.Err(), lastErr)
 			case <-time.After(backoff):
 			}
 		}
@@ -408,6 +443,12 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		// Distinguish the caller's budget/cancellation (parent ctx expired)
+		// from http.Client.Timeout (Strava slow): only the former leaves
+		// ctx.Err() non-nil here. Tag it so the breaker stays neutral.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
+		}
 		return nil, fmt.Errorf("http request failed: %w", err)
 	}
 	defer func() {
@@ -479,7 +520,9 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 						"correlation_id", cid, "owner_id", ownerID)
 					winner, getErr := c.tokenStore.GetTokens(ctx, ownerID)
 					if getErr != nil {
-						err = fmt.Errorf("re-read tokens after conflict for athlete %d: %w", ownerID, getErr)
+						// Firestore fault (not Strava) — tag so the breaker stays
+						// neutral. An inner ErrTokenNotFound still matches via %w.
+						err = fmt.Errorf("%w: re-read tokens after conflict for athlete %d: %w", errTokenStoreUnavailable, ownerID, getErr)
 						return nil, err
 					}
 					return winner, nil
@@ -492,7 +535,11 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 					err = writeErr
 					return nil, err
 				}
-				err = fmt.Errorf("write-back tokens for athlete %d: %w", ownerID, writeErr)
+				// Generic/transient Firestore fault on write-back (the known
+				// ErrTokenConflict / ErrTokenNotFound sentinels were handled
+				// above). Tag as token-store-unavailable so the breaker treats
+				// it as Firestore's health, not Strava's.
+				err = fmt.Errorf("%w: write-back tokens for athlete %d: %w", errTokenStoreUnavailable, ownerID, writeErr)
 				return nil, err
 			}
 
@@ -536,7 +583,12 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 			)
 			select {
 			case <-ctx.Done():
-				return nil, fmt.Errorf("strava backoff interrupted: %w", ctx.Err())
+				// Preserve the cause (e.g. *rateLimitError) so a retry cut
+				// short by the request budget is classified by *why* we were
+				// retrying, not mis-counted as a Strava failure for the bare
+				// ctx.Err(). A real 5xx cause still falls to the breaker's
+				// failure default.
+				return nil, fmt.Errorf("strava backoff interrupted: %w (cause: %w)", ctx.Err(), lastErr)
 			case <-time.After(backoff):
 			}
 		}
@@ -562,6 +614,10 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		// See doFetchActivity: caller budget/cancellation vs Strava slowness.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
+		}
 		return nil, fmt.Errorf("token request failed: %w", err)
 	}
 	defer func() {
