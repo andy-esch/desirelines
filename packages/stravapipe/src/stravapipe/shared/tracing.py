@@ -246,7 +246,9 @@ def record_span(
         with record_span(tracer, "postgres.insert", {"desirelines.activity_id": 123}):
             uow.activities.insert(activity)
 
-    On exception, records the error on the span; on success, sets OK status.
+    On exception, records the error and sets the span status to ERROR; on
+    success the status is left UNSET (OTel's default — instrumentation should
+    not force OK).
     """
     if tracer is None:
         yield

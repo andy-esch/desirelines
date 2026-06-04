@@ -5,8 +5,13 @@ from opentelemetry.sdk.metrics.export import (
     HistogramDataPoint,
     InMemoryMetricReader,
 )
+from opentelemetry.sdk.resources import Resource
 
-from stravapipe.shared.metrics import _EXTENDED_DURATION_BUCKETS, _metric_views
+from stravapipe.shared.metrics import (
+    _EXTENDED_DURATION_BUCKETS,
+    _merge_service_name,
+    _metric_views,
+)
 
 
 def _record_and_get_bounds(name: str, value: float) -> list[float] | None:
@@ -66,3 +71,17 @@ def test_connection_pool_metrics_are_dropped() -> None:
         for metric in sm.metrics
     ]
     assert "db.client.connections.usage" not in exported
+
+
+def test_merge_service_name_explicit_wins_over_detected() -> None:
+    # The explicit service.name must override one the GCP detector already
+    # carries (the metrics-side bug: a left-side merge let the detector win and
+    # blanked per-service attribution). Mirrors the setup_tracing invariant.
+    detected = Resource.create(
+        {"service.name": "detected-by-gcp", "cloud.provider": "gcp"}
+    )
+    merged = _merge_service_name(detected, "desirelines-postgres-writer")
+
+    assert merged.attributes["service.name"] == "desirelines-postgres-writer"
+    # Non-conflicting detector attributes survive the merge.
+    assert merged.attributes["cloud.provider"] == "gcp"

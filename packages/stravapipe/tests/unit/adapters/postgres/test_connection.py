@@ -138,6 +138,21 @@ class TestValidateConnectionString:
         # Should not raise
         _validate_connection_string(conn_str)
 
+    def test_application_name_length_boundary_at_63(self):
+        """63 chars is the max PostgreSQL keeps (NAMEDATALEN-1); 64 is rejected
+        because PostgreSQL would silently truncate it."""
+        ok = "a" * 63
+        _validate_connection_string(
+            f"postgresql://user:pass@host/db?application_name={ok}"
+        )  # exactly 63: no raise
+
+        too_long = "a" * 64
+        with pytest.raises(ConnectionStringError) as exc_info:
+            _validate_connection_string(
+                f"postgresql://user:pass@host/db?application_name={too_long}"
+            )
+        assert "63" in str(exc_info.value)
+
 
 class TestTransformDialect:
     """Tests for _transform_dialect."""

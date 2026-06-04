@@ -671,6 +671,78 @@ class TestFreshnessEmission:
         assert 0 < elapsed_ms < 60_000  # sane bound: anything > 1 minute means a bug
         assert labels == {"aspect_type": "create"}
 
+    def test_clock_skew_negative_is_clamped_not_dropped(self, client):
+        """A dispatcher clock ahead of the writer yields negative elapsed; clamp
+        to 0 so OTel doesn't silently drop the (forward-traffic) sample."""
+        import time
+
+        mock_histogram = self._mock_freshness_histogram()
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+
+        # Dispatcher timestamp 5s in the FUTURE relative to the writer's clock.
+        received_at_ms = int(time.time() * 1000) + 5000
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=MagicMock(map=None),
+            ),
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(
+                    webhook, dispatcher_received_at_ms=received_at_ms
+                ),
+            )
+
+        assert response.status_code == 200
+        mock_histogram.record.assert_called_once()
+        elapsed_ms, _labels = mock_histogram.record.call_args.args
+        assert elapsed_ms == 0.0  # clamped, not a negative that OTel would drop
+
+    def test_missing_dispatcher_timestamp_skips_and_logs(self, client):
+        """No dispatcher timestamp → don't record, but log (not silent) so the
+        skip rate stays observable."""
+        mock_histogram = self._mock_freshness_histogram()
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=MagicMock(map=None),
+            ),
+            patch("stravapipe.cloudrun.postgres_writer_app.logger") as mock_logger,
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+            )
+            # No dispatcher_received_at_ms on the envelope.
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+        assert response.status_code == 200
+        mock_histogram.record.assert_not_called()
+        assert mock_logger.warning.called
+        warn_kwargs = mock_logger.warning.call_args.kwargs
+        assert warn_kwargs.get("extra", {}).get("aspect_type") == "create"
+
     def test_update_emits_freshness_when_attribute_present(self, client):
         """UPDATE success path records to the histogram with aspect_type=update."""
         import time
