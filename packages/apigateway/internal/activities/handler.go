@@ -169,18 +169,8 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		return nil
 	}
 
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
-
-	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return nil
-	}
-
-	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, year); errMsg != "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+	fromStr, toStr, ok := h.parseDateRange(w, r, year)
+	if !ok {
 		return nil
 	}
 
@@ -192,6 +182,24 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		useDateRange: fromStr != "" && toStr != "",
 		loc:          h.parseTimezone(r),
 	}
+}
+
+// parseDateRange reads and validates the from/to query params against the URL
+// year. On failure it writes the 400 response and returns ok=false. Shared by
+// the single- and multi-sport validators so the two can't drift.
+func (h *Handler) parseDateRange(w http.ResponseWriter, r *http.Request, year int) (from, to string, ok bool) {
+	from = r.URL.Query().Get("from")
+	to = r.URL.Query().Get("to")
+
+	if errMsg := validate.DateRange(from, to); errMsg != "" {
+		apierrors.WriteError(w, r, apierrors.NewAPIError(http.StatusBadRequest, errMsg), h.logger)
+		return "", "", false
+	}
+	if errMsg := validate.DateRangeYearOverlap(from, to, year); errMsg != "" {
+		apierrors.WriteError(w, r, apierrors.NewAPIError(http.StatusBadRequest, errMsg), h.logger)
+		return "", "", false
+	}
+	return from, to, true
 }
 
 // multiSportQueryParams holds validated parameters for multi-sport queries.
@@ -254,18 +262,8 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 		return nil
 	}
 
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
-
-	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return nil
-	}
-
-	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, year); errMsg != "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+	fromStr, toStr, ok := h.parseDateRange(w, r, year)
+	if !ok {
 		return nil
 	}
 
