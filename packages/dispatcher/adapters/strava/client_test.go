@@ -1350,6 +1350,51 @@ func TestFetchActivity_FirestoreWriteBackFault_DoesNotTripBreaker(t *testing.T) 
 	}
 }
 
+// The caller's budget can expire during the response *body read*, not just the
+// Do() handshake. That must stay breaker-neutral too. Regression guard for the
+// CI review on the H1 fix: server flushes headers (so Do() returns), then hangs
+// the body until the caller cancels mid-read.
+func TestFetchActivity_BudgetCutDuringBodyRead_IsBreakerNeutral(t *testing.T) {
+	bodyPhase := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush() // headers sent → client's Do() returns, body read begins
+		}
+		select {
+		case bodyPhase <- struct{}{}:
+		default:
+		}
+		<-r.Context().Done() // hang the body until the client cancels
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "tok", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-bodyPhase
+		cancel() // caller's budget ends mid body-read
+	}()
+
+	_, err := client.FetchActivity(ctx, testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected an error when the body read is cut by the caller")
+	}
+	if !errors.Is(err, errCallerContextEnded) {
+		t.Errorf("body-read budget cut = %v; want errCallerContextEnded", err)
+	}
+	if !isStravaCallSuccessful(err) {
+		t.Errorf("error %v classified as a Strava failure; a caller-budget body-read cut must be neutral", err)
+	}
+}
+
 func TestIsStravaCallSuccessful(t *testing.T) {
 	tests := []struct {
 		name string

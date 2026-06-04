@@ -460,6 +460,11 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxActivityResponseBytes))
 	if err != nil {
+		// The body read can also be cut short by the caller's budget — keep it
+		// breaker-neutral, same as the Do() error above.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
+		}
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
 
@@ -629,6 +634,11 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
 	if err != nil {
+		// See doFetchActivity: a caller-budget cut during the body read stays
+		// breaker-neutral rather than counting as a Strava failure.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
+		}
 		return nil, fmt.Errorf("failed to read token response body: %w", err)
 	}
 
