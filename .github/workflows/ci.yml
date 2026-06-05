@@ -183,10 +183,12 @@ jobs:
           version-file: packages/stravapipe/pyproject.toml
 
       - name: Test with coverage
-        # schemas/bigquery:: holds the generate_proto generator + its tests,
-        # which live in the stravapipe resolve but outside packages/. Include
-        # them explicitly so the codegen tool is actually test/lint/type gated
-        # (it was silently un-gated when this scoped only to packages/stravapipe::).
+        # schemas/bigquery:: holds the generate_proto codegen tool + its tests,
+        # which live in the stravapipe resolve but OUTSIDE packages/. They were
+        # silently un-gated when this scoped only to packages/stravapipe:: — the
+        # test file had been failing for months with no CI signal. Include it
+        # explicitly so the generator is test-gated. (lint/check gating for this
+        # path is still pending — see the follow-up task.)
         run: "pants --tag='-integration' test --use-coverage packages/stravapipe:: schemas/bigquery::"
 
       # First-party Python outside stravapipe (schema tooling, ops scripts). Run
