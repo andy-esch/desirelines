@@ -183,7 +183,11 @@ jobs:
           version-file: packages/stravapipe/pyproject.toml
 
       - name: Test with coverage
-        run: "pants --tag='-integration' test --use-coverage packages/stravapipe::"
+        # schemas/bigquery:: holds the generate_proto generator + its tests,
+        # which live in the stravapipe resolve but outside packages/. Include
+        # them explicitly so the codegen tool is actually test/lint/type gated
+        # (it was silently un-gated when this scoped only to packages/stravapipe::).
+        run: "pants --tag='-integration' test --use-coverage packages/stravapipe:: schemas/bigquery::"
 
       # First-party Python outside stravapipe (schema tooling, ops scripts). Run
       # without --use-coverage so the coverage.xml uploaded below stays scoped to

@@ -23,12 +23,21 @@ def _render(schema: list[dict]) -> str:
     return "\n".join(out.lines)
 
 
+# NOTE on `optional`: the generated proto is **proto2**, because the BigQuery
+# Storage Write API rejects descriptors carrying the `[proto3_optional=true]`
+# annotation that proto3's `optional` keyword emits (see the generate_proto
+# module docstring and adapters/gcp/_bigquery_storage.py). In proto2 every
+# non-repeated field needs an explicit label, so the generator labels them all
+# `optional` — including BQ-REQUIRED fields and nested RECORDs. These tests
+# assert that proto2 contract; do not "simplify" them back to proto3
+# expectations.
 class TestTypeMapping:
     def test_required_int(self):
         # proto2: every non-repeated field carries an explicit label, so even
         # a BQ REQUIRED scalar is emitted `optional` (BQ enforces REQUIRED at
         # insert time, independent of the proto label).
         body = _render([{"name": "id", "type": "INTEGER", "mode": "REQUIRED"}])
+        # proto2: a BQ-REQUIRED scalar is still labeled `optional`.
         assert "optional int64 id = 1;" in body
 
     def test_nullable_string_uses_optional(self):
@@ -209,6 +218,8 @@ class TestFullSchema:
 
     def test_generate_produces_valid_proto(self):
         content = generate()
+        # proto2, not proto3 — BQ Storage Write rejects the proto3_optional
+        # annotation. This assertion is the canary for an accidental syntax flip.
         assert 'syntax = "proto2";' in content
         assert "package desirelines.bigquery.v1;" in content
         assert "message Activity {" in content
@@ -219,3 +230,6 @@ class TestFullSchema:
         # Two calls produce identical output. Catches accidental
         # nondeterminism (set iteration, dict ordering pre-3.7, etc.).
         assert generate() == generate()
+
+
+

@@ -228,8 +228,12 @@ ignore_errors = true
 # mypy emits a note; `pants check` covers tests and needs the relaxation. The
 # `just py-typecheck` recipe passes `--no-warn-unused-configs` to silence the
 # note without masking real unused configs in CI.
+#
+# `test_*` covers test modules that import as a top-level module because they
+# live beside the code they test rather than under a `tests/` package (e.g.
+# schemas/bigquery/test_generate_proto.py → module `test_generate_proto`).
 [[tool.mypy.overrides]]
-module = ["stravapipe.tests.*", "tests.*"]
+module = ["stravapipe.tests.*", "tests.*", "test_*"]
 disallow_untyped_defs = false
 disallow_untyped_calls = false
 disallow_incomplete_defs = false
