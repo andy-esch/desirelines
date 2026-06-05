@@ -93,9 +93,12 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Parse "Bearer <token>"
+		// Parse "Bearer <token>". Reject a blank token (e.g. "Bearer " with a
+		// trailing space splits to ["Bearer", ""]) here rather than handing an
+		// empty/whitespace string to Firebase, which would 401 anyway after a
+		// network round-trip.
 		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
+		if len(parts) != 2 || parts[0] != "Bearer" || strings.TrimSpace(parts[1]) == "" {
 			m.logger.Warn("Auth: Authentication failed", "reason", "invalid_header_format")
 			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
 			return

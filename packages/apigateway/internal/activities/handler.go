@@ -169,18 +169,8 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		return nil
 	}
 
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
-
-	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return nil
-	}
-
-	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, year); errMsg != "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+	fromStr, toStr, ok := h.parseDateRange(w, r, year)
+	if !ok {
 		return nil
 	}
 
@@ -192,6 +182,24 @@ func (h *Handler) validateSportQuery(w http.ResponseWriter, r *http.Request) *sp
 		useDateRange: fromStr != "" && toStr != "",
 		loc:          h.parseTimezone(r),
 	}
+}
+
+// parseDateRange reads and validates the from/to query params against the URL
+// year. On failure it writes the 400 response and returns ok=false. Shared by
+// the single- and multi-sport validators so the two can't drift.
+func (h *Handler) parseDateRange(w http.ResponseWriter, r *http.Request, year int) (from, to string, ok bool) {
+	from = r.URL.Query().Get("from")
+	to = r.URL.Query().Get("to")
+
+	if errMsg := validate.DateRange(from, to); errMsg != "" {
+		apierrors.WriteError(w, r, apierrors.NewAPIError(http.StatusBadRequest, errMsg), h.logger)
+		return "", "", false
+	}
+	if errMsg := validate.DateRangeYearOverlap(from, to, year); errMsg != "" {
+		apierrors.WriteError(w, r, apierrors.NewAPIError(http.StatusBadRequest, errMsg), h.logger)
+		return "", "", false
+	}
+	return from, to, true
 }
 
 // multiSportQueryParams holds validated parameters for multi-sport queries.
@@ -254,18 +262,8 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 		return nil
 	}
 
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
-
-	if errMsg := validate.DateRange(fromStr, toStr); errMsg != "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return nil
-	}
-
-	if errMsg := validate.DateRangeYearOverlap(fromStr, toStr, year); errMsg != "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+	fromStr, toStr, ok := h.parseDateRange(w, r, year)
+	if !ok {
 		return nil
 	}
 
@@ -357,7 +355,13 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Merge all Strava types for this sport category into a single result
-	merged := h.mergeMultiSportMetrics(byStravaType)
+	merged, err := h.mergeMultiSportMetrics(byStravaType)
+	if err != nil {
+		h.logger.Error("Multi-sport metrics merge failed", "error", err)
+		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
+	}
 	// Extract the single category's data (there should be exactly one after merging)
 	var result *generated.SportMetrics
 	for _, v := range merged {
@@ -374,8 +378,6 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 
 // handleMultiSportMetrics handles GET /activities/{year}/metrics?sports=X,Y,Z.
 // Uses a single DB query for all sports, then re-keys results from Strava types to categories.
-//
-//nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {
@@ -404,8 +406,15 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	bySport, err := h.mergeMultiSportMetrics(byStravaType)
+	if err != nil {
+		h.logger.Error("Multi-sport metrics merge failed", "error", err)
+		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
+	}
 	result := &generated.AllSportsMetrics{
-		BySport: h.mergeMultiSportMetrics(byStravaType),
+		BySport: bySport,
 	}
 
 	setCachePastData(w, params.year, params.to, params.useDateRange)
@@ -465,8 +474,6 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 
 // handleMultiSportSource handles GET /activities/{year}/source?sports=X,Y,Z.
 // Uses a single DB query for all sports, then re-keys results from Strava types to categories.
-//
-//nolint:dupl // Intentional: handleMultiSportMetrics and handleMultiSportSource share structure but differ in types
 func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {

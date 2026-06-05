@@ -17,9 +17,11 @@ import (
 type MockTokenVerifier struct {
 	VerifyErr error
 	Token     *auth.Token
+	Called    bool
 }
 
 func (m *MockTokenVerifier) VerifyIDToken(ctx context.Context, idToken string) (*auth.Token, error) {
+	m.Called = true
 	return m.Token, m.VerifyErr
 }
 
@@ -41,6 +43,18 @@ func TestAuthMiddleware(t *testing.T) {
 		{
 			name:           "Invalid header format",
 			header:         "InvalidToken",
+			mockVerifier:   &MockTokenVerifier{},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "Empty bearer token (trailing space)",
+			header:         "Bearer ",
+			mockVerifier:   &MockTokenVerifier{},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "Whitespace-only bearer token",
+			header:         "Bearer    ",
 			mockVerifier:   &MockTokenVerifier{},
 			expectedStatus: http.StatusUnauthorized,
 		},
@@ -87,6 +101,29 @@ func TestAuthMiddleware(t *testing.T) {
 				t.Errorf("status = %d, want %d", w.Code, tt.expectedStatus)
 			}
 		})
+	}
+}
+
+// A blank Bearer token (e.g. "Bearer " with a trailing space) must be rejected
+// locally — never sent to Firebase for a pointless verification round-trip.
+func TestAuthMiddleware_BlankTokenNotSentToFirebase(t *testing.T) {
+	logger := gcplog.NewNoOpLogger()
+	verifier := &MockTokenVerifier{}
+	am := NewAuthMiddleware(verifier, logger, nil, nil)
+	handler := am.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer ")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", w.Code)
+	}
+	if verifier.Called {
+		t.Error("VerifyIDToken was called with a blank token — must be rejected before reaching Firebase")
 	}
 }
 

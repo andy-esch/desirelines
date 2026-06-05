@@ -261,11 +261,7 @@ func (r *ActivityRepository) GetMultiSportMetrics(ctx context.Context, userID st
 
 // scanMultiSportMetricsRows scans database rows into a map of sport → SportMetrics.
 // Shared by both GetMultiSportMetrics and GetMultiSportMetricsByDateRange.
-func scanMultiSportMetricsRows(rows interface {
-	Next() bool
-	Scan(dest ...interface{}) error
-	Err() error
-}) (map[string]*generated.SportMetrics, error) {
+func scanMultiSportMetricsRows(rows rowScanner) (map[string]*generated.SportMetrics, error) {
 	result := make(map[string]*generated.SportMetrics)
 	for rows.Next() {
 		var sport string
@@ -360,11 +356,7 @@ func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Co
 
 // scanMultiSportDailySummaryRows scans database rows into a map of sport → DailySummary.
 // Shared by both GetMultiSportDailySummary and GetMultiSportDailySummaryByDateRange.
-func scanMultiSportDailySummaryRows(rows interface {
-	Next() bool
-	Scan(dest ...interface{}) error
-	Err() error
-}) (map[string]*generated.DailySummary, error) {
+func scanMultiSportDailySummaryRows(rows rowScanner) (map[string]*generated.DailySummary, error) {
 	result := make(map[string]*generated.DailySummary)
 	for rows.Next() {
 		var sport string

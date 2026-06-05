@@ -213,10 +213,21 @@ func (d *Dependencies) Close() {
 	}
 }
 
+// newDurationHistogram creates a "ms"-unit duration histogram. Errors are
+// non-fatal: the OTel API returns a usable (no-op-on-failure) instrument plus an
+// error, so we log a warning and return the instrument. Centralizing the
+// WithUnit("ms") invariant that terraform/.../alerts.tf relies on keeps it in
+// one place instead of copy-pasted per instrument.
+func newDurationHistogram(meter otelmetric.Meter, log *slog.Logger, name, desc string) otelmetric.Float64Histogram {
+	h, err := meter.Float64Histogram(name, otelmetric.WithUnit("ms"), otelmetric.WithDescription(desc))
+	if err != nil {
+		log.Warn("Failed to create histogram", "name", name, "error", err)
+	}
+	return h
+}
+
 // initDependencies creates and wires all application dependencies.
 // This is the composition root following hexagonal architecture.
-//
-//nolint:gocyclo // Composition root — wiring complexity is inherent.
 func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger, meter otelmetric.Meter, tracer trace.Tracer) (*Dependencies, error) {
 	deps := &Dependencies{
 		logger:                log,
@@ -233,30 +244,14 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	deps.sportConfig = sportConfig
 
 	// 2. Create OTel instruments (errors are non-fatal; instruments will be no-op on failure)
-	postgresHist, err := meter.Float64Histogram("desirelines.io/postgres/query.duration",
-		otelmetric.WithUnit("ms"), otelmetric.WithDescription("PostgreSQL query duration"))
-	if err != nil {
-		log.Warn("Failed to create postgres histogram", "error", err)
-	}
+	postgresHist := newDurationHistogram(meter, log, "desirelines.io/postgres/query.duration", "PostgreSQL query duration")
 	// Name matches the `auth.verify_id_token` span emitted by AuthMiddleware
 	// so the convention "histogram operation == span name" stays 1:1 across
 	// the apigateway. Old metric `auth/firebase_verify.duration` predates the
 	// span and is no longer written; query the new name going forward.
-	authHist, err := meter.Float64Histogram("desirelines.io/auth/verify_id_token.duration",
-		otelmetric.WithUnit("ms"), otelmetric.WithDescription("Firebase ID token verification duration"))
-	if err != nil {
-		log.Warn("Failed to create auth histogram", "error", err)
-	}
-	oauthHist, err := meter.Float64Histogram("desirelines.io/strava/oauth_exchange.duration",
-		otelmetric.WithUnit("ms"), otelmetric.WithDescription("Strava OAuth exchange duration"))
-	if err != nil {
-		log.Warn("Failed to create oauth histogram", "error", err)
-	}
-	httpHist, err := meter.Float64Histogram("desirelines.io/http/request.duration",
-		otelmetric.WithUnit("ms"), otelmetric.WithDescription("HTTP request duration"))
-	if err != nil {
-		log.Warn("Failed to create http histogram", "error", err)
-	}
+	authHist := newDurationHistogram(meter, log, "desirelines.io/auth/verify_id_token.duration", "Firebase ID token verification duration")
+	oauthHist := newDurationHistogram(meter, log, "desirelines.io/strava/oauth_exchange.duration", "Strava OAuth exchange duration")
+	httpHist := newDurationHistogram(meter, log, "desirelines.io/http/request.duration", "HTTP request duration")
 	deps.httpHistogram = httpHist
 
 	// 3. Initialize CORS handler. Strict in any non-local environment so a
@@ -478,6 +473,25 @@ func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 // emulator (for real JWT minting/verification) and a mock Strava adapter (to
 // skip the real Strava OAuth redirect). The full auth middleware runs on every
 // request, exactly as in production.
+// defaultMockAthleteID is the seed athlete used in local dev; matches the
+// seed-data script (just db-migrate-local).
+const defaultMockAthleteID int64 = 123456789
+
+// resolveMockAthleteID returns the configured mock athlete ID, defaulting to
+// defaultMockAthleteID when MOCK_ATHLETE_ID is unset. Callers keep their own
+// error policy (fail-boot vs. warn-and-skip).
+func resolveMockAthleteID() (int64, error) {
+	envID := os.Getenv("MOCK_ATHLETE_ID")
+	if envID == "" {
+		return defaultMockAthleteID, nil
+	}
+	id, err := strconv.ParseInt(envID, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse %q: %w", envID, err)
+	}
+	return id, nil
+}
+
 func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist otelmetric.Float64Histogram, tracer trace.Tracer) error {
 	log.Info("Local dev auth: Firebase emulator + mock Strava")
 
@@ -501,14 +515,11 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 		return fmt.Errorf("AUTH_STATE_SECRET is required — generate one with: openssl rand -base64 32")
 	}
 
-	// Mock athlete ID — configurable via MOCK_ATHLETE_ID, defaults to 123456789 (matches seed data)
-	mockAthleteID := int64(123456789)
-	if envID := os.Getenv("MOCK_ATHLETE_ID"); envID != "" {
-		parsed, parseErr := strconv.ParseInt(envID, 10, 64)
-		if parseErr != nil {
-			return fmt.Errorf("invalid MOCK_ATHLETE_ID %q: %w", envID, parseErr)
-		}
-		mockAthleteID = parsed
+	// Mock athlete ID — configurable via MOCK_ATHLETE_ID, defaults to
+	// defaultMockAthleteID (matches seed data).
+	mockAthleteID, err := resolveMockAthleteID()
+	if err != nil {
+		return fmt.Errorf("invalid MOCK_ATHLETE_ID: %w", err)
 	}
 
 	// Mock Strava: redirects through the gateway's own callback URL
@@ -552,22 +563,17 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 // outcomes are recoverable: legitimate use of an empty DB (fresh-DB testing)
 // is supported, so this never returns an error.
 func checkMockAthleteSeedData(ctx context.Context, pool *postgres.Pool, log *slog.Logger) {
-	mockAthleteID := int64(123456789)
-	if envID := os.Getenv("MOCK_ATHLETE_ID"); envID != "" {
-		parsed, parseErr := strconv.ParseInt(envID, 10, 64)
-		if parseErr != nil {
-			log.Warn("MOCK_ATHLETE_ID sanity check skipped",
-				"error", parseErr,
-				"value", envID,
-				"hint", "MOCK_ATHLETE_ID must be a base-10 integer")
-			return
-		}
-		mockAthleteID = parsed
+	mockAthleteID, err := resolveMockAthleteID()
+	if err != nil {
+		log.Warn("MOCK_ATHLETE_ID sanity check skipped",
+			"error", err,
+			"hint", "MOCK_ATHLETE_ID must be a base-10 integer")
+		return
 	}
 
 	userID := strconv.FormatInt(mockAthleteID, 10)
 	var count int
-	err := pool.QueryRow(ctx,
+	err = pool.QueryRow(ctx,
 		"SELECT count(*) FROM desirelines.activities WHERE user_id = $1",
 		userID,
 	).Scan(&count)

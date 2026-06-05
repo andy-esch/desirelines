@@ -102,3 +102,141 @@ func TestRespondProtobuf_Nil(t *testing.T) {
 		t.Errorf("expected 'null' response body, got %q", w.Body.String())
 	}
 }
+
+// --- multi-sport merge tests (audit 2026-06-02-apigateway-shared M1/L1/L3) ---
+
+func ptrInt32(v int32) *int32 { return &v }
+
+func cumEntry(date string, distance float64, activities *int32) *generated.CumulativeMetricsEntry {
+	d := distance
+	return &generated.CumulativeMetricsEntry{Date: date, Distance: &d, Activities: activities}
+}
+
+func TestMergeMultiSportMetrics_MergesAlignedTimeseries(t *testing.T) {
+	h := newTestHandler(t)
+	cat := h.sportConfig.GetCategoryForStravaType("Ride") // == GetCategoryForStravaType("VirtualRide")
+
+	out, err := h.mergeMultiSportMetrics(map[string]*generated.SportMetrics{
+		"Ride": {Timeseries: []*generated.CumulativeMetricsEntry{
+			cumEntry("2025-01-01", 1, ptrInt32(2)),
+			cumEntry("2025-01-02", 3, ptrInt32(1)),
+		}},
+		"VirtualRide": {Timeseries: []*generated.CumulativeMetricsEntry{
+			cumEntry("2025-01-01", 10, ptrInt32(5)),
+			cumEntry("2025-01-02", 30, ptrInt32(4)),
+		}},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	merged, ok := out[cat]
+	if !ok {
+		t.Fatalf("expected merged category %q in result", cat)
+	}
+	if len(merged.Timeseries) != 2 {
+		t.Fatalf("timeseries len = %d, want 2", len(merged.Timeseries))
+	}
+	if got := *merged.Timeseries[0].Distance; got != 11 {
+		t.Errorf("day0 distance = %v, want 11 (1+10)", got)
+	}
+	if got := *merged.Timeseries[0].Activities; got != 7 {
+		t.Errorf("day0 activities = %v, want 7 (2+5)", got)
+	}
+	if got := *merged.Timeseries[1].Distance; got != 33 {
+		t.Errorf("day1 distance = %v, want 33 (3+30)", got)
+	}
+}
+
+// L1: a count present on only one side must survive the merge (the old
+// both-non-nil guard silently dropped it).
+func TestMergeInt32PtrField_NilSafe(t *testing.T) {
+	var a *int32
+	five := int32(5)
+	mergeInt32PtrField(&a, &five) // nil + 5 → 5
+	if a == nil || *a != 5 {
+		t.Fatalf("nil + 5 = %v, want 5", a)
+	}
+	mergeInt32PtrField(&a, nil) // 5 + nil → 5
+	if *a != 5 {
+		t.Errorf("5 + nil = %d, want 5", *a)
+	}
+	four := int32(4)
+	mergeInt32PtrField(&a, &four) // 5 + 4 → 9
+	if *a != 9 {
+		t.Errorf("5 + 4 = %d, want 9", *a)
+	}
+}
+
+// M1: a length mismatch breaks the dense/date-aligned invariant. Rather than
+// returning silently partial totals, the merge must surface an error so the
+// handler can fail fast with a 500.
+func TestMergeMultiSportMetrics_LengthMismatchErrors(t *testing.T) {
+	h := newTestHandler(t)
+
+	out, err := h.mergeMultiSportMetrics(map[string]*generated.SportMetrics{
+		"Ride": {Timeseries: []*generated.CumulativeMetricsEntry{
+			cumEntry("2025-01-01", 1, nil), cumEntry("2025-01-02", 2, nil),
+		}},
+		"VirtualRide": {Timeseries: []*generated.CumulativeMetricsEntry{
+			cumEntry("2025-01-01", 10, nil),
+		}},
+	})
+
+	if err == nil {
+		t.Fatalf("expected error on length mismatch, got nil (out=%v)", out)
+	}
+	if out != nil {
+		t.Errorf("expected nil result on error, got %v", out)
+	}
+}
+
+// M1: same length but a divergent date also breaks the invariant and must error.
+func TestMergeMultiSportMetrics_DateMismatchErrors(t *testing.T) {
+	h := newTestHandler(t)
+
+	out, err := h.mergeMultiSportMetrics(map[string]*generated.SportMetrics{
+		"Ride": {Timeseries: []*generated.CumulativeMetricsEntry{
+			cumEntry("2025-01-01", 1, nil), cumEntry("2025-01-02", 2, nil),
+		}},
+		"VirtualRide": {Timeseries: []*generated.CumulativeMetricsEntry{
+			cumEntry("2025-01-01", 10, nil), cumEntry("2025-09-09", 20, nil),
+		}},
+	})
+
+	if err == nil {
+		t.Fatalf("expected error on date misalignment, got nil (out=%v)", out)
+	}
+	if out != nil {
+		t.Errorf("expected nil result on error, got %v", out)
+	}
+}
+
+// L3: activity ids merged across sport types must be de-duplicated.
+func TestMergeMultiSportDailySummary_DedupsActivityIds(t *testing.T) {
+	h := newTestHandler(t)
+	cat := h.sportConfig.GetCategoryForStravaType("Ride")
+
+	out := h.mergeMultiSportDailySummary(map[string]*generated.DailySummary{
+		"Ride": {Daily: map[string]*generated.DailyActivity{
+			"2025-01-01": {ActivityIds: []int64{1, 2}},
+		}},
+		"VirtualRide": {Daily: map[string]*generated.DailyActivity{
+			"2025-01-01": {ActivityIds: []int64{2, 3}},
+		}},
+	})
+
+	got := out[cat].Daily["2025-01-01"].ActivityIds
+	counts := map[int64]int{}
+	for _, id := range got {
+		counts[id]++
+	}
+	if len(counts) != 3 {
+		t.Errorf("ActivityIds = %v, want 3 unique (1,2,3)", got)
+	}
+	for id, c := range counts {
+		if c != 1 {
+			t.Errorf("activity id %d appears %d times, want 1 (deduped)", id, c)
+		}
+	}
+}
