@@ -1,6 +1,7 @@
 package activities
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
@@ -76,7 +77,7 @@ func (h *Handler) categorizeSports(metadata *generated.YearMetadata) {
 // mergeMultiSportMetrics re-keys a map[stravaType]*SportMetrics into map[category]*SportMetrics.
 // Multiple Strava types that map to the same category (e.g., "Ride" + "VirtualRide" → "cycling")
 // have their timeseries entries merged by summing values at matching dates.
-func (h *Handler) mergeMultiSportMetrics(byStravaType map[string]*generated.SportMetrics) map[string]*generated.SportMetrics {
+func (h *Handler) mergeMultiSportMetrics(byStravaType map[string]*generated.SportMetrics) (map[string]*generated.SportMetrics, error) {
 	result := make(map[string]*generated.SportMetrics, len(byStravaType))
 	for stravaType, metrics := range byStravaType {
 		category := h.sportConfig.GetCategoryForStravaType(stravaType)
@@ -90,31 +91,21 @@ func (h *Handler) mergeMultiSportMetrics(byStravaType map[string]*generated.Spor
 		// emits one cell per (sport, date), so the ordered scan yields equal
 		// length with dates aligned by index. Verify that invariant rather than
 		// trusting it — a length mismatch or date misalignment means a producer
-		// or query changed, so bail (leave `existing` untouched) instead of
-		// silently summing across mismatched dates and corrupting totals.
+		// or query changed. Fail loud (the caller turns this into a 500) instead
+		// of returning silently partial or corrupted totals to the client.
 		if len(existing.Timeseries) != len(metrics.Timeseries) {
-			h.logger.Warn("multi-sport metrics merge skipped: timeseries length mismatch",
-				"category", category,
-				"existing_len", len(existing.Timeseries),
-				"incoming_len", len(metrics.Timeseries),
+			return nil, fmt.Errorf(
+				"timeseries length mismatch for category %q: existing=%d, incoming=%d",
+				category, len(existing.Timeseries), len(metrics.Timeseries),
 			)
-			continue
 		}
-		mismatchIdx := -1
 		for i := range metrics.Timeseries {
 			if existing.Timeseries[i].Date != metrics.Timeseries[i].Date {
-				mismatchIdx = i
-				break
+				return nil, fmt.Errorf(
+					"timeseries date misalignment for category %q at index %d: existing=%q, incoming=%q",
+					category, i, existing.Timeseries[i].Date, metrics.Timeseries[i].Date,
+				)
 			}
-		}
-		if mismatchIdx >= 0 {
-			h.logger.Warn("multi-sport metrics merge skipped: timeseries date misalignment",
-				"category", category,
-				"index", mismatchIdx,
-				"existing_date", existing.Timeseries[mismatchIdx].Date,
-				"incoming_date", metrics.Timeseries[mismatchIdx].Date,
-			)
-			continue
 		}
 		for i, entry := range metrics.Timeseries {
 			mergeFloat64PtrField(&existing.Timeseries[i].Distance, entry.Distance)
@@ -124,7 +115,7 @@ func (h *Handler) mergeMultiSportMetrics(byStravaType map[string]*generated.Spor
 			mergeInt32PtrField(&existing.Timeseries[i].Activities, entry.Activities)
 		}
 	}
-	return result
+	return result, nil
 }
 
 // mergeMultiSportDailySummary re-keys a map[stravaType]*DailySummary into map[category]*DailySummary.

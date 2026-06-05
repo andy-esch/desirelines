@@ -116,7 +116,7 @@ func TestMergeMultiSportMetrics_MergesAlignedTimeseries(t *testing.T) {
 	h := newTestHandler(t)
 	cat := h.sportConfig.GetCategoryForStravaType("Ride") // == GetCategoryForStravaType("VirtualRide")
 
-	out := h.mergeMultiSportMetrics(map[string]*generated.SportMetrics{
+	out, err := h.mergeMultiSportMetrics(map[string]*generated.SportMetrics{
 		"Ride": {Timeseries: []*generated.CumulativeMetricsEntry{
 			cumEntry("2025-01-01", 1, ptrInt32(2)),
 			cumEntry("2025-01-02", 3, ptrInt32(1)),
@@ -126,6 +126,9 @@ func TestMergeMultiSportMetrics_MergesAlignedTimeseries(t *testing.T) {
 			cumEntry("2025-01-02", 30, ptrInt32(4)),
 		}},
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	merged, ok := out[cat]
 	if !ok {
@@ -165,13 +168,13 @@ func TestMergeInt32PtrField_NilSafe(t *testing.T) {
 	}
 }
 
-// M1: a length mismatch must bail (leave an original untouched), never merge
-// by index and corrupt totals. day0 distance stays 1 or 10, never a merged 11.
-func TestMergeMultiSportMetrics_LengthMismatchBails(t *testing.T) {
+// M1: a length mismatch breaks the dense/date-aligned invariant. Rather than
+// returning silently partial totals, the merge must surface an error so the
+// handler can fail fast with a 500.
+func TestMergeMultiSportMetrics_LengthMismatchErrors(t *testing.T) {
 	h := newTestHandler(t)
-	cat := h.sportConfig.GetCategoryForStravaType("Ride")
 
-	out := h.mergeMultiSportMetrics(map[string]*generated.SportMetrics{
+	out, err := h.mergeMultiSportMetrics(map[string]*generated.SportMetrics{
 		"Ride": {Timeseries: []*generated.CumulativeMetricsEntry{
 			cumEntry("2025-01-01", 1, nil), cumEntry("2025-01-02", 2, nil),
 		}},
@@ -180,17 +183,19 @@ func TestMergeMultiSportMetrics_LengthMismatchBails(t *testing.T) {
 		}},
 	})
 
-	if got := *out[cat].Timeseries[0].Distance; got != 1 && got != 10 {
-		t.Errorf("day0 distance = %v; length mismatch should have bailed, not merged", got)
+	if err == nil {
+		t.Fatalf("expected error on length mismatch, got nil (out=%v)", out)
+	}
+	if out != nil {
+		t.Errorf("expected nil result on error, got %v", out)
 	}
 }
 
-// M1: same length but a divergent date must also bail.
-func TestMergeMultiSportMetrics_DateMismatchBails(t *testing.T) {
+// M1: same length but a divergent date also breaks the invariant and must error.
+func TestMergeMultiSportMetrics_DateMismatchErrors(t *testing.T) {
 	h := newTestHandler(t)
-	cat := h.sportConfig.GetCategoryForStravaType("Ride")
 
-	out := h.mergeMultiSportMetrics(map[string]*generated.SportMetrics{
+	out, err := h.mergeMultiSportMetrics(map[string]*generated.SportMetrics{
 		"Ride": {Timeseries: []*generated.CumulativeMetricsEntry{
 			cumEntry("2025-01-01", 1, nil), cumEntry("2025-01-02", 2, nil),
 		}},
@@ -199,8 +204,11 @@ func TestMergeMultiSportMetrics_DateMismatchBails(t *testing.T) {
 		}},
 	})
 
-	if got := *out[cat].Timeseries[0].Distance; got != 1 && got != 10 {
-		t.Errorf("day0 distance = %v; date misalignment should have bailed, not merged", got)
+	if err == nil {
+		t.Fatalf("expected error on date misalignment, got nil (out=%v)", out)
+	}
+	if out != nil {
+		t.Errorf("expected nil result on error, got %v", out)
 	}
 }
 

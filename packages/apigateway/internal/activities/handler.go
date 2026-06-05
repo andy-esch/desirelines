@@ -355,7 +355,13 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Merge all Strava types for this sport category into a single result
-	merged := h.mergeMultiSportMetrics(byStravaType)
+	merged, err := h.mergeMultiSportMetrics(byStravaType)
+	if err != nil {
+		h.logger.Error("Multi-sport metrics merge failed", "error", err)
+		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
+	}
 	// Extract the single category's data (there should be exactly one after merging)
 	var result *generated.SportMetrics
 	for _, v := range merged {
@@ -402,8 +408,15 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	bySport, err := h.mergeMultiSportMetrics(byStravaType)
+	if err != nil {
+		h.logger.Error("Multi-sport metrics merge failed", "error", err)
+		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
+		apierrors.WriteError(w, r, apiErr, h.logger)
+		return
+	}
 	result := &generated.AllSportsMetrics{
-		BySport: h.mergeMultiSportMetrics(byStravaType),
+		BySport: bySport,
 	}
 
 	setCachePastData(w, params.year, params.to, params.useDateRange)
