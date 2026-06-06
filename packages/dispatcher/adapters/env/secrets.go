@@ -152,14 +152,18 @@ func (c *SecretCache) addFileToHash(h io.Writer, path string) error {
 // to the int32 the proto field uses, rejecting out-of-range values. It does not
 // trim its input; callers trim where the source warrants it.
 func parseSubscriptionID(s string) (int32, error) {
-	parsed, err := strconv.Atoi(s)
+	// ParseInt with an explicit 64-bit size keeps the range check deterministic
+	// across architectures; strconv.Atoi parses into a platform-width int, so on
+	// a 32-bit build an ID > MaxInt32 would fail inside Atoi instead of hitting
+	// the explicit out-of-range message below.
+	parsed, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("parse subscription id: %w", err)
 	}
 	if parsed < 0 || parsed > math.MaxInt32 {
 		return 0, fmt.Errorf("subscription id must be between 0 and %d", math.MaxInt32)
 	}
-	return int32(parsed), nil //nolint:gosec // bounds-checked above
+	return int32(parsed), nil
 }
 
 // loadSecrets reads and parses the secrets files.
