@@ -148,6 +148,24 @@ func (c *SecretCache) addFileToHash(h io.Writer, path string) error {
 	return nil
 }
 
+// parseSubscriptionID parses a Strava webhook subscription ID and narrows it
+// to the int32 the proto field uses, rejecting out-of-range values. It does not
+// trim its input; callers trim where the source warrants it.
+func parseSubscriptionID(s string) (int32, error) {
+	// ParseInt with an explicit 64-bit size keeps the range check deterministic
+	// across architectures; strconv.Atoi parses into a platform-width int, so on
+	// a 32-bit build an ID > MaxInt32 would fail inside Atoi instead of hitting
+	// the explicit out-of-range message below.
+	parsed, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse subscription id: %w", err)
+	}
+	if parsed < 0 || parsed > math.MaxInt32 {
+		return 0, fmt.Errorf("subscription id must be between 0 and %d", math.MaxInt32)
+	}
+	return int32(parsed), nil
+}
+
 // loadSecrets reads and parses the secrets files.
 func (c *SecretCache) loadSecrets() (string, int32, error) {
 	var verifyToken string
@@ -186,23 +204,15 @@ func (c *SecretCache) loadSecrets() (string, int32, error) {
 		if subIDStr == "" {
 			return "", 0, fmt.Errorf("subscription id not found in file or environment")
 		}
-		parsed, parseErr := strconv.Atoi(subIDStr)
-		if parseErr != nil {
-			return "", 0, fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID from env: %w", parseErr)
+		subscriptionID, err = parseSubscriptionID(subIDStr)
+		if err != nil {
+			return "", 0, fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID from env: %w", err)
 		}
-		if parsed < 0 || parsed > math.MaxInt32 {
-			return "", 0, fmt.Errorf("STRAVA_WEBHOOK_SUBSCRIPTION_ID must be between 0 and %d", math.MaxInt32)
-		}
-		subscriptionID = int32(parsed) //nolint:gosec // Validated above
 	} else {
-		parsed, parseErr := strconv.Atoi(strings.TrimSpace(string(subIDBytes)))
-		if parseErr != nil {
-			return "", 0, fmt.Errorf("invalid subscription id in file: %w", parseErr)
+		subscriptionID, err = parseSubscriptionID(strings.TrimSpace(string(subIDBytes)))
+		if err != nil {
+			return "", 0, fmt.Errorf("invalid subscription id in file: %w", err)
 		}
-		if parsed < 0 || parsed > math.MaxInt32 {
-			return "", 0, fmt.Errorf("subscription id must be between 0 and %d", math.MaxInt32)
-		}
-		subscriptionID = int32(parsed) //nolint:gosec // Validated above
 	}
 
 	return verifyToken, subscriptionID, nil
@@ -227,17 +237,12 @@ func (c *SecretCache) loadSecretsFromEnv() error {
 	if subIDStr == "" {
 		return fmt.Errorf("subscription id not found in environment")
 	}
-	parsed, parseErr := strconv.Atoi(subIDStr)
-	if parseErr != nil {
-		return fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID: %w", parseErr)
-	}
-
-	// Validate subscription ID is within int32 bounds (proto uses int32)
-	if parsed < 0 || parsed > math.MaxInt32 {
-		return fmt.Errorf("STRAVA_WEBHOOK_SUBSCRIPTION_ID must be between 0 and %d", math.MaxInt32)
+	subscriptionID, err := parseSubscriptionID(subIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid STRAVA_WEBHOOK_SUBSCRIPTION_ID: %w", err)
 	}
 
 	c.verifyToken = verifyToken
-	c.subscriptionID = int32(parsed) //nolint:gosec // Validated above
+	c.subscriptionID = subscriptionID
 	return nil
 }

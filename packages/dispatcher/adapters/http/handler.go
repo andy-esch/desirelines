@@ -115,22 +115,14 @@ type HandlerConfig struct {
 
 // NewHandler creates a new webhook handler with injected dependencies.
 func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, allowChecker allowlist.Checker, logger *slog.Logger, cfg *HandlerConfig) *Handler {
+	if cfg == nil {
+		cfg = &HandlerConfig{}
+	}
 	maxBodySize := config.DefaultMaxRequestBodySize
-	if cfg != nil && cfg.MaxRequestBodySize > 0 {
+	if cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
 	}
-	var rateLimiter *ratelimit.Limiter
-	var webhookCounter metric.Int64Counter
-	var ownerCheckCounter metric.Int64Counter
-	var httpHistogram metric.Float64Histogram
-	var tracer trace.Tracer
-	if cfg != nil {
-		rateLimiter = cfg.RateLimiter
-		webhookCounter = cfg.WebhookCounter
-		ownerCheckCounter = cfg.OwnerCheckCounter
-		httpHistogram = cfg.HTTPHistogram
-		tracer = cfg.Tracer
-	}
+	tracer := cfg.Tracer
 	if tracer == nil {
 		// Fall back to the global tracer provider so the handler always has
 		// a working tracer, including when callers construct it without a
@@ -146,11 +138,11 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		tokenStore:         tokenStore,
 		allowlist:          allowChecker,
 		logger:             logger,
-		rateLimiter:        rateLimiter,
+		rateLimiter:        cfg.RateLimiter,
 		maxRequestBodySize: maxBodySize,
-		webhookCounter:     webhookCounter,
-		ownerCheckCounter:  ownerCheckCounter,
-		httpHistogram:      httpHistogram,
+		webhookCounter:     cfg.WebhookCounter,
+		ownerCheckCounter:  cfg.OwnerCheckCounter,
+		httpHistogram:      cfg.HTTPHistogram,
 		tracer:             tracer,
 	}
 }

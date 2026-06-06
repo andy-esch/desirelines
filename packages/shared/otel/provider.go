@@ -258,10 +258,3 @@ func NoopProviders() *Providers {
 		Tracer: tracenoop.NewTracerProvider().Tracer(scopeName),
 	}
 }
-
-// NoopMeter returns a no-op Meter for use when OTel setup fails.
-//
-// Deprecated: prefer NoopProviders().Meter.
-func NoopMeter() metric.Meter {
-	return noop.NewMeterProvider().Meter(scopeName)
-}

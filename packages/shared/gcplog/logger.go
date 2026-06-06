@@ -30,12 +30,6 @@ func NewWithLevel(level slog.Level) *slog.Logger {
 	return NewWithOptions(Options{Level: level})
 }
 
-// NewWithWriter configures slog for Google Cloud structured logging writing to w.
-// Maps slog keys to Google Cloud Logging expected field names and severity levels.
-func NewWithWriter(w io.Writer) *slog.Logger {
-	return NewWithOptions(Options{Writer: w})
-}
-
 // NewWithOptions configures slog for Google Cloud structured logging with full control.
 func NewWithOptions(opts Options) *slog.Logger {
 	// Apply defaults

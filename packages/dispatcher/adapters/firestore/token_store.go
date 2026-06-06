@@ -136,16 +136,15 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 
 	done(err)
 	if err != nil {
+		// Return the bare sentinels so callers classify via errors.Is; this
+		// also keeps wrapcheck satisfied (the wrapped path is the fallback).
 		if errors.Is(err, ports.ErrTokenConflict) {
-			err = ports.ErrTokenConflict
-			return err
+			return ports.ErrTokenConflict
 		}
 		if errors.Is(err, ports.ErrTokenNotFound) {
-			err = ports.ErrTokenNotFound
-			return err
+			return ports.ErrTokenNotFound
 		}
-		err = fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
-		return err
+		return fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
 	}
 	return nil
 }
