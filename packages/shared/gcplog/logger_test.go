@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-func TestNewWithWriter(t *testing.T) {
+func TestNewWithOptions_GCPFieldMapping(t *testing.T) {
 	var buf bytes.Buffer
-	logger := NewWithWriter(&buf)
+	logger := NewWithOptions(Options{Writer: &buf})
 
 	logger.Info("test message", "key", "value")
 
@@ -94,7 +94,7 @@ func TestGCPSeverityMapping(t *testing.T) {
 
 func TestNestedGroupsPreserved(t *testing.T) {
 	var buf bytes.Buffer
-	logger := NewWithWriter(&buf)
+	logger := NewWithOptions(Options{Writer: &buf})
 
 	// Log with a group
 	logger.WithGroup("http").Info("request", "method", "GET", "path", "/test")

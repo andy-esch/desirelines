@@ -286,16 +286,3 @@ func TestNoopProviders_ReturnsUsableNoopInstruments(t *testing.T) {
 	_, span := p.Tracer.Start(context.Background(), "test.span")
 	span.End()
 }
-
-// TestNoopMeter_ReturnsUsableMeter covers the deprecated NoopMeter
-// shim — still exported, so still worth a smoke test that it returns
-// a usable Meter.
-func TestNoopMeter_ReturnsUsableMeter(t *testing.T) {
-	m := NoopMeter()
-	if m == nil {
-		t.Fatal("NoopMeter() returned nil")
-	}
-	if _, err := m.Int64Counter("desirelines.io/test.counter"); err != nil {
-		t.Errorf("no-op Meter failed to create a counter: %v", err)
-	}
-}
