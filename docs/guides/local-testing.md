@@ -211,8 +211,9 @@ See [strava-webhook.md](./strava-webhook.md) for credential setup.
 
 For production data backfills (activities, routes, region tags), use the
 `desirelines-backfill` Cloud Run Job
-(`packages/stravapipe/src/stravapipe/cloudrun/backfill_job.py`). To load the
-region boundary reference table, see
+(`packages/stravapipe/src/stravapipe/cloudrun/backfill_job.py`):
+`gcloud run jobs execute desirelines-backfill --set-env-vars ATHLETE_ID=<id>,BACKFILL_YEARS=2024`.
+To load the region boundary reference table, see
 [scripts/ops/regions/README.md](../../scripts/ops/regions/README.md).
 
 ## Environment Variables

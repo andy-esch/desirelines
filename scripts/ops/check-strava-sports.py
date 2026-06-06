@@ -65,7 +65,7 @@ def fetch_swagger(url: str, timeout: int) -> dict[str, Any]:
         if resp.status != HTTPStatus.OK:
             raise RuntimeError(f"swagger fetch returned HTTP {resp.status}")
         data: dict[str, Any] = json.loads(resp.read().decode("utf-8"))
-        return data
+    return data
 
 
 def extract_strava_sport_types(swagger: dict[str, Any]) -> set[str]:

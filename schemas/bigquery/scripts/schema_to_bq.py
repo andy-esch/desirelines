@@ -28,7 +28,7 @@ def load_table_schema(table_name: str) -> dict[str, Any]:
 
     with schema_file.open() as f:
         data: dict[str, Any] = json.load(f)
-        return data
+    return data
 
 
 def schema_to_bq_cli(schema_data: dict[str, Any]) -> str:
