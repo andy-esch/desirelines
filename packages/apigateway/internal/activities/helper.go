@@ -51,9 +51,9 @@ func (h *Handler) categorizeSports(metadata *generated.YearMetadata) {
 			category := h.sportConfig.GetCategoryForStravaType(rawSport)
 			if existing, ok := remapped[category]; ok {
 				// Merge totals for the same category
-				mergeFloat64PtrField(&existing.DistanceMeters, totals.DistanceMeters)
-				mergeFloat64PtrField(&existing.ElevationMeters, totals.ElevationMeters)
-				mergeFloat64PtrField(&existing.TimeMinutes, totals.TimeMinutes)
+				mergePtrField(&existing.DistanceMeters, totals.DistanceMeters)
+				mergePtrField(&existing.ElevationMeters, totals.ElevationMeters)
+				mergePtrField(&existing.TimeMinutes, totals.TimeMinutes)
 				existing.Activities += totals.Activities
 			} else {
 				remapped[category] = totals
@@ -108,11 +108,11 @@ func (h *Handler) mergeMultiSportMetrics(byStravaType map[string]*generated.Spor
 			}
 		}
 		for i, entry := range metrics.Timeseries {
-			mergeFloat64PtrField(&existing.Timeseries[i].Distance, entry.Distance)
-			mergeFloat64PtrField(&existing.Timeseries[i].Elevation, entry.Elevation)
-			mergeFloat64PtrField(&existing.Timeseries[i].Time, entry.Time)
+			mergePtrField(&existing.Timeseries[i].Distance, entry.Distance)
+			mergePtrField(&existing.Timeseries[i].Elevation, entry.Elevation)
+			mergePtrField(&existing.Timeseries[i].Time, entry.Time)
 			// nil-safe: previously dropped the count when one side was nil.
-			mergeInt32PtrField(&existing.Timeseries[i].Activities, entry.Activities)
+			mergePtrField(&existing.Timeseries[i].Activities, entry.Activities)
 		}
 	}
 	return result, nil
@@ -132,9 +132,9 @@ func (h *Handler) mergeMultiSportDailySummary(byStravaType map[string]*generated
 		// Merge daily entries
 		for date, daily := range summary.Daily {
 			if existingDaily, has := existing.Daily[date]; has {
-				mergeFloat64PtrField(&existingDaily.DistanceMeters, daily.DistanceMeters)
-				mergeFloat64PtrField(&existingDaily.ElevationMeters, daily.ElevationMeters)
-				mergeFloat64PtrField(&existingDaily.TimeMinutes, daily.TimeMinutes)
+				mergePtrField(&existingDaily.DistanceMeters, daily.DistanceMeters)
+				mergePtrField(&existingDaily.ElevationMeters, daily.ElevationMeters)
+				mergePtrField(&existingDaily.TimeMinutes, daily.TimeMinutes)
 				existingDaily.Activities += daily.Activities
 				// Dedup defensively: an activity belongs to one sport type, so
 				// ids shouldn't repeat across a category merge — but appending
@@ -148,23 +148,10 @@ func (h *Handler) mergeMultiSportDailySummary(byStravaType map[string]*generated
 	return result
 }
 
-// mergeFloat64PtrField adds source into *target, allocating if *target is nil.
-func mergeFloat64PtrField(target **float64, source *float64) {
-	if source == nil {
-		return
-	}
-	if *target == nil {
-		v := *source
-		*target = &v
-		return
-	}
-	**target += *source
-}
-
-// mergeInt32PtrField adds source into *target, allocating if *target is nil.
-// Unlike a both-non-nil guard, this keeps the count when exactly one side is
+// mergePtrField adds source into *target, allocating if *target is nil.
+// Unlike a both-non-nil guard, this keeps the value when exactly one side is
 // set (existing nil + incoming non-nil would otherwise be silently dropped).
-func mergeInt32PtrField(target **int32, source *int32) {
+func mergePtrField[T int32 | float64](target **T, source *T) {
 	if source == nil {
 		return
 	}

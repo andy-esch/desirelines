@@ -153,16 +153,16 @@ func TestMergeMultiSportMetrics_MergesAlignedTimeseries(t *testing.T) {
 func TestMergeInt32PtrField_NilSafe(t *testing.T) {
 	var a *int32
 	five := int32(5)
-	mergeInt32PtrField(&a, &five) // nil + 5 → 5
+	mergePtrField(&a, &five) // nil + 5 → 5
 	if a == nil || *a != 5 {
 		t.Fatalf("nil + 5 = %v, want 5", a)
 	}
-	mergeInt32PtrField(&a, nil) // 5 + nil → 5
+	mergePtrField(&a, nil) // 5 + nil → 5
 	if *a != 5 {
 		t.Errorf("5 + nil = %d, want 5", *a)
 	}
 	four := int32(4)
-	mergeInt32PtrField(&a, &four) // 5 + 4 → 9
+	mergePtrField(&a, &four) // 5 + 4 → 9
 	if *a != 9 {
 		t.Errorf("5 + 4 = %d, want 9", *a)
 	}
