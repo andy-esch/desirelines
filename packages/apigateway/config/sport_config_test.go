@@ -302,3 +302,55 @@ func TestEmptyStravaTypesFails(t *testing.T) {
 		t.Errorf("Expected schema validation error for empty strava_types, got: %v", err)
 	}
 }
+
+func TestDuplicateStravaTypeAcrossCategoriesFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "test.json")
+
+	// "Ride" appears under two categories — must fail fast at load. Without
+	// the guard the reverseMap winner is map-iteration-order-random per process.
+	configData := SportConfigData{
+		Version: "1.0",
+		SportCategories: map[string]SportCategory{
+			"cycling": {
+				DisplayName:   "Cycling",
+				StravaTypes:   []string{"Ride"},
+				PrimaryMetric: "distance_meters",
+				Metrics:       []string{"distance_meters"},
+				HasDistance:   true,
+				HasElevation:  true,
+			},
+			"ebike": {
+				DisplayName:   "E-Bike",
+				StravaTypes:   []string{"Ride"},
+				PrimaryMetric: "distance_meters",
+				Metrics:       []string{"distance_meters"},
+				HasDistance:   true,
+				HasElevation:  true,
+			},
+		},
+	}
+	data, err := json.Marshal(configData)
+	if err != nil {
+		t.Fatalf("Failed to marshal test config: %v", err)
+	}
+	err = os.WriteFile(configPath, data, 0o600)
+	if err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	// Map iteration order is randomized, so which category is "existing" vs
+	// the duplicate is nondeterministic — assert only on the stable parts.
+	_, err = NewSportConfig(configPath)
+	if err == nil || !strings.Contains(err.Error(), "maps to multiple categories") ||
+		!strings.Contains(err.Error(), `"Ride"`) {
+		t.Errorf("Expected duplicate-sport_type error naming \"Ride\", got: %v", err)
+	}
+}
+
+func TestRealConfigLoadsWithoutDuplicates(t *testing.T) {
+	// The committed sport_types.json must satisfy the uniqueness invariant.
+	if _, err := NewSportConfig("sport_types.json"); err != nil {
+		t.Fatalf("real sport_types.json failed to load: %v", err)
+	}
+}

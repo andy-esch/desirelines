@@ -5,8 +5,8 @@ Convert BigQuery schema JSON files to BigQuery CLI format.
 This script converts JSON schema definitions to formats needed for table creation.
 
 Usage:
-    uv run scripts/schema/schema_to_bq.py activities        # Output CLI format
-    uv run scripts/schema/schema_to_bq.py activities --json # Output raw schema array
+    uv run schemas/bigquery/scripts/schema_to_bq.py activities        # Output CLI format
+    uv run schemas/bigquery/scripts/schema_to_bq.py activities --json # Output raw schema array
 """
 
 import json
@@ -16,13 +16,8 @@ import sys
 
 def load_table_schema(table_name: str) -> dict:
     """Load table schema from JSON file."""
-    # Navigate from scripts/schema/ to schemas/bigquery/
-    schema_file = (
-        Path(__file__).parent.parent.parent
-        / "schemas"
-        / "bigquery"
-        / f"{table_name}.json"
-    )
+    # Navigate from schemas/bigquery/scripts/ to schemas/bigquery/
+    schema_file = Path(__file__).parent.parent / f"{table_name}.json"
 
     if not schema_file.exists():
         raise FileNotFoundError(f"Schema file not found: {schema_file}")
@@ -47,7 +42,7 @@ def schema_to_bq_cli(schema_data: dict) -> str:
 def main():
     if len(sys.argv) < 2:
         print(
-            "Usage: uv run scripts/schema/schema_to_bq.py <table_name> [--json] [--minimal]"
+            "Usage: uv run schemas/bigquery/scripts/schema_to_bq.py <table_name> [--json] [--minimal]"
         )
         print("  --json: Output JSON schema format")
         print("  --minimal: Use minimal schema (default: full schema)")

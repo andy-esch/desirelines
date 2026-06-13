@@ -16,15 +16,21 @@ This script:
   4. Prints any sports that are in Strava but not in our registry.
 
 Exit codes:
-  * ``0`` — registry is in sync (no missing sports) OR drift was detected
-    and the script was invoked without ``--strict``.
+  * ``0`` — registry is in sync (no missing sports); OR drift was detected
+    and the script was invoked without ``--strict``; OR an upstream
+    fetch/parse failure occurred and ``--allow-fetch-failure`` was passed.
   * ``1`` — drift detected and ``--strict`` was passed. Use this in CI to
     fail the build.
-  * ``2`` — operational failure (network error, malformed swagger, etc.).
+  * ``2`` — operational failure (network error, malformed swagger, or an
+    unreadable local registry). Pass ``--allow-fetch-failure`` to downgrade
+    the *upstream* (fetch/parse) failures to exit 0 so a scheduled CI job
+    only reds on real drift, not on a transient Strava outage; a local
+    registry error always exits 2.
 
 Usage:
     python3 scripts/ops/check-strava-sports.py            # warn-only mode
     python3 scripts/ops/check-strava-sports.py --strict   # CI-friendly mode
+    python3 scripts/ops/check-strava-sports.py --strict --allow-fetch-failure  # scheduled CI: fail only on drift
     python3 scripts/ops/check-strava-sports.py --swagger-url <url>
 
 Stdlib only — no dependencies. Runs under any Python 3.11+ on PATH so the
@@ -110,7 +116,7 @@ def load_registry_types(registry_path: Path) -> set[str]:
     return seen
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--swagger-url",
@@ -129,24 +135,38 @@ def main() -> int:
         help="Exit non-zero when drift is detected (use in CI).",
     )
     parser.add_argument(
+        "--allow-fetch-failure",
+        action="store_true",
+        help=(
+            "Treat upstream fetch/parse failures (network error, malformed "
+            "swagger) as warnings and exit 0. For scheduled CI jobs so a "
+            "Strava outage doesn't red the build. A local registry error "
+            "still exits 2."
+        ),
+    )
+    parser.add_argument(
         "--timeout",
         type=int,
         default=DEFAULT_TIMEOUT_SECONDS,
         help="HTTP timeout in seconds (default: %(default)s).",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    # Upstream (Strava-side) failures are downgradable to a warning via
+    # --allow-fetch-failure so a scheduled CI job tolerates a transient outage.
+    upstream_failure_code = 0 if args.allow_fetch_failure else 2
 
     try:
         swagger = fetch_swagger(args.swagger_url, args.timeout)
     except (urllib.error.URLError, TimeoutError, RuntimeError) as exc:
         print(f"ERROR: failed to fetch Strava swagger: {exc}", file=sys.stderr)
-        return 2
+        return upstream_failure_code
 
     try:
         upstream = extract_strava_sport_types(swagger)
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
+        return upstream_failure_code
 
     try:
         local = load_registry_types(args.registry)

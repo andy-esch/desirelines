@@ -48,11 +48,13 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BQ_SCHEMA_PATH = REPO_ROOT / "schemas/bigquery/activities_full.json"
-OUTPUT_PATH = (
-    REPO_ROOT / "schemas/proto/desirelines/bigquery/v1/bq_activities.proto"
-)
+OUTPUT_PATH = REPO_ROOT / "schemas/proto/desirelines/bigquery/v1/bq_activities.proto"
 
 
+# Intentionally incomplete: only the BQ scalar types that activities_full.json
+# actually uses are mapped. An unmapped type (BYTES, DATE, DATETIME, NUMERIC,
+# BIGNUMERIC, GEOGRAPHY, …) is a fail-fast in _emit_field — add it here
+# explicitly when a new type appears in the schema.
 _BQ_TO_PROTO_SCALAR: dict[str, str] = {
     "INTEGER": "int64",
     "FLOAT": "double",
@@ -120,13 +122,25 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
 
     description = col.get("description", "").strip()
     if description:
-        # Wrap descriptions onto a comment line above the field.
-        out.write(f"// {description}")
+        # Emit the description as a single comment line above the field.
+        # Flatten any embedded line breaks: a multi-line BQ description would
+        # otherwise spill its second line below the `//`, where protoc reads
+        # it as an orphan token and fails with a misleading parse error.
+        # splitlines() handles \n, \r\n, and \r uniformly without the
+        # double-space a chained .replace() would leave on \r\n.
+        flattened = " ".join(description.splitlines())
+        out.write(f"// {flattened}")
 
     if bq_type == "RECORD":
         type_name = _to_message_name(name)
     else:
-        type_name = _BQ_TO_PROTO_SCALAR[bq_type]
+        try:
+            type_name = _BQ_TO_PROTO_SCALAR[bq_type]
+        except KeyError:
+            raise RuntimeError(
+                f"BQ type {bq_type!r} on field {name!r} has no proto mapping; "
+                "add it to _BQ_TO_PROTO_SCALAR"
+            ) from None
 
     # Proto2: every non-repeated field needs an explicit label. We mark
     # everything `optional` (even fields BQ declares REQUIRED) per
