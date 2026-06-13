@@ -176,10 +176,21 @@ func NewSportConfig(configPath string) (*SportConfig, error) {
 		)
 	}
 
-	// Build reverse lookup map: Strava sport_type → category name
+	// Build reverse lookup map: Strava sport_type → category name.
+	// Fail fast if a sport_type appears under more than one category: the map
+	// range order is randomized per process, so a collision would otherwise
+	// resolve to whichever category was visited last — silently miscategorizing
+	// and changing the answer on every restart.
 	reverseMap := make(map[string]string)
 	for categoryName, category := range configData.SportCategories {
 		for _, stravaType := range category.StravaTypes {
+			if existing, dup := reverseMap[stravaType]; dup {
+				return nil, fmt.Errorf(
+					"invalid sport config: sport_type %q maps to multiple categories "+
+						"(%q and %q); each sport_type must belong to exactly one category",
+					stravaType, existing, categoryName,
+				)
+			}
 			reverseMap[stravaType] = categoryName
 		}
 	}

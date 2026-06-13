@@ -169,6 +169,46 @@ def test_empty_strava_types_fails(tmp_path):
         SportConfig(config_path)
 
 
+def test_duplicate_strava_type_across_categories_fails(tmp_path):
+    """A sport_type mapping to two categories is rejected at load time."""
+    config_data = {
+        "version": "1.0",
+        "sportCategories": {
+            "cycling": {
+                "displayName": "Cycling",
+                "stravaTypes": ["Ride"],
+                "excludedTypes": [],
+                "primaryMetric": "distance_meters",
+                "metrics": ["distance_meters"],
+                "hasDistance": True,
+                "hasElevation": True,
+            },
+            "ebike": {
+                "displayName": "E-Bike",
+                "stravaTypes": ["Ride"],  # duplicate across categories
+                "excludedTypes": [],
+                "primaryMetric": "distance_meters",
+                "metrics": ["distance_meters"],
+                "hasDistance": True,
+                "hasElevation": True,
+            },
+        },
+    }
+    config_path = tmp_path / "sport_types.json"
+    with config_path.open("w") as f:
+        json.dump(config_data, f)
+
+    with pytest.raises(ValueError, match="maps to multiple categories"):
+        SportConfig(config_path)
+
+
+def test_real_config_has_unique_strava_types():
+    """The committed sport_types.json must satisfy the uniqueness invariant."""
+    # load_sport_config() loads the real registry; it must not raise.
+    config = load_sport_config()
+    assert config.list_sports()
+
+
 def test_sport_category_matches():
     """Test SportCategory.matches() method."""
     config = load_sport_config()

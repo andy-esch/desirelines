@@ -125,6 +125,22 @@ class SportConfig:
             name: SportCategory(name, config.model_dump())
             for name, config in validated.sport_categories.items()
         }
+
+        # Fail fast if a sport_type appears under more than one category. Python
+        # would otherwise resolve a collision to the first match by document
+        # order (silent), while the Go loader picks a per-restart-random winner;
+        # either way it's a config bug, so reject it at load time in both.
+        seen_strava_types: dict[str, str] = {}
+        for name, category in self.categories.items():
+            for strava_type in category.strava_types:
+                existing = seen_strava_types.get(strava_type)
+                if existing is not None:
+                    raise ValueError(
+                        f"Invalid sport config: sport_type {strava_type!r} maps to "
+                        f"multiple categories ({existing!r} and {name!r}); each "
+                        "sport_type must belong to exactly one category."
+                    )
+                seen_strava_types[strava_type] = name
         # Per-process dedup for the "Unknown Strava sport_type detected"
         # WARNING. Cloud Run recycles restore the alert's signal naturally —
         # one fresh sighting per restart is the desired behaviour.
