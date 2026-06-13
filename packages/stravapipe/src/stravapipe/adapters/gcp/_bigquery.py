@@ -8,11 +8,8 @@ from stravapipe.adapters.gcp._bigquery_storage import BigQueryStorageWriter
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
 from stravapipe.domain import (
     DetailedStravaActivity,
-    MinimalStravaActivity,
     SummaryStravaActivity,
 )
-from stravapipe.exceptions import ActivityNotFoundError
-from stravapipe.ports.out.read import ReadActivitiesMetadata
 from stravapipe.ports.out.write import WriteActivities
 from stravapipe.shared.metrics import record_duration
 from stravapipe.shared.tracing import db_attributes, record_span
@@ -352,81 +349,3 @@ class ActivitiesWriter(WriteActivities):
             INSERT ({insert_cols})
             VALUES ({insert_vals})
         """
-
-
-class ActivitiesReader(ReadActivitiesMetadata):
-    """Read Strava activity metadata from BigQuery."""
-
-    def __init__(
-        self,
-        client: BigQueryClientWrapper,
-        *,
-        dataset_name: str,
-        table_name: str = "activities",
-    ):
-        self._client = client
-        self._dataset_name = dataset_name
-        self._table_name = table_name
-        self._deleted_table_name = f"deleted_{table_name}"
-
-    def read_activity_metadata(self, activity_id: int) -> MinimalStravaActivity:
-        """Query BigQuery for minimal activity metadata by ID.
-
-        Checks both 'activities' and 'deleted_activities' tables using UNION
-        to handle race condition where activity may have been moved to
-        deleted_activities before this query runs.
-
-        Args:
-            activity_id: Strava activity ID to look up
-
-        Returns:
-            MinimalStravaActivity with id, type, start_date_local, distance
-
-        Raises:
-            ActivityNotFoundError: If activity not found in either table
-        """
-        query = f"""
-        SELECT
-            id,
-            type,
-            start_date_local,
-            distance,
-            moving_time,
-            total_elevation_gain
-        FROM (
-            -- Check active activities table
-            SELECT id, type, start_date_local, distance, moving_time, total_elevation_gain
-            FROM `{self._client.project_id}.{self._dataset_name}.{self._table_name}`
-            WHERE id = @activity_id
-
-            UNION ALL
-
-            -- Also check deleted activities (handles race condition)
-            SELECT id, type, start_date_local, distance, moving_time, total_elevation_gain
-            FROM `{self._client.project_id}.{self._dataset_name}.{self._deleted_table_name}`
-            WHERE id = @activity_id
-        )
-        LIMIT 1
-        """
-
-        query_params = [ScalarQueryParameter("activity_id", "INT64", activity_id)]
-        rows = self._client.execute_query(query, query_params)
-
-        if not rows:
-            raise ActivityNotFoundError(
-                activity_id,
-                f"Activity {activity_id} not found in BigQuery "
-                "(checked both activities and deleted_activities tables)",
-            )
-
-        row = rows[0]
-
-        # MinimalStravaActivity expects all fields in meters/seconds
-        return MinimalStravaActivity(
-            id=row.id,
-            type=row.type,
-            start_date_local=row.start_date_local,
-            distance=row.distance,  # meters from BigQuery
-            moving_time=row.moving_time,  # seconds from BigQuery
-            total_elevation_gain=row.total_elevation_gain,  # meters from BigQuery
-        )
