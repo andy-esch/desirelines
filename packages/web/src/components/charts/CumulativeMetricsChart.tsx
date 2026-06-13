@@ -306,7 +306,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
   // Compute effective x-axis domain
   // All dates use UTC to match the hook's Date.UTC() convention
   const today = new Date();
-  const isCurrentYear = today.getFullYear() === year;
+  const isCurrentYear = today.getUTCFullYear() === year;
   const anchorYear = isCurrentYear ? today.getUTCFullYear() : year;
   const anchorMonth = isCurrentYear ? today.getUTCMonth() : 11;
   const anchorDay = isCurrentYear ? today.getUTCDate() : 31;
