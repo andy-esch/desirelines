@@ -13,14 +13,14 @@ const VALID_ELEVATION_UNITS: readonly ElevationUnit[] = ["meters", "feet"];
 /**
  * Type guard to validate if a string is a valid DistanceUnit
  */
-export function isValidDistanceUnit(value: unknown): value is DistanceUnit {
+function isValidDistanceUnit(value: unknown): value is DistanceUnit {
   return typeof value === "string" && VALID_DISTANCE_UNITS.includes(value as DistanceUnit);
 }
 
 /**
  * Type guard to validate if a string is a valid ElevationUnit
  */
-export function isValidElevationUnit(value: unknown): value is ElevationUnit {
+function isValidElevationUnit(value: unknown): value is ElevationUnit {
   return typeof value === "string" && VALID_ELEVATION_UNITS.includes(value as ElevationUnit);
 }
 
@@ -98,7 +98,7 @@ export function getDistanceLabel(unit: DistanceUnit): string {
   }
 }
 
-export function getElevationLabel(unit: ElevationUnit): string {
+function getElevationLabel(unit: ElevationUnit): string {
   switch (unit) {
     case "feet":
       return "ft";

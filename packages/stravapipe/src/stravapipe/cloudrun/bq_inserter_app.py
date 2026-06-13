@@ -36,9 +36,10 @@ from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_m
 from stravapipe.shared.readiness import (
     build_ready_response,
     check_bigquery,
+    register_health_route,
     run_checks,
 )
-from stravapipe.shared.responses import HealthResponse, WebhookResponse
+from stravapipe.shared.responses import WebhookResponse
 from stravapipe.shared.tracing import (
     db_attributes,
     instrument_fastapi_app,
@@ -125,10 +126,7 @@ app = FastAPI(
 )
 
 
-@app.get("/health")
-async def health() -> HealthResponse:
-    """Liveness probe — process-alive only, no dependency checks."""
-    return HealthResponse(status=ResponseStatus.HEALTHY)
+register_health_route(app)
 
 
 @app.get("/ready")

@@ -454,37 +454,36 @@ export function getMetricConfigByMetricId(
   // Distance: apply user preference (miles / kilometers / meters)
   if (configKey === "distance") {
     if (userSettings.distanceUnit === "kilometers") {
-      return {
-        ...baseConfig,
-        unit: "kilometers",
-        chartLabel: "km",
-        chartAxisLabel: "km",
-        perDayLabel: "km / day",
-      };
+      return withUnit(baseConfig, "kilometers", "km");
     }
     if (userSettings.distanceUnit === "meters") {
-      return {
-        ...baseConfig,
-        unit: "meters",
-        chartLabel: "m",
-        chartAxisLabel: "m",
-        perDayLabel: "m / day",
-      };
+      return withUnit(baseConfig, "meters", "m");
     }
   }
 
   // Elevation: apply feet/meters preference
   if (configKey === "elevation" && userSettings.elevationUnit === "meters") {
-    return {
-      ...baseConfig,
-      unit: "meters",
-      chartLabel: "m",
-      chartAxisLabel: "m",
-      perDayLabel: "m / day",
-    };
+    return withUnit(baseConfig, "meters", "m");
   }
 
   return baseConfig;
+}
+
+/**
+ * Apply a unit override to a metric config. One short token (e.g. "km" / "m")
+ * feeds all the label fields: chartLabel === chartAxisLabel === label and
+ * perDayLabel === `${label} / day`. Scoped to the conversion returns where the
+ * two chart labels coincide — base configs whose labels legitimately differ
+ * (e.g. sessions: "sessions" vs "# Sessions") never flow through here.
+ */
+function withUnit(base: MetricConfig, unit: MetricUnit, label: string): MetricConfig {
+  return {
+    ...base,
+    unit,
+    chartLabel: label,
+    chartAxisLabel: label,
+    perDayLabel: `${label} / day`,
+  };
 }
 
 /**

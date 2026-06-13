@@ -6,7 +6,6 @@ from collections.abc import Sequence
 
 from stravapipe.domain import (
     DetailedStravaActivity,
-    MinimalStravaActivity,
     StandardActivity,
     StravaTokenSet,
     SummaryStravaActivity,
@@ -45,16 +44,3 @@ class ReadStandardActivities(ABC):
     @abstractmethod
     def read_standard_activity_by_id(self, activity_id: int) -> StandardActivity:
         """Read a standard Strava Activity by ID (only PostgreSQL-relevant fields)"""
-
-
-class ReadActivitiesMetadata(ABC):
-    """Read minimal activity metadata from BigQuery for delete operations"""
-
-    @abstractmethod
-    def read_activity_metadata(self, activity_id: int) -> MinimalStravaActivity:
-        """Get minimal activity data (id, type, date, distance) from BigQuery
-
-        Used by delete operations to get activity metadata without calling
-        Strava API. Checks both activities and deleted_activities tables
-        to handle race conditions.
-        """

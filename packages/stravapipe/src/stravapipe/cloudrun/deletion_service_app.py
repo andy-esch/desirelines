@@ -52,9 +52,10 @@ from stravapipe.shared.readiness import (
     build_ready_response,
     check_bigquery,
     check_firestore,
+    register_health_route,
     run_checks,
 )
-from stravapipe.shared.responses import HealthResponse, UserDeletionResponse
+from stravapipe.shared.responses import UserDeletionResponse
 from stravapipe.shared.tracing import (
     extract_context_from_attributes,
     instrument_fastapi_app,
@@ -302,10 +303,7 @@ app = FastAPI(
 )
 
 
-@app.get("/health")
-async def health() -> HealthResponse:
-    """Liveness probe — process-alive only, no dependency checks."""
-    return HealthResponse(status=ResponseStatus.HEALTHY)
+register_health_route(app)
 
 
 @app.get("/ready")

@@ -8,12 +8,14 @@
 import { describe, it, expect } from "vitest";
 import {
   getMetricConfig,
+  getMetricConfigByMetricId,
   getChartInterval,
   generateYAxisTicks,
   isDistanceMetricSport,
   isSessionsMetricSport,
   isTimeMetricSport,
 } from "./metricConfig";
+import type { UserSettings } from "../utils/units";
 
 describe("metricConfig", () => {
   describe("getMetricConfig", () => {
@@ -121,6 +123,59 @@ describe("metricConfig", () => {
         expect(config.id).toBe("time");
         expect(config.defaultGoalValue).toBe(25);
       });
+    });
+  });
+
+  describe("getMetricConfigByMetricId", () => {
+    const settings = (
+      distanceUnit: UserSettings["distanceUnit"],
+      elevationUnit: UserSettings["elevationUnit"]
+    ): UserSettings => ({ distanceUnit, elevationUnit, defaultSport: "cycling" });
+
+    it("returns the base distance config (miles) when no userSettings given", () => {
+      const config = getMetricConfigByMetricId("distance_meters");
+      expect(config.unit).toBe("miles");
+      expect(config.chartLabel).toBe("mi");
+      expect(config.chartAxisLabel).toBe("mi");
+      expect(config.perDayLabel).toBe("mi / day");
+    });
+
+    it("applies kilometers preference to distance", () => {
+      const config = getMetricConfigByMetricId("distance_meters", settings("kilometers", "feet"));
+      expect(config.unit).toBe("kilometers");
+      expect(config.chartLabel).toBe("km");
+      expect(config.chartAxisLabel).toBe("km");
+      expect(config.perDayLabel).toBe("km / day");
+    });
+
+    it("applies meters preference to distance", () => {
+      const config = getMetricConfigByMetricId("distance_meters", settings("meters", "feet"));
+      expect(config.unit).toBe("meters");
+      expect(config.chartLabel).toBe("m");
+      expect(config.chartAxisLabel).toBe("m");
+      expect(config.perDayLabel).toBe("m / day");
+    });
+
+    it("keeps miles (base) for distance when distanceUnit is miles", () => {
+      const config = getMetricConfigByMetricId("distance_meters", settings("miles", "feet"));
+      expect(config.unit).toBe("miles");
+      expect(config.chartLabel).toBe("mi");
+      expect(config.perDayLabel).toBe("mi / day");
+    });
+
+    it("applies meters preference to elevation", () => {
+      const config = getMetricConfigByMetricId("elevation_meters", settings("miles", "meters"));
+      expect(config.unit).toBe("meters");
+      expect(config.chartLabel).toBe("m");
+      expect(config.chartAxisLabel).toBe("m");
+      expect(config.perDayLabel).toBe("m / day");
+    });
+
+    it("keeps feet (base) for elevation when elevationUnit is feet", () => {
+      const config = getMetricConfigByMetricId("elevation_meters", settings("miles", "feet"));
+      expect(config.unit).toBe("feet");
+      expect(config.chartLabel).toBe("ft");
+      expect(config.perDayLabel).toBe("ft / day");
     });
   });
 

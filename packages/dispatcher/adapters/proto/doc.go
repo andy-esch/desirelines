@@ -28,12 +28,13 @@
 //
 // # Serialization
 //
-// Convert protobuf back to JSON for publishing:
+// Convert an enriched protobuf event to JSON for publishing:
 //
-//	jsonData, err := proto.ToStravaJSON(event)
+//	jsonData, err := proto.ToEnrichedJSON(enriched)
 //
-// [ToStravaJSON] outputs string enum values ("create", "activity") rather than
-// numeric values, maintaining compatibility with downstream Python consumers.
+// [ToEnrichedJSON] outputs string enum values ("create", "activity") rather than
+// numeric values and embeds raw_activity as nested JSON, maintaining
+// compatibility with downstream Python consumers.
 //
 // # Strava Webhook Format
 //

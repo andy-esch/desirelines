@@ -1,19 +1,17 @@
 from datetime import UTC, datetime
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
-from stravapipe.adapters.gcp._bigquery import ActivitiesReader, ActivitiesWriter
+from stravapipe.adapters.gcp._bigquery import ActivitiesWriter
 from stravapipe.domain import (
     DetailedStravaActivity,
     MetaAthlete,
     SummaryMap,
     SummaryStravaActivity,
 )
-from stravapipe.exceptions import ActivityNotFoundError
 from tests.unit.mocks.bigquery_client_wrapper import MockBigQueryClientWrapper
 
 
@@ -97,11 +95,6 @@ def write_activities_repo(bq_client):
         storage_writer=storage_writer,
         dataset_name="test-dataset",
     )
-
-
-@pytest.fixture
-def read_activities_repo(bq_client):
-    return ActivitiesReader(bq_client, dataset_name="test-dataset")
 
 
 # =============================================================================
@@ -235,67 +228,3 @@ class TestActivitiesWriterBatch:
         write_activities_repo.write_activities_batch([activity2])
         merge_query = write_activities_repo._client.executed_queries[0]
         assert "UNNEST(@activity_ids)" in merge_query
-
-
-# =============================================================================
-# ActivitiesReader Tests
-# =============================================================================
-
-
-class TestActivitiesReader:
-    def test_read_activity_metadata_success(self, read_activities_repo):
-        """Successful read returns MinimalStravaActivity."""
-        read_activities_repo._client.query_results = [
-            SimpleNamespace(
-                id=12345,
-                type="Run",
-                start_date_local=datetime(2025, 6, 15, 10, 30, tzinfo=UTC),
-                distance=5000.0,
-                moving_time=1800,
-                total_elevation_gain=50.0,
-            )
-        ]
-
-        result = read_activities_repo.read_activity_metadata(12345)
-
-        assert result.id == 12345
-        assert result.type == "Run"
-        assert result.distance == 5000.0
-        assert result.moving_time == 1800
-        assert result.total_elevation_gain == 50.0
-
-    def test_read_activity_metadata_not_found(self, read_activities_repo):
-        """Empty result raises ActivityNotFoundError."""
-        # query_results defaults to [] in the mock
-        with pytest.raises(ActivityNotFoundError):
-            read_activities_repo.read_activity_metadata(99999)
-
-    def test_query_checks_both_tables(self, read_activities_repo):
-        """Query should UNION ALL across activities and deleted_activities."""
-        with pytest.raises(ActivityNotFoundError):
-            read_activities_repo.read_activity_metadata(12345)
-
-        query = read_activities_repo._client.executed_queries[0]
-        assert "UNION ALL" in query
-        assert "test-dataset.activities" in query
-        assert "test-dataset.deleted_activities" in query
-
-    def test_query_uses_parameterized_id(self, read_activities_repo):
-        """Query should use @activity_id parameter, not string interpolation."""
-        with pytest.raises(ActivityNotFoundError):
-            read_activities_repo.read_activity_metadata(12345)
-
-        query = read_activities_repo._client.executed_queries[0]
-        assert "@activity_id" in query
-
-    def test_deleted_table_name_derived_from_table_name(self, bq_client):
-        """deleted table name should be derived from configurable table_name."""
-        reader = ActivitiesReader(
-            bq_client, dataset_name="ds", table_name="custom_activities"
-        )
-        assert reader._deleted_table_name == "deleted_custom_activities"
-
-    def test_default_table_names(self, read_activities_repo):
-        """Default table name should be 'activities' with 'deleted_activities'."""
-        assert read_activities_repo._table_name == "activities"
-        assert read_activities_repo._deleted_table_name == "deleted_activities"

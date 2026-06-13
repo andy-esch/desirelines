@@ -202,17 +202,14 @@ export function calculateCurrentAverageLine(
 ): DistanceTimeseries {
   if (distanceTraveled.length === 0) return [];
 
-  // Current pace
+  // Preserve the sparse-array guard for strict parity: estimateYearEndDistance
+  // returns 0 on a missing last entry (→ a zero line), whereas this projection
+  // should yield an empty line.
   const lastEntry = distanceTraveled[distanceTraveled.length - 1];
   if (!lastEntry) return [];
 
-  const currentDistance = lastEntry.y;
-  const daysElapsed = distanceTraveled.length;
-  const dailyAverage = currentDistance / daysElapsed;
-
-  // Projected year-end distance at current pace
-  const daysInYear = getDaysInYear(year);
-  const projectedEndDistance = dailyAverage * daysInYear;
+  // Projected year-end distance at current pace (single source of truth).
+  const projectedEndDistance = estimateYearEndDistance(distanceTraveled, year);
 
   // Use same line calculation as desire lines
   return calculateDesireLine(projectedEndDistance, year, maxDate);

@@ -3,10 +3,9 @@
 from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
 
-from stravapipe.adapters.gcp._bigquery import ActivitiesReader, ActivitiesWriter
+from stravapipe.adapters.gcp._bigquery import ActivitiesWriter
 from stravapipe.adapters.gcp._bigquery_storage import BigQueryStorageWriter
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper, MergeResult
-from stravapipe.ports.out.read import ReadActivitiesMetadata
 
 
 def make_bigquery_client_wrapper(*, project_id: str) -> BigQueryClientWrapper:
@@ -50,22 +49,11 @@ def make_write_activities(
     )
 
 
-def make_read_activities(*, project_id: str, bq_dataset: str) -> ReadActivitiesMetadata:
-    """Create an ActivitiesReader (ReadActivitiesMetadata port)."""
-    client = make_bigquery_client_wrapper(project_id=project_id)
-    return ActivitiesReader(
-        client=client,
-        dataset_name=bq_dataset,
-    )
-
-
 __all__ = [
-    "ActivitiesReader",
     "ActivitiesWriter",
     "BigQueryClientWrapper",
     "BigQueryStorageWriter",
     "MergeResult",
     "make_bigquery_client_wrapper",
-    "make_read_activities",
     "make_write_activities",
 ]

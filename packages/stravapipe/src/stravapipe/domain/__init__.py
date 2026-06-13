@@ -1,7 +1,6 @@
 from stravapipe.domain.activity import (
     DetailedStravaActivity,
     MetaAthlete,
-    MinimalStravaActivity,
     PolylineMap,
     StandardActivity,
     SummaryMap,
@@ -12,7 +11,6 @@ from stravapipe.domain.auth import StravaTokenSet
 __all__ = [
     "DetailedStravaActivity",
     "MetaAthlete",
-    "MinimalStravaActivity",
     "PolylineMap",
     "StandardActivity",
     "StravaTokenSet",

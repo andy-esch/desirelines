@@ -1,6 +1,6 @@
 """Adapters for converting between Strava JSON and protobuf webhook types."""
 
-from typing import Any
+from typing import Any, Final
 
 from stravapipe.types.generated import webhook_pb2 as pb
 
@@ -123,14 +123,30 @@ def validate_webhook_event(event: pb.WebhookEvent) -> list[str]:
     return errors
 
 
+# Single source of truth for each enum↔string mapping: define the forward
+# (string → proto) map and derive the reverse, so the "these are inverses"
+# invariant is structural rather than two hand-mirrored dicts.
+_ASPECT_TYPE_BY_STRING: Final[dict[str, "pb.AspectType"]] = {
+    "create": pb.ASPECT_TYPE_CREATE,
+    "update": pb.ASPECT_TYPE_UPDATE,
+    "delete": pb.ASPECT_TYPE_DELETE,
+}
+_STRING_BY_ASPECT_TYPE: Final[dict["pb.AspectType", str]] = {
+    proto: s for s, proto in _ASPECT_TYPE_BY_STRING.items()
+}
+
+_OBJECT_TYPE_BY_STRING: Final[dict[str, "pb.ObjectType"]] = {
+    "activity": pb.OBJECT_TYPE_ACTIVITY,
+    "athlete": pb.OBJECT_TYPE_ATHLETE,
+}
+_STRING_BY_OBJECT_TYPE: Final[dict["pb.ObjectType", str]] = {
+    proto: s for s, proto in _OBJECT_TYPE_BY_STRING.items()
+}
+
+
 def _parse_aspect_type(s: str) -> "pb.AspectType":
     """Convert Strava string aspect_type to proto enum."""
-    mapping = {
-        "create": pb.ASPECT_TYPE_CREATE,
-        "update": pb.ASPECT_TYPE_UPDATE,
-        "delete": pb.ASPECT_TYPE_DELETE,
-    }
-    result = mapping.get(s)
+    result = _ASPECT_TYPE_BY_STRING.get(s)
     if result is None:
         raise ValueError(f"Invalid aspect_type: {s}")
     return result
@@ -138,11 +154,7 @@ def _parse_aspect_type(s: str) -> "pb.AspectType":
 
 def _parse_object_type(s: str) -> "pb.ObjectType":
     """Convert Strava string object_type to proto enum."""
-    mapping = {
-        "activity": pb.OBJECT_TYPE_ACTIVITY,
-        "athlete": pb.OBJECT_TYPE_ATHLETE,
-    }
-    result = mapping.get(s)
+    result = _OBJECT_TYPE_BY_STRING.get(s)
     if result is None:
         raise ValueError(f"Invalid object_type: {s}")
     return result
@@ -150,18 +162,9 @@ def _parse_object_type(s: str) -> "pb.ObjectType":
 
 def _aspect_type_to_string(at: "pb.AspectType") -> str:
     """Convert proto AspectType enum to Strava string format."""
-    mapping = {
-        pb.ASPECT_TYPE_CREATE: "create",
-        pb.ASPECT_TYPE_UPDATE: "update",
-        pb.ASPECT_TYPE_DELETE: "delete",
-    }
-    return mapping.get(at, "")
+    return _STRING_BY_ASPECT_TYPE.get(at, "")
 
 
 def _object_type_to_string(ot: "pb.ObjectType") -> str:
     """Convert proto ObjectType enum to Strava string format."""
-    mapping = {
-        pb.OBJECT_TYPE_ACTIVITY: "activity",
-        pb.OBJECT_TYPE_ATHLETE: "athlete",
-    }
-    return mapping.get(ot, "")
+    return _STRING_BY_OBJECT_TYPE.get(ot, "")

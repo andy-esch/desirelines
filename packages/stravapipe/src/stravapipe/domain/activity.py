@@ -287,32 +287,6 @@ class SummaryStravaActivity(BaseModel):
         return self.model_dump(mode="json", exclude=self._BQ_EXCLUDE_FIELDS)
 
 
-class MinimalStravaActivity(BaseModel):
-    """Minimal Strava activity model for lightweight operations.
-
-    Contains only core fields needed for delete operations and metadata lookups.
-    Used by BigQuery adapter's read_activity_metadata() for efficient queries.
-
-    All measurements use Strava's native units:
-    - distance: meters
-    - moving_time: seconds
-    - total_elevation_gain: meters
-    """
-
-    id: int
-    type: str
-    start_date_local: datetime
-    distance: float  # meters (Strava's native unit)
-    moving_time: int  # seconds
-    total_elevation_gain: float  # meters
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def date_str(self) -> str:
-        """Get date string in YYYY-MM-DD format."""
-        return self.start_date_local.date().strftime("%Y-%m-%d")
-
-
 class StandardActivity(BaseModel):
     """Standard activity model matching PostgreSQL schema.
 
