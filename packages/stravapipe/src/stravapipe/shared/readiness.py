@@ -13,6 +13,7 @@ from collections.abc import Awaitable, Callable
 import logging
 from typing import Any
 
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from google.cloud.firestore_v1 import Client as FirestoreClient
 from sqlalchemy import text
@@ -20,8 +21,25 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.shared.constants import ResponseStatus
+from stravapipe.shared.responses import HealthResponse
 
 logger = logging.getLogger(__name__)
+
+
+def register_health_route(app: FastAPI) -> None:
+    """Register the shared /health liveness probe on a Cloud Run app.
+
+    The /health handler is byte-identical across every stravapipe Cloud Run
+    app (process-alive only, no dependency checks), so it lives here as the
+    single definition. /ready stays per-app — each service's readiness
+    docstring and dependency-check set genuinely differ.
+    """
+
+    @app.get("/health")
+    async def health() -> HealthResponse:
+        """Liveness probe — process-alive only, no dependency checks."""
+        return HealthResponse(status=ResponseStatus.HEALTHY)
+
 
 # Per-attempt timeout. Sized for cold-start tail latency (Neon for postgres-writer,
 # BigQuery / Firestore for the others). The hourly Cloud Scheduler probe almost
