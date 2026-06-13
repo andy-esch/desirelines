@@ -123,10 +123,12 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
     description = col.get("description", "").strip()
     if description:
         # Emit the description as a single comment line above the field.
-        # Flatten any embedded newlines: a multi-line BQ description would
+        # Flatten any embedded line breaks: a multi-line BQ description would
         # otherwise spill its second line below the `//`, where protoc reads
         # it as an orphan token and fails with a misleading parse error.
-        flattened = description.replace("\n", " ").replace("\r", " ")
+        # splitlines() handles \n, \r\n, and \r uniformly without the
+        # double-space a chained .replace() would leave on \r\n.
+        flattened = " ".join(description.splitlines())
         out.write(f"// {flattened}")
 
     if bq_type == "RECORD":

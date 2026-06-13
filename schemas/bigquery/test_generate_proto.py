@@ -46,12 +46,12 @@ class TestTypeMapping:
 
     def test_timestamp_emits_int64_with_comment(self):
         body = _render([{"name": "ts", "type": "TIMESTAMP", "mode": "REQUIRED"}])
-        assert "int64 ts = 1;" in body
+        assert "optional int64 ts = 1;" in body
         assert "BQ TIMESTAMP" in body
 
     def test_json_emits_string_with_comment(self):
         body = _render([{"name": "j", "type": "JSON", "mode": "REQUIRED"}])
-        assert "string j = 1;" in body
+        assert "optional string j = 1;" in body
         assert "BQ JSON" in body
 
 
