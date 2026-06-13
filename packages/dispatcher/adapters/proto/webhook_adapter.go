@@ -160,25 +160,6 @@ type EnrichedEventJSON struct {
 	RawActivity    json.RawMessage   `json:"raw_activity,omitempty"`
 }
 
-// ToStravaJSON converts a protobuf WebhookEvent back to Strava JSON format.
-// Useful for publishing to PubSub in a format stravapipe expects.
-func ToStravaJSON(event *pb.WebhookEvent) ([]byte, error) {
-	raw := StravaWebhookJSON{
-		AspectType:     AspectTypeToString(event.AspectType),
-		ObjectType:     ObjectTypeToString(event.ObjectType),
-		ObjectID:       event.ObjectId,
-		OwnerID:        event.OwnerId,
-		EventTime:      event.EventTime,
-		SubscriptionID: event.SubscriptionId,
-		Updates:        activityUpdatesToMap(event.Updates),
-	}
-	b, err := json.Marshal(raw)
-	if err != nil {
-		return nil, fmt.Errorf("marshal strava webhook: %w", err)
-	}
-	return b, nil
-}
-
 // ToEnrichedJSON converts an EnrichedEvent to JSON for PubSub publishing.
 // Maintains string enums ("create", "activity") and includes raw_activity
 // as a nested JSON object (not base64).

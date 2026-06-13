@@ -111,7 +111,29 @@ func TestParseStravaWebhook(t *testing.T) {
 	}
 }
 
-func TestToStravaJSON(t *testing.T) {
+// webhookEventToStravaJSON marshals a bare WebhookEvent to Strava's string-enum
+// JSON. Production publishing goes through ToEnrichedJSON; this test-local
+// marshaller preserves the parse/serialize roundtrip coverage that used to ride
+// on the (now-removed) exported ToStravaJSON.
+func webhookEventToStravaJSON(t *testing.T, event *pb.WebhookEvent) []byte {
+	t.Helper()
+	raw := StravaWebhookJSON{
+		AspectType:     AspectTypeToString(event.AspectType),
+		ObjectType:     ObjectTypeToString(event.ObjectType),
+		ObjectID:       event.ObjectId,
+		OwnerID:        event.OwnerId,
+		EventTime:      event.EventTime,
+		SubscriptionID: event.SubscriptionId,
+		Updates:        activityUpdatesToMap(event.Updates),
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatalf("marshal strava webhook: %v", err)
+	}
+	return b
+}
+
+func TestWebhookEventToStravaJSONRoundtrip(t *testing.T) {
 	title := "Morning Run"
 	event := &pb.WebhookEvent{
 		AspectType:     pb.AspectType_ASPECT_TYPE_UPDATE,
@@ -125,10 +147,7 @@ func TestToStravaJSON(t *testing.T) {
 		},
 	}
 
-	data, err := ToStravaJSON(event)
-	if err != nil {
-		t.Fatalf("ToStravaJSON() error = %v", err)
-	}
+	data := webhookEventToStravaJSON(t, event)
 
 	// Parse back to verify roundtrip
 	parsed, err := ParseStravaWebhook(data)
@@ -651,10 +670,7 @@ func verifyUpdates(t *testing.T, event *pb.WebhookEvent, expected *fixtureExpect
 
 func verifyRoundtrip(t *testing.T, event *pb.WebhookEvent) {
 	t.Helper()
-	jsonData, err := ToStravaJSON(event)
-	if err != nil {
-		t.Fatalf("ToStravaJSON roundtrip error: %v", err)
-	}
+	jsonData := webhookEventToStravaJSON(t, event)
 	reparsed, err := ParseStravaWebhook(jsonData)
 	if err != nil {
 		t.Fatalf("roundtrip parse error: %v", err)
