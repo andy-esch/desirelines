@@ -10,7 +10,7 @@
  * NEON spectrum colors for sparklines (top to bottom).
  * Progression: Magenta -> Cyan -> Green -> Yellow -> Orange
  */
-export const SPARKLINE_SPECTRUM = [
+const SPARKLINE_SPECTRUM = [
   { r: 255, g: 0, b: 255 }, // Magenta (top)
   { r: 0, g: 255, b: 255 }, // Electric Cyan
   { r: 0, g: 255, b: 128 }, // Neon Green-Cyan
@@ -21,7 +21,7 @@ export const SPARKLINE_SPECTRUM = [
 /**
  * Interpolate between two RGB colors.
  */
-export function interpolateColor(
+function interpolateColor(
   c1: { r: number; g: number; b: number },
   c2: { r: number; g: number; b: number },
   t: number
@@ -36,7 +36,7 @@ export function interpolateColor(
 /**
  * Get the interpolated RGB color at a position in the NEON spectrum.
  */
-export function getInterpolatedSpectrumColor(
+function getInterpolatedSpectrumColor(
   index: number,
   total: number
 ): { r: number; g: number; b: number } {

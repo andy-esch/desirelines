@@ -25,7 +25,7 @@ const firebaseOptions = Object.fromEntries(
 );
 
 // Initialize Firebase app (single instance for entire application)
-export const app: FirebaseApp = initializeApp(firebaseOptions);
+const app: FirebaseApp = initializeApp(firebaseOptions);
 
 // CRITICAL: Initialize Auth BEFORE Firestore
 // The Firebase SDK requires Auth to be initialized first so that Firestore
@@ -83,13 +83,4 @@ const authReadyPromise = new Promise<void>((resolve) => {
  */
 export async function waitForAuthReady(): Promise<void> {
   await authReadyPromise;
-}
-
-// Legacy function exports for backward compatibility
-export function getFirebaseAuth(): Auth {
-  return auth;
-}
-
-export function getFirebaseFirestore(): Firestore {
-  return db;
 }

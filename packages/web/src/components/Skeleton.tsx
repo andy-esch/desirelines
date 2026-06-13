@@ -108,22 +108,3 @@ export function SparklineSkeleton({ rowHeight = 36 }: { rowHeight?: number }) {
     </div>
   );
 }
-
-/**
- * Pre-built skeleton for activity list rows.
- * Matches the layout of RecentActivitiesList rows.
- */
-export function ActivityRowSkeleton() {
-  return (
-    <div className="flex gap-2 py-1">
-      {/* Activity name */}
-      <Skeleton width={140} height={14} />
-      {/* Distance */}
-      <Skeleton width={50} height={14} />
-      {/* Duration */}
-      <Skeleton width={40} height={14} />
-      {/* Date */}
-      <Skeleton width={45} height={14} />
-    </div>
-  );
-}

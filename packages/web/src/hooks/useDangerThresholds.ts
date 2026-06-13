@@ -6,7 +6,7 @@
  * (returned by the public /sports/config endpoint). When not present the hook
  * returns Infinity, which the UI treats as "no ceiling".
  */
-import type { DangerPace, SportConfig } from "../api/activities";
+import type { DangerPace } from "../api/activities";
 import {
   convertDistance,
   convertElevation,
@@ -61,18 +61,6 @@ export function resolveDangerPace(
     case "sessions":
       return pace.valuePerDay;
   }
-}
-
-/** Lightweight helper to test a config snapshot. Used by tests; not React-dependent. */
-export function getThresholdFromConfig(
-  sport: string,
-  sportConfig: SportConfig | null,
-  distanceUnit: DistanceUnit,
-  elevationUnit: ElevationUnit
-): number {
-  const pace = sportConfig?.sportCategories?.[sport]?.dangerPace;
-  if (!pace) return Infinity;
-  return resolveDangerPace(pace, distanceUnit, elevationUnit);
 }
 
 function roundDp(value: number, dp: number): number {
