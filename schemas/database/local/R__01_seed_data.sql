@@ -2,7 +2,7 @@
 -- Timestamps are shifted by R__02_shift_timestamps.sql to appear recent.
 --
 -- To regenerate:
---   1. Export from dev: just db-connect-dev
+--   1. Export from dev: just db-connect dev
 --   2. Run: COPY (SELECT ... FROM activities ORDER BY start_date_local DESC LIMIT 1000) TO STDOUT WITH CSV HEADER
 --   3. Replace user_id with '123456789' (matches mock athlete ID), sanitize names, convert to INSERT statements
 --   4. Update NEWEST_IN_DUMP in R__02_shift_timestamps.sql to match newest date

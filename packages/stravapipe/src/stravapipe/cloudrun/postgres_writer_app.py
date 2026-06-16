@@ -459,25 +459,14 @@ async def _handle_update(
         record_duration(pg_histogram, {"operation": "update_metadata"}),
         uow,
     ):
-        # If activity doesn't exist, skip with warning
-        # (going forward, CREATEs always carry data so backfill is not needed)
-        if not uow.activities.exists(activity_id):
-            updated = None
-        else:
-            updated = uow.activities.update_metadata(activity_id, relevant_updates)
-            uow.commit()
-
-    if updated is None:
-        logger.warning(
-            "Activity %s not in PostgreSQL, skipping UPDATE (no backfill)",
-            activity_id,
-        )
-        return WebhookResponse(
-            status=ResponseStatus.SKIPPED,
-            activity_id=activity_id,
-            correlation_id=correlation_id,
-            reason=SkipReason.NOT_FOUND,
-        )
+        # relevant_updates is non-empty (early return above) and holds only
+        # title/type, so update_metadata returns True (updated) or False
+        # (activity not found) — never None. Its RETURNING id already
+        # distinguishes found-vs-not-found, so no separate exists() round-trip
+        # is needed (going forward, CREATEs always carry data so backfill is
+        # not needed).
+        updated = uow.activities.update_metadata(activity_id, relevant_updates)
+        uow.commit()
 
     if updated:
         _record_freshness(freshness_histogram, "update")
@@ -493,6 +482,10 @@ async def _handle_update(
             correlation_id=correlation_id,
         )
 
+    logger.warning(
+        "Activity %s not in PostgreSQL, skipping UPDATE (no backfill)",
+        activity_id,
+    )
     return WebhookResponse(
         status=ResponseStatus.SKIPPED,
         activity_id=activity_id,
