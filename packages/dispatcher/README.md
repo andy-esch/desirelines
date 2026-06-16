@@ -1,11 +1,12 @@
 # Dispatcher (Go)
 
-Receives Strava webhook events, enriches CREATE events with activity data from the Strava API, and publishes enriched events to PubSub for downstream processing.
+Receives Strava webhook events, enriches CREATE events with activity data from the Strava API, and publishes enriched events to PubSub for downstream processing. It also handles Strava athlete **deauthorization**: deleting the athlete's stored OAuth tokens from Firestore and publishing to a dedicated deauth topic (see [Deauthorization](#deauthorization)).
 
 ## Architecture
 
 ```
 Strava Webhook → Dispatcher (Cloud Run) → [enrich with Strava API] → PubSub Topic → Eventarc → downstream services
+                                         ↘ [athlete deauth] → delete Firestore tokens + PubSub Deauth Topic → downstream services
 ```
 
 The dispatcher is the **only service** that calls the Strava API. Downstream consumers (bq-inserter, postgres-writer) receive enriched events with activity data inline and do not need Strava API credentials.
@@ -36,7 +37,7 @@ athletes who hold a Strava OAuth grant but are not allowlisted in this
 environment — before any Strava API call. See `webhook/owner_check` metric
 for outcome breakdown.
 
-**Type Definitions:** Webhook types are defined in `schemas/proto/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `just proto-gen-backend`.
+**Type Definitions:** Webhook types are defined in `schemas/proto/desirelines/webhook/v1/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `just proto-gen-backend`.
 
 ## API Endpoints
 
@@ -49,25 +50,50 @@ for outcome breakdown.
 
 **Note:** The Strava webhook callback URL must include the `/webhook` path (e.g., `https://your-service.run.app/webhook`).
 
+## Deauthorization
+
+Strava signals athlete deauthorization with an `athlete` webhook event — either
+`aspect_type=delete` or an `update` whose payload carries
+`updates={"authorized":"false"}` (handled in `adapters/http/handler.go`,
+`handleAthleteEvent`). On deauth the dispatcher:
+
+1. **Best-effort deletes** the athlete's stored OAuth tokens from Firestore
+   (database `FIRESTORE_DATABASE`); a failure is logged and left to the
+   downstream deletion job.
+2. **Publishes** the event to the dedicated deauth topic
+   (`GCP_PUBSUB_DEAUTH_TOPIC`) so downstream consumers can act on it.
+
+`FIRESTORE_DATABASE` and `GCP_PUBSUB_DEAUTH_TOPIC` are fail-fast-required at
+startup precisely because of this flow.
+
 ## Environment Variables
 
+All four variables below are validated up front in `config.LoadConfig` — the
+service refuses to start (fail-fast) if any is missing.
+
 ```bash
-# Required
+# Required (fail-fast)
 GCP_PROJECT_ID=desirelines-dev
 GCP_PUBSUB_TOPIC=desirelines_activity_events
-STRAVA_WEBHOOK_SUBSCRIPTION_ID=123456
+GCP_PUBSUB_DEAUTH_TOPIC=desirelines_deauth_events
+FIRESTORE_DATABASE=desirelines
 
 # Optional
 LOG_LEVEL=INFO   # Default: INFO
 PORT=8080        # Default: 8080 (Cloud Run sets this)
 ```
 
-### Strava API Secrets
+### Secrets
 
-The dispatcher enriches CREATE events by fetching activity data from the Strava API. Credentials are loaded from secret file mounts (preferred) with environment variable fallback:
+The webhook and Strava API secrets are loaded from secret file mounts
+(preferred) with environment variable fallback. `STRAVA_WEBHOOK_SUBSCRIPTION_ID`
+and the verify token are loaded this way too (by the `env` secret cache) — they
+are **not** plain config vars:
 
 | Secret Mount | Env Var Fallback | Description |
 |-------------|------------------|-------------|
+| `/etc/secrets/INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN/value` | `STRAVA_WEBHOOK_VERIFY_TOKEN` | Webhook subscription verify token |
+| `/etc/secrets/INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID/value` | `STRAVA_WEBHOOK_SUBSCRIPTION_ID` | Strava webhook subscription ID |
 | `/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value` | `STRAVA_CLIENT_ID` | Strava API app client ID |
 | `/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value` | `STRAVA_CLIENT_SECRET` | Strava API app client secret |
 
@@ -97,6 +123,8 @@ docker compose up pubsub-emulator pubsub-bootstrap -d
 PUBSUB_EMULATOR_HOST=localhost:8085 \
 GCP_PROJECT_ID=local-dev \
 GCP_PUBSUB_TOPIC=desirelines_activity_events \
+GCP_PUBSUB_DEAUTH_TOPIC=desirelines_deauth_events \
+FIRESTORE_DATABASE=local-dev \
 STRAVA_WEBHOOK_SUBSCRIPTION_ID=123456 \
 go run ./cmd/dispatcher
 ```

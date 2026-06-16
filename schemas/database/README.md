@@ -30,20 +30,24 @@ docker compose logs flyway
 
 ## Production Deployment
 
-**Strategy**: Manual via Make targets. Credentials in Secret Manager stored as connection strings, fetched and parsed automatically by scripts.
+**Strategy**: Manual via `just` recipes. Credentials in Secret Manager stored as connection strings, fetched and parsed automatically by scripts.
+
+The recipes are parameterized: `just db-migrate <env> [action]` (action: `migrate`
+(default), `info`, `clean`) and `just db-connect <env> [role]` (role: `admin`
+(default), `apigateway`, `writer`).
 
 ```bash
 # Dev environment
-just db-migrate-dev-info     # Check status (dry-run)
-just db-migrate-dev          # Run migrations
-just db-connect-dev          # Connect (read-only)
-just db-connect-dev-admin    # Connect (admin)
+just db-migrate dev info     # Check status (dry-run)
+just db-migrate dev          # Run migrations
+just db-connect dev writer   # Connect (read/write)
+just db-connect dev admin    # Connect (admin)
 
 # Prod environment (requires "yes" confirmation)
-just db-migrate-prod-info    # Check status
-just db-migrate-prod         # Run migrations
-just db-connect-prod         # Connect (read-only)
-just db-connect-prod-admin   # Connect (admin)
+just db-migrate prod info    # Check status
+just db-migrate prod         # Run migrations
+just db-connect prod writer  # Connect (read/write)
+just db-connect prod admin   # Connect (admin)
 ```
 
 **First-time setup**: See [Database Setup Playbook](../../docs/guides/database-setup.md) for complete steps including pre-migration setup (schemas, extensions, roles) that must be done as `neondb_owner` before Flyway runs.
@@ -107,10 +111,9 @@ schemas/database/
 - `desirelines_dml_grp` - Read/write data (used by app)
 - `desirelines_ro_grp` - Read-only (used for analytics)
 
-**Current migrations**:
-
-- `V0001__role_groups.sql` - Role group privileges and default grants
-- `V0002__activities_table.sql` - Activities table and indexes
+**Current migrations**: see the `migrations/` directory — the versioned
+`V{NNNN}__*.sql` files are self-describing and are the source of truth (a
+hand-maintained list here drifts on every new migration).
 
 ## Related Documentation
 

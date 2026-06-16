@@ -402,7 +402,6 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"title": "New Title"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.exists.return_value = True
         mock_uow.activities.update_metadata.return_value = True
 
         with patch(
@@ -425,7 +424,9 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"type": "Run"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.exists.return_value = False  # Not in DB
+        # update_metadata's RETURNING id yields False when the row is absent —
+        # that (not a separate exists() round-trip) is what signals "not found".
+        mock_uow.activities.update_metadata.return_value = False
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -479,7 +480,6 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"type": "Ride"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.exists.return_value = True
         mock_uow.activities.update_metadata.return_value = True
 
         with patch(
@@ -749,7 +749,6 @@ class TestFreshnessEmission:
 
         mock_histogram = self._mock_freshness_histogram()
         mock_uow = MagicMock()
-        mock_uow.activities.exists.return_value = True
         mock_uow.activities.update_metadata.return_value = True
 
         received_at_ms = int(time.time() * 1000) - 500
@@ -923,7 +922,6 @@ class TestIdempotency:
         webhook["updates"] = {"title": "New Title"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.exists.return_value = True
         mock_uow.activities.update_metadata.return_value = True
 
         with patch(

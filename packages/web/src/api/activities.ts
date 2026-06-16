@@ -22,7 +22,8 @@
  * - 400 responses: Show validation error to user
  * - 401/403: Redirect to login or show access denied
  * - 500: Show error message with retry option
- * - Cancelled requests: Silently ignore (return empty data)
+ * - Cancelled requests: re-thrown for TanStack Query to handle; see
+ *   `errors.ts` / `isCancellationError` (these functions do NOT swallow them)
  */
 
 import getClient from "./client";

@@ -130,7 +130,7 @@ def instrument_fastapi_app(app: FastAPI) -> None:
     lifespan after ``setup_tracing`` / ``setup_metrics`` so the global
     providers already exist.
     """
-    if os.environ.get("ENABLE_OTEL_TRACING", "").lower() != "true":
+    if not _otel_enabled("ENABLE_OTEL_TRACING"):
         logger.info("FastAPI instrumentation skipped (ENABLE_OTEL_TRACING != true)")
         return
 
@@ -158,7 +158,7 @@ def instrument_sqlalchemy_engine(engine: Engine) -> None:
     ``record_span``). Gated on ``ENABLE_OTEL_TRACING`` and fails closed
     to a no-op.
     """
-    if os.environ.get("ENABLE_OTEL_TRACING", "").lower() != "true":
+    if not _otel_enabled("ENABLE_OTEL_TRACING"):
         logger.info("SQLAlchemy instrumentation skipped (ENABLE_OTEL_TRACING != true)")
         return
 

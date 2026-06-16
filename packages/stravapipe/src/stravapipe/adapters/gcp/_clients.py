@@ -107,7 +107,9 @@ class BigQueryClientWrapper:
 
             # Extract statistics
             stats: MergeResult = {
-                "rows_affected": getattr(job, "num_dml_affected_rows", 0),
+                # `num_dml_affected_rows` is present-and-None for non-row-affecting
+                # statements; `or 0` collapses that to 0, matching the missing-attr case.
+                "rows_affected": getattr(job, "num_dml_affected_rows", 0) or 0,
                 "execution_time_ms": execution_time_ms,
                 "job_id": str(job.job_id),
                 "query_preview": query[:200],
@@ -150,7 +152,9 @@ class BigQueryClientWrapper:
 
         try:
             _ = job.result()
-            rows_affected = getattr(job, "num_dml_affected_rows", 0)
+            # `num_dml_affected_rows` is present-and-None for non-row-affecting
+            # statements; `or 0` avoids int(None) TypeError outside the try block.
+            rows_affected = getattr(job, "num_dml_affected_rows", 0) or 0
         except BadRequest as e:
             if _STREAMING_BUFFER_ERROR_FRAGMENT in str(e):
                 # Expected condition: rows are still in BigQuery's streaming

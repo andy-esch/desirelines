@@ -78,7 +78,10 @@ func (c *SecretCache) GetSecrets() (string, int32, error) {
 		if c.verifyToken != "" {
 			return c.verifyToken, c.subscriptionID, nil
 		}
-		// First load with no file - try environment variables
+		// Secrets files unreadable (permission/IO error) and no value cached yet
+		// — fall back to environment variables. A *missing* file does not reach
+		// here: addFileToHash treats absence as a non-error placeholder, so it
+		// flows through the normal hash-compare → loadSecrets → env-fallback path.
 		if loadErr := c.loadSecretsFromEnv(); loadErr != nil {
 			return "", 0, loadErr
 		}
