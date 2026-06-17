@@ -9,7 +9,7 @@ handle single activities, BackfillService operates in bulk — fetching entire
 years of activities and inserting in batches.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 import logging
 import time
@@ -30,6 +30,21 @@ logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 100
 BQ_MAX_BATCH_SIZE = 10_000
+
+
+def _iter_batches[T](
+    seq: Sequence[T], size: int
+) -> Iterator[tuple[int, int, Sequence[T]]]:
+    """Yield ``(batch_num, total_batches, batch)`` over ``seq`` in ``size`` chunks.
+
+    Owns the ceil-div + ``enumerate(range(...))`` arithmetic shared by the
+    PostgreSQL and BigQuery insert loops so the chunk-boundary logic has one
+    home to test. ``batch_num`` is 1-based.
+    """
+    total = (len(seq) + size - 1) // size
+    for batch_num, i in enumerate(range(0, len(seq), size), start=1):
+        yield batch_num, total, seq[i : i + size]
+
 
 # Bounded in-batch retry around the BQ Storage Write API. Cloud Run Jobs
 # have no Pub/Sub redelivery to absorb transients — a single 503 in a
@@ -278,13 +293,9 @@ class BackfillService:
         skipped_count = 0
         error_count = 0
 
-        total_batches = (len(activities) + self._batch_size - 1) // self._batch_size
-
-        for batch_num, i in enumerate(
-            range(0, len(activities), self._batch_size), start=1
+        for batch_num, total_batches, batch in _iter_batches(
+            activities, self._batch_size
         ):
-            batch = activities[i : i + self._batch_size]
-
             try:
                 batch_inserted = 0
                 batch_skipped = 0
@@ -331,12 +342,10 @@ class BackfillService:
         inserted_count = 0
         error_count = 0
 
-        total_batches = (len(activities) + BQ_MAX_BATCH_SIZE - 1) // BQ_MAX_BATCH_SIZE
-
-        for batch_num, i in enumerate(
-            range(0, len(activities), BQ_MAX_BATCH_SIZE), start=1
+        for batch_num, total_batches, batch_seq in _iter_batches(
+            activities, BQ_MAX_BATCH_SIZE
         ):
-            batch = list(activities[i : i + BQ_MAX_BATCH_SIZE])
+            batch = list(batch_seq)
 
             try:
                 result = self._write_batch_with_retry(
