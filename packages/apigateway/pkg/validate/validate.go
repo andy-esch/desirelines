@@ -109,7 +109,10 @@ func parseDate(s string) (time.Time, error) {
 //	GET /activities/2026/source?from=2025-08-08&to=2026-02-08  (from in previous year)
 //	GET /activities/2024/metrics?from=2024-12-15&to=2025-01-01 (to in next year)
 //
-// Assumes fromStr and toStr have already been validated by DateRange.
+// Callers are expected to run DateRange first, but this validator no longer
+// relies on that ordering: unparseable input returns the same 400-style error
+// message DateRange uses rather than panicking, so a reordered or new caller
+// can't turn attacker-controllable dates into a recovered-500 panic.
 // Returns an error message if invalid, empty string if valid.
 func DateRangeYearOverlap(fromStr, toStr string, year int) string {
 	if fromStr == "" || toStr == "" {
@@ -118,13 +121,11 @@ func DateRangeYearOverlap(fromStr, toStr string, year int) string {
 
 	fromDate, err := parseDate(fromStr)
 	if err != nil {
-		//nolint:forbidigo // programmer-error guard — callers must validate dates before calling this helper
-		panic("programmer error: DateRangeYearOverlap called with invalid 'from' date: " + err.Error())
+		return "Invalid 'from' date format (expected YYYY-MM-DD)"
 	}
 	toDate, err := parseDate(toStr)
 	if err != nil {
-		//nolint:forbidigo // programmer-error guard — callers must validate dates before calling this helper
-		panic("programmer error: DateRangeYearOverlap called with invalid 'to' date: " + err.Error())
+		return "Invalid 'to' date format (expected YYYY-MM-DD)"
 	}
 
 	fromYear := fromDate.Year()

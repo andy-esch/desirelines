@@ -213,6 +213,12 @@ func TestDateRangeYearOverlap(t *testing.T) {
 
 		// Invalid - to too far forward (2 years after URL year)
 		{"to two years forward", "2026-12-01", "2028-01-01", 2026, true},
+
+		// Invalid - unparseable input returns an error string instead of
+		// panicking, so a caller that skips the DateRange pre-pass can't turn
+		// these into a recovered-500 panic.
+		{"unparseable from", "not-a-date", "2026-06-15", 2026, true},
+		{"unparseable to", "2026-01-01", "2026-13-99", 2026, true},
 	}
 
 	for _, tt := range tests {
