@@ -84,7 +84,14 @@ func run(log *slog.Logger) error {
 		providers = otel.NoopProviders()
 	} else {
 		defer func() {
-			if shutdownErr := otelShutdown(context.Background()); shutdownErr != nil {
+			// Bound the flush: otelShutdown joins the span/metric exporter
+			// flushes, which block on Cloud Trace/Monitoring. Without a deadline
+			// a slow/unreachable backend during deploy blocks until Cloud Run
+			// SIGKILLs the container — and this error log never runs. Use the
+			// same budget as the HTTP server shutdown below.
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+			defer cancel()
+			if shutdownErr := otelShutdown(shutdownCtx); shutdownErr != nil {
 				log.Error("OTel shutdown error", "error", shutdownErr)
 			}
 		}()
