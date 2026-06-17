@@ -127,6 +127,32 @@ def create_strava_breaker(
     )
 
 
+def _call_through_breaker[T](
+    breaker: pybreaker.CircuitBreaker,
+    fn: Callable[..., T],
+    /,
+    *args: Any,
+    _activity_id: int | None = None,
+    **kwargs: Any,
+) -> T:
+    """Call ``fn`` through ``breaker``, translating an open breaker to a 503.
+
+    Shared by the three outbound Strava entrypoints (``StravaTokenRepo.refresh``,
+    ``StravaApiClient.get_activity`` / ``list_activities``) so the
+    ``CircuitBreakerError`` → ``StravaApiError(503)`` mapping has one home.
+    ``_activity_id`` is attached to the raised error on the activity path
+    (``None`` is a no-op for the token/list paths).
+    """
+    try:
+        return breaker.call(fn, *args, **kwargs)
+    except pybreaker.CircuitBreakerError as exc:
+        raise StravaApiError(
+            f"Strava circuit breaker open: {exc}",
+            status_code=HTTP_SERVICE_UNAVAILABLE,
+            activity_id=_activity_id,
+        ) from exc
+
+
 # =============================================================================
 # Token Layer
 # =============================================================================
@@ -154,13 +180,7 @@ class StravaTokenRepo(ReadStravaToken):
         self._breaker = breaker if breaker is not None else create_strava_breaker()
 
     def refresh(self) -> StravaTokenSet:
-        try:
-            return self._breaker.call(self._do_refresh)
-        except pybreaker.CircuitBreakerError as exc:
-            raise StravaApiError(
-                f"Strava circuit breaker open: {exc}",
-                status_code=HTTP_SERVICE_UNAVAILABLE,
-            ) from exc
+        return _call_through_breaker(self._breaker, self._do_refresh)
 
     def _do_refresh(self) -> StravaTokenSet:
         @retry_on_failure(
@@ -321,18 +341,13 @@ class StravaApiClient:
             StravaApiError: For other API errors, including when the
                 circuit breaker is open (status_code=503).
         """
-        try:
-            return self._breaker.call(
-                self._get_activity_with_retry,
-                activity_id,
-                _token_refresh_count=0,
-            )
-        except pybreaker.CircuitBreakerError as exc:
-            raise StravaApiError(
-                f"Strava circuit breaker open: {exc}",
-                status_code=HTTP_SERVICE_UNAVAILABLE,
-                activity_id=activity_id,
-            ) from exc
+        return _call_through_breaker(
+            self._breaker,
+            self._get_activity_with_retry,
+            activity_id,
+            _token_refresh_count=0,
+            _activity_id=activity_id,
+        )
 
     def _get_activity_with_retry(
         self, activity_id: int, *, _token_refresh_count: int
@@ -393,20 +408,15 @@ class StravaApiClient:
             StravaApiError: For other API errors, including when the
                 circuit breaker is open (status_code=503).
         """
-        try:
-            return self._breaker.call(
-                self._list_activities_with_retry,
-                before=before,
-                after=after,
-                page=page,
-                per_page=per_page,
-                _token_refresh_count=0,
-            )
-        except pybreaker.CircuitBreakerError as exc:
-            raise StravaApiError(
-                f"Strava circuit breaker open: {exc}",
-                status_code=HTTP_SERVICE_UNAVAILABLE,
-            ) from exc
+        return _call_through_breaker(
+            self._breaker,
+            self._list_activities_with_retry,
+            before=before,
+            after=after,
+            page=page,
+            per_page=per_page,
+            _token_refresh_count=0,
+        )
 
     def _list_activities_with_retry(
         self,
