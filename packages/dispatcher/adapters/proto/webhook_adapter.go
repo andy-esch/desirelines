@@ -3,6 +3,7 @@ package proto
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	pb "github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 )
@@ -207,11 +208,7 @@ func activityUpdatesToMap(updates *pb.ActivityUpdates) map[string]string {
 	}
 
 	if updates.Private != nil {
-		if *updates.Private {
-			result["private"] = "true"
-		} else {
-			result["private"] = "false"
-		}
+		result["private"] = strconv.FormatBool(*updates.Private)
 	}
 
 	if len(result) == 0 {

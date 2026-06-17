@@ -82,6 +82,11 @@ func NewHandlerWithTimeout(repo repository.ActivityRepository, sportConfig *conf
 	}
 }
 
+// writeError writes a client error response with the handler's logger.
+func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, status int, msg string) {
+	apierrors.WriteError(w, r, apierrors.NewAPIError(status, msg), h.logger)
+}
+
 // getUserID extracts the authenticated user's ID from the request context.
 // Returns the user ID and true if present, or writes a 500 error and returns false.
 // An empty user ID indicates a middleware misconfiguration (route not protected by auth).
@@ -89,8 +94,7 @@ func (h *Handler) getUserID(w http.ResponseWriter, r *http.Request) (string, boo
 	userID := middleware.GetUserID(r.Context())
 	if userID == "" {
 		h.logger.Error("Auth: user ID missing from request context (middleware misconfiguration)")
-		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return "", false
 	}
 	return userID, true
@@ -115,11 +119,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	metadata, err := h.repo.GetYearMetadata(ctx, userID, year)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "year", year)
-		apiErr := apierrors.NewAPIError(
-			http.StatusInternalServerError,
-			errMsgInternalServerError,
-		)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
 
@@ -192,11 +192,11 @@ func (h *Handler) parseDateRange(w http.ResponseWriter, r *http.Request, year in
 	to = r.URL.Query().Get("to")
 
 	if errMsg := validate.DateRange(from, to); errMsg != "" {
-		apierrors.WriteError(w, r, apierrors.NewAPIError(http.StatusBadRequest, errMsg), h.logger)
+		h.writeError(w, r, http.StatusBadRequest, errMsg)
 		return "", "", false
 	}
 	if errMsg := validate.DateRangeYearOverlap(from, to, year); errMsg != "" {
-		apierrors.WriteError(w, r, apierrors.NewAPIError(http.StatusBadRequest, errMsg), h.logger)
+		h.writeError(w, r, http.StatusBadRequest, errMsg)
 		return "", "", false
 	}
 	return from, to, true
@@ -224,15 +224,13 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 
 	sportsStr := r.URL.Query().Get("sports")
 	if sportsStr == "" {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Missing 'sports' query parameter")
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusBadRequest, "Missing 'sports' query parameter")
 		return nil
 	}
 
 	categories := strings.Split(sportsStr, ",")
 	if len(categories) > MaxMultiSportCount {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Too many sports (max %d)", MaxMultiSportCount))
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many sports (max %d)", MaxMultiSportCount))
 		return nil
 	}
 
@@ -242,14 +240,8 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 		if cat == "" {
 			continue
 		}
-		if errMsg := validate.Sport(cat); errMsg != "" {
-			apiErr := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-			apierrors.WriteError(w, r, apiErr, h.logger)
-			return nil
-		}
-		stravaTypes := h.sportConfig.GetStravaTypes(cat)
-		if stravaTypes == nil {
-			apiErr := apierrors.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport in sports list: %s", cat))
+		stravaTypes, apiErr := h.resolveSportTypes(cat)
+		if !apiErr.IsZero() {
 			apierrors.WriteError(w, r, apiErr, h.logger)
 			return nil
 		}
@@ -257,8 +249,7 @@ func (h *Handler) validateMultiSportQuery(w http.ResponseWriter, r *http.Request
 	}
 
 	if len(sportCategories) == 0 {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "No valid sports provided")
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusBadRequest, "No valid sports provided")
 		return nil
 	}
 
@@ -311,11 +302,7 @@ func (h *Handler) logAndRespondDBError(w http.ResponseWriter, r *http.Request, e
 	} else {
 		h.logger.Error("Database query failed", "error", err, "year", params.year, "sportTypes", params.sportTypes)
 	}
-	apiErr := apierrors.NewAPIError(
-		http.StatusInternalServerError,
-		errMsgInternalServerError,
-	)
-	apierrors.WriteError(w, r, apiErr, h.logger)
+	h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 }
 
 // HandleMetrics serves sport-specific metrics data from PostgreSQL.
@@ -358,8 +345,7 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	merged, err := h.mergeMultiSportMetrics(byStravaType)
 	if err != nil {
 		h.logger.Error("Multi-sport metrics merge failed", "error", err)
-		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
 	// Extract the single category's data (there should be exactly one after merging)
@@ -401,16 +387,14 @@ func (h *Handler) handleMultiSportMetrics(w http.ResponseWriter, r *http.Request
 	}
 	if err != nil {
 		h.logger.Error("Database query failed during multi-sport metrics fetch", "error", err)
-		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
 
 	bySport, err := h.mergeMultiSportMetrics(byStravaType)
 	if err != nil {
 		h.logger.Error("Multi-sport metrics merge failed", "error", err)
-		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
 	result := &generated.AllSportsMetrics{
@@ -497,8 +481,7 @@ func (h *Handler) handleMultiSportSource(w http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		h.logger.Error("Database query failed during multi-sport source fetch", "error", err)
-		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
 
@@ -544,8 +527,7 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid activity ID format")
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusBadRequest, "Invalid activity ID format")
 		return
 	}
 
@@ -555,17 +537,12 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 	activity, err := h.repo.GetActivityByID(ctx, userID, id)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err, "activityId", id)
-		apiErr := apierrors.NewAPIError(
-			http.StatusInternalServerError,
-			errMsgInternalServerError,
-		)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
 
 	if activity == nil {
-		apiErr := apierrors.NewAPIError(http.StatusNotFound, "Activity not found")
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusNotFound, "Activity not found")
 		return
 	}
 
@@ -596,11 +573,7 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	result, err := h.repo.ListActivities(ctx, *filter)
 	if err != nil {
 		h.logger.Error("Database query failed", "error", err)
-		apiErr = apierrors.NewAPIError(
-			http.StatusInternalServerError,
-			errMsgInternalServerError,
-		)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
 
@@ -638,12 +611,9 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 
 	// Parse 'sport' (optional) - maps to Strava sport types
 	if sport := query.Get("sport"); sport != "" {
-		if errMsg := validate.Sport(sport); errMsg != "" {
-			return nil, apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		}
-		stravaTypes := h.sportConfig.GetStravaTypes(sport)
-		if stravaTypes == nil {
-			return nil, apierrors.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport: %s", sport))
+		stravaTypes, apiErr := h.resolveSportTypes(sport)
+		if !apiErr.IsZero() {
+			return nil, apiErr
 		}
 		filter.SportTypes = stravaTypes
 	}
@@ -678,11 +648,27 @@ func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (in
 	otel.AddChiURLParams(r, "year")
 	year, ok := validate.ParseYear(chi.URLParam(r, "year"))
 	if !ok {
-		err := apierrors.NewAPIError(http.StatusBadRequest, "Invalid year format")
-		apierrors.WriteError(w, r, err, h.logger)
+		h.writeError(w, r, http.StatusBadRequest, "Invalid year format")
 		return 0, false
 	}
 	return year, true
+}
+
+// resolveSportTypes validates a sport category and returns its Strava
+// sport_type values (e.g. "cycling" → ["Ride", "VirtualRide"]), or a populated
+// APIError (zero-value APIError on success). The response decision is left to
+// the caller so each can keep its own control flow (write vs. return).
+func (h *Handler) resolveSportTypes(sport string) ([]string, apierrors.APIError) {
+	// Validate length to prevent oversized inputs
+	if errMsg := validate.Sport(sport); errMsg != "" {
+		return nil, apierrors.NewAPIError(http.StatusBadRequest, errMsg)
+	}
+	types := h.sportConfig.GetStravaTypes(sport)
+	if types == nil {
+		return nil, apierrors.NewAPIErrorWithLog(http.StatusBadRequest,
+			"Invalid sport parameter", "Invalid sport: "+sport)
+	}
+	return types, apierrors.APIError{}
 }
 
 // validateAndGetSportTypes extracts and validates the sport query parameter.
@@ -692,22 +678,13 @@ func (h *Handler) validateAndGetYear(w http.ResponseWriter, r *http.Request) (in
 func (h *Handler) validateAndGetSportTypes(w http.ResponseWriter, r *http.Request) ([]string, bool) {
 	sport := r.URL.Query().Get("sport")
 	if sport == "" {
-		err := apierrors.NewAPIError(http.StatusBadRequest, "Missing 'sport' query parameter")
-		apierrors.WriteError(w, r, err, h.logger)
+		h.writeError(w, r, http.StatusBadRequest, "Missing 'sport' query parameter")
 		return nil, false
 	}
 
-	// Validate length to prevent oversized inputs
-	if errMsg := validate.Sport(sport); errMsg != "" {
-		err := apierrors.NewAPIError(http.StatusBadRequest, errMsg)
-		apierrors.WriteError(w, r, err, h.logger)
-		return nil, false
-	}
-
-	stravaTypes := h.sportConfig.GetStravaTypes(sport)
-	if stravaTypes == nil {
-		err := apierrors.NewAPIErrorWithLog(http.StatusBadRequest, "Invalid sport parameter", fmt.Sprintf("Invalid sport: %s", sport))
-		apierrors.WriteError(w, r, err, h.logger)
+	stravaTypes, apiErr := h.resolveSportTypes(sport)
+	if !apiErr.IsZero() {
+		apierrors.WriteError(w, r, apiErr, h.logger)
 		return nil, false
 	}
 

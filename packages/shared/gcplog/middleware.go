@@ -220,11 +220,9 @@ func extractTraceContext(r *http.Request, projectID string) *TraceContext {
 // parseCloudTraceContext parses GCP's X-Cloud-Trace-Context header.
 // Format: TRACE_ID/SPAN_ID;o=TRACE_TRUE
 func parseCloudTraceContext(header, projectID string) *TraceContext {
-	// Split off the options (;o=...)
+	// Split off the options (;o=...). strings.Split always returns ≥1
+	// element, so no len==0 guard is needed.
 	parts := strings.Split(header, ";")
-	if len(parts) == 0 {
-		return nil
-	}
 
 	// Parse trace sampled flag
 	traceSampled := false
@@ -237,7 +235,7 @@ func parseCloudTraceContext(header, projectID string) *TraceContext {
 
 	// Split TRACE_ID/SPAN_ID
 	idParts := strings.Split(parts[0], "/")
-	if len(idParts) == 0 || idParts[0] == "" {
+	if idParts[0] == "" {
 		return nil
 	}
 
