@@ -60,8 +60,13 @@ func SpanNameFromChiRoute(next http.Handler) http.Handler {
 //
 //	otel.AddChiURLParams(r, "year")        // /v1/activities/{year}/metadata
 func AddChiURLParams(r *http.Request, params ...string) {
+	// Guard first so we don't allocate the alias map when tracing is
+	// disabled or the request isn't sampled (the common path).
+	if !trace.SpanFromContext(r.Context()).SpanContext().IsValid() {
+		return
+	}
 	// The identity case is just AddChiURLParamsAs with suffix == param, so
-	// delegate rather than duplicate the span-guard + skip-empty loop.
+	// delegate rather than duplicate the skip-empty loop.
 	aliases := make(map[string]string, len(params))
 	for _, p := range params {
 		aliases[p] = p
