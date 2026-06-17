@@ -353,7 +353,11 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	// sport mappings disagree — fail loud rather than serve a nondeterministically
 	// chosen, silently-truncated result (mirrors the merge invariants in helper.go).
 	if len(merged) > 1 {
-		h.logger.Error("Single-sport metrics merged to multiple categories — sport config mapping is asymmetric", "categories", len(merged))
+		categories := make([]string, 0, len(merged))
+		for cat := range merged {
+			categories = append(categories, cat)
+		}
+		h.logger.Error("Single-sport metrics merged to multiple categories — sport config mapping is asymmetric", "categories", categories)
 		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
@@ -457,7 +461,11 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 	// sport mappings disagree — fail loud rather than serve a nondeterministically
 	// chosen, silently-truncated result (mirrors the merge invariants in helper.go).
 	if len(merged) > 1 {
-		h.logger.Error("Single-sport source merged to multiple categories — sport config mapping is asymmetric", "categories", len(merged))
+		categories := make([]string, 0, len(merged))
+		for cat := range merged {
+			categories = append(categories, cat)
+		}
+		h.logger.Error("Single-sport source merged to multiple categories — sport config mapping is asymmetric", "categories", categories)
 		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return
