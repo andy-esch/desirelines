@@ -20,6 +20,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
+	firebaseauth "firebase.google.com/go/v4/auth"
 	firestoreadapter "github.com/andy-esch/desirelines/packages/apigateway/adapters/firestore"
 	mockadapter "github.com/andy-esch/desirelines/packages/apigateway/adapters/mock"
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
@@ -437,17 +438,27 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 	return handler, nil
 }
 
+// newFirebaseAuthClient initializes a Firebase app and returns its Auth client.
+// Shared by the production and local-dev auth setups; each caller keeps its own
+// success log line (prod logs project_id, local logs the emulator host).
+func newFirebaseAuthClient(ctx context.Context, projectID string) (*firebaseauth.Client, error) {
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Firebase app: %w", err)
+	}
+	client, err := app.Auth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
+	}
+	return client, nil
+}
+
 // initFirebaseAuth initializes Firebase, Firestore, and OAuth dependencies.
 // Extracted from initDependencies for cyclomatic complexity.
 func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist, oauthHist otelmetric.Float64Histogram, tracer trace.Tracer) error {
-	firebaseApp, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: cfg.GCPProjectID})
+	authClient, err := newFirebaseAuthClient(ctx, cfg.GCPProjectID)
 	if err != nil {
-		return fmt.Errorf("failed to initialize Firebase app: %w", err)
-	}
-
-	authClient, err := firebaseApp.Auth(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
+		return err
 	}
 	log.Info("Firebase app initialized", "project_id", cfg.GCPProjectID)
 
@@ -496,14 +507,9 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	log.Info("Local dev auth: Firebase emulator + mock Strava")
 
 	// Firebase Admin SDK auto-detects FIREBASE_AUTH_EMULATOR_HOST
-	firebaseApp, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: cfg.GCPProjectID})
+	authClient, err := newFirebaseAuthClient(ctx, cfg.GCPProjectID)
 	if err != nil {
-		return fmt.Errorf("failed to initialize Firebase app: %w", err)
-	}
-
-	authClient, err := firebaseApp.Auth(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize Firebase Auth client: %w", err)
+		return err
 	}
 	log.Info("Firebase Auth emulator connected", "host", os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"))
 

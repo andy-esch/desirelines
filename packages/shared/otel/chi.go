@@ -60,21 +60,18 @@ func SpanNameFromChiRoute(next http.Handler) http.Handler {
 //
 //	otel.AddChiURLParams(r, "year")        // /v1/activities/{year}/metadata
 func AddChiURLParams(r *http.Request, params ...string) {
-	span := trace.SpanFromContext(r.Context())
-	if !span.SpanContext().IsValid() {
+	// Guard first so we don't allocate the alias map when tracing is
+	// disabled or the request isn't sampled (the common path).
+	if !trace.SpanFromContext(r.Context()).SpanContext().IsValid() {
 		return
 	}
-	attrs := make([]attribute.KeyValue, 0, len(params))
+	// The identity case is just AddChiURLParamsAs with suffix == param, so
+	// delegate rather than duplicate the skip-empty loop.
+	aliases := make(map[string]string, len(params))
 	for _, p := range params {
-		v := chi.URLParam(r, p)
-		if v == "" {
-			continue
-		}
-		attrs = append(attrs, attribute.String(chiURLParamPrefix+p, v))
+		aliases[p] = p
 	}
-	if len(attrs) > 0 {
-		span.SetAttributes(attrs...)
-	}
+	AddChiURLParamsAs(r, aliases)
 }
 
 // AddChiURLParamsAs reads the keyed chi URL params and stamps each non-empty
