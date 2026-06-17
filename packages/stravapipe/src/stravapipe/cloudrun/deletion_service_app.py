@@ -40,7 +40,6 @@ from stravapipe.application.deletion import BQUserDeletionService
 from stravapipe.cloudrun._request_context import bootstrap_pubsub_request
 from stravapipe.config import load_deletion_service_config
 from stravapipe.shared.constants import ResponseStatus
-from stravapipe.shared.correlation import new_correlation_id
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
 from stravapipe.shared.readiness import (
@@ -325,11 +324,10 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
     If any deletion fails, raises 500 to trigger Pub/Sub retry.
     """
 
-    # Pre-generate a fallback correlation ID so failures before parsing still
-    # carry one (needed by the except block below).
-    correlation_id = new_correlation_id()
-
     try:
+        # bootstrap_pubsub_request sets a fallback correlation_id on the
+        # contextvar as its first step, so logging in the except blocks below
+        # carries one even if it raises before parsing completes.
         req = await bootstrap_pubsub_request(request)
         context = req.context
         event_data = req.event_data

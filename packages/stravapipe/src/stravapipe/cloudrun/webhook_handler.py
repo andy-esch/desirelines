@@ -24,7 +24,6 @@ from stravapipe.shared.constants import (
 )
 from stravapipe.shared.correlation import (
     extract_dispatcher_received_at_from_attributes,
-    new_correlation_id,
     set_dispatcher_received_at_ms,
 )
 from stravapipe.shared.responses import WebhookResponse
@@ -77,11 +76,10 @@ async def handle_webhook_cloudevent(
     Raises:
         HTTPException: On parsing/validation errors (4xx) or unexpected errors (5xx)
     """
-    # Pre-generate a fallback correlation ID so failures before parsing still
-    # carry one (needed by the except block below).
-    correlation_id = new_correlation_id()
-
     try:
+        # bootstrap_pubsub_request sets a fallback correlation_id on the
+        # contextvar as its first step, so logging in the except blocks below
+        # carries one even if it raises before parsing completes.
         req = await bootstrap_pubsub_request(request)
         context = req.context
         event_data = req.event_data
