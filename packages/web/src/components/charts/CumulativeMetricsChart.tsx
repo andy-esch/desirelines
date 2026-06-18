@@ -343,15 +343,19 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     return { start: startDate, end: new Date(Date.UTC(year, 11, 31)) };
   })();
 
-  // Filter mergedData to visible x-axis range so y-axis auto-scales to visible data
+  // Filter mergedData to visible x-axis range so y-axis auto-scales to visible data.
+  // Depend on the primitive timestamps, not the Date objects: effectiveDomain is
+  // rebuilt with fresh Date instances every render, so depending on .start/.end
+  // (new references) defeated the memo and re-filtered all of mergedData on every
+  // render — including each mouse-move during drag-to-zoom.
+  const visibleStartTs = effectiveDomain.start.getTime();
+  const visibleEndTs = effectiveDomain.end.getTime();
   const visibleData = useMemo(() => {
-    const startTs = effectiveDomain.start.getTime();
-    const endTs = effectiveDomain.end.getTime();
     return mergedData.filter((d) => {
       const ts = d.date.getTime();
-      return ts >= startTs && ts <= endTs;
+      return ts >= visibleStartTs && ts <= visibleEndTs;
     });
-  }, [mergedData, effectiveDomain.start, effectiveDomain.end]);
+  }, [mergedData, visibleStartTs, visibleEndTs]);
 
   // Build header controls
   const headerControls = (
