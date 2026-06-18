@@ -16,7 +16,7 @@
  *     preserve-manual-memoization rule is suppressed here since the compiler
  *     cannot auto-memoize impure Date() calls.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   convertDistance,
   convertElevation,
@@ -217,11 +217,16 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   const distanceUnit = userSettings.distanceUnit;
   const hasDistance = sportInfo?.hasDistance ?? false;
 
+  // Destructure the metric-config primitives the memo needs. getMetricConfig
+  // returns a fresh object for override-sports, so depending on the whole
+  // object below would defeat the memo (Object.is fails every render). Depend
+  // on these stable primitives instead.
+  const { roundingFactor, defaultGoalValue } = primaryMetricConfig;
+
   // Goals management
   // Explicit useMemo: contains new Date().toISOString() which would make the object
   // perpetually unstable, causing useUserConfig to re-trigger on every render.
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
-    const { roundingFactor, defaultGoalValue } = primaryMetricConfig;
     const now = new Date().toISOString();
     const goalMetric = getPrimaryMetric(sport, sportConfig);
     // generateDefaultGoals now stamps metric/createdAt/updatedAt itself, so the
@@ -248,7 +253,8 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     /* eslint-disable react-hooks/preserve-manual-memoization -- intentional: new Date() is impure, compiler can't auto-memoize */
   }, [
     estimatedYearEnd,
-    primaryMetricConfig,
+    roundingFactor,
+    defaultGoalValue,
     hasDistance,
     distanceUnit,
     isTime,
@@ -270,29 +276,40 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // time sports). No-op for sports without a canonical unit (e.g. sessions).
   useGoalMigration(goalsData, user?.uid ?? "", year, sport, hasDistance, isTime, updateGoals);
 
-  // Convert goals from storage units to display units for UI.
-  // Carries all proto fields through to the display layer so a later write
-  // doesn't need to re-derive metric/createdAt/updatedAt — closes the bolt-on
-  // gap from harden-user-config-goal-data-integrity #2. Still warns once per
-  // render if a goal's `metric` disagrees with the sport's primary metric
-  // (catches stale data, e.g. a goal copied across sports).
-  const goalCtx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
-  const goals: Goals = goalsData?.goals
-    ? goalsData.goals.map((g) => {
-        if (g.metric && g.metric !== primaryMetric) {
+  // Warn once per distinct goal when its stored `metric` disagrees with the
+  // sport's primary metric (catches stale data, e.g. a goal copied across
+  // sports). Lives in an effect — not the render-path map below — so a standing
+  // mismatch logs once rather than on every render (twice per mount under
+  // StrictMode), and render stays a pure function.
+  const warnedMetricMismatchRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    goalsData?.goals?.forEach((g) => {
+      if (g.metric && g.metric !== primaryMetric) {
+        const key = `${sport}/${year}/${g.id}`;
+        if (!warnedMetricMismatchRef.current.has(key)) {
+          warnedMetricMismatchRef.current.add(key);
           logger.warn(
             `[useSportPageData] Goal ${g.id} for ${sport}/${year} has metric=${g.metric} but sport primary metric is ${primaryMetric}`
           );
         }
-        return {
-          id: g.id,
-          value: goalToDisplay(g.value, goalCtx),
-          label: g.label,
-          metric: g.metric,
-          createdAt: g.createdAt,
-          updatedAt: g.updatedAt,
-        };
-      })
+      }
+    });
+  }, [goalsData, primaryMetric, sport, year]);
+
+  // Convert goals from storage units to display units for UI.
+  // Carries all proto fields through to the display layer so a later write
+  // doesn't need to re-derive metric/createdAt/updatedAt — closes the bolt-on
+  // gap from harden-user-config-goal-data-integrity #2.
+  const goalCtx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
+  const goals: Goals = goalsData?.goals
+    ? goalsData.goals.map((g) => ({
+        id: g.id,
+        value: goalToDisplay(g.value, goalCtx),
+        label: g.label,
+        metric: g.metric,
+        createdAt: g.createdAt,
+        updatedAt: g.updatedAt,
+      }))
     : [];
 
   // Handle goals change: pure unit conversion. All proto metadata

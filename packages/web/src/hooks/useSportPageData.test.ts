@@ -39,6 +39,15 @@ describe("useSportPageData", () => {
         hasDistance: true,
         hasElevation: true,
       },
+      running: {
+        displayName: "Running",
+        stravaTypes: ["Run"],
+        excludedTypes: [],
+        primaryMetric: "distance_meters",
+        metrics: ["distance_meters", "time_minutes"],
+        hasDistance: true,
+        hasElevation: true,
+      },
     },
   };
 
@@ -159,6 +168,34 @@ describe("useSportPageData", () => {
       expect.stringContaining("metric=time_minutes but sport primary metric is distance_meters")
     );
     warnSpy.mockRestore();
+  });
+
+  it("keeps defaultGoalsForYear referentially stable across renders for an override-sport", () => {
+    // `running` has a metricConfig overrides block, so getMetricConfig returns a
+    // fresh merged object on every call. The defaultGoalsForYear memo must still
+    // be stable (it depends on the primitive config fields, not the object), or
+    // it churns the value passed into useUserConfig every render.
+    vi.mocked(useUserConfig).mockReturnValue({
+      data: { distanceUnit: "miles", elevationUnit: "feet" },
+      isLoading: false,
+      error: null,
+      updateData: vi.fn(),
+    } as any);
+
+    const latestGoalsDefault = () => {
+      const goalsCalls = vi
+        .mocked(useUserConfig)
+        .mock.calls.filter((c) => (c[0] as string) === "goals");
+      return goalsCalls[goalsCalls.length - 1]?.[3];
+    };
+
+    const { rerender } = renderHook(() => useSportPageData("running", 2026));
+    const first = latestGoalsDefault();
+    rerender();
+    const second = latestGoalsDefault();
+
+    expect(first).toBeDefined();
+    expect(second).toBe(first);
   });
 
   it("does not warn when a goal's metric matches the sport's primary metric", () => {
