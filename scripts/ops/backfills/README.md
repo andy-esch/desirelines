@@ -9,6 +9,7 @@ Scripts for backfilling and migrating production data.
 | [`backfill_from_strava.py`](#backfill-from-strava)               | Backfill activities from Strava API → BigQuery                | ✅ Active |
 | [`backfill_bq_to_postgres.py`](#backfill-bigquery-to-postgresql) | Migrate activities from BigQuery → PostgreSQL                 | ✅ Active                     |
 | [`backfill_routes_bq_to_postgres.py`](#backfill-routes)          | Backfill activity routes from BigQuery polylines → PostgreSQL | ✅ Active                     |
+| [`load_census_regions.py`](#load-census-regions)                 | Load US Census CBSA + county boundaries → `desirelines.regions` | ✅ Active                   |
 | [`webhook-replay/`](#webhook-replay-load-testing)                | Simulate production webhook load for testing                  | ✅ Active                     |
 
 **Deprecated scripts** (in this directory but no longer maintained):
@@ -109,6 +110,58 @@ uv run scripts/ops/backfills/backfill_routes_bq_to_postgres.py --project desirel
 - `POSTGRES_CONNECTION_STRING` environment variable
 - BigQuery read permissions
 - PostgreSQL with PostGIS extension (activity_routes table from V0003 migration)
+
+---
+
+## Load Census Regions
+
+**Script**: `load_census_regions.py`
+
+Populates the `desirelines.regions` boundary reference table (added in migration
+`V0005`) that the routes-map feature spatial-joins activity routes against. Loads
+two US Census cartographic boundary layers and classifies them into a CBSA →
+county cascade:
+
+- **CBSA** (`cb_<vintage>_us_cbsa_500k`) → `region_kind` `cbsa_metro` / `cbsa_micro`,
+  split on the `LSAD` attribute (`M1` = metropolitan, `M2` = micropolitan; both
+  ship in one file).
+- **County** (`cb_<vintage>_us_county_500k`) → `region_kind` `county`, the
+  fallback for the rural areas CBSAs don't cover.
+
+Geometries are repaired and coerced to `MULTIPOLYGON` on insert
+(`ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_GeomFromGeoJSON(…)), 3))`). The
+whole load runs in a single transaction, so `--replace` reloads are atomic.
+
+This is the **US-only placeholder** dataset; `regions` is source-agnostic
+(`source` + `region_kind` columns), so a global boundary dataset can be loaded
+the same way later under new `source` values without a schema change.
+
+Uses [uv inline script dependencies](https://docs.astral.sh/uv/guides/scripts/#declaring-script-dependencies)
+(`pyshp` + `psycopg`) — no workspace setup needed.
+
+### Usage
+
+```bash
+# Set connection string (admin/owner role — this writes the regions reference table)
+export POSTGRES_CONNECTION_STRING="postgresql://user:pass@host/db?sslmode=require"
+
+# Dry run (download + parse, report metro/micro/county counts, insert nothing)
+uv run scripts/ops/backfills/load_census_regions.py --dry-run
+
+# Load (idempotent: ON CONFLICT DO NOTHING)
+uv run scripts/ops/backfills/load_census_regions.py
+
+# Clean reload of both layers (delete each source's rows first), or a newer vintage
+uv run scripts/ops/backfills/load_census_regions.py --replace
+uv run scripts/ops/backfills/load_census_regions.py --vintage 2023 --replace
+```
+
+### Requirements
+
+- `POSTGRES_CONNECTION_STRING` (admin connection — the table is owned by the DDL
+  role; the runtime app only reads `regions`)
+- PostgreSQL with PostGIS and the `desirelines.regions` table (migration `V0005`)
+- Network access to `www2.census.gov`
 
 ---
 
