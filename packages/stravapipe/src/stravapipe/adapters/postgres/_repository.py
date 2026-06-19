@@ -5,14 +5,18 @@ Repository receives Session from Unit of Work - doesn't manage its own connectio
 """
 
 from datetime import UTC, datetime
+import logging
 from typing import Any, Final, cast
 
 from sqlalchemy import text
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from stravapipe.domain import StandardActivity
 from stravapipe.ports.out.postgres import ActivityRepository
+
+logger = logging.getLogger(__name__)
 
 # Whitelist of allowed update keys and their corresponding SQL clauses
 # This prevents SQL injection by only allowing known, safe column updates.
@@ -48,6 +52,8 @@ _ACTIVITY_COLUMNS: Final[tuple[str, ...]] = (
     "max_speed",
     "average_heartrate",
     "max_heartrate",
+    "trainer",
+    "manual",
     "year",
     "created_at",
     "updated_at",
@@ -86,6 +92,8 @@ def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[st
         "max_speed": activity.max_speed,
         "average_heartrate": activity.average_heartrate,
         "max_heartrate": activity.max_heartrate,
+        "trainer": activity.trainer,
+        "manual": activity.manual,
         "year": activity.year,
         "created_at": now,
         "updated_at": now,
@@ -176,6 +184,95 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             {"activity_id": activity_id, "geojson": geojson},
         )
         return result.fetchone() is not None
+
+    def tag_activity_regions(self, activity_id: int) -> int:
+        """Tag an activity with every region its route intersects (many-to-many).
+
+        Writes ``desirelines.activity_regions`` rows for each region whose boundary
+        the route linestring intersects (``ST_Intersects``), across all boundary
+        layers — a long route legitimately crosses several counties and >=1 CBSA.
+        The builtin ``earth`` fallback (``region_kind = 'global'``) is excluded
+        from the intersect and assigned only when the route matches no specific
+        region, so any activity that has a route ends up with >=1 region row.
+
+        Idempotent: clears the activity's existing tags first, so re-tagging (a
+        backfill, or a boundary-dataset reload) is safe.
+
+        Resilience: the spatial join runs inside a SAVEPOINT. If it fails (a
+        pathological geometry, a statement timeout on a very long route), we roll
+        back just the savepoint, log a warning, and fall through to the ``earth``
+        global fallback — so the activity is still tagged (and visible on the map's
+        global view) and the surrounding activity insert is never aborted.
+
+        The caller must NOT call this for virtual/indoor activities — their
+        geometry is absent or fake (Zwift's polyline is a virtual world), so they
+        belong in the complementary non-map view with zero region rows.
+
+        Args:
+            activity_id: Strava activity ID (its route must already be written
+                in the same transaction).
+
+        Returns:
+            Number of region rows written (0 if the activity has no route).
+        """
+        self._session.execute(
+            text(
+                "DELETE FROM desirelines.activity_regions "
+                "WHERE activity_id = :activity_id"
+            ),
+            {"activity_id": activity_id},
+        )
+
+        # Specific regions: every non-fallback boundary the route intersects.
+        # Savepoint-isolated so a spatial failure degrades to the 'earth' fallback
+        # with a warning instead of poisoning the activity-insert transaction.
+        specific: list[Any] = []
+        try:
+            with self._session.begin_nested():
+                specific = list(
+                    self._session.execute(
+                        text("""
+                            INSERT INTO desirelines.activity_regions (activity_id, region_id)
+                            SELECT ro.activity_id, re.id
+                            FROM desirelines.activity_routes ro
+                            JOIN desirelines.regions re
+                              ON ST_Intersects(ro.route, re.geom)
+                            WHERE ro.activity_id = :activity_id
+                              AND re.region_kind <> 'global'
+                            RETURNING region_id
+                        """),
+                        {"activity_id": activity_id},
+                    ).fetchall()
+                )
+        except SQLAlchemyError:
+            specific = []
+            logger.warning(
+                "Region spatial tagging failed for activity %s; "
+                "falling back to 'earth'",
+                activity_id,
+                exc_info=True,
+            )
+        if specific:
+            return len(specific)
+
+        # Fallback: tag the builtin 'earth' region, but only if the activity
+        # actually has a route (no route -> no geography -> stays untagged).
+        earth = self._session.execute(
+            text("""
+                INSERT INTO desirelines.activity_regions (activity_id, region_id)
+                SELECT :activity_id, re.id
+                FROM desirelines.regions re
+                WHERE re.source = 'builtin'
+                  AND re.region_code = 'earth'
+                  AND EXISTS (
+                      SELECT 1 FROM desirelines.activity_routes
+                      WHERE activity_id = :activity_id
+                  )
+                RETURNING region_id
+            """),
+            {"activity_id": activity_id},
+        ).fetchall()
+        return len(earth)
 
     def exists(self, activity_id: int) -> bool:
         """Check if activity exists in database.

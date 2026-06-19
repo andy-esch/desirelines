@@ -1,8 +1,9 @@
 -- Geospatial Data: Region Boundaries + Activity Route Tags
 -- Migration: V0005
--- Concern: Add a source-agnostic boundary reference table and tag activity
---          routes with the region they fall in (for map labelling and
---          defaulting the routes-map viewport to the densest region).
+-- Concern: Add a source-agnostic boundary reference table and tag activities
+--          with the region(s) they fall in (many-to-many — a route can cross
+--          several), for map labelling, region filtering, and defaulting the
+--          routes-map viewport to the densest region.
 --
 -- The first boundary dataset is a US Census CBSA -> county cascade (a
 -- placeholder). The table is intentionally generic (source + region_kind
@@ -26,12 +27,13 @@ SET ROLE desirelines_ddl_grp;
 -- =============================================================================
 -- Prerequisite: PostGIS extension is ensured by beforeMigrate.sql callback.
 --
--- A lookup table of administrative/statistical boundaries. Routes reference a
--- region via a foreign key (activity_routes.region_id, below). A surrogate id
--- is used as the PK so the route reference is a single column; the dataset's own
--- composite identity (source + region_code) is kept as a UNIQUE natural key.
--- The table can be reloaded when the boundary dataset is swapped: DELETE the old
--- source's rows (ON DELETE SET NULL clears route references) and re-run tagging.
+-- A lookup table of administrative/statistical boundaries. Activities reference
+-- regions through the activity_regions junction (below). A surrogate id is the
+-- PK so the junction's FK is a single column; the dataset's own composite
+-- identity (source + region_code) is kept as a UNIQUE natural key. The table can
+-- be reloaded when the boundary dataset is swapped: DELETE the old source's rows
+-- (activity_regions FK is ON DELETE CASCADE, so its tag rows drop with them) and
+-- re-run tagging.
 
 CREATE TABLE desirelines.regions (
     -- Surrogate key: lets activity_routes reference a region in one column.
@@ -59,36 +61,69 @@ COMMENT ON TABLE desirelines.regions IS
   'First dataset is a US Census CBSA + county placeholder; a global dataset '
   'can be loaded into the same shape later (new source/region_kind values).';
 COMMENT ON COLUMN desirelines.regions.region_kind IS
-  'Boundary class. Current values: cbsa_metro, cbsa_micro (both from the Census '
-  'CBSA layer, split on its LSAD attribute: M1=metro, M2=micropolitan), county. '
-  'Free-form so future datasets can introduce new kinds without a migration.';
+  'Boundary class. Current values: global (the builtin "earth" fallback below); '
+  'cbsa_metro, cbsa_micro (both from the Census CBSA layer, split on its LSAD '
+  'attribute: M1=metro, M2=micropolitan); county. Free-form so future datasets '
+  'can introduce new kinds without a migration.';
 
 -- Spatial index: drives the point-in-region join performed at tagging time.
 CREATE INDEX idx_regions_geom ON desirelines.regions USING GIST (geom);
 
+-- Builtin "earth" fallback region. An activity with real-world geometry that
+-- matches no specific boundary (e.g. it's outside the current dataset's coverage,
+-- like a non-US ride under the US placeholder) is tagged here instead of being
+-- left untagged — so every geometry-bearing activity belongs to >=1 region, and
+-- "zero activity_regions rows" cleanly means "no real geography" (indoor/virtual).
+-- This row is EXCLUDED from the spatial join at tagging time (region_kind
+-- <> 'global') and assigned only as a fallback when no specific region matches.
+-- Its geom is the whole-world extent so region-summary's ST_Extent gives a global
+-- viewport. Seeded here (not via the Census loader) because it's intrinsic and
+-- dataset-independent; the loader's --replace only touches census_* sources.
+INSERT INTO desirelines.regions (source, region_code, region_kind, region_name, geom)
+VALUES (
+    'builtin',
+    'earth',
+    'global',
+    'Earth (all other regions)',
+    ST_SetSRID(
+        ST_GeomFromText('MULTIPOLYGON(((-180 -90, 180 -90, 180 90, -180 90, -180 -90)))'),
+        4326
+    )
+);
+
 -- =============================================================================
--- ACTIVITY ROUTE REGION TAG
+-- ACTIVITY <-> REGION TAGS (many-to-many)
 -- =============================================================================
--- Each route references the region it falls in. NULL means "untagged" (e.g. a
--- route outside the current dataset's coverage, like non-US activities under the
--- placeholder). ON DELETE SET NULL keeps reloading the regions table safe: drop
--- a source's rows and the references clear rather than blocking or cascading.
--- region_kind / region_name / source are read by joining to regions (small,
--- indexed table — no need to denormalize them onto every route).
+-- An activity can fall in more than one region (a long route crosses several
+-- counties, and possibly more than one CBSA), so the tag is a junction table
+-- rather than a single column. The PK (activity_id, region_id) enforces
+-- UNIQUE(activity_id, region_id). This shape is agnostic to how matches are
+-- produced — a single "best" region or every intersecting region both fit — so
+-- the tagging operation (point vs full linestring, cascade vs tag-all) can be
+-- decided/changed later without a schema change.
+--
+-- Keyed on activity_id (not the route) so a routeless/virtual activity could be
+-- tagged from point geometry later. ON DELETE CASCADE on both sides: dropping an
+-- activity, or reloading the regions table (DELETE a source's rows), clears the
+-- now-stale tags — a re-tag restores them. An activity with no match simply has
+-- no rows here (the "untagged" state).
 
-ALTER TABLE desirelines.activity_routes
-    ADD COLUMN region_id BIGINT REFERENCES desirelines.regions(id) ON DELETE SET NULL;
+CREATE TABLE desirelines.activity_regions (
+    activity_id BIGINT NOT NULL REFERENCES desirelines.activities(id) ON DELETE CASCADE,
+    region_id   BIGINT NOT NULL REFERENCES desirelines.regions(id)   ON DELETE CASCADE,
 
-COMMENT ON COLUMN desirelines.activity_routes.region_id IS
-  'FK to desirelines.regions. NULL = untagged / outside the active dataset '
-  'coverage. Assigned at ingestion via a CBSA->county cascade.';
+    PRIMARY KEY (activity_id, region_id)
+);
 
--- Supports the densest-region aggregation that picks the default map viewport:
---   SELECT region_id, COUNT(*) ... GROUP BY region_id ORDER BY 2 DESC
--- Partial index skips untagged routes.
-CREATE INDEX idx_activity_routes_region
-    ON desirelines.activity_routes (region_id)
-    WHERE region_id IS NOT NULL;
+COMMENT ON TABLE desirelines.activity_regions IS
+  'Many-to-many tags linking activities to the regions they fall in (a route may '
+  'cross several). Assigned from route/point geometry; an activity with no match '
+  'has no rows here.';
+
+-- Reverse-direction lookups + the densest-region aggregation that picks the
+-- default map viewport: SELECT region_id, COUNT(*) ... GROUP BY region_id.
+-- (The forward direction, activity_id -> regions, is served by the PK.)
+CREATE INDEX idx_activity_regions_region ON desirelines.activity_regions (region_id);
 
 -- =============================================================================
 -- GRANTS (for objects created in this migration)
@@ -96,12 +131,15 @@ CREATE INDEX idx_activity_routes_region
 -- Matches the V0002/V0003 pattern: explicit full DML for dml_grp, SELECT for
 -- ro_grp. (V0001 default privileges already grant these for future tables; the
 -- explicit grants are kept for clarity and parity with the other tables.)
--- In practice regions is loaded out-of-band by the ddl/owner role and only read
--- at runtime, but it is not locked down further so the grants stay consistent.
--- The new activity_routes columns are covered by V0003's table-level grants.
+-- regions is loaded out-of-band by the ddl/owner role and only read at runtime;
+-- activity_regions is written by the postgres-writer at tagging time. Neither is
+-- locked down further, so the grants stay consistent across tables.
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE desirelines.regions TO desirelines_dml_grp;
 GRANT SELECT ON TABLE desirelines.regions TO desirelines_ro_grp;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE desirelines.activity_regions TO desirelines_dml_grp;
+GRANT SELECT ON TABLE desirelines.activity_regions TO desirelines_ro_grp;
 
 -- =============================================================================
 -- RESET ROLE

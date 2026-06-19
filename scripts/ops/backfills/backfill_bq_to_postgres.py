@@ -48,6 +48,8 @@ class Activity:
     max_speed: float | None
     average_heartrate: float | None
     max_heartrate: float | None
+    trainer: bool
+    manual: bool
 
 
 def fetch_activities_from_bigquery(
@@ -71,7 +73,9 @@ def fetch_activities_from_bigquery(
         average_speed,
         max_speed,
         average_heartrate,
-        max_heartrate
+        max_heartrate,
+        COALESCE(trainer, FALSE) AS trainer,
+        COALESCE(manual, FALSE) AS manual
     FROM `{project}.{dataset}.{table}`
     ORDER BY start_date_local DESC
     """
@@ -101,6 +105,8 @@ def fetch_activities_from_bigquery(
                 max_speed=row.max_speed,
                 average_heartrate=row.average_heartrate,
                 max_heartrate=row.max_heartrate,
+                trainer=row.trainer,
+                manual=row.manual,
             )
         )
 
@@ -137,11 +143,13 @@ def insert_activities_to_postgres(
         id, user_id, name, type, sport, start_date_local, year,
         distance, moving_time, elapsed_time, total_elevation_gain,
         average_speed, max_speed, average_heartrate, max_heartrate,
+        trainer, manual,
         updated_at
     ) VALUES (
         %(id)s, %(user_id)s, %(name)s, %(type)s, %(sport)s, %(start_date_local)s, %(year)s,
         %(distance)s, %(moving_time)s, %(elapsed_time)s, %(total_elevation_gain)s,
         %(average_speed)s, %(max_speed)s, %(average_heartrate)s, %(max_heartrate)s,
+        %(trainer)s, %(manual)s,
         CURRENT_TIMESTAMP
     )
     ON CONFLICT (id) DO UPDATE SET
@@ -159,6 +167,8 @@ def insert_activities_to_postgres(
         max_speed = EXCLUDED.max_speed,
         average_heartrate = EXCLUDED.average_heartrate,
         max_heartrate = EXCLUDED.max_heartrate,
+        trainer = EXCLUDED.trainer,
+        manual = EXCLUDED.manual,
         updated_at = CURRENT_TIMESTAMP
     """
 
@@ -189,6 +199,8 @@ def insert_activities_to_postgres(
                             "max_speed": activity.max_speed,
                             "average_heartrate": activity.average_heartrate,
                             "max_heartrate": activity.max_heartrate,
+                            "trainer": activity.trainer,
+                            "manual": activity.manual,
                         },
                     )
 

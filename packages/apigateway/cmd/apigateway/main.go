@@ -395,6 +395,8 @@ func buildRouter(deps *Dependencies) http.Handler {
 		GetMetrics:      activitiesHandler.HandleMetrics,
 		GetSource:       activitiesHandler.HandleSource,
 		GetRoutes:       activitiesHandler.HandleRoutes,
+		GetRouteTile:    activitiesHandler.HandleRouteTile,
+		GetRouteRegions: activitiesHandler.HandleRouteRegions,
 		ListActivities:  activitiesHandler.HandleListActivities,
 		GetActivityByID: activitiesHandler.HandleGetActivity,
 		SyntheticFault:  syntheticHandler.Fault,

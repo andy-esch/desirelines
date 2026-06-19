@@ -55,6 +55,8 @@ type AuthenticatedRoutes struct {
 	GetMetrics      http.HandlerFunc
 	GetSource       http.HandlerFunc
 	GetRoutes       http.HandlerFunc
+	GetRouteTile    http.HandlerFunc // GET /activities/routes/tiles/{z}/{x}/{y}
+	GetRouteRegions http.HandlerFunc // GET /activities/routes/regions
 	ListActivities  http.HandlerFunc
 	GetActivityByID http.HandlerFunc
 
@@ -135,6 +137,9 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 
 			// Route art endpoint (must be registered before {id} to avoid chi matching "routes" as an ID)
 			r.Get("/activities/routes", auth.GetRoutes)
+			// Routes-map endpoints: per-region viewport summary + MVT vector tiles.
+			r.Get("/activities/routes/regions", auth.GetRouteRegions)
+			r.Get("/activities/routes/tiles/{z}/{x}/{y}", auth.GetRouteTile)
 
 			// Individual activity endpoints
 			// Note: {id} occupies the same path segment as {year} above, but the

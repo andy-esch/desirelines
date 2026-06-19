@@ -1,6 +1,7 @@
 package activities
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -29,6 +30,8 @@ type mockRepo struct {
 	err      error
 	routes   []repository.NormalizedRoute
 	activity *activitiesv1.Activity
+	tile     []byte
+	regions  []repository.RegionSummary
 }
 
 func (m *mockRepo) Ping(ctx context.Context) error { return nil }
@@ -56,6 +59,12 @@ func (m *mockRepo) ListActivities(ctx context.Context, filter repository.Activit
 }
 func (m *mockRepo) GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]repository.NormalizedRoute, error) {
 	return m.routes, m.err
+}
+func (m *mockRepo) GetRouteTile(ctx context.Context, userID string, z, x, y int) ([]byte, error) {
+	return m.tile, m.err
+}
+func (m *mockRepo) GetRouteRegionSummary(ctx context.Context, userID string) ([]repository.RegionSummary, error) {
+	return m.regions, m.err
 }
 
 func newTestHandler(t *testing.T) *Handler {
@@ -589,6 +598,103 @@ func TestHandleRoutes_SportCategoryMapping(t *testing.T) {
 	}
 	if sport == "" {
 		t.Error("sport category should not be empty")
+	}
+}
+
+func TestHandleRouteTile(t *testing.T) {
+	tests := []struct {
+		name       string
+		z, x, y    string
+		userID     string
+		mock       *mockRepo
+		wantStatus int
+	}{
+		{"happy path", "10", "301", "384", "user-123", &mockRepo{tile: []byte("mvt-bytes")}, http.StatusOK},
+		{"empty tile is still 200", "10", "301", "384", "user-123", &mockRepo{tile: []byte{}}, http.StatusOK},
+		{"invalid z", "abc", "1", "1", "user-123", &mockRepo{}, http.StatusBadRequest},
+		{"zoom too high", "23", "1", "1", "user-123", &mockRepo{}, http.StatusBadRequest},
+		{"x out of range for zoom", "1", "5", "0", "user-123", &mockRepo{}, http.StatusBadRequest},
+		{"missing user ID", "10", "1", "1", "", &mockRepo{}, http.StatusInternalServerError},
+		{"database error", "10", "1", "1", "user-123", &mockRepo{err: errors.New("connection refused")}, http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := newTestHandlerWithRepo(t, tt.mock)
+			req := httptest.NewRequest(http.MethodGet,
+				fmt.Sprintf("/activities/routes/tiles/%s/%s/%s", tt.z, tt.x, tt.y), nil)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("z", tt.z)
+			rctx.URLParams.Add("x", tt.x)
+			rctx.URLParams.Add("y", tt.y)
+			ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+			if tt.userID != "" {
+				ctx = middleware.WithUserID(ctx, tt.userID)
+			}
+			req = req.WithContext(ctx)
+
+			w := httptest.NewRecorder()
+			handler.HandleRouteTile(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+			if tt.wantStatus == http.StatusOK {
+				if ct := w.Header().Get("Content-Type"); ct != mvtContentType {
+					t.Errorf("Content-Type = %q, want %q", ct, mvtContentType)
+				}
+				if !bytes.Equal(w.Body.Bytes(), tt.mock.tile) {
+					t.Errorf("body = %q, want %q", w.Body.Bytes(), tt.mock.tile)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleRouteRegions(t *testing.T) {
+	sample := []repository.RegionSummary{
+		{RegionID: 1, Name: "Boston-Cambridge-Newton, MA-NH", Kind: "cbsa_metro",
+			ActivityCount: 5, BBox: [4]float64{-71.2, 42.2, -70.9, 42.5}},
+	}
+
+	tests := []struct {
+		name       string
+		userID     string
+		mock       *mockRepo
+		wantStatus int
+		wantLen    int // -1 to skip body check
+	}{
+		{"happy path", "user-123", &mockRepo{regions: sample}, http.StatusOK, 1},
+		{"empty results", "user-123", &mockRepo{regions: []repository.RegionSummary{}}, http.StatusOK, 0},
+		{"missing user ID", "", &mockRepo{}, http.StatusInternalServerError, -1},
+		{"database error", "user-123", &mockRepo{err: errors.New("connection refused")}, http.StatusInternalServerError, -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := newTestHandlerWithRepo(t, tt.mock)
+			req := httptest.NewRequest(http.MethodGet, "/activities/routes/regions", nil)
+			if tt.userID != "" {
+				req = req.WithContext(middleware.WithUserID(req.Context(), tt.userID))
+			}
+
+			w := httptest.NewRecorder()
+			handler.HandleRouteRegions(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+			if tt.wantLen >= 0 {
+				var resp repository.RegionsResponse
+				if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+					t.Fatalf("unmarshal response: %v", err)
+				}
+				if len(resp.Regions) != tt.wantLen {
+					t.Errorf("regions len = %d, want %d", len(resp.Regions), tt.wantLen)
+				}
+			}
+		})
 	}
 }
 

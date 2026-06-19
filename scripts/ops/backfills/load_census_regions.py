@@ -22,8 +22,8 @@ Two Census cartographic boundary layers are loaded, both keyed by GEOID:
 Geometries are coerced to MULTIPOLYGON (ST_Multi) to match the column type;
 ST_GeomFromGeoJSON yields SRID 4326. Re-runs are safe: each layer is loaded under
 a `source` of `census_<layer>_<vintage>`, and `--replace` deletes that source's
-existing rows first (ON DELETE SET NULL clears any route tags, which a re-tag
-restores).
+existing rows first (the activity_regions FK is ON DELETE CASCADE, so any tag rows
+referencing them drop too, which a re-tag restores).
 
 Usage:
     export POSTGRES_CONNECTION_STRING="postgresql://user:pass@host/db?sslmode=require"
