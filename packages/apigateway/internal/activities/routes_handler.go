@@ -11,9 +11,16 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// routesDBTimeout is the timeout for the spatial routes query, which is heavier
-// than typical queries due to PostGIS ST_Translate and ST_Simplify operations.
+// routesDBTimeout is the timeout for the spatial routes/map queries (route art,
+// MVT tiles, region summary), which are heavier than typical queries due to their
+// PostGIS operations (ST_Translate/ST_Simplify, ST_AsMVT, ST_Intersects).
 const routesDBTimeout = 30 * time.Second
+
+// mapCacheControl is the cache policy for the routes-map endpoints. It overrides
+// the auth group's no-store default: tiles and region summaries are stable per
+// user/day and expensive to regenerate, and `private` keeps them out of shared
+// caches, so a short private cache is safe and worthwhile.
+const mapCacheControl = "private, max-age=300, must-revalidate"
 
 // maxTileZoom bounds the z coordinate accepted by the vector-tile endpoint.
 const maxTileZoom = 22
@@ -58,7 +65,7 @@ func (h *Handler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 		Routes: routes,
 	}
 
-	w.Header().Set("Cache-Control", "private, max-age=300, must-revalidate")
+	w.Header().Set("Cache-Control", mapCacheControl)
 	server.RespondJSON(w, r, http.StatusOK, resp, h.logger)
 }
 
@@ -107,7 +114,7 @@ func (h *Handler) HandleRouteTile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", mvtContentType)
-	w.Header().Set("Cache-Control", "private, max-age=300, must-revalidate")
+	w.Header().Set("Cache-Control", mapCacheControl)
 	w.WriteHeader(http.StatusOK)
 	if _, werr := w.Write(tile); werr != nil {
 		h.logger.Error("Failed to write tile response", "error", werr, "operation", "get_route_tile")
@@ -135,6 +142,6 @@ func (h *Handler) HandleRouteRegions(w http.ResponseWriter, r *http.Request) {
 
 	resp := repository.RegionsResponse{Regions: regions}
 
-	w.Header().Set("Cache-Control", "private, max-age=300, must-revalidate")
+	w.Header().Set("Cache-Control", mapCacheControl)
 	server.RespondJSON(w, r, http.StatusOK, resp, h.logger)
 }
