@@ -292,6 +292,9 @@ jobs:
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
+    # Boots a Postgres container; cap wall-clock so a hung DB/test can't ride the
+    # 6h default. Healthy runs finish in well under a minute.
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -400,6 +403,9 @@ jobs:
   firestore-integration-tests:
     name: Firestore Integration Tests
     runs-on: ubuntu-latest
+    # Boots an emulator container + npm ci; cap wall-clock so a hung emulator
+    # can't ride the 6h default. Healthy runs finish in ~1-2 min.
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
