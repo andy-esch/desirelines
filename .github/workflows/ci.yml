@@ -425,7 +425,7 @@ jobs:
           cache-dependency-path: packages/web/package-lock.json
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # Build the emulator image with GHA layer caching so repeat runs skip the
       # ~1GB firebase-tools/Java install. load:true makes it available to
