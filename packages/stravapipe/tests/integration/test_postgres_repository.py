@@ -286,9 +286,7 @@ class TestActivityRouteRepository:
         assert row is None
 
 
-def _insert_test_region(
-    session, *, code: str, wkt: str, kind: str = "county"
-) -> int:
+def _insert_test_region(session, *, code: str, wkt: str, kind: str = "county") -> int:
     """Insert a controlled test region (rolled back with the test) and return id.
 
     Placed in the mid-Atlantic in the tests below so it never overlaps the real
@@ -345,9 +343,7 @@ class TestActivityRegionTagging:
             uow.commit()
 
         row = db_session.execute(
-            text(
-                "SELECT trainer, manual FROM desirelines.activities WHERE id = :id"
-            ),
+            text("SELECT trainer, manual FROM desirelines.activities WHERE id = :id"),
             {"id": 210000},
         ).fetchone()
         assert row == (True, False)
