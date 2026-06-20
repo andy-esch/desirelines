@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"testing"
 	"time"
 
@@ -302,6 +303,140 @@ func TestGetNormalizedRoutes_EmitsSpan(t *testing.T) {
 	if got := attrAsInt(span, "result.row_count"); got != 0 {
 		t.Errorf("result.row_count = %d, want 0", got)
 	}
+}
+
+// scriptedRows is a fake pgx.Rows that yields a fixed sequence of rows, each
+// populated by a scan func. Used to exercise row-scanning logic (e.g. the region
+// summary bbox assembly) without a real Postgres.
+type scriptedRows struct {
+	emptyRows
+	scans []func(dest ...any) error
+	i     int // -1 before the first Next()
+}
+
+func newScriptedRows(scans ...func(dest ...any) error) *scriptedRows {
+	return &scriptedRows{scans: scans, i: -1}
+}
+
+func (r *scriptedRows) Next() bool             { r.i++; return r.i < len(r.scans) }
+func (r *scriptedRows) Scan(dest ...any) error { return r.scans[r.i](dest...) }
+
+// setScanDest assigns v through a *T scan destination — a helper for fake pgx
+// Scan implementations. The comma-ok assertion satisfies errcheck's
+// type-assertion check; a wrong type no-ops (the test's later assertion fails).
+func setScanDest[T any](dst any, v T) {
+	if p, ok := dst.(*T); ok {
+		*p = v
+	}
+}
+
+func TestGetRouteTile(t *testing.T) {
+	t.Run("returns tile bytes and emits span", func(t *testing.T) {
+		repo, sr := newSpanRecordingRepo(t)
+		repo.db = &fakeQuerier{
+			queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+				return &fakeRow{scanFn: func(dest ...any) error {
+					setScanDest(dest[0], []byte("MVT"))
+					return nil
+				}}
+			},
+		}
+
+		tile, err := repo.GetRouteTile(context.Background(), "user-1", 10, 301, 384)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(tile) != "MVT" {
+			t.Errorf("tile = %q, want MVT", tile)
+		}
+
+		span := findSpan(sr.Ended(), "repository.activities.route_tile")
+		if span == nil {
+			t.Fatal("route_tile span not emitted")
+		}
+		if got := attrAsInt(span, "tile.z"); got != 10 {
+			t.Errorf("tile.z = %d, want 10", got)
+		}
+		if got := attrAsInt(span, "result.tile_bytes"); got != 3 {
+			t.Errorf("result.tile_bytes = %d, want 3", got)
+		}
+	})
+
+	t.Run("propagates scan error", func(t *testing.T) {
+		repo, _ := newSpanRecordingRepo(t)
+		repo.db = &fakeQuerier{
+			queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+				return &fakeRow{scanFn: func(_ ...any) error { return errors.New("boom") }}
+			},
+		}
+		if _, err := repo.GetRouteTile(context.Background(), "user-1", 1, 0, 0); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestGetRouteRegionSummary(t *testing.T) {
+	t.Run("maps rows to summaries with bbox and emits span", func(t *testing.T) {
+		repo, sr := newSpanRecordingRepo(t)
+		repo.db = &fakeQuerier{
+			queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+				return newScriptedRows(func(dest ...any) error {
+					setScanDest(dest[0], int64(7))
+					setScanDest(dest[1], "Boston-Cambridge-Newton, MA-NH")
+					setScanDest(dest[2], "cbsa_metro")
+					setScanDest(dest[3], 5)
+					setScanDest(dest[4], -71.2)
+					setScanDest(dest[5], 42.2)
+					setScanDest(dest[6], -70.9)
+					setScanDest(dest[7], 42.5)
+					return nil
+				}), nil
+			},
+		}
+
+		got, err := repo.GetRouteRegionSummary(context.Background(), "user-1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("len = %d, want 1", len(got))
+		}
+		s := got[0]
+		if s.RegionID != 7 || s.Kind != "cbsa_metro" || s.ActivityCount != 5 {
+			t.Errorf("unexpected summary: %+v", s)
+		}
+		// The bbox order [minLng, minLat, maxLng, maxLat] is the contract the
+		// frontend depends on — assert it explicitly.
+		if s.BBox != [4]float64{-71.2, 42.2, -70.9, 42.5} {
+			t.Errorf("bbox = %v, want [-71.2 42.2 -70.9 42.5]", s.BBox)
+		}
+		if findSpan(sr.Ended(), "repository.activities.route_region_summary") == nil {
+			t.Fatal("route_region_summary span not emitted")
+		}
+	})
+
+	t.Run("empty result returns empty slice", func(t *testing.T) {
+		repo, _ := newSpanRecordingRepo(t) // default fakeQuerier -> emptyRows
+		got, err := repo.GetRouteRegionSummary(context.Background(), "user-1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("len = %d, want 0", len(got))
+		}
+	})
+
+	t.Run("propagates query error", func(t *testing.T) {
+		repo, _ := newSpanRecordingRepo(t)
+		repo.db = &fakeQuerier{
+			queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+				return nil, errors.New("boom")
+			},
+		}
+		if _, err := repo.GetRouteRegionSummary(context.Background(), "user-1"); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
 }
 
 func TestGetMultiSportMetricsByDateRange_EmitsSpan(t *testing.T) {

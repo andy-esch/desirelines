@@ -286,6 +286,139 @@ class TestActivityRouteRepository:
         assert row is None
 
 
+def _insert_test_region(session, *, code: str, wkt: str, kind: str = "county") -> int:
+    """Insert a controlled test region (rolled back with the test) and return id.
+
+    Placed in the mid-Atlantic in the tests below so it never overlaps the real
+    US Census boundaries that may be loaded in the same database.
+    """
+    row = session.execute(
+        text("""
+            INSERT INTO desirelines.regions
+                (source, region_code, region_kind, region_name, geom)
+            VALUES ('test_regions', :code, :kind, 'Test Region',
+                    ST_Multi(ST_GeomFromText(:wkt, 4326)))
+            RETURNING id
+        """),
+        {"code": code, "kind": kind, "wkt": wkt},
+    ).fetchone()
+    return row[0]
+
+
+# A 2x2 degree box around (-30, 0), far from any real US Census region.
+_TEST_REGION_WKT = "POLYGON((-31 -1, -29 -1, -29 1, -31 1, -31 -1))"
+
+
+def _tagged_region_ids(session, activity_id: int) -> list[int]:
+    rows = session.execute(
+        text(
+            "SELECT region_id FROM desirelines.activity_regions "
+            "WHERE activity_id = :id ORDER BY region_id"
+        ),
+        {"id": activity_id},
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+class TestActivityRegionTagging:
+    """Integration tests for tag_activity_regions (V0005 junction + earth)."""
+
+    def test_persists_trainer_and_manual_flags(self, uow, db_session):
+        """insert writes the new trainer/manual columns (V0006)."""
+        activity = StandardActivity(
+            id=210000,
+            athlete=MetaAthlete(id=999, resource_state=1),
+            name="Indoor Spin",
+            type="VirtualRide",
+            sport_type="VirtualRide",
+            start_date_local=datetime(2024, 1, 15, 7, 30, 0, tzinfo=UTC),
+            distance=20000.0,
+            moving_time=3600,
+            elapsed_time=3600,
+            trainer=True,
+            manual=False,
+        )
+        with uow:
+            uow.activities.insert(activity)
+            uow.commit()
+
+        row = db_session.execute(
+            text("SELECT trainer, manual FROM desirelines.activities WHERE id = :id"),
+            {"id": 210000},
+        ).fetchone()
+        assert row == (True, False)
+
+    def test_tags_every_intersecting_region(self, uow, db_session):
+        """A route is tagged with the specific region(s) it intersects."""
+        activity = make_activity(activity_id=210001)
+        region_id = _insert_test_region(db_session, code="r1", wkt=_TEST_REGION_WKT)
+
+        with uow:
+            uow.activities.insert(activity)
+            uow.activities.insert_route(
+                activity.id,
+                '{"type":"LineString","coordinates":[[-30.5,-0.5],[-30,0],[-29.5,0.5]]}',
+            )
+            count = uow.activities.tag_activity_regions(activity.id)
+            uow.commit()
+
+        assert count == 1
+        assert _tagged_region_ids(db_session, activity.id) == [region_id]
+
+    def test_earth_fallback_when_no_specific_region_matches(self, uow, db_session):
+        """A route matching no specific region falls back to builtin 'earth'."""
+        activity = make_activity(activity_id=210002)
+        earth_id = db_session.execute(
+            text(
+                "SELECT id FROM desirelines.regions "
+                "WHERE source='builtin' AND region_code='earth'"
+            )
+        ).fetchone()[0]
+
+        with uow:
+            uow.activities.insert(activity)
+            uow.activities.insert_route(
+                activity.id,
+                '{"type":"LineString","coordinates":[[-45,0],[-44,0]]}',
+            )
+            count = uow.activities.tag_activity_regions(activity.id)
+            uow.commit()
+
+        assert count == 1
+        assert _tagged_region_ids(db_session, activity.id) == [earth_id]
+
+    def test_no_route_means_no_tags(self, uow, db_session):
+        """An activity without a route gets no region rows (not even earth)."""
+        activity = make_activity(activity_id=210003)
+
+        with uow:
+            uow.activities.insert(activity)
+            count = uow.activities.tag_activity_regions(activity.id)
+            uow.commit()
+
+        assert count == 0
+        assert _tagged_region_ids(db_session, activity.id) == []
+
+    def test_tagging_is_idempotent(self, uow, db_session):
+        """Re-tagging clears and rewrites — no duplicate rows."""
+        activity = make_activity(activity_id=210004)
+        region_id = _insert_test_region(db_session, code="r2", wkt=_TEST_REGION_WKT)
+
+        with uow:
+            uow.activities.insert(activity)
+            uow.activities.insert_route(
+                activity.id,
+                '{"type":"LineString","coordinates":[[-30,0],[-29.5,0.2]]}',
+            )
+            first = uow.activities.tag_activity_regions(activity.id)
+            second = uow.activities.tag_activity_regions(activity.id)
+            uow.commit()
+
+        assert first == 1
+        assert second == 1
+        assert _tagged_region_ids(db_session, activity.id) == [region_id]
+
+
 class TestTransactionRollback:
     """Tests verifying transaction rollback works correctly."""
 

@@ -113,6 +113,24 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def tag_activity_regions(self, activity_id: int) -> int:
+        """Tag an activity with every region its route intersects (many-to-many).
+
+        Writes ``activity_regions`` rows for each region the route linestring
+        intersects, falling back to the builtin ``earth`` region when the route
+        matches no specific boundary. Idempotent (clears existing tags first).
+        Must only be called for geo-bearing (non-virtual/indoor) activities whose
+        route was already written in the same transaction.
+
+        Args:
+            activity_id: Strava activity ID
+
+        Returns:
+            Number of region rows written (0 if the activity has no route)
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def delete(self, activity_id: int) -> bool:
         """Delete activity by ID.
 
