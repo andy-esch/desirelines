@@ -431,7 +431,7 @@ jobs:
       # ~1GB firebase-tools/Java install. load:true makes it available to
       # `docker run` below.
       - name: Build Firebase emulator image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: local-dev/containers/firebase-emulators
           load: true
