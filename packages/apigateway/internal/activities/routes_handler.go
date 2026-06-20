@@ -121,14 +121,24 @@ func (h *Handler) HandleRouteTile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// regionKindPriority orders region kinds for the default map viewport. A metro
-// CBSA is the natural "home turf" zoom; micro CBSA and county are fallbacks;
-// 'global' (the earth catch-all) is the last resort. Lower = higher priority.
-var regionKindPriority = map[string]int{
-	"cbsa_metro": 0,
-	"cbsa_micro": 1,
-	"county":     2,
-	"global":     3,
+// regionKindPriority returns the default-map-viewport priority for a region kind:
+// a metro CBSA is the natural "home turf" zoom; micro CBSA and county are
+// fallbacks; 'global' (the earth catch-all) is the last resort. Lower = higher
+// priority; unknown kinds rank below all known ones. A switch (not a package-level
+// map) keeps this free of mutable global state.
+func regionKindPriority(kind string) int {
+	switch kind {
+	case "cbsa_metro":
+		return 0
+	case "cbsa_micro":
+		return 1
+	case "county":
+		return 2
+	case "global":
+		return 3
+	default:
+		return 99
+	}
 }
 
 // pickDefaultViewport returns the region to fit the map to on load: the densest
@@ -138,14 +148,9 @@ var regionKindPriority = map[string]int{
 // in both its county and its overlapping CBSA), which makes a raw cross-kind
 // "densest" comparison meaningless. Returns nil when there are no regions.
 func pickDefaultViewport(regions []repository.RegionSummary) *repository.RegionSummary {
-	const unknownKind = 99 // ranks below all known kinds, above nothing
-	best, bestPriority := -1, unknownKind+1
+	best, bestPriority := -1, 100
 	for i := range regions {
-		p, ok := regionKindPriority[regions[i].Kind]
-		if !ok {
-			p = unknownKind
-		}
-		if p < bestPriority {
+		if p := regionKindPriority(regions[i].Kind); p < bestPriority {
 			best, bestPriority = i, p
 		}
 	}

@@ -290,7 +290,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                 {"activity_id": activity_id},
             ),
         )
-        return result.rowcount
+        return result.rowcount if result.rowcount is not None else 0
 
     def exists(self, activity_id: int) -> bool:
         """Check if activity exists in database.

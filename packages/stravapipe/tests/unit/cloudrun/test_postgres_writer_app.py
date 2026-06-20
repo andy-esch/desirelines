@@ -976,7 +976,13 @@ class TestLifespanCleanup:
     ("type_", "sport_type", "trainer", "manual", "expected"),
     [
         ("Ride", "Ride", False, False, False),  # outdoor — geographic
-        ("Ride", "VirtualRide", False, False, True),  # sport_type virtual (modern Strava)
+        (
+            "Ride",
+            "VirtualRide",
+            False,
+            False,
+            True,
+        ),  # sport_type virtual (modern Strava)
         ("VirtualRide", "VirtualRide", False, False, True),  # both fields virtual
         ("VirtualRun", "Run", False, False, True),  # legacy type-only virtual
         ("Run", "Run", True, False, True),  # indoor trainer
