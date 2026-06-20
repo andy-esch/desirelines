@@ -37,15 +37,9 @@ from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
 from stravapipe.application.deletion import BQUserDeletionService
-from stravapipe.cloudrun.pubsub import parse_pubsub_cloudevent
+from stravapipe.cloudrun._request_context import bootstrap_pubsub_request
 from stravapipe.config import load_deletion_service_config
 from stravapipe.shared.constants import ResponseStatus
-from stravapipe.shared.correlation import (
-    apply_pubsub_request_context,
-    initialize_pubsub_context,
-    initialize_request_trace,
-    new_correlation_id,
-)
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
 from stravapipe.shared.readiness import (
@@ -57,7 +51,6 @@ from stravapipe.shared.readiness import (
 )
 from stravapipe.shared.responses import UserDeletionResponse
 from stravapipe.shared.tracing import (
-    extract_context_from_attributes,
     instrument_fastapi_app,
     instrument_sqlalchemy_engine,
     record_span,
@@ -331,33 +324,14 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
     If any deletion fails, raises 500 to trigger Pub/Sub retry.
     """
 
-    # Pre-generate a fallback correlation ID and seed the contextvar so any
-    # log emitted before we parse the PubSub body still carries one.
-    correlation_id = new_correlation_id()
-
-    # Best-effort: seed the trace contextvar from the Cloud Run request's
-    # X-Cloud-Trace-Context header so early log lines get trace linking. The
-    # W3C traceparent from PubSub attributes (set below) is preferred and
-    # will override this.
-    initialize_request_trace(request.headers)
-
     try:
-        context, event_data, message_attributes = await parse_pubsub_cloudevent(request)
-
-        # Prefer dispatcher's correlation_id over the pre-generated fallback,
-        # and override the request-level trace with the cross-service W3C
-        # traceparent attribute when present. Then wire request-scoped Pub/Sub
-        # identifiers onto contextvars so CorrelationFilter mirrors them into
-        # every subsequent log record's jsonPayload. The returned dict is the
-        # matching span_attrs map.
-        correlation_id = initialize_pubsub_context(message_attributes, correlation_id)
-        span_attrs = apply_pubsub_request_context(
-            correlation_id,
-            context.pubsub_message_id,
-            context.delivery_attempt,
-        )
-
-        parent_context = extract_context_from_attributes(message_attributes)
+        # bootstrap_pubsub_request sets a fallback correlation_id on the
+        # contextvar as its first step, so logging in the except blocks below
+        # carries one even if it raises before parsing completes.
+        req = await bootstrap_pubsub_request(request)
+        context = req.context
+        event_data = req.event_data
+        correlation_id = req.correlation_id
 
         tracer = request.app.state.tracer
 
@@ -370,8 +344,8 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
         with record_span(
             tracer,
             "deletion.process",
-            attributes=span_attrs,
-            parent_context=parent_context,
+            attributes=req.span_attrs,
+            parent_context=req.parent_context,
         ):
             logger.info(
                 "Received deauth CloudEvent",

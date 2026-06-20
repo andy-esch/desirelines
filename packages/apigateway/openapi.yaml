@@ -241,6 +241,89 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /v1/activities/map/regions:
+    get:
+      tags: [Activities]
+      summary: Per-region activity summary for the map viewport
+      description: >
+        Returns each region the user has activities in, with the activity count
+        and the region's bounding box, sorted by count descending so the client
+        can default the routes-map viewport to the densest region.
+      operationId: getRouteRegions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Region summaries, densest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  regions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RegionSummary'
+                  # Region to fit the map to on load — the densest region of the
+                  # highest-priority kind (metro CBSA > micro CBSA > county >
+                  # earth). Omitted when the user has no geo-bearing activities.
+                  defaultViewport:
+                    $ref: '#/components/schemas/RegionSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/activities/map/tiles/{z}/{x}/{y}:
+    get:
+      tags: [Activities]
+      summary: Activity routes as a Mapbox Vector Tile
+      description: >
+        Returns the user's real-world activity routes for the given tile as a
+        Mapbox Vector Tile (ST_AsMVT). Only geo-bearing activities (those tagged
+        to >=1 region) are included; virtual/indoor activities are excluded. An
+        empty-but-valid tile is returned when the tile has no features.
+      operationId: getRouteTile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: z
+          in: path
+          required: true
+          description: Tile zoom level (0-22)
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 22
+        - name: x
+          in: path
+          required: true
+          description: Tile column
+          schema:
+            type: integer
+            minimum: 0
+        - name: y
+          in: path
+          required: true
+          description: Tile row
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: A Mapbox Vector Tile (protobuf)
+          content:
+            application/vnd.mapbox-vector-tile:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /v1/activities/{id}:
     get:
       tags: [Activities]
@@ -673,6 +756,34 @@ components:
             items:
               type: number
               format: double
+
+    RegionSummary:
+      type: object
+      required: [regionId, name, kind, activityCount, bbox]
+      properties:
+        regionId:
+          type: integer
+          format: int64
+          description: Region ID (desirelines.regions.id)
+        name:
+          type: string
+          description: Region display name (e.g. "Boston-Cambridge-Newton, MA-NH")
+        kind:
+          type: string
+          description: >-
+            Region class: cbsa_metro, cbsa_micro, county, or global (the builtin
+            "earth" catch-all).
+        activityCount:
+          type: integer
+          description: Number of the user's activities that fall in this region
+        bbox:
+          type: array
+          description: Region bounding box [minLng, minLat, maxLng, maxLat]
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+            format: double
 
     DailySummary:
       type: object

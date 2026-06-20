@@ -32,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # --- Fast checks first (fail fast) ---
 
@@ -125,7 +125,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -179,7 +179,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -191,9 +191,13 @@ jobs:
         run: go work sync && go mod download
 
       - name: Run tests with coverage
+        # -coverpkg=./... attributes coverage across every package in the module
+        # the tests exercise, so cross-package test infrastructure (e.g. mocks in
+        # ports/portstest/ driven by sibling-package tests) counts in Codecov
+        # instead of reading 0%.
         run: |
           cd packages/${{ matrix.package }}
-          go test -v -race -coverprofile=coverage.out ./...
+          go test -v -race -coverpkg=./... -coverprofile=coverage.out ./...
 
       - name: Upload coverage
         uses: codecov/codecov-action@v7
@@ -243,7 +247,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -288,10 +292,13 @@ jobs:
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
+    # Boots a Postgres container; cap wall-clock so a hung DB/test can't ride the
+    # 6h default. Healthy runs finish in well under a minute.
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -350,7 +357,19 @@ jobs:
         working-directory: packages/apigateway
         env:
           POSTGRES_CONNECTION_STRING: "postgresql://desirelines:test_password@localhost:5432/desirelines_test?search_path=desirelines,extensions,public&application_name=integration-test"
-        run: go test -tags=integration -v -race ./adapters/postgres/...
+        # -coverpkg=./... attributes coverage across all apigateway packages the
+        # integration tests exercise (e.g. the repository SQL), so it counts in
+        # Codecov instead of looking uncovered.
+        run: go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.integration.out ./adapters/postgres/...
+
+      - name: Upload Go integration coverage
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/apigateway/coverage.integration.out
+          flags: go-apigateway-integration
+          name: go-apigateway-integration-coverage
+          fail_ci_if_error: true
 
       - name: Install Python dependencies
         working-directory: packages/stravapipe
@@ -360,7 +379,136 @@ jobs:
         working-directory: packages/stravapipe
         run: |
           uv run pytest tests/integration/ -v \
+            --cov=stravapipe --cov-report=xml:coverage.integration.xml \
             --db-url="postgresql+psycopg://desirelines:test_password@localhost:5432/desirelines_test?options=-csearch_path%3Ddesirelines,extensions,public"
+
+      - name: Upload Python integration coverage
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/stravapipe/coverage.integration.xml
+          flags: python-integration
+          name: python-integration-coverage
+          fail_ci_if_error: true
+
+  # ===========================================================================
+  # Firestore Integration Tests: Go (Admin SDK) + Web (client SDK)
+  # Both run against ONE Firebase emulator container. Runs parallel to the
+  # Postgres integration-tests job above (parallelize by service).
+  # The emulator image is the project's local-dev image, built with GHA layer
+  # caching; firestore.rules + ci-firebase.json are mounted so the client-SDK
+  # security tests run against real rules. See
+  # local-dev/containers/firebase-emulators/.
+  # ===========================================================================
+  firestore-integration-tests:
+    name: Firestore Integration Tests
+    runs-on: ubuntu-latest
+    # Boots an emulator container + npm ci; cap wall-clock so a hung emulator
+    # can't ride the 6h default. Healthy runs finish in ~1-2 min.
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache-dependency-path: go.work.sum
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: packages/web/package-lock.json
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Build the emulator image with GHA layer caching so repeat runs skip the
+      # ~1GB firebase-tools/Java install. load:true makes it available to
+      # `docker run` below.
+      - name: Build Firebase emulator image
+        uses: docker/build-push-action@v7
+        with:
+          context: local-dev/containers/firebase-emulators
+          load: true
+          tags: firebase-emulators:ci
+          cache-from: type=gha,scope=firebase-emulators
+          cache-to: type=gha,scope=firebase-emulators,mode=max
+
+      # One emulator serves both Go (Admin SDK, rules bypassed) and web (client
+      # SDK, rules enforced). Mount firestore.rules + the in-repo ci-firebase.json
+      # that references them, publish firestore on host 8080 (the web setup
+      # hardcodes 8080/9099), and start as demo-test-project (the project the web
+      # client expects, or auth tokens won't validate against the rules context).
+      - name: Start Firebase emulator
+        run: |
+          docker run -d --name firebase-emulators \
+            -p 8080:8080 -p 9099:9099 \
+            -v "${{ github.workspace }}/firestore.rules:/app/firestore.rules:ro" \
+            -v "${{ github.workspace }}/local-dev/containers/firebase-emulators/ci-firebase.json:/app/firebase.json:ro" \
+            firebase-emulators:ci \
+            firebase emulators:start --only auth,firestore --project demo-test-project
+
+      - name: Wait for emulator
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/ >/dev/null; then
+              echo "Firestore emulator ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Firestore emulator did not become ready" >&2
+          docker logs firebase-emulators
+          exit 1
+
+      - name: Download Go dependencies
+        run: go work sync && go mod download
+
+      # Admin SDK bypasses rules, so these are project-agnostic; -coverpkg=./...
+      # attributes the Firestore adapter coverage that unit-only runs miss.
+      - name: Go Firestore integration tests
+        env:
+          FIRESTORE_EMULATOR_HOST: "localhost:8080"
+          GCP_PROJECT_ID: "demo-test-project"
+          FIRESTORE_DATABASE: "(default)"
+        run: |
+          (cd packages/apigateway && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./adapters/firestore/...)
+          (cd packages/dispatcher && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./adapters/firestore/...)
+          (cd packages/shared && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./allowlist/...)
+
+      - name: Upload Go Firestore integration coverage
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/apigateway/coverage.firestore.out,./packages/dispatcher/coverage.firestore.out,./packages/shared/coverage.firestore.out
+          flags: go-firestore-integration
+          name: go-firestore-integration-coverage
+          fail_ci_if_error: true
+
+      - name: Install web dependencies
+        working-directory: packages/web
+        run: npm ci
+
+      # Run vitest DIRECTLY against the shared container — NOT
+      # `npm run test:integration`, which spins its own emulator via
+      # emulators:exec and needs firebase-tools + Java on the runner.
+      - name: Web integration tests
+        working-directory: packages/web
+        run: npx vitest run --config vitest.integration.config.ts --coverage
+
+      - name: Upload web integration coverage
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/web/coverage-integration/lcov.info
+          flags: web-integration
+          name: web-integration-coverage
+          fail_ci_if_error: true
 
   # ===========================================================================
   # Terraform: Format, Init, Validate
@@ -371,7 +519,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Read Terraform version
         id: tf-version

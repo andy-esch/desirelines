@@ -85,8 +85,12 @@ resource "google_monitoring_slo" "apigateway_availability" {
 
   request_based_sli {
     good_total_ratio {
-      bad_service_filter   = "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" metric.label.\"response_code_class\"=\"5xx\""
-      total_service_filter = "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\""
+      # Explicit service_name scope — the basic_service binding on the parent
+      # google_monitoring_service is organizational only and does NOT restrict
+      # the SLI filters (see the SLO 2 note below). Without this, the SLI would
+      # aggregate every Cloud Run service in the project. Matches alerts.tf.
+      bad_service_filter   = "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"${google_cloud_run_v2_service.api_gateway.name}\" metric.label.\"response_code_class\"=\"5xx\""
+      total_service_filter = "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"${google_cloud_run_v2_service.api_gateway.name}\""
     }
   }
 }
@@ -202,8 +206,13 @@ resource "google_monitoring_slo" "dispatcher_availability" {
 
   request_based_sli {
     good_total_ratio {
-      bad_service_filter   = "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" metric.label.\"response_code_class\"=\"5xx\""
-      total_service_filter = "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\""
+      # Explicit service_name scope — basic_service binding is organizational
+      # only and does not restrict the SLI (see the SLO 2 note below). Without
+      # this the SLI aggregates every Cloud Run service, making SLO 1 a
+      # byte-identical copy of SLO 4 that is blind to dispatcher-only
+      # regressions. Matches alerts.tf.
+      bad_service_filter   = "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"${google_cloud_run_v2_service.dispatcher.name}\" metric.label.\"response_code_class\"=\"5xx\""
+      total_service_filter = "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"${google_cloud_run_v2_service.dispatcher.name}\""
     }
   }
 }
@@ -313,7 +322,11 @@ resource "google_monitoring_slo" "apigateway_latency" {
 
   request_based_sli {
     distribution_cut {
-      distribution_filter = "metric.type=\"run.googleapis.com/request_latencies\" resource.type=\"cloud_run_revision\" metric.label.\"response_code_class\"!=\"5xx\""
+      # Explicit service_name scope — basic_service binding is organizational
+      # only and does not restrict the SLI (see the SLO 2 note below). Without
+      # this the SLI mixes every service's request_latencies into the apigateway
+      # latency budget. Matches alerts.tf.
+      distribution_filter = "metric.type=\"run.googleapis.com/request_latencies\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"${google_cloud_run_v2_service.api_gateway.name}\" metric.label.\"response_code_class\"!=\"5xx\""
       range {
         # Cloud Run request_latencies is reported in milliseconds.
         # 1000ms = 1 second; counts requests <= this as "good."

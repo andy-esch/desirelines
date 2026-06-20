@@ -340,6 +340,16 @@ class StandardActivity(BaseModel):
     # Geospatial — optional because indoor/manual activities have no map
     map: PolylineMap | None = None
 
+    # Activity classification — routes virtual/indoor activities to the
+    # complementary (non-map) view instead of region-tagging them. Strava always
+    # sends these on real webhooks; default False for non-webhook construction.
+    trainer: bool = Field(
+        default=False, description="Recorded on an indoor trainer (Strava 'trainer')"
+    )
+    manual: bool = Field(
+        default=False, description="Manually entered, no device/GPS (Strava 'manual')"
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def user_id(self) -> str:

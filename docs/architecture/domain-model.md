@@ -122,13 +122,32 @@ Per-user OAuth tokens for Strava API access. Stored in Firestore.
 
 ### Activity Routes
 
-Normalized GPS routes for map visualization.
+Decoded GPS route geometry (PostGIS `LINESTRING`). Served two ways: origin-
+normalized for the abstract art canvas (`NormalizedRoute`), and real-world as
+Mapbox Vector Tiles for the slippy map (`GET /activities/map/tiles/{z}/{x}/{y}`).
 
 | Stage | Package | Type | File |
 |-------|---------|------|------|
-| Database table | PostgreSQL | `desirelines.activity_routes` | `schemas/database/migrations/` |
+| Database table | PostgreSQL | `desirelines.activity_routes` | `schemas/database/migrations/V0003__add_activity_routes.sql` |
 | Go repository | apigateway | `repository.NormalizedRoute` | `packages/apigateway/repository/types.go` |
 | Frontend | web | `NormalizedRoute` | `packages/web/src/api/routes.ts` |
+
+### Regions & Region Tagging
+
+Geographic context Strava doesn't provide: boundary polygons (US Census CBSA +
+county to start; a builtin `earth` global fallback) and a many-to-many tag of which
+region(s) each activity crosses. Tagged at ingestion (postgres-writer) via
+`ST_Intersects`; virtual/indoor activities are intentionally untagged. Powers the
+map's region filter and the densest-region default viewport
+(`GET /activities/map/regions`).
+
+| Stage | Package | Type | File |
+|-------|---------|------|------|
+| Boundary table | PostgreSQL | `desirelines.regions` | `schemas/database/migrations/V0005__add_region_boundaries_and_tags.sql` |
+| Tag junction | PostgreSQL | `desirelines.activity_regions` | `schemas/database/migrations/V0005__add_region_boundaries_and_tags.sql` |
+| Boundary loader | ops | `load_census_regions.py` | `scripts/ops/backfills/` |
+| Ingestion tagging | stravapipe | `tag_activity_regions` | `packages/stravapipe/src/stravapipe/adapters/postgres/_repository.py` |
+| Go repository | apigateway | `repository.RegionSummary` | `packages/apigateway/repository/types.go` |
 
 ## Shared Schemas
 

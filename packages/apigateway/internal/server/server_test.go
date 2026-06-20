@@ -218,6 +218,8 @@ func noopAuthRoutes() AuthenticatedRoutes {
 		GetMetrics:      func(w http.ResponseWriter, r *http.Request) {},
 		GetSource:       func(w http.ResponseWriter, r *http.Request) {},
 		GetRoutes:       func(w http.ResponseWriter, r *http.Request) {},
+		GetRouteTile:    func(w http.ResponseWriter, r *http.Request) {},
+		GetRouteRegions: func(w http.ResponseWriter, r *http.Request) {},
 		ListActivities:  func(w http.ResponseWriter, r *http.Request) {},
 		GetActivityByID: func(w http.ResponseWriter, r *http.Request) {},
 	}

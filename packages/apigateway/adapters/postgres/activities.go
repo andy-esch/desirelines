@@ -865,6 +865,130 @@ func (r *ActivityRepository) GetNormalizedRoutes(ctx context.Context, userID str
 	return routes, nil
 }
 
+// GetRouteTile returns a Mapbox Vector Tile of the user's real-world activity
+// routes for the z/x/y tile. Geometry is reprojected to Web Mercator (3857) and
+// clipped to the tile envelope with ST_AsMVTGeom, then aggregated with ST_AsMVT.
+// Only geo-bearing activities (those with >=1 activity_regions row) are included,
+// which excludes virtual/indoor activities. An empty tile is returned (not an
+// error) when there are no features.
+func (r *ActivityRepository) GetRouteTile(ctx context.Context, userID string, z, x, y int) (tile []byte, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.route_tile",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+		attribute.Int("tile.z", z),
+		attribute.Int("tile.x", x),
+		attribute.Int("tile.y", y),
+	)
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "route_tile"))
+	defer func() {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.tile_bytes", len(tile)))
+		done(retErr)
+		spanDone(retErr)
+	}()
+
+	// Filter on the raw 4326 column so the GIST index (idx_activity_routes_geom)
+	// drives row selection: && uses the index, and ST_Intersects against the
+	// transformed-back envelope keeps the exact test on the indexed geometry.
+	// ST_Transform(route -> 3857) then runs only for the surviving rows, inside
+	// ST_AsMVTGeom where the Web Mercator geometry is actually required.
+	const query = `
+		WITH bounds AS (
+			SELECT
+				ST_TileEnvelope($1, $2, $3) AS env_3857,
+				ST_Transform(ST_TileEnvelope($1, $2, $3), 4326) AS env_4326
+		),
+		mvtgeom AS (
+			SELECT
+				ST_AsMVTGeom(ST_Transform(ar.route, 3857), bounds.env_3857) AS geom,
+				a.id                            AS activity_id,
+				a.name                          AS name,
+				a.sport                         AS sport,
+				a.distance                      AS distance,
+				a.start_date_local::date::text  AS date
+			FROM desirelines.activity_routes ar
+			JOIN desirelines.activities a ON a.id = ar.activity_id
+			CROSS JOIN bounds
+			WHERE a.user_id = $4
+			  AND ar.route && bounds.env_4326
+			  AND ST_Intersects(ar.route, bounds.env_4326)
+			  AND EXISTS (
+				  SELECT 1 FROM desirelines.activity_regions arg
+				  WHERE arg.activity_id = a.id
+			  )
+		)
+		SELECT COALESCE(ST_AsMVT(t.*, 'routes'), ''::bytea)
+		FROM mvtgeom t
+		WHERE t.geom IS NOT NULL
+	`
+
+	if retErr = r.db.QueryRow(ctx, query, z, x, y, userID).Scan(&tile); retErr != nil {
+		return nil, fmt.Errorf("query route tile: %w", retErr)
+	}
+	return tile, nil
+}
+
+// GetRouteRegionSummary returns each region the user has activities in, with the
+// activity count and the region's bounding box, sorted densest-first. The client
+// uses the top row to default the map viewport.
+func (r *ActivityRepository) GetRouteRegionSummary(ctx context.Context, userID string) (summaries []repository.RegionSummary, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.route_region_summary",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+	)
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "route_region_summary"))
+	defer func() {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(summaries)))
+		done(retErr)
+		spanDone(retErr)
+	}()
+
+	const query = `
+		SELECT
+			re.id,
+			re.region_name,
+			re.region_kind,
+			COUNT(DISTINCT ar.activity_id) AS activity_count,
+			ST_XMin(ST_Extent(re.geom)) AS min_lng,
+			ST_YMin(ST_Extent(re.geom)) AS min_lat,
+			ST_XMax(ST_Extent(re.geom)) AS max_lng,
+			ST_YMax(ST_Extent(re.geom)) AS max_lat
+		FROM desirelines.activity_regions ar
+		JOIN desirelines.activities a ON a.id = ar.activity_id
+		JOIN desirelines.regions re ON re.id = ar.region_id
+		WHERE a.user_id = $1
+		GROUP BY re.id, re.region_name, re.region_kind
+		ORDER BY activity_count DESC, re.region_name
+	`
+
+	rows, retErr := r.db.Query(ctx, query, userID)
+	if retErr != nil {
+		return nil, fmt.Errorf("query route region summary: %w", retErr)
+	}
+	defer rows.Close()
+
+	summaries = make([]repository.RegionSummary, 0)
+	for rows.Next() {
+		var s repository.RegionSummary
+		var minLng, minLat, maxLng, maxLat float64
+		if retErr = rows.Scan(
+			&s.RegionID, &s.Name, &s.Kind, &s.ActivityCount,
+			&minLng, &minLat, &maxLng, &maxLat,
+		); retErr != nil {
+			return nil, fmt.Errorf("scan region summary row: %w", retErr)
+		}
+		s.BBox = [4]float64{minLng, minLat, maxLng, maxLat}
+		summaries = append(summaries, s)
+	}
+	if retErr = rows.Err(); retErr != nil {
+		return nil, fmt.Errorf("iterate region summary rows: %w", retErr)
+	}
+	return summaries, nil
+}
+
 // encodeCursor encodes an ActivityCursor to a base64 string.
 // Format: "timestamp|id" encoded as URL-safe base64.
 func encodeCursor(cursor *repository.ActivityCursor) string {
