@@ -59,8 +59,19 @@ def _is_virtual(activity: StandardActivity) -> bool:
     virtual world. Tagging them would place them in the wrong region (or the
     `earth` fallback); they're surfaced in the routes-map complementary view
     (zero `activity_regions` rows) instead.
+
+    Virtual detection checks both `sport_type` (the authoritative granular field)
+    and the legacy `type` Strava is de-emphasizing — belt-and-suspenders so a
+    `VirtualRide`/`VirtualRun` is caught regardless of which field carries it. Keep
+    this in sync with the backfill predicate in
+    `scripts/ops/backfills/backfill_route_regions.py`.
     """
-    return activity.trainer or activity.manual or activity.type.startswith("Virtual")
+    return (
+        activity.trainer
+        or activity.manual
+        or activity.sport_type.startswith("Virtual")
+        or activity.type.startswith("Virtual")
+    )
 
 
 def _record_freshness(
@@ -400,6 +411,39 @@ def _handle_update_enriched(
         uow,
     ):
         uow.activities.upsert(activity)
+
+        # Reconcile region tags: a type change may have crossed the virtual
+        # boundary. Now-virtual -> clear tags (drop it off the map); now-real ->
+        # (re)tag from its existing route. tag_activity_regions is idempotent
+        # (delete-then-insert) and savepoint-isolated, so running it on every
+        # enriched update is safe. (Edge: a virtual ride's fake polyline that's
+        # re-typed to a real sport will tag to the `earth` fallback — rare; a
+        # later re-sync/backfill corrects it.)
+        if _is_virtual(activity):
+            with record_span(
+                tracer,
+                "postgres.activities.clear_regions",
+                db_attributes(
+                    "postgresql",
+                    "desirelines",
+                    "DELETE",
+                    {"desirelines.activity_id": activity_id},
+                ),
+            ):
+                uow.activities.clear_activity_regions(activity_id)
+        else:
+            with record_span(
+                tracer,
+                "postgres.activities.tag_regions",
+                db_attributes(
+                    "postgresql",
+                    "desirelines",
+                    "INSERT",
+                    {"desirelines.activity_id": activity_id},
+                ),
+            ):
+                uow.activities.tag_activity_regions(activity_id)
+
         uow.commit()
 
     _record_freshness(freshness_histogram, "update")

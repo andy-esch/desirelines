@@ -418,6 +418,26 @@ class TestActivityRegionTagging:
         assert second == 1
         assert _tagged_region_ids(db_session, activity.id) == [region_id]
 
+    def test_clear_activity_regions_removes_tags(self, uow, db_session):
+        """clear_activity_regions deletes all tags (e.g. activity became virtual)."""
+        activity = make_activity(activity_id=210005)
+        _insert_test_region(db_session, code="r3", wkt=_TEST_REGION_WKT)
+
+        with uow:
+            uow.activities.insert(activity)
+            uow.activities.insert_route(
+                activity.id,
+                '{"type":"LineString","coordinates":[[-30,0],[-29.5,0.2]]}',
+            )
+            uow.activities.tag_activity_regions(activity.id)
+            assert _tagged_region_ids(db_session, activity.id) != []
+
+            deleted = uow.activities.clear_activity_regions(activity.id)
+            uow.commit()
+
+        assert deleted == 1
+        assert _tagged_region_ids(db_session, activity.id) == []
+
 
 class TestTransactionRollback:
     """Tests verifying transaction rollback works correctly."""

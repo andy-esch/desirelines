@@ -698,6 +698,43 @@ func TestHandleRouteRegions(t *testing.T) {
 	}
 }
 
+func TestPickDefaultViewport(t *testing.T) {
+	metro := repository.RegionSummary{RegionID: 1, Kind: "cbsa_metro", ActivityCount: 3}
+	county := repository.RegionSummary{RegionID: 2, Kind: "county", ActivityCount: 50}
+	micro := repository.RegionSummary{RegionID: 3, Kind: "cbsa_micro", ActivityCount: 5}
+	earth := repository.RegionSummary{RegionID: 4, Kind: "global", ActivityCount: 99}
+
+	tests := []struct {
+		name    string
+		regions []repository.RegionSummary // ordered by count desc, as the SQL returns
+		wantID  int64                      // -1 means nil
+	}{
+		{"metro beats higher-count county", []repository.RegionSummary{earth, county, micro, metro}, 1},
+		{"micro when no metro", []repository.RegionSummary{earth, county, micro}, 3},
+		{"county when no cbsa", []repository.RegionSummary{earth, county}, 2},
+		{"earth as last resort", []repository.RegionSummary{earth}, 4},
+		{"nil when empty", nil, -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := pickDefaultViewport(tt.regions)
+			if tt.wantID == -1 {
+				if got != nil {
+					t.Fatalf("want nil, got %+v", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatalf("want region %d, got nil", tt.wantID)
+			}
+			if got.RegionID != tt.wantID {
+				t.Errorf("viewport = region %d (%s), want %d", got.RegionID, got.Kind, tt.wantID)
+			}
+		})
+	}
+}
+
 func TestHandleGetActivity(t *testing.T) {
 	// HandleGetActivity is the GET /activities/{id} endpoint. Coverage was at
 	// 0% before this test — adding even one happy-path test pins down the

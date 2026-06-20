@@ -264,6 +264,11 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/RegionSummary'
+                  # Region to fit the map to on load — the densest region of the
+                  # highest-priority kind (metro CBSA > micro CBSA > county >
+                  # earth). Omitted when the user has no geo-bearing activities.
+                  defaultViewport:
+                    $ref: '#/components/schemas/RegionSummary'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '503':

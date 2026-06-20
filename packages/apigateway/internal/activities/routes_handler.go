@@ -121,6 +121,40 @@ func (h *Handler) HandleRouteTile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// regionKindPriority orders region kinds for the default map viewport. A metro
+// CBSA is the natural "home turf" zoom; micro CBSA and county are fallbacks;
+// 'global' (the earth catch-all) is the last resort. Lower = higher priority.
+var regionKindPriority = map[string]int{
+	"cbsa_metro": 0,
+	"cbsa_micro": 1,
+	"county":     2,
+	"global":     3,
+}
+
+// pickDefaultViewport returns the region to fit the map to on load: the densest
+// region of the highest-priority kind present. `regions` is assumed ordered by
+// activity count desc, so the first region of a given kind is that kind's densest.
+// Ranking within a single kind sidesteps the tag-all skew (an activity is counted
+// in both its county and its overlapping CBSA), which makes a raw cross-kind
+// "densest" comparison meaningless. Returns nil when there are no regions.
+func pickDefaultViewport(regions []repository.RegionSummary) *repository.RegionSummary {
+	const unknownKind = 99 // ranks below all known kinds, above nothing
+	best, bestPriority := -1, unknownKind+1
+	for i := range regions {
+		p, ok := regionKindPriority[regions[i].Kind]
+		if !ok {
+			p = unknownKind
+		}
+		if p < bestPriority {
+			best, bestPriority = i, p
+		}
+	}
+	if best < 0 {
+		return nil
+	}
+	return &regions[best]
+}
+
 // HandleRouteRegions serves per-region activity counts and bounding boxes so the
 // frontend can default the map viewport to the densest region.
 // GET /activities/map/regions
@@ -140,7 +174,10 @@ func (h *Handler) HandleRouteRegions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := repository.RegionsResponse{Regions: regions}
+	resp := repository.RegionsResponse{
+		Regions:         regions,
+		DefaultViewport: pickDefaultViewport(regions),
+	}
 
 	w.Header().Set("Cache-Control", mapCacheControl)
 	server.RespondJSON(w, r, http.StatusOK, resp, h.logger)
