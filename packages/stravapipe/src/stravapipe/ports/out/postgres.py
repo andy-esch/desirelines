@@ -131,6 +131,22 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def clear_activity_regions(self, activity_id: int) -> int:
+        """Remove all region tags for an activity.
+
+        Used on the enriched UPDATE path when an activity becomes virtual/indoor
+        (a Strava type change), so a now-non-geographic activity stops appearing
+        on the map.
+
+        Args:
+            activity_id: Strava activity ID
+
+        Returns:
+            Number of region rows deleted
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def delete(self, activity_id: int) -> bool:
         """Delete activity by ID.
 

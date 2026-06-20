@@ -121,6 +121,45 @@ func (h *Handler) HandleRouteTile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// regionKindPriority returns the default-map-viewport priority for a region kind:
+// a metro CBSA is the natural "home turf" zoom; micro CBSA and county are
+// fallbacks; 'global' (the earth catch-all) is the last resort. Lower = higher
+// priority; unknown kinds rank below all known ones. A switch (not a package-level
+// map) keeps this free of mutable global state.
+func regionKindPriority(kind string) int {
+	switch kind {
+	case "cbsa_metro":
+		return 0
+	case "cbsa_micro":
+		return 1
+	case "county":
+		return 2
+	case "global":
+		return 3
+	default:
+		return 99
+	}
+}
+
+// pickDefaultViewport returns the region to fit the map to on load: the densest
+// region of the highest-priority kind present. `regions` is assumed ordered by
+// activity count desc, so the first region of a given kind is that kind's densest.
+// Ranking within a single kind sidesteps the tag-all skew (an activity is counted
+// in both its county and its overlapping CBSA), which makes a raw cross-kind
+// "densest" comparison meaningless. Returns nil when there are no regions.
+func pickDefaultViewport(regions []repository.RegionSummary) *repository.RegionSummary {
+	best, bestPriority := -1, 100
+	for i := range regions {
+		if p := regionKindPriority(regions[i].Kind); p < bestPriority {
+			best, bestPriority = i, p
+		}
+	}
+	if best < 0 {
+		return nil
+	}
+	return &regions[best]
+}
+
 // HandleRouteRegions serves per-region activity counts and bounding boxes so the
 // frontend can default the map viewport to the densest region.
 // GET /activities/map/regions
@@ -140,7 +179,10 @@ func (h *Handler) HandleRouteRegions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := repository.RegionsResponse{Regions: regions}
+	resp := repository.RegionsResponse{
+		Regions:         regions,
+		DefaultViewport: pickDefaultViewport(regions),
+	}
 
 	w.Header().Set("Cache-Control", mapCacheControl)
 	server.RespondJSON(w, r, http.StatusOK, resp, h.logger)

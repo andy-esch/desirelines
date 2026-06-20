@@ -274,6 +274,24 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         ).fetchall()
         return len(earth)
 
+    def clear_activity_regions(self, activity_id: int) -> int:
+        """Remove all region tags for an activity. Returns rows deleted.
+
+        Used when an activity becomes virtual/indoor on an enriched UPDATE so it
+        stops appearing on the map (zero region rows = non-geographic).
+        """
+        result = cast(
+            CursorResult[Any],
+            self._session.execute(
+                text(
+                    "DELETE FROM desirelines.activity_regions "
+                    "WHERE activity_id = :activity_id"
+                ),
+                {"activity_id": activity_id},
+            ),
+        )
+        return result.rowcount if result.rowcount is not None else 0
+
     def exists(self, activity_id: int) -> bool:
         """Check if activity exists in database.
 

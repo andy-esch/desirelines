@@ -53,9 +53,18 @@ type RegionSummary struct {
 	BBox          [4]float64 `json:"bbox"`
 }
 
-// RegionsResponse wraps region summaries for the routes-map viewport endpoint.
+// RegionsResponse wraps region summaries for the routes-map endpoint.
+//
+// Regions is ordered by activity count (densest first) for the region filter.
+// DefaultViewport is the region the client should fit the map to on load — chosen
+// by region-kind priority (metro CBSA > micro CBSA > county > earth), then count
+// within that kind. Picking within a single kind avoids the tag-all skew where an
+// activity is counted in both its county and its overlapping CBSA, which would
+// make a raw cross-kind "densest" comparison meaningless. nil when the user has no
+// geo-bearing activities.
 type RegionsResponse struct {
-	Regions []RegionSummary `json:"regions"`
+	Regions         []RegionSummary `json:"regions"`
+	DefaultViewport *RegionSummary  `json:"defaultViewport,omitempty"`
 }
 
 // DefaultRoutesLimit is the default number of routes to return.
