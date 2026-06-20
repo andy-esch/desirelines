@@ -36,7 +36,7 @@ SET ROLE desirelines_ddl_grp;
 -- re-run tagging.
 
 CREATE TABLE desirelines.regions (
-    -- Surrogate key: lets activity_routes reference a region in one column.
+    -- Surrogate key: lets the activity_regions junction reference a region in one column.
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     -- Natural identity (source-scoped). A region is uniquely identified by the
@@ -48,11 +48,16 @@ CREATE TABLE desirelines.regions (
     region_kind VARCHAR(32)  NOT NULL,   -- 'cbsa_metro' | 'cbsa_micro' | 'county' (extensible for future datasets)
     region_name VARCHAR(255) NOT NULL,   -- human-readable name, e.g. 'Boston-Cambridge-Newton, MA-NH'
 
-    -- Boundary geometry
-    geom        GEOMETRY(MULTIPOLYGON, 4326) NOT NULL,
+    -- Boundary geometry. Generic GEOMETRY (not a MULTIPOLYGON typmod) so a future
+    -- source-agnostic dataset with simple POLYGONs loads without forcing ST_Multi,
+    -- but a CHECK keeps the areal invariant so a stray POINT/LINESTRING can't be
+    -- stored as a "region" and silently break ST_Intersects tagging.
+    geom        GEOMETRY(Geometry, 4326) NOT NULL,
 
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
+    CONSTRAINT regions_geom_is_areal
+        CHECK (GeometryType(geom) IN ('POLYGON', 'MULTIPOLYGON')),
     UNIQUE (source, region_code)
 );
 
