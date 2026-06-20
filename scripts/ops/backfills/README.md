@@ -10,6 +10,7 @@ Scripts for backfilling and migrating production data.
 | [`backfill_bq_to_postgres.py`](#backfill-bigquery-to-postgresql) | Migrate activities from BigQuery → PostgreSQL                 | ✅ Active                     |
 | [`backfill_routes_bq_to_postgres.py`](#backfill-routes)          | Backfill activity routes from BigQuery polylines → PostgreSQL | ✅ Active                     |
 | [`load_census_regions.py`](#load-census-regions)                 | Load US Census CBSA + county boundaries → `desirelines.regions` | ✅ Active                   |
+| [`backfill_route_regions.py`](#backfill-route-regions)           | Tag existing routes with the regions they cross → `activity_regions` | ✅ Active               |
 | [`webhook-replay/`](#webhook-replay-load-testing)                | Simulate production webhook load for testing                  | ✅ Active                     |
 
 **Deprecated scripts** (in this directory but no longer maintained):
@@ -162,6 +163,37 @@ uv run scripts/ops/backfills/load_census_regions.py --vintage 2023 --replace
   role; the runtime app only reads `regions`)
 - PostgreSQL with PostGIS and the `desirelines.regions` table (migration `V0005`)
 - Network access to `www2.census.gov`
+
+---
+
+## Backfill Route Regions
+
+**Script**: `backfill_route_regions.py`
+
+Tags existing `desirelines.activity_routes` with the regions they cross, populating
+`desirelines.activity_regions` for historical data (the postgres-writer does this
+for new activities at ingestion). Set-based: for every non-virtual routed activity
+it inserts a row per intersecting region (`ST_Intersects`), then an `earth` fallback
+for routes that match no specific region. Idempotent (`ON CONFLICT DO NOTHING`);
+`--replace` clears existing tags first.
+
+Prerequisites: migrations V0005 + V0006, and `regions` populated via
+`load_census_regions.py`.
+
+### Usage
+
+```bash
+export POSTGRES_CONNECTION_STRING="postgresql://user:pass@host/db?sslmode=require"
+
+uv run scripts/ops/backfills/backfill_route_regions.py --dry-run
+uv run scripts/ops/backfills/backfill_route_regions.py
+uv run scripts/ops/backfills/backfill_route_regions.py --replace   # clears ALL tags first
+```
+
+### Requirements
+
+- `POSTGRES_CONNECTION_STRING` (admin)
+- `regions` table populated; `activities.trainer`/`manual` present (V0006)
 
 ---
 

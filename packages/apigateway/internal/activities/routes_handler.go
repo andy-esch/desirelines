@@ -84,7 +84,7 @@ func (h *Handler) parseTileCoords(w http.ResponseWriter, r *http.Request) (z, x,
 // HandleRouteTile serves a Mapbox Vector Tile of the user's geo-bearing routes.
 // Virtual/indoor activities (no region tags) are excluded. An empty-but-valid
 // tile is returned for tiles with no features (never a 404).
-// GET /activities/routes/tiles/{z}/{x}/{y}
+// GET /activities/map/tiles/{z}/{x}/{y}
 func (h *Handler) HandleRouteTile(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {
@@ -116,7 +116,7 @@ func (h *Handler) HandleRouteTile(w http.ResponseWriter, r *http.Request) {
 
 // HandleRouteRegions serves per-region activity counts and bounding boxes so the
 // frontend can default the map viewport to the densest region.
-// GET /activities/routes/regions
+// GET /activities/map/regions
 func (h *Handler) HandleRouteRegions(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {

@@ -622,7 +622,7 @@ func TestHandleRouteTile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := newTestHandlerWithRepo(t, tt.mock)
 			req := httptest.NewRequest(http.MethodGet,
-				fmt.Sprintf("/activities/routes/tiles/%s/%s/%s", tt.z, tt.x, tt.y), nil)
+				fmt.Sprintf("/activities/map/tiles/%s/%s/%s", tt.z, tt.x, tt.y), nil)
 
 			rctx := chi.NewRouteContext()
 			rctx.URLParams.Add("z", tt.z)
@@ -674,7 +674,7 @@ func TestHandleRouteRegions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := newTestHandlerWithRepo(t, tt.mock)
-			req := httptest.NewRequest(http.MethodGet, "/activities/routes/regions", nil)
+			req := httptest.NewRequest(http.MethodGet, "/activities/map/regions", nil)
 			if tt.userID != "" {
 				req = req.WithContext(middleware.WithUserID(req.Context(), tt.userID))
 			}

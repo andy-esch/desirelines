@@ -67,12 +67,12 @@ type ActivityRepository interface {
 	// only geo-bearing activities (those with >=1 region tag), so virtual/indoor
 	// activities are excluded. Returns an empty tile (not an error) when the tile
 	// has no features.
-	// Used by: GET /activities/routes/tiles/{z}/{x}/{y}
+	// Used by: GET /activities/map/tiles/{z}/{x}/{y}
 	GetRouteTile(ctx context.Context, userID string, z, x, y int) ([]byte, error)
 
 	// GetRouteRegionSummary returns each region the user has activities in, with
 	// the activity count and the region's bounding box, sorted by count desc so
 	// the client can default the map viewport to the densest region.
-	// Used by: GET /activities/routes/regions
+	// Used by: GET /activities/map/regions
 	GetRouteRegionSummary(ctx context.Context, userID string) ([]RegionSummary, error)
 }

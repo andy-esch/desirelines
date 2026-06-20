@@ -241,7 +241,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/activities/routes/regions:
+  /v1/activities/map/regions:
     get:
       tags: [Activities]
       summary: Per-region activity summary for the map viewport
@@ -269,7 +269,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/activities/routes/tiles/{z}/{x}/{y}:
+  /v1/activities/map/tiles/{z}/{x}/{y}:
     get:
       tags: [Activities]
       summary: Activity routes as a Mapbox Vector Tile

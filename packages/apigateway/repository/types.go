@@ -42,7 +42,7 @@ type RoutesResponse struct {
 
 // RegionSummary describes one region the user has activities in: the activity
 // count and the region's bounding box [minLng, minLat, maxLng, maxLat]. Used by
-// GET /activities/routes/regions to pick the default map viewport (the densest
+// GET /activities/map/regions to pick the default map viewport (the densest
 // region). The builtin "earth" region (whole-world bbox) is the catch-all for
 // activities with real geometry that fall outside the active boundary dataset.
 type RegionSummary struct {
