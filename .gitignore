@@ -248,6 +248,7 @@ docs/planning/
 
 # Testing
 coverage/
+coverage-integration/
 
 # Firebase
 .firebase
