@@ -33,6 +33,30 @@ vi .env.production.local
 
 Get Firebase credentials: [Firebase Console](https://console.firebase.google.com/) → Project → Settings → Your apps
 
+## Mapbox token
+
+The `/routes` slippy map uses Mapbox GL JS and needs a **public** access token
+(`VITE_MAPBOX_TOKEN`). This token ships in the client bundle, so it must be a
+public `pk.*` token — **never** a secret token — and should be **URL-restricted**
+in the Mapbox account to the app's web origins (the deployed hosting domains plus
+`http://localhost:3000` for local dev). Without it, `/routes` degrades to a
+graceful "map unavailable" state.
+
+Like the Firebase config, it's provisioned through Infisical (path `/frontend`)
+and exported into the per-mode `.env.*.local` files automatically:
+
+- **Local dev**: `just setup-secrets` writes it into `.env.development.local`.
+- **Staging/prod deploy**: `just deploy-web dev|prod` exports it into
+  `.env.staging.local` / `.env.production.local` before the build.
+
+To provision it:
+
+1. In the Mapbox account, create a public token, scope it to public styles/tiles,
+   and add URL restrictions for the web origins above.
+2. Add it to Infisical under `/frontend` as `VITE_MAPBOX_TOKEN` for each
+   environment (`dev`, `prod`).
+3. Re-run `just setup-secrets` (local) or the deploy script (staging/prod).
+
 ## Scripts
 
 | Command             | Description                 |

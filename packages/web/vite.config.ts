@@ -29,9 +29,20 @@ export default defineConfig(({ mode }) => {
       "VITE_FIREBASE_AUTH_DOMAIN",
       "VITE_FIREBASE_PROJECT_ID",
       "VITE_API_GATEWAY_URL",
+      // Required so a missing Infisical key fails the prod build loudly instead
+      // of baking in a committed placeholder / shipping a token-less map.
+      "VITE_MAPBOX_TOKEN",
     ];
 
     const missing = requiredVars.filter((key) => !env[key] || env[key] === "");
+
+    // A secret sk.* token can't be URL-restricted — never let one into a bundle.
+    const mapboxToken = env.VITE_MAPBOX_TOKEN ?? "";
+    if (mapboxToken && !mapboxToken.startsWith("pk.")) {
+      throw new Error(
+        "VITE_MAPBOX_TOKEN must be a public pk.* token (never a secret sk.* token)."
+      );
+    }
 
     if (missing.length > 0) {
       throw new Error(

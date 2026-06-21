@@ -19,6 +19,9 @@ interface ImportMetaEnv {
   // Application configuration
   readonly VITE_API_GATEWAY_URL?: string;
 
+  // Mapbox public access token for the /routes map (public, URL-restricted pk.*)
+  readonly VITE_MAPBOX_TOKEN?: string;
+
   // Firebase configuration (production project)
   // These are public identifiers, not secrets
   readonly VITE_FIREBASE_API_KEY: string;
