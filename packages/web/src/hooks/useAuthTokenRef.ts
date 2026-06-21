@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuthService } from "../contexts/ServiceContext";
 import { useAuth } from "./useAuth";
+import { logger } from "../lib/logger";
 
 /** Refresh the cached token a little before Firebase's 60-minute expiry. */
 const TOKEN_REFRESH_INTERVAL_MS = 50 * 60 * 1000;
@@ -53,8 +54,12 @@ export function useAuthTokenRef(): AuthTokenState {
           tokenRef.current = next;
           setToken(next);
         }
-      } catch {
+      } catch (err) {
         // Leave the previous token in place; a 401 retry can force a refresh.
+        // Log it (raw, to preserve the stack) — a silently-swallowed token
+        // failure here previously hung the map on "Loading…" with nothing in
+        // the console.
+        logger.error("Failed to fetch Firebase ID token for the map:", err);
       } finally {
         if (active) setReady(true);
       }

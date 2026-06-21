@@ -32,7 +32,7 @@ export default function RoutesPage() {
 
   const { defaultViewport, isLoading: regionsLoading, error } = useRouteRegions();
   const { sportConfig } = useSportConfig();
-  const { getToken, token, ready: tokenReady, refresh: refreshAuthToken } = useAuthTokenRef();
+  const { getToken, ready: tokenReady, refresh: refreshAuthToken } = useAuthTokenRef();
 
   const colorExpression = useMemo(
     () => buildSportColorExpression(sportConfig, isDark),
@@ -80,9 +80,13 @@ export default function RoutesPage() {
     );
   }
 
-  // Gate on a resolved token, not just `tokenReady` — mounting the map before a
-  // token exists would 401 every tile (mapbox doesn't retry errored tiles).
-  if (authLoading || regionsLoading || !tokenReady || !token) {
+  // Gate only on auth having *settled* (tokenReady), not on a token actually
+  // being present. In the normal signed-in case the token is already in hand by
+  // then, so we still avoid a token-less first tile fetch. If the token fetch
+  // failed or raced, we still mount the map — the basemap (Mapbox-hosted) renders
+  // and the 401-recovery in RouteMap re-requests tiles once a token lands. This
+  // avoids an infinite "Loading map..." hang when getIdToken() returns undefined.
+  if (authLoading || regionsLoading || !tokenReady) {
     return (
       <PageLayout background="routes">
         <StatusMessage>
