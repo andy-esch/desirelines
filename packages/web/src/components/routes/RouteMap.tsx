@@ -143,6 +143,10 @@ export default function RouteMap({
     // The constructor already fit `viewport` (if any) — record it so the
     // fit-on-viewport effect doesn't immediately re-fit the same region.
     fittedRegionIdRef.current = viewport?.regionId ?? null;
+    // Record the theme the map was actually constructed with (the constructor
+    // used isDarkRef.current). Keeps appliedDarkRef in sync with the real applied
+    // style so the setStyle effect can't go stale across a map recreation.
+    appliedDarkRef.current = isDarkRef.current;
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
@@ -264,13 +268,14 @@ export default function RouteMap({
   }, [defaultViewport]);
 
   return (
-    // Size explicitly: Mapbox's CSS sets `.mapboxgl-map { position: relative }`,
-    // which overrides a Tailwind `absolute` class — so `inset-0` would no longer
-    // stretch the container and it collapses to height 0 (blank grey map). An
-    // explicit 100%/100% (the old RouteCanvas approach) fills the sized parent.
+    // Size explicitly with w-full/h-full: Mapbox's CSS sets
+    // `.mapboxgl-map { position: relative }`, which overrides a Tailwind
+    // `absolute` class — so `inset-0` would no longer stretch the container and it
+    // collapses to height 0 (blank grey map). Mapbox doesn't set width/height, so
+    // `w-full h-full` fills the sized parent (the old RouteCanvas approach).
     <div
       ref={containerRef}
-      style={{ width: "100%", height: "100%" }}
+      className="w-full h-full"
       role="region"
       aria-label="Map of activity routes"
     />
