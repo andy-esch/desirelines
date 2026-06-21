@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, act } from "@testing-library/react";
 import RouteMap from "./RouteMap";
+import type { RegionSummary } from "../../api/map";
 
 // Fake mapbox-gl Map that captures constructor options + event handlers so the
 // tests can exercise the real transformRequest / error callbacks.
@@ -12,6 +13,7 @@ const h = vi.hoisted(() => {
     sources: Record<string, unknown> = {};
     layers: Record<string, unknown> = {};
     paint: Record<string, unknown> = {};
+    fitBoundsCalls: unknown[] = [];
     removed = false;
     constructor(opts: Record<string, unknown>) {
       this.opts = opts;
@@ -54,7 +56,9 @@ const h = vi.hoisted(() => {
     setStyle(s: unknown) {
       this.opts.style = s;
     }
-    fitBounds() {}
+    fitBounds(bounds: unknown) {
+      this.fitBoundsCalls.push(bounds);
+    }
     remove() {
       this.removed = true;
     }
@@ -181,5 +185,54 @@ describe("RouteMap 401 recovery", () => {
     act(() => map.emit("error", { error: { status: 500, url: A_TILE, message: "boom" } }));
 
     expect(refreshAuthToken).not.toHaveBeenCalled();
+  });
+});
+
+describe("RouteMap viewport fitting", () => {
+  beforeEach(() => {
+    h.instances.length = 0;
+    vi.clearAllMocks();
+  });
+
+  const baseProps = {
+    accessToken: "pk.test",
+    tileTemplateUrl: TILE_URL,
+    apiBaseUrl: API_BASE,
+    getAuthToken: () => "T" as string | undefined,
+    refreshAuthToken: vi.fn().mockResolvedValue(undefined),
+    colorExpression: "rgb(0,255,255)",
+    isDark: true,
+  };
+  const regionA: RegionSummary = {
+    regionId: "A",
+    name: "A",
+    kind: "metro",
+    activityCount: 1,
+    bbox: [0, 0, 1, 1],
+  };
+  const regionB: RegionSummary = { ...regionA, regionId: "B", bbox: [2, 2, 3, 3] };
+
+  it("does not re-fit the constructor-fitted region on mount", () => {
+    render(<RouteMap {...baseProps} defaultViewport={regionA} />);
+    const map = h.instances.at(-1)!;
+    // The constructor fit region A via `bounds`; the effect must not fit again.
+    expect(map.fitBoundsCalls.length).toBe(0);
+  });
+
+  it("fits when the viewport resolves but not again on a same-region refetch", () => {
+    const { rerender } = render(<RouteMap {...baseProps} defaultViewport={null} />);
+    const map = h.instances.at(-1)!;
+    expect(map.fitBoundsCalls.length).toBe(0); // world view via constructor
+
+    rerender(<RouteMap {...baseProps} defaultViewport={regionA} />);
+    expect(map.fitBoundsCalls.length).toBe(1); // first resolve → fit
+
+    // Background query refetch: new object, same regionId → no disruptive re-fit.
+    rerender(<RouteMap {...baseProps} defaultViewport={{ ...regionA }} />);
+    expect(map.fitBoundsCalls.length).toBe(1);
+
+    // A genuine region change does fit again.
+    rerender(<RouteMap {...baseProps} defaultViewport={regionB} />);
+    expect(map.fitBoundsCalls.length).toBe(2);
   });
 });

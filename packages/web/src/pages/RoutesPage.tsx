@@ -7,7 +7,7 @@ import { useRouteRegions } from "../hooks/useRouteRegions";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useAuthTokenRef } from "../hooks/useAuthTokenRef";
 import { getConfig } from "../lib/config";
-import { buildTileTemplateUrl } from "../api/map";
+import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
 
 // Lazy-loaded so `mapbox-gl` (and its CSS) ship in their own async chunk and
@@ -43,7 +43,10 @@ export default function RoutesPage() {
     if (!mapboxToken || !apiGatewayUrl || typeof window === "undefined") return null;
     return {
       tileTemplateUrl: buildTileTemplateUrl(apiGatewayUrl, window.location.origin),
-      apiBaseUrl: `${apiGatewayUrl}/v1`,
+      // Absolute so Mapbox's transformRequest correctly classifies internal tile
+      // requests (and attaches the auth header) when the gateway is a same-origin
+      // path like "/api". See buildApiBaseUrl.
+      apiBaseUrl: buildApiBaseUrl(apiGatewayUrl, window.location.origin),
     };
   }, [mapboxToken, apiGatewayUrl]);
 

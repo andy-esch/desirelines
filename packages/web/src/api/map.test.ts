@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildTileTemplateUrl, fetchRouteRegions } from "./map";
+import { buildTileTemplateUrl, buildApiBaseUrl, fetchRouteRegions } from "./map";
+import { isInternalRequest } from "./url";
 
 // Mock the axios client + error helper (mirrors other api/*.test.ts).
 const mockGet = vi.fn();
@@ -42,6 +43,32 @@ describe("buildTileTemplateUrl", () => {
     const url = buildTileTemplateUrl("/api", origin);
     expect(url).toContain("/{z}/{x}/{y}");
     expect(url).not.toContain("%7B");
+  });
+});
+
+describe("buildApiBaseUrl", () => {
+  const origin = "https://app.example.com";
+
+  it("resolves a same-origin relative gateway path to an absolute base", () => {
+    expect(buildApiBaseUrl("/api", origin)).toBe("https://app.example.com/api/v1");
+  });
+
+  it("leaves an absolute gateway URL absolute and normalizes a trailing slash", () => {
+    expect(buildApiBaseUrl("http://localhost:8084/api", origin)).toBe(
+      "http://localhost:8084/api/v1"
+    );
+    expect(buildApiBaseUrl("/api/", origin)).toBe("https://app.example.com/api/v1");
+  });
+
+  it("keeps Mapbox's internal-request classification correct for a same-origin gateway", () => {
+    // Regression: a RELATIVE base ("/api/v1") risks misclassifying the absolute
+    // tile URL Mapbox actually requests, dropping the auth header (→ 401). The
+    // absolute base keeps internal tiles internal and external (mapbox) external.
+    const base = buildApiBaseUrl("/api", origin);
+    const tileUrl = buildTileTemplateUrl("/api", origin).replace("{z}/{x}/{y}", "1/2/3");
+
+    expect(isInternalRequest(tileUrl, base)).toBe(true);
+    expect(isInternalRequest("https://api.mapbox.com/styles/v1/x", base)).toBe(false);
   });
 });
 

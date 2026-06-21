@@ -57,9 +57,27 @@ export const fetchRouteRegions = async (signal?: AbortSignal): Promise<RouteRegi
  *   same-origin path like `/api`); the axios client's `/v1` suffix is mirrored.
  * @param origin - app origin (`window.location.origin`).
  */
-export function buildTileTemplateUrl(apiGatewayUrl: string, origin: string): string {
+function resolveAbsoluteGateway(apiGatewayUrl: string, origin: string): string {
   // Normalize a trailing slash so a gateway like "/api/" doesn't yield "//v1".
   const normalized = apiGatewayUrl.replace(/\/+$/, "");
-  const base = normalized.startsWith("/") ? `${origin}${normalized}` : normalized;
-  return `${base}/v1/activities/map/tiles/{z}/{x}/{y}`;
+  // Resolve a same-origin path (e.g. "/api", used behind Firebase Hosting
+  // rewrites) to an absolute URL.
+  return normalized.startsWith("/") ? `${origin}${normalized}` : normalized;
+}
+
+export function buildTileTemplateUrl(apiGatewayUrl: string, origin: string): string {
+  return `${resolveAbsoluteGateway(apiGatewayUrl, origin)}/v1/activities/map/tiles/{z}/{x}/{y}`;
+}
+
+/**
+ * Build the absolute `${gateway}/v1` base used to classify internal tile requests
+ * in Mapbox's `transformRequest`.
+ *
+ * Must be ABSOLUTE: Mapbox resolves tile URLs to absolute before requesting them,
+ * and `isInternalRequest` compares against this base — a relative base (e.g.
+ * "/api/v1") risks misclassifying internal tile requests as external and dropping
+ * the Firebase auth header (→ 401). Mirrors `buildTileTemplateUrl`'s resolution.
+ */
+export function buildApiBaseUrl(apiGatewayUrl: string, origin: string): string {
+  return `${resolveAbsoluteGateway(apiGatewayUrl, origin)}/v1`;
 }

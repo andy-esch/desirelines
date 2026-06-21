@@ -93,6 +93,9 @@ export default function RouteMap({
   const viewportRef = useRef(defaultViewport);
   // Initial theme for map creation; live changes go through the setStyle effect.
   const isDarkRef = useRef(isDark);
+  // regionId of the viewport we've already fitted, so background query refetches
+  // (new object, same region) don't snap the map back over the user's pan/zoom.
+  const fittedRegionIdRef = useRef<string | null>(null);
 
   // Sync refs after each render. Declared before the init effect so that on
   // mount the refs are fresh by the time the map is created.
@@ -134,6 +137,9 @@ export default function RouteMap({
       },
     });
     mapRef.current = map;
+    // The constructor already fit `viewport` (if any) — record it so the
+    // fit-on-viewport effect doesn't immediately re-fit the same region.
+    fittedRegionIdRef.current = viewport?.regionId ?? null;
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
@@ -191,6 +197,9 @@ export default function RouteMap({
           .then(() => {
             if (mapRef.current === map) reloadRoutes();
           })
+          .catch((refreshErr) => {
+            logger.error("[RouteMap] auth token refresh after 401 failed:", refreshErr);
+          })
           .finally(() => {
             refreshing = false;
           });
@@ -224,10 +233,15 @@ export default function RouteMap({
     map.setPaintProperty(LAYER_ID, "line-color", colorExpression);
   }, [colorExpression]);
 
-  // Refit when the default viewport resolves after the map was created.
+  // Fit the default viewport when it first resolves (or genuinely changes
+  // region). Guarded by the fitted regionId so a background query refetch — same
+  // region, new object reference — doesn't snap the map back over the user's
+  // pan/zoom.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !defaultViewport) return;
+    if (fittedRegionIdRef.current === defaultViewport.regionId) return;
+    fittedRegionIdRef.current = defaultViewport.regionId;
     map.fitBounds(bboxToBounds(defaultViewport.bbox), {
       padding: FIT_PADDING,
       maxZoom: MAX_FIT_ZOOM,
