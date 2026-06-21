@@ -63,6 +63,32 @@ export default defineConfig(({ mode }) => {
     console.log("⚠ Production build validation skipped (SKIP_ENV_VALIDATION=true)");
   }
 
+  // Local-dev preflight: the dockerized local API gateway serves under /api
+  // (Go's http.StripPrefix("/api", ...)), so a localhost gateway URL missing the
+  // /api suffix 404s every request — including sign-in (/auth/strava). This is a
+  // common drift when an override sneaks into .env.development.local. Fail fast
+  // with a clear message instead of a downstream 404. Runs on every `npm run dev`
+  // regardless of how it's invoked.
+  if (mode === "development" && !skipValidation) {
+    const gw = env.VITE_API_GATEWAY_URL ?? "";
+    const isLocalhostGateway = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(gw);
+    if (isLocalhostGateway && !/\/api\/?$/.test(gw)) {
+      throw new Error(
+        `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `Local Dev Configuration Error\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `VITE_API_GATEWAY_URL="${gw}" targets the local gateway but is missing the /api suffix.\n` +
+          `The local API gateway serves under /api (http.StripPrefix), so requests — including\n` +
+          `sign-in at /auth/strava — will 404.\n\n` +
+          `Fix: use "http://localhost:8084/api" (the committed .env.development default). If this\n` +
+          `came from .env.development.local, remove/correct that override (it shouldn't carry a\n` +
+          `non-secret like VITE_API_GATEWAY_URL — keep that in the committed .env.development).\n` +
+          `To bypass: SKIP_ENV_VALIDATION=true\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
+      );
+    }
+  }
+
   // Allow overriding via env var (useful for CI)
   const version = env.VITE_GIT_COMMIT || commitHash;
 
