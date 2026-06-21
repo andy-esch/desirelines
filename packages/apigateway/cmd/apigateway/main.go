@@ -544,9 +544,9 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	// dev read the mounted INFISICAL_AUTH_STATE_SECRET via the non-local code path.
 	stateSecret := os.Getenv("AUTH_STATE_SECRET")
 	if stateSecret == "" {
-		ephemeral, err := randomSecret(32)
-		if err != nil {
-			return fmt.Errorf("generate ephemeral AUTH_STATE_SECRET: %w", err)
+		ephemeral, secretErr := randomSecret(32)
+		if secretErr != nil {
+			return fmt.Errorf("generate ephemeral AUTH_STATE_SECRET: %w", secretErr)
 		}
 		stateSecret = ephemeral
 		log.Warn("AUTH_STATE_SECRET not set; using an ephemeral per-process secret for local dev " +
