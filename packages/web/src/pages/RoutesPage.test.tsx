@@ -152,7 +152,23 @@ describe("RoutesPage", () => {
     expect(await screen.findByText(/No routes yet/)).toBeInTheDocument();
   });
 
-  it("stays in the loading state until a token resolves", async () => {
+  it("loads until auth settles (tokenReady is false)", async () => {
+    mockUseAuthTokenRef.mockReturnValue({
+      getToken: () => undefined,
+      token: undefined,
+      ready: false,
+      refresh: vi.fn(),
+    });
+
+    await renderWithRouter(<RoutesPage />);
+
+    expect(screen.getByText("Loading map...")).toBeInTheDocument();
+    expect(screen.queryByTestId("route-map")).not.toBeInTheDocument();
+  });
+
+  it("mounts the map once auth settles even if the token is briefly unavailable", async () => {
+    // Graceful degradation: don't hang on a missing token — the basemap renders
+    // and RouteMap's 401-recovery re-requests tiles once a token lands.
     mockUseAuthTokenRef.mockReturnValue({
       getToken: () => undefined,
       token: undefined,
@@ -162,8 +178,7 @@ describe("RoutesPage", () => {
 
     await renderWithRouter(<RoutesPage />);
 
-    expect(screen.getByText("Loading map...")).toBeInTheDocument();
-    expect(screen.queryByTestId("route-map")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("route-map")).toBeInTheDocument();
   });
 
   it("shows a loading state while regions load", async () => {
