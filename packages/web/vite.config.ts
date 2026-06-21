@@ -29,9 +29,20 @@ export default defineConfig(({ mode }) => {
       "VITE_FIREBASE_AUTH_DOMAIN",
       "VITE_FIREBASE_PROJECT_ID",
       "VITE_API_GATEWAY_URL",
+      // Required so a missing Infisical key fails the prod build loudly instead
+      // of baking in a committed placeholder / shipping a token-less map.
+      "VITE_MAPBOX_TOKEN",
     ];
 
     const missing = requiredVars.filter((key) => !env[key] || env[key] === "");
+
+    // A secret sk.* token can't be URL-restricted — never let one into a bundle.
+    const mapboxToken = env.VITE_MAPBOX_TOKEN ?? "";
+    if (mapboxToken && !mapboxToken.startsWith("pk.")) {
+      throw new Error(
+        "VITE_MAPBOX_TOKEN must be a public pk.* token (never a secret sk.* token)."
+      );
+    }
 
     if (missing.length > 0) {
       throw new Error(
@@ -50,6 +61,32 @@ export default defineConfig(({ mode }) => {
     console.log("✓ Production build configuration validated");
   } else if (mode === "production" && skipValidation) {
     console.log("⚠ Production build validation skipped (SKIP_ENV_VALIDATION=true)");
+  }
+
+  // Local-dev preflight: the dockerized local API gateway serves under /api
+  // (Go's http.StripPrefix("/api", ...)), so a localhost gateway URL missing the
+  // /api suffix 404s every request — including sign-in (/auth/strava). This is a
+  // common drift when an override sneaks into .env.development.local. Fail fast
+  // with a clear message instead of a downstream 404. Runs on every `npm run dev`
+  // regardless of how it's invoked.
+  if (mode === "development" && !skipValidation) {
+    const gw = env.VITE_API_GATEWAY_URL ?? "";
+    const isLocalhostGateway = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(gw);
+    if (isLocalhostGateway && !/\/api\/?$/.test(gw)) {
+      throw new Error(
+        `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `Local Dev Configuration Error\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `VITE_API_GATEWAY_URL="${gw}" targets the local gateway but is missing the /api suffix.\n` +
+          `The local API gateway serves under /api (http.StripPrefix), so requests — including\n` +
+          `sign-in at /auth/strava — will 404.\n\n` +
+          `Fix: use "http://localhost:8084/api" (the committed .env.development default). If this\n` +
+          `came from .env.development.local, remove/correct that override (it shouldn't carry a\n` +
+          `non-secret like VITE_API_GATEWAY_URL — keep that in the committed .env.development).\n` +
+          `To bypass: SKIP_ENV_VALIDATION=true\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
+      );
+    }
   }
 
   // Allow overriding via env var (useful for CI)

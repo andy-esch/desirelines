@@ -123,6 +123,14 @@ if [ -n "$ENV_FILE" ]; then
     echo "   Ensure your Infisical secrets in /frontend are prefixed with VITE_"
     exit 1
   fi
+  # The /routes map needs a public pk.* Mapbox token. Require it explicitly so a
+  # missing Infisical key fails here rather than silently shipping a token-less
+  # map (or a committed placeholder).
+  if ! grep -qE "^VITE_MAPBOX_TOKEN=['\"]?pk\." "$ENV_FILE"; then
+    echo "❌ Error: VITE_MAPBOX_TOKEN (public pk.* token) missing from $ENV_FILE"
+    echo "   Add it to Infisical /frontend for env '$ENVIRONMENT' (see packages/web/README.md)"
+    exit 1
+  fi
   echo "✅ Validation passed"
 fi
 echo ""
@@ -185,7 +193,7 @@ echo "🌐 Web app URL: https://${FIREBASE_PROJECT}.web.app"
 
 # Show custom domain for production
 if [ "$ENVIRONMENT" = "prod" ]; then
-  echo "🌐 Custom domain: https://app.desirelines.andyes.ch"
+  echo "🌐 Custom domain: https://desirelines.andyes.ch"
 fi
 
 echo ""

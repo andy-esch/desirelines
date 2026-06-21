@@ -2,130 +2,209 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import RoutesPage from "./RoutesPage";
 import { renderWithRouter } from "../test/renderWithRouter";
+import type { RegionSummary } from "../api/map";
 
 // Mock hooks
 vi.mock("../hooks/useAuth", () => ({
   useAuth: vi.fn(),
 }));
 
-vi.mock("../hooks/useRouteData", () => ({
-  useRouteData: vi.fn(),
+vi.mock("../hooks/useRouteRegions", () => ({
+  useRouteRegions: vi.fn(),
 }));
 
-vi.mock("../hooks/useUserConfig", () => ({
-  useUserConfig: vi.fn(() => ({
-    data: null,
+vi.mock("../hooks/useSportConfig", () => ({
+  useSportConfig: vi.fn(() => ({
+    sportConfig: null,
     isLoading: false,
     error: null,
+    retry: vi.fn(),
   })),
 }));
 
-// Mock TanStack Router hooks that RoutesPage uses
-vi.mock("@tanstack/react-router", async () => {
-  const actual = await vi.importActual("@tanstack/react-router");
-  return {
-    ...actual,
-    useSearch: vi.fn(() => ({})),
-    useNavigate: vi.fn(() => vi.fn()),
-  };
-});
+vi.mock("../hooks/useAuthTokenRef", () => ({
+  useAuthTokenRef: vi.fn(() => ({
+    getToken: () => "firebase-token",
+    token: "firebase-token",
+    ready: true,
+    refresh: vi.fn(),
+  })),
+}));
 
-// Mock RouteCanvas to avoid canvas rendering in tests
-vi.mock("../components/routes/RouteCanvas", async () => {
-  const actual = await vi.importActual("../components/routes/RouteCanvas");
-  return {
-    ...actual,
-    __esModule: true,
-    default: vi.fn().mockReturnValue(null),
-  };
-});
+vi.mock("../contexts/ThemeContext", () => ({
+  useTheme: vi.fn(() => ({ resolvedTheme: "dark", theme: "dark", setTheme: vi.fn() })),
+}));
 
-// Mock RouteLegend
-vi.mock("../components/routes/RouteLegend", () => ({
+// Mock config so the Mapbox token + gateway are present by default.
+vi.mock("../lib/config", () => ({
+  getConfig: vi.fn(),
+}));
+
+// Capture the props the page wires into the (lazy) map so we can assert wiring.
+const mapPropsSpy = vi.fn();
+vi.mock("../components/routes/RouteMap", () => ({
   __esModule: true,
-  default: vi.fn().mockReturnValue(null),
+  default: (props: Record<string, unknown>) => {
+    mapPropsSpy(props);
+    return <div data-testid="route-map" />;
+  },
 }));
 
 import { useAuth } from "../hooks/useAuth";
-import { useRouteData } from "../hooks/useRouteData";
+import { useRouteRegions } from "../hooks/useRouteRegions";
+import { useAuthTokenRef } from "../hooks/useAuthTokenRef";
+import { getConfig } from "../lib/config";
 
 const mockUseAuth = vi.mocked(useAuth);
-const mockUseRouteData = vi.mocked(useRouteData);
+const mockUseRouteRegions = vi.mocked(useRouteRegions);
+const mockUseAuthTokenRef = vi.mocked(useAuthTokenRef);
+const mockGetConfig = vi.mocked(getConfig);
+
+const authedUser = {
+  user: { uid: "u1", email: "a@b.com", displayName: "Test", photoURL: null },
+  loading: false,
+  error: null,
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+};
+
+const viewport: RegionSummary = {
+  regionId: "metro-nyc",
+  name: "New York",
+  kind: "metro",
+  activityCount: 42,
+  bbox: [-74.1, 40.6, -73.8, 40.9],
+};
+
+function mockConfig(overrides: Partial<ReturnType<typeof getConfig>> = {}) {
+  mockGetConfig.mockReturnValue({
+    mapboxToken: "pk.test-token",
+    apiGatewayUrl: "http://localhost:8084/api",
+    isProduction: false,
+    isDevelopment: true,
+    ...overrides,
+  } as ReturnType<typeof getConfig>);
+}
 
 describe("RoutesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseRouteData.mockReturnValue({
-      routes: [],
+    mockConfig();
+    mockUseAuth.mockReturnValue(authedUser);
+    mockUseAuthTokenRef.mockReturnValue({
+      getToken: () => "firebase-token",
+      token: "firebase-token",
+      ready: true,
+      refresh: vi.fn(),
+    });
+    mockUseRouteRegions.mockReturnValue({
+      regions: [viewport],
+      defaultViewport: viewport,
       isLoading: false,
       error: null,
     });
   });
 
   it("shows sign-in prompt when unauthenticated", async () => {
-    mockUseAuth.mockReturnValue({
-      user: null,
-      loading: false,
-      error: null,
-      signIn: vi.fn(),
-      signOut: vi.fn(),
-    });
+    mockUseAuth.mockReturnValue({ ...authedUser, user: null });
 
     await renderWithRouter(<RoutesPage />);
 
     expect(screen.getByText("Sign in")).toBeInTheDocument();
-    expect(screen.getByText(/to view your route art/)).toBeInTheDocument();
+    expect(screen.getByText(/to view your route map/)).toBeInTheDocument();
   });
 
-  it("shows loading state while fetching routes", async () => {
-    mockUseAuth.mockReturnValue({
-      user: { uid: "u1", email: "a@b.com", displayName: "Test", photoURL: null },
-      loading: false,
+  it("renders the map when authenticated with a viewport", async () => {
+    await renderWithRouter(<RoutesPage />);
+
+    expect(await screen.findByTestId("route-map")).toBeInTheDocument();
+    expect(screen.queryByText(/No routes yet/)).not.toBeInTheDocument();
+  });
+
+  it("wires the resolved token, tile URL, and viewport into the map", async () => {
+    await renderWithRouter(<RoutesPage />);
+    await screen.findByTestId("route-map");
+
+    expect(mapPropsSpy).toHaveBeenCalled();
+    const props = mapPropsSpy.mock.calls.at(-1)![0];
+    expect(props.accessToken).toBe("pk.test-token");
+    expect(props.tileTemplateUrl).toBe(
+      "http://localhost:8084/api/v1/activities/map/tiles/{z}/{x}/{y}"
+    );
+    expect(props.apiBaseUrl).toBe("http://localhost:8084/api/v1");
+    expect(props.defaultViewport).toEqual(viewport);
+    expect(props.isDark).toBe(true);
+    expect(typeof props.getAuthToken).toBe("function");
+    expect(props.getAuthToken()).toBe("firebase-token");
+    expect(typeof props.refreshAuthToken).toBe("function");
+  });
+
+  it("shows an empty hint when there are no geo-bearing activities", async () => {
+    mockUseRouteRegions.mockReturnValue({
+      regions: [],
+      defaultViewport: null,
+      isLoading: false,
       error: null,
-      signIn: vi.fn(),
-      signOut: vi.fn(),
     });
-    mockUseRouteData.mockReturnValue({
-      routes: [],
+
+    await renderWithRouter(<RoutesPage />);
+
+    expect(await screen.findByText(/No routes yet/)).toBeInTheDocument();
+  });
+
+  it("stays in the loading state until a token resolves", async () => {
+    mockUseAuthTokenRef.mockReturnValue({
+      getToken: () => undefined,
+      token: undefined,
+      ready: true,
+      refresh: vi.fn(),
+    });
+
+    await renderWithRouter(<RoutesPage />);
+
+    expect(screen.getByText("Loading map...")).toBeInTheDocument();
+    expect(screen.queryByTestId("route-map")).not.toBeInTheDocument();
+  });
+
+  it("shows a loading state while regions load", async () => {
+    mockUseRouteRegions.mockReturnValue({
+      regions: [],
+      defaultViewport: null,
       isLoading: true,
       error: null,
     });
 
     await renderWithRouter(<RoutesPage />);
 
-    expect(screen.getByText("Loading routes...")).toBeInTheDocument();
+    expect(screen.getByText("Loading map...")).toBeInTheDocument();
   });
 
-  it("shows error message when fetch fails", async () => {
-    mockUseAuth.mockReturnValue({
-      user: { uid: "u1", email: "a@b.com", displayName: "Test", photoURL: null },
-      loading: false,
-      error: null,
-      signIn: vi.fn(),
-      signOut: vi.fn(),
-    });
-    mockUseRouteData.mockReturnValue({
-      routes: [],
+  it("shows an error state when regions fail to load", async () => {
+    mockUseRouteRegions.mockReturnValue({
+      regions: [],
+      defaultViewport: null,
       isLoading: false,
-      error: new Error("Network failure"),
+      error: new Error("boom"),
     });
 
     await renderWithRouter(<RoutesPage />);
 
-    expect(screen.getByText(/Failed to load routes/)).toBeInTheDocument();
+    expect(screen.getByText(/Failed to load map/)).toBeInTheDocument();
   });
 
-  it("shows empty state when no routes exist", async () => {
-    mockUseAuth.mockReturnValue({
-      user: { uid: "u1", email: "a@b.com", displayName: "Test", photoURL: null },
-      loading: false,
-      error: null,
-      signIn: vi.fn(),
-      signOut: vi.fn(),
-    });
+  it("degrades gracefully when the Mapbox token is missing", async () => {
+    mockConfig({ mapboxToken: undefined });
 
     await renderWithRouter(<RoutesPage />);
 
-    expect(screen.getByText(/No routes yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Map is unavailable/)).toBeInTheDocument();
+  });
+
+  it("degrades gracefully when the API gateway URL is missing", async () => {
+    mockConfig({ apiGatewayUrl: undefined });
+
+    await renderWithRouter(<RoutesPage />);
+
+    expect(screen.getByText(/Map is unavailable/)).toBeInTheDocument();
   });
 });

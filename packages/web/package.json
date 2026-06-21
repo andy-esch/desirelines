@@ -12,6 +12,7 @@
     "@tanstack/react-router": "1.170.16",
     "axios": "^1.6.7",
     "firebase": "^12.6.0",
+    "mapbox-gl": "^3.25.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-error-boundary": "^6.1.1",

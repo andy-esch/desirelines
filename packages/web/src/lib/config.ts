@@ -105,6 +105,21 @@ const AppConfigSchema = z.object({
     .refine(isValidApiGatewayUrl, { message: API_GATEWAY_URL_VALIDATION_MESSAGE })
     .optional(),
 
+  // Mapbox public access token (pk.*) for the /routes slippy map. This is a
+  // PUBLIC, URL-restricted token that ships in the client bundle — never a
+  // server secret. Optional: when absent (e.g. tests, or before the token is
+  // provisioned) the map degrades to a graceful "map unavailable" state.
+  //
+  // The `pk.` refinement is a safety net: a secret `sk.*` token can't be
+  // URL-restricted, so shipping one in the bundle would be an account-takeover
+  // risk. Reject it at boot rather than silently bundle it.
+  mapboxToken: z
+    .string()
+    .refine((v) => v.startsWith("pk."), {
+      message: "VITE_MAPBOX_TOKEN must be a public pk.* token (never a secret sk.* token).",
+    })
+    .optional(),
+
   // Firebase configuration
   firebase: FirebaseConfigSchema,
 
@@ -141,6 +156,9 @@ export function loadConfig(): AppConfig {
     isDevelopment: import.meta.env.DEV,
     isProduction: import.meta.env.PROD,
     apiGatewayUrl: import.meta.env.VITE_API_GATEWAY_URL,
+    // Coerce an empty string (unset Infisical key) to undefined so it reads as
+    // "absent" (graceful degradation) rather than tripping the pk.* refinement.
+    mapboxToken: import.meta.env.VITE_MAPBOX_TOKEN || undefined,
     firebase: {
       apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
       authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,

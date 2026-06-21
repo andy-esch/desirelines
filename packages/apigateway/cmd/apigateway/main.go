@@ -9,6 +9,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -512,6 +514,17 @@ func resolveMockAthleteID() (int64, error) {
 	return id, nil
 }
 
+// randomSecret returns a base64-encoded, cryptographically-random secret of n
+// bytes. Used to mint an ephemeral OAuth state-signing secret for local dev when
+// AUTH_STATE_SECRET is unset.
+func randomSecret(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("read random bytes: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
+}
+
 func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist otelmetric.Float64Histogram, tracer trace.Tracer) error {
 	log.Info("Local dev auth: Firebase emulator + mock Strava")
 
@@ -525,9 +538,19 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	// Real auth middleware — verifies JWTs against the emulator
 	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist, tracer)
 
+	// Local dev signs the OAuth state JWT within this single process for one mock
+	// round-trip, so a provisioned secret isn't required here — fall back to an
+	// ephemeral random one (with a warning) rather than failing the boot. Prod and
+	// dev read the mounted INFISICAL_AUTH_STATE_SECRET via the non-local code path.
 	stateSecret := os.Getenv("AUTH_STATE_SECRET")
 	if stateSecret == "" {
-		return fmt.Errorf("AUTH_STATE_SECRET is required — generate one with: openssl rand -base64 32")
+		ephemeral, secretErr := randomSecret(32)
+		if secretErr != nil {
+			return fmt.Errorf("generate ephemeral AUTH_STATE_SECRET: %w", secretErr)
+		}
+		stateSecret = ephemeral
+		log.Warn("AUTH_STATE_SECRET not set; using an ephemeral per-process secret for local dev " +
+			"(in-flight OAuth state won't survive a gateway restart). Set AUTH_STATE_SECRET to silence.")
 	}
 
 	// Mock athlete ID — configurable via MOCK_ATHLETE_ID, defaults to
