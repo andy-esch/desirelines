@@ -59,6 +59,7 @@ const h = vi.hoisted(() => {
     fitBounds(bounds: unknown) {
       this.fitBoundsCalls.push(bounds);
     }
+    resize() {}
     remove() {
       this.removed = true;
     }
