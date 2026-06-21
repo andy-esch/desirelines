@@ -93,6 +93,9 @@ export default function RouteMap({
   const viewportRef = useRef(defaultViewport);
   // Initial theme for map creation; live changes go through the setStyle effect.
   const isDarkRef = useRef(isDark);
+  // Theme currently applied to the map, so the setStyle effect skips the initial
+  // render and only reacts to genuine theme changes.
+  const appliedDarkRef = useRef(isDark);
   // regionId of the viewport we've already fitted, so background query refetches
   // (new object, same region) don't snap the map back over the user's pan/zoom.
   const fittedRegionIdRef = useRef<string | null>(null);
@@ -140,8 +143,18 @@ export default function RouteMap({
     // The constructor already fit `viewport` (if any) — record it so the
     // fit-on-viewport effect doesn't immediately re-fit the same region.
     fittedRegionIdRef.current = viewport?.regionId ?? null;
+    // Record the theme the map was actually constructed with (the constructor
+    // used isDarkRef.current). Keeps appliedDarkRef in sync with the real applied
+    // style so the setStyle effect can't go stale across a map recreation.
+    appliedDarkRef.current = isDarkRef.current;
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+    // Belt-and-suspenders: if the container wasn't fully laid out when the map
+    // was constructed (lazy chunk / layout shift), the canvas can size to the
+    // wrong height. Re-measure once loaded. Ongoing container resizes are handled
+    // by Mapbox's default trackResize (ResizeObserver).
+    map.on("load", () => map.resize());
 
     // Adds the MVT source + line layer. Idempotent and re-run after every style
     // load (initial load AND theme `setStyle`, which wipes user layers).
@@ -205,7 +218,10 @@ export default function RouteMap({
           });
         return;
       }
-      logger.debug("[RouteMap] mapbox error:", e.error?.message ?? "unknown");
+      // Surface at warn (not debug) so basemap/style/token failures are visible
+      // in deployed builds — a swallowed style/token error renders a blank grey
+      // map with nothing in the console. Pass the raw error to keep its detail.
+      logger.warn("[RouteMap] mapbox error:", e.error ?? "unknown");
     });
 
     return () => {
@@ -214,13 +230,15 @@ export default function RouteMap({
     };
   }, [accessToken, tileTemplateUrl, apiBaseUrl]);
 
-  // Swap the basemap on theme change without rebuilding the map (preserves
-  // pan/zoom). The `style.load` handler re-adds the routes source + layer.
+  // Swap the basemap on an actual theme change without rebuilding the map
+  // (preserves pan/zoom). The `style.load` handler re-adds the routes source +
+  // layer. Skips the initial render — the constructor already set the style, and
+  // a redundant setStyle there reloads the style and can interrupt first paint.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    const target = isDark ? DARK_STYLE : LIGHT_STYLE;
-    map.setStyle(target);
+    if (!map || appliedDarkRef.current === isDark) return;
+    appliedDarkRef.current = isDark;
+    map.setStyle(isDark ? DARK_STYLE : LIGHT_STYLE);
   }, [isDark]);
 
   // Update line color in place when the sport registry (color expression) loads.
@@ -250,9 +268,14 @@ export default function RouteMap({
   }, [defaultViewport]);
 
   return (
+    // Size explicitly with w-full/h-full: Mapbox's CSS sets
+    // `.mapboxgl-map { position: relative }`, which overrides a Tailwind
+    // `absolute` class — so `inset-0` would no longer stretch the container and it
+    // collapses to height 0 (blank grey map). Mapbox doesn't set width/height, so
+    // `w-full h-full` fills the sized parent (the old RouteCanvas approach).
     <div
       ref={containerRef}
-      className="absolute inset-0"
+      className="w-full h-full"
       role="region"
       aria-label="Map of activity routes"
     />
