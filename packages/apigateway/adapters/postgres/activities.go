@@ -994,8 +994,10 @@ func (r *ActivityRepository) GetRouteRegionSummary(ctx context.Context, userID s
 // its route geometry. Only activities that are tagged to at least one region are
 // included (the JOIN to activity_regions enforces this), which excludes
 // virtual/indoor activities — the same inclusion rule as GetRouteTile /
-// GetRouteRegionSummary. The bbox is computed from activity_routes via ST_Extent
-// and is NULL when the activity has no stored route geometry. Sport is the raw
+// GetRouteRegionSummary. The bbox is read from the activity's route geometry via
+// the O(1) ST_X/Y Min/Max accessors (one route row per activity — activity_id is
+// the activity_routes PK) and is NULL when there is no stored route geometry.
+// Sport is the raw
 // Strava sport_type; the handler maps it to the app sport category.
 func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (activities []*activitiesv1.MapActivity, retErr error) {
 	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.map_dataset",
@@ -1029,18 +1031,17 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 			bb.min_lng, bb.min_lat, bb.max_lng, bb.max_lat
 		FROM desirelines.activities a
 		JOIN desirelines.activity_regions ar ON ar.activity_id = a.id
+		-- One route row per activity (activity_routes.activity_id is PK), so read
+		-- the route's bbox directly via the O(1) accessors (they read the
+		-- geometry's cached header) — no ST_Extent aggregate needed.
 		LEFT JOIN LATERAL (
 			SELECT
-				ST_XMin(ext) AS min_lng,
-				ST_YMin(ext) AS min_lat,
-				ST_XMax(ext) AS max_lng,
-				ST_YMax(ext) AS max_lat
-			FROM (
-				SELECT ST_Extent(rt.route) AS ext
-				FROM desirelines.activity_routes rt
-				WHERE rt.activity_id = a.id
-			) e
-			WHERE e.ext IS NOT NULL
+				ST_XMin(rt.route) AS min_lng,
+				ST_YMin(rt.route) AS min_lat,
+				ST_XMax(rt.route) AS max_lng,
+				ST_YMax(rt.route) AS max_lat
+			FROM desirelines.activity_routes rt
+			WHERE rt.activity_id = a.id
 		) bb ON true
 		WHERE a.user_id = $1
 		GROUP BY a.id, a.sport, a.distance, a.moving_time,
