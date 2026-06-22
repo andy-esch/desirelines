@@ -96,7 +96,7 @@ describe("fetchRouteRegions", () => {
 
   it("passes through regions and the default viewport", async () => {
     const viewport = {
-      regionId: "metro-nyc",
+      regionId: 101,
       name: "New York",
       kind: "metro",
       activityCount: 42,

@@ -7,7 +7,8 @@ import { throwApiError } from "./errors";
  * `RegionSummary` shape returned by `GET /v1/activities/map/regions`.
  */
 export interface RegionSummary {
-  regionId: string;
+  /** Numeric region id from `desirelines.regions` (apigateway serializes int64 → JSON number). */
+  regionId: number;
   name: string;
   /** Server-defined region granularity (e.g. "metro", "country"). */
   kind: string;

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import mapboxgl from "mapbox-gl";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Map, Source, Layer, NavigationControl } from "react-map-gl/mapbox";
+import type { MapRef, ErrorEvent } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { ExpressionSpecification, LngLatBoundsLike } from "mapbox-gl";
 import type { RegionSummary } from "../../api/map";
@@ -62,14 +63,18 @@ function bboxToBounds(bbox: [number, number, number, number]): LngLatBoundsLike 
 }
 
 /**
- * Mapbox GL slippy map rendering activity routes from the MVT tile endpoint.
+ * Mapbox GL slippy map (via react-map-gl) rendering activity routes from the MVT
+ * tile endpoint.
  *
- * Lazy-loaded (see `RoutesPage`) so `mapbox-gl` and its CSS stay out of the main
- * bundle and off every non-map page. Mutable inputs (auth token, color
- * expression) are read through refs so they update the live map without tearing
- * it down; the map is re-created only when the token or tile URL change. Theme
- * changes swap the basemap via `setStyle` (preserving pan/zoom) rather than
- * rebuilding the map.
+ * Lazy-loaded (see `RoutesPage`) so `mapbox-gl` / `react-map-gl` and the CSS stay
+ * out of the main bundle and off every non-map page. The map, MVT source, line
+ * layer, and theme are declarative props; only the two things that are inherently
+ * imperative remain hand-managed:
+ *   - `transformRequest` reads the auth token synchronously, so the token is held
+ *     in a ref (Mapbox can't `await` inside the request transform);
+ *   - the default-viewport fit re-runs only on a *genuine* region change (guarded
+ *     by the fitted regionId) so a background query refetch doesn't snap the map
+ *     back over the user's pan/zoom.
  */
 export default function RouteMap({
   accessToken,
@@ -81,180 +86,76 @@ export default function RouteMap({
   defaultViewport,
   isDark,
 }: RouteMapProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapRef = useRef<MapRef>(null);
 
-  // Mutable inputs read synchronously from inside Mapbox callbacks / the init
-  // effect. Kept in refs (synced post-render below) so the live map can read the
-  // latest values without being torn down and re-created.
+  // Auth inputs read synchronously from inside Mapbox callbacks. Kept in refs
+  // (synced each render) so `transformRequest` / `onError` stay stable — react-map-gl
+  // applies `transformRequest` once at construction, so it must close over refs,
+  // not the latest prop identity.
   const getAuthTokenRef = useRef(getAuthToken);
   const refreshAuthTokenRef = useRef(refreshAuthToken);
-  const colorRef = useRef(colorExpression);
-  const viewportRef = useRef(defaultViewport);
-  // Initial theme for map creation; live changes go through the setStyle effect.
-  const isDarkRef = useRef(isDark);
-  // Theme currently applied to the map, so the setStyle effect skips the initial
-  // render and only reacts to genuine theme changes.
-  const appliedDarkRef = useRef(isDark);
-  // regionId of the viewport we've already fitted, so background query refetches
-  // (new object, same region) don't snap the map back over the user's pan/zoom.
-  const fittedRegionIdRef = useRef<string | null>(null);
-
-  // Sync refs after each render. Declared before the init effect so that on
-  // mount the refs are fresh by the time the map is created.
   useEffect(() => {
     getAuthTokenRef.current = getAuthToken;
     refreshAuthTokenRef.current = refreshAuthToken;
-    colorRef.current = colorExpression;
-    viewportRef.current = defaultViewport;
-    isDarkRef.current = isDark;
   });
 
-  // (Re)create the map only when the token or tile URL change. Theme + viewport
-  // + color are handled by the in-place effects below.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  // regionId of the viewport we've already fitted, so background query refetches
+  // (new object, same region) don't snap the map back over the user's pan/zoom.
+  // Seeded with the initial viewport's id since `initialViewState` fits it on mount.
+  const fittedRegionIdRef = useRef<number | null>(defaultViewport?.regionId ?? null);
 
-    mapboxgl.accessToken = accessToken;
+  // Bumped to force a clean tile re-fetch after a token refresh: remounting the
+  // <Source> (via key) does removeSource/addSource under the hood, which Mapbox
+  // needs because it won't retry tiles stuck in the "errored" state on its own.
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const refreshingRef = useRef(false);
 
-    const viewport = viewportRef.current;
-    const map = new mapboxgl.Map({
-      container,
-      style: isDarkRef.current ? DARK_STYLE : LIGHT_STYLE,
-      ...(viewport
-        ? {
-            bounds: bboxToBounds(viewport.bbox),
-            fitBoundsOptions: { padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM },
-          }
-        : { center: [0, 20], zoom: 1 }),
-      attributionControl: true,
-      // Attach our Firebase ID token to internal tile requests only. Mapbox's
-      // own style/sprite/glyph/telemetry requests (api.mapbox.com,
-      // events.mapbox.com) are external and must NOT receive the token —
-      // `isInternalRequest` mirrors the axios client.
-      transformRequest: (url) => {
-        if (!isInternalRequest(url, apiBaseUrl)) return { url };
-        const token = getAuthTokenRef.current();
-        return token ? { url, headers: { Authorization: `Bearer ${token}` } } : { url };
-      },
-    });
-    mapRef.current = map;
-    // The constructor already fit `viewport` (if any) — record it so the
-    // fit-on-viewport effect doesn't immediately re-fit the same region.
-    fittedRegionIdRef.current = viewport?.regionId ?? null;
-    // Record the theme the map was actually constructed with (the constructor
-    // used isDarkRef.current). Keeps appliedDarkRef in sync with the real applied
-    // style so the setStyle effect can't go stale across a map recreation.
-    appliedDarkRef.current = isDarkRef.current;
+  // Attach our Firebase ID token to internal tile requests only. Mapbox's own
+  // style/sprite/glyph/telemetry requests (api.mapbox.com, events.mapbox.com) are
+  // external and must NOT receive the token — `isInternalRequest` mirrors the
+  // axios client. Stable identity (token via ref) so it isn't churned per render.
+  const transformRequest = useCallback(
+    (url: string) => {
+      if (!isInternalRequest(url, apiBaseUrl)) return { url };
+      const token = getAuthTokenRef.current();
+      return token ? { url, headers: { Authorization: `Bearer ${token}` } } : { url };
+    },
+    [apiBaseUrl]
+  );
 
-    map.addControl(new mapboxgl.NavigationControl(), "top-right");
-
-    // Belt-and-suspenders: if the container wasn't fully laid out when the map
-    // was constructed (lazy chunk / layout shift), the canvas can size to the
-    // wrong height. Re-measure once loaded. Ongoing container resizes are handled
-    // by Mapbox's default trackResize (ResizeObserver).
-    map.on("load", () => map.resize());
-
-    // Adds the MVT source + line layer. Idempotent and re-run after every style
-    // load (initial load AND theme `setStyle`, which wipes user layers).
-    const addRoutesLayer = () => {
-      if (!map.getSource(SOURCE_ID)) {
-        map.addSource(SOURCE_ID, {
-          type: "vector",
-          tiles: [tileTemplateUrl],
-          minzoom: 0,
-          maxzoom: 14,
-        });
-      }
-      if (!map.getLayer(LAYER_ID)) {
-        map.addLayer({
-          id: LAYER_ID,
-          type: "line",
-          source: SOURCE_ID,
-          "source-layer": SOURCE_LAYER,
-          layout: { "line-join": "round", "line-cap": "round" },
-          paint: {
-            "line-color": colorRef.current,
-            "line-width": LINE_WIDTH,
-            "line-opacity": 0.85,
-          },
-        });
-      }
-    };
-    // Fires on the initial style load and after every `setStyle` (theme change).
-    map.on("style.load", addRoutesLayer);
-
-    // Force a clean re-fetch of route tiles (e.g. after a token refresh): mapbox
-    // won't retry tiles stuck in the "errored" state on its own.
-    const reloadRoutes = () => {
-      if (!map.getStyle()) return;
-      if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID);
-      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
-      addRoutesLayer();
-    };
-
-    // On an *internal* unauthorized tile fetch, force a token refresh and then
-    // re-request the failed tiles. Gating on the URL avoids reacting to a
-    // Mapbox-side 401 (bad/over-restricted pk.* token), which a Firebase refresh
-    // would not fix. Debounced so a burst of tile 401s triggers one refresh.
-    let refreshing = false;
-    map.on("error", (e: mapboxgl.ErrorEvent) => {
+  // On an *internal* unauthorized tile fetch, force a token refresh and then
+  // re-request the failed tiles (via the source remount). Gating on the URL avoids
+  // reacting to a Mapbox-side 401 (bad/over-restricted pk.* token), which a
+  // Firebase refresh would not fix. Debounced so a burst of tile 401s triggers one
+  // refresh. Other errors surface at `warn` (not debug) so basemap/style/token
+  // failures stay visible in deployed builds.
+  const handleError = useCallback(
+    (e: ErrorEvent) => {
       const err = e.error as { status?: number; url?: string } | undefined;
       const isInternal401 =
         err?.status === 401 && (err.url === undefined || isInternalRequest(err.url, apiBaseUrl));
-      if (isInternal401 && !refreshing) {
-        refreshing = true;
+      if (isInternal401 && !refreshingRef.current) {
+        refreshingRef.current = true;
         void refreshAuthTokenRef
           .current()
-          .then(() => {
-            if (mapRef.current === map) reloadRoutes();
-          })
+          .then(() => setReloadNonce((n) => n + 1))
           .catch((refreshErr) => {
             logger.error("[RouteMap] auth token refresh after 401 failed:", refreshErr);
           })
           .finally(() => {
-            refreshing = false;
+            refreshingRef.current = false;
           });
         return;
       }
-      // Surface at warn (not debug) so basemap/style/token failures are visible
-      // in deployed builds — a swallowed style/token error renders a blank grey
-      // map with nothing in the console. Pass the raw error to keep its detail.
       logger.warn("[RouteMap] mapbox error:", e.error ?? "unknown");
-    });
+    },
+    [apiBaseUrl]
+  );
 
-    return () => {
-      mapRef.current = null;
-      map.remove();
-    };
-  }, [accessToken, tileTemplateUrl, apiBaseUrl]);
-
-  // Swap the basemap on an actual theme change without rebuilding the map
-  // (preserves pan/zoom). The `style.load` handler re-adds the routes source +
-  // layer. Skips the initial render — the constructor already set the style, and
-  // a redundant setStyle there reloads the style and can interrupt first paint.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || appliedDarkRef.current === isDark) return;
-    appliedDarkRef.current = isDark;
-    map.setStyle(isDark ? DARK_STYLE : LIGHT_STYLE);
-  }, [isDark]);
-
-  // Update line color in place when the sport registry (color expression) loads.
-  // No `isStyleLoaded()` guard: that returns false while tiles are in flight,
-  // which is exactly when `sportConfig` tends to resolve — the layer existing is
-  // sufficient for `setPaintProperty`.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !map.getLayer(LAYER_ID)) return;
-    map.setPaintProperty(LAYER_ID, "line-color", colorExpression);
-  }, [colorExpression]);
-
-  // Fit the default viewport when it first resolves (or genuinely changes
-  // region). Guarded by the fitted regionId so a background query refetch — same
-  // region, new object reference — doesn't snap the map back over the user's
-  // pan/zoom.
+  // Fit the default viewport when it genuinely changes region. `initialViewState`
+  // already fit the region present at mount (recorded in fittedRegionIdRef), so a
+  // background query refetch — same regionId, new object — is skipped, preserving
+  // the user's pan/zoom.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !defaultViewport) return;
@@ -268,16 +169,50 @@ export default function RouteMap({
   }, [defaultViewport]);
 
   return (
-    // Size explicitly with w-full/h-full: Mapbox's CSS sets
-    // `.mapboxgl-map { position: relative }`, which overrides a Tailwind
-    // `absolute` class — so `inset-0` would no longer stretch the container and it
-    // collapses to height 0 (blank grey map). Mapbox doesn't set width/height, so
-    // `w-full h-full` fills the sized parent (the old RouteCanvas approach).
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      role="region"
-      aria-label="Map of activity routes"
-    />
+    // role/aria on a wrapper (react-map-gl owns the inner container div). Size with
+    // w-full/h-full: Mapbox's CSS forces `position: relative` on its container, so
+    // a Tailwind `absolute inset-0` would collapse to height 0 (blank grey map).
+    <div className="w-full h-full" role="region" aria-label="Map of activity routes">
+      <Map
+        ref={mapRef}
+        mapboxAccessToken={accessToken}
+        mapStyle={isDark ? DARK_STYLE : LIGHT_STYLE}
+        initialViewState={
+          defaultViewport
+            ? {
+                bounds: bboxToBounds(defaultViewport.bbox),
+                fitBoundsOptions: { padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM },
+              }
+            : { longitude: 0, latitude: 20, zoom: 1 }
+        }
+        transformRequest={transformRequest}
+        onError={handleError}
+        attributionControl={true}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <NavigationControl position="top-right" />
+        {/* Remount on reloadNonce to force a clean tile re-fetch after a 401 refresh. */}
+        <Source
+          key={reloadNonce}
+          id={SOURCE_ID}
+          type="vector"
+          tiles={[tileTemplateUrl]}
+          minzoom={0}
+          maxzoom={14}
+        >
+          <Layer
+            id={LAYER_ID}
+            type="line"
+            source-layer={SOURCE_LAYER}
+            layout={{ "line-join": "round", "line-cap": "round" }}
+            paint={{
+              "line-color": colorExpression,
+              "line-width": LINE_WIDTH,
+              "line-opacity": 0.85,
+            }}
+          />
+        </Source>
+      </Map>
+    </div>
   );
 }
