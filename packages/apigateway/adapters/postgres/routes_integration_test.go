@@ -58,6 +58,21 @@ func insertRoutedActivity(t *testing.T, tx pgx.Tx, id int64, userID string) {
 	}
 }
 
+// insertRoutelessActivity inserts an activity row WITHOUT an activity_routes row,
+// so GetMapDataset's LEFT JOIN yields a NULL (omitted) bbox for it.
+func insertRoutelessActivity(t *testing.T, tx pgx.Tx, id int64, userID string) {
+	t.Helper()
+	if _, err := tx.Exec(context.Background(), `
+		INSERT INTO desirelines.activities (
+			id, user_id, name, type, sport, start_date_local, year,
+			distance, moving_time, elapsed_time, total_elevation_gain
+		) VALUES ($1, $2, 'Routeless', 'Ride', 'Ride', $3, 2024, 1000, 100, 100, 10)`,
+		id, userID, time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC),
+	); err != nil {
+		t.Fatalf("insert routeless activity %d: %v", id, err)
+	}
+}
+
 func tagActivityRegion(t *testing.T, tx pgx.Tx, activityID, regionID int64) {
 	t.Helper()
 	if _, err := tx.Exec(context.Background(),
@@ -274,6 +289,29 @@ func TestIntegration_MapDataset(t *testing.T) {
 			}
 			if len(got) != 1 || got[0].GetActivityId() != 5001 {
 				t.Errorf("user isolation broken: %+v", got)
+			}
+		})
+	})
+
+	t.Run("NullBBoxWhenNoRoute", func(t *testing.T) {
+		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
+			// A geo-bearing activity (tagged to a region) but with NO route
+			// geometry. The LEFT JOIN must still return it — just without a bbox.
+			// This pins the LEFT-vs-INNER join choice: an INNER JOIN would
+			// silently drop it.
+			region := insertTestRegion(t, tx, "r1", "county")
+			insertRoutelessActivity(t, tx, 5003, "test-user")
+			tagActivityRegion(t, tx, 5003, region)
+
+			got, err := repo.GetMapDataset(ctx, "test-user")
+			if err != nil {
+				t.Fatalf("GetMapDataset: %v", err)
+			}
+			if len(got) != 1 || got[0].GetActivityId() != 5003 {
+				t.Fatalf("want the routeless activity returned, got %+v", got)
+			}
+			if bb := got[0].GetBbox(); len(bb) != 0 {
+				t.Errorf("bbox = %v, want empty (activity has no route geometry)", bb)
 			}
 		})
 	})
