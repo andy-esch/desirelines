@@ -84,6 +84,50 @@ message ActivitySummary {
   optional double elevation_meters = 8;
 }
 
+// MapActivity is a single geo-bearing activity for the routes-map cross-filter
+// dataset: scalar attributes plus the region tag ids it belongs to. Returned by
+// GET /activities/map/dataset. Only activities with >=1 region tag are included
+// (virtual/indoor activities are excluded), matching the /map/tiles and
+// /map/regions inclusion rule.
+message MapActivity {
+  // Strava activity ID.
+  int64 activity_id = 1;
+
+  // App sport category (running, cycling, yoga).
+  // Mapped from Strava's sport_type via sport_types.json config.
+  string sport = 2;
+
+  // Distance in meters.
+  double distance_meters = 3;
+
+  // Moving time in seconds.
+  int32 moving_time = 4;
+
+  // Elevation gain in meters (nullable).
+  optional double elevation_meters = 5;
+
+  // Local start time as ISO 8601 timestamp.
+  string start_date_local = 6;
+
+  // Region ids this activity is tagged to. Same ids as GET /map/regions
+  // returns (the desirelines.regions surrogate id), so the client can label
+  // and filter consistently.
+  repeated int64 region_ids = 7;
+
+  // Optional per-activity bounding box [minLng, minLat, maxLng, maxLat] from
+  // the activity's route geometry, for map "fit to results". Absent when the
+  // activity has no stored route geometry.
+  repeated double bbox = 8;
+}
+
+// MapDatasetResponse wraps the full set of geo-bearing activities for the
+// routes-map cross-filter model. No pagination: the client holds the whole set
+// and filters it in-memory.
+message MapDatasetResponse {
+  // All geo-bearing activities with scalars + region tag ids.
+  repeated MapActivity activities = 1;
+}
+
 // =============================================================================
 // List Activities
 // =============================================================================

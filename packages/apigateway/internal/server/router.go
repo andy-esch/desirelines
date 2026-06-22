@@ -57,6 +57,7 @@ type AuthenticatedRoutes struct {
 	GetRoutes       http.HandlerFunc
 	GetRouteTile    http.HandlerFunc // GET /activities/map/tiles/{z}/{x}/{y}
 	GetRouteRegions http.HandlerFunc // GET /activities/map/regions
+	GetMapDataset   http.HandlerFunc // GET /activities/map/dataset
 	ListActivities  http.HandlerFunc
 	GetActivityByID http.HandlerFunc
 
@@ -80,6 +81,11 @@ type AuthenticatedRoutes struct {
 // rather than here because it must sit OUTSIDE http.StripPrefix("/api", ...)
 // so otelhttp's WithFilter can match the public path (/api/health, /api/ready)
 // before chi sees the stripped path.
+// hugeParam: PublicRoutes/AuthenticatedRoutes are passed by value intentionally —
+// NewRouter runs once at the composition root (startup), never on a hot path, so
+// copying a handful of func pointers is fine.
+//
+//nolint:gocritic // hugeParam — see note above; one-time startup wiring.
 func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, logger *slog.Logger) chi.Router {
 	r := chi.NewRouter()
 
@@ -142,6 +148,9 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 			// /routes art endpoint and has room to grow (tiles.json, etc.).
 			r.Get("/activities/map/regions", auth.GetRouteRegions)
 			r.Get("/activities/map/tiles/{z}/{x}/{y}", auth.GetRouteTile)
+			// Full geo-bearing dataset (scalars + region tags + optional bbox)
+			// for the client-side cross-filter model. Single response, no pagination.
+			r.Get("/activities/map/dataset", auth.GetMapDataset)
 
 			// Individual activity endpoints
 			// Note: {id} occupies the same path segment as {year} above, but the

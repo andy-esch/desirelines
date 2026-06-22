@@ -32,6 +32,7 @@ type mockRepo struct {
 	activity *activitiesv1.Activity
 	tile     []byte
 	regions  []repository.RegionSummary
+	dataset  []*activitiesv1.MapActivity
 }
 
 func (m *mockRepo) Ping(ctx context.Context) error { return nil }
@@ -65,6 +66,9 @@ func (m *mockRepo) GetRouteTile(ctx context.Context, userID string, z, x, y int)
 }
 func (m *mockRepo) GetRouteRegionSummary(ctx context.Context, userID string) ([]repository.RegionSummary, error) {
 	return m.regions, m.err
+}
+func (m *mockRepo) GetMapDataset(ctx context.Context, userID string) ([]*activitiesv1.MapActivity, error) {
+	return m.dataset, m.err
 }
 
 func newTestHandler(t *testing.T) *Handler {
@@ -693,6 +697,83 @@ func TestHandleRouteRegions(t *testing.T) {
 				if len(resp.Regions) != tt.wantLen {
 					t.Errorf("regions len = %d, want %d", len(resp.Regions), tt.wantLen)
 				}
+			}
+		})
+	}
+}
+
+func TestHandleMapDataset(t *testing.T) {
+	sample := []*activitiesv1.MapActivity{
+		{
+			ActivityId:     1,
+			Sport:          "Ride",
+			DistanceMeters: 1000,
+			MovingTime:     100,
+			StartDateLocal: "2024-01-15T08:00:00Z",
+			RegionIds:      []int64{7, 9},
+			Bbox:           []float64{-71.2, 42.2, -70.9, 42.5},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		userID     string
+		mock       *mockRepo
+		wantStatus int
+		wantLen    int // -1 to skip body check
+	}{
+		{"happy path", "user-123", &mockRepo{dataset: sample}, http.StatusOK, 1},
+		{"empty results", "user-123", &mockRepo{dataset: []*activitiesv1.MapActivity{}}, http.StatusOK, 0},
+		{"missing user ID", "", &mockRepo{}, http.StatusInternalServerError, -1},
+		{"database error", "user-123", &mockRepo{err: errors.New("connection refused")}, http.StatusInternalServerError, -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := newTestHandlerWithRepo(t, tt.mock)
+			req := httptest.NewRequest(http.MethodGet, "/activities/map/dataset", nil)
+			if tt.userID != "" {
+				req = req.WithContext(middleware.WithUserID(req.Context(), tt.userID))
+			}
+
+			w := httptest.NewRecorder()
+			handler.HandleMapDataset(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+			if tt.wantLen < 0 {
+				return
+			}
+			// Body is protojson (camelCase keys), not the snake_case proto names.
+			var resp struct {
+				Activities []map[string]any `json:"activities"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("unmarshal response: %v", err)
+			}
+			if len(resp.Activities) != tt.wantLen {
+				t.Fatalf("activities len = %d, want %d", len(resp.Activities), tt.wantLen)
+			}
+			if tt.wantLen == 0 {
+				return
+			}
+			a := resp.Activities[0]
+			// Sport must be mapped from the raw Strava type "Ride" to a category.
+			sport, ok := a["sport"].(string)
+			if !ok {
+				t.Fatal("sport field missing or not a string")
+			}
+			if sport == "Ride" || sport == "" {
+				t.Errorf("sport should be mapped to a category, got %q", sport)
+			}
+			// camelCase keys + region tags survive serialization.
+			if _, hasID := a["activityId"]; !hasID {
+				t.Error("expected camelCase activityId key")
+			}
+			ids, isSlice := a["regionIds"].([]any)
+			if !isSlice || len(ids) != 2 {
+				t.Errorf("regionIds = %v, want 2 ids", a["regionIds"])
 			}
 		})
 	}

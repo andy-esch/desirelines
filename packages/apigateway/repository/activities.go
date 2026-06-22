@@ -75,4 +75,14 @@ type ActivityRepository interface {
 	// the client can default the map viewport to the densest region.
 	// Used by: GET /activities/map/regions
 	GetRouteRegionSummary(ctx context.Context, userID string) ([]RegionSummary, error)
+
+	// GetMapDataset returns every geo-bearing activity (>=1 activity_regions row)
+	// with scalar attributes, its aggregated region tag ids, and an optional
+	// per-activity bounding box from its route geometry. Virtual/indoor activities
+	// (no region tags) are excluded, matching the /map/tiles and /map/regions
+	// inclusion rule. No pagination: the whole set is returned in one response for
+	// the routes-map client-side cross-filter model. The Sport field holds the raw
+	// Strava sport_type; the handler maps it to the app sport category.
+	// Used by: GET /activities/map/dataset
+	GetMapDataset(ctx context.Context, userID string) ([]*activitiesv1.MapActivity, error)
 }

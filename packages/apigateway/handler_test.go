@@ -105,6 +105,10 @@ func (m *mockActivityRepository) GetRouteRegionSummary(ctx context.Context, user
 	return nil, nil
 }
 
+func (m *mockActivityRepository) GetMapDataset(ctx context.Context, userID string) ([]*activitiesv1.MapActivity, error) {
+	return nil, nil
+}
+
 // Compile-time interface verification
 var _ repository.ActivityRepository = (*mockActivityRepository)(nil)
 
@@ -167,6 +171,7 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 		GetRoutes:       activitiesHandler.HandleRoutes,
 		GetRouteTile:    activitiesHandler.HandleRouteTile,
 		GetRouteRegions: activitiesHandler.HandleRouteRegions,
+		GetMapDataset:   activitiesHandler.HandleMapDataset,
 		ListActivities:  activitiesHandler.HandleListActivities,
 		GetActivityByID: activitiesHandler.HandleGetActivity,
 	}
