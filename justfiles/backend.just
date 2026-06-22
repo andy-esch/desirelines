@@ -183,8 +183,9 @@ proto-gen-backend: generate-bq-proto
     @find dist/codegen/schemas/proto -name "bq_activities_pb2.py*" -exec cp {} packages/stravapipe/src/stravapipe/types/generated/ \;
     @touch packages/stravapipe/src/stravapipe/types/generated/__init__.py
     # Go: Copy .pb.go files to apigateway and dispatcher
-    @mkdir -p packages/apigateway/types/generated packages/dispatcher/types/generated
+    @mkdir -p packages/apigateway/types/generated packages/apigateway/types/generated/activitiesv1 packages/dispatcher/types/generated
     @find dist/codegen/schemas/proto \( -name "sports_metrics.pb.go" -o -name "user_config.pb.go" \) -exec cp {} packages/apigateway/types/generated/ \;
+    @find dist/codegen/schemas/proto -name "activities.pb.go" -exec cp {} packages/apigateway/types/generated/activitiesv1/ \;
     @find dist/codegen/schemas/proto -name "webhook.pb.go" -exec cp {} packages/dispatcher/types/generated/ \;
     @echo "✅ Backend generation complete"
 
