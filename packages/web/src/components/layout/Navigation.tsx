@@ -1,5 +1,10 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Menu, MenuButton, MenuItems, MenuItem, Transition } from "@headlessui/react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLinkItem,
+} from "@/components/ui/dropdown-menu";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { useCurrentYear } from "../../hooks/useCurrentYear";
@@ -97,55 +102,32 @@ export default function Navigation({ className = "", vertical = false }: Navigat
         Dashboard
       </Link>
 
-      {/* Goals dropdown — Headless UI Menu */}
-      <Menu as="div" className="relative">
-        <MenuButton
+      {/* Goals dropdown */}
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
           className={`nav-link ${isOnSportPage ? "active" : "text-white/50"}`}
           style={{ cursor: "pointer" }}
         >
           Goals <span style={{ fontSize: "0.65em" }}>▼</span>
-        </MenuButton>
-
-        <Transition
-          enter="transition duration-100 ease-out"
-          enterFrom="opacity-0 scale-95"
-          enterTo="opacity-100 scale-100"
-          leave="transition duration-75 ease-in"
-          leaveFrom="opacity-100 scale-100"
-          leaveTo="opacity-0 scale-95"
-        >
-          <MenuItems
-            className="absolute left-0 mt-1 rounded-lg py-1 shadow-lg"
-            style={{
-              backgroundColor: "var(--color-header-bg)",
-              border: "1px solid var(--color-header-border)",
-              minWidth: "160px",
-              zIndex: 50,
-            }}
-          >
-            {sports.map((sport) => (
-              <MenuItem key={sport.id}>
-                {({ focus }) => (
-                  <Link
-                    to="/$sport/$year"
-                    params={{ sport: sport.id, year: String(currentYear) }}
-                    activeProps={{
-                      className: "block px-4 py-2 text-sm no-underline bg-white/15 text-white",
-                    }}
-                    inactiveProps={{
-                      className: `block px-4 py-2 text-sm no-underline ${
-                        focus ? "bg-white/10 text-white" : "text-header-text"
-                      }`,
-                    }}
-                  >
-                    {sport.label}
-                  </Link>
-                )}
-              </MenuItem>
-            ))}
-          </MenuItems>
-        </Transition>
-      </Menu>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="bg-header-bg border-header-border min-w-40">
+          {sports.map((sport) => (
+            <DropdownMenuLinkItem
+              key={sport.id}
+              className="px-4 py-2 text-header-text data-[highlighted]:bg-white/10 data-[highlighted]:text-white"
+              render={
+                <Link
+                  to="/$sport/$year"
+                  params={{ sport: sport.id, year: String(currentYear) }}
+                  activeProps={{ className: "bg-white/15 text-white" }}
+                />
+              }
+            >
+              {sport.label}
+            </DropdownMenuLinkItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Activities link */}
       <Link

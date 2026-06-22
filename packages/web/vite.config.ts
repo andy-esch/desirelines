@@ -100,7 +100,6 @@ export default defineConfig(({ mode }) => {
     "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
     "chart-vendor": ["recharts"],
     "query-vendor": ["@tanstack/react-query"],
-    "headlessui-vendor": ["@headlessui/react"],
     "zod-vendor": ["zod"],
   };
   const vendorChunkEntries = Object.entries(vendorChunks);

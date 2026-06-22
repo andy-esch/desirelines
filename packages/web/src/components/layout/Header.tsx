@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Dialog, DialogPanel, Transition, TransitionChild } from "@headlessui/react";
+import { Sheet, SheetContent, SheetClose, SheetTitle } from "@/components/ui/sheet";
 import Logo from "../Logo";
 import { useAuth } from "../../hooks/useAuth";
 import { AccountDropdown } from "./AccountDropdown";
@@ -94,55 +94,19 @@ export default function Header({ scrolled = false }: HeaderProps) {
       </div>
 
       {/* Mobile Navigation Drawer */}
-      <Transition show={navOpen}>
-        <Dialog onClose={() => setNavOpen(false)} className="relative" style={{ zIndex: 50 }}>
-          {/* Backdrop */}
-          <TransitionChild
-            enter="transition-opacity duration-200"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="transition-opacity duration-150"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
-          </TransitionChild>
-
-          {/* Slide-in panel */}
-          <TransitionChild
-            enter="transition-transform duration-200"
-            enterFrom="-translate-x-full"
-            enterTo="translate-x-0"
-            leave="transition-transform duration-150"
-            leaveFrom="translate-x-0"
-            leaveTo="-translate-x-full"
-          >
-            <DialogPanel
-              className="fixed inset-y-0 left-0 flex flex-col overflow-y-auto"
-              style={{
-                backgroundColor: "var(--color-header-bg)",
-                maxWidth: "280px",
-                width: "80vw",
-              }}
-            >
-              <div className="flex items-center justify-between p-4">
-                <h5 className="text-white m-0">Navigation</h5>
-                <button
-                  type="button"
-                  className="bg-transparent border-0 text-white p-1"
-                  onClick={() => setNavOpen(false)}
-                  aria-label="Close"
-                >
-                  <CloseIconLg />
-                </button>
-              </div>
-              <div className="p-4">
-                <Navigation vertical className="mb-6" />
-              </div>
-            </DialogPanel>
-          </TransitionChild>
-        </Dialog>
-      </Transition>
+      <Sheet open={navOpen} onOpenChange={(open) => !open && setNavOpen(false)}>
+        <SheetContent side="left" className="max-w-[280px] w-[80vw] bg-header-bg">
+          <div className="flex items-center justify-between p-4">
+            <SheetTitle className="text-white m-0">Navigation</SheetTitle>
+            <SheetClose className="bg-transparent border-0 text-white p-1" aria-label="Close">
+              <CloseIconLg />
+            </SheetClose>
+          </div>
+          <div className="p-4">
+            <Navigation vertical className="mb-6" />
+          </div>
+        </SheetContent>
+      </Sheet>
     </header>
   );
 }

@@ -1,5 +1,10 @@
-import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
-import { CheckIcon, ChevronDownIcon } from "./icons";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 
 interface SelectOption {
   value: string;
@@ -19,8 +24,9 @@ interface StyledSelectProps {
 }
 
 /**
- * Styled dropdown select using Headless UI Listbox.
- * Replaces native <select> with a dark-themed, keyboard-accessible dropdown.
+ * Styled dropdown select. Thin convenience wrapper over the Base UI `Select`
+ * primitives (`@/components/ui/select`) with a simple `value`/`onChange`/`options`
+ * API. Migrated off Headless UI Listbox.
  */
 export default function StyledSelect({
   value,
@@ -31,35 +37,20 @@ export default function StyledSelect({
   id,
   "aria-labelledby": ariaLabelledBy,
 }: StyledSelectProps) {
-  const selected = options.find((o) => o.value === value);
-
   return (
-    <Listbox value={value} onChange={onChange} disabled={disabled}>
-      <div className={`relative ${className}`}>
-        <ListboxButton id={id} className="styled-select-button" aria-labelledby={ariaLabelledBy}>
-          <span className="truncate">{selected?.label ?? value}</span>
-          <ChevronDownIcon className="shrink-0 opacity-50" />
-        </ListboxButton>
-
-        <ListboxOptions anchor="bottom start" className="styled-select-options">
-          {options.map((option) => (
-            <ListboxOption
-              key={option.value}
-              value={option.value}
-              className="styled-select-option data-[focus]:bg-white/8 data-[selected]:text-accent-cyan"
-            >
-              {({ selected: isSelected }) => (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 shrink-0 flex justify-center">
-                    {isSelected && <CheckIcon />}
-                  </span>
-                  <span className="truncate">{option.label}</span>
-                </span>
-              )}
-            </ListboxOption>
-          ))}
-        </ListboxOptions>
-      </div>
-    </Listbox>
+    <Select value={value} onValueChange={(v) => onChange(v as string)} disabled={disabled}>
+      <SelectTrigger id={id} aria-labelledby={ariaLabelledBy} className={className}>
+        <SelectValue>
+          {(val) => options.find((o) => o.value === val)?.label ?? (val == null ? "" : String(val))}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
