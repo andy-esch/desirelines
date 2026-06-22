@@ -989,6 +989,119 @@ func (r *ActivityRepository) GetRouteRegionSummary(ctx context.Context, userID s
 	return summaries, nil
 }
 
+// GetMapDataset returns every geo-bearing activity (>=1 activity_regions row)
+// with scalars, its aggregated region tag ids, and an optional bounding box from
+// its route geometry. Only activities that are tagged to at least one region are
+// included (the JOIN to activity_regions enforces this), which excludes
+// virtual/indoor activities — the same inclusion rule as GetRouteTile /
+// GetRouteRegionSummary. The bbox is read from the activity's route geometry via
+// the O(1) ST_X/Y Min/Max accessors (one route row per activity — activity_id is
+// the activity_routes PK) and is NULL when there is no stored route geometry.
+// Sport is the raw
+// Strava sport_type; the handler maps it to the app sport category.
+func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (activities []*activitiesv1.MapActivity, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.map_dataset",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", userID),
+	)
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "map_dataset"))
+	defer func() {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(activities)))
+		done(retErr)
+		spanDone(retErr)
+	}()
+
+	// One activity row per geo-bearing activity. The INNER JOIN to
+	// activity_regions enforces the geo-only rule; array_agg(DISTINCT region_id)
+	// collapses the many-to-many junction into the per-activity tag list (same
+	// ids GetRouteRegionSummary / GET /map/regions return). The bbox is a LEFT
+	// JOIN LATERAL over activity_routes so an activity tagged to a region but
+	// (somehow) lacking route geometry still appears, just without a bbox.
+	const query = `
+		SELECT
+			a.id,
+			a.sport,
+			a.distance,
+			a.moving_time,
+			a.total_elevation_gain,
+			a.start_date_local,
+			array_agg(DISTINCT ar.region_id ORDER BY ar.region_id) AS region_ids,
+			bb.min_lng, bb.min_lat, bb.max_lng, bb.max_lat
+		FROM desirelines.activities a
+		JOIN desirelines.activity_regions ar ON ar.activity_id = a.id
+		-- One route row per activity (activity_routes.activity_id is PK), so read
+		-- the route's bbox directly via the O(1) accessors (they read the
+		-- geometry's cached header) — no ST_Extent aggregate needed.
+		LEFT JOIN LATERAL (
+			SELECT
+				ST_XMin(rt.route) AS min_lng,
+				ST_YMin(rt.route) AS min_lat,
+				ST_XMax(rt.route) AS max_lng,
+				ST_YMax(rt.route) AS max_lat
+			FROM desirelines.activity_routes rt
+			WHERE rt.activity_id = a.id
+		) bb ON true
+		WHERE a.user_id = $1
+		GROUP BY a.id, a.sport, a.distance, a.moving_time,
+			a.total_elevation_gain, a.start_date_local,
+			bb.min_lng, bb.min_lat, bb.max_lng, bb.max_lat
+		ORDER BY a.start_date_local DESC, a.id DESC
+	`
+
+	rows, retErr := r.db.Query(ctx, query, userID)
+	if retErr != nil {
+		return nil, fmt.Errorf("query map dataset: %w", retErr)
+	}
+	defer rows.Close()
+
+	activities = make([]*activitiesv1.MapActivity, 0)
+	for rows.Next() {
+		var (
+			id             int64
+			sport          string
+			distanceMeters float64
+			movingTime     int32
+			elevation      *float64
+			startDateLocal time.Time
+			regionIDs      []int64
+			minLng         *float64
+			minLat         *float64
+			maxLng         *float64
+			maxLat         *float64
+		)
+
+		if retErr = rows.Scan(
+			&id, &sport, &distanceMeters, &movingTime, &elevation,
+			&startDateLocal, &regionIDs,
+			&minLng, &minLat, &maxLng, &maxLat,
+		); retErr != nil {
+			return nil, fmt.Errorf("scan map dataset row: %w", retErr)
+		}
+
+		activity := &activitiesv1.MapActivity{
+			ActivityId:      id,
+			Sport:           sport,
+			DistanceMeters:  distanceMeters,
+			MovingTime:      movingTime,
+			ElevationMeters: elevation,
+			StartDateLocal:  startDateLocal.Format(time.RFC3339),
+			RegionIds:       regionIDs,
+		}
+		if minLng != nil && minLat != nil && maxLng != nil && maxLat != nil {
+			activity.Bbox = []float64{*minLng, *minLat, *maxLng, *maxLat}
+		}
+
+		activities = append(activities, activity)
+	}
+
+	if retErr = rows.Err(); retErr != nil {
+		return nil, fmt.Errorf("iterate map dataset rows: %w", retErr)
+	}
+	return activities, nil
+}
+
 // encodeCursor encodes an ActivityCursor to a base64 string.
 // Format: "timestamp|id" encoded as URL-safe base64.
 func encodeCursor(cursor *repository.ActivityCursor) string {

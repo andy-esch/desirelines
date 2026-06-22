@@ -8,6 +8,7 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -186,4 +187,39 @@ func (h *Handler) HandleRouteRegions(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Cache-Control", mapCacheControl)
 	server.RespondJSON(w, r, http.StatusOK, resp, h.logger)
+}
+
+// HandleMapDataset serves the full set of the user's geo-bearing activities with
+// scalars + region tag ids (+ optional bbox) in one response, powering the
+// routes-map client-side cross-filter model (map setFilter, charts, activity
+// list, region filter). Virtual/indoor activities (no region tags) are excluded.
+// Not paginated — single-user scale.
+// GET /activities/map/dataset
+func (h *Handler) HandleMapDataset(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.getUserID(w, r)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), routesDBTimeout)
+	defer cancel()
+
+	activities, err := h.repo.GetMapDataset(ctx, userID)
+	if err != nil {
+		h.logger.Error("Database query failed", "error", err, "operation", "get_map_dataset")
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
+		return
+	}
+
+	// Map raw Strava sport types to app sport categories (e.g., "Ride" → "cycling").
+	for _, a := range activities {
+		a.Sport = h.sportConfig.GetCategoryForStravaType(a.Sport)
+	}
+
+	resp := &activitiesv1.MapDatasetResponse{
+		Activities: activities,
+	}
+
+	w.Header().Set("Cache-Control", mapCacheControl)
+	h.respondProtobuf(w, r, resp)
 }

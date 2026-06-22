@@ -324,6 +324,38 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /v1/activities/map/dataset:
+    get:
+      tags: [Activities]
+      summary: Full geo-bearing activity dataset for the map cross-filter model
+      description: >
+        Returns every geo-bearing activity (those tagged to >=1 region) with its
+        scalar attributes, aggregated region tag ids, and an optional per-activity
+        bounding box, in a single response. Virtual/indoor activities (no region
+        tags) are excluded. Not paginated: the client holds the whole set and
+        filters it in-memory to drive the routes-map (setFilter), charts, activity
+        list, and region filter. Region ids match GET /v1/activities/map/regions.
+      operationId: getMapDataset
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All geo-bearing activities with scalars and region tags
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [activities]
+                properties:
+                  activities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MapActivity'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /v1/activities/{id}:
     get:
       tags: [Activities]
@@ -779,6 +811,53 @@ components:
         bbox:
           type: array
           description: Region bounding box [minLng, minLat, maxLng, maxLat]
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+            format: double
+
+    MapActivity:
+      type: object
+      description: >-
+        A single geo-bearing activity for the routes-map cross-filter dataset:
+        scalar attributes plus the region tag ids it belongs to.
+      required: [activityId, sport, distanceMeters, movingTime, startDateLocal, regionIds]
+      properties:
+        activityId:
+          type: integer
+          format: int64
+          description: Strava activity ID
+        sport:
+          type: string
+          description: App sport category (e.g. cycling, running)
+        distanceMeters:
+          type: number
+          format: double
+        movingTime:
+          type: integer
+          description: Moving time in seconds
+        elevationMeters:
+          type: number
+          format: double
+          description: Elevation gain in meters (nullable)
+        startDateLocal:
+          type: string
+          format: date-time
+          description: Local start time (athlete local time)
+        regionIds:
+          type: array
+          description: >-
+            Region ids this activity is tagged to. Same ids as
+            GET /v1/activities/map/regions returns.
+          items:
+            type: integer
+            format: int64
+        bbox:
+          type: array
+          description: >-
+            Optional per-activity bounding box [minLng, minLat, maxLng, maxLat]
+            from the route geometry. Absent when the activity has no stored route.
           minItems: 4
           maxItems: 4
           items:

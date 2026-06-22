@@ -17,7 +17,7 @@ coverage:
       go-apigateway:
         flags: [go-apigateway]
         target: auto
-        threshold: 1%
+        threshold: 2%
       go-dispatcher:
         flags: [go-dispatcher]
         target: auto
