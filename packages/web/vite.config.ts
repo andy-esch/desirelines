@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { execSync } from "child_process";
+import { fileURLToPath, URL } from "node:url";
 
 // Get git commit hash for versioning
 let commitHash = "unknown";
@@ -99,7 +100,6 @@ export default defineConfig(({ mode }) => {
     "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
     "chart-vendor": ["recharts"],
     "query-vendor": ["@tanstack/react-query"],
-    "headlessui-vendor": ["@headlessui/react"],
     "zod-vendor": ["zod"],
   };
   const vendorChunkEntries = Object.entries(vendorChunks);
@@ -107,6 +107,12 @@ export default defineConfig(({ mode }) => {
   return {
     define: {
       __COMMIT_HASH__: JSON.stringify(version),
+    },
+    resolve: {
+      // Mirror of the tsconfig "@/*" path alias.
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
+      },
     },
     plugins: [
       TanStackRouterVite({ quoteStyle: "double", semicolons: true }),

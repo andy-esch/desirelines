@@ -43,7 +43,8 @@ describe("Navigation", () => {
     it("renders sport links in Goals dropdown", async () => {
       await renderNav(<Navigation />);
       await userEvent.click(screen.getByRole("button", { name: /Goals/ }));
-      expect(screen.getByRole("menuitem", { name: /Cycling/ })).toBeInTheDocument();
+      // Base UI Menu.LinkItem renders portaled nav links with role="menuitem".
+      expect(await screen.findByRole("menuitem", { name: /Cycling/ })).toBeInTheDocument();
       expect(screen.getByRole("menuitem", { name: /Running/ })).toBeInTheDocument();
       expect(screen.getByRole("menuitem", { name: /Yoga/ })).toBeInTheDocument();
     });
@@ -116,7 +117,7 @@ describe("Navigation", () => {
       await renderNav(<Navigation />);
       await userEvent.click(screen.getByRole("button", { name: /Goals/ }));
 
-      expect(screen.getByRole("menuitem", { name: /Cycling/ })).toHaveAttribute(
+      expect(await screen.findByRole("menuitem", { name: /Cycling/ })).toHaveAttribute(
         "href",
         `/cycling/${currentYear}`
       );

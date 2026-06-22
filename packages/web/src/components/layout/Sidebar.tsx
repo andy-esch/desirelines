@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Dialog, DialogPanel, Transition, TransitionChild } from "@headlessui/react";
+import { Sheet, SheetContent, SheetClose, SheetTitle } from "@/components/ui/sheet";
 import AuthButton from "../AuthButton";
 import ProgressSummary from "./ProgressSummary";
 import SidebarSection from "./SidebarSection";
@@ -95,55 +95,17 @@ export default function Sidebar({
       </div>
 
       {/* Mobile: slide-out drawer */}
-      <Transition show={mobileOpen}>
-        <Dialog
-          onClose={() => closeMobileSidebar()}
-          className="relative md:hidden"
-          style={{ zIndex: 50 }}
-        >
-          <TransitionChild
-            enter="transition-opacity duration-200"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="transition-opacity duration-150"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
-          </TransitionChild>
-
-          <TransitionChild
-            enter="transition-transform duration-200"
-            enterFrom="-translate-x-full"
-            enterTo="translate-x-0"
-            leave="transition-transform duration-150"
-            leaveFrom="translate-x-0"
-            leaveTo="-translate-x-full"
-          >
-            <DialogPanel
-              className="fixed inset-y-0 left-0 flex flex-col overflow-y-auto"
-              style={{
-                backgroundColor: "var(--color-bg-body)",
-                maxWidth: "300px",
-                width: "85vw",
-              }}
-            >
-              <div className="flex items-center justify-between p-4">
-                <h5 className="text-white m-0">Controls</h5>
-                <button
-                  type="button"
-                  className="bg-transparent border-0 text-white p-1"
-                  onClick={() => closeMobileSidebar()}
-                  aria-label="Close"
-                >
-                  <CloseIconLg />
-                </button>
-              </div>
-              <div className="flex flex-col grow p-4 overflow-y-auto">{sidebarContent}</div>
-            </DialogPanel>
-          </TransitionChild>
-        </Dialog>
-      </Transition>
+      <Sheet open={mobileOpen} onOpenChange={(open) => !open && closeMobileSidebar()}>
+        <SheetContent side="left" className="max-w-[300px] w-[85vw] md:hidden">
+          <div className="flex items-center justify-between p-4">
+            <SheetTitle className="text-white m-0">Controls</SheetTitle>
+            <SheetClose className="bg-transparent border-0 text-white p-1" aria-label="Close">
+              <CloseIconLg />
+            </SheetClose>
+          </div>
+          <div className="flex flex-col grow p-4 overflow-y-auto">{sidebarContent}</div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

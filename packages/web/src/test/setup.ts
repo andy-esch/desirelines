@@ -8,6 +8,26 @@
 import "@testing-library/jest-dom";
 import { cleanup } from "@testing-library/react";
 
+// --- jsdom polyfills for Base UI (Floating UI / pointer) components ---
+// jsdom lacks ResizeObserver (Floating UI positioning needs it), scrollIntoView,
+// and pointer-capture methods that Base UI's Menu/Select/Popover use — without
+// these, popups never mount/position in tests.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  };
+}
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
+}
+
 // Mock Firebase to avoid initialization errors in tests
 // Tests should mock Firebase services as needed
 import { vi, beforeEach, afterEach } from "vitest";

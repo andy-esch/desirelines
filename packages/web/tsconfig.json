@@ -7,6 +7,12 @@
     "skipLibCheck": true,
     "types": ["vitest/globals"],
 
+    /* Path alias for shadcn/ui + shared imports (mirrored in vite.config.ts).
+       No baseUrl — deprecated in TS 6.0; paths resolve relative to this file. */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
