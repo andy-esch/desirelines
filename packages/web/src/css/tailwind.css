@@ -71,6 +71,10 @@
   --font-display:
     "Space Grotesk Variable", "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+
+  /* === Radius — base for shadcn/ui's --radius-{sm,md,lg,xl} scale (matches the
+     0.375–0.625rem controls/cards already in this file) === */
+  --radius: 0.5rem;
 }
 
 /* ==========================================================================
@@ -111,6 +115,42 @@ html:not(.dark) {
   --color-surface-border: rgba(0, 0, 0, 0.08);
   --color-surface-overlay: rgba(255, 255, 255, 0.9);
   --color-surface-shadow: rgba(0, 0, 0, 0.15);
+}
+
+/* ==========================================================================
+   shadcn/ui alias shim — maps shadcn's semantic token names onto the canonical
+   Desire Lines tokens above, so shadcn (Base UI) components inherit the app's
+   theme (incl. dark-default / light via `html:not(.dark)`) with NO second source
+   of truth and NO JS theme object. `inline` so utilities resolve to the live
+   --color-* vars (which switch with the theme).
+   ========================================================================== */
+@theme inline {
+  --color-background: var(--color-bg-body);
+  --color-foreground: var(--color-body-text);
+  /* Solid surfaces for popovers/cards/menus (readable over the map). */
+  --color-card: var(--color-slate-dark);
+  --color-card-foreground: var(--color-body-text);
+  --color-popover: var(--color-slate-dark);
+  --color-popover-foreground: var(--color-body-text);
+  --color-primary: var(--color-accent-cyan);
+  --color-primary-foreground: var(--color-accent-cyan-text);
+  --color-secondary: var(--color-slate-DEFAULT);
+  --color-secondary-foreground: var(--color-body-text);
+  --color-muted: var(--color-slate-dark);
+  --color-muted-foreground: var(--color-slate-light);
+  --color-accent: var(--color-surface-hover);
+  --color-accent-foreground: var(--color-body-text);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--color-surface-border);
+  --color-input: var(--color-slate-DEFAULT);
+  --color-ring: var(--color-accent-cyan);
+
+  /* shadcn radius scale derived from --radius */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 /* ==========================================================================
