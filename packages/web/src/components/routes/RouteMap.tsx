@@ -367,7 +367,8 @@ export default function RouteMap({
         attributionControl={true}
         style={{ width: "100%", height: "100%" }}
       >
-        <NavigationControl position="top-right" />
+        {/* Bottom-right so the top-right stays clear for the insights drawer toggle. */}
+        <NavigationControl position="bottom-right" />
         {/* Remount on reloadNonce to force a clean tile re-fetch after a 401 refresh. */}
         <Source
           key={reloadNonce}

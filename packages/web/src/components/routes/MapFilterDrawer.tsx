@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { ActivityTotals } from "../../utils/routeFilters";
 
 /**
@@ -190,6 +191,9 @@ export default function MapFilterDrawer({
       `${stats.count} ${totals.count === 1 ? "activity" : "activities"}` +
         `${activeFilterCount > 0 ? " filtered" : ""} · ${stats.distance} · ` +
         `${stats.time} · ${stats.elevation}`);
+  // Debounced so a slider drag doesn't flood the `aria-live` region with every
+  // intermediate readout — announce only once the filtering settles.
+  const announcedSummary = useDebouncedValue(liveSummary, 500);
 
   return (
     <>
@@ -256,31 +260,31 @@ export default function MapFilterDrawer({
             : "translate-y-full sm:translate-y-0 sm:-translate-x-[120%]"
         )}
       >
-        {/* Header — no visible "Filters" title (redundant inside a drawer of
-            labeled filter sections); the collapse control is all that's needed.
-            The sr-only heading keeps the region's accessible name (aria-labelledby). */}
+        {/* No dedicated header row — the collapse control shares the summary block's
+            top-right (it doesn't conflict with the KPI readout below it), saving the
+            row's vertical space. sr-only heading keeps the region's accessible name. */}
         <h2 id={headingId} className="sr-only">
           Activity filters
         </h2>
-        <div className="flex items-center justify-end border-b border-border/60 px-4 py-2">
+
+        {/* Hero summary — the live cross-filter readout. */}
+        <div className="relative border-b border-border/60 px-4 py-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => onOpenChange(false)}
             aria-label="Collapse panel"
-            className="h-8 w-8 text-slate-light"
+            aria-expanded={open}
+            aria-controls={DRAWER_ID}
+            className="absolute right-2 top-2 h-7 w-7 text-slate-light"
           >
             <CollapseIcon className="h-4 w-4 -rotate-90 sm:rotate-0" />
           </Button>
-        </div>
-
-        {/* Hero summary — the live cross-filter readout. */}
-        <div className="border-b border-border/60 px-4 py-4">
           {/* Screen-reader mirror of the visual stats; announced politely as the
               filtered set changes (the visual grid is aria-hidden to avoid a
               piecemeal, number-by-number readout). */}
           <p className="sr-only" role="status" aria-live="polite">
-            {liveSummary}
+            {announcedSummary}
           </p>
           {statusMessage ? (
             <>

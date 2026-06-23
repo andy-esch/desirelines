@@ -144,7 +144,19 @@ export default function MapFilterControls({
       aria-disabled={disabled || undefined}
     >
       {/* Year quick-select — the primary filter, kept at the top + emphasized. */}
-      <Section label="When" htmlId="filter-year-label">
+      <Section
+        label="When"
+        htmlId="filter-year-label"
+        action={
+          // The granular date slider can set a window matching no year chip → the
+          // group shows nothing pressed, which reads as a bug. Label it "Custom".
+          selectedYearKey === "" ? (
+            <span className="text-[0.65rem] font-medium uppercase tracking-wider text-accent-cyan">
+              Custom range
+            </span>
+          ) : undefined
+        }
+      >
         <ToggleGroup
           value={selectedYearKey ? [selectedYearKey] : []}
           onValueChange={(vals) => {
