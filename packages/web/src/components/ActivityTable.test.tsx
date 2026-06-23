@@ -133,8 +133,8 @@ describe("ActivityTable", () => {
     it("formats elevation in feet by default", () => {
       render(<ActivityTable {...defaultProps} />);
 
-      // 450m = ~1476 feet
-      expect(screen.getByText("1476 ft")).toBeInTheDocument();
+      // 450m = ~1476 feet (thousands-grouped)
+      expect(screen.getByText("1,476 ft")).toBeInTheDocument();
     });
 
     it("formats elevation in meters when specified", () => {

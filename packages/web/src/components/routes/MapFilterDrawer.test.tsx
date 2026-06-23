@@ -32,6 +32,7 @@ function renderDrawer(over: Partial<MapFilterDrawerProps> = {}) {
     onShowAll,
     distanceUnit: "miles",
     elevationUnit: "feet",
+    isDark: true,
     ...over,
   };
   render(<MapFilterDrawer {...props} />);

@@ -8,16 +8,21 @@ import { useSportConfig } from "../hooks/useSportConfig";
 import { useAuthTokenRef } from "../hooks/useAuthTokenRef";
 import { useMapDataset } from "../hooks/useMapDataset";
 import { useRouteFilters } from "../hooks/useRouteFilters";
+import { useThrottledValue } from "../hooks/useThrottledValue";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { getUserSettings } from "../utils/units";
 import { getConfig } from "../lib/config";
 import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
+import { DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
+import { getSpectrumColor } from "../utils/chartColors";
+import type { SportOption } from "../components/routes/MapFilterControls";
 
 // Lazy-loaded so `mapbox-gl` (and its CSS) ship in their own async chunk and
 // never bloat the main bundle or any non-map page.
 const RouteMap = lazy(() => import("../components/routes/RouteMap"));
 const MapFilterDrawer = lazy(() => import("../components/routes/MapFilterDrawer"));
+const MapFilterControls = lazy(() => import("../components/routes/MapFilterControls"));
 
 /** Must match the rendered header height (see also sidebar top offset in tailwind.css) */
 const HEADER_HEIGHT = 48;
@@ -48,9 +53,42 @@ export default function RoutesPage() {
   const { distanceUnit, elevationUnit } = getUserSettings(prefs);
   const [drawerOpen, setDrawerOpen] = useState(true);
 
+  // App-category sports present in the data, in a stable order. Each gets a NEON
+  // spectrum color by its position — the SAME full-brightness `getSpectrumColor`
+  // the dashboard sparklines use (Magenta→Cyan→Green→Yellow→Orange), in BOTH
+  // themes, so the map lines/chips match the dashboard's brightness exactly. (The
+  // glow underlay carries legibility on the basemap, so no darkening for light.)
+  const orderedSports = useMemo(
+    () => [...new Set(activities.map((a) => a.sport))].sort(),
+    [activities]
+  );
+  const sportColors = useMemo(() => {
+    const total = orderedSports.length;
+    const map: Record<string, string> = {};
+    orderedSports.forEach((sport, i) => {
+      map[sport] = getSpectrumColor(i, total);
+    });
+    return map;
+  }, [orderedSports]);
+
+  const sportOptions = useMemo<SportOption[]>(
+    () =>
+      orderedSports.map((sport) => ({
+        value: sport,
+        label: sportConfig?.sportCategories?.[sport]?.displayName ?? sport,
+        color: sportColors[sport] ?? DEFAULT_SPORT_COLOR,
+      })),
+    [orderedSports, sportConfig, sportColors]
+  );
+
+  // Throttle ONLY the map's filter edge — the summary/controls react to the raw
+  // filter state instantly, but a dragged distance slider doesn't recompile the
+  // Mapbox filter every frame (see the design-spec review addendum).
+  const throttledMapFilter = useThrottledValue(routeFilters.mapFilter, 120);
+
   const colorExpression = useMemo(
-    () => buildSportColorExpression(sportConfig, isDark),
-    [sportConfig, isDark]
+    () => buildSportColorExpression(sportConfig, sportColors, DEFAULT_SPORT_COLOR),
+    [sportConfig, sportColors]
   );
 
   const mapConfig = useMemo(() => {
@@ -136,15 +174,15 @@ export default function RoutesPage() {
               getAuthToken={getToken}
               refreshAuthToken={refreshAuthToken}
               colorExpression={colorExpression}
-              filter={routeFilters.mapFilter}
+              filter={throttledMapFilter}
               defaultViewport={defaultViewport}
               isDark={isDark}
             />
           </Suspense>
 
           {/* Non-modal filter/insights drawer over the live map (lazy with the map
-              chunk). Step 1 ships the shell + live cross-filter summary; controls,
-              charts, and the activity list slot into it next. */}
+              chunk). Filter controls mount in its children; charts + activity list
+              slot in next. */}
           <Suspense fallback={null}>
             <MapFilterDrawer
               open={drawerOpen}
@@ -156,9 +194,23 @@ export default function RoutesPage() {
               onShowAll={routeFilters.showAll}
               distanceUnit={distanceUnit}
               elevationUnit={elevationUnit}
+              isDark={isDark}
               isLoading={datasetLoading}
               error={datasetError}
-            />
+            >
+              <MapFilterControls
+                filters={routeFilters.filters}
+                sportOptions={sportOptions}
+                distanceDomain={routeFilters.distanceDomain}
+                dateDomain={routeFilters.dateDomain}
+                distanceUnit={distanceUnit}
+                onSportsChange={routeFilters.setSports}
+                onDistanceChange={routeFilters.setDistanceRange}
+                onSelectYear={routeFilters.selectYear}
+                onSelectAllTime={() => routeFilters.setDateRange(routeFilters.dateDomain)}
+                disabled={datasetLoading || activities.length === 0}
+              />
+            </MapFilterDrawer>
           </Suspense>
 
           {/* No geo-bearing activities → map falls back to a world view; hint why it's empty. */}

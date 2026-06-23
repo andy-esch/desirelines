@@ -3,6 +3,7 @@ import {
   convertDistance,
   convertToMeters,
   convertElevation,
+  formatElevation,
   goalMetersToDisplay,
   goalDisplayToMeters,
   METERS_TO_MILES,
@@ -156,6 +157,17 @@ describe("units", () => {
     it("should return meters unchanged when unit is meters", () => {
       const meters = 1000;
       expect(convertElevation(meters, "meters")).toBe(1000);
+    });
+  });
+
+  describe("formatElevation", () => {
+    it("groups thousands for readability", () => {
+      // 4925 m ≈ 16,158 ft
+      expect(formatElevation(4925, "feet")).toBe("16,158 ft");
+    });
+
+    it("omits the separator below 1000", () => {
+      expect(formatElevation(50, "feet")).toBe("164 ft");
     });
   });
 });

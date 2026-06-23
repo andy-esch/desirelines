@@ -84,7 +84,12 @@ export function formatImpactPct(pct: number | null): string {
 export function formatElevation(meters: number, unit: ElevationUnit, decimals = 0): string {
   const value = convertElevation(meters, unit);
   const label = getElevationLabel(unit);
-  return `${value.toFixed(decimals)} ${label}`;
+  // Group thousands (e.g. "16,158 ft") for readability on large gains.
+  const formatted = value.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return `${formatted} ${label}`;
 }
 
 export function getDistanceLabel(unit: DistanceUnit): string {

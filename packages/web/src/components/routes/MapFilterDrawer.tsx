@@ -1,8 +1,22 @@
 import { useEffect, useId, useRef } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import type { ActivityTotals } from "../../utils/routeFilters";
+
+/**
+ * The map chrome uses the vivid in-house **neon** palette in dark mode, not the
+ * default azure `accent-cyan` (#00d4ff). Overriding the token locally re-tints
+ * everything that resolves through it — the drawer accents AND the Base UI
+ * primitives inside (Slider/ToggleGroup paint with `--color-primary` →
+ * `accent-cyan`) — to neon cyan, scoped to the map only (those primitives are
+ * map-only today). Applied in DARK only: neon cyan (`rgb(0,255,255)`) is great on
+ * the dark basemap but illegible on the light theme's pale glass, so light falls
+ * back to the theme-tuned readable `accent-cyan`. Magenta accents use the
+ * theme-aware `accent-magenta` token (neon `#ff00ff` dark / deeper `#c026d3`
+ * light), so they read in both.
+ */
+const NEON_CHROME = { "--color-accent-cyan": "var(--color-neon-cyan)" } as CSSProperties;
 import {
   convertDistance,
   getDistanceLabel,
@@ -31,6 +45,8 @@ export interface MapFilterDrawerProps {
   onShowAll: () => void;
   distanceUnit: DistanceUnit;
   elevationUnit: ElevationUnit;
+  /** Dark theme → apply the vivid neon-cyan chrome override (see NEON_CHROME). */
+  isDark: boolean;
   /** Dataset still loading — show a quiet placeholder instead of zeros. */
   isLoading?: boolean;
   /** Dataset failed to load. */
@@ -89,12 +105,15 @@ export default function MapFilterDrawer({
   onShowAll,
   distanceUnit,
   elevationUnit,
+  isDark,
   isLoading = false,
   error = null,
   children,
 }: MapFilterDrawerProps) {
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const headingId = useId();
+  // Neon-cyan chrome in dark; readable theme default in light (see NEON_CHROME).
+  const neonChrome = isDark ? NEON_CHROME : undefined;
 
   // Esc collapses the drawer. Non-modal: scoped so it ignores key events
   // originating inside an open inner overlay (Popover/Combobox/Select set
@@ -177,6 +196,7 @@ export default function MapFilterDrawer({
         onClick={() => onOpenChange(true)}
         aria-expanded={open}
         aria-controls={DRAWER_ID}
+        style={neonChrome}
         className={cn(
           // Restrained glass chrome with square corners (matches the panel + sits
           // cleanly under the nav header). Deep neon styling is deferred to the
@@ -194,7 +214,7 @@ export default function MapFilterDrawer({
       >
         Filters
         {activeFilterCount > 0 && (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-cyan px-1.5 text-xs font-bold text-bg-body">
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-magenta px-1.5 text-xs font-bold text-bg-body">
             {activeFilterCount}
           </span>
         )}
@@ -205,6 +225,7 @@ export default function MapFilterDrawer({
         id={DRAWER_ID}
         role="region"
         aria-labelledby={headingId}
+        style={neonChrome}
         // `inert` (not `aria-hidden`) when closed: removes the offscreen panel from
         // BOTH the a11y tree and the focus/pointer order in one deterministic step,
         // so the collapsed panel can't trap Tab focus or swallow clicks over the map
@@ -227,21 +248,13 @@ export default function MapFilterDrawer({
             : "translate-y-full sm:translate-y-0 sm:-translate-x-[120%]"
         )}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <h2
-              id={headingId}
-              className="text-sm font-semibold uppercase tracking-wider text-body-text"
-            >
-              Filters
-            </h2>
-            {activeFilterCount > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-cyan/15 px-1.5 text-xs font-bold text-accent-cyan">
-                {activeFilterCount}
-              </span>
-            )}
-          </div>
+        {/* Header — no visible "Filters" title (redundant inside a drawer of
+            labeled filter sections); the collapse control is all that's needed.
+            The sr-only heading keeps the region's accessible name (aria-labelledby). */}
+        <h2 id={headingId} className="sr-only">
+          Activity filters
+        </h2>
+        <div className="flex items-center justify-end border-b border-border/60 px-4 py-2">
           <Button
             variant="ghost"
             size="icon"

@@ -28,17 +28,17 @@ const FIT_PADDING = 40;
 /** Cap fit zoom so a degenerate (single-point) bbox doesn't zoom to the moon. */
 const MAX_FIT_ZOOM = 14;
 
-/** Line width grows with zoom so routes stay legible from world to street level. */
+/** Crisp line; width grows with zoom so routes stay legible world→street. */
 const LINE_WIDTH: ExpressionSpecification = [
   "interpolate",
   ["linear"],
   ["zoom"],
   4,
-  0.6,
+  0.8,
   10,
-  1.5,
+  2,
   14,
-  2.5,
+  3.5,
 ];
 
 export interface RouteMapProps {
@@ -165,13 +165,15 @@ export default function RouteMap({
     [apiBaseUrl]
   );
 
-  // Memoized so the layer's paint isn't a new object identity each render (which
+  // Memoized so the layer paint isn't a new object identity each render (which
   // react-map-gl would shallow-diff and re-apply); only line-color is dynamic.
+  // Crisp, full-opacity neon line — no blur (a `line-blur` glow underlay produced
+  // jaggedy artifacts; the clean line on the full-spectrum color reads well).
   const linePaint = useMemo<NonNullable<LineLayerSpecification["paint"]>>(
     () => ({
       "line-color": colorExpression,
       "line-width": LINE_WIDTH,
-      "line-opacity": 0.85,
+      "line-opacity": 1,
     }),
     [colorExpression]
   );
