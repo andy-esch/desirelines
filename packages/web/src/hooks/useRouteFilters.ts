@@ -52,6 +52,13 @@ export interface UseRouteFiltersResult {
   setFilters: (next: RouteFilterState) => void;
   /** Reset every filter back to the defaults (current year, all sports/regions). */
   reset: () => void;
+  /**
+   * Widen to *all* activities: clear sport/distance/region and stretch the date
+   * window to the full data domain. The recourse when the default current-year
+   * window (or a narrow filter) yields nothing — unlike `reset`, which returns to
+   * the current year and so wouldn't surface past-year activities.
+   */
+  showAll: () => void;
 }
 
 /**
@@ -111,6 +118,15 @@ export function useRouteFilters(
   const distanceDomain = useMemo(() => activityDistanceDomain(activities), [activities]);
   const dateDomain = useMemo(() => activityDateDomain(activities, now), [activities, now]);
 
+  const showAll = useCallback(() => {
+    setFilters({
+      sports: [],
+      distanceRange: null,
+      dateRange: [dateDomain[0], dateDomain[1]],
+      regionId: null,
+    });
+  }, [dateDomain]);
+
   const filteredActivities = useMemo(
     () => filterMapActivities(activities, filters),
     [activities, filters]
@@ -162,5 +178,6 @@ export function useRouteFilters(
     setRegionId,
     setFilters,
     reset,
+    showAll,
   };
 }

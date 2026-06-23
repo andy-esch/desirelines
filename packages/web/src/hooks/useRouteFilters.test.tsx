@@ -105,6 +105,20 @@ describe("useRouteFilters", () => {
     expect(result.current.mapFilter).toEqual(["in", ["get", "activity_id"], ["literal", [1, 2]]]);
   });
 
+  it("showAll widens the date window to the full domain and clears other filters", () => {
+    const { result } = setup();
+    act(() => {
+      result.current.toggleSport("cycling");
+      result.current.setRegionId(20);
+    });
+    act(() => result.current.showAll());
+    // Full date domain (incl. the 2025 activity) → all three surface.
+    expect(result.current.filters.dateRange).toEqual(["2025-08-01", "2026-06-22"]);
+    expect(result.current.filters.sports).toEqual([]);
+    expect(result.current.filters.regionId).toBeNull();
+    expect(result.current.filteredIds).toEqual([1, 2, 3]);
+  });
+
   it("reset restores every dimension to the defaults", () => {
     const { result } = setup();
     act(() => {

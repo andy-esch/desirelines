@@ -11,9 +11,17 @@ const TOTALS: ActivityTotals = {
   elevationMeters: 12_000,
 };
 
+const ZERO_TOTALS: ActivityTotals = {
+  count: 0,
+  distanceMeters: 0,
+  movingTimeSeconds: 0,
+  elevationMeters: 0,
+};
+
 function renderDrawer(over: Partial<MapFilterDrawerProps> = {}) {
   const onOpenChange = vi.fn();
   const onReset = vi.fn();
+  const onShowAll = vi.fn();
   const props: MapFilterDrawerProps = {
     open: true,
     onOpenChange,
@@ -21,12 +29,13 @@ function renderDrawer(over: Partial<MapFilterDrawerProps> = {}) {
     totalCount: 300,
     activeFilterCount: 0,
     onReset,
+    onShowAll,
     distanceUnit: "miles",
     elevationUnit: "feet",
     ...over,
   };
   render(<MapFilterDrawer {...props} />);
-  return { onOpenChange, onReset };
+  return { onOpenChange, onReset, onShowAll };
 }
 
 describe("MapFilterDrawer", () => {
@@ -55,7 +64,7 @@ describe("MapFilterDrawer", () => {
   it("fires onOpenChange(true) when the closed-state handle is clicked", async () => {
     const user = userEvent.setup();
     const { onOpenChange } = renderDrawer({ open: false });
-    await user.click(screen.getByRole("button", { name: /explore/i }));
+    await user.click(screen.getByRole("button", { name: /filters/i }));
     expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 
@@ -82,14 +91,33 @@ describe("MapFilterDrawer", () => {
     expect(screen.queryByText("142")).not.toBeInTheDocument();
   });
 
-  it("surfaces an error state", () => {
+  it("surfaces a load error kindly (status, not a severe alert) with no zero stats", () => {
     renderDrawer({ error: new Error("boom") });
-    expect(screen.getByRole("alert")).toHaveTextContent(/couldn't load/i);
+    // Announced as a polite status, not an assertive red alert.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/couldn't load your activities/i);
+    // No alarming "0" stat dump.
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
-  it("reflects open state via aria on the toggle and region", () => {
+  it("shows a gentle empty-dataset message when the user has no routes at all", () => {
+    renderDrawer({ totals: ZERO_TOTALS, totalCount: 0 });
+    expect(screen.getByRole("status")).toHaveTextContent(/no routes recorded yet/i);
+    expect(screen.queryByRole("button", { name: /show all activities/i })).not.toBeInTheDocument();
+  });
+
+  it("offers a 'Show all activities' recourse when filters exclude everything", async () => {
+    const user = userEvent.setup();
+    // Routes exist (totalCount 300) but the current filters match none.
+    const { onShowAll } = renderDrawer({ totals: ZERO_TOTALS, totalCount: 300 });
+    expect(screen.getByRole("status")).toHaveTextContent(/no activities match these filters/i);
+    await user.click(screen.getByRole("button", { name: /show all activities/i }));
+    expect(onShowAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("reflects open state via aria on the toggle", () => {
     renderDrawer({ open: false });
-    expect(screen.getByRole("button", { name: /explore/i })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /filters/i })).toHaveAttribute(
       "aria-expanded",
       "false"
     );

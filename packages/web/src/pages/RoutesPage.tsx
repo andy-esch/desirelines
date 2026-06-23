@@ -153,6 +153,7 @@ export default function RoutesPage() {
               totalCount={activities.length}
               activeFilterCount={routeFilters.activeFilterCount}
               onReset={routeFilters.reset}
+              onShowAll={routeFilters.showAll}
               distanceUnit={distanceUnit}
               elevationUnit={elevationUnit}
               isLoading={datasetLoading}
