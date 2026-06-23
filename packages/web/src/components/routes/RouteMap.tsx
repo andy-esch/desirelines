@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map, Source, Layer, NavigationControl } from "react-map-gl/mapbox";
 import type { MapRef, ErrorEvent } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
-import type { ExpressionSpecification, LngLatBoundsLike } from "mapbox-gl";
+import type {
+  ExpressionSpecification,
+  FilterSpecification,
+  LineLayerSpecification,
+  LngLatBoundsLike,
+} from "mapbox-gl";
 import type { RegionSummary } from "../../api/map";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
@@ -49,6 +54,13 @@ export interface RouteMapProps {
   refreshAuthToken: () => Promise<void>;
   /** Data-driven per-sport line color (or a flat color before the registry loads). */
   colorExpression: ExpressionSpecification | string;
+  /**
+   * Cross-filter expression for the route layer (e.g. the filtered `activity_id`
+   * set from `useRouteFilters`). `null`/omitted = show all routes — used while the
+   * dataset is still loading or failed, so the map degrades to the full set rather
+   * than going blank.
+   */
+  filter?: FilterSpecification | null;
   /** Region to fit on load; null falls back to a world view. */
   defaultViewport: RegionSummary | null;
   isDark: boolean;
@@ -83,6 +95,7 @@ export default function RouteMap({
   getAuthToken,
   refreshAuthToken,
   colorExpression,
+  filter,
   defaultViewport,
   isDark,
 }: RouteMapProps) {
@@ -152,6 +165,17 @@ export default function RouteMap({
     [apiBaseUrl]
   );
 
+  // Memoized so the layer's paint isn't a new object identity each render (which
+  // react-map-gl would shallow-diff and re-apply); only line-color is dynamic.
+  const linePaint = useMemo<NonNullable<LineLayerSpecification["paint"]>>(
+    () => ({
+      "line-color": colorExpression,
+      "line-width": LINE_WIDTH,
+      "line-opacity": 0.85,
+    }),
+    [colorExpression]
+  );
+
   // Fit the default viewport when it genuinely changes region. `initialViewState`
   // already fit the region present at mount (recorded in fittedRegionIdRef), so a
   // background query refetch — same regionId, new object — is skipped, preserving
@@ -199,17 +223,21 @@ export default function RouteMap({
           tiles={[tileTemplateUrl]}
           minzoom={0}
           maxzoom={14}
+          // Promote the MVT `activity_id` property to the feature id (per
+          // source-layer). Harmless to the property-based `filter` below; it's the
+          // prerequisite for `feature-state` hover/click highlighting (next step),
+          // which silently no-ops on vector tiles without a feature id.
+          promoteId={{ [SOURCE_LAYER]: "activity_id" }}
         >
           <Layer
             id={LAYER_ID}
             type="line"
             source-layer={SOURCE_LAYER}
+            // Spread `filter` only when present — null/absent ⇒ no filter (show all).
+            // (Spread, not `filter={... ?? undefined}`, for exactOptionalPropertyTypes.)
+            {...(filter ? { filter } : {})}
             layout={{ "line-join": "round", "line-cap": "round" }}
-            paint={{
-              "line-color": colorExpression,
-              "line-width": LINE_WIDTH,
-              "line-opacity": 0.85,
-            }}
+            paint={linePaint}
           />
         </Source>
       </Map>

@@ -148,6 +148,25 @@ describe("RouteMap layer setup", () => {
       "rgb(1,2,3)"
     );
   });
+
+  it("promotes the MVT activity_id property to the feature id (feature-state prereq)", () => {
+    renderMap();
+
+    expect(h.captured.sources.at(-1)!.promoteId).toEqual({ routes: "activity_id" });
+  });
+
+  it("applies the cross-filter expression to the line layer when provided", () => {
+    const filter = ["in", ["get", "activity_id"], ["literal", [1, 2]]] as never;
+    renderMap({ filter });
+
+    expect(h.captured.layers.at(-1)!.filter).toEqual(filter);
+  });
+
+  it("omits the layer filter (shows all routes) when filter is null", () => {
+    renderMap({ filter: null });
+
+    expect(h.captured.layers.at(-1)!).not.toHaveProperty("filter");
+  });
 });
 
 describe("RouteMap 401 recovery", () => {

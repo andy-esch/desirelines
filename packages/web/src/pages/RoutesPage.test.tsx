@@ -35,6 +35,16 @@ vi.mock("../contexts/ThemeContext", () => ({
   useTheme: vi.fn(() => ({ resolvedTheme: "dark", theme: "dark", setTheme: vi.fn() })),
 }));
 
+// Cross-filter dataset + user prefs. Mocked here so the page test stays a unit
+// test and doesn't pull the firebase-backed userConfig service at import.
+vi.mock("../hooks/useMapDataset", () => ({
+  useMapDataset: vi.fn(() => ({ activities: [], isLoading: false, error: null })),
+}));
+
+vi.mock("../hooks/useUserConfig", () => ({
+  useUserConfig: vi.fn(() => ({ data: null })),
+}));
+
 // Mock config so the Mapbox token + gateway are present by default.
 vi.mock("../lib/config", () => ({
   getConfig: vi.fn(),
@@ -121,6 +131,14 @@ describe("RoutesPage", () => {
     expect(screen.queryByText(/No routes yet/)).not.toBeInTheDocument();
   });
 
+  it("mounts the non-modal filter drawer over the map", async () => {
+    await renderWithRouter(<RoutesPage />);
+
+    await screen.findByTestId("route-map");
+    // Drawer is open by default → its header collapse control is present.
+    expect(await screen.findByRole("button", { name: /collapse panel/i })).toBeInTheDocument();
+  });
+
   it("wires the resolved token, tile URL, and viewport into the map", async () => {
     await renderWithRouter(<RoutesPage />);
     await screen.findByTestId("route-map");
@@ -134,6 +152,10 @@ describe("RoutesPage", () => {
     expect(props.apiBaseUrl).toBe("http://localhost:8084/api/v1");
     expect(props.defaultViewport).toEqual(viewport);
     expect(props.isDark).toBe(true);
+    // Cross-filter expression is wired through (null here: the mocked dataset is
+    // empty, so useRouteFilters yields no filter → map shows all routes).
+    expect(props).toHaveProperty("filter");
+    expect(props.filter).toBeNull();
     expect(typeof props.getAuthToken).toBe("function");
     expect(props.getAuthToken()).toBe("firebase-token");
     expect(typeof props.refreshAuthToken).toBe("function");

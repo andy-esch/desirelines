@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo } from "react";
+import { Suspense, lazy, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { PageLayout } from "../components/layout/PageLayout";
 import { useAuth } from "../hooks/useAuth";
@@ -6,6 +6,10 @@ import { useTheme } from "../contexts/ThemeContext";
 import { useRouteRegions } from "../hooks/useRouteRegions";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useAuthTokenRef } from "../hooks/useAuthTokenRef";
+import { useMapDataset } from "../hooks/useMapDataset";
+import { useRouteFilters } from "../hooks/useRouteFilters";
+import { useUserConfig } from "../hooks/useUserConfig";
+import { getUserSettings } from "../utils/units";
 import { getConfig } from "../lib/config";
 import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
@@ -13,6 +17,7 @@ import { buildSportColorExpression } from "../utils/routeMapStyle";
 // Lazy-loaded so `mapbox-gl` (and its CSS) ship in their own async chunk and
 // never bloat the main bundle or any non-map page.
 const RouteMap = lazy(() => import("../components/routes/RouteMap"));
+const MapFilterDrawer = lazy(() => import("../components/routes/MapFilterDrawer"));
 
 /** Must match the rendered header height (see also sidebar top offset in tailwind.css) */
 const HEADER_HEIGHT = 48;
@@ -33,6 +38,15 @@ export default function RoutesPage() {
   const { defaultViewport, isLoading: regionsLoading, error } = useRouteRegions();
   const { sportConfig } = useSportConfig();
   const { getToken, ready: tokenReady, refresh: refreshAuthToken } = useAuthTokenRef();
+
+  // Cross-filter dataset + state. Loaded independently of the map so a slow
+  // dataset fetch never blocks the basemap/tiles; the drawer shows its own
+  // loading state. Filtering is entirely client-side (see useRouteFilters).
+  const { activities, isLoading: datasetLoading, error: datasetError } = useMapDataset();
+  const routeFilters = useRouteFilters(activities);
+  const { data: prefs } = useUserConfig("preferences");
+  const { distanceUnit, elevationUnit } = getUserSettings(prefs);
+  const [drawerOpen, setDrawerOpen] = useState(true);
 
   const colorExpression = useMemo(
     () => buildSportColorExpression(sportConfig, isDark),
@@ -122,8 +136,27 @@ export default function RoutesPage() {
               getAuthToken={getToken}
               refreshAuthToken={refreshAuthToken}
               colorExpression={colorExpression}
+              filter={routeFilters.mapFilter}
               defaultViewport={defaultViewport}
               isDark={isDark}
+            />
+          </Suspense>
+
+          {/* Non-modal filter/insights drawer over the live map (lazy with the map
+              chunk). Step 1 ships the shell + live cross-filter summary; controls,
+              charts, and the activity list slot into it next. */}
+          <Suspense fallback={null}>
+            <MapFilterDrawer
+              open={drawerOpen}
+              onOpenChange={setDrawerOpen}
+              totals={routeFilters.totals}
+              totalCount={activities.length}
+              activeFilterCount={routeFilters.activeFilterCount}
+              onReset={routeFilters.reset}
+              distanceUnit={distanceUnit}
+              elevationUnit={elevationUnit}
+              isLoading={datasetLoading}
+              error={datasetError}
             />
           </Suspense>
 
