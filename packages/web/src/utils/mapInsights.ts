@@ -24,8 +24,8 @@ export function sportBreakdown(activities: MapActivity[]): SportBreakdownRow[] {
       elevationMeters: 0,
     };
     row.count += 1;
-    row.distanceMeters += a.distanceMeters;
-    row.movingTimeSeconds += a.movingTime;
+    row.distanceMeters += a.distanceMeters ?? 0;
+    row.movingTimeSeconds += a.movingTime ?? 0;
     row.elevationMeters += a.elevationMeters ?? 0;
     bySport.set(a.sport, row);
   }
@@ -89,8 +89,8 @@ export function weeklyVolume(activities: MapActivity[]): WeeklyVolumeRow[] {
       movingTimeSeconds: 0,
       count: 0,
     };
-    row.distanceMeters += a.distanceMeters;
-    row.movingTimeSeconds += a.movingTime;
+    row.distanceMeters += a.distanceMeters ?? 0;
+    row.movingTimeSeconds += a.movingTime ?? 0;
     row.count += 1;
     byWeek.set(ws, row);
   }
@@ -114,7 +114,9 @@ export interface HistogramBin {
 }
 /** Bin activities by distance into ~`binCount` nice-width buckets (meters). */
 export function distanceHistogram(activities: MapActivity[], binCount = 8): HistogramBin[] {
-  const max = activities.reduce((m, a) => Math.max(m, a.distanceMeters), 0);
+  // `>` comparison (not Math.max) so a NaN/negative distance can't poison `max`
+  // (Math.max(0, NaN) === NaN, which would cascade into NaN step/bins → crash).
+  const max = activities.reduce((m, a) => (a.distanceMeters > m ? a.distanceMeters : m), 0);
   if (max <= 0) return [];
   const step = niceStep(max / binCount);
   const nBins = Math.max(1, Math.ceil(max / step));
@@ -124,6 +126,9 @@ export function distanceHistogram(activities: MapActivity[], binCount = 8): Hist
     count: 0,
   }));
   for (const a of activities) {
+    // Skip negative / non-finite distances (corrupt GPS / manual-entry) — they'd
+    // produce a negative or NaN bin index → out-of-bounds crash.
+    if (!(a.distanceMeters >= 0)) continue;
     const idx = Math.min(nBins - 1, Math.floor(a.distanceMeters / step));
     bins[idx]!.count += 1;
   }
@@ -139,10 +144,10 @@ export interface RegionBreakdownRow {
 export function regionBreakdown(activities: MapActivity[]): RegionBreakdownRow[] {
   const byRegion = new Map<number, RegionBreakdownRow>();
   for (const a of activities) {
-    for (const rid of a.regionIds) {
+    for (const rid of a.regionIds ?? []) {
       const row = byRegion.get(rid) ?? { regionId: rid, count: 0, distanceMeters: 0 };
       row.count += 1;
-      row.distanceMeters += a.distanceMeters;
+      row.distanceMeters += a.distanceMeters ?? 0;
       byRegion.set(rid, row);
     }
   }
@@ -158,7 +163,7 @@ export function cumulativeDistance(activities: MapActivity[]): CumulativePoint[]
   const byDay = new Map<string, number>();
   for (const a of activities) {
     const d = a.startDateLocal.slice(0, 10);
-    byDay.set(d, (byDay.get(d) ?? 0) + a.distanceMeters);
+    byDay.set(d, (byDay.get(d) ?? 0) + (a.distanceMeters ?? 0));
   }
   let sum = 0;
   return [...byDay.keys()].sort().map((date) => {

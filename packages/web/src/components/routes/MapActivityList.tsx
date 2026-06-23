@@ -89,9 +89,17 @@ export default function MapActivityList({
           type="button"
           onClick={() => setCollapsed((c) => !c)}
           aria-expanded={!collapsed}
+          aria-controls="map-activity-list"
           className="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wider text-slate-light hover:text-body-text"
         >
-          <span className={cn("transition-transform", collapsed ? "" : "rotate-90")}>▸</span>
+          <span
+            className={cn(
+              "transition-transform motion-reduce:transition-none",
+              collapsed ? "" : "rotate-90"
+            )}
+          >
+            ▸
+          </span>
           Activities ({total.toLocaleString()})
         </button>
         {!collapsed && totalPages > 1 && (
@@ -123,27 +131,28 @@ export default function MapActivityList({
         )}
       </div>
       {!collapsed && (
-        <ul ref={listRef} className="space-y-0.5">
+        <ul ref={listRef} id="map-activity-list" className="space-y-0.5">
           {pageItems.map((a) => {
             const isSelected = a.activityId === selectedId;
             return (
-              <li key={a.activityId} data-activity-id={a.activityId}>
-                <div
-                  role="button"
-                  tabIndex={0}
+              // The select control and the Strava link are SIBLINGS (a native
+              // <button> may not contain a focusable <a> — invalid interactive
+              // nesting). Native <button> also gives Enter/Space for free.
+              <li
+                key={a.activityId}
+                data-activity-id={a.activityId}
+                className={cn(
+                  "group flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-accent",
+                  isSelected && "bg-accent"
+                )}
+              >
+                <button
+                  type="button"
                   aria-pressed={isSelected}
                   onClick={() => onSelect(a)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onSelect(a);
-                    }
-                  }}
                   className={cn(
-                    "group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-                    "transition-colors hover:bg-accent focus-visible:outline-none",
-                    "focus-visible:ring-2 focus-visible:ring-accent-cyan/50",
-                    isSelected && "bg-accent"
+                    "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/50"
                   )}
                 >
                   <span
@@ -160,21 +169,21 @@ export default function MapActivityList({
                       {formatDistance(a.distanceMeters, distanceUnit)}
                     </span>
                   </span>
-                  <a
-                    href={stravaUrl(a.activityId)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="View on Strava"
-                    onClick={(e) => e.stopPropagation()}
-                    className={cn(
-                      "shrink-0 rounded p-1 text-slate-light opacity-0 transition-opacity",
-                      "hover:text-accent-cyan focus-visible:opacity-100 group-hover:opacity-100",
-                      isSelected && "opacity-100"
-                    )}
-                  >
-                    <ExternalLinkIcon />
-                  </a>
-                </div>
+                </button>
+                <a
+                  href={stravaUrl(a.activityId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="View on Strava"
+                  className={cn(
+                    "shrink-0 rounded p-1 text-slate-light opacity-0 transition-opacity",
+                    "hover:text-accent-cyan focus-visible:opacity-100 group-hover:opacity-100",
+                    "motion-reduce:transition-none",
+                    isSelected && "opacity-100"
+                  )}
+                >
+                  <ExternalLinkIcon />
+                </a>
               </li>
             );
           })}

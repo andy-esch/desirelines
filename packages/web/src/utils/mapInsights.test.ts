@@ -106,6 +106,21 @@ describe("mapInsights", () => {
     expect(distanceHistogram([act({ distanceMeters: 0 })])).toEqual([]);
   });
 
+  it("is robust to malformed rows (negative/NaN distance, missing regionIds/movingTime)", () => {
+    const bad = [
+      act({ activityId: 1, distanceMeters: -500, movingTime: undefined as never }),
+      act({ activityId: 2, distanceMeters: NaN, regionIds: undefined as never }),
+      act({ activityId: 3, distanceMeters: 5_000, regionIds: [10] }),
+    ];
+    // distanceHistogram skips the negative/NaN rows (no out-of-bounds crash).
+    expect(distanceHistogram(bad).reduce((n, b) => n + b.count, 0)).toBe(1); // only the 5km row
+    // sportBreakdown doesn't produce NaN from a null movingTime.
+    expect(sportBreakdown(bad).every((r) => Number.isFinite(r.movingTimeSeconds))).toBe(true);
+    // regionBreakdown survives a missing regionIds array.
+    expect(() => regionBreakdown(bad)).not.toThrow();
+    expect(regionBreakdown(bad).find((r) => r.regionId === 10)?.count).toBe(1);
+  });
+
   it("aggregates per region (an activity counts in each of its regions)", () => {
     const data = [
       act({ activityId: 1, regionIds: [10, 20], distanceMeters: 5_000 }),

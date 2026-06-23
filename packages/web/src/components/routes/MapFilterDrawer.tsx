@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { ActivityTotals } from "../../utils/routeFilters";
 
 /**
@@ -190,6 +191,9 @@ export default function MapFilterDrawer({
       `${stats.count} ${totals.count === 1 ? "activity" : "activities"}` +
         `${activeFilterCount > 0 ? " filtered" : ""} · ${stats.distance} · ` +
         `${stats.time} · ${stats.elevation}`);
+  // Debounced so a slider drag doesn't flood the `aria-live` region with every
+  // intermediate readout — announce only once the filtering settles.
+  const announcedSummary = useDebouncedValue(liveSummary, 500);
 
   return (
     <>
@@ -270,6 +274,8 @@ export default function MapFilterDrawer({
             size="icon"
             onClick={() => onOpenChange(false)}
             aria-label="Collapse panel"
+            aria-expanded={open}
+            aria-controls={DRAWER_ID}
             className="absolute right-2 top-2 h-7 w-7 text-slate-light"
           >
             <CollapseIcon className="h-4 w-4 -rotate-90 sm:rotate-0" />
@@ -278,7 +284,7 @@ export default function MapFilterDrawer({
               filtered set changes (the visual grid is aria-hidden to avoid a
               piecemeal, number-by-number readout). */}
           <p className="sr-only" role="status" aria-live="polite">
-            {liveSummary}
+            {announcedSummary}
           </p>
           {statusMessage ? (
             <>

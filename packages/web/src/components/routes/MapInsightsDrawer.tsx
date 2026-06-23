@@ -63,9 +63,16 @@ export default function MapInsightsDrawer({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onOpenChange]);
 
+  // Unlike the left filter drawer (open-on-mount, so it must NOT steal focus), this
+  // panel is closed by default and opened by an explicit click — and the toggle
+  // becomes hidden (opacity-0/pointer-events-none) once open. So on a user-initiated
+  // open we move focus into the panel (else focus is stranded on a hidden button);
+  // on collapse we return it to the toggle if focus was inside.
   const prevOpen = useRef(open);
   useEffect(() => {
-    if (!open && prevOpen.current && panelRef.current?.contains(document.activeElement)) {
+    if (open && !prevOpen.current) {
+      panelRef.current?.focus();
+    } else if (!open && prevOpen.current && panelRef.current?.contains(document.activeElement)) {
       toggleButtonRef.current?.focus();
     }
     prevOpen.current = open;
@@ -101,6 +108,7 @@ export default function MapInsightsDrawer({
         id={DRAWER_ID}
         role="region"
         aria-labelledby={headingId}
+        tabIndex={-1}
         inert={!open}
         style={neonChrome}
         className={cn(
@@ -122,6 +130,8 @@ export default function MapInsightsDrawer({
             size="icon"
             onClick={() => onOpenChange(false)}
             aria-label="Collapse insights"
+            aria-expanded={open}
+            aria-controls={DRAWER_ID}
             className="h-7 w-7 text-slate-light"
           >
             <Chevron className="h-4 w-4 rotate-180" />
