@@ -57,7 +57,7 @@ async function renderActivitiesPage(initialRoute = "/activities") {
 describe("ActivitiesPage", () => {
   const mockActivities = [
     {
-      id: 123456789,
+      id: "123456789",
       name: "Morning Ride",
       type: "Ride",
       sport: "cycling",

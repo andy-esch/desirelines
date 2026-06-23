@@ -727,7 +727,9 @@ export function generateDemoActivities(
     activityDate.setHours(hour, minute, 0, 0);
 
     activities.push({
-      id: activityId++,
+      // ActivitySummary.id is an int64 → protojson string; keep the counter numeric
+      // but emit a string id to match the wire/generated type.
+      id: String(activityId++),
       name: generateActivityName(sport, hour),
       type: getStravaTypeForSport(sport),
       sport: sport,
