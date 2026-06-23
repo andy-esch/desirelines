@@ -1,0 +1,3 @@
+# tskflwctl planning config — this repo's planning lives in another repo.
+# planning_repo: the external planning repo, relative to this file (or absolute).
+planning_repo = "../desirelines-planning"
