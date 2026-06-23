@@ -75,10 +75,10 @@ function Section({
 }
 
 /**
- * The routes-map filter controls (step 2): sport multi-select, a year
- * quick-select, and a distance range — all driving `useRouteFilters` setters.
- * Mounts in the drawer's scroll area. The time-range two-thumb slider + date
- * inputs and the region filter are a follow-on (see the task).
+ * The routes-map filter controls: year quick-select, region (name + count), sport
+ * multi-select, and a distance range — all driving `useRouteFilters` setters.
+ * Mounts in the drawer's scroll area. (The granular two-thumb time-range slider +
+ * date inputs are a sibling control, `MapTimeRangeFilter`, rendered below the list.)
  *
  * All controls are **disabled/greyed** when the dataset is empty so the feature
  * stays visible (communicates intent) rather than vanishing.

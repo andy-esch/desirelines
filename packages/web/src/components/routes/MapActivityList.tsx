@@ -4,6 +4,7 @@ import { Button } from "../ui/button";
 import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
 import type { MapActivity } from "../../api/map";
 import { formatDistance, type DistanceUnit } from "../../utils/units";
+import { formatActivityDate } from "../../utils/formatActivityDate";
 
 /** Keep the list compact so the filters above it stay in view. */
 const PAGE_SIZE = 5;
@@ -21,13 +22,6 @@ export interface MapActivityListProps {
 }
 
 const FALLBACK_COLOR = "rgb(150, 150, 150)";
-
-/** Short athlete-local date (no TZ shift — parse the Y-M-D parts directly). */
-function shortDate(startDateLocal: string): string {
-  const [y, m, d] = startDateLocal.slice(0, 10).split("-").map(Number);
-  if (!y || !m || !d) return startDateLocal.slice(0, 10);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 function stravaUrl(activityId: number): string {
   return `https://www.strava.com/activities/${activityId}`;
@@ -162,7 +156,7 @@ export default function MapActivityList({
                       {a.name}
                     </span>
                     <span className="block text-xs tabular-nums text-slate-light">
-                      {shortDate(a.startDateLocal)} ·{" "}
+                      {formatActivityDate(a.startDateLocal)} ·{" "}
                       {formatDistance(a.distanceMeters, distanceUnit)}
                     </span>
                   </span>

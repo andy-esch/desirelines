@@ -143,6 +143,17 @@ export default function RoutesPage() {
     [routeFilters, regions, requestFit]
   );
 
+  // Drop the selection if the active filter no longer includes it — otherwise a
+  // lone highlighted line + open popup linger for a route not in the current set.
+  // (Adjusting state during render; converges since clearing makes the test false.)
+  const filteredIdSet = useMemo(
+    () => new Set(routeFilters.filteredIds),
+    [routeFilters.filteredIds]
+  );
+  if (selected !== null && !filteredIdSet.has(selected.id)) {
+    setSelected(null);
+  }
+
   const colorExpression = useMemo(
     () => buildSportColorExpression(sportConfig, sportColors, DEFAULT_SPORT_COLOR),
     [sportConfig, sportColors]

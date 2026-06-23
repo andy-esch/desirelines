@@ -266,7 +266,7 @@ describe("RouteMap interactivity (hover + click popover)", () => {
     const popup = screen.getByTestId("popup");
     expect(popup).toHaveTextContent("Morning Ride");
     expect(popup).toHaveTextContent(/28(\.0)? mi/); // 45,000 m ≈ 28 mi
-    expect(popup).toHaveTextContent("2026-05-01");
+    expect(popup).toHaveTextContent("May 1, 2026"); // formatted (not raw 2026-05-01)
     expect(popup).toHaveTextContent("1 hr"); // movingTime 3600s from the lookup
     const link = screen.getByRole("link", { name: /view on strava/i });
     expect(link).toHaveAttribute("href", "https://www.strava.com/activities/123");

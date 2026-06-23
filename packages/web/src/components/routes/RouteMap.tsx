@@ -18,6 +18,7 @@ import {
   formatHoursMinutes,
   type DistanceUnit,
 } from "../../utils/units";
+import { formatActivityDate } from "../../utils/formatActivityDate";
 
 /**
  * `SOURCE_LAYER` is a backend contract — it MUST be "routes" to match the layer
@@ -376,9 +377,9 @@ export default function RouteMap({
           minzoom={0}
           maxzoom={14}
           // Promote the MVT `activity_id` property to the feature id (per
-          // source-layer). Harmless to the property-based `filter` below; it's the
-          // prerequisite for `feature-state` hover/click highlighting (next step),
-          // which silently no-ops on vector tiles without a feature id.
+          // source-layer) so hover/click events expose it as `feature.id` (MVT
+          // features have no native id). The highlight uses a filtered layer, not
+          // feature-state, so this is only for reading the id off click/hover.
           promoteId={{ [SOURCE_LAYER]: "activity_id" }}
         >
           <Layer
@@ -474,7 +475,9 @@ function RoutePopupCard({
         {selected.date && (
           <div className="flex justify-between gap-4">
             <dt>Date</dt>
-            <dd className="tabular-nums text-body-text">{selected.date}</dd>
+            <dd className="tabular-nums text-body-text">
+              {formatActivityDate(selected.date, { year: true })}
+            </dd>
           </div>
         )}
       </dl>
