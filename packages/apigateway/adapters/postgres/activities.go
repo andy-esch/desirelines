@@ -1022,6 +1022,7 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 	const query = `
 		SELECT
 			a.id,
+			a.name,
 			a.sport,
 			a.distance,
 			a.moving_time,
@@ -1044,7 +1045,7 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 			WHERE rt.activity_id = a.id
 		) bb ON true
 		WHERE a.user_id = $1
-		GROUP BY a.id, a.sport, a.distance, a.moving_time,
+		GROUP BY a.id, a.name, a.sport, a.distance, a.moving_time,
 			a.total_elevation_gain, a.start_date_local,
 			bb.min_lng, bb.min_lat, bb.max_lng, bb.max_lat
 		ORDER BY a.start_date_local DESC, a.id DESC
@@ -1060,6 +1061,7 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 	for rows.Next() {
 		var (
 			id             int64
+			name           string
 			sport          string
 			distanceMeters float64
 			movingTime     int32
@@ -1073,7 +1075,7 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 		)
 
 		if retErr = rows.Scan(
-			&id, &sport, &distanceMeters, &movingTime, &elevation,
+			&id, &name, &sport, &distanceMeters, &movingTime, &elevation,
 			&startDateLocal, &regionIDs,
 			&minLng, &minLat, &maxLng, &maxLat,
 		); retErr != nil {
@@ -1082,6 +1084,7 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 
 		activity := &activitiesv1.MapActivity{
 			ActivityId:      id,
+			Name:            name,
 			Sport:           sport,
 			DistanceMeters:  distanceMeters,
 			MovingTime:      movingTime,

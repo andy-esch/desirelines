@@ -225,6 +225,9 @@ func TestIntegration_MapDataset(t *testing.T) {
 			if a.GetActivityId() != 5001 {
 				t.Errorf("activityId = %d, want 5001", a.GetActivityId())
 			}
+			if a.GetName() != "Geo Ride" {
+				t.Errorf("name = %q, want %q", a.GetName(), "Geo Ride")
+			}
 			// insertRoutedActivity uses distance=1000, moving_time=100, elev=10, sport=Ride.
 			if a.GetDistanceMeters() != 1000 || a.GetMovingTime() != 100 {
 				t.Errorf("scalars wrong: distance=%v movingTime=%v", a.GetDistanceMeters(), a.GetMovingTime())

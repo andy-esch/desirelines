@@ -822,12 +822,15 @@ components:
       description: >-
         A single geo-bearing activity for the routes-map cross-filter dataset:
         scalar attributes plus the region tag ids it belongs to.
-      required: [activityId, sport, distanceMeters, movingTime, startDateLocal, regionIds]
+      required: [activityId, name, sport, distanceMeters, movingTime, startDateLocal, regionIds]
       properties:
         activityId:
           type: integer
           format: int64
           description: Strava activity ID
+        name:
+          type: string
+          description: Activity name/title
         sport:
           type: string
           description: App sport category (e.g. cycling, running)

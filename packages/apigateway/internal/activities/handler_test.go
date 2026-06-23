@@ -706,6 +706,7 @@ func TestHandleMapDataset(t *testing.T) {
 	sample := []*activitiesv1.MapActivity{
 		{
 			ActivityId:     1,
+			Name:           "Morning Ride",
 			Sport:          "Ride",
 			DistanceMeters: 1000,
 			MovingTime:     100,
@@ -758,24 +759,35 @@ func TestHandleMapDataset(t *testing.T) {
 			if tt.wantLen == 0 {
 				return
 			}
-			a := resp.Activities[0]
-			// Sport must be mapped from the raw Strava type "Ride" to a category.
-			sport, ok := a["sport"].(string)
-			if !ok {
-				t.Fatal("sport field missing or not a string")
-			}
-			if sport == "Ride" || sport == "" {
-				t.Errorf("sport should be mapped to a category, got %q", sport)
-			}
-			// camelCase keys + region tags survive serialization.
-			if _, hasID := a["activityId"]; !hasID {
-				t.Error("expected camelCase activityId key")
-			}
-			ids, isSlice := a["regionIds"].([]any)
-			if !isSlice || len(ids) != 2 {
-				t.Errorf("regionIds = %v, want 2 ids", a["regionIds"])
-			}
+			assertSampleMapActivity(t, resp.Activities[0])
 		})
+	}
+}
+
+// assertSampleMapActivity checks the protojson body of the sample MapActivity:
+// the sport is mapped to a category, camelCase keys survive, and name + region
+// tags serialize. Extracted from TestHandleMapDataset to keep its complexity low.
+func assertSampleMapActivity(t *testing.T, a map[string]any) {
+	t.Helper()
+	// Sport must be mapped from the raw Strava type "Ride" to a category.
+	sport, ok := a["sport"].(string)
+	if !ok {
+		t.Fatal("sport field missing or not a string")
+	}
+	if sport == "Ride" || sport == "" {
+		t.Errorf("sport should be mapped to a category, got %q", sport)
+	}
+	// camelCase keys + name + region tags survive serialization.
+	if _, hasID := a["activityId"]; !hasID {
+		t.Error("expected camelCase activityId key")
+	}
+	name, hasName := a["name"].(string)
+	if !hasName || name != "Morning Ride" {
+		t.Errorf("name = %q, want %q", name, "Morning Ride")
+	}
+	ids, isSlice := a["regionIds"].([]any)
+	if !isSlice || len(ids) != 2 {
+		t.Errorf("regionIds = %v, want 2 ids", a["regionIds"])
 	}
 }
 

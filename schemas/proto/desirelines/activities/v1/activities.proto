@@ -93,6 +93,9 @@ message MapActivity {
   // Strava activity ID.
   int64 activity_id = 1;
 
+  // Activity name/title (for the cross-filter activity list + click popover).
+  string name = 9;
+
   // App sport category (running, cycling, yoga).
   // Mapped from Strava's sport_type via sport_types.json config.
   string sport = 2;
