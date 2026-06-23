@@ -28,6 +28,58 @@ export interface RouteRegionsResponse {
 }
 
 /**
+ * A single geo-bearing activity in the routes-map cross-filter dataset: scalar
+ * attributes + region tag ids keyed by `activityId`. Mirrors the apigateway
+ * `MapActivity` shape from `GET /v1/activities/map/dataset`. This is the shared
+ * client-side model that drives the map (`setFilter`), charts/KPIs, and the
+ * activity list — all client-side, no per-filter refetch.
+ *
+ * Note: `sport` is the **app category** (e.g. `cycling`, `running`) — unlike the
+ * MVT tile's `sport` property, which is the raw Strava sport_type. Cross-filtering
+ * the map therefore keys on the filtered `activityId` set, not the tile `sport`.
+ */
+export interface MapActivity {
+  activityId: number;
+  /** Activity name/title (for the activity list + click popover). */
+  name: string;
+  /** App sport category (e.g. `cycling`, `running`). */
+  sport: string;
+  distanceMeters: number;
+  /** Moving time in seconds. */
+  movingTime: number;
+  /** Elevation gain in meters; absent when unknown. */
+  elevationMeters?: number;
+  /** Local start time (athlete local time), ISO 8601. */
+  startDateLocal: string;
+  /** Region ids this activity is tagged to — same ids as `/map/regions`. */
+  regionIds: number[];
+  /** Optional [minLng, minLat, maxLng, maxLat] from the route geometry. */
+  bbox?: [number, number, number, number];
+}
+
+export interface MapDatasetResponse {
+  activities: MapActivity[];
+}
+
+/**
+ * Fetch the full geo-bearing activity dataset for the routes-map cross-filter
+ * model (all scalars + region tags + optional bbox, keyed by activity id). Not
+ * paginated — single user, hundreds–low-thousands of rows. Auth + trace headers
+ * are attached by the shared axios client interceptor.
+ */
+export const fetchMapDataset = async (signal?: AbortSignal): Promise<MapActivity[]> => {
+  try {
+    const { data } = await getClient().get<MapDatasetResponse>(
+      "activities/map/dataset",
+      signal ? { signal } : {}
+    );
+    return data?.activities ?? [];
+  } catch (err: unknown) {
+    throwApiError(err, "fetchMapDataset");
+  }
+};
+
+/**
  * Fetch the per-region summary + default viewport for the routes map.
  * Auth + trace headers are attached by the shared axios client interceptor.
  */
