@@ -777,17 +777,26 @@ func assertSampleMapActivity(t *testing.T, a map[string]any) {
 	if sport == "Ride" || sport == "" {
 		t.Errorf("sport should be mapped to a category, got %q", sport)
 	}
-	// camelCase keys + name + region tags survive serialization.
-	if _, hasID := a["activityId"]; !hasID {
-		t.Error("expected camelCase activityId key")
-	}
 	name, hasName := a["name"].(string)
 	if !hasName || name != "Morning Ride" {
 		t.Errorf("name = %q, want %q", name, "Morning Ride")
 	}
+
+	// CONTRACT: protojson serializes proto int64 as JSON *strings* (not numbers),
+	// to avoid JS precision loss. The web client must parse `activityId` /
+	// `regionIds` back to numbers (see packages/web/src/api/map.ts fetchMapDataset)
+	// so they match the MVT tile's numeric `activity_id` in the map cross-filter.
+	// Pin that here: if a future change makes these numbers, the frontend coercion
+	// (and a downstream cross-filter) silently breaks — this test should catch it.
+	if _, isString := a["activityId"].(string); !isString {
+		t.Errorf("activityId must serialize as a JSON string (protojson int64), got %T", a["activityId"])
+	}
 	ids, isSlice := a["regionIds"].([]any)
 	if !isSlice || len(ids) != 2 {
-		t.Errorf("regionIds = %v, want 2 ids", a["regionIds"])
+		t.Fatalf("regionIds = %v, want 2 ids", a["regionIds"])
+	}
+	if _, isString := ids[0].(string); !isString {
+		t.Errorf("regionIds elements must serialize as JSON strings (protojson int64), got %T", ids[0])
 	}
 }
 

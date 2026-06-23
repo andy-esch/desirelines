@@ -978,3 +978,28 @@ html:not(.dark) {
     );
   }
 } /* end @layer components — Standalone Component Base Styles */
+
+/* ==========================================================================
+   Routes-map click popover
+   Strip mapbox-gl's default popup chrome (white content box + tip) so the themed
+   `RoutePopupCard` is the only visible surface — otherwise an opaque white frame
+   sits around the dark card and covers the map. Kept UNLAYERED (not in @layer) so
+   it outranks mapbox-gl's own unlayered popup CSS.
+   ========================================================================== */
+.routes-map-popup .mapboxgl-popup-content {
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+.routes-map-popup .mapboxgl-popup-tip {
+  display: none;
+}
+/* The popup wrapper is otherwise an invisible click-blocker over the map; let map
+   clicks pass through it, keeping only the card itself interactive (Strava link). */
+.routes-map-popup {
+  pointer-events: none;
+}
+.routes-map-popup .mapboxgl-popup-content {
+  pointer-events: auto;
+}

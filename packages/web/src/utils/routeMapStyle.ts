@@ -1,11 +1,5 @@
 import type { ExpressionSpecification } from "mapbox-gl";
 import type { SportConfig } from "../api/activities";
-import {
-  SPORT_COLORS,
-  SPORT_TEXT_COLORS,
-  DEFAULT_SPORT_COLOR,
-  DEFAULT_SPORT_TEXT_COLOR,
-} from "./sportConfig";
 
 /**
  * Build a Mapbox data-driven `line-color` expression keyed on the tile's raw
@@ -14,24 +8,24 @@ import {
  * The MVT `routes` layer carries the *raw* Strava sport_type (e.g. "Ride",
  * "MountainBikeRide"). We map each raw type to its display category via the
  * sport registry (`sportConfig.sportCategories[*].stravaTypes`), then to that
- * category's palette color, reusing the per-sport color *intent* from the old
- * route canvas. Unknown / unmapped types fall back to the default color.
+ * category's color via the caller-supplied `sportColors` (app-category → color).
  *
- * Theme-aware (like the old `RouteCanvas` light/dark palettes): the dark basemap
- * uses the full-brightness neon `SPORT_COLORS`; the light basemap uses the
- * darker `SPORT_TEXT_COLORS` so lines stay legible on a light background. The
- * full 80s-neon glow treatment is a follow-on task.
+ * The caller passes the **NEON spectrum** colors (`utils/chartColors`
+ * `getSpectrumColor`), the same scheme the dashboard sparklines use — each sport
+ * gets a color by its position across Magenta→Cyan→Green→Yellow→Orange — so the
+ * map lines, the filter chips, and the sparklines all share one styling. (Keying
+ * by raw type stays here because that's what the tile carries; the spectrum index
+ * is resolved per app-category in the page, where the dataset is known.)
  *
- * Returns a flat color when `sportConfig` is null (e.g. before the registry
- * loads) so the map still renders.
+ * Categories absent from `sportColors` (not present in the dataset) and unmapped
+ * raw types fall back to `fallbackColor`. Returns a flat `fallbackColor` when
+ * `sportConfig` is null (before the registry loads) so the map still renders.
  */
 export function buildSportColorExpression(
   sportConfig: SportConfig | null,
-  isDark: boolean
+  sportColors: Record<string, string>,
+  fallbackColor: string
 ): ExpressionSpecification | string {
-  const palette = isDark ? SPORT_COLORS : SPORT_TEXT_COLORS;
-  const fallbackColor = isDark ? DEFAULT_SPORT_COLOR : DEFAULT_SPORT_TEXT_COLOR;
-
   if (!sportConfig?.sportCategories) {
     return fallbackColor;
   }
@@ -41,7 +35,10 @@ export function buildSportColorExpression(
   const seen = new Set<string>();
 
   for (const [category, cfg] of Object.entries(sportConfig.sportCategories)) {
-    const color = palette[category] ?? fallbackColor;
+    const color = sportColors[category];
+    // Only categories present in the dataset (i.e. assigned a spectrum color) get
+    // a case; everything else takes the fallback.
+    if (!color) continue;
     // Mapbox `match` errors on duplicate labels; a raw type maps to one category.
     const types = (cfg.stravaTypes ?? []).filter((t) => !seen.has(t));
     if (types.length === 0) continue;

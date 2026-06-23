@@ -7,7 +7,7 @@ import type { ActivitySummary } from "../api/activities";
 describe("ActivityTable", () => {
   const mockActivities: ActivitySummary[] = [
     {
-      id: 123456789,
+      id: "123456789",
       name: "Morning Ride",
       type: "Ride",
       sport: "cycling",
@@ -17,7 +17,7 @@ describe("ActivityTable", () => {
       elevationMeters: 450,
     },
     {
-      id: 123456790,
+      id: "123456790",
       name: "Evening Run",
       type: "Run",
       sport: "running",
@@ -27,7 +27,7 @@ describe("ActivityTable", () => {
       elevationMeters: 50,
     },
     {
-      id: 123456791,
+      id: "123456791",
       name: "Yoga Session",
       type: "Yoga",
       sport: "yoga",
@@ -133,8 +133,8 @@ describe("ActivityTable", () => {
     it("formats elevation in feet by default", () => {
       render(<ActivityTable {...defaultProps} />);
 
-      // 450m = ~1476 feet
-      expect(screen.getByText("1476 ft")).toBeInTheDocument();
+      // 450m = ~1476 feet (thousands-grouped)
+      expect(screen.getByText("1,476 ft")).toBeInTheDocument();
     });
 
     it("formats elevation in meters when specified", () => {

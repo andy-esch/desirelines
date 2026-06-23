@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo } from "react";
+import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { PageLayout } from "../components/layout/PageLayout";
 import { useAuth } from "../hooks/useAuth";
@@ -6,13 +6,27 @@ import { useTheme } from "../contexts/ThemeContext";
 import { useRouteRegions } from "../hooks/useRouteRegions";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useAuthTokenRef } from "../hooks/useAuthTokenRef";
+import { useMapDataset } from "../hooks/useMapDataset";
+import { useRouteFilters } from "../hooks/useRouteFilters";
+import { useThrottledValue } from "../hooks/useThrottledValue";
+import { useUserConfig } from "../hooks/useUserConfig";
+import { getUserSettings } from "../utils/units";
 import { getConfig } from "../lib/config";
 import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
+import { DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
+import { getSpectrumColor } from "../utils/chartColors";
+import type { SportOption } from "../components/routes/MapFilterControls";
+import type { SelectedRoute } from "../components/routes/RouteMap";
+import type { MapActivity } from "../api/map";
 
 // Lazy-loaded so `mapbox-gl` (and its CSS) ship in their own async chunk and
 // never bloat the main bundle or any non-map page.
 const RouteMap = lazy(() => import("../components/routes/RouteMap"));
+const MapFilterDrawer = lazy(() => import("../components/routes/MapFilterDrawer"));
+const MapFilterControls = lazy(() => import("../components/routes/MapFilterControls"));
+const MapActivityList = lazy(() => import("../components/routes/MapActivityList"));
+const MapTimeRangeFilter = lazy(() => import("../components/routes/MapTimeRangeFilter"));
 
 /** Must match the rendered header height (see also sidebar top offset in tailwind.css) */
 const HEADER_HEIGHT = 48;
@@ -30,13 +44,119 @@ export default function RoutesPage() {
   const mapboxToken = config.mapboxToken;
   const apiGatewayUrl = config.apiGatewayUrl;
 
-  const { defaultViewport, isLoading: regionsLoading, error } = useRouteRegions();
+  const { regions, defaultViewport, isLoading: regionsLoading, error } = useRouteRegions();
   const { sportConfig } = useSportConfig();
   const { getToken, ready: tokenReady, refresh: refreshAuthToken } = useAuthTokenRef();
 
+  // Cross-filter dataset + state. Loaded independently of the map so a slow
+  // dataset fetch never blocks the basemap/tiles; the drawer shows its own
+  // loading state. Filtering is entirely client-side (see useRouteFilters).
+  const { activities, isLoading: datasetLoading, error: datasetError } = useMapDataset();
+  const routeFilters = useRouteFilters(activities);
+  const { data: prefs } = useUserConfig("preferences");
+  const { distanceUnit, elevationUnit } = getUserSettings(prefs);
+  const [drawerOpen, setDrawerOpen] = useState(true);
+
+  // App-category sports present in the data, in a stable order. Each gets a NEON
+  // spectrum color by its position — the SAME full-brightness `getSpectrumColor`
+  // the dashboard sparklines use (Magenta→Cyan→Green→Yellow→Orange), in BOTH
+  // themes, so the map lines/chips match the dashboard's brightness exactly. (The
+  // glow underlay carries legibility on the basemap, so no darkening for light.)
+  const orderedSports = useMemo(
+    () => [...new Set(activities.map((a) => a.sport))].sort(),
+    [activities]
+  );
+  const sportColors = useMemo(() => {
+    const total = orderedSports.length;
+    const map: Record<string, string> = {};
+    orderedSports.forEach((sport, i) => {
+      map[sport] = getSpectrumColor(i, total);
+    });
+    return map;
+  }, [orderedSports]);
+
+  const sportOptions = useMemo<SportOption[]>(
+    () =>
+      orderedSports.map((sport) => ({
+        value: sport,
+        label: sportConfig?.sportCategories?.[sport]?.displayName ?? sport,
+        color: sportColors[sport] ?? DEFAULT_SPORT_COLOR,
+      })),
+    [orderedSports, sportConfig, sportColors]
+  );
+
+  // Throttle ONLY the map's filter edge — the summary/controls react to the raw
+  // filter state instantly, but a dragged distance slider doesn't recompile the
+  // Mapbox filter every frame (see the design-spec review addendum).
+  const throttledMapFilter = useThrottledValue(routeFilters.mapFilter, 120);
+
+  // Lookup by id for the map's click popover (supplies movingTime, which the MVT
+  // tile doesn't carry). Built over the full dataset, keyed by activityId.
+  const getActivity = useMemo(() => {
+    const byId = new Map(activities.map((a) => [a.activityId, a]));
+    return (id: number) => byId.get(id);
+  }, [activities]);
+
+  // Selected route — the single source of truth shared by the map popover and the
+  // activity list. A map click sets it with a click point; a list-row click sets it
+  // from the route's bbox centroid (and frames the route, see requestFit).
+  const [selected, setSelected] = useState<SelectedRoute | null>(null);
+  // Imperative "frame this bbox" requests (list-row + region select) — a bumped
+  // nonce so re-selecting the same target re-fits.
+  const [fitTo, setFitTo] = useState<{
+    bbox: [number, number, number, number];
+    nonce: number;
+  } | null>(null);
+  const fitNonceRef = useRef(0);
+  const requestFit = useCallback((bbox?: number[]) => {
+    if (bbox && bbox.length === 4) {
+      setFitTo({ bbox: bbox as [number, number, number, number], nonce: ++fitNonceRef.current });
+    }
+  }, []);
+
+  const onSelectFromList = useCallback(
+    (a: MapActivity) => {
+      const bbox = a.bbox;
+      const center =
+        bbox && bbox.length === 4
+          ? { lng: (bbox[0]! + bbox[2]!) / 2, lat: (bbox[1]! + bbox[3]!) / 2 }
+          : {};
+      setSelected({
+        id: a.activityId,
+        name: a.name,
+        distanceMeters: a.distanceMeters,
+        date: a.startDateLocal.slice(0, 10),
+        ...center,
+      });
+      requestFit(bbox);
+    },
+    [requestFit]
+  );
+
+  // Region select → filter to that region + frame it (uses the region's name/bbox
+  // from /map/regions). `null` = all regions.
+  const onSelectRegion = useCallback(
+    (regionId: number | null) => {
+      routeFilters.setRegionId(regionId);
+      if (regionId !== null) requestFit(regions.find((r) => r.regionId === regionId)?.bbox);
+    },
+    [routeFilters, regions, requestFit]
+  );
+
+  // Drop the selection if the active filter no longer includes it — otherwise a
+  // lone highlighted line + open popup linger for a route not in the current set.
+  // (Adjusting state during render; converges since clearing makes the test false.)
+  const filteredIdSet = useMemo(
+    () => new Set(routeFilters.filteredIds),
+    [routeFilters.filteredIds]
+  );
+  if (selected !== null && !filteredIdSet.has(selected.id)) {
+    setSelected(null);
+  }
+
   const colorExpression = useMemo(
-    () => buildSportColorExpression(sportConfig, isDark),
-    [sportConfig, isDark]
+    () => buildSportColorExpression(sportConfig, sportColors, DEFAULT_SPORT_COLOR),
+    [sportConfig, sportColors]
   );
 
   const mapConfig = useMemo(() => {
@@ -122,9 +242,68 @@ export default function RoutesPage() {
               getAuthToken={getToken}
               refreshAuthToken={refreshAuthToken}
               colorExpression={colorExpression}
+              filter={throttledMapFilter}
               defaultViewport={defaultViewport}
               isDark={isDark}
+              distanceUnit={distanceUnit}
+              getActivity={getActivity}
+              selected={selected}
+              onSelect={setSelected}
+              fitTo={fitTo}
             />
+          </Suspense>
+
+          {/* Non-modal filter/insights drawer over the live map (lazy with the map
+              chunk). Filter controls mount in its children; charts + activity list
+              slot in next. */}
+          <Suspense fallback={null}>
+            <MapFilterDrawer
+              open={drawerOpen}
+              onOpenChange={setDrawerOpen}
+              totals={routeFilters.totals}
+              totalCount={activities.length}
+              activeFilterCount={routeFilters.activeFilterCount}
+              onReset={routeFilters.reset}
+              onShowAll={routeFilters.showAll}
+              distanceUnit={distanceUnit}
+              elevationUnit={elevationUnit}
+              isDark={isDark}
+              isLoading={datasetLoading}
+              error={datasetError}
+            >
+              <MapFilterControls
+                filters={routeFilters.filters}
+                sportOptions={sportOptions}
+                distanceDomain={routeFilters.distanceDomain}
+                dateDomain={routeFilters.dateDomain}
+                distanceUnit={distanceUnit}
+                onSportsChange={routeFilters.setSports}
+                onDistanceChange={routeFilters.setDistanceRange}
+                onSelectYear={routeFilters.selectYear}
+                onSelectAllTime={() => routeFilters.setDateRange(routeFilters.dateDomain)}
+                regions={regions}
+                selectedRegionId={routeFilters.filters.regionId}
+                onSelectRegion={onSelectRegion}
+                disabled={datasetLoading || activities.length === 0}
+              />
+              <div className="border-t border-border/60">
+                <MapActivityList
+                  activities={routeFilters.filteredActivities}
+                  sportColors={sportColors}
+                  distanceUnit={distanceUnit}
+                  selectedId={selected?.id ?? null}
+                  onSelect={onSelectFromList}
+                />
+              </div>
+              <div className="border-t border-border/60">
+                <MapTimeRangeFilter
+                  dateDomain={routeFilters.dateDomain}
+                  dateRange={routeFilters.filters.dateRange}
+                  onChange={routeFilters.setDateRange}
+                  disabled={datasetLoading || activities.length === 0}
+                />
+              </div>
+            </MapFilterDrawer>
           </Suspense>
 
           {/* No geo-bearing activities → map falls back to a world view; hint why it's empty. */}

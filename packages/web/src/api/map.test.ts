@@ -156,6 +156,32 @@ describe("fetchMapDataset", () => {
     expect(await fetchMapDataset()).toEqual([activity]);
   });
 
+  it("coerces protojson int64-as-string ids (activityId, regionIds) to numbers", async () => {
+    // protojson serializes int64 fields as JSON strings; the cross-filter compares
+    // them against the MVT tile's numeric activity_id, so they must be parsed.
+    mockGet.mockResolvedValue({
+      data: {
+        activities: [
+          {
+            activityId: "12345678901",
+            name: "Big ID Ride",
+            sport: "cycling",
+            distanceMeters: 30_000,
+            movingTime: 3_600,
+            startDateLocal: "2026-05-01T08:00:00",
+            regionIds: ["10", "20"],
+          },
+        ],
+      },
+    });
+
+    const [a] = await fetchMapDataset();
+    expect(a!.activityId).toBe(12345678901);
+    expect(typeof a!.activityId).toBe("number");
+    expect(a!.regionIds).toEqual([10, 20]);
+    expect(a!.regionIds.every((id) => typeof id === "number")).toBe(true);
+  });
+
   it("null-coalesces a missing/partial body to an empty list", async () => {
     mockGet.mockResolvedValue({ data: undefined });
 

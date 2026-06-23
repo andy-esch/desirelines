@@ -197,6 +197,7 @@ type Dependencies struct {
 	sportConfig      *config.SportConfig
 	rateLimiter      *ratelimit.Limiter
 	authRateLimiter  *ratelimit.Limiter
+	tileRateLimiter  *ratelimit.Limiter
 	firestoreClient  *firestore.Client
 	authHandler      *auth.Handler
 	logger           *slog.Logger
@@ -288,10 +289,15 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 		log.Warn("No auth configured — set FIREBASE_AUTH_EMULATOR_HOST for local dev")
 	}
 
-	// 8a. Initialize global rate limiter (10 req/s, burst 20 — generous for normal browsing)
+	// 8a. Initialize global rate limiter (10 req/s, burst 20 — generous for normal
+	// browsing of the transactional JSON API). Skips the MVT tile route: tile
+	// traffic is bursty by nature (a slippy-map viewport pulls many tiles at once),
+	// so without this skip a normal pan/zoom would blow past burst 20 and 429.
+	// Tiles get their own limiter (8c) tuned for that profile.
 	deps.rateLimiter = ratelimit.New(ctx, ratelimit.Config{
 		Rate:  10,
 		Burst: 20,
+		Skip:  server.IsTileRequest,
 	}, log)
 
 	// 8b. Initialize auth-scoped rate limiter. /auth/* endpoints are the most
@@ -303,6 +309,20 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	deps.authRateLimiter = ratelimit.New(ctx, ratelimit.Config{
 		Rate:  10.0 / 60.0, // 10 per minute
 		Burst: 5,           // allow a small burst for retries
+	}, log)
+
+	// 8c. Tile rate limiter. The MVT tile route has a different request profile
+	// (bursty, cacheable, GET-only, authed): one map viewport requests tens of
+	// tiles at once. A generous burst keeps a normal pan/zoom from 429-ing, while a
+	// moderate sustained rate still bounds scripted abuse of the DB-backed
+	// ST_AsMVT query. Keyed per-IP today (one user ≈ one IP); the keying shape is
+	// unchanged when multi-user lands (swap the key source, not the policy).
+	// Decision (see planning task): rate-limit rather than HTTP-cache for now — the
+	// /v1 group sets NoCacheHeaders, so tile caching warrants its own deliberate
+	// pass later; this fix is purely the limiter mismatch.
+	deps.tileRateLimiter = ratelimit.New(ctx, ratelimit.Config{
+		Rate:  30,  // sustained tiles/sec per IP — far above human pan/zoom
+		Burst: 150, // absorbs a full zoomed-out viewport's tile fan-out
 	}, log)
 
 	// 9. Initialize PostgreSQL repository (required dependency)
@@ -367,6 +387,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 		AuthMiddleware:        deps.authMiddleware,
 		RateLimiter:           deps.rateLimiter,
 		AuthRateLimiter:       deps.authRateLimiter,
+		TileRateLimiter:       deps.tileRateLimiter,
 		HTTPHistogram:         deps.httpHistogram,
 		EnableSyntheticFaults: deps.enableSyntheticFaults,
 	}

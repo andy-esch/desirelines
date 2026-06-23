@@ -31,6 +31,11 @@ type Config struct {
 	CleanupInterval time.Duration
 	// TTL is how long an idle limiter is kept before removal. Defaults to 5 minutes.
 	TTL time.Duration
+	// Skip, when non-nil and returning true for a request, bypasses this limiter
+	// for that request entirely (no token consumed, never 429). Lets a caller
+	// exempt a route class with a different request profile — e.g. bursty MVT
+	// map tiles — from a limiter without restructuring the middleware chain.
+	Skip func(*http.Request) bool
 }
 
 func (c Config) maxClients() int {
@@ -69,6 +74,7 @@ type Limiter struct {
 	burst      int
 	maxClients int
 	ttl        time.Duration
+	skip       func(*http.Request) bool
 	logger     *slog.Logger
 }
 
@@ -81,6 +87,7 @@ func New(ctx context.Context, cfg Config, logger *slog.Logger) *Limiter {
 		burst:      cfg.Burst,
 		maxClients: cfg.maxClients(),
 		ttl:        cfg.ttl(),
+		skip:       cfg.Skip,
 		logger:     logger,
 	}
 
@@ -92,6 +99,13 @@ func New(ctx context.Context, cfg Config, logger *slog.Logger) *Limiter {
 // It expects gcplog.CloudRunRealIP to have already run so that r.RemoteAddr contains the real client IP.
 func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Exempt requests the caller opts out (e.g. a bursty tile route handled by
+		// its own limiter) before touching the per-IP token buckets.
+		if l.skip != nil && l.skip(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		ip := stripPort(r.RemoteAddr)
 
 		limiter := l.getLimiter(ip)

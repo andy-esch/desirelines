@@ -26,7 +26,7 @@ const createWrapper = () => {
 describe("useActivities", () => {
   const mockActivities = [
     {
-      id: 123456789,
+      id: "123456789",
       name: "Morning Ride",
       type: "Ride",
       sport: "cycling",
@@ -36,7 +36,7 @@ describe("useActivities", () => {
       elevationMeters: 450,
     },
     {
-      id: 123456790,
+      id: "123456790",
       name: "Evening Run",
       type: "Run",
       sport: "running",

@@ -1,5 +1,6 @@
 import getClient from "./client";
 import { throwApiError } from "./errors";
+import type { MapActivity as WireMapActivity } from "../types/generated/activities";
 
 /**
  * Per-region activity summary used to pick the initial map viewport and (in a
@@ -28,52 +29,47 @@ export interface RouteRegionsResponse {
 }
 
 /**
- * A single geo-bearing activity in the routes-map cross-filter dataset: scalar
- * attributes + region tag ids keyed by `activityId`. Mirrors the apigateway
- * `MapActivity` shape from `GET /v1/activities/map/dataset`. This is the shared
- * client-side model that drives the map (`setFilter`), charts/KPIs, and the
- * activity list — all client-side, no per-filter refetch.
+ * A geo-bearing activity in the routes-map cross-filter dataset, as the client
+ * uses it: the **generated** `MapActivity` wire shape (from `activities.proto`)
+ * with its protojson `int64`-as-string ids (`activityId`, `regionIds`) coerced to
+ * **numbers** — so they match the MVT tile's numeric `activity_id` (map
+ * cross-filter) and the numeric `RegionSummary.regionId`. Every other field tracks
+ * the generated type, so a proto change flows through without hand-editing.
  *
  * Note: `sport` is the **app category** (e.g. `cycling`, `running`) — unlike the
- * MVT tile's `sport` property, which is the raw Strava sport_type. Cross-filtering
- * the map therefore keys on the filtered `activityId` set, not the tile `sport`.
+ * MVT tile's `sport` property (raw Strava sport_type). Cross-filtering the map
+ * therefore keys on the filtered `activityId` set, not the tile `sport`.
  */
-export interface MapActivity {
+export type MapActivity = Omit<WireMapActivity, "activityId" | "regionIds" | "bbox"> & {
+  /** Strava activity id, coerced from the protojson string to a number. */
   activityId: number;
-  /** Activity name/title (for the activity list + click popover). */
-  name: string;
-  /** App sport category (e.g. `cycling`, `running`). */
-  sport: string;
-  distanceMeters: number;
-  /** Moving time in seconds. */
-  movingTime: number;
-  /** Elevation gain in meters; absent when unknown. */
-  elevationMeters?: number;
-  /** Local start time (athlete local time), ISO 8601. */
-  startDateLocal: string;
-  /** Region ids this activity is tagged to — same ids as `/map/regions`. */
+  /** Region ids, coerced to numbers to match `RegionSummary.regionId`. */
   regionIds: number[];
-  /** Optional [minLng, minLat, maxLng, maxLat] from the route geometry. */
-  bbox?: [number, number, number, number];
-}
-
-export interface MapDatasetResponse {
-  activities: MapActivity[];
-}
+  /** [minLng, minLat, maxLng, maxLat] from the route geometry; absent without one. */
+  bbox?: number[];
+};
 
 /**
  * Fetch the full geo-bearing activity dataset for the routes-map cross-filter
  * model (all scalars + region tags + optional bbox, keyed by activity id). Not
  * paginated — single user, hundreds–low-thousands of rows. Auth + trace headers
  * are attached by the shared axios client interceptor.
+ *
+ * `protojson` serializes the proto `int64` fields (`activityId`, `regionIds`) as
+ * JSON **strings** — the generated `WireMapActivity` types them as such — so this
+ * is the single boundary that parses them to numbers for the cross-filter.
  */
 export const fetchMapDataset = async (signal?: AbortSignal): Promise<MapActivity[]> => {
   try {
-    const { data } = await getClient().get<MapDatasetResponse>(
+    const { data } = await getClient().get<{ activities?: WireMapActivity[] }>(
       "activities/map/dataset",
       signal ? { signal } : {}
     );
-    return data?.activities ?? [];
+    return (data?.activities ?? []).map((a) => ({
+      ...a,
+      activityId: Number(a.activityId),
+      regionIds: a.regionIds.map(Number),
+    }));
   } catch (err: unknown) {
     throwApiError(err, "fetchMapDataset");
   }

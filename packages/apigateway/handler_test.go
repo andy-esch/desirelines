@@ -24,6 +24,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
+	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
 	"gopkg.in/yaml.v3"
 )
@@ -177,6 +178,73 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 	}
 
 	return server.NewRouter(routerCfg, publicRoutes, authRoutes, logger)
+}
+
+// TestTileRateLimitScopingAndCORS verifies the dual-profile rate-limit design:
+//   - the bursty tile route is governed by its own limiter, not the global one;
+//   - a tile 429 carries CORS headers (the tile limiter is scoped inside /v1,
+//     after the root CORS middleware) so it surfaces truthfully cross-origin;
+//   - non-tile JSON routes are unaffected by the tile limiter (scoping holds).
+func TestTileRateLimitScopingAndCORS(t *testing.T) {
+	logger := slog.Default()
+	const origin = "http://localhost:3000"
+
+	corsHandler, err := cors.NewHandler([]string{origin}, logger, false)
+	if err != nil {
+		t.Fatalf("cors handler: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Tile limiter that always rejects (burst 0) so we can assert the 429 path.
+	tileLimiter := ratelimit.New(ctx, ratelimit.Config{Rate: 0.001, Burst: 0}, logger)
+	// Global limiter that never rejects but skips tiles — mirrors prod wiring, so
+	// this also proves the global Skip hook routes tiles to the tile limiter.
+	globalLimiter := ratelimit.New(ctx, ratelimit.Config{
+		Rate: 1000, Burst: 1000, Skip: server.IsTileRequest,
+	}, logger)
+
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	routerCfg := server.RouterConfig{
+		CORSHandler:     corsHandler,
+		AuthMiddleware:  &mockAuthMiddleware{},
+		RateLimiter:     globalLimiter,
+		TileRateLimiter: tileLimiter,
+	}
+	authRoutes := server.AuthenticatedRoutes{
+		GetMetadata: ok, GetMetrics: ok, GetSource: ok, GetRoutes: ok,
+		GetRouteTile: ok, GetRouteRegions: ok, GetMapDataset: ok,
+		ListActivities: ok, GetActivityByID: ok,
+	}
+	publicRoutes := server.PublicRoutes{Health: ok, Ready: ok, SportConfig: ok, AuthInitiate: ok, AuthCallback: ok}
+	router := server.NewRouter(routerCfg, publicRoutes, authRoutes, logger)
+
+	send := func(path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Origin", origin)
+		req.RemoteAddr = "1.2.3.4:1234"
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("tile 429 carries CORS headers", func(t *testing.T) {
+		w := send("/v1/activities/map/tiles/9/1/2")
+		if w.Code != http.StatusTooManyRequests {
+			t.Fatalf("tile request: got %d, want 429", w.Code)
+		}
+		if got := w.Header().Get("Access-Control-Allow-Origin"); got != origin {
+			t.Errorf("tile 429 missing CORS header: got %q, want %q", got, origin)
+		}
+	})
+
+	t.Run("non-tile JSON route is not tile-limited", func(t *testing.T) {
+		w := send("/v1/activities/map/dataset")
+		if w.Code != http.StatusOK {
+			t.Fatalf("dataset request should not hit the tile limiter: got %d, want 200", w.Code)
+		}
+	})
 }
 
 func TestHandlerHealth(t *testing.T) {
