@@ -256,26 +256,24 @@ export default function MapFilterDrawer({
             : "translate-y-full sm:translate-y-0 sm:-translate-x-[120%]"
         )}
       >
-        {/* Header — no visible "Filters" title (redundant inside a drawer of
-            labeled filter sections); the collapse control is all that's needed.
-            The sr-only heading keeps the region's accessible name (aria-labelledby). */}
+        {/* No dedicated header row — the collapse control shares the summary block's
+            top-right (it doesn't conflict with the KPI readout below it), saving the
+            row's vertical space. sr-only heading keeps the region's accessible name. */}
         <h2 id={headingId} className="sr-only">
           Activity filters
         </h2>
-        <div className="flex items-center justify-end border-b border-border/60 px-4 py-2">
+
+        {/* Hero summary — the live cross-filter readout. */}
+        <div className="relative border-b border-border/60 px-4 py-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => onOpenChange(false)}
             aria-label="Collapse panel"
-            className="h-8 w-8 text-slate-light"
+            className="absolute right-2 top-2 h-7 w-7 text-slate-light"
           >
             <CollapseIcon className="h-4 w-4 -rotate-90 sm:rotate-0" />
           </Button>
-        </div>
-
-        {/* Hero summary — the live cross-filter readout. */}
-        <div className="border-b border-border/60 px-4 py-4">
           {/* Screen-reader mirror of the visual stats; announced politely as the
               filtered set changes (the visual grid is aria-hidden to avoid a
               piecemeal, number-by-number readout). */}

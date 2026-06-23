@@ -27,6 +27,12 @@ const MapFilterDrawer = lazy(() => import("../components/routes/MapFilterDrawer"
 const MapFilterControls = lazy(() => import("../components/routes/MapFilterControls"));
 const MapActivityList = lazy(() => import("../components/routes/MapActivityList"));
 const MapTimeRangeFilter = lazy(() => import("../components/routes/MapTimeRangeFilter"));
+const MapInsightsDrawer = lazy(() => import("../components/routes/MapInsightsDrawer"));
+const SportBreakdownChart = lazy(() => import("../components/routes/SportBreakdownChart"));
+const WeeklyVolumeChart = lazy(() => import("../components/routes/WeeklyVolumeChart"));
+const CumulativeDistanceChart = lazy(() => import("../components/routes/CumulativeDistanceChart"));
+const DistanceHistogramChart = lazy(() => import("../components/routes/DistanceHistogramChart"));
+const RegionBreakdownChart = lazy(() => import("../components/routes/RegionBreakdownChart"));
 
 /** Must match the rendered header height (see also sidebar top offset in tailwind.css) */
 const HEADER_HEIGHT = 48;
@@ -56,6 +62,9 @@ export default function RoutesPage() {
   const { data: prefs } = useUserConfig("preferences");
   const { distanceUnit, elevationUnit } = getUserSettings(prefs);
   const [drawerOpen, setDrawerOpen] = useState(true);
+  // Insights (charts) live in a RHS drawer, auto-hidden by default (open via its
+  // edge handle) so the map stays unobstructed.
+  const [insightsOpen, setInsightsOpen] = useState(false);
 
   // App-category sports present in the data, in a stable order. Each gets a NEON
   // spectrum color by its position — the SAME full-brightness `getSpectrumColor`
@@ -83,6 +92,16 @@ export default function RoutesPage() {
         color: sportColors[sport] ?? DEFAULT_SPORT_COLOR,
       })),
     [orderedSports, sportConfig, sportColors]
+  );
+  // sport → display label, for the insights breakdown (over the filtered subset).
+  const sportLabels = useMemo<Record<string, string>>(
+    () => Object.fromEntries(sportOptions.map((o) => [o.value, o.label])),
+    [sportOptions]
+  );
+  // region id → name, for the region-breakdown chart labels.
+  const regionNames = useMemo<Record<number, string>>(
+    () => Object.fromEntries(regions.map((r) => [r.regionId, r.name])),
+    [regions]
   );
 
   // Throttle ONLY the map's filter edge — the summary/controls react to the raw
@@ -305,6 +324,51 @@ export default function RoutesPage() {
               </div>
             </MapFilterDrawer>
           </Suspense>
+
+          {/* Right-hand insights drawer — cross-filtered charts; auto-hidden, opens
+              via its edge handle. Only mounted once there's data to summarize. */}
+          {activities.length > 0 && (
+            <Suspense fallback={null}>
+              <MapInsightsDrawer open={insightsOpen} onOpenChange={setInsightsOpen} isDark={isDark}>
+                <SportBreakdownChart
+                  activities={routeFilters.filteredActivities}
+                  sportColors={sportColors}
+                  sportLabels={sportLabels}
+                  distanceUnit={distanceUnit}
+                  selectedSports={routeFilters.filters.sports}
+                  onToggleSport={routeFilters.toggleSport}
+                />
+                <div className="border-t border-border/60">
+                  <WeeklyVolumeChart
+                    activities={routeFilters.filteredActivities}
+                    distanceUnit={distanceUnit}
+                  />
+                </div>
+                <div className="border-t border-border/60">
+                  <CumulativeDistanceChart
+                    activities={routeFilters.filteredActivities}
+                    distanceUnit={distanceUnit}
+                  />
+                </div>
+                <div className="border-t border-border/60">
+                  <DistanceHistogramChart
+                    activities={routeFilters.filteredActivities}
+                    distanceUnit={distanceUnit}
+                    onSelectRange={routeFilters.setDistanceRange}
+                  />
+                </div>
+                <div className="border-t border-border/60">
+                  <RegionBreakdownChart
+                    activities={routeFilters.filteredActivities}
+                    regionNames={regionNames}
+                    distanceUnit={distanceUnit}
+                    selectedRegionId={routeFilters.filters.regionId}
+                    onSelectRegion={onSelectRegion}
+                  />
+                </div>
+              </MapInsightsDrawer>
+            </Suspense>
+          )}
 
           {/* No geo-bearing activities → map falls back to a world view; hint why it's empty. */}
           {!defaultViewport && (
