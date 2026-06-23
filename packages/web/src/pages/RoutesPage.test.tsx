@@ -69,7 +69,7 @@ const authedUser = {
 };
 
 const viewport: RegionSummary = {
-  regionId: "metro-nyc",
+  regionId: 101,
   name: "New York",
   kind: "metro",
   activityCount: 42,

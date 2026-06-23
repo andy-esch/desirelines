@@ -23,7 +23,7 @@ import { fetchRouteRegions } from "../api/map";
 const mockFetch = vi.mocked(fetchRouteRegions);
 
 const viewport = {
-  regionId: "metro-nyc",
+  regionId: 101,
   name: "New York",
   kind: "metro",
   activityCount: 42,

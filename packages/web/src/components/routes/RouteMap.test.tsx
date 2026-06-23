@@ -3,81 +3,72 @@ import { render, act } from "@testing-library/react";
 import RouteMap from "./RouteMap";
 import type { RegionSummary } from "../../api/map";
 
-// Fake mapbox-gl Map that captures constructor options + event handlers so the
-// tests can exercise the real transformRequest / error callbacks.
+// Mock react-map-gl: capture the props RouteMap wires into <Map> (transformRequest,
+// onError, initialViewState, mapStyle) and the declarative <Source>/<Layer> props,
+// and expose a fake `fitBounds` through the forwarded MapRef so the viewport-fit
+// effect can be exercised without WebGL.
 const h = vi.hoisted(() => {
-  type Handler = (arg?: unknown) => void;
-  class FakeMap {
-    opts: Record<string, unknown>;
-    handlers: Record<string, Handler[]> = {};
-    sources: Record<string, unknown> = {};
-    layers: Record<string, unknown> = {};
-    paint: Record<string, unknown> = {};
-    fitBoundsCalls: unknown[] = [];
-    removed = false;
-    constructor(opts: Record<string, unknown>) {
-      this.opts = opts;
-      instances.push(this);
-    }
-    addControl() {
-      return this;
-    }
-    on(ev: string, cb: Handler) {
-      (this.handlers[ev] ||= []).push(cb);
-      return this;
-    }
-    emit(ev: string, arg?: unknown) {
-      (this.handlers[ev] || []).forEach((cb) => cb(arg));
-    }
-    getSource(id: string) {
-      return this.sources[id];
-    }
-    getLayer(id: string) {
-      return this.layers[id];
-    }
-    addSource(id: string, s: unknown) {
-      this.sources[id] = s;
-    }
-    addLayer(l: { id: string }) {
-      this.layers[l.id] = l;
-    }
-    removeLayer(id: string) {
-      delete this.layers[id];
-    }
-    removeSource(id: string) {
-      delete this.sources[id];
-    }
-    setPaintProperty(layer: string, prop: string, val: unknown) {
-      this.paint[`${layer}.${prop}`] = val;
-    }
-    getStyle() {
-      return {};
-    }
-    setStyle(s: unknown) {
-      this.opts.style = s;
-    }
-    fitBounds(bounds: unknown) {
-      this.fitBoundsCalls.push(bounds);
-    }
-    resize() {}
-    remove() {
-      this.removed = true;
-    }
-  }
-  class FakeNavigationControl {}
-  const instances: FakeMap[] = [];
-  return { instances, FakeMap, FakeNavigationControl };
+  const captured = {
+    transformRequest: undefined as ((url: string) => unknown) | undefined,
+    onError: undefined as ((e: unknown) => void) | undefined,
+    initialViewState: undefined as Record<string, unknown> | undefined,
+    mapStyle: undefined as string | undefined,
+    fitBoundsCalls: [] as unknown[],
+    sources: [] as Record<string, unknown>[],
+    layers: [] as Record<string, unknown>[],
+    sourceMounts: 0,
+  };
+  return { captured };
 });
 
-vi.mock("mapbox-gl", () => ({
-  default: { Map: h.FakeMap, NavigationControl: h.FakeNavigationControl, accessToken: "" },
-}));
+vi.mock("react-map-gl/mapbox", async () => {
+  const React = await import("react");
+  const Map = React.forwardRef(function Map(
+    props: Record<string, unknown> & { children?: React.ReactNode },
+    ref: React.Ref<unknown>
+  ) {
+    h.captured.transformRequest = props.transformRequest as (url: string) => unknown;
+    h.captured.onError = props.onError as (e: unknown) => void;
+    h.captured.initialViewState = props.initialViewState as Record<string, unknown>;
+    h.captured.mapStyle = props.mapStyle as string;
+    React.useImperativeHandle(ref, () => ({
+      fitBounds: (...args: unknown[]) => h.captured.fitBoundsCalls.push(args),
+    }));
+    return React.createElement("div", { "data-testid": "map" }, props.children);
+  });
+  const Source = (props: Record<string, unknown> & { children?: React.ReactNode }) => {
+    // Count mounts (not renders): a `key` change remounts the component, so this
+    // increments only on a genuine source recreation — the tile re-fetch mechanism.
+    React.useEffect(() => {
+      h.captured.sourceMounts += 1;
+    }, []);
+    h.captured.sources.push(props);
+    return React.createElement(React.Fragment, null, props.children);
+  };
+  const Layer = (props: Record<string, unknown>) => {
+    h.captured.layers.push(props);
+    return null;
+  };
+  const NavigationControl = () => null;
+  return { __esModule: true, Map, default: Map, Source, Layer, NavigationControl };
+});
 vi.mock("mapbox-gl/dist/mapbox-gl.css", () => ({}));
 
 const API_BASE = "http://localhost:8084/api/v1";
 const TILE_URL = "http://localhost:8084/api/v1/activities/map/tiles/{z}/{x}/{y}";
 const A_TILE = "http://localhost:8084/api/v1/activities/map/tiles/1/2/3";
 const MAPBOX_URL = "https://api.mapbox.com/styles/v1/mapbox/dark-v11";
+
+function resetCaptured() {
+  h.captured.transformRequest = undefined;
+  h.captured.onError = undefined;
+  h.captured.initialViewState = undefined;
+  h.captured.mapStyle = undefined;
+  h.captured.fitBoundsCalls.length = 0;
+  h.captured.sources.length = 0;
+  h.captured.layers.length = 0;
+  h.captured.sourceMounts = 0;
+}
 
 function renderMap(overrides: Partial<React.ComponentProps<typeof RouteMap>> = {}) {
   const props = {
@@ -91,22 +82,21 @@ function renderMap(overrides: Partial<React.ComponentProps<typeof RouteMap>> = {
     isDark: true,
     ...overrides,
   };
-  render(<RouteMap {...props} />);
-  const map = h.instances.at(-1)!;
-  return { map, props };
+  const utils = render(<RouteMap {...props} />);
+  return { props, ...utils };
 }
 
 type TransformRequest = (url: string) => { url: string; headers?: Record<string, string> };
 
 describe("RouteMap transformRequest auth invariant", () => {
   beforeEach(() => {
-    h.instances.length = 0;
+    resetCaptured();
     vi.clearAllMocks();
   });
 
   it("attaches the Bearer token to internal tile requests", () => {
-    const { map } = renderMap();
-    const transformRequest = map.opts.transformRequest as TransformRequest;
+    renderMap();
+    const transformRequest = h.captured.transformRequest as TransformRequest;
 
     expect(transformRequest(A_TILE)).toEqual({
       url: A_TILE,
@@ -115,15 +105,15 @@ describe("RouteMap transformRequest auth invariant", () => {
   });
 
   it("never attaches the token to Mapbox's own (external) requests", () => {
-    const { map } = renderMap();
-    const transformRequest = map.opts.transformRequest as TransformRequest;
+    renderMap();
+    const transformRequest = h.captured.transformRequest as TransformRequest;
 
     expect(transformRequest(MAPBOX_URL)).toEqual({ url: MAPBOX_URL });
   });
 
   it("attaches no header when the token is undefined", () => {
-    const { map } = renderMap({ getAuthToken: () => undefined });
-    const transformRequest = map.opts.transformRequest as TransformRequest;
+    renderMap({ getAuthToken: () => undefined });
+    const transformRequest = h.captured.transformRequest as TransformRequest;
 
     expect(transformRequest(A_TILE)).toEqual({ url: A_TILE });
   });
@@ -131,37 +121,48 @@ describe("RouteMap transformRequest auth invariant", () => {
 
 describe("RouteMap layer setup", () => {
   beforeEach(() => {
-    h.instances.length = 0;
+    resetCaptured();
     vi.clearAllMocks();
   });
 
-  it("adds the MVT source + line layer with the backend source-layer on style load", () => {
-    const { map } = renderMap();
-    act(() => map.emit("style.load"));
+  it("declares the MVT vector source + line layer with the backend source-layer", () => {
+    renderMap();
 
-    expect(map.getSource("routes-src")).toMatchObject({ type: "vector", tiles: [TILE_URL] });
-    expect(map.getLayer("routes-lines")).toMatchObject({
+    expect(h.captured.sources.at(-1)).toMatchObject({
+      id: "routes-src",
+      type: "vector",
+      tiles: [TILE_URL],
+    });
+    expect(h.captured.layers.at(-1)).toMatchObject({
+      id: "routes-lines",
       type: "line",
-      source: "routes-src",
       "source-layer": "routes",
     });
+  });
+
+  it("themes the basemap and passes the color expression to the line layer", () => {
+    renderMap({ isDark: false, colorExpression: "rgb(1,2,3)" });
+
+    expect(h.captured.mapStyle).toBe("mapbox://styles/mapbox/light-v11");
+    expect((h.captured.layers.at(-1)!.paint as Record<string, unknown>)["line-color"]).toBe(
+      "rgb(1,2,3)"
+    );
   });
 });
 
 describe("RouteMap 401 recovery", () => {
   beforeEach(() => {
-    h.instances.length = 0;
+    resetCaptured();
     vi.clearAllMocks();
   });
 
   it("refreshes the token on an internal 401 tile error (debounced)", async () => {
     const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
-    const { map } = renderMap({ refreshAuthToken });
-    act(() => map.emit("style.load"));
+    renderMap({ refreshAuthToken });
 
     act(() => {
-      map.emit("error", { error: { status: 401, url: A_TILE } });
-      map.emit("error", { error: { status: 401, url: A_TILE } });
+      h.captured.onError!({ error: { status: 401, url: A_TILE } });
+      h.captured.onError!({ error: { status: 401, url: A_TILE } });
     });
     await act(async () => {
       await Promise.resolve();
@@ -170,20 +171,34 @@ describe("RouteMap 401 recovery", () => {
     expect(refreshAuthToken).toHaveBeenCalledTimes(1);
   });
 
+  it("remounts the routes source after a 401 refresh to force a tile re-fetch", async () => {
+    const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
+    renderMap({ refreshAuthToken });
+    const mountsBefore = h.captured.sourceMounts;
+
+    await act(async () => {
+      h.captured.onError!({ error: { status: 401, url: A_TILE } });
+      await Promise.resolve();
+    });
+
+    // Bumped key → react-map-gl unmounts + remounts the source (removeSource/addSource).
+    expect(h.captured.sourceMounts).toBeGreaterThan(mountsBefore);
+  });
+
   it("does NOT refresh the Firebase token on a Mapbox-side (external) 401", () => {
     const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
-    const { map } = renderMap({ refreshAuthToken });
+    renderMap({ refreshAuthToken });
 
-    act(() => map.emit("error", { error: { status: 401, url: MAPBOX_URL } }));
+    act(() => h.captured.onError!({ error: { status: 401, url: MAPBOX_URL } }));
 
     expect(refreshAuthToken).not.toHaveBeenCalled();
   });
 
   it("ignores non-401 errors", () => {
     const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
-    const { map } = renderMap({ refreshAuthToken });
+    renderMap({ refreshAuthToken });
 
-    act(() => map.emit("error", { error: { status: 500, url: A_TILE, message: "boom" } }));
+    act(() => h.captured.onError!({ error: { status: 500, url: A_TILE, message: "boom" } }));
 
     expect(refreshAuthToken).not.toHaveBeenCalled();
   });
@@ -191,7 +206,7 @@ describe("RouteMap 401 recovery", () => {
 
 describe("RouteMap viewport fitting", () => {
   beforeEach(() => {
-    h.instances.length = 0;
+    resetCaptured();
     vi.clearAllMocks();
   });
 
@@ -205,35 +220,40 @@ describe("RouteMap viewport fitting", () => {
     isDark: true,
   };
   const regionA: RegionSummary = {
-    regionId: "A",
+    regionId: 1,
     name: "A",
     kind: "metro",
     activityCount: 1,
     bbox: [0, 0, 1, 1],
   };
-  const regionB: RegionSummary = { ...regionA, regionId: "B", bbox: [2, 2, 3, 3] };
+  const regionB: RegionSummary = { ...regionA, regionId: 2, bbox: [2, 2, 3, 3] };
 
-  it("does not re-fit the constructor-fitted region on mount", () => {
+  it("fits the initial region via initialViewState, not a re-fit on mount", () => {
     render(<RouteMap {...baseProps} defaultViewport={regionA} />);
-    const map = h.instances.at(-1)!;
-    // The constructor fit region A via `bounds`; the effect must not fit again.
-    expect(map.fitBoundsCalls.length).toBe(0);
+
+    // initialViewState carries the bounds; the imperative fitBounds must not re-fire.
+    expect(h.captured.initialViewState).toMatchObject({
+      bounds: [
+        [0, 0],
+        [1, 1],
+      ],
+    });
+    expect(h.captured.fitBoundsCalls.length).toBe(0);
   });
 
   it("fits when the viewport resolves but not again on a same-region refetch", () => {
     const { rerender } = render(<RouteMap {...baseProps} defaultViewport={null} />);
-    const map = h.instances.at(-1)!;
-    expect(map.fitBoundsCalls.length).toBe(0); // world view via constructor
+    expect(h.captured.fitBoundsCalls.length).toBe(0); // world view via initialViewState
 
     rerender(<RouteMap {...baseProps} defaultViewport={regionA} />);
-    expect(map.fitBoundsCalls.length).toBe(1); // first resolve → fit
+    expect(h.captured.fitBoundsCalls.length).toBe(1); // first resolve → fit
 
     // Background query refetch: new object, same regionId → no disruptive re-fit.
     rerender(<RouteMap {...baseProps} defaultViewport={{ ...regionA }} />);
-    expect(map.fitBoundsCalls.length).toBe(1);
+    expect(h.captured.fitBoundsCalls.length).toBe(1);
 
     // A genuine region change does fit again.
     rerender(<RouteMap {...baseProps} defaultViewport={regionB} />);
-    expect(map.fitBoundsCalls.length).toBe(2);
+    expect(h.captured.fitBoundsCalls.length).toBe(2);
   });
 });
