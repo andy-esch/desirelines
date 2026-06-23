@@ -8,6 +8,7 @@ package server
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
@@ -29,6 +30,7 @@ type RouterConfig struct {
 	AuthMiddleware  AuthMiddleware
 	RateLimiter     *ratelimit.Limiter
 	AuthRateLimiter *ratelimit.Limiter // applied only to /auth/*
+	TileRateLimiter *ratelimit.Limiter // applied only to the bursty MVT tile route
 	HTTPHistogram   metric.Float64Histogram
 
 	// EnableSyntheticFaults gates the synthetic-fault routes in
@@ -70,6 +72,20 @@ type AuthenticatedRoutes struct {
 	// see `internal/synthetic/handler.go` for the allowed-code list
 	// and removal instructions.
 	SyntheticFault http.HandlerFunc
+}
+
+// TilePathPrefix is the URL path of the MVT vector-tile route. Tile traffic has a
+// fundamentally different request profile from the JSON API — a single slippy-map
+// viewport requests many tiles at once — so the global per-IP limiter skips this
+// prefix (see IsTileRequest) and a dedicated, higher-burst limiter is scoped to
+// the route in NewRouter. This keeps the JSON/auth limiter posture untouched.
+const TilePathPrefix = "/v1/activities/map/tiles/"
+
+// IsTileRequest reports whether r targets the MVT tile route. Wired into the
+// global rate limiter's Skip hook (cmd/apigateway) so bursty tile requests don't
+// trip the JSON limiter's small burst bucket.
+func IsTileRequest(r *http.Request) bool {
+	return strings.HasPrefix(r.URL.Path, TilePathPrefix)
 }
 
 // NewRouter creates a configured chi router with all routes registered.
@@ -147,7 +163,16 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 			// Grouped under /map so it's decoupled from the (eventually retiring)
 			// /routes art endpoint and has room to grow (tiles.json, etc.).
 			r.Get("/activities/map/regions", auth.GetRouteRegions)
-			r.Get("/activities/map/tiles/{z}/{x}/{y}", auth.GetRouteTile)
+			// The tile route gets its OWN limiter (bursty profile) scoped here,
+			// INSIDE the /v1 group — so it runs after the root CORSMiddleware and a
+			// tile 429 carries CORS headers (surfaces truthfully), with no reorder
+			// of the shared chain. The global limiter skips this path (IsTileRequest).
+			if cfg.TileRateLimiter != nil {
+				r.With(cfg.TileRateLimiter.Middleware).
+					Get("/activities/map/tiles/{z}/{x}/{y}", auth.GetRouteTile)
+			} else {
+				r.Get("/activities/map/tiles/{z}/{x}/{y}", auth.GetRouteTile)
+			}
 			// Full geo-bearing dataset (scalars + region tags + optional bbox)
 			// for the client-side cross-filter model. Single response, no pagination.
 			r.Get("/activities/map/dataset", auth.GetMapDataset)

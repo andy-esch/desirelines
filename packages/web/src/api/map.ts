@@ -67,13 +67,31 @@ export interface MapDatasetResponse {
  * paginated — single user, hundreds–low-thousands of rows. Auth + trace headers
  * are attached by the shared axios client interceptor.
  */
+/**
+ * Wire shape of the dataset response. `protojson` serializes the proto `int64`
+ * fields (`activityId`, `regionIds`) as JSON **strings**, so they arrive as
+ * strings and must be parsed to numbers — otherwise the map cross-filter's
+ * `["in", ["get","activity_id"], …]` compares strings against the MVT tile's
+ * numeric `activity_id` and matches nothing.
+ */
+interface RawMapActivity extends Omit<MapActivity, "activityId" | "regionIds"> {
+  activityId: string | number;
+  regionIds: (string | number)[];
+}
+
 export const fetchMapDataset = async (signal?: AbortSignal): Promise<MapActivity[]> => {
   try {
-    const { data } = await getClient().get<MapDatasetResponse>(
+    const { data } = await getClient().get<{ activities?: RawMapActivity[] }>(
       "activities/map/dataset",
       signal ? { signal } : {}
     );
-    return data?.activities ?? [];
+    // Coerce the protojson int64-as-string ids back to numbers so they match the
+    // tile's numeric `activity_id` (map cross-filter) and RegionSummary.regionId.
+    return (data?.activities ?? []).map((a) => ({
+      ...a,
+      activityId: Number(a.activityId),
+      regionIds: (a.regionIds ?? []).map(Number),
+    }));
   } catch (err: unknown) {
     throwApiError(err, "fetchMapDataset");
   }

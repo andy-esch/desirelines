@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -97,6 +98,46 @@ func TestOverLimit(t *testing.T) {
 	}
 	if errResp.Error != "Rate limit exceeded" {
 		t.Errorf("error message = %q, want %q", errResp.Error, "Rate limit exceeded")
+	}
+}
+
+func TestSkipBypassesLimiting(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Rate ~0 so the bucket never refills; Skip exempts the "/tiles/" prefix.
+	l := New(ctx, Config{
+		Rate:            0.001,
+		Burst:           1,
+		CleanupInterval: time.Hour,
+		TTL:             time.Hour,
+		Skip: func(r *http.Request) bool {
+			return strings.HasPrefix(r.URL.Path, "/tiles/")
+		},
+	}, gcplog.NewNoOpLogger())
+	handler := l.Middleware(okHandler())
+
+	send := func(path string) int {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.RemoteAddr = testRemoteAddr
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	// Exhaust the single token on a limited (non-skipped) path.
+	if got := send("/activities"); got != http.StatusOK {
+		t.Fatalf("first limited request: got %d, want 200", got)
+	}
+	if got := send("/activities"); got != http.StatusTooManyRequests {
+		t.Fatalf("second limited request: got %d, want 429", got)
+	}
+
+	// The skipped path bypasses the limiter even though the bucket is empty.
+	for i := range 3 {
+		if got := send("/tiles/9/1/2"); got != http.StatusOK {
+			t.Fatalf("skipped request %d: got %d, want 200 (must bypass the empty bucket)", i, got)
+		}
 	}
 }
 
