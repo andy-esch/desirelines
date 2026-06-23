@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildTileTemplateUrl, buildApiBaseUrl, fetchRouteRegions } from "./map";
+import {
+  buildTileTemplateUrl,
+  buildApiBaseUrl,
+  fetchRouteRegions,
+  fetchMapDataset,
+  type MapActivity,
+} from "./map";
 import { isInternalRequest } from "./url";
 
 // Mock the axios client + error helper (mirrors other api/*.test.ts).
@@ -115,5 +121,51 @@ describe("fetchRouteRegions", () => {
 
     await expect(fetchRouteRegions()).rejects.toThrow("throwApiError:fetchRouteRegions");
     expect(throwApiError).toHaveBeenCalledWith(expect.any(Error), "fetchRouteRegions");
+  });
+});
+
+describe("fetchMapDataset", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    vi.clearAllMocks();
+  });
+
+  it("requests the dataset endpoint and forwards the abort signal", async () => {
+    const signal = new AbortController().signal;
+    mockGet.mockResolvedValue({ data: { activities: [] } });
+
+    await fetchMapDataset(signal);
+
+    expect(mockGet).toHaveBeenCalledWith("activities/map/dataset", { signal });
+  });
+
+  it("returns the activities, including name + region tags", async () => {
+    const activity: MapActivity = {
+      activityId: 42,
+      name: "Morning Ride",
+      sport: "cycling",
+      distanceMeters: 30_000,
+      movingTime: 3_600,
+      elevationMeters: 200,
+      startDateLocal: "2026-05-01T08:00:00",
+      regionIds: [10, 20],
+      bbox: [-74.1, 40.6, -73.8, 40.9],
+    };
+    mockGet.mockResolvedValue({ data: { activities: [activity] } });
+
+    expect(await fetchMapDataset()).toEqual([activity]);
+  });
+
+  it("null-coalesces a missing/partial body to an empty list", async () => {
+    mockGet.mockResolvedValue({ data: undefined });
+
+    expect(await fetchMapDataset()).toEqual([]);
+  });
+
+  it("routes errors through throwApiError with the function context", async () => {
+    mockGet.mockRejectedValue(new Error("network"));
+
+    await expect(fetchMapDataset()).rejects.toThrow("throwApiError:fetchMapDataset");
+    expect(throwApiError).toHaveBeenCalledWith(expect.any(Error), "fetchMapDataset");
   });
 });
