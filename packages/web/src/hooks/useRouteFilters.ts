@@ -73,10 +73,11 @@ export function useRouteFilters(
   activities: MapActivity[],
   options?: { now?: Date }
 ): UseRouteFiltersResult {
-  // Freeze "now" for the lifetime of the hook so re-renders don't drift the
-  // default date window. A lazy state initializer (not a ref) keeps it
-  // render-safe. Tests pass a fixed date; production reads the clock once.
-  const [now] = useState(() => options?.now ?? new Date());
+  // Freeze a fallback "now" for the hook's lifetime (so re-renders don't drift the
+  // default date window) but still honor an explicitly-passed `options.now` if it
+  // changes — production omits it (stable clock); tests can update it.
+  const [fallbackNow] = useState(() => new Date());
+  const now = options?.now ?? fallbackNow;
 
   const [filters, setFilters] = useState<RouteFilterState>(() => defaultRouteFilters(now));
 

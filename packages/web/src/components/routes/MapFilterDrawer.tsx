@@ -111,6 +111,7 @@ export default function MapFilterDrawer({
   children,
 }: MapFilterDrawerProps) {
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const headingId = useId();
   // Neon-cyan chrome in dark; readable theme default in light (see NEON_CHROME).
   const neonChrome = isDark ? NEON_CHROME : undefined;
@@ -123,6 +124,11 @@ export default function MapFilterDrawer({
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      // Only collapse when focus is within the drawer (or on its toggle) — not when
+      // the user is interacting with the map or unrelated page controls.
+      const active = document.activeElement;
+      const focusInside = panelRef.current?.contains(active) || toggleButtonRef.current === active;
+      if (!focusInside) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest('[role="listbox"],[role="dialog"],[aria-expanded="true"]')) return;
       onOpenChange(false);
@@ -136,7 +142,6 @@ export default function MapFilterDrawer({
   // dump keyboard users onto the collapse button). The panel joins the natural tab
   // order via `inert` toggling below. On collapse we only return focus to the
   // toggle if focus was inside the panel, so closing it keeps the user oriented.
-  const panelRef = useRef<HTMLElement>(null);
   const prevOpen = useRef(open);
   useEffect(() => {
     if (!open && prevOpen.current && panelRef.current?.contains(document.activeElement)) {
@@ -196,6 +201,9 @@ export default function MapFilterDrawer({
         onClick={() => onOpenChange(true)}
         aria-expanded={open}
         aria-controls={DRAWER_ID}
+        // When open the handle is visually hidden (opacity-0/pointer-events-none) —
+        // also drop it from the tab order so keyboard users don't hit a ghost button.
+        tabIndex={open ? -1 : undefined}
         style={neonChrome}
         className={cn(
           // Restrained glass chrome with square corners (matches the panel + sits

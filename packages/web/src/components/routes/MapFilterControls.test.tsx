@@ -12,6 +12,7 @@ function renderControls(over: Partial<MapFilterControlsProps> = {}) {
     onDistanceChange: vi.fn(),
     onSelectYear: vi.fn(),
     onSelectAllTime: vi.fn(),
+    onSelectRegion: vi.fn(),
   };
   const props: MapFilterControlsProps = {
     filters: defaultRouteFilters(NOW),
@@ -23,6 +24,17 @@ function renderControls(over: Partial<MapFilterControlsProps> = {}) {
     dateDomain: ["2025-08-01", "2026-06-22"],
     distanceUnit: "miles",
     now: NOW,
+    regions: [
+      {
+        regionId: 10,
+        name: "New York",
+        kind: "metro",
+        activityCount: 42,
+        bbox: [-74, 40, -73, 41],
+      },
+      { regionId: 20, name: "Boston", kind: "metro", activityCount: 9, bbox: [-71, 42, -70, 43] },
+    ],
+    selectedRegionId: null,
     ...handlers,
     ...over,
   };
@@ -85,6 +97,17 @@ describe("MapFilterControls", () => {
     // 80,000 m ≈ 50 mi
     expect(screen.getByText("50 mi")).toBeInTheDocument();
     expect(screen.getByText("0 mi")).toBeInTheDocument();
+  });
+
+  it("lists regions by name with activity counts and selects one", async () => {
+    const user = userEvent.setup();
+    const { onSelectRegion } = renderControls();
+    // Trigger shows "All regions" by default.
+    const trigger = screen.getByRole("combobox");
+    await user.click(trigger);
+    // Regions are listed densest-first with counts.
+    await user.click(screen.getByRole("option", { name: /New York \(42\)/ }));
+    expect(onSelectRegion).toHaveBeenCalledWith(10);
   });
 
   it("greys out and disables every control when the dataset is empty", () => {

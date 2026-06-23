@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, act } from "@testing-library/react";
+import { render, act, screen } from "@testing-library/react";
 import RouteMap from "./RouteMap";
 import type { RegionSummary } from "../../api/map";
 
@@ -11,9 +11,14 @@ const h = vi.hoisted(() => {
   const captured = {
     transformRequest: undefined as ((url: string) => unknown) | undefined,
     onError: undefined as ((e: unknown) => void) | undefined,
+    onClick: undefined as ((e: unknown) => void) | undefined,
+    onMouseMove: undefined as ((e: unknown) => void) | undefined,
+    onMouseLeave: undefined as ((e: unknown) => void) | undefined,
     initialViewState: undefined as Record<string, unknown> | undefined,
     mapStyle: undefined as string | undefined,
+    interactiveLayerIds: undefined as string[] | undefined,
     fitBoundsCalls: [] as unknown[],
+    featureStateCalls: [] as { feature: unknown; state: unknown }[],
     sources: [] as Record<string, unknown>[],
     layers: [] as Record<string, unknown>[],
     sourceMounts: 0,
@@ -29,10 +34,17 @@ vi.mock("react-map-gl/mapbox", async () => {
   ) {
     h.captured.transformRequest = props.transformRequest as (url: string) => unknown;
     h.captured.onError = props.onError as (e: unknown) => void;
+    h.captured.onClick = props.onClick as (e: unknown) => void;
+    h.captured.onMouseMove = props.onMouseMove as (e: unknown) => void;
+    h.captured.onMouseLeave = props.onMouseLeave as (e: unknown) => void;
     h.captured.initialViewState = props.initialViewState as Record<string, unknown>;
     h.captured.mapStyle = props.mapStyle as string;
+    h.captured.interactiveLayerIds = props.interactiveLayerIds as string[];
     React.useImperativeHandle(ref, () => ({
       fitBounds: (...args: unknown[]) => h.captured.fitBoundsCalls.push(args),
+      setFeatureState: (feature: unknown, state: unknown) =>
+        h.captured.featureStateCalls.push({ feature, state }),
+      getCanvas: () => ({ style: {} }),
     }));
     return React.createElement("div", { "data-testid": "map" }, props.children);
   });
@@ -50,7 +62,9 @@ vi.mock("react-map-gl/mapbox", async () => {
     return null;
   };
   const NavigationControl = () => null;
-  return { __esModule: true, Map, default: Map, Source, Layer, NavigationControl };
+  const Popup = (props: Record<string, unknown> & { children?: React.ReactNode }) =>
+    React.createElement("div", { "data-testid": "popup" }, props.children);
+  return { __esModule: true, Map, default: Map, Source, Layer, NavigationControl, Popup };
 });
 vi.mock("mapbox-gl/dist/mapbox-gl.css", () => ({}));
 
@@ -62,13 +76,23 @@ const MAPBOX_URL = "https://api.mapbox.com/styles/v1/mapbox/dark-v11";
 function resetCaptured() {
   h.captured.transformRequest = undefined;
   h.captured.onError = undefined;
+  h.captured.onClick = undefined;
+  h.captured.onMouseMove = undefined;
+  h.captured.onMouseLeave = undefined;
   h.captured.initialViewState = undefined;
   h.captured.mapStyle = undefined;
+  h.captured.interactiveLayerIds = undefined;
   h.captured.fitBoundsCalls.length = 0;
+  h.captured.featureStateCalls.length = 0;
   h.captured.sources.length = 0;
   h.captured.layers.length = 0;
   h.captured.sourceMounts = 0;
 }
+
+/** Latest render of the base / highlight line layers (the mock accumulates renders). */
+const baseLayer = () => h.captured.layers.filter((l) => l.id === "routes-lines").at(-1);
+const highlightLayer = () =>
+  h.captured.layers.filter((l) => l.id === "routes-lines-highlight").at(-1);
 
 function renderMap(overrides: Partial<React.ComponentProps<typeof RouteMap>> = {}) {
   const props = {
@@ -80,6 +104,9 @@ function renderMap(overrides: Partial<React.ComponentProps<typeof RouteMap>> = {
     colorExpression: "rgb(0,255,255)",
     defaultViewport: null,
     isDark: true,
+    distanceUnit: "miles" as const,
+    selected: null,
+    onSelect: vi.fn(),
     ...overrides,
   };
   const utils = render(<RouteMap {...props} />);
@@ -133,7 +160,7 @@ describe("RouteMap layer setup", () => {
       type: "vector",
       tiles: [TILE_URL],
     });
-    expect(h.captured.layers.at(-1)).toMatchObject({
+    expect(baseLayer()).toMatchObject({
       id: "routes-lines",
       type: "line",
       "source-layer": "routes",
@@ -144,28 +171,112 @@ describe("RouteMap layer setup", () => {
     renderMap({ isDark: false, colorExpression: "rgb(1,2,3)" });
 
     expect(h.captured.mapStyle).toBe("mapbox://styles/mapbox/light-v11");
-    expect((h.captured.layers.at(-1)!.paint as Record<string, unknown>)["line-color"]).toBe(
-      "rgb(1,2,3)"
-    );
+    expect((baseLayer()!.paint as Record<string, unknown>)["line-color"]).toBe("rgb(1,2,3)");
   });
 
-  it("promotes the MVT activity_id property to the feature id (feature-state prereq)", () => {
+  it("promotes the MVT activity_id property to the feature id", () => {
     renderMap();
 
     expect(h.captured.sources.at(-1)!.promoteId).toEqual({ routes: "activity_id" });
   });
 
-  it("applies the cross-filter expression to the line layer when provided", () => {
+  it("applies the cross-filter expression to the base line layer when provided", () => {
     const filter = ["in", ["get", "activity_id"], ["literal", [1, 2]]] as never;
     renderMap({ filter });
 
-    expect(h.captured.layers.at(-1)!.filter).toEqual(filter);
+    expect(baseLayer()!.filter).toEqual(filter);
   });
 
-  it("omits the layer filter (shows all routes) when filter is null", () => {
+  it("omits the base layer filter (shows all routes) when filter is null", () => {
     renderMap({ filter: null });
 
-    expect(h.captured.layers.at(-1)!).not.toHaveProperty("filter");
+    expect(baseLayer()!).not.toHaveProperty("filter");
+  });
+});
+
+describe("RouteMap interactivity (hover + click popover)", () => {
+  beforeEach(() => {
+    resetCaptured();
+    vi.clearAllMocks();
+  });
+
+  const feature = (id: number, props: Record<string, unknown> = {}) => ({
+    features: [
+      { id, properties: { name: "Morning Ride", distance: 45000, date: "2026-05-01", ...props } },
+    ],
+    lngLat: { lng: -74, lat: 40.7 },
+  });
+
+  it("marks the route layer interactive", () => {
+    renderMap();
+    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines"]);
+  });
+
+  it("highlights the hovered route via the highlight layer filter (not feature-state)", () => {
+    renderMap();
+    // Base layer never carries feature-state in its paint (that breaks rendering).
+    expect(JSON.stringify(baseLayer()!.paint)).not.toContain("feature-state");
+
+    act(() => h.captured.onMouseMove!(feature(101)));
+    expect(highlightLayer()!.filter).toEqual(["in", ["get", "activity_id"], ["literal", [101]]]);
+
+    // Moving to another route highlights only that one.
+    act(() => h.captured.onMouseMove!(feature(202)));
+    expect(highlightLayer()!.filter).toEqual(["in", ["get", "activity_id"], ["literal", [202]]]);
+
+    // Leaving clears the highlight.
+    act(() => h.captured.onMouseLeave?.(undefined));
+    expect(highlightLayer()!.filter).toEqual(["in", ["get", "activity_id"], ["literal", []]]);
+  });
+
+  it("reports the clicked route up via onSelect (controlled selection)", () => {
+    const onSelect = vi.fn();
+    renderMap({ onSelect });
+    act(() => h.captured.onClick!(feature(123)));
+    expect(onSelect).toHaveBeenCalledWith({
+      id: 123,
+      lng: -74,
+      lat: 40.7,
+      name: "Morning Ride",
+      distanceMeters: 45000,
+      date: "2026-05-01",
+    });
+  });
+
+  it("clears the selection via onSelect(null) when clicking empty map", () => {
+    const onSelect = vi.fn();
+    renderMap({ onSelect });
+    act(() => h.captured.onClick!({ features: [], lngLat: { lng: 0, lat: 0 } }));
+    expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
+  it("renders the popover from the `selected` prop (title/distance/date/time/Strava)", () => {
+    renderMap({
+      selected: {
+        id: 123,
+        name: "Morning Ride",
+        distanceMeters: 45000,
+        date: "2026-05-01",
+        lng: -74,
+        lat: 40.7,
+      },
+      getActivity: (id) => ({ activityId: id, movingTime: 3600 }) as never,
+    });
+
+    const popup = screen.getByTestId("popup");
+    expect(popup).toHaveTextContent("Morning Ride");
+    expect(popup).toHaveTextContent(/28(\.0)? mi/); // 45,000 m ≈ 28 mi
+    expect(popup).toHaveTextContent("2026-05-01");
+    expect(popup).toHaveTextContent("1 hr"); // movingTime 3600s from the lookup
+    const link = screen.getByRole("link", { name: /view on strava/i });
+    expect(link).toHaveAttribute("href", "https://www.strava.com/activities/123");
+  });
+
+  it("highlights the selected route even without a popover position (list selection)", () => {
+    renderMap({ selected: { id: 77, name: "x", distanceMeters: 0, date: "" } });
+    // No lng/lat → no popover, but the line is still highlighted.
+    expect(screen.queryByTestId("popup")).not.toBeInTheDocument();
+    expect(highlightLayer()!.filter).toEqual(["in", ["get", "activity_id"], ["literal", [77]]]);
   });
 });
 
@@ -237,6 +348,9 @@ describe("RouteMap viewport fitting", () => {
     refreshAuthToken: vi.fn().mockResolvedValue(undefined),
     colorExpression: "rgb(0,255,255)",
     isDark: true,
+    distanceUnit: "miles" as const,
+    selected: null,
+    onSelect: vi.fn(),
   };
   const regionA: RegionSummary = {
     regionId: 1,

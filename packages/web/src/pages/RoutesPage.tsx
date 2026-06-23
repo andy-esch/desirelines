@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { PageLayout } from "../components/layout/PageLayout";
 import { useAuth } from "../hooks/useAuth";
@@ -17,12 +17,16 @@ import { buildSportColorExpression } from "../utils/routeMapStyle";
 import { DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { getSpectrumColor } from "../utils/chartColors";
 import type { SportOption } from "../components/routes/MapFilterControls";
+import type { SelectedRoute } from "../components/routes/RouteMap";
+import type { MapActivity } from "../api/map";
 
 // Lazy-loaded so `mapbox-gl` (and its CSS) ship in their own async chunk and
 // never bloat the main bundle or any non-map page.
 const RouteMap = lazy(() => import("../components/routes/RouteMap"));
 const MapFilterDrawer = lazy(() => import("../components/routes/MapFilterDrawer"));
 const MapFilterControls = lazy(() => import("../components/routes/MapFilterControls"));
+const MapActivityList = lazy(() => import("../components/routes/MapActivityList"));
+const MapTimeRangeFilter = lazy(() => import("../components/routes/MapTimeRangeFilter"));
 
 /** Must match the rendered header height (see also sidebar top offset in tailwind.css) */
 const HEADER_HEIGHT = 48;
@@ -40,7 +44,7 @@ export default function RoutesPage() {
   const mapboxToken = config.mapboxToken;
   const apiGatewayUrl = config.apiGatewayUrl;
 
-  const { defaultViewport, isLoading: regionsLoading, error } = useRouteRegions();
+  const { regions, defaultViewport, isLoading: regionsLoading, error } = useRouteRegions();
   const { sportConfig } = useSportConfig();
   const { getToken, ready: tokenReady, refresh: refreshAuthToken } = useAuthTokenRef();
 
@@ -85,6 +89,59 @@ export default function RoutesPage() {
   // filter state instantly, but a dragged distance slider doesn't recompile the
   // Mapbox filter every frame (see the design-spec review addendum).
   const throttledMapFilter = useThrottledValue(routeFilters.mapFilter, 120);
+
+  // Lookup by id for the map's click popover (supplies movingTime, which the MVT
+  // tile doesn't carry). Built over the full dataset, keyed by activityId.
+  const getActivity = useMemo(() => {
+    const byId = new Map(activities.map((a) => [a.activityId, a]));
+    return (id: number) => byId.get(id);
+  }, [activities]);
+
+  // Selected route — the single source of truth shared by the map popover and the
+  // activity list. A map click sets it with a click point; a list-row click sets it
+  // from the route's bbox centroid (and frames the route, see requestFit).
+  const [selected, setSelected] = useState<SelectedRoute | null>(null);
+  // Imperative "frame this bbox" requests (list-row + region select) — a bumped
+  // nonce so re-selecting the same target re-fits.
+  const [fitTo, setFitTo] = useState<{
+    bbox: [number, number, number, number];
+    nonce: number;
+  } | null>(null);
+  const fitNonceRef = useRef(0);
+  const requestFit = useCallback((bbox?: number[]) => {
+    if (bbox && bbox.length === 4) {
+      setFitTo({ bbox: bbox as [number, number, number, number], nonce: ++fitNonceRef.current });
+    }
+  }, []);
+
+  const onSelectFromList = useCallback(
+    (a: MapActivity) => {
+      const bbox = a.bbox;
+      const center =
+        bbox && bbox.length === 4
+          ? { lng: (bbox[0]! + bbox[2]!) / 2, lat: (bbox[1]! + bbox[3]!) / 2 }
+          : {};
+      setSelected({
+        id: a.activityId,
+        name: a.name,
+        distanceMeters: a.distanceMeters,
+        date: a.startDateLocal.slice(0, 10),
+        ...center,
+      });
+      requestFit(bbox);
+    },
+    [requestFit]
+  );
+
+  // Region select → filter to that region + frame it (uses the region's name/bbox
+  // from /map/regions). `null` = all regions.
+  const onSelectRegion = useCallback(
+    (regionId: number | null) => {
+      routeFilters.setRegionId(regionId);
+      if (regionId !== null) requestFit(regions.find((r) => r.regionId === regionId)?.bbox);
+    },
+    [routeFilters, regions, requestFit]
+  );
 
   const colorExpression = useMemo(
     () => buildSportColorExpression(sportConfig, sportColors, DEFAULT_SPORT_COLOR),
@@ -177,6 +234,11 @@ export default function RoutesPage() {
               filter={throttledMapFilter}
               defaultViewport={defaultViewport}
               isDark={isDark}
+              distanceUnit={distanceUnit}
+              getActivity={getActivity}
+              selected={selected}
+              onSelect={setSelected}
+              fitTo={fitTo}
             />
           </Suspense>
 
@@ -208,8 +270,28 @@ export default function RoutesPage() {
                 onDistanceChange={routeFilters.setDistanceRange}
                 onSelectYear={routeFilters.selectYear}
                 onSelectAllTime={() => routeFilters.setDateRange(routeFilters.dateDomain)}
+                regions={regions}
+                selectedRegionId={routeFilters.filters.regionId}
+                onSelectRegion={onSelectRegion}
                 disabled={datasetLoading || activities.length === 0}
               />
+              <div className="border-t border-border/60">
+                <MapActivityList
+                  activities={routeFilters.filteredActivities}
+                  sportColors={sportColors}
+                  distanceUnit={distanceUnit}
+                  selectedId={selected?.id ?? null}
+                  onSelect={onSelectFromList}
+                />
+              </div>
+              <div className="border-t border-border/60">
+                <MapTimeRangeFilter
+                  dateDomain={routeFilters.dateDomain}
+                  dateRange={routeFilters.filters.dateRange}
+                  onChange={routeFilters.setDateRange}
+                  disabled={datasetLoading || activities.length === 0}
+                />
+              </div>
             </MapFilterDrawer>
           </Suspense>
 

@@ -3,8 +3,10 @@ import type { CSSProperties } from "react";
 import { Slider } from "../ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { Button } from "../ui/button";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
 import { cn } from "@/lib/utils";
 import { type RouteFilterState, yearRange } from "../../utils/routeFilters";
+import type { RegionSummary } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 
 /** A selectable sport: app-category key + display label + legend color. */
@@ -30,9 +32,17 @@ export interface MapFilterControlsProps {
   onSelectYear: (year: number) => void;
   /** Widen the date window to the full domain (the "All" year chip). */
   onSelectAllTime: () => void;
+  /** Regions (name + activity count + bbox) from `/map/regions`, for the region filter. */
+  regions: RegionSummary[];
+  /** Currently-filtered region id (null = all regions). */
+  selectedRegionId: number | null;
+  /** Select a region (filter + frame it); `null` = all regions. */
+  onSelectRegion: (regionId: number | null) => void;
   /** Greyed + non-interactive when the dataset is empty (owner decision). */
   disabled?: boolean;
 }
+
+const ALL_REGIONS = "all";
 
 const ALL_TIME = "all";
 
@@ -84,6 +94,9 @@ export default function MapFilterControls({
   onDistanceChange,
   onSelectYear,
   onSelectAllTime,
+  regions,
+  selectedRegionId,
+  onSelectRegion,
   disabled = false,
 }: MapFilterControlsProps) {
   // Stable across renders (a bare `now ?? new Date()` would churn useMemo deps).
@@ -111,6 +124,12 @@ export default function MapFilterControls({
     }
     return "";
   }, [filters.dateRange, dateDomain, years, today]);
+
+  // Regions for the dropdown, densest first (name + activity count).
+  const regionsSorted = useMemo(
+    () => [...regions].sort((a, b) => b.activityCount - a.activityCount),
+    [regions]
+  );
 
   const distanceMax = Math.max(1, distanceDomain[1]);
   const distanceValue: [number, number] = filters.distanceRange ?? [0, distanceMax];
@@ -146,6 +165,37 @@ export default function MapFilterControls({
           ))}
         </ToggleGroup>
       </Section>
+
+      {/* Region — name + activity count; selecting filters + frames it. */}
+      {regionsSorted.length > 0 && (
+        <Section label="Region" htmlId="filter-region-label">
+          <Select
+            value={selectedRegionId === null ? ALL_REGIONS : String(selectedRegionId)}
+            onValueChange={(v) => onSelectRegion(v === ALL_REGIONS ? null : Number(v))}
+            disabled={disabled}
+          >
+            <SelectTrigger aria-labelledby="filter-region-label">
+              {/* Format the selected value as the region's name + count (otherwise
+                  Base UI renders the raw value — the region id). */}
+              <SelectValue>
+                {(value) => {
+                  if (value == null || value === ALL_REGIONS) return "All regions";
+                  const r = regionsSorted.find((x) => String(x.regionId) === String(value));
+                  return r ? `${r.name} (${r.activityCount.toLocaleString()})` : "All regions";
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_REGIONS}>All regions</SelectItem>
+              {regionsSorted.map((r) => (
+                <SelectItem key={r.regionId} value={String(r.regionId)}>
+                  {r.name} ({r.activityCount.toLocaleString()})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Section>
+      )}
 
       {/* Sport (multi-select) */}
       {sportOptions.length > 0 && (
