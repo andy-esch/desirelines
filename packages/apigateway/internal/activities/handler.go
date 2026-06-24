@@ -87,7 +87,7 @@ func NewHandlerWithTimeout(repo repository.ActivityRepository, sportConfig *conf
 
 // writeError writes a client error response with the handler's logger.
 func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, status int, msg string) {
-	apierrors.WriteError(w, r, apierrors.NewAPIError(status, msg), h.logger)
+	apierrors.WriteCoded(w, r, h.logger, status, "", msg, "")
 }
 
 // getUserID extracts the authenticated user's ID from the request context.
