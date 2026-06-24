@@ -391,15 +391,24 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
         value = "true"
       }
 
-      # Python/Uvicorn needs more startup time than Go services:
-      # FastAPI lifespan must complete before /health is served
+      # Python/Uvicorn cold start is import-heavy (uvicorn -> app ->
+      # sqlalchemy + otel instrumentation + google-cloud + grpc) and the
+      # port isn't bound until that finishes — /health (process-alive only)
+      # can't answer before then. Observed time-to-listen varies widely on
+      # cold starts (~12s typical, occasionally >55s), so the budget must
+      # absorb the tail or Cloud Run kills the instance and the hourly
+      # /ready probe 503s. Budget ~= initial_delay + failure_threshold x
+      # period = 10 + 24x5 = 130s. timeout_seconds is set explicitly:
+      # the default is 1s, which a slow cold /health can exceed, wasting an
+      # attempt.
       startup_probe {
         http_get {
           path = "/health"
         }
         initial_delay_seconds = 10
         period_seconds        = 5
-        failure_threshold     = 10
+        failure_threshold     = 24
+        timeout_seconds       = 3
       }
     }
 
@@ -478,15 +487,26 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
         value = "true"
       }
 
-      # Python/Uvicorn needs more startup time than Go services:
-      # FastAPI lifespan must complete (incl. DB connection) before /health is served
+      # Python/Uvicorn cold start is import-heavy (uvicorn -> app ->
+      # sqlalchemy + otel instrumentation + google-cloud + grpc) and the
+      # port isn't bound until that finishes — /health (process-alive only)
+      # can't answer before then. lifespan does NOT open a DB connection
+      # (engine construction is lazy; see create_session_factory), so the
+      # delay is import + OTel init, not Neon. Observed time-to-listen
+      # varies widely on cold starts (~12s typical, occasionally >55s), so
+      # the budget must absorb the tail or Cloud Run kills the instance and
+      # the hourly /ready probe 503s. Budget ~= initial_delay +
+      # failure_threshold x period = 10 + 24x5 = 130s. timeout_seconds is
+      # set explicitly: the default is 1s, which a slow cold /health can
+      # exceed, wasting an attempt.
       startup_probe {
         http_get {
           path = "/health"
         }
         initial_delay_seconds = 10
         period_seconds        = 5
-        failure_threshold     = 10
+        failure_threshold     = 24
+        timeout_seconds       = 3
       }
 
       # Mount PostgreSQL secrets as volume (read/write writer role)
@@ -702,13 +722,19 @@ resource "google_cloud_run_v2_service" "deletion_service" {
         value = "true"
       }
 
+      # Cold-start budget matches the other Python services: import-heavy
+      # boot (~12s typical, occasionally >55s) must finish before /health
+      # binds, so widen the budget to ~130s (10 + 24x5) and set
+      # timeout_seconds explicitly (default 1s is too tight for a cold
+      # /health). See the postgres_writer startup_probe for the full rationale.
       startup_probe {
         http_get {
           path = "/health"
         }
         initial_delay_seconds = 10
         period_seconds        = 5
-        failure_threshold     = 10
+        failure_threshold     = 24
+        timeout_seconds       = 3
       }
 
       # Mount PostgreSQL writer secret (same connection string as postgres_writer)
