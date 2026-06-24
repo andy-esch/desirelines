@@ -89,6 +89,18 @@ func WriteError(w http.ResponseWriter, r *http.Request, err APIError, logger *sl
 	}
 }
 
+// WriteCoded builds a coded APIError and writes it via WriteError. It is the
+// shared form of the per-handler writeError helpers in apigateway and
+// dispatcher: status + machine-readable code + client-facing message + an
+// optional separate log message, written with the caller's logger. An empty
+// logMessage falls back to message for the log line (see WriteError); an empty
+// code is allowed (no code attribute is logged or emitted).
+func WriteCoded(w http.ResponseWriter, r *http.Request, logger *slog.Logger, status int, code, message, logMessage string) {
+	apiErr := NewAPIErrorWithLog(status, message, logMessage)
+	apiErr.Code = code
+	WriteError(w, r, apiErr, logger)
+}
+
 // traceIDFromContext returns the raw hex trace ID of the active OTel span,
 // or empty string if no valid span is present. This is the raw 32-char hex
 // form (not "projects/<p>/traces/<id>"), so clients can copy-paste cleanly

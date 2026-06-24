@@ -186,9 +186,7 @@ func (h *Handler) RegisterRoutes() http.Handler {
 // writeError builds a coded APIError and writes it with the handler's logger.
 // An empty logMessage falls back to message inside apierrors.WriteError.
 func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, status int, code, message, logMessage string) {
-	apiErr := apierrors.NewAPIErrorWithLog(status, message, logMessage)
-	apiErr.Code = code
-	apierrors.WriteError(w, r, apiErr, h.logger)
+	apierrors.WriteCoded(w, r, h.logger, status, code, message, logMessage)
 }
 
 func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {

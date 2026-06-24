@@ -224,6 +224,59 @@ func TestWriteError(t *testing.T) {
 	})
 }
 
+func TestWriteCoded(t *testing.T) {
+	logger := slog.Default()
+
+	t.Run("writes status, message and code; hides log message", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+
+		WriteCoded(w, req, logger, http.StatusBadRequest, "INVALID_THING",
+			"Invalid thing", "SECRET: caller sent hunter2")
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+		if body := w.Body.String(); strings.Contains(body, "SECRET") || strings.Contains(body, "hunter2") {
+			t.Error("log message should not be exposed in response body")
+		}
+
+		var response ErrorResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+		if response.Error != "Invalid thing" {
+			t.Errorf("response.Error = %q, want %q", response.Error, "Invalid thing")
+		}
+		if response.Code != "INVALID_THING" {
+			t.Errorf("response.Code = %q, want %q", response.Code, "INVALID_THING")
+		}
+	})
+
+	t.Run("empty code and log message omit code and fall back to message", func(t *testing.T) {
+		// Mirrors the apigateway writeError call shape: no code, no separate log message.
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+
+		WriteCoded(w, req, logger, http.StatusNotFound, "", "Activity not found", "")
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
+		}
+
+		var response ErrorResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+		if response.Error != "Activity not found" {
+			t.Errorf("response.Error = %q, want %q", response.Error, "Activity not found")
+		}
+		if response.Code != "" {
+			t.Errorf("response.Code = %q, want empty", response.Code)
+		}
+	})
+}
+
 func TestWriteError_IncludesTraceIDWhenSpanActive(t *testing.T) {
 	logger := slog.Default()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
