@@ -178,6 +178,7 @@ const ActivitiesPage = () => {
           hasMore={hasMore}
           onLoadMore={loadMore}
           onRetry={retry}
+          onViewOnMap={(id) => void navigate({ to: "/routes", search: { activity: Number(id) } })}
           distanceUnit={userSettings.distanceUnit}
           elevationUnit={userSettings.elevationUnit}
         />

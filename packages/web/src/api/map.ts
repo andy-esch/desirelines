@@ -189,13 +189,3 @@ export function buildTileTemplateUrl(apiGatewayUrl: string, origin: string): str
 export function buildApiBaseUrl(apiGatewayUrl: string, origin: string): string {
   return `${resolveAbsoluteGateway(apiGatewayUrl, origin)}/v1`;
 }
-
-/**
- * Deep link to the routes map focused on a single activity (the "View on map" link
- * in the activity lists). `RoutesPage` reads `?activity=<id>` and shows only that
- * route. A plain href (not a TanStack `<Link>`) so the leaf list components stay
- * router-context-free; the `/routes` route's `validateSearch` coerces the id.
- */
-export function routeMapDeepLink(activityId: number | string): string {
-  return `/routes?activity=${activityId}`;
-}

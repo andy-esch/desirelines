@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useActivities } from "../../hooks/useActivities";
 import { useAuth } from "../../hooks/useAuth";
 import { useDashboardGoalData } from "../../hooks/useDashboardGoalData";
 import type { SportGoalData } from "../../hooks/useDashboardGoalData";
 import NeonSpinner from "../NeonSpinner";
+import { MapPinIcon } from "../ui/MapPinIcon";
 import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
 
@@ -92,6 +94,7 @@ export default function RecentActivitiesList({
   pageSize: fallbackPageSize,
 }: RecentActivitiesListProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
 
   // Dynamically measure container height to compute page size
@@ -271,27 +274,41 @@ export default function RecentActivitiesList({
               }
               return (
                 <tr key={activity.id} style={{ height: ROW_HEIGHT }}>
-                  <td
-                    className="text-left ps-0 pe-2 py-0 align-middle"
-                    style={{
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      maxWidth: 140,
-                    }}
-                  >
-                    {user ? (
-                      <a
-                        href={`https://www.strava.com/activities/${activity.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className=""
-                      >
-                        {activity.name}
-                      </a>
-                    ) : (
-                      <span title="Links disabled in demo mode">{activity.name}</span>
-                    )}
+                  <td className="text-left ps-0 pe-2 py-0 align-middle" style={{ maxWidth: 140 }}>
+                    {/* Flex so the name truncates while the map-pin stays visible
+                        (a pin inside the old ellipsis/overflow-hidden cell got clipped). */}
+                    <div className="flex items-center gap-1.5" style={{ minWidth: 0 }}>
+                      {user ? (
+                        <>
+                          <a
+                            href={`https://www.strava.com/activities/${activity.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate"
+                          >
+                            {activity.name}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void navigate({
+                                to: "/routes",
+                                search: { activity: Number(activity.id) },
+                              })
+                            }
+                            className="shrink-0 text-slate-light hover:text-accent-cyan motion-safe:transition-colors"
+                            title="View on map"
+                            aria-label="View this activity on the map"
+                          >
+                            <MapPinIcon size={12} />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="truncate" title="Links disabled in demo mode">
+                          {activity.name}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td
                     className="text-slate-light text-left px-1 py-0 align-middle"

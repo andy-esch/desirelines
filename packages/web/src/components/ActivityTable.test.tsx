@@ -55,12 +55,23 @@ describe("ActivityTable", () => {
       expect(screen.getByText("Yoga Session")).toBeInTheDocument();
     });
 
-    it("links each row to the routes-map deep link (View on map)", () => {
-      render(<ActivityTable {...defaultProps} />);
+    it("invokes onViewOnMap with the activity id (View on map)", async () => {
+      const onViewOnMap = vi.fn();
+      render(<ActivityTable {...defaultProps} onViewOnMap={onViewOnMap} />);
 
-      const mapLinks = screen.getAllByRole("link", { name: /view this activity on the map/i });
-      expect(mapLinks).toHaveLength(mockActivities.length);
-      expect(mapLinks[0]).toHaveAttribute("href", "/routes?activity=123456789");
+      const mapButtons = screen.getAllByRole("button", {
+        name: /view this activity on the map/i,
+      });
+      expect(mapButtons).toHaveLength(mockActivities.length);
+      await userEvent.click(mapButtons[0]!);
+      expect(onViewOnMap).toHaveBeenCalledWith("123456789");
+    });
+
+    it("hides the View-on-map control when no onViewOnMap handler is given", () => {
+      render(<ActivityTable {...defaultProps} />);
+      expect(
+        screen.queryByRole("button", { name: /view this activity on the map/i })
+      ).not.toBeInTheDocument();
     });
 
     it("renders column headers", () => {

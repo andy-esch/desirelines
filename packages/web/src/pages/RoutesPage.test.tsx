@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import RoutesPage from "./RoutesPage";
 import { renderWithRouter } from "../test/renderWithRouter";
 import type { MapActivity, RegionSummary } from "../api/map";
@@ -173,6 +173,18 @@ describe("RoutesPage", () => {
       expect((lastMapProps().selected as { id?: number } | null)?.id).toBe(12345);
     });
     expect(screen.getByText(/showing one activity/i)).toBeInTheDocument();
+  });
+
+  it("Show all clears the focus and restores the full map", async () => {
+    await renderWithRouter(<RoutesPage />, { route: "/?activity=12345" });
+    await screen.findByTestId("route-map");
+    const focusedFilter = ["in", ["get", "activity_id"], ["literal", [12345]]];
+    expect(lastMapProps().filter).toEqual(focusedFilter);
+
+    fireEvent.click(screen.getByRole("button", { name: /show all/i }));
+
+    await waitFor(() => expect(lastMapProps().filter).not.toEqual(focusedFilter));
+    expect(screen.queryByRole("button", { name: /show all/i })).not.toBeInTheDocument();
   });
 
   it("mounts the non-modal filter drawer over the map", async () => {
