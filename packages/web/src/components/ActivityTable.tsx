@@ -10,8 +10,10 @@ import {
   type ElevationUnit,
 } from "../utils/units";
 import { SPORT_COLORS } from "../utils/sportConfig";
+import { routeMapDeepLink } from "../api/map";
 import NeonSpinner from "./NeonSpinner";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
+import { MapPinIcon } from "./ui/MapPinIcon";
 
 /** Speed unit label for each supported distance unit (cycling display). */
 const SPEED_LABEL: Record<DistanceUnit, string> = {
@@ -199,15 +201,25 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                     </td>
                   )}
                   <td className="text-right pe-6">
-                    <a
-                      href={`https://www.strava.com/activities/${activity.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-slate-light"
-                      title="View on Strava"
-                    >
-                      <ExternalLinkIcon size={14} />
-                    </a>
+                    <div className="inline-flex items-center gap-3">
+                      <a
+                        href={routeMapDeepLink(activity.id)}
+                        className="text-slate-light hover:text-accent-cyan motion-safe:transition-colors"
+                        title="View on map"
+                        aria-label="View this activity on the map"
+                      >
+                        <MapPinIcon size={14} />
+                      </a>
+                      <a
+                        href={`https://www.strava.com/activities/${activity.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-light"
+                        title="View on Strava"
+                      >
+                        <ExternalLinkIcon size={14} />
+                      </a>
+                    </div>
                   </td>
                 </tr>
               ))}
