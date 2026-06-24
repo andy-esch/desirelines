@@ -3,7 +3,9 @@
 package postgres_test
 
 import (
+	"bytes"
 	"context"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -13,6 +15,17 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 )
+
+// tileXY returns the slippy-map tile column/row containing (lng, lat) at zoom z,
+// so tests can target a tile that actually covers the test route at any zoom
+// without hardcoding coordinates per zoom level.
+func tileXY(lng, lat float64, z int) (x, y int) {
+	n := math.Exp2(float64(z))
+	x = int((lng + 180.0) / 360.0 * n)
+	latRad := lat * math.Pi / 180.0
+	y = int((1.0 - math.Asinh(math.Tan(latRad))/math.Pi) / 2.0 * n)
+	return x, y
+}
 
 // A 2x2 degree test region box around (-30, 0), and a small route inside its
 // northern/western quadrant — far from any real geography, so these tests are
@@ -166,6 +179,45 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 			}
 			if len(far) != 0 {
 				t.Errorf("expected empty MVT for a far tile, got %d bytes", len(far))
+			}
+		})
+	})
+
+	t.Run("Tile_LOD_PointsLowZoom_LinesHighZoom", func(t *testing.T) {
+		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
+			regionID := insertTestRegion(t, tx, "r1", "county")
+			insertRoutedActivity(t, tx, 5001, "test-user")
+			tagActivityRegion(t, tx, 5001, regionID)
+
+			// The MVT layer name is encoded verbatim in the tile protobuf, so a
+			// substring check distinguishes the two LOD tiers ("routes" is NOT a
+			// substring of "route_points", so the checks don't cross-match).
+			midLng, midLat := -30.0, 0.5 // the test route's middle vertex
+
+			// Low zoom (< lineMinZoom=8) → grid-binned density points layer.
+			lx, ly := tileXY(midLng, midLat, 2)
+			low, err := repo.GetRouteTile(ctx, "test-user", 2, lx, ly)
+			if err != nil {
+				t.Fatalf("GetRouteTile low-zoom: %v", err)
+			}
+			if !bytes.Contains(low, []byte("route_points")) {
+				t.Errorf("low-zoom tile should carry the 'route_points' layer; got %d bytes", len(low))
+			}
+			if bytes.Contains(low, []byte("routes")) {
+				t.Error("low-zoom tile should NOT carry the 'routes' line layer")
+			}
+
+			// High zoom (>= lineMinZoom) → simplified line layer.
+			hx, hy := tileXY(midLng, midLat, 10)
+			high, err := repo.GetRouteTile(ctx, "test-user", 10, hx, hy)
+			if err != nil {
+				t.Fatalf("GetRouteTile high-zoom: %v", err)
+			}
+			if !bytes.Contains(high, []byte("routes")) {
+				t.Errorf("high-zoom tile should carry the 'routes' line layer; got %d bytes", len(high))
+			}
+			if bytes.Contains(high, []byte("route_points")) {
+				t.Error("high-zoom tile should NOT carry the 'route_points' layer")
 			}
 		})
 	})

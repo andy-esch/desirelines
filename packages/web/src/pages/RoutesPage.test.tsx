@@ -135,8 +135,13 @@ describe("RoutesPage", () => {
     await renderWithRouter(<RoutesPage />);
 
     await screen.findByTestId("route-map");
-    // Drawer is open by default → its header collapse control is present.
-    expect(await screen.findByRole("button", { name: /collapse panel/i })).toBeInTheDocument();
+    // Drawer is open by default → its header collapse control is present. The drawer
+    // is lazy-loaded (its own async chunk), so give findBy a generous window —
+    // the default 1s can flake under full-suite/CI load (still well under the 5s
+    // test timeout). The DOM otherwise shows only the map (Suspense fallback).
+    expect(
+      await screen.findByRole("button", { name: /collapse panel/i }, { timeout: 4000 })
+    ).toBeInTheDocument();
   });
 
   it("wires the resolved token, tile URL, and viewport into the map", async () => {

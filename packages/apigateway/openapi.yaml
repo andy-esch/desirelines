@@ -283,6 +283,19 @@ paths:
         Mapbox Vector Tile (ST_AsMVT). Only geo-bearing activities (those tagged
         to >=1 region) are included; virtual/indoor activities are excluded. An
         empty-but-valid tile is returned when the tile has no features.
+
+
+        Level-of-detail by zoom, with a handoff at z8. At z >= 8 the tile carries a
+        "routes" layer of zoom-simplified route linestrings (ST_Simplify scaled to
+        the tile resolution; full fidelity by z14) with properties activity_id,
+        name, sport, distance and date. At z < 8 it instead carries a "route_points"
+        layer of grid-binned density points — one point per grid cell per sport —
+        with properties activity_count and sport, which the client sizes by count
+        for a zoomed-out overview.
+
+
+        sport is the raw Strava sport_type (the client maps it to the app sport
+        category). maxzoom is 14; the client overzooms beyond it.
       operationId: getRouteTile
       security:
         - bearerAuth: []
