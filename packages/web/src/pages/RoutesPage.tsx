@@ -1,5 +1,6 @@
-import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import type { FilterSpecification } from "mapbox-gl";
 import { PageLayout } from "../components/layout/PageLayout";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../contexts/ThemeContext";
@@ -109,6 +110,25 @@ export default function RoutesPage() {
   // Mapbox filter every frame (see the design-spec review addendum).
   const throttledMapFilter = useThrottledValue(routeFilters.mapFilter, 120);
 
+  // Deep-link focus (the activity lists' "View on map" → /routes?activity=<id>).
+  // `strict: false` reads the search without coupling to the exact route id (works
+  // under the test router too); the `/routes` route's validateSearch coerces it.
+  const search = useSearch({ strict: false });
+  const navigate = useNavigate({ from: "/routes" });
+  const rawActivity: unknown = search.activity;
+  const focusId =
+    typeof rawActivity === "number" && Number.isFinite(rawActivity) ? rawActivity : null;
+
+  // When focused, the map shows ONLY that route (override the cross-filter); the
+  // effect below opens its popup + frames it. Otherwise the normal throttled filter.
+  const mapFilter = useMemo<FilterSpecification | null>(
+    () =>
+      focusId != null
+        ? (["in", ["get", "activity_id"], ["literal", [focusId]]] as FilterSpecification)
+        : (throttledMapFilter ?? null),
+    [focusId, throttledMapFilter]
+  );
+
   // Lookup by id for the map's click popover (supplies movingTime, which the MVT
   // tile doesn't carry). Built over the full dataset, keyed by activityId.
   const getActivity = useMemo(() => {
@@ -132,6 +152,44 @@ export default function RoutesPage() {
       setFitTo({ bbox: bbox as [number, number, number, number], nonce: ++fitNonceRef.current });
     }
   }, []);
+
+  // Apply the deep-link focus once the dataset has the activity: open its popup
+  // (anchored at the route's bbox center, since there's no click point) and frame
+  // it. Guarded by a ref so it applies once per focus id, not every render.
+  const focusAppliedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (focusId == null) {
+      focusAppliedRef.current = null;
+      return;
+    }
+    if (focusAppliedRef.current === focusId) return;
+    const a = getActivity(focusId);
+    if (!a) return; // dataset still loading, or the id isn't in the user's map set
+    focusAppliedRef.current = focusId;
+    const bbox = a.bbox;
+    const center =
+      bbox && bbox.length === 4
+        ? { lng: (bbox[0]! + bbox[2]!) / 2, lat: (bbox[1]! + bbox[3]!) / 2 }
+        : {};
+    // One-shot sync of the URL focus param into selection state (ref-guarded, so it
+    // can't cascade) — the popup/fit depend on the dataset, which may load after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelected({
+      id: a.activityId,
+      name: a.name,
+      distanceMeters: a.distanceMeters,
+      date: a.startDateLocal.slice(0, 10),
+      ...center,
+    });
+    requestFit(bbox);
+  }, [focusId, getActivity, requestFit]);
+
+  // Leave focus: clear the popup + drop the ?activity= param (restores the full map).
+  // `/routes` carries no other search params, so replacing search with {} is enough.
+  const exitFocus = useCallback(() => {
+    setSelected(null);
+    void navigate({ search: {} });
+  }, [navigate]);
 
   const onSelectFromList = useCallback(
     (a: MapActivity) => {
@@ -261,7 +319,7 @@ export default function RoutesPage() {
               getAuthToken={getToken}
               refreshAuthToken={refreshAuthToken}
               colorExpression={colorExpression}
-              filter={throttledMapFilter}
+              filter={mapFilter}
               defaultViewport={defaultViewport}
               isDark={isDark}
               distanceUnit={distanceUnit}
@@ -368,6 +426,27 @@ export default function RoutesPage() {
                 </div>
               </MapInsightsDrawer>
             </Suspense>
+          )}
+
+          {/* Deep-link focus banner: the map is pinned to one activity. Offers the
+              way back to the full map (also clears the ?activity= param). */}
+          {focusId != null && (
+            <div className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-dark/85 px-3 py-1 text-xs text-slate-light backdrop-blur-sm">
+              <span>
+                {datasetLoading
+                  ? "Loading activity…"
+                  : getActivity(focusId)
+                    ? "Showing one activity"
+                    : "That activity isn't on your map"}
+              </span>
+              <button
+                type="button"
+                onClick={exitFocus}
+                className="font-medium text-accent-cyan hover:underline"
+              >
+                Show all
+              </button>
+            </div>
           )}
 
           {/* No geo-bearing activities → map falls back to a world view; hint why it's empty. */}

@@ -12,6 +12,7 @@ import {
 import { SPORT_COLORS } from "../utils/sportConfig";
 import NeonSpinner from "./NeonSpinner";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
+import { MapPinIcon } from "./ui/MapPinIcon";
 
 /** Speed unit label for each supported distance unit (cycling display). */
 const SPEED_LABEL: Record<DistanceUnit, string> = {
@@ -27,6 +28,10 @@ interface ActivityTableProps {
   hasMore: boolean;
   onLoadMore: () => void;
   onRetry: () => void;
+  /** Navigate to the routes map focused on this activity (the "View on map" link).
+   *  A handler (not a route inside the table) keeps the table router-context-free;
+   *  the page wires it to client-side navigation. Omit to hide the affordance. */
+  onViewOnMap?: (activityId: string) => void;
   distanceUnit?: DistanceUnit;
   elevationUnit?: ElevationUnit;
   /** Annual goal target in display units. When set, shows "Impact" column. */
@@ -94,6 +99,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   hasMore,
   onLoadMore,
   onRetry,
+  onViewOnMap,
   distanceUnit = "miles",
   elevationUnit = "feet",
   goalTarget,
@@ -199,15 +205,28 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                     </td>
                   )}
                   <td className="text-right pe-6">
-                    <a
-                      href={`https://www.strava.com/activities/${activity.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-slate-light"
-                      title="View on Strava"
-                    >
-                      <ExternalLinkIcon size={14} />
-                    </a>
+                    <div className="inline-flex items-center gap-3">
+                      {onViewOnMap && (
+                        <button
+                          type="button"
+                          onClick={() => onViewOnMap(activity.id)}
+                          className="text-slate-light hover:text-accent-cyan motion-safe:transition-colors"
+                          title="View on map"
+                          aria-label="View this activity on the map"
+                        >
+                          <MapPinIcon size={14} />
+                        </button>
+                      )}
+                      <a
+                        href={`https://www.strava.com/activities/${activity.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-light"
+                        title="View on Strava"
+                      >
+                        <ExternalLinkIcon size={14} />
+                      </a>
+                    </div>
                   </td>
                 </tr>
               ))}

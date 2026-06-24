@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import RoutesPage from "./RoutesPage";
 import { renderWithRouter } from "../test/renderWithRouter";
-import type { RegionSummary } from "../api/map";
+import type { MapActivity, RegionSummary } from "../api/map";
 
 // Mock hooks
 vi.mock("../hooks/useAuth", () => ({
@@ -70,6 +70,12 @@ const mockUseRouteRegions = vi.mocked(useRouteRegions);
 const mockUseAuthTokenRef = vi.mocked(useAuthTokenRef);
 const mockGetConfig = vi.mocked(getConfig);
 
+import { useMapDataset } from "../hooks/useMapDataset";
+const mockUseMapDataset = vi.mocked(useMapDataset);
+
+/** Props of the most recent <RouteMap> render (the mock spies on them). */
+const lastMapProps = () => mapPropsSpy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+
 const authedUser = {
   user: { uid: "u1", email: "a@b.com", displayName: "Test", photoURL: null },
   loading: false,
@@ -113,6 +119,9 @@ describe("RoutesPage", () => {
       isLoading: false,
       error: null,
     });
+    // Reset the dataset to empty each test — clearAllMocks doesn't undo a
+    // per-test mockReturnValue (e.g. the deep-link focus test sets one).
+    mockUseMapDataset.mockReturnValue({ activities: [], isLoading: false, error: null });
   });
 
   it("shows sign-in prompt when unauthenticated", async () => {
@@ -129,6 +138,53 @@ describe("RoutesPage", () => {
 
     expect(await screen.findByTestId("route-map")).toBeInTheDocument();
     expect(screen.queryByText(/No routes yet/)).not.toBeInTheDocument();
+  });
+
+  it("deep-link ?activity=<id> focuses the map on that one route + offers Show all", async () => {
+    await renderWithRouter(<RoutesPage />, { route: "/?activity=12345" });
+
+    await screen.findByTestId("route-map");
+    // The map filter is overridden to that single activity id.
+    expect(lastMapProps().filter).toEqual(["in", ["get", "activity_id"], ["literal", [12345]]]);
+    // An explicit way back to the full map is shown.
+    expect(screen.getByRole("button", { name: /show all/i })).toBeInTheDocument();
+    // The id isn't in this (empty) dataset → a clear, non-error notice.
+    expect(screen.getByText(/isn't on your map/i)).toBeInTheDocument();
+  });
+
+  it("opens the popup for a deep-linked activity that's in the dataset", async () => {
+    const activity: MapActivity = {
+      activityId: 12345,
+      name: "Deep-linked Ride",
+      sport: "cycling",
+      distanceMeters: 30_000,
+      movingTime: 3_600,
+      startDateLocal: "2026-05-01T08:00:00",
+      regionIds: [],
+      bbox: [-74.1, 40.6, -73.8, 40.9],
+    };
+    mockUseMapDataset.mockReturnValue({ activities: [activity], isLoading: false, error: null });
+
+    await renderWithRouter(<RoutesPage />, { route: "/?activity=12345" });
+    await screen.findByTestId("route-map");
+
+    // The focus effect selects the activity (opens its popup, anchored at bbox center).
+    await waitFor(() => {
+      expect((lastMapProps().selected as { id?: number } | null)?.id).toBe(12345);
+    });
+    expect(screen.getByText(/showing one activity/i)).toBeInTheDocument();
+  });
+
+  it("Show all clears the focus and restores the full map", async () => {
+    await renderWithRouter(<RoutesPage />, { route: "/?activity=12345" });
+    await screen.findByTestId("route-map");
+    const focusedFilter = ["in", ["get", "activity_id"], ["literal", [12345]]];
+    expect(lastMapProps().filter).toEqual(focusedFilter);
+
+    fireEvent.click(screen.getByRole("button", { name: /show all/i }));
+
+    await waitFor(() => expect(lastMapProps().filter).not.toEqual(focusedFilter));
+    expect(screen.queryByRole("button", { name: /show all/i })).not.toBeInTheDocument();
   });
 
   it("mounts the non-modal filter drawer over the map", async () => {
