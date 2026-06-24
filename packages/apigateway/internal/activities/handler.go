@@ -349,10 +349,8 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
-	// A single-sport query must collapse to exactly one category. More than one
-	// means the forward (GetStravaTypes) and reverse (GetCategoryForStravaType)
-	// sport mappings disagree — fail loud rather than serve a nondeterministically
-	// chosen, silently-truncated result (mirrors the merge invariants in helper.go).
+	// Single-sport query must collapse to exactly one category; >1 means the
+	// sport maps disagree — fail loud (see soleCategory).
 	result, categories, ok := soleCategory(merged)
 	if !ok {
 		h.logger.Error("Single-sport metrics merged to multiple categories — sport config mapping is asymmetric", "categories", categories)
@@ -447,10 +445,8 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 
 	// Merge all Strava types for this sport category into a single result
 	merged := h.mergeMultiSportDailySummary(byStravaType)
-	// A single-sport query must collapse to exactly one category. More than one
-	// means the forward (GetStravaTypes) and reverse (GetCategoryForStravaType)
-	// sport mappings disagree — fail loud rather than serve a nondeterministically
-	// chosen, silently-truncated result (mirrors the merge invariants in helper.go).
+	// Single-sport query must collapse to exactly one category; >1 means the
+	// sport maps disagree — fail loud (see soleCategory).
 	result, categories, ok := soleCategory(merged)
 	if !ok {
 		h.logger.Error("Single-sport source merged to multiple categories — sport config mapping is asymmetric", "categories", categories)
