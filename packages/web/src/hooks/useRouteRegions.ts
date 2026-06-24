@@ -23,6 +23,10 @@ export function useRouteRegions(): UseRouteRegionsResult {
     queryKey: ["routeRegions", user?.uid],
     queryFn: ({ signal }) => fetchRouteRegions(signal),
     enabled: !authLoading && !!user,
+    // Stable for the session, alongside the dataset (useMapDataset): it only changes
+    // on a backfill/sync, and it drives the initial viewport — a background refetch
+    // here would re-fit the map. Refresh is explicit, not time- or focus-driven.
+    staleTime: Infinity,
   });
 
   return {

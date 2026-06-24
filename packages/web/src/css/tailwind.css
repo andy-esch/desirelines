@@ -879,60 +879,6 @@ html:not(.dark) {
     font-size: 0.75rem;
   }
 
-  /* --- Styled Select (Headless UI Listbox) --- */
-
-  .styled-select-button {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    width: 100%;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-    line-height: 1.5;
-    color: var(--color-body-text);
-    background-color: var(--color-slate-dark);
-    border: 1px solid var(--color-slate-DEFAULT);
-    border-radius: 0.25rem;
-    cursor: pointer;
-    text-align: left;
-    transition:
-      border-color 0.15s ease-in-out,
-      box-shadow 0.15s ease-in-out;
-  }
-  .styled-select-button:focus,
-  .styled-select-button[data-focus] {
-    border-color: var(--color-accent-cyan);
-    box-shadow: 0 0 0 0.2rem var(--color-accent-cyan-glow);
-    outline: none;
-  }
-  .styled-select-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .styled-select-options {
-    z-index: 50;
-    min-width: var(--button-width);
-    max-height: 15rem;
-    overflow-y: auto;
-    border-radius: 0.375rem;
-    background-color: var(--color-slate-dark);
-    border: 1px solid var(--color-slate-DEFAULT);
-    box-shadow: 0 8px 24px var(--color-surface-shadow);
-    padding: 0.25rem 0;
-    --anchor-gap: 0.25rem;
-  }
-
-  .styled-select-option {
-    display: block;
-    padding: 0.375rem 0.5rem;
-    font-size: 0.875rem;
-    color: var(--color-body-text);
-    cursor: pointer;
-    transition: background-color 0.1s;
-  }
-
   /* --- Page transition fade-in --- */
 
   .page-transition {

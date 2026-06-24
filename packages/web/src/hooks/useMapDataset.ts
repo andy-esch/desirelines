@@ -24,6 +24,12 @@ export function useMapDataset(): UseMapDatasetResult {
     queryKey: ["mapDataset", user?.uid],
     queryFn: ({ signal }) => fetchMapDataset(signal),
     enabled: !authLoading && !!user,
+    // Hold the dataset stable for the session. It only changes when a Strava
+    // backfill/sync adds activities (infrequent, user-initiated), and a background
+    // refetch would swap the array out from under active cross-filters — shifting
+    // the distance/time slider domains mid-interaction. Refresh is explicit (a
+    // queryClient.invalidateQueries after a sync), not time- or focus-driven.
+    staleTime: Infinity,
   });
 
   return {
