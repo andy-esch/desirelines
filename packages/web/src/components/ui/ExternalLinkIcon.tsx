@@ -1,8 +1,7 @@
 /**
  * Bootstrap "box-arrow-up-right" external-link glyph — the shared symbol for
  * "opens in a new tab" links (e.g. Strava deep links) across the app, for
- * consistency. `ActivityTable` / `RecentActivitiesList` inline the same path and
- * could adopt this component too.
+ * consistency. Used by the routes-map list/popover and `ActivityTable`.
  */
 export function ExternalLinkIcon({ size = 12, className }: { size?: number; className?: string }) {
   return (

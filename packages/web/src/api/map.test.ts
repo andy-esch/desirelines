@@ -100,6 +100,38 @@ describe("fetchRouteRegions", () => {
     expect(result).toEqual({ regions: [], defaultViewport: null });
   });
 
+  it("coerces a protojson int64-as-string regionId to a number", async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        regions: [
+          {
+            regionId: "98765432109",
+            name: "Big Region",
+            kind: "country",
+            activityCount: 3,
+            bbox: [-10, 40, 10, 60],
+          },
+        ],
+      },
+    });
+
+    const { regions } = await fetchRouteRegions();
+    expect(regions[0]!.regionId).toBe(98765432109);
+    expect(typeof regions[0]!.regionId).toBe("number");
+  });
+
+  it("rejects a region whose bbox isn't four finite numbers (loud contract drift)", async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        regions: [
+          { regionId: 1, name: "Bad", kind: "metro", activityCount: 1, bbox: [-10, 40, 10] },
+        ],
+      },
+    });
+
+    await expect(fetchRouteRegions()).rejects.toThrow("throwApiError:fetchRouteRegions");
+  });
+
   it("passes through regions and the default viewport", async () => {
     const viewport = {
       regionId: 101,
@@ -186,6 +218,47 @@ describe("fetchMapDataset", () => {
     mockGet.mockResolvedValue({ data: undefined });
 
     expect(await fetchMapDataset()).toEqual([]);
+  });
+
+  it("restores protojson-omitted zero/empty scalars to their defaults", async () => {
+    // protojson drops zero/empty fields; the schema fills them so downstream
+    // aggregations never see `undefined`/`NaN` (belt to mapInsights' suspenders).
+    mockGet.mockResolvedValue({
+      data: { activities: [{ activityId: "7", startDateLocal: "2026-05-01T08:00:00" }] },
+    });
+
+    const [a] = await fetchMapDataset();
+    expect(a).toEqual({
+      activityId: 7,
+      name: "",
+      sport: "",
+      distanceMeters: 0,
+      movingTime: 0,
+      startDateLocal: "2026-05-01T08:00:00",
+      regionIds: [],
+    });
+  });
+
+  it("rejects a malformed activityId rather than coercing it to NaN", async () => {
+    // `Number("not-an-id")` → NaN would silently never match the tile's numeric id;
+    // the schema fails loudly through throwApiError instead.
+    mockGet.mockResolvedValue({
+      data: { activities: [{ activityId: "not-an-id", startDateLocal: "2026-05-01T08:00:00" }] },
+    });
+
+    await expect(fetchMapDataset()).rejects.toThrow("throwApiError:fetchMapDataset");
+  });
+
+  it("rejects a malformed regionId rather than silently dropping a NaN", async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        activities: [
+          { activityId: "7", startDateLocal: "2026-05-01T08:00:00", regionIds: ["10", "oops"] },
+        ],
+      },
+    });
+
+    await expect(fetchMapDataset()).rejects.toThrow("throwApiError:fetchMapDataset");
   });
 
   it("routes errors through throwApiError with the function context", async () => {

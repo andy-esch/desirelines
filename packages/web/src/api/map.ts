@@ -1,53 +1,114 @@
+import { z } from "zod";
 import getClient from "./client";
 import { throwApiError } from "./errors";
 import type { MapActivity as WireMapActivity } from "../types/generated/activities";
 
 /**
- * Per-region activity summary used to pick the initial map viewport and (in a
- * follow-on task) drive a region filter UI. Mirrors the apigateway
- * `RegionSummary` shape returned by `GET /v1/activities/map/regions`.
+ * protojson serializes proto `int64` fields as JSON **strings** (and the apigateway
+ * may serialize some as JSON **numbers**); accept either and coerce to a finite
+ * number, failing loudly on anything that isn't a clean integer. This is the
+ * boundary that caused the blank-map bug — a stray `Number("")`/`Number("abc")` →
+ * `0`/`NaN` here silently mismatches the MVT tile's numeric ids, so we reject
+ * rather than coerce to garbage.
  */
-export interface RegionSummary {
-  /** Numeric region id from `desirelines.regions` (apigateway serializes int64 → JSON number). */
-  regionId: number;
-  name: string;
-  /** Server-defined region granularity (e.g. "metro", "country"). */
-  kind: string;
-  activityCount: number;
-  /** [minLng, minLat, maxLng, maxLat] in WGS84 degrees. */
-  bbox: [number, number, number, number];
-}
+const int64ToNumber = z.union([z.number(), z.string()]).transform((v, ctx) => {
+  if (typeof v === "number") {
+    if (Number.isFinite(v)) return v;
+  } else if (/^-?\d+$/.test(v.trim())) {
+    return Number(v);
+  }
+  ctx.addIssue({
+    code: "custom",
+    message: `expected an int64 (numeric string or number), got ${JSON.stringify(v)}`,
+  });
+  return z.NEVER;
+});
 
-export interface RouteRegionsResponse {
-  /** Densest-first; for the future region filter UI. */
-  regions: RegionSummary[];
+/** A JSON number that must be finite — rejects `NaN`/`±Infinity` contract drift. */
+const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number");
+
+/**
+ * Per-region activity summary used to pick the initial map viewport and drive the
+ * region filter UI. Mirrors the apigateway `RegionSummary` shape returned by
+ * `GET /v1/activities/map/regions`, validated at the boundary so contract drift
+ * fails loudly (the int64 blank-map bug was exactly this class of silent drift).
+ */
+export const RegionSummarySchema = z.object({
+  /** Numeric region id from `desirelines.regions` (int64 → string or number on the wire). */
+  regionId: int64ToNumber,
+  name: z.string().default(""),
+  /** Server-defined region granularity (e.g. "metro", "country"). */
+  kind: z.string().default(""),
+  activityCount: finiteNumber.default(0),
+  /** [minLng, minLat, maxLng, maxLat] in WGS84 degrees — exactly four finite numbers. */
+  bbox: z.tuple([finiteNumber, finiteNumber, finiteNumber, finiteNumber]),
+});
+export type RegionSummary = z.infer<typeof RegionSummarySchema>;
+
+export const RouteRegionsResponseSchema = z.object({
+  /** Densest-first; drives the region filter UI. */
+  regions: z.array(RegionSummarySchema).default([]),
   /**
    * Server-chosen region to fit on load (densest of the highest-priority kind),
    * or `null` when the user has no geo-bearing activities.
    */
-  defaultViewport: RegionSummary | null;
-}
+  defaultViewport: RegionSummarySchema.nullable().default(null),
+});
+export type RouteRegionsResponse = z.infer<typeof RouteRegionsResponseSchema>;
 
 /**
- * A geo-bearing activity in the routes-map cross-filter dataset, as the client
- * uses it: the **generated** `MapActivity` wire shape (from `activities.proto`)
- * with its protojson `int64`-as-string ids (`activityId`, `regionIds`) coerced to
- * **numbers** — so they match the MVT tile's numeric `activity_id` (map
- * cross-filter) and the numeric `RegionSummary.regionId`. Every other field tracks
- * the generated type, so a proto change flows through without hand-editing.
+ * A geo-bearing activity in the routes-map cross-filter dataset, as the client uses
+ * it: the generated `MapActivity` wire shape (from `activities.proto`) parsed through
+ * `zod`, with its protojson `int64`-as-string ids (`activityId`, `regionIds`) coerced
+ * to **numbers** — so they match the MVT tile's numeric `activity_id` (map
+ * cross-filter) and the numeric `RegionSummary.regionId`. protojson omits zero/empty
+ * fields, so the schema restores their defaults (`""`/`0`/`[]`); `elevationMeters`
+ * and `bbox` stay optional (absent without a value / route geometry).
  *
- * Note: `sport` is the **app category** (e.g. `cycling`, `running`) — unlike the
- * MVT tile's `sport` property (raw Strava sport_type). Cross-filtering the map
- * therefore keys on the filtered `activityId` set, not the tile `sport`.
+ * Note: `sport` is the **app category** (e.g. `cycling`, `running`) — unlike the MVT
+ * tile's `sport` property (raw Strava sport_type). Cross-filtering the map therefore
+ * keys on the filtered `activityId` set, not the tile `sport`.
  */
-export type MapActivity = Omit<WireMapActivity, "activityId" | "regionIds" | "bbox"> & {
+export const MapActivitySchema = z.object({
   /** Strava activity id, coerced from the protojson string to a number. */
-  activityId: number;
+  activityId: int64ToNumber,
+  /** Activity name/title (for the cross-filter list + click popover). */
+  name: z.string().default(""),
+  /** App sport category (cycling, running, …). */
+  sport: z.string().default(""),
+  /** Distance in meters. */
+  distanceMeters: finiteNumber.default(0),
+  /** Moving time in seconds. */
+  movingTime: finiteNumber.default(0),
+  /** Elevation gain in meters (absent when null on the wire). */
+  elevationMeters: finiteNumber.optional(),
+  /** Local start time, ISO 8601. */
+  startDateLocal: z.string().default(""),
   /** Region ids, coerced to numbers to match `RegionSummary.regionId`. */
+  regionIds: z.array(int64ToNumber).default([]),
+  /** [minLng, minLat, maxLng, maxLat] route bbox; absent without geometry. */
+  bbox: z.array(finiteNumber).optional(),
+});
+export type MapActivity = z.infer<typeof MapActivitySchema>;
+
+// Compile-time reconciliation with the generated proto type (do not delete): the
+// parsed app shape must stay mutually assignable with the generated `WireMapActivity`
+// — its int64 ids widened string→number and `bbox` made optional. A proto change that
+// renames or retypes a field changes `WireMapActivity` and breaks one of these
+// assignments, surfacing the drift instead of silently double-maintaining the shape.
+type _AppMapActivity = Omit<WireMapActivity, "activityId" | "regionIds" | "bbox"> & {
+  activityId: number;
   regionIds: number[];
-  /** [minLng, minLat, maxLng, maxLat] from the route geometry; absent without one. */
-  bbox?: number[];
+  bbox?: number[] | undefined;
 };
+const _reconcileMapActivity = (x: MapActivity): _AppMapActivity => x;
+const _reconcileMapActivityReverse = (x: _AppMapActivity): MapActivity => x;
+void [_reconcileMapActivity, _reconcileMapActivityReverse];
+
+/** Wrapper for `GET /v1/activities/map/dataset` (no pagination — see `fetchMapDataset`). */
+export const MapDatasetResponseSchema = z.object({
+  activities: z.array(MapActivitySchema).default([]),
+});
 
 /**
  * Fetch the full geo-bearing activity dataset for the routes-map cross-filter
@@ -56,39 +117,37 @@ export type MapActivity = Omit<WireMapActivity, "activityId" | "regionIds" | "bb
  * are attached by the shared axios client interceptor.
  *
  * `protojson` serializes the proto `int64` fields (`activityId`, `regionIds`) as
- * JSON **strings** — the generated `WireMapActivity` types them as such — so this
- * is the single boundary that parses them to numbers for the cross-filter.
+ * JSON **strings** — `MapDatasetResponseSchema` is the single boundary that parses
+ * the response, coercing those ids to numbers and rejecting malformed rows so
+ * contract drift fails loudly (via `throwApiError`) instead of silently producing a
+ * `NaN` id that never matches the tile.
  */
 export const fetchMapDataset = async (signal?: AbortSignal): Promise<MapActivity[]> => {
   try {
-    const { data } = await getClient().get<{ activities?: WireMapActivity[] }>(
+    const { data } = await getClient().get<unknown>(
       "activities/map/dataset",
       signal ? { signal } : {}
     );
-    return (data?.activities ?? []).map((a) => ({
-      ...a,
-      activityId: Number(a.activityId),
-      regionIds: a.regionIds.map(Number),
-    }));
+    return MapDatasetResponseSchema.parse(data ?? {}).activities;
   } catch (err: unknown) {
     throwApiError(err, "fetchMapDataset");
   }
 };
 
 /**
- * Fetch the per-region summary + default viewport for the routes map.
+ * Fetch the per-region summary + default viewport for the routes map. The response
+ * is parsed through `RouteRegionsResponseSchema` (same boundary-validation rationale
+ * as `fetchMapDataset`): region ids are coerced to numbers, `bbox` is enforced as
+ * four finite numbers, and a missing/partial body falls back to safe defaults.
  * Auth + trace headers are attached by the shared axios client interceptor.
  */
 export const fetchRouteRegions = async (signal?: AbortSignal): Promise<RouteRegionsResponse> => {
   try {
-    const { data } = await getClient().get<RouteRegionsResponse>(
+    const { data } = await getClient().get<unknown>(
       "activities/map/regions",
       signal ? { signal } : {}
     );
-    return {
-      regions: data?.regions ?? [],
-      defaultViewport: data?.defaultViewport ?? null,
-    };
+    return RouteRegionsResponseSchema.parse(data ?? {});
   } catch (err: unknown) {
     throwApiError(err, "fetchRouteRegions");
   }
