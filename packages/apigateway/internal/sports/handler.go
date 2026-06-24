@@ -56,5 +56,5 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 
 	// Write raw JSON directly (no marshal/unmarshal cycle)
-	server.RespondRawJSON(w, r, http.StatusOK, data, h.logger)
+	server.RespondRawJSON(w, http.StatusOK, data, h.logger)
 }

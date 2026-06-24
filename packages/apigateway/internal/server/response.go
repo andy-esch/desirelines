@@ -12,7 +12,7 @@ import (
 // RespondJSON writes a JSON response.
 // JSON is encoded to a buffer first to detect encoding errors before sending headers.
 // This prevents partial responses with 200 OK status when encoding fails.
-func RespondJSON(w http.ResponseWriter, r *http.Request, status int, data any, logger *slog.Logger) {
+func RespondJSON(w http.ResponseWriter, status int, data any, logger *slog.Logger) {
 	// Buffer the JSON to detect encoding errors before writing headers
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(data); err != nil {
@@ -33,7 +33,7 @@ func RespondJSON(w http.ResponseWriter, r *http.Request, status int, data any, l
 // RespondRawJSON writes raw JSON bytes.
 // Use this for pre-marshaled JSON data to avoid double encoding.
 // Validates that data is non-empty before writing headers to avoid empty responses.
-func RespondRawJSON(w http.ResponseWriter, r *http.Request, status int, data []byte, logger *slog.Logger) {
+func RespondRawJSON(w http.ResponseWriter, status int, data []byte, logger *slog.Logger) {
 	// Validate data before writing headers to prevent empty responses
 	if len(data) == 0 {
 		logger.Error("Error: empty response data in RespondRawJSON")

@@ -37,11 +37,10 @@ func TestRespondJSON(t *testing.T) {
 	logger := slog.Default()
 
 	t.Run("writes correct status and content type", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		data := map[string]string{"message": "hello"}
-		RespondJSON(w, req, http.StatusOK, data, logger)
+		RespondJSON(w, http.StatusOK, data, logger)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
@@ -53,7 +52,6 @@ func TestRespondJSON(t *testing.T) {
 	})
 
 	t.Run("encodes struct to JSON", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		type TestData struct {
@@ -61,7 +59,7 @@ func TestRespondJSON(t *testing.T) {
 			Count int    `json:"count"`
 		}
 		data := TestData{Name: "test", Count: 42}
-		RespondJSON(w, req, http.StatusOK, data, logger)
+		RespondJSON(w, http.StatusOK, data, logger)
 
 		var result TestData
 		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
@@ -81,10 +79,9 @@ func TestRespondJSON(t *testing.T) {
 		}
 
 		for _, code := range codes {
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 
-			RespondJSON(w, req, code, nil, logger)
+			RespondJSON(w, code, nil, logger)
 
 			if w.Code != code {
 				t.Errorf("status for %d = %d", code, w.Code)
@@ -98,11 +95,10 @@ func TestRespondRawJSON(t *testing.T) {
 	logger := slog.Default()
 
 	t.Run("writes raw JSON bytes", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		rawJSON := []byte(`{"raw":"data","number":123}`)
-		RespondRawJSON(w, req, http.StatusOK, rawJSON, logger)
+		RespondRawJSON(w, http.StatusOK, rawJSON, logger)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
@@ -118,12 +114,11 @@ func TestRespondRawJSON(t *testing.T) {
 	})
 
 	t.Run("does not double-encode JSON", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		// Pre-marshaled JSON
 		rawJSON := []byte(`{"key":"value"}`)
-		RespondRawJSON(w, req, http.StatusOK, rawJSON, logger)
+		RespondRawJSON(w, http.StatusOK, rawJSON, logger)
 
 		// Should be exactly the same, not escaped/quoted
 		if w.Body.String() != `{"key":"value"}` {

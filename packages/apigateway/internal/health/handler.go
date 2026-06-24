@@ -90,8 +90,8 @@ func NewHandlerWithOptions(pinger Pinger, logger *slog.Logger, timeout, retryBac
 // HandleLive returns process liveness. Always 200 with {"status":"healthy"}.
 // No DB ping, no Pinger call — this path is hit by Cloud Run's probe and the
 // GCP uptime check, which would otherwise keep Neon's compute warm 24/7.
-func (h *Handler) HandleLive(w http.ResponseWriter, r *http.Request) {
-	server.RespondJSON(w, r, http.StatusOK, Response{Status: StatusHealthy}, h.logger)
+func (h *Handler) HandleLive(w http.ResponseWriter, _ *http.Request) {
+	server.RespondJSON(w, http.StatusOK, Response{Status: StatusHealthy}, h.logger)
 }
 
 // HandleReady returns readiness, including database connectivity.
@@ -114,7 +114,7 @@ func (h *Handler) HandleReady(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	server.RespondJSON(w, r, statusCode, response, h.logger)
+	server.RespondJSON(w, statusCode, response, h.logger)
 }
 
 // pingWithRetry runs the DB ping with one retry after a brief backoff. Each
