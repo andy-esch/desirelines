@@ -37,11 +37,10 @@ func TestRespondJSON(t *testing.T) {
 	logger := slog.Default()
 
 	t.Run("writes correct status and content type", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		data := map[string]string{"message": "hello"}
-		RespondJSON(w, req, http.StatusOK, data, logger)
+		RespondJSON(w, http.StatusOK, data, logger)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
@@ -53,7 +52,6 @@ func TestRespondJSON(t *testing.T) {
 	})
 
 	t.Run("encodes struct to JSON", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		type TestData struct {
@@ -61,7 +59,7 @@ func TestRespondJSON(t *testing.T) {
 			Count int    `json:"count"`
 		}
 		data := TestData{Name: "test", Count: 42}
-		RespondJSON(w, req, http.StatusOK, data, logger)
+		RespondJSON(w, http.StatusOK, data, logger)
 
 		var result TestData
 		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
@@ -81,10 +79,9 @@ func TestRespondJSON(t *testing.T) {
 		}
 
 		for _, code := range codes {
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 
-			RespondJSON(w, req, code, nil, logger)
+			RespondJSON(w, code, nil, logger)
 
 			if w.Code != code {
 				t.Errorf("status for %d = %d", code, w.Code)
@@ -98,11 +95,10 @@ func TestRespondRawJSON(t *testing.T) {
 	logger := slog.Default()
 
 	t.Run("writes raw JSON bytes", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		rawJSON := []byte(`{"raw":"data","number":123}`)
-		RespondRawJSON(w, req, http.StatusOK, rawJSON, logger)
+		RespondRawJSON(w, http.StatusOK, rawJSON, logger)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
@@ -118,12 +114,11 @@ func TestRespondRawJSON(t *testing.T) {
 	})
 
 	t.Run("does not double-encode JSON", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		// Pre-marshaled JSON
 		rawJSON := []byte(`{"key":"value"}`)
-		RespondRawJSON(w, req, http.StatusOK, rawJSON, logger)
+		RespondRawJSON(w, http.StatusOK, rawJSON, logger)
 
 		// Should be exactly the same, not escaped/quoted
 		if w.Body.String() != `{"key":"value"}` {
@@ -148,8 +143,7 @@ func TestCORSMiddleware(t *testing.T) {
 			nextCalled = true
 		})
 
-		req := httptest.NewRequest(http.MethodOptions, "/test", nil)
-		req.Header.Set("Origin", "https://example.com")
+		req := corsRequest(http.MethodOptions, "/test")
 		w := httptest.NewRecorder()
 
 		middleware(next).ServeHTTP(w, req)
@@ -175,8 +169,7 @@ func TestCORSMiddleware(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.Header.Set("Origin", "https://example.com")
+		req := corsRequest(http.MethodGet, "/test")
 		w := httptest.NewRecorder()
 
 		middleware(next).ServeHTTP(w, req)
@@ -199,8 +192,7 @@ func TestCORSMiddleware(t *testing.T) {
 			corsHeaderSet = w.Header().Get("Access-Control-Allow-Origin") != ""
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.Header.Set("Origin", "https://example.com")
+		req := corsRequest(http.MethodGet, "/test")
 		w := httptest.NewRecorder()
 
 		middleware(next).ServeHTTP(w, req)
@@ -209,6 +201,14 @@ func TestCORSMiddleware(t *testing.T) {
 			t.Error("CORS headers should be set before next handler runs")
 		}
 	})
+}
+
+// corsRequest builds a request with the test Origin header preset, matching the
+// allowed origin used throughout these tests.
+func corsRequest(method, path string) *http.Request {
+	req := httptest.NewRequest(method, path, nil)
+	req.Header.Set("Origin", "https://example.com")
+	return req
 }
 
 // noopAuthRoutes returns AuthenticatedRoutes with no-op handlers for testing.
@@ -269,8 +269,7 @@ func TestNewRouter_RouteRegistration(t *testing.T) {
 			auth := &mockAuthMiddleware{}
 			router := newTestRouter(c, auth, logger)
 
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-			req.Header.Set("Origin", "https://example.com")
+			req := corsRequest(tt.method, tt.path)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
@@ -304,8 +303,7 @@ func TestNewRouter_AuthBlocking(t *testing.T) {
 		logger,
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metadata", nil)
-	req.Header.Set("Origin", "https://example.com")
+	req := corsRequest(http.MethodGet, "/v1/activities/2024/metadata")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -338,8 +336,7 @@ func TestNewRouter_PublicBypassesAuth(t *testing.T) {
 		logger,
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	req.Header.Set("Origin", "https://example.com")
+	req := corsRequest(http.MethodGet, "/health")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -360,8 +357,7 @@ func TestNewRouter_CORSPreflight(t *testing.T) {
 
 	paths := []string{"/health", "/v1/activities/2024/metrics"}
 	for _, path := range paths {
-		req := httptest.NewRequest(http.MethodOptions, path, nil)
-		req.Header.Set("Origin", "https://example.com")
+		req := corsRequest(http.MethodOptions, path)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -382,8 +378,7 @@ func TestNewRouter_UndefinedRoutes(t *testing.T) {
 	router := newTestRouter(c, auth, logger)
 
 	t.Run("POST to GET-only endpoint returns 405", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/health", nil)
-		req.Header.Set("Origin", "https://example.com")
+		req := corsRequest(http.MethodPost, "/health")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		if w.Code != http.StatusMethodNotAllowed {
@@ -392,8 +387,7 @@ func TestNewRouter_UndefinedRoutes(t *testing.T) {
 	})
 
 	t.Run("undefined path returns 404", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/undefined/path", nil)
-		req.Header.Set("Origin", "https://example.com")
+		req := corsRequest(http.MethodGet, "/undefined/path")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		if w.Code != http.StatusNotFound {
@@ -455,9 +449,8 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 
 	t.Run("auth limiter gates /auth/strava", func(t *testing.T) {
 		// First request: allowed (within burst).
-		req1 := httptest.NewRequest(http.MethodGet, "/auth/strava", nil)
+		req1 := corsRequest(http.MethodGet, "/auth/strava")
 		req1.RemoteAddr = clientIP
-		req1.Header.Set("Origin", "https://example.com")
 		w1 := httptest.NewRecorder()
 		router.ServeHTTP(w1, req1)
 		if w1.Code != http.StatusOK {
@@ -465,9 +458,8 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 		}
 
 		// Second request in quick succession: rejected with 429.
-		req2 := httptest.NewRequest(http.MethodGet, "/auth/strava", nil)
+		req2 := corsRequest(http.MethodGet, "/auth/strava")
 		req2.RemoteAddr = clientIP
-		req2.Header.Set("Origin", "https://example.com")
 		w2 := httptest.NewRecorder()
 		router.ServeHTTP(w2, req2)
 		if w2.Code != http.StatusTooManyRequests {
@@ -479,18 +471,16 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 		// Use a fresh IP so the auth limiter's burst is full for this client.
 		const cbIP = "9.9.9.10:5555"
 
-		req1 := httptest.NewRequest(http.MethodGet, "/auth/callback", nil)
+		req1 := corsRequest(http.MethodGet, "/auth/callback")
 		req1.RemoteAddr = cbIP
-		req1.Header.Set("Origin", "https://example.com")
 		w1 := httptest.NewRecorder()
 		router.ServeHTTP(w1, req1)
 		if w1.Code != http.StatusOK {
 			t.Fatalf("first /auth/callback: status = %d, want 200", w1.Code)
 		}
 
-		req2 := httptest.NewRequest(http.MethodGet, "/auth/callback", nil)
+		req2 := corsRequest(http.MethodGet, "/auth/callback")
 		req2.RemoteAddr = cbIP
-		req2.Header.Set("Origin", "https://example.com")
 		w2 := httptest.NewRecorder()
 		router.ServeHTTP(w2, req2)
 		if w2.Code != http.StatusTooManyRequests {
@@ -508,9 +498,8 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 		// Burn the auth-limiter burst for v1IP via /auth/strava — first hit
 		// allowed, second 429.
 		for i := range 2 {
-			req := httptest.NewRequest(http.MethodGet, "/auth/strava", nil)
+			req := corsRequest(http.MethodGet, "/auth/strava")
 			req.RemoteAddr = v1IP
-			req.Header.Set("Origin", "https://example.com")
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			if i == 1 && w.Code != http.StatusTooManyRequests {
@@ -520,9 +509,8 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 
 		// Now /v1/sports/config from the same throttled IP must still succeed.
 		for i := range 5 {
-			req := httptest.NewRequest(http.MethodGet, "/v1/sports/config", nil)
+			req := corsRequest(http.MethodGet, "/v1/sports/config")
 			req.RemoteAddr = v1IP
-			req.Header.Set("Origin", "https://example.com")
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			if w.Code != http.StatusOK {

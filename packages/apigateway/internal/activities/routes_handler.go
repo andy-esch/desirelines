@@ -67,7 +67,7 @@ func (h *Handler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Cache-Control", mapCacheControl)
-	server.RespondJSON(w, r, http.StatusOK, resp, h.logger)
+	server.RespondJSON(w, http.StatusOK, resp, h.logger)
 }
 
 // parseTileCoords parses and validates the z/x/y path params.
@@ -186,7 +186,7 @@ func (h *Handler) HandleRouteRegions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Cache-Control", mapCacheControl)
-	server.RespondJSON(w, r, http.StatusOK, resp, h.logger)
+	server.RespondJSON(w, http.StatusOK, resp, h.logger)
 }
 
 // HandleMapDataset serves the full set of the user's geo-bearing activities with

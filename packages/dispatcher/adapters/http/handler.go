@@ -183,39 +183,37 @@ func (h *Handler) RegisterRoutes() http.Handler {
 	return r
 }
 
+// writeError builds a coded APIError and writes it with the handler's logger.
+// An empty logMessage falls back to message inside apierrors.WriteError.
+func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, status int, code, message, logMessage string) {
+	apiErr := apierrors.NewAPIErrorWithLog(status, message, logMessage)
+	apiErr.Code = code
+	apierrors.WriteError(w, r, apiErr, h.logger)
+}
+
 func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	mode := r.URL.Query().Get("hub.mode")
 	challenge := r.URL.Query().Get(hubChallenge)
 	token := r.URL.Query().Get("hub.verify_token")
 
 	if mode != hubModeSubscribe {
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusBadRequest,
+		h.writeError(w, r, http.StatusBadRequest, ErrCodeInvalidHubMode,
 			"invalid hub.mode",
-			fmt.Sprintf("Invalid hub.mode provided in verification request: %s", mode),
-		)
-		apiErr.Code = ErrCodeInvalidHubMode
-		apierrors.WriteError(w, r, apiErr, h.logger)
+			fmt.Sprintf("Invalid hub.mode provided in verification request: %s", mode))
 		return
 	}
 
 	if challenge == "" || len(challenge) > maxChallengeLength {
-		apiErr := apierrors.NewAPIError(http.StatusBadRequest, "Invalid hub.challenge")
-		apiErr.Code = ErrCodeInvalidChallenge
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusBadRequest, ErrCodeInvalidChallenge, "Invalid hub.challenge", "")
 		return
 	}
 
 	// Get current verify token from secret provider
 	verifyToken, _, err := h.secretProvider.GetSecrets()
 	if err != nil {
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeConfigError,
 			"Configuration error",
-			fmt.Sprintf("Failed to get verify token: %v", err),
-		)
-		apiErr.Code = ErrCodeConfigError
-		apierrors.WriteError(w, r, apiErr, h.logger)
+			fmt.Sprintf("Failed to get verify token: %v", err))
 		return
 	}
 
@@ -225,13 +223,8 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	// already rejects empty tokens; this guard makes the handler safe even
 	// against a SecretProvider that returns ("", nil).
 	if verifyToken == "" {
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
-			"Configuration error",
-			"Verify token is not configured",
-		)
-		apiErr.Code = ErrCodeConfigError
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeConfigError,
+			"Configuration error", "Verify token is not configured")
 		return
 	}
 
@@ -244,9 +237,7 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 	tokenHash := sha256.Sum256([]byte(token))
 	verifyTokenHash := sha256.Sum256([]byte(verifyToken))
 	if token == "" || subtle.ConstantTimeCompare(tokenHash[:], verifyTokenHash[:]) != 1 {
-		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid verify token")
-		apiErr.Code = ErrCodeInvalidVerifyToken
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusUnauthorized, ErrCodeInvalidVerifyToken, "Invalid verify token", "")
 		return
 	}
 
@@ -322,9 +313,8 @@ func (h *Handler) readAndValidateBody(w http.ResponseWriter, r *http.Request) ([
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != contentTypeJSON {
 		spanErr = fmt.Errorf("unsupported content-type %q", r.Header.Get("Content-Type"))
-		apiErr := apierrors.NewAPIError(http.StatusUnsupportedMediaType, "Content-Type must be application/json")
-		apiErr.Code = ErrCodeInvalidContentType
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusUnsupportedMediaType, ErrCodeInvalidContentType,
+			"Content-Type must be application/json", "")
 		return nil, false
 	}
 
@@ -332,13 +322,9 @@ func (h *Handler) readAndValidateBody(w http.ResponseWriter, r *http.Request) ([
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		spanErr = err
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusBadRequest,
+		h.writeError(w, r, http.StatusBadRequest, ErrCodeReadFailed,
 			"Failed to read request body",
-			fmt.Sprintf("Read failed: %v", err),
-		)
-		apiErr.Code = ErrCodeReadFailed
-		apierrors.WriteError(w, r, apiErr, h.logger)
+			fmt.Sprintf("Read failed: %v", err))
 		return nil, false
 	}
 	trace.SpanFromContext(ctx).SetAttributes(attribute.Int("desirelines.body_size_bytes", len(body)))
@@ -356,24 +342,16 @@ func (h *Handler) parseAndValidateWebhook(w http.ResponseWriter, r *http.Request
 	webhook, err := webhookproto.ParseStravaWebhook(body)
 	if err != nil {
 		spanErr = err
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusBadRequest,
+		h.writeError(w, r, http.StatusBadRequest, ErrCodeInvalidJSON,
 			"Invalid JSON payload",
-			fmt.Sprintf("Proto parse failed: %v", err),
-		)
-		apiErr.Code = ErrCodeInvalidJSON
-		apierrors.WriteError(w, r, apiErr, h.logger)
+			fmt.Sprintf("Proto parse failed: %v", err))
 		return nil, false
 	}
 	if validateErr := webhookproto.Validate(webhook); validateErr != nil {
 		spanErr = validateErr
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusBadRequest,
+		h.writeError(w, r, http.StatusBadRequest, ErrCodeValidationFailed,
 			"Webhook validation failed",
-			fmt.Sprintf("Validation error: %v", validateErr),
-		)
-		apiErr.Code = ErrCodeValidationFailed
-		apierrors.WriteError(w, r, apiErr, h.logger)
+			fmt.Sprintf("Validation error: %v", validateErr))
 		return nil, false
 	}
 	trace.SpanFromContext(ctx).SetAttributes(
@@ -395,22 +373,16 @@ func (h *Handler) checkSubscriptionID(w http.ResponseWriter, r *http.Request, we
 	_, subscriptionID, err := h.secretProvider.GetSecrets()
 	if err != nil {
 		spanErr = err
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeConfigError,
 			"Configuration error",
-			fmt.Sprintf("Failed to get subscription ID: %v", err),
-		)
-		apiErr.Code = ErrCodeConfigError
-		apierrors.WriteError(w, r, apiErr, h.logger)
+			fmt.Sprintf("Failed to get subscription ID: %v", err))
 		return false
 	}
 	match := webhook.SubscriptionId == subscriptionID
 	trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("desirelines.subscription_match", match))
 	if !match {
 		spanErr = fmt.Errorf("subscription_id mismatch")
-		apiErr := apierrors.NewAPIError(http.StatusUnauthorized, "Invalid subscription_id")
-		apiErr.Code = ErrCodeInvalidSubscriptionID
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusUnauthorized, ErrCodeInvalidSubscriptionID, "Invalid subscription_id", "")
 		return false
 	}
 	return true
@@ -518,13 +490,9 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 		// Strava's 3-attempt cap bounds the damage; better than silently
 		// dropping a legitimate user's event because Firestore had a hiccup.
 		result = ownerCheckError
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeAllowlistCheckFailed,
 			"Allowlist check failed",
-			fmt.Sprintf("Allowlist read failed for owner %d: %v", webhook.OwnerId, allowErr),
-		)
-		apiErr.Code = ErrCodeAllowlistCheckFailed
-		apierrors.WriteError(w, r, apiErr, h.logger)
+			fmt.Sprintf("Allowlist read failed for owner %d: %v", webhook.OwnerId, allowErr))
 		return
 	case !allowed:
 		// Stray webhook — non-allowlisted athlete still has an active Strava
@@ -568,25 +536,17 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 		default:
 			// Other Strava errors — return 500 so Strava retries (up to 3
 			// total attempts per spec).
-			apiErr := apierrors.NewAPIErrorWithLog(
-				http.StatusInternalServerError,
+			h.writeError(w, r, http.StatusInternalServerError, ErrCodeStravaFetchFailed,
 				"Failed to fetch activity from Strava",
-				fmt.Sprintf("Strava fetch failed: %v", fetchErr),
-			)
-			apiErr.Code = ErrCodeStravaFetchFailed
-			apierrors.WriteError(w, r, apiErr, h.logger)
+				fmt.Sprintf("Strava fetch failed: %v", fetchErr))
 			return
 		}
 	}
 
 	if publishErr := h.publisher.Publish(ctx, enriched, correlationID); publishErr != nil {
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodePublishFailed,
 			"Failed to publish event",
-			fmt.Sprintf("Publish failed: %v", publishErr),
-		)
-		apiErr.Code = ErrCodePublishFailed
-		apierrors.WriteError(w, r, apiErr, h.logger)
+			fmt.Sprintf("Publish failed: %v", publishErr))
 		return
 	}
 
@@ -650,13 +610,9 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	// Publish the deauth event to the dedicated deauth topic so downstream consumers can act on it.
 	enriched := &generated.EnrichedEvent{Event: webhook}
 	if publishErr := h.deauthPublisher.Publish(ctx, enriched, correlationID); publishErr != nil {
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeDeauthFailed,
 			"Failed to publish deauth event",
-			fmt.Sprintf("Publish failed: %v", publishErr),
-		)
-		apiErr.Code = ErrCodeDeauthFailed
-		apierrors.WriteError(w, r, apiErr, h.logger)
+			fmt.Sprintf("Publish failed: %v", publishErr))
 		return
 	}
 

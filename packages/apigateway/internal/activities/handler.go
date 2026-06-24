@@ -130,9 +130,7 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	h.categorizeSports(metadata)
 
 	// Cache past years (immutable) for 1 hour; private prevents CDN/proxy caching
-	if year < time.Now().Year() {
-		w.Header().Set("Cache-Control", "private, max-age=3600")
-	}
+	setCachePastData(w, year, "", false)
 
 	h.respondProtobuf(w, r, metadata)
 }
@@ -351,25 +349,13 @@ func (h *Handler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
-	// A single-sport query must collapse to exactly one category. More than one
-	// means the forward (GetStravaTypes) and reverse (GetCategoryForStravaType)
-	// sport mappings disagree — fail loud rather than serve a nondeterministically
-	// chosen, silently-truncated result (mirrors the merge invariants in helper.go).
-	if len(merged) > 1 {
-		categories := make([]string, 0, len(merged))
-		for cat := range merged {
-			categories = append(categories, cat)
-		}
+	// Single-sport query must collapse to exactly one category; >1 means the
+	// sport maps disagree — fail loud (see soleCategory).
+	result, categories, ok := soleCategory(merged)
+	if !ok {
 		h.logger.Error("Single-sport metrics merged to multiple categories — sport config mapping is asymmetric", "categories", categories)
-		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
-	}
-	// Extract the single category's data (there should be exactly one after merging)
-	var result *generated.SportMetrics
-	for _, v := range merged {
-		result = v
-		break
 	}
 	if result == nil {
 		result = &generated.SportMetrics{Timeseries: make([]*generated.CumulativeMetricsEntry, 0)}
@@ -459,25 +445,13 @@ func (h *Handler) HandleSource(w http.ResponseWriter, r *http.Request) {
 
 	// Merge all Strava types for this sport category into a single result
 	merged := h.mergeMultiSportDailySummary(byStravaType)
-	// A single-sport query must collapse to exactly one category. More than one
-	// means the forward (GetStravaTypes) and reverse (GetCategoryForStravaType)
-	// sport mappings disagree — fail loud rather than serve a nondeterministically
-	// chosen, silently-truncated result (mirrors the merge invariants in helper.go).
-	if len(merged) > 1 {
-		categories := make([]string, 0, len(merged))
-		for cat := range merged {
-			categories = append(categories, cat)
-		}
+	// Single-sport query must collapse to exactly one category; >1 means the
+	// sport maps disagree — fail loud (see soleCategory).
+	result, categories, ok := soleCategory(merged)
+	if !ok {
 		h.logger.Error("Single-sport source merged to multiple categories — sport config mapping is asymmetric", "categories", categories)
-		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, errMsgInternalServerError)
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
-	}
-	// Extract the single category's data (there should be exactly one after merging)
-	var result *generated.DailySummary
-	for _, v := range merged {
-		result = v
-		break
 	}
 	if result == nil {
 		result = &generated.DailySummary{Daily: make(map[string]*generated.DailyActivity)}

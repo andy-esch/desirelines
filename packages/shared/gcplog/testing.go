@@ -1,7 +1,6 @@
 package gcplog
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
 	"sync"
@@ -86,11 +85,4 @@ func (h *LogCaptureHandler) Logs() []CapturedLog {
 	logs := make([]CapturedLog, len(h.logs))
 	copy(logs, h.logs)
 	return logs
-}
-
-// NewBufferLogger returns a logger that writes to a buffer, useful for checking output string.
-func NewBufferLogger() (*slog.Logger, *bytes.Buffer) {
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&buf, nil))
-	return logger, &buf
 }

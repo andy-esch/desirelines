@@ -20,7 +20,7 @@ var protoMarshaler = protojson.MarshalOptions{
 // Uses UseProtoNames: false to emit camelCase keys (default protojson behavior).
 func (h *Handler) respondProtobuf(w http.ResponseWriter, r *http.Request, msg proto.Message) {
 	if msg == nil {
-		server.RespondJSON(w, r, http.StatusOK, nil, h.logger)
+		server.RespondJSON(w, http.StatusOK, nil, h.logger)
 		return
 	}
 
@@ -32,7 +32,7 @@ func (h *Handler) respondProtobuf(w http.ResponseWriter, r *http.Request, msg pr
 		return
 	}
 
-	server.RespondRawJSON(w, r, http.StatusOK, data, h.logger)
+	server.RespondRawJSON(w, http.StatusOK, data, h.logger)
 }
 
 // categorizeSports maps raw Strava sport types to category names in YearMetadata.
@@ -161,6 +161,27 @@ func mergePtrField[T int32 | float64](target **T, source *T) {
 		return
 	}
 	**target += *source
+}
+
+// soleCategory returns the single value from a single-sport merge result.
+// A result with more than one category means the forward (GetStravaTypes) and
+// reverse (GetCategoryForStravaType) sport maps disagree; ok is false and the
+// offending category names are returned so the caller can fail loud (500)
+// instead of serving a nondeterministically chosen, truncated result. An empty
+// map yields the zero value with ok=true (caller substitutes its own empty
+// payload).
+func soleCategory[T any](merged map[string]T) (value T, categories []string, ok bool) {
+	if len(merged) > 1 {
+		categories = make([]string, 0, len(merged))
+		for cat := range merged {
+			categories = append(categories, cat)
+		}
+		return value, categories, false
+	}
+	for _, v := range merged {
+		return v, nil, true
+	}
+	return value, nil, true
 }
 
 // appendUniqueInt64 appends ids from src that aren't already in dst, preserving
