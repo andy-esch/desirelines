@@ -167,6 +167,32 @@ describe("RouteMap layer setup", () => {
     });
   });
 
+  it("splits the level-of-detail at zoom 8: lines (minzoom) above, density dots (maxzoom) below", () => {
+    renderMap();
+
+    // Route lines only render at/above the handoff zoom...
+    expect(baseLayer()).toMatchObject({ minzoom: 8 });
+    expect(highlightLayer()).toMatchObject({ minzoom: 8 });
+
+    // ...and the grid-binned density dots (the server's `route_points` layer) only
+    // render below it — a clean handoff, no overlap.
+    const points = h.captured.layers.filter((l) => l.id === "routes-points").at(-1);
+    expect(points).toMatchObject({
+      type: "circle",
+      "source-layer": "route_points",
+      maxzoom: 8,
+    });
+    // Per-sport dots stack largest-behind: sort-key = -count (ascending draws first,
+    // so the biggest circle is at the back and smaller sports sit on top, all visible).
+    expect((points!.layout as Record<string, unknown>)["circle-sort-key"]).toEqual([
+      "*",
+      -1,
+      ["get", "activity_count"],
+    ]);
+    // The dots are not interactive (overview only — not in the cross-filter).
+    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines"]);
+  });
+
   it("themes the basemap and passes the color expression to the line layer", () => {
     renderMap({ isDark: false, colorExpression: "rgb(1,2,3)" });
 

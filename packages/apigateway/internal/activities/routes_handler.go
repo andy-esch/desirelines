@@ -14,7 +14,9 @@ import (
 
 // routesDBTimeout is the timeout for the spatial routes/map queries (route art,
 // MVT tiles, region summary), which are heavier than typical queries due to their
-// PostGIS operations (ST_Translate/ST_Simplify, ST_AsMVT, ST_Intersects).
+// PostGIS operations: ST_Translate/ST_Simplify (route art + zoom-simplified tile
+// lines), ST_AsMVTGeom/ST_AsMVT + ST_Intersects (tiles), ST_SnapToGrid/ST_Centroid
+// (the low-zoom tile density binning), and ST_Extent (region summary).
 const routesDBTimeout = 30 * time.Second
 
 // mapCacheControl is the cache policy for the routes-map endpoints. It overrides

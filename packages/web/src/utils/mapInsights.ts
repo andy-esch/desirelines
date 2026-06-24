@@ -1,5 +1,11 @@
 import type { MapActivity } from "../api/map";
 
+// These aggregations run on activities already validated + coerced by zod at the API
+// boundary (`api/map.ts` MapActivitySchema): ids/scalars are finite numbers and
+// `regionIds` is always present. The `?? 0` and skip-NaN guards below are therefore
+// belt-and-suspenders — cheap insurance against a future unvalidated caller — with
+// zod as the primary guard.
+
 /** Per-sport rollup of the (filtered) activity set, for the insights breakdown. */
 export interface SportBreakdownRow {
   sport: string;

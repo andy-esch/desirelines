@@ -865,12 +865,113 @@ func (r *ActivityRepository) GetNormalizedRoutes(ctx context.Context, userID str
 	return routes, nil
 }
 
-// GetRouteTile returns a Mapbox Vector Tile of the user's real-world activity
-// routes for the z/x/y tile. Geometry is reprojected to Web Mercator (3857) and
-// clipped to the tile envelope with ST_AsMVTGeom, then aggregated with ST_AsMVT.
-// Only geo-bearing activities (those with >=1 activity_regions row) are included,
-// which excludes virtual/indoor activities. An empty tile is returned (not an
-// error) when there are no features.
+// lineMinZoom is the level-of-detail handoff for the MVT tile endpoint. At
+// z >= lineMinZoom a tile carries simplified route *lines* (`routes` layer); below
+// it a tile carries grid-binned density *points* (`route_points` layer) instead —
+// thousands of overlapping full-resolution GPS lines at low zoom are slow to encode
+// and read as noise. The web client mirrors this with layer min/maxzoom at the same
+// value (RouteMap.tsx) — keep the two in sync.
+const lineMinZoom = 8
+
+// routeTileLinesQuery builds the `routes` line layer for z >= lineMinZoom. It adds
+// zoom-scaled ST_Simplify (was missing): tolerance ≈ a couple of MVT units in 3857
+// meters — (worldMeters / 2^z) / 4096 * 1.5 — which is tens of meters at low zoom
+// (real thinning of dense GPS tracks) and sub-meter by z14 (full fidelity at max
+// zoom). $1=z $2=x $3=y $4=user_id. Filters on the raw 4326 column so the GIST index
+// drives row selection (see GetRouteTile).
+const routeTileLinesQuery = `
+	WITH bounds AS (
+		SELECT
+			ST_TileEnvelope($1, $2, $3) AS env_3857,
+			ST_Transform(ST_TileEnvelope($1, $2, $3), 4326) AS env_4326
+	),
+	mvtgeom AS (
+		SELECT
+			ST_AsMVTGeom(
+				ST_Simplify(
+					ST_Transform(ar.route, 3857),
+					(40075016.6855785 / power(2.0, $1)) / 4096.0 * 1.5
+				),
+				bounds.env_3857
+			) AS geom,
+			a.id                            AS activity_id,
+			a.name                          AS name,
+			a.sport                         AS sport,
+			a.distance                      AS distance,
+			a.start_date_local::date::text  AS date
+		FROM desirelines.activity_routes ar
+		JOIN desirelines.activities a ON a.id = ar.activity_id
+		CROSS JOIN bounds
+		WHERE a.user_id = $4
+		  AND ar.route && bounds.env_4326
+		  AND ST_Intersects(ar.route, bounds.env_4326)
+		  AND EXISTS (
+			  SELECT 1 FROM desirelines.activity_regions arg
+			  WHERE arg.activity_id = a.id
+		  )
+	)
+	SELECT COALESCE(ST_AsMVT(t.*, 'routes'), ''::bytea)
+	FROM mvtgeom t
+	WHERE t.geom IS NOT NULL
+`
+
+// pointGridCell is the low-zoom binning grid size in MVT tile units. The tile extent
+// is 4096, so the grid is (4096 / pointGridCell) cells per axis: smaller = finer
+// geographic bins (and more dots/tile). Single source of truth — tune here. Started
+// at 128 (32×32, too coarse geographically); 64 gives a 64×64 grid.
+const pointGridCell = 64
+
+// routeTilePointsQuery builds the `route_points` density layer for z < lineMinZoom.
+// Each candidate activity's centroid is clipped into tile space and snapped to a
+// (4096/pointGridCell)² grid. Bins are grouped by (cell, sport) — one dot **per
+// sport** per cell — so a cell with 100 rides + 13 runs emits two dots at the same
+// point; the client sizes each by its own `activity_count` and stacks them
+// largest-behind (concentric, both visible). Output is bounded to
+// ≤ (4096/pointGridCell)²×(#sports) points/tile. `sport` is the raw Strava sport_type
+// (the client maps it to the app category color, same as the line layer). $1=z $2=x
+// $3=y $4=user_id; same GIST-driven predicate as the lines query.
+var routeTilePointsQuery = fmt.Sprintf(`
+	WITH bounds AS (
+		SELECT
+			ST_TileEnvelope($1, $2, $3) AS env_3857,
+			ST_Transform(ST_TileEnvelope($1, $2, $3), 4326) AS env_4326
+	),
+	pts AS (
+		SELECT
+			ST_AsMVTGeom(ST_Transform(ST_Centroid(ar.route), 3857), bounds.env_3857) AS geom,
+			a.sport AS sport
+		FROM desirelines.activity_routes ar
+		JOIN desirelines.activities a ON a.id = ar.activity_id
+		CROSS JOIN bounds
+		WHERE a.user_id = $4
+		  AND ar.route && bounds.env_4326
+		  AND ST_Intersects(ar.route, bounds.env_4326)
+		  AND EXISTS (
+			  SELECT 1 FROM desirelines.activity_regions arg
+			  WHERE arg.activity_id = a.id
+		  )
+	),
+	bins AS (
+		SELECT
+			-- snap to a %[1]d-unit grid, then shift to the cell center for placement
+			ST_Translate(ST_SnapToGrid(geom, %[1]d), %[2]d, %[2]d) AS geom,
+			count(*)::int AS activity_count,
+			sport
+		FROM pts
+		WHERE geom IS NOT NULL
+		GROUP BY ST_SnapToGrid(geom, %[1]d), sport
+	)
+	SELECT COALESCE(ST_AsMVT(b.*, 'route_points'), ''::bytea)
+	FROM bins b
+`, pointGridCell, pointGridCell/2)
+
+// GetRouteTile returns a Mapbox Vector Tile of the user's real-world activity routes
+// for the z/x/y tile, with a level-of-detail switch at lineMinZoom: a simplified
+// `routes` line layer at higher zoom, a grid-binned `route_points` density layer at
+// low zoom (see those query consts). Geometry is reprojected to Web Mercator (3857)
+// and clipped to the tile envelope with ST_AsMVTGeom. Only geo-bearing activities
+// (>=1 activity_regions row) are included, excluding virtual/indoor activities. An
+// empty tile is returned (not an error) when there are no features.
 func (r *ActivityRepository) GetRouteTile(ctx context.Context, userID string, z, x, y int) (tile []byte, retErr error) {
 	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.route_tile",
 		attribute.String("db.system", dbSystem),
@@ -893,39 +994,20 @@ func (r *ActivityRepository) GetRouteTile(ctx context.Context, userID string, z,
 	// transformed-back envelope keeps the exact test on the indexed geometry.
 	// ST_Transform(route -> 3857) then runs only for the surviving rows, inside
 	// ST_AsMVTGeom where the Web Mercator geometry is actually required.
-	const query = `
-		WITH bounds AS (
-			SELECT
-				ST_TileEnvelope($1, $2, $3) AS env_3857,
-				ST_Transform(ST_TileEnvelope($1, $2, $3), 4326) AS env_4326
-		),
-		mvtgeom AS (
-			SELECT
-				ST_AsMVTGeom(ST_Transform(ar.route, 3857), bounds.env_3857) AS geom,
-				a.id                            AS activity_id,
-				a.name                          AS name,
-				a.sport                         AS sport,
-				a.distance                      AS distance,
-				a.start_date_local::date::text  AS date
-			FROM desirelines.activity_routes ar
-			JOIN desirelines.activities a ON a.id = ar.activity_id
-			CROSS JOIN bounds
-			WHERE a.user_id = $4
-			  AND ar.route && bounds.env_4326
-			  AND ST_Intersects(ar.route, bounds.env_4326)
-			  AND EXISTS (
-				  SELECT 1 FROM desirelines.activity_regions arg
-				  WHERE arg.activity_id = a.id
-			  )
-		)
-		SELECT COALESCE(ST_AsMVT(t.*, 'routes'), ''::bytea)
-		FROM mvtgeom t
-		WHERE t.geom IS NOT NULL
-	`
+	//
+	// Level-of-detail switch: lines (simplified) at zoom >= lineMinZoom, grid-binned
+	// density points below it. Both share the GIST-driven predicate above.
+	query := routeTileLinesQuery
+	mode := "lines"
+	if z < lineMinZoom {
+		query = routeTilePointsQuery
+		mode = "points"
+	}
 
 	if retErr = r.db.QueryRow(ctx, query, z, x, y, userID).Scan(&tile); retErr != nil {
 		return nil, fmt.Errorf("query route tile: %w", retErr)
 	}
+	trace.SpanFromContext(ctx).SetAttributes(attribute.String("tile.mode", mode))
 	return tile, nil
 }
 

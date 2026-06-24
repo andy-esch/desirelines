@@ -3,6 +3,7 @@ import { Map, Source, Layer, NavigationControl, Popup } from "react-map-gl/mapbo
 import type { MapRef, ErrorEvent, MapMouseEvent } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type {
+  CircleLayerSpecification,
   ExpressionSpecification,
   FilterSpecification,
   LineLayerSpecification,
@@ -28,6 +29,16 @@ import { formatActivityDate } from "../../utils/formatActivityDate";
 const SOURCE_ID = "routes-src";
 const SOURCE_LAYER = "routes";
 const LAYER_ID = "routes-lines";
+
+/**
+ * Below this zoom the tile server emits a grid-binned `route_points` density layer
+ * instead of route lines (see `lineMinZoom` in the apigateway tile query). The
+ * circle layer shows under it and the line layers show at/above it — a clean
+ * level-of-detail handoff. MUST match the server's `lineMinZoom`.
+ */
+const LINE_MIN_ZOOM = 8;
+const POINTS_SOURCE_LAYER = "route_points";
+const POINTS_LAYER_ID = "routes-points";
 
 const DARK_STYLE = "mapbox://styles/mapbox/dark-v11";
 const LIGHT_STYLE = "mapbox://styles/mapbox/light-v11";
@@ -255,12 +266,47 @@ export default function RouteMap({
     [colorExpression]
   );
 
+  // Low-zoom density dots (the `route_points` layer). One dot per sport per grid cell,
+  // colored by sport (same expression as the lines) and sized by that sport's
+  // `activity_count` — radius over √count so a 100-activity cell is ~3× the radius
+  // (not 100× the area) of a single. Multiple sports in a cell stack concentrically
+  // (see `circle-sort-key` on the layer: largest drawn behind, smaller in front).
+  const circlePaint = useMemo<NonNullable<CircleLayerSpecification["paint"]>>(
+    () => ({
+      "circle-color": colorExpression,
+      "circle-opacity": 0.85,
+      "circle-stroke-color": "#0b0f1a",
+      "circle-stroke-width": 1,
+      "circle-radius": [
+        "interpolate",
+        ["linear"],
+        ["sqrt", ["get", "activity_count"]],
+        1,
+        4,
+        10,
+        18,
+      ],
+    }),
+    [colorExpression]
+  );
+
   // Hover interactivity. The hovered/selected routes are emphasized by a separate,
   // wider highlight layer filtered to their ids — NOT via `feature-state` in
   // `line-width` (mapbox-gl GL JS doesn't support feature-state there; an invalid
   // paint expression makes the whole layer fail to render → no lines at all).
   const hoveredIdRef = useRef<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+
+  // Whether the view is in the low-zoom "density dots" tier (drives the caption).
+  // Updated from the real map zoom on load + zoom; setState bails unless the
+  // threshold is actually crossed, so the continuous zoom stream is cheap.
+  const [dotsView, setDotsView] = useState(false);
+  const syncZoomView = useCallback(() => {
+    const z = mapRef.current?.getZoom();
+    if (z == null) return;
+    const low = z < LINE_MIN_ZOOM;
+    setDotsView((prev) => (prev === low ? prev : low));
+  }, []);
 
   const onMouseMove = useCallback((e: MapMouseEvent) => {
     const map = mapRef.current;
@@ -345,11 +391,13 @@ export default function RouteMap({
     // role/aria on a wrapper (react-map-gl owns the inner container div). Size with
     // w-full/h-full: Mapbox's CSS forces `position: relative` on its container, so
     // a Tailwind `absolute inset-0` would collapse to height 0 (blank grey map).
-    <div className="w-full h-full" role="region" aria-label="Map of activity routes">
+    <div className="relative w-full h-full" role="region" aria-label="Map of activity routes">
       <Map
         ref={mapRef}
         mapboxAccessToken={accessToken}
         mapStyle={isDark ? DARK_STYLE : LIGHT_STYLE}
+        onLoad={syncZoomView}
+        onZoom={syncZoomView}
         initialViewState={
           defaultViewport
             ? {
@@ -387,6 +435,7 @@ export default function RouteMap({
             id={LAYER_ID}
             type="line"
             source-layer={SOURCE_LAYER}
+            minzoom={LINE_MIN_ZOOM}
             // Spread `filter` only when present — null/absent ⇒ no filter (show all).
             // (Spread, not `filter={... ?? undefined}`, for exactOptionalPropertyTypes.)
             {...(filter ? { filter } : {})}
@@ -399,9 +448,25 @@ export default function RouteMap({
             id={HIGHLIGHT_LAYER_ID}
             type="line"
             source-layer={SOURCE_LAYER}
+            minzoom={LINE_MIN_ZOOM}
             filter={highlightFilter}
             layout={{ "line-join": "round", "line-cap": "round" }}
             paint={highlightPaint}
+          />
+          {/* Low-zoom density overview: one sized dot per grid cell (the server's
+              `route_points` layer), shown below LINE_MIN_ZOOM where individual lines
+              become spaghetti. Not interactive / not cross-filtered — an overview of
+              the full dataset (see the caption). */}
+          <Layer
+            id={POINTS_LAYER_ID}
+            type="circle"
+            source-layer={POINTS_SOURCE_LAYER}
+            maxzoom={LINE_MIN_ZOOM}
+            // Stack concentric per-sport dots largest-behind: Mapbox draws ascending
+            // sort-key first (at the back), so -count puts the biggest circle behind
+            // and smaller ones on top — all visible.
+            layout={{ "circle-sort-key": ["*", -1, ["get", "activity_count"]] }}
+            paint={circlePaint}
           />
         </Source>
 
@@ -429,6 +494,13 @@ export default function RouteMap({
           </Popup>
         )}
       </Map>
+      {/* Density-tier caption: the dots aggregate every activity and don't reflect
+          the active filters (the cross-filter applies to the lines once zoomed in). */}
+      {dotsView && (
+        <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-slate-dark/80 px-3 py-1 text-[0.7rem] text-slate-light backdrop-blur-sm">
+          Zoomed-out density — dots show all activities; zoom in to filter
+        </div>
+      )}
     </div>
   );
 }
