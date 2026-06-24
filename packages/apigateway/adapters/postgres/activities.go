@@ -953,13 +953,18 @@ var routeTilePointsQuery = fmt.Sprintf(`
 	),
 	bins AS (
 		SELECT
-			-- snap to a %[1]d-unit grid, then shift to the cell center for placement
-			ST_Translate(ST_SnapToGrid(geom, %[1]d), %[2]d, %[2]d) AS geom,
+			-- Snap to the CENTERS of a %[1]d-unit grid aligned to the tile: the 5-arg
+			-- form (origin = half a cell %[2]d, size %[1]d) lands dots on true cell
+			-- centers {%[2]d, %[2]d+%[1]d, ...} of tile-aligned cells [0,%[1]d),
+			-- [%[1]d,2*%[1]d)... — all inside 0..4096, no half-bins, no ST_Translate.
+			-- (ST_SnapToGrid rounds to nearest, so a plain 2-arg snap + translate would
+			-- shift every dot a half-cell off-center and overshoot the tile edge.)
+			ST_SnapToGrid(geom, %[2]d, %[2]d, %[1]d, %[1]d) AS geom,
 			count(*)::int AS activity_count,
 			sport
 		FROM pts
 		WHERE geom IS NOT NULL
-		GROUP BY ST_SnapToGrid(geom, %[1]d), sport
+		GROUP BY ST_SnapToGrid(geom, %[2]d, %[2]d, %[1]d, %[1]d), sport
 	)
 	SELECT COALESCE(ST_AsMVT(b.*, 'route_points'), ''::bytea)
 	FROM bins b
