@@ -223,10 +223,12 @@ export default function MapFilterDrawer({
           "transition-all duration-200 ease-out",
           "hover:border-accent-cyan/50 hover:text-accent-cyan focus-visible:outline-none",
           "focus-visible:ring-2 focus-visible:ring-accent-cyan/50 motion-reduce:transition-none",
-          // Mobile: bottom dock, right edge just left of center (safe-area-aware).
-          "bottom-[calc(1rem+env(safe-area-inset-bottom))] right-1/2 mr-1",
-          // Desktop: top-left corner.
-          "sm:bottom-auto sm:right-auto sm:left-4 sm:top-4 sm:mr-0",
+          // Mobile: bottom dock, right edge just left of center. Fixed width (matching
+          // the Insights pill) so the two anchor symmetrically around center and the
+          // active-filter badge can't shift the pair. Safe-area-aware.
+          "bottom-[calc(1rem+env(safe-area-inset-bottom))] right-1/2 mr-1 w-32 justify-center",
+          // Desktop: top-left corner, content-width.
+          "sm:bottom-auto sm:right-auto sm:left-4 sm:top-4 sm:mr-0 sm:w-auto sm:justify-start",
           open || hideToggle
             ? "pointer-events-none scale-95 opacity-0"
             : "pointer-events-auto scale-100 opacity-100"
@@ -284,7 +286,9 @@ export default function MapFilterDrawer({
             aria-label="Collapse panel"
             aria-expanded={open}
             aria-controls={DRAWER_ID}
-            className="absolute right-2 top-2 h-7 w-7 text-slate-light"
+            // 44px touch target on mobile (the sheet's main dismiss control); compact
+            // on desktop where a mouse is precise.
+            className="absolute right-2 top-2 h-11 w-11 text-slate-light sm:h-7 sm:w-7"
           >
             <CollapseIcon className="h-4 w-4 -rotate-90 sm:rotate-0" />
           </Button>
@@ -296,8 +300,10 @@ export default function MapFilterDrawer({
           </p>
           {statusMessage ? (
             <>
-              {/* Kind, non-alarming message (the sr-only status above announces it). */}
-              <p aria-hidden="true" className="text-sm text-slate-light">
+              {/* Kind, non-alarming message (the sr-only status above announces it).
+                  `pr-12` keeps the wrapped text clear of the absolute collapse button
+                  (44px on mobile) in the top-right. */}
+              <p aria-hidden="true" className="pr-12 text-sm text-slate-light">
                 {statusMessage}
               </p>
               {/* Recourse for a filtered-to-zero set: widen to everything. The default

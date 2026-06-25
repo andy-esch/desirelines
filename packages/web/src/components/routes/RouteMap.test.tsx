@@ -70,7 +70,7 @@ vi.mock("react-map-gl/mapbox", async () => {
     h.captured.layers.push(props);
     return null;
   };
-  const NavigationControl = () => null;
+  const NavigationControl = () => React.createElement("div", { "data-testid": "nav-control" });
   const Popup = (props: Record<string, unknown> & { children?: React.ReactNode }) =>
     React.createElement("div", { "data-testid": "popup" }, props.children);
   return { __esModule: true, Map, default: Map, Source, Layer, NavigationControl, Popup };
@@ -519,5 +519,51 @@ describe("RouteMap load + error UX", () => {
     act(() => h.captured.onError!({ error: { status: 401, url: MAPBOX_URL } }));
 
     expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("RouteMap zoom control (touch vs desktop)", () => {
+  beforeEach(() => {
+    resetCaptured();
+    vi.clearAllMocks();
+  });
+
+  // useIsMobile reads matchMedia at mount; override per test, restore after.
+  const setViewport = (mobile: boolean) => {
+    const original = window.matchMedia;
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      configurable: true,
+      value: (query: string) =>
+        ({
+          matches: mobile && query.includes("max-width"),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    });
+    return () => {
+      window.matchMedia = original;
+    };
+  };
+
+  it("shows the NavigationControl on desktop", () => {
+    const restore = setViewport(false);
+    try {
+      renderMap();
+      expect(screen.getByTestId("nav-control")).toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
+  it("hides the NavigationControl on touch (pinch-zoom covers it)", () => {
+    const restore = setViewport(true);
+    try {
+      renderMap();
+      expect(screen.queryByTestId("nav-control")).not.toBeInTheDocument();
+    } finally {
+      restore();
+    }
   });
 });
