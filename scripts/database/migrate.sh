@@ -77,11 +77,24 @@ docker build -t desirelines-flyway . --quiet
 if [[ "$COMMAND_ARG" == "clean" ]]; then
   FLYWAY_COMMAND="clean"
   echo -e "${RED}⚠️  WARNING: About to CLEAN ${ENVIRONMENT} database (drops all objects in desirelines schema)!${NC}"
-  read -rp "Are you sure? (y/N): " confirm
+  echo -e "${RED}   Target: ${URL_WITHOUT_CREDS}${NC}"
 
-  if [[ "$confirm" != "y" ]] && [[ "$confirm" != "Y" ]]; then
-    echo -e "${RED}❌ Database clean cancelled${NC}"
-    exit 1
+  if [[ "$ENVIRONMENT" == "prod" ]]; then
+    # `clean` is the single most destructive action — require the full word
+    # "yes", matching the prod-migrate guard below. A single-letter `y` is the
+    # canonical accidental-confirm shape. Per docs/guides/secure-scripting.md
+    # rule 4 (destructive actions require explicit interactive confirmation).
+    read -rp "This will DESTROY production data. Type 'yes' to confirm: " confirm
+    if [[ "$confirm" != "yes" ]]; then
+      echo -e "${RED}❌ Database clean cancelled${NC}"
+      exit 1
+    fi
+  else
+    read -rp "Are you sure? (y/N): " confirm
+    if [[ "$confirm" != "y" ]] && [[ "$confirm" != "Y" ]]; then
+      echo -e "${RED}❌ Database clean cancelled${NC}"
+      exit 1
+    fi
   fi
 
   echo -e "${YELLOW}🧹 Cleaning ${ENVIRONMENT} database...${NC}"
