@@ -17,7 +17,7 @@ import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
 import { DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { getSpectrumColor } from "../utils/chartColors";
-import NeonSpinner from "../components/NeonSpinner";
+import MapLoadingState from "../components/routes/MapLoadingState";
 import type { SportOption } from "../components/routes/MapFilterControls";
 import type { SelectedRoute } from "../components/routes/RouteMap";
 import type { MapActivity } from "../api/map";
@@ -41,19 +41,6 @@ const HEADER_HEIGHT = 48;
 
 function StatusMessage({ children }: { children: React.ReactNode }) {
   return <div className="flex grow items-center justify-center">{children}</div>;
-}
-
-/** Fills the map container while the lazy map chunk loads, so the code-split gap
-    isn't a blank panel. RouteMap shows its own spinner from mount until `load`. */
-function MapLoadingFallback() {
-  return (
-    <div className="absolute inset-0 grid place-items-center" role="status">
-      <div className="flex flex-col items-center gap-3">
-        <NeonSpinner />
-        <span className="text-sm text-slate-light">Loading map…</span>
-      </div>
-    </div>
-  );
 }
 
 export default function RoutesPage() {
@@ -296,13 +283,13 @@ export default function RoutesPage() {
   // then, so we still avoid a token-less first tile fetch. If the token fetch
   // failed or raced, we still mount the map — the basemap (Mapbox-hosted) renders
   // and the 401-recovery in RouteMap re-requests tiles once a token lands. This
-  // avoids an infinite "Loading map..." hang when getIdToken() returns undefined.
+  // avoids an infinite "Loading map…" hang when getIdToken() returns undefined.
   if (authLoading || regionsLoading || !tokenReady) {
     return (
       <PageLayout background="routes">
         <StatusMessage>
           <p className="text-slate-light" role="status">
-            Loading map...
+            Loading map…
           </p>
         </StatusMessage>
       </PageLayout>
@@ -325,7 +312,7 @@ export default function RoutesPage() {
     <PageLayout background="routes">
       <div className="fixed inset-x-0 bottom-0 bg-bg-body" style={{ top: HEADER_HEIGHT }}>
         <div className="relative w-full h-full">
-          <Suspense fallback={<MapLoadingFallback />}>
+          <Suspense fallback={<MapLoadingState />}>
             <RouteMap
               accessToken={mapboxToken}
               tileTemplateUrl={mapConfig.tileTemplateUrl}

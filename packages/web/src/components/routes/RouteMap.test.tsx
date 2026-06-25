@@ -488,4 +488,25 @@ describe("RouteMap load + error UX", () => {
     // The 401 path recovers tiles; it must not flip the whole map to the error state.
     expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
   });
+
+  it("surfaces the error immediately on a Mapbox-side auth failure (no 15s wait)", () => {
+    const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
+    renderMap({ refreshAuthToken });
+
+    // A bad/over-restricted pk.* token 403s the style — unrecoverable by a Firebase
+    // refresh, so we don't wait out the load timeout: show the retry surface now.
+    act(() => h.captured.onError!({ error: { status: 403, url: MAPBOX_URL } }));
+
+    expect(refreshAuthToken).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    expect(screen.queryByText("Loading map…")).not.toBeInTheDocument();
+  });
+
+  it("does not clobber an already-rendered map on a later external auth error", () => {
+    renderMap();
+    act(() => h.captured.onLoad!()); // ready
+    act(() => h.captured.onError!({ error: { status: 401, url: MAPBOX_URL } }));
+
+    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+  });
 });

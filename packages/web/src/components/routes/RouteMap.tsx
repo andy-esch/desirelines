@@ -13,7 +13,8 @@ import type { MapActivity, RegionSummary } from "../../api/map";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
 import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
-import NeonSpinner from "../NeonSpinner";
+import { Button } from "../ui/button";
+import MapLoadingState from "./MapLoadingState";
 import {
   convertDistance,
   getDistanceLabel,
@@ -253,8 +254,8 @@ export default function RouteMap({
   const handleError = useCallback(
     (e: ErrorEvent) => {
       const err = e.error as { status?: number; url?: string } | undefined;
-      const isInternal401 =
-        err?.status === 401 && (err.url === undefined || isInternalRequest(err.url, apiBaseUrl));
+      const isInternalUrl = err?.url === undefined || isInternalRequest(err.url, apiBaseUrl);
+      const isInternal401 = err?.status === 401 && isInternalUrl;
       if (isInternal401 && !refreshingRef.current) {
         refreshingRef.current = true;
         void refreshAuthTokenRef
@@ -267,6 +268,13 @@ export default function RouteMap({
             refreshingRef.current = false;
           });
         return;
+      }
+      // A Mapbox-side auth failure (bad / over-restricted `pk.*` token, blocked
+      // style) can't be recovered by a Firebase refresh — surface the retryable
+      // error now rather than waiting out the load timeout on a guaranteed-blank
+      // map. Guarded so it never clobbers an already-rendered ("ready") map.
+      if (!isInternalUrl && (err?.status === 401 || err?.status === 403)) {
+        setStatus((s) => (s === "ready" ? s : "error"));
       }
       logger.warn("[RouteMap] mapbox error:", e.error ?? "unknown");
     },
@@ -549,17 +557,7 @@ export default function RouteMap({
       {/* Loading spinner from mount until the map's `load` event — covers the
           post-mount, basemap/tiles-still-loading gap that previously read as a bare
           grey canvas (notably the slow first load on mobile). */}
-      {status === "loading" && (
-        <div
-          className="pointer-events-none absolute inset-0 grid place-items-center bg-bg-body/60 backdrop-blur-sm"
-          role="status"
-        >
-          <div className="flex flex-col items-center gap-3">
-            <NeonSpinner />
-            <span className="text-sm text-slate-light">Loading map…</span>
-          </div>
-        </div>
-      )}
+      {status === "loading" && <MapLoadingState />}
 
       {/* Retryable failure surface — replaces the indefinite silent grey when the
           basemap/style/WebGL can't come up (e.g. WebGL unavailable on iOS, a stalled
@@ -568,16 +566,12 @@ export default function RouteMap({
         <div className="absolute inset-0 grid place-items-center bg-bg-body/90 px-6" role="alert">
           <div className="flex max-w-sm flex-col items-center gap-3 text-center">
             <p className="text-sm text-slate-light">
-              The map couldn’t be displayed. This can happen if your browser can’t render
-              maps, or the connection stalled.
+              The map couldn’t be displayed. This can happen if your browser can’t render maps, or
+              the connection stalled.
             </p>
-            <button
-              type="button"
-              onClick={retry}
-              className="rounded-md border border-border/70 bg-card/85 px-4 py-2 text-sm font-medium text-accent-cyan shadow-lg backdrop-blur-md transition-colors hover:border-accent-cyan/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/50"
-            >
+            <Button variant="outline" size="sm" onClick={retry}>
               Try again
-            </button>
+            </Button>
           </div>
         </div>
       )}
