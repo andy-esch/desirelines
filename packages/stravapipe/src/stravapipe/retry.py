@@ -1,6 +1,8 @@
 """Retry logic for external API calls."""
 
 from collections.abc import Callable
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from functools import wraps
 import logging
 import random
@@ -19,6 +21,44 @@ F = TypeVar("F", bound=Callable[..., Any])
 # HTTP status code constants used by retry decisions.
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_INTERNAL_SERVER_ERROR = 500
+
+# Fallback wait (seconds) when ``Retry-After`` is absent or unparseable.
+DEFAULT_RETRY_AFTER_SECONDS = 60
+
+
+def _parse_retry_after(
+    header_value: str | None, *, default: int = DEFAULT_RETRY_AFTER_SECONDS
+) -> int:
+    """Parse a ``Retry-After`` header into a non-negative delay in seconds.
+
+    RFC 7231 allows ``Retry-After`` to be *either* delta-seconds or an
+    HTTP-date. A bare ``int()`` crashes with ``ValueError`` on the date form
+    (and that escapes the retry decorator unhandled instead of surfacing as a
+    ``StravaRateLimitError``). Guard both forms and fall back to ``default``
+    on anything we can't interpret, so a spec-valid header can never turn a
+    rate-limit into an uncaught crash.
+    """
+    if header_value is None:
+        return default
+    value = header_value.strip()
+
+    # delta-seconds (the common Strava case)
+    try:
+        return max(0, int(value))
+    except ValueError:
+        pass
+
+    # HTTP-date
+    try:
+        retry_dt = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return default
+    if retry_dt is None:  # malformed date that parsed to None
+        return default
+    if retry_dt.tzinfo is None:  # RFC dates are UTC; be explicit
+        retry_dt = retry_dt.replace(tzinfo=UTC)
+    delta = (retry_dt - datetime.now(UTC)).total_seconds()
+    return max(0, int(delta))
 
 
 def _add_retry_event(
@@ -97,7 +137,9 @@ def retry_on_failure(
 
                         # Handle rate limiting specially
                         if status_code == HTTP_TOO_MANY_REQUESTS:
-                            retry_after = int(e.response.headers.get("Retry-After", 60))
+                            retry_after = _parse_retry_after(
+                                e.response.headers.get("Retry-After")
+                            )
                             if attempt == max_attempts - 1:
                                 _mark_retries_exhausted(max_attempts)
                                 raise StravaRateLimitError(

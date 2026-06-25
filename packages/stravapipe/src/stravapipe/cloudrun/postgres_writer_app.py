@@ -348,6 +348,22 @@ async def _handle_create(
                         ),
                     ):
                         uow.activities.tag_activity_regions(activity.id)
+            else:
+                # Non-empty polyline that decoded to nothing usable (invalid,
+                # or a valid encoding of <2 points). The route insert + region
+                # tagging are skipped, so the activity lands with no geometry
+                # and never appears on the map. Log it here so "activity
+                # missing from map" is diagnosable from the writer's logs
+                # rather than only by inspecting the DB.
+                logger.warning(
+                    "Activity %s has a polyline but decoded to no geometry; "
+                    "route + region tagging skipped (not on map)",
+                    activity_id,
+                    extra={
+                        "user_id": activity.user_id,
+                        "polyline_length": len(activity.map.polyline),
+                    },
+                )
 
         uow.commit()
 
