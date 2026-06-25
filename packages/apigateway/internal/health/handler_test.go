@@ -1,6 +1,7 @@
 package health
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -267,6 +268,66 @@ func TestHandleReady_Retry(t *testing.T) {
 		}
 		if got := pinger.calls.Load(); got != 2 {
 			t.Errorf("Ping called %d times, want exactly 2 (one initial + one retry, no more)", got)
+		}
+	})
+}
+
+// TestHandleReady_MonitoredEventContract pins the contract between this handler
+// and the Terraform log-based metric apigateway_readiness_failures, which filters
+// on jsonPayload.event="readiness_db_unhealthy". The metric is supposed to sit at
+// zero, so it can't be monitored for its own breakage — if a refactor reworded
+// or dropped the event field, the alert would silently stop firing. This test is
+// the guard: it fails CI the moment the genuine-failure path stops emitting
+// exactly one monitored event, OR a recovered cold start starts emitting one.
+func TestHandleReady_MonitoredEventContract(t *testing.T) {
+	// Count log records carrying the monitored event, and fail if a transient
+	// "retrying" line ever carries it (that would re-introduce the false-page).
+	countMonitored := func(t *testing.T, raw string) int {
+		t.Helper()
+		n := 0
+		for _, line := range strings.Split(strings.TrimSpace(raw), "\n") {
+			if line == "" {
+				continue
+			}
+			var rec struct {
+				Message string `json:"message"`
+				Event   string `json:"event"`
+			}
+			if err := json.Unmarshal([]byte(line), &rec); err != nil {
+				t.Fatalf("log line is not JSON: %q (%v)", line, err)
+			}
+			if rec.Event != LogEventReadinessDBUnhealthy {
+				continue
+			}
+			n++
+			if strings.Contains(rec.Message, "retrying") {
+				t.Errorf("transient retry line carries the monitored event %q; recovered cold starts would false-page", LogEventReadinessDBUnhealthy)
+			}
+		}
+		return n
+	}
+
+	exercise := func(pinger Pinger) string {
+		var buf bytes.Buffer
+		logger := gcplog.NewWithOptions(gcplog.Options{Writer: &buf})
+		// Zero backoff: the retry path runs, just without the real sleep.
+		h := NewHandlerWithOptions(pinger, logger, DefaultHealthCheckTimeout, 0)
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		h.HandleReady(httptest.NewRecorder(), req)
+		return buf.String()
+	}
+
+	t.Run("genuine failure emits exactly one monitored event", func(t *testing.T) {
+		raw := exercise(&countingPinger{pingErr: errors.New("persistent failure")})
+		if n := countMonitored(t, raw); n != 1 {
+			t.Errorf("monitored events = %d, want exactly 1", n)
+		}
+	})
+
+	t.Run("recovered cold start emits no monitored event", func(t *testing.T) {
+		raw := exercise(&sequencePinger{errs: []error{errors.New("transient timeout"), nil}})
+		if n := countMonitored(t, raw); n != 0 {
+			t.Errorf("monitored events = %d, want 0 (a recovered probe must not page)", n)
 		}
 	})
 }

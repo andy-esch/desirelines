@@ -26,6 +26,16 @@ const (
 	// StatusUnhealthy indicates the service or component has issues.
 	StatusUnhealthy = "unhealthy"
 
+	// LogEventReadinessDBUnhealthy is the structured-log "event" field value
+	// emitted exactly once on a genuine (post-retry) readiness DB failure. The
+	// Terraform log-based metric apigateway_readiness_failures filters on
+	// jsonPayload.event="readiness_db_unhealthy", so this is a MONITORING
+	// CONTRACT: keying the metric on this field (not the human-readable message)
+	// lets the message wording drift freely without silently breaking the alert.
+	// Do not rename without updating terraform/modules/desirelines/readiness_probes.tf
+	// AND the contract test (TestHandleReady_MonitoredEventContract).
+	LogEventReadinessDBUnhealthy = "readiness_db_unhealthy"
+
 	// DefaultHealthCheckTimeout is the default per-attempt timeout for database
 	// health checks. Sized for Neon cold-starts: the hourly Cloud Scheduler
 	// /api/ready probe almost always lands on a suspended compute (5-min idle
@@ -105,7 +115,11 @@ func (h *Handler) HandleReady(w http.ResponseWriter, r *http.Request) {
 
 	if h.pinger != nil {
 		if err := h.pingWithRetry(r.Context()); err != nil {
-			h.logger.Warn("Database health check failed", "error", err)
+			// The "event" field is the monitoring contract — see
+			// LogEventReadinessDBUnhealthy. Only this genuine post-retry failure
+			// carries it; the transient ", retrying" line in pingWithRetry must
+			// not, or recovered cold starts would inflate the metric.
+			h.logger.Warn("Database health check failed", "event", LogEventReadinessDBUnhealthy, "error", err)
 			response.Status = StatusUnhealthy
 			response.Database = StatusUnhealthy
 			statusCode = http.StatusServiceUnavailable

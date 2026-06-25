@@ -53,6 +53,16 @@ DEFAULT_READINESS_TIMEOUT: float = 10.0
 # retry is enough — genuine outages will keep failing on attempt #2.
 DEFAULT_READINESS_RETRY_BACKOFF: float = 1.0
 
+# Structured-log "event" field value emitted exactly once on a genuine
+# (post-retry) probe failure. The Terraform log-based metric
+# python_readiness_failures filters on jsonPayload.event="readiness_probe_failed",
+# so this is a MONITORING CONTRACT: keying the metric on this field (not the
+# human-readable message) lets the wording drift freely without silently
+# breaking the alert. Do not rename without updating
+# terraform/modules/desirelines/readiness_probes.tf AND the contract test
+# (TestMonitoredFailureEvent).
+READINESS_PROBE_FAILED_EVENT = "readiness_probe_failed"
+
 
 async def _run_with_timeout(
     name: str,
@@ -96,7 +106,18 @@ async def _run_with_timeout(
         logger.info("Readiness probe '%s' succeeded after retry", name)
         return None
 
-    logger.warning("Readiness probe '%s' failed after retry: %s", name, retry_err)
+    # The "event" field is the monitoring contract — see
+    # READINESS_PROBE_FAILED_EVENT. Only this genuine post-retry failure carries
+    # it (the transient ".../retrying after" line above must not, or recovered
+    # cold starts would inflate the metric). This module uses a plain
+    # logging.getLogger (not the JsonFieldsAdapter), so wrap the field in
+    # json_fields explicitly for Cloud Logging to surface it in jsonPayload.
+    logger.warning(
+        "Readiness probe '%s' failed after retry: %s",
+        name,
+        retry_err,
+        extra={"json_fields": {"event": READINESS_PROBE_FAILED_EVENT}},
+    )
     return retry_err
 
 

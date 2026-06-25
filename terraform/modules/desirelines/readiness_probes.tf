@@ -53,14 +53,23 @@ resource "google_cloud_scheduler_job" "apigateway_readiness" {
   depends_on = [google_project_service.required_apis]
 }
 
-# Count failed executions of the readiness Scheduler job
+# Count genuine (post-retry) readiness failures from apigateway's own verdict
+# log — NOT the Cloud Scheduler HTTP status. The hourly probe wakes a cold
+# instance whose first attempt can 503 on the startup-probe race; the scheduler
+# retry (retry_count=1) recovers it, but the scheduler logs BOTH attempts, so a
+# `httpRequest.status>=400` filter counted recovered cold starts as failures and
+# false-paged a few times a day. apigateway logs the structured event
+# `jsonPayload.event="readiness_db_unhealthy"` exactly once, only after its own
+# internal retry is exhausted — see packages/apigateway/internal/health/handler.go
+# (LogEventReadinessDBUnhealthy + its contract test). Keying on the event field
+# (not the message text) means the log wording can change without breaking this.
 resource "google_logging_metric" "apigateway_readiness_failures" {
   name        = "${var.project_name}_${var.environment}_apigateway_readiness_failures"
-  description = "Cloud Scheduler readiness probe responses that aren't 2xx"
+  description = "Genuine (post-retry) apigateway readiness failures, from the app's verdict log event"
   filter      = <<-EOT
-    resource.type="cloud_scheduler_job"
-    resource.labels.job_id="${google_cloud_scheduler_job.apigateway_readiness.name}"
-    httpRequest.status>=400
+    resource.type="cloud_run_revision"
+    resource.labels.service_name="${google_cloud_run_v2_service.api_gateway.name}"
+    jsonPayload.event="readiness_db_unhealthy"
   EOT
   metric_descriptor {
     metric_kind = "DELTA"
@@ -82,11 +91,13 @@ resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
 
       **Action**:
       1. Check Neon dashboard — is the compute suspended? Down?
-      2. Check apigateway logs for `Database health check failed`. Lines
-         ending in `, retrying` are transient cold-start spikes that
-         recovered on the second attempt — they don't indicate failure
-         unless followed by a `Database health check failed` line for the
-         same probe.
+      2. Check apigateway logs for the `readiness_db_unhealthy` event
+         (`jsonPayload.event="readiness_db_unhealthy"`, message
+         `Database health check failed`). The app emits it once per probe only
+         after its internal retry is exhausted, so each occurrence is already a
+         genuine failure — recovered cold-start retries (the `, retrying` lines)
+         are excluded by construction and this metric counts the event, not the
+         Scheduler HTTP status.
       3. Test the endpoint directly: `curl https://${var.project_name}-${var.environment}.web.app/api/ready`.
     EOT
   }
@@ -94,7 +105,7 @@ resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
   conditions {
     display_name = "Readiness probe failures ≥ 3 in 4h"
     condition_threshold {
-      filter          = "resource.type=\"cloud_scheduler_job\" AND metric.type=\"logging.googleapis.com/user/${google_logging_metric.apigateway_readiness_failures.name}\""
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/${google_logging_metric.apigateway_readiness_failures.name}\""
       duration        = "0s"
       comparison      = "COMPARISON_GT"
       threshold_value = 2 # > 2 means ≥3 failures
@@ -217,16 +228,25 @@ resource "google_cloud_scheduler_job" "python_readiness" {
 # service without spawning one metric per job.
 resource "google_logging_metric" "python_readiness_failures" {
   name        = "${var.project_name}_${var.environment}_python_readiness_failures"
-  description = "Cloud Scheduler readiness probe responses that aren't 2xx (Python services)"
-  # Filter is interpolated from local.python_readiness_targets so adding a
-  # service auto-extends the metric. The regex is intentionally pinned to
-  # the known service slugs (rather than a wildcard `.*-readiness`) so a
-  # future unrelated job named `<project>-<env>-foo-readiness` doesn't
-  # silently get bucketed in and fire false positives.
+  description = "Genuine (post-retry) Python service readiness failures, from each app's verdict log event"
+  # Count each app's own post-retry verdict — the structured event
+  # `jsonPayload.event="readiness_probe_failed"`, emitted once per genuinely
+  # failed probe by stravapipe.shared.readiness (READINESS_PROBE_FAILED_EVENT) —
+  # NOT the Cloud Scheduler HTTP status. A cold instance's first /ready attempt
+  # can 503 on the startup-probe race and the scheduler retry (retry_count=1)
+  # recovers it; the old `httpRequest.status>=400` filter counted that recovered
+  # probe as a failure and false-paged. Keying on the event field (not the
+  # message text) means the wording can change without breaking this.
+  #
+  # service_name is still pinned to the known Cloud Run slugs (rather than a
+  # wildcard) so an unrelated service can't get bucketed in. NOTE the asymmetry:
+  # the Cloud Run service name is `${project}-<slug>` with NO environment suffix
+  # (see local.python_readiness_targets / cloud_run.tf), unlike the scheduler
+  # job_id this metric used to key off.
   filter = <<-EOT
-    resource.type="cloud_scheduler_job"
-    resource.labels.job_id=~"^${var.project_name}-${var.environment}-(${join("|", keys(local.python_readiness_targets))})-readiness$"
-    httpRequest.status>=400
+    resource.type="cloud_run_revision"
+    resource.labels.service_name=~"^${var.project_name}-(${join("|", keys(local.python_readiness_targets))})$"
+    jsonPayload.event="readiness_probe_failed"
   EOT
   metric_descriptor {
     metric_kind = "DELTA"
@@ -239,7 +259,7 @@ resource "google_logging_metric" "python_readiness_failures" {
     }
   }
   label_extractors = {
-    "service" = "REGEXP_EXTRACT(resource.labels.job_id, \"(${join("|", keys(local.python_readiness_targets))})-readiness$\")"
+    "service" = "REGEXP_EXTRACT(resource.labels.service_name, \"${var.project_name}-(${join("|", keys(local.python_readiness_targets))})$\")"
   }
 }
 
@@ -261,10 +281,13 @@ resource "google_monitoring_alert_policy" "python_readiness_failing" {
       - deletion-service: BigQuery or Firestore credential expired
 
       **Action**:
-      1. Check the failing service's logs for `Readiness probe '...' failed`.
-         Lines ending in `; retrying after ...s` are transient cold-start
-         spikes that recovered on the second attempt — only `failed after
-         retry` lines indicate the probe ultimately failed.
+      1. Check the failing service's logs for the `readiness_probe_failed` event
+         (`jsonPayload.event="readiness_probe_failed"`, message
+         `Readiness probe '...' failed after retry`). The app emits it once per
+         probe only after its internal retry is exhausted, so each occurrence is
+         already a genuine failure — recovered cold-start retries (the
+         `; retrying after ...s` lines) are excluded by construction and this
+         metric counts the event, not the Scheduler HTTP status.
       2. Test the endpoint directly via the scheduler's "Run now" button.
       3. Cross-check with apigateway readiness alert — concurrent failures
          on apigateway + postgres-writer indicate a shared (Neon) outage.
@@ -274,7 +297,7 @@ resource "google_monitoring_alert_policy" "python_readiness_failing" {
   conditions {
     display_name = "Readiness probe failures ≥ 3 in 4h (per service)"
     condition_threshold {
-      filter          = "resource.type=\"cloud_scheduler_job\" AND metric.type=\"logging.googleapis.com/user/${google_logging_metric.python_readiness_failures.name}\""
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/${google_logging_metric.python_readiness_failures.name}\""
       duration        = "0s"
       comparison      = "COMPARISON_GT"
       threshold_value = 2 # > 2 means ≥3 failures

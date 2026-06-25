@@ -39,8 +39,8 @@ enough), giving five SLOs total:
 | 1 | Ingest entry | Availability | Dispatcher /webhook returns 2xx |
 | 2 | Ingest end-to-end | Availability | Webhook event lands in postgres without hitting DLQ |
 | 3 | Ingest end-to-end | Latency | Webhook → postgres row visible within 3s |
-| 4 | Read | Availability | Apigateway /v1/* request returns < 500 |
-| 5 | Read | Latency | Apigateway /v1/* request completes within 1s |
+| 4 | Read | Availability | Apigateway request returns < 500 |
+| 5 | Read | Latency | Apigateway request completes within 1s |
 
 The hourly `/ready` probe is a **canary**, not an SLO — it exists
 for static-threshold alerting on prolonged outages but doesn't
@@ -59,7 +59,7 @@ postgres-writer is on the user-noticed critical path.
 | **Target** | 99% |
 | **Window** | Rolling 30 days |
 | **Error budget** | ~1.5-6 failed responses/month (150-600 webhooks/month at 1%) |
-| **Metric source** | Cloud Run `request_count` on the dispatcher service, filtered to `path = /webhook` (all methods, but practically POST), grouped by `status_class` |
+| **Metric source** | Cloud Run `request_count` scoped to the dispatcher service via an explicit `resource.label."service_name"` filter, split by `response_code_class`. The parent `google_monitoring_service` binding is organizational only and does **not** restrict the SLI — the explicit `service_name` scope is load-bearing (without it the SLI aggregates every Cloud Run service and SLO 1 silently becomes a byte-identical copy of SLO 4, blind to dispatcher-only regressions). See `slos.tf`. Not path-filtered — `request_count` carries no URL label — but the dispatcher serves only `/webhook` plus its `/health`+`/ready` probes, so this is effectively webhook traffic. |
 | **What counts as "good"** | 2xx, 3xx, 4xx — Strava's retries handle transient blips; what we care about is sustained 5xx |
 | **What counts as "bad"** | 5xx (a 5xx that survives Strava's 3 retries = lost webhook) |
 | **Rationale** | Volume is low — 99% gives 1.5-6 fails/month budget, which fits the empirical rate of occasional Cloud Run cold-start blips. Tighten to 99.5% after a month of data. Note: a 5xx that Strava successfully retries is invisible to this SLO (good — those are recovered). |
@@ -99,9 +99,8 @@ postgres-writer is on the user-noticed critical path.
 | **Target** | 99.5% |
 | **Window** | Rolling 30 days |
 | **Error budget** | ~37-150 5xx responses/month (7.5K-30K requests/month at 0.5%) |
-| **Metric source** | Cloud Run `request_count` on the apigateway service, filtered to `path =~ /v1/.*`, grouped by `status_class` |
-| **Endpoints included** | `/v1/activities`, `/v1/activities/*`, `/v1/sports/config` |
-| **Endpoints excluded** | `/ready`, `/health` (canaries); `/api/auth/*` (OAuth has different failure modes) |
+| **Metric source** | Cloud Run `request_count` scoped to the apigateway service via an explicit `resource.label."service_name"` filter, split by `response_code_class` (5xx = bad). The parent service binding is organizational only and does **not** restrict the SLI — see `slos.tf`. |
+| **Scope: all requests to the service** | `request_count` carries no URL/path label, so the SLI counts **every** request to apigateway — not just `/v1/*`. The path exclusions this row originally claimed (`/ready`+`/health` canaries, `/api/auth/*` OAuth) are **not** applied today. ⚠️ Consequence: apigateway's own `/ready` cold-start 5xx (rare — the handler retries once before returning 503) and any `/api/auth/*` 5xx burn this budget, a smaller dose of the same cold-start contamination the SLI service-scoping (H1) and readiness-metric work (M1) set out to remove. Real path scoping would need a custom path-labeled HTTP metric — a candidate follow-up, not yet built. |
 | **Rationale** | Higher volume than dispatcher → tighter target meaningful. 99.5% absorbs individual transient blips (Neon cold compute, Cloud Run cold start) without flapping; sustained issue still trips burn-rate alert quickly. |
 
 ### SLO 5 — Apigateway latency
@@ -112,7 +111,7 @@ postgres-writer is on the user-noticed critical path.
 | **Target** | 95% |
 | **Window** | Rolling 30 days |
 | **Error budget** | 5% of requests can be slow without burning |
-| **Metric source** | `desirelines.io/http/request.duration` histogram (workload.googleapis.com prefix per the monitoring.tf convention), filtered to apigateway service + `/v1/*` paths |
+| **Metric source** | Cloud Run native `request_latencies` distribution scoped to the apigateway service via an explicit `resource.label."service_name"` filter (parent binding is organizational only — see `slos.tf`), counting non-5xx responses (`response_code_class != "5xx"`) that complete within the 1000ms cut. Same "all requests to the service, no path label" scope caveat as SLO 4. |
 | **Rationale** | Sub-second is the right "feels responsive" target for the dashboard. 95% is conservative — observed warm-path p95 from production traces was 21-118ms, so the 1000ms budget includes plenty of headroom for cold-start variance. Tighten if real p95 stabilizes well below 500ms. |
 
 ## Error budget policy

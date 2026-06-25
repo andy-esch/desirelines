@@ -8,6 +8,7 @@ this suite stays free of an extra test dependency.
 """
 
 import asyncio
+import logging
 
 from stravapipe.shared import readiness
 from stravapipe.shared.readiness import _run_with_timeout, run_checks
@@ -140,3 +141,52 @@ class TestRunChecksRetry:
         assert result["good"] is None
         assert result["bad"] is not None
         assert "down" in result["bad"]
+
+
+class TestMonitoredFailureEvent:
+    """Contract with the Terraform metric python_readiness_failures, which filters
+    on jsonPayload.event="readiness_probe_failed". That metric is supposed to sit
+    at zero, so it can't be monitored for its own breakage — if a refactor reworded
+    or dropped the event field, the alert would silently stop firing. These tests
+    are the guard: a genuine post-retry failure must emit exactly one record
+    carrying the monitored event, and a recovered probe must emit none.
+    """
+
+    @staticmethod
+    def _monitored_events(records: list[logging.LogRecord]) -> list[str]:
+        return [
+            r.json_fields["event"]
+            for r in records
+            if isinstance(getattr(r, "json_fields", None), dict)
+            and "event" in r.json_fields
+        ]
+
+    def test_genuine_failure_emits_monitored_event(self, caplog):
+        """Two consecutive failures emit exactly one monitored event."""
+
+        async def probe() -> None:
+            raise RuntimeError("persistent")
+
+        with caplog.at_level(logging.WARNING, logger="stravapipe.shared.readiness"):
+            asyncio.run(
+                _run_with_timeout("broken", probe, timeout=1.0, retry_backoff=0)
+            )
+
+        assert self._monitored_events(caplog.records) == [
+            readiness.READINESS_PROBE_FAILED_EVENT
+        ]
+
+    def test_recovered_probe_emits_no_monitored_event(self, caplog):
+        """A first-attempt failure that recovers on retry must not page."""
+        calls = 0
+
+        async def probe() -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise RuntimeError("transient")
+
+        with caplog.at_level(logging.WARNING, logger="stravapipe.shared.readiness"):
+            asyncio.run(_run_with_timeout("flaky", probe, timeout=1.0, retry_backoff=0))
+
+        assert self._monitored_events(caplog.records) == []
