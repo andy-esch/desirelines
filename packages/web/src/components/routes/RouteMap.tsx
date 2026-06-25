@@ -13,6 +13,8 @@ import type { MapActivity, RegionSummary } from "../../api/map";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
 import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
+import { Button } from "../ui/button";
+import MapLoadingState from "./MapLoadingState";
 import {
   convertDistance,
   getDistanceLabel,
@@ -46,6 +48,21 @@ const LIGHT_STYLE = "mapbox://styles/mapbox/light-v11";
 const FIT_PADDING = 40;
 /** Cap fit zoom so a degenerate (single-point) bbox doesn't zoom to the moon. */
 const MAX_FIT_ZOOM = 14;
+
+/**
+ * If the map hasn't emitted `load` within this window we assume it's wedged
+ * (WebGL init failure, a hung style fetch on iOS WebKit, etc.) and surface a
+ * retryable error instead of an indefinite grey canvas. Generous so a slow but
+ * working first load on mobile isn't cut off prematurely.
+ */
+const MAP_LOAD_TIMEOUT_MS = 15_000;
+
+/**
+ * Flat mercator, not GL JS v3's default globe: a routes map needs no globe, and the
+ * globe path is heavier on WebGL2 — a common cause of blank/grey maps on iOS WebKit.
+ * Module-level constant so react-map-gl doesn't re-diff/re-apply it every render.
+ */
+const MAP_PROJECTION = { name: "mercator" } as const;
 
 /** Crisp line; width grows with zoom so routes stay legible world→street. */
 const LINE_WIDTH: ExpressionSpecification = [
@@ -211,6 +228,17 @@ export default function RouteMap({
   const [reloadNonce, setReloadNonce] = useState(0);
   const refreshingRef = useRef(false);
 
+  // Map lifecycle for the load/error UX. `status` drives the loading spinner and
+  // the retryable failure overlay; `remountKey` recreates the whole <Map> on retry
+  // (a fresh GL context) — distinct from `reloadNonce`, which only re-fetches tiles.
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [remountKey, setRemountKey] = useState(0);
+
+  const retry = useCallback(() => {
+    setStatus("loading");
+    setRemountKey((k) => k + 1);
+  }, []);
+
   // Attach our Firebase ID token to internal tile requests only. Mapbox's own
   // style/sprite/glyph/telemetry requests (api.mapbox.com, events.mapbox.com) are
   // external and must NOT receive the token — `isInternalRequest` mirrors the
@@ -233,8 +261,8 @@ export default function RouteMap({
   const handleError = useCallback(
     (e: ErrorEvent) => {
       const err = e.error as { status?: number; url?: string } | undefined;
-      const isInternal401 =
-        err?.status === 401 && (err.url === undefined || isInternalRequest(err.url, apiBaseUrl));
+      const isInternalUrl = err?.url === undefined || isInternalRequest(err.url, apiBaseUrl);
+      const isInternal401 = err?.status === 401 && isInternalUrl;
       if (isInternal401 && !refreshingRef.current) {
         refreshingRef.current = true;
         void refreshAuthTokenRef
@@ -247,6 +275,13 @@ export default function RouteMap({
             refreshingRef.current = false;
           });
         return;
+      }
+      // A Mapbox-side auth failure (bad / over-restricted `pk.*` token, blocked
+      // style) can't be recovered by a Firebase refresh — surface the retryable
+      // error now rather than waiting out the load timeout on a guaranteed-blank
+      // map. Guarded so it never clobbers an already-rendered ("ready") map.
+      if (!isInternalUrl && (err?.status === 401 || err?.status === 403)) {
+        setStatus((s) => (s === "ready" ? s : "error"));
       }
       logger.warn("[RouteMap] mapbox error:", e.error ?? "unknown");
     },
@@ -307,6 +342,24 @@ export default function RouteMap({
     const low = z < LINE_MIN_ZOOM;
     setDotsView((prev) => (prev === low ? prev : low));
   }, []);
+
+  // On load: force a resize — iOS WebKit can size the GL canvas before the
+  // `fixed` map container settles, leaving a 0/stale drawing buffer (grey) until
+  // something nudges it — then clear the loading state and sync the zoom tier.
+  const onMapLoad = useCallback(() => {
+    mapRef.current?.resize();
+    setStatus("ready");
+    syncZoomView();
+  }, [syncZoomView]);
+
+  // Guard against an indefinite grey canvas: if `load` never arrives within the
+  // timeout, surface the retryable error overlay. Re-armed on each (re)mount via
+  // `remountKey`; cleared the moment status leaves "loading".
+  useEffect(() => {
+    if (status !== "loading") return;
+    const t = window.setTimeout(() => setStatus("error"), MAP_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(t);
+  }, [status, remountKey]);
 
   const onMouseMove = useCallback((e: MapMouseEvent) => {
     const map = mapRef.current;
@@ -393,10 +446,13 @@ export default function RouteMap({
     // a Tailwind `absolute inset-0` would collapse to height 0 (blank grey map).
     <div className="relative w-full h-full" role="region" aria-label="Map of activity routes">
       <Map
+        // Bumped by `retry` to recreate the map (fresh GL context) after a failure.
+        key={remountKey}
         ref={mapRef}
         mapboxAccessToken={accessToken}
         mapStyle={isDark ? DARK_STYLE : LIGHT_STYLE}
-        onLoad={syncZoomView}
+        projection={MAP_PROJECTION}
+        onLoad={onMapLoad}
         onZoom={syncZoomView}
         initialViewState={
           defaultViewport
@@ -499,6 +555,28 @@ export default function RouteMap({
       {dotsView && (
         <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-slate-dark/80 px-3 py-1 text-[0.7rem] text-slate-light backdrop-blur-sm">
           Zoomed-out density — dots show all activities; zoom in to filter
+        </div>
+      )}
+
+      {/* Loading spinner from mount until the map's `load` event — covers the
+          post-mount, basemap/tiles-still-loading gap that previously read as a bare
+          grey canvas (notably the slow first load on mobile). */}
+      {status === "loading" && <MapLoadingState />}
+
+      {/* Retryable failure surface — replaces the indefinite silent grey when the
+          basemap/style/WebGL can't come up (e.g. WebGL unavailable on iOS, a stalled
+          style fetch). The internal-401 tile recovery above is unaffected. */}
+      {status === "error" && (
+        <div className="absolute inset-0 grid place-items-center bg-bg-body/90 px-6" role="alert">
+          <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+            <p className="text-sm text-slate-light">
+              The map couldn’t be displayed. This can happen if your browser can’t render maps, or
+              the connection stalled.
+            </p>
+            <Button variant="outline" size="sm" onClick={retry}>
+              Try again
+            </Button>
+          </div>
         </div>
       )}
     </div>

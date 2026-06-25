@@ -14,6 +14,9 @@ const h = vi.hoisted(() => {
     onClick: undefined as ((e: unknown) => void) | undefined,
     onMouseMove: undefined as ((e: unknown) => void) | undefined,
     onMouseLeave: undefined as ((e: unknown) => void) | undefined,
+    onLoad: undefined as (() => void) | undefined,
+    projection: undefined as unknown,
+    resizeCalls: 0,
     initialViewState: undefined as Record<string, unknown> | undefined,
     mapStyle: undefined as string | undefined,
     interactiveLayerIds: undefined as string[] | undefined,
@@ -37,6 +40,8 @@ vi.mock("react-map-gl/mapbox", async () => {
     h.captured.onClick = props.onClick as (e: unknown) => void;
     h.captured.onMouseMove = props.onMouseMove as (e: unknown) => void;
     h.captured.onMouseLeave = props.onMouseLeave as (e: unknown) => void;
+    h.captured.onLoad = props.onLoad as () => void;
+    h.captured.projection = props.projection;
     h.captured.initialViewState = props.initialViewState as Record<string, unknown>;
     h.captured.mapStyle = props.mapStyle as string;
     h.captured.interactiveLayerIds = props.interactiveLayerIds as string[];
@@ -44,6 +49,10 @@ vi.mock("react-map-gl/mapbox", async () => {
       fitBounds: (...args: unknown[]) => h.captured.fitBoundsCalls.push(args),
       setFeatureState: (feature: unknown, state: unknown) =>
         h.captured.featureStateCalls.push({ feature, state }),
+      resize: () => {
+        h.captured.resizeCalls += 1;
+      },
+      getZoom: () => 10,
       getCanvas: () => ({ style: {} }),
     }));
     return React.createElement("div", { "data-testid": "map" }, props.children);
@@ -79,6 +88,9 @@ function resetCaptured() {
   h.captured.onClick = undefined;
   h.captured.onMouseMove = undefined;
   h.captured.onMouseLeave = undefined;
+  h.captured.onLoad = undefined;
+  h.captured.projection = undefined;
+  h.captured.resizeCalls = 0;
   h.captured.initialViewState = undefined;
   h.captured.mapStyle = undefined;
   h.captured.interactiveLayerIds = undefined;
@@ -414,5 +426,87 @@ describe("RouteMap viewport fitting", () => {
     // A genuine region change does fit again.
     rerender(<RouteMap {...baseProps} defaultViewport={regionB} />);
     expect(h.captured.fitBoundsCalls.length).toBe(2);
+  });
+});
+
+describe("RouteMap load + error UX", () => {
+  beforeEach(() => {
+    resetCaptured();
+    vi.clearAllMocks();
+  });
+
+  it("forces the flat mercator projection (not GL JS v3's default globe)", () => {
+    renderMap();
+    expect(h.captured.projection).toEqual({ name: "mercator" });
+  });
+
+  it("shows a loading spinner until the map fires `load`, then resizes and hides it", () => {
+    renderMap();
+    // Spinner is up from mount (covers the basemap/tiles-still-loading gap).
+    expect(screen.getByText("Loading map…")).toBeInTheDocument();
+    expect(h.captured.resizeCalls).toBe(0);
+
+    act(() => h.captured.onLoad!());
+
+    // load → resize (iOS WebKit canvas-size fix) + spinner cleared.
+    expect(h.captured.resizeCalls).toBe(1);
+    expect(screen.queryByText("Loading map…")).not.toBeInTheDocument();
+  });
+
+  it("surfaces a retryable error if `load` never arrives, and retry returns to loading", () => {
+    vi.useFakeTimers();
+    try {
+      renderMap();
+      expect(screen.getByText("Loading map…")).toBeInTheDocument();
+
+      // No `load` within the timeout → the failure surface replaces the silent grey.
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      const retry = screen.getByRole("button", { name: /try again/i });
+      expect(retry).toBeInTheDocument();
+      expect(screen.queryByText("Loading map…")).not.toBeInTheDocument();
+
+      // Retry recreates the map and shows the spinner again.
+      act(() => retry.click());
+      expect(screen.getByText("Loading map…")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a working map mounted (a tile 401 doesn't trip the error overlay)", async () => {
+    renderMap();
+    act(() => h.captured.onLoad!()); // map is up
+
+    await act(async () => {
+      h.captured.onError!({ error: { status: 401, url: A_TILE } });
+      await Promise.resolve();
+    });
+
+    // The 401 path recovers tiles; it must not flip the whole map to the error state.
+    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+  });
+
+  it("surfaces the error immediately on a Mapbox-side auth failure (no 15s wait)", () => {
+    const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
+    renderMap({ refreshAuthToken });
+
+    // A bad/over-restricted pk.* token 403s the style — unrecoverable by a Firebase
+    // refresh, so we don't wait out the load timeout: show the retry surface now.
+    act(() => h.captured.onError!({ error: { status: 403, url: MAPBOX_URL } }));
+
+    expect(refreshAuthToken).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    expect(screen.queryByText("Loading map…")).not.toBeInTheDocument();
+  });
+
+  it("does not clobber an already-rendered map on a later external auth error", () => {
+    renderMap();
+    act(() => h.captured.onLoad!()); // ready
+    act(() => h.captured.onError!({ error: { status: 401, url: MAPBOX_URL } }));
+
+    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
   });
 });

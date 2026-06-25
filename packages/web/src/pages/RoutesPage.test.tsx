@@ -119,7 +119,7 @@ describe("RoutesPage", () => {
       isLoading: false,
       error: null,
     });
-    // Reset the dataset to empty each test — clearAllMocks doesn't undo a
+    // Reset the dataset to empty each test â clearAllMocks doesn't undo a
     // per-test mockReturnValue (e.g. the deep-link focus test sets one).
     mockUseMapDataset.mockReturnValue({ activities: [], isLoading: false, error: null });
   });
@@ -148,7 +148,7 @@ describe("RoutesPage", () => {
     expect(lastMapProps().filter).toEqual(["in", ["get", "activity_id"], ["literal", [12345]]]);
     // An explicit way back to the full map is shown.
     expect(screen.getByRole("button", { name: /show all/i })).toBeInTheDocument();
-    // The id isn't in this (empty) dataset → a clear, non-error notice.
+    // The id isn't in this (empty) dataset â a clear, non-error notice.
     expect(screen.getByText(/isn't on your map/i)).toBeInTheDocument();
   });
 
@@ -191,8 +191,8 @@ describe("RoutesPage", () => {
     await renderWithRouter(<RoutesPage />);
 
     await screen.findByTestId("route-map");
-    // Drawer is open by default → its header collapse control is present. The drawer
-    // is lazy-loaded (its own async chunk), so give findBy a generous window —
+    // Drawer is open by default â its header collapse control is present. The drawer
+    // is lazy-loaded (its own async chunk), so give findBy a generous window â
     // the default 1s can flake under full-suite/CI load (still well under the 5s
     // test timeout). The DOM otherwise shows only the map (Suspense fallback).
     expect(
@@ -214,7 +214,7 @@ describe("RoutesPage", () => {
     expect(props.defaultViewport).toEqual(viewport);
     expect(props.isDark).toBe(true);
     // Cross-filter expression is wired through (null here: the mocked dataset is
-    // empty, so useRouteFilters yields no filter → map shows all routes).
+    // empty, so useRouteFilters yields no filter â map shows all routes).
     expect(props).toHaveProperty("filter");
     expect(props.filter).toBeNull();
     expect(typeof props.getAuthToken).toBe("function");
@@ -245,12 +245,12 @@ describe("RoutesPage", () => {
 
     await renderWithRouter(<RoutesPage />);
 
-    expect(screen.getByText("Loading map...")).toBeInTheDocument();
+    expect(screen.getByText("Loading map…")).toBeInTheDocument();
     expect(screen.queryByTestId("route-map")).not.toBeInTheDocument();
   });
 
   it("mounts the map once auth settles even if the token is briefly unavailable", async () => {
-    // Graceful degradation: don't hang on a missing token — the basemap renders
+    // Graceful degradation: don't hang on a missing token â the basemap renders
     // and RouteMap's 401-recovery re-requests tiles once a token lands.
     mockUseAuthTokenRef.mockReturnValue({
       getToken: () => undefined,
@@ -274,7 +274,7 @@ describe("RoutesPage", () => {
 
     await renderWithRouter(<RoutesPage />);
 
-    expect(screen.getByText("Loading map...")).toBeInTheDocument();
+    expect(screen.getByText("Loading map…")).toBeInTheDocument();
   });
 
   it("shows an error state when regions fail to load", async () => {
