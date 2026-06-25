@@ -57,6 +57,13 @@ const MAX_FIT_ZOOM = 14;
  */
 const MAP_LOAD_TIMEOUT_MS = 15_000;
 
+/**
+ * Flat mercator, not GL JS v3's default globe: a routes map needs no globe, and the
+ * globe path is heavier on WebGL2 — a common cause of blank/grey maps on iOS WebKit.
+ * Module-level constant so react-map-gl doesn't re-diff/re-apply it every render.
+ */
+const MAP_PROJECTION = { name: "mercator" } as const;
+
 /** Crisp line; width grows with zoom so routes stay legible world→street. */
 const LINE_WIDTH: ExpressionSpecification = [
   "interpolate",
@@ -444,10 +451,7 @@ export default function RouteMap({
         ref={mapRef}
         mapboxAccessToken={accessToken}
         mapStyle={isDark ? DARK_STYLE : LIGHT_STYLE}
-        // Flat mercator, not GL JS v3's default globe: a routes map needs no globe,
-        // and the globe path is heavier on WebGL2 — a common cause of blank/grey
-        // maps on iOS WebKit. Forcing mercator is lighter and more reliable.
-        projection={{ name: "mercator" }}
+        projection={MAP_PROJECTION}
         onLoad={onMapLoad}
         onZoom={syncZoomView}
         initialViewState={
