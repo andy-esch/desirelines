@@ -291,6 +291,45 @@ class TestCreateEventHandling:
             geojson = json.loads(call_args[0][1])
             assert geojson["type"] == "LineString"
 
+    def test_create_event_polyline_decodes_to_no_geometry_logs_warning(self, client):
+        """A non-empty polyline that decodes to nothing usable (invalid, or a
+        valid encoding of <2 points) skips the route insert — and now logs a
+        warning so the silently-missing-from-map activity is diagnosable."""
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.decode_polyline_to_geojson",
+                return_value=None,
+            ),
+            patch("stravapipe.cloudrun.postgres_writer_app.logger") as mock_logger,
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY_WITH_MAP
+            )
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+            assert response.status_code == 200
+            assert response.json()["status"] == "created"
+            # Route + region tagging skipped, but not silently.
+            mock_uow.activities.insert_route.assert_not_called()
+            mock_uow.activities.tag_activity_regions.assert_not_called()
+            warnings = [
+                c
+                for c in mock_logger.warning.call_args_list
+                if "decoded to no geometry" in c.args[0]
+            ]
+            assert len(warnings) == 1
+
     def test_create_event_without_polyline_skips_route(self, client):
         """CREATE event with null polyline does not insert route."""
         mock_uow = MagicMock()

@@ -1,5 +1,7 @@
 """Tests for retry logic."""
 
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from unittest.mock import Mock, patch
 
 from opentelemetry.sdk.trace import TracerProvider
@@ -11,7 +13,7 @@ import pytest
 import requests
 
 from stravapipe.exceptions import StravaRateLimitError
-from stravapipe.retry import retry_on_failure
+from stravapipe.retry import _parse_retry_after, retry_on_failure
 
 
 class TestRetryOnFailure:
@@ -451,3 +453,66 @@ class TestRetrySpanEvents:
         assert _attrs(events[0])["status_code"] == 500
         assert "error" not in _attrs(events[0])
         assert _attrs(span)["strava.exhausted"] is True
+
+
+class TestParseRetryAfter:
+    """Test ``_parse_retry_after`` (RFC 7231: delta-seconds OR HTTP-date)."""
+
+    def test_delta_seconds(self):
+        assert _parse_retry_after("30") == 30
+
+    def test_delta_seconds_with_whitespace(self):
+        assert _parse_retry_after("  30  ") == 30
+
+    def test_missing_header_uses_default(self):
+        assert _parse_retry_after(None) == 60
+        assert _parse_retry_after(None, default=5) == 5
+
+    def test_negative_delta_clamped_to_zero(self):
+        assert _parse_retry_after("-5") == 0
+
+    def test_http_date_in_the_future(self):
+        future = datetime.now(UTC) + timedelta(seconds=120)
+        header = format_datetime(future, usegmt=True)
+        # Allow a small scheduling delta; should be ~120s, never the default.
+        assert 110 <= _parse_retry_after(header) <= 120
+
+    def test_http_date_in_the_past_clamped_to_zero(self):
+        past = datetime.now(UTC) - timedelta(seconds=120)
+        assert _parse_retry_after(format_datetime(past, usegmt=True)) == 0
+
+    def test_http_date_rounds_fractional_delta_up(self):
+        """A fractional date delta must round *up* (ceil), never truncate —
+        truncating a 1.5s wait to 1s retries before the window reopens and
+        risks an immediate repeat 429."""
+        target = datetime(2026, 1, 1, 0, 0, 10, tzinfo=UTC)
+        fake_now = datetime(2026, 1, 1, 0, 0, 8, 500_000, tzinfo=UTC)  # 1.5s before
+        header = format_datetime(target, usegmt=True)
+        with patch("stravapipe.retry.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_now
+            assert _parse_retry_after(header) == 2  # ceil(1.5), not int(1.5)==1
+
+    def test_garbage_value_falls_back_to_default(self):
+        # The bug: a non-numeric, non-date value must not raise ValueError.
+        assert _parse_retry_after("not-a-date-or-int") == 60
+
+    def test_date_form_header_does_not_crash_the_decorator(self):
+        """Regression: a 429 carrying an HTTP-date ``Retry-After`` used to
+        raise an uncaught ``ValueError`` from ``int()`` instead of being
+        handled as a rate-limit. It must now retry and surface
+        ``StravaRateLimitError`` on exhaustion."""
+        http_date = format_datetime(
+            datetime.now(UTC) + timedelta(seconds=1), usegmt=True
+        )
+
+        @retry_on_failure(max_attempts=2, backoff_seconds=0.01)
+        def always_rate_limited():
+            response = Mock()
+            response.status_code = 429
+            response.headers = {"Retry-After": http_date}
+            error = requests.exceptions.HTTPError("Rate limited")
+            error.response = response
+            raise error
+
+        with patch("time.sleep"), pytest.raises(StravaRateLimitError):
+            always_rate_limited()
