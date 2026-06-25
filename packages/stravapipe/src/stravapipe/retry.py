@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from functools import wraps
 import logging
+import math
 import random
 import time
 from typing import Any, TypeVar, cast
@@ -57,8 +58,10 @@ def _parse_retry_after(
         return default
     if retry_dt.tzinfo is None:  # RFC dates are UTC; be explicit
         retry_dt = retry_dt.replace(tzinfo=UTC)
+    # Round the date delta *up*: truncating a 1.5s wait to 1s would retry
+    # before the server's window reopens and risk an immediate repeat 429.
     delta = (retry_dt - datetime.now(UTC)).total_seconds()
-    return max(0, int(delta))
+    return max(0, math.ceil(delta))
 
 
 def _add_retry_event(

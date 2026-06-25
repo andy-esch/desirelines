@@ -481,6 +481,17 @@ class TestParseRetryAfter:
         past = datetime.now(UTC) - timedelta(seconds=120)
         assert _parse_retry_after(format_datetime(past, usegmt=True)) == 0
 
+    def test_http_date_rounds_fractional_delta_up(self):
+        """A fractional date delta must round *up* (ceil), never truncate —
+        truncating a 1.5s wait to 1s retries before the window reopens and
+        risks an immediate repeat 429."""
+        target = datetime(2026, 1, 1, 0, 0, 10, tzinfo=UTC)
+        fake_now = datetime(2026, 1, 1, 0, 0, 8, 500_000, tzinfo=UTC)  # 1.5s before
+        header = format_datetime(target, usegmt=True)
+        with patch("stravapipe.retry.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_now
+            assert _parse_retry_after(header) == 2  # ceil(1.5), not int(1.5)==1
+
     def test_garbage_value_falls_back_to_default(self):
         # The bug: a non-numeric, non-date value must not raise ValueError.
         assert _parse_retry_after("not-a-date-or-int") == 60
