@@ -90,14 +90,18 @@ resource "google_logging_metric" "unknown_sport_type" {
   name        = "${var.project_name}_${var.environment}_unknown_sport_type"
   description = "Strava sport_type values seen by apigateway/stravapipe that have no mapping in schemas/sports/sport_types.json. Each datapoint is one first-sighting WARNING; per-process dedup means the count tracks distinct unknown types observed (not raw activity count)."
 
-  # `jsonPayload.message` matches both runtimes' structured logs (Go slog
-  # JSON handler + Python stdlib logging via google-cloud-logging). The
-  # service filter narrows to the two emitters so an unrelated job logging
-  # the same string can't false-positive.
+  # Keyed on the structured `event` field, NOT the human-readable message — so a
+  # reworded message can't silently break this metric (the message is duplicated
+  # across two runtimes, doubling the drift risk). Both emitters set
+  # jsonPayload.event="unknown_sport_type": Go slog attr (apigateway
+  # config/sport_config.go unknownSportLogEvent), Python json_fields (stravapipe
+  # config/sport_config.py UNKNOWN_SPORT_LOG_EVENT). Each side pins it with a
+  # contract test. `severity=WARNING` + cloud_run_revision keep an unrelated
+  # emitter of the same event value from false-positiving.
   filter = <<-EOT
     resource.type="cloud_run_revision"
     severity=WARNING
-    jsonPayload.message="Unknown Strava sport_type detected"
+    jsonPayload.event="unknown_sport_type"
   EOT
 
   metric_descriptor {

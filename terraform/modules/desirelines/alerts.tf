@@ -17,6 +17,20 @@
 # alerts likewise in `readiness_probes.tf`.
 # ============================================================================
 
+# Shared Cloud Run `request_count` filter prefixes, scoped per service. The
+# `resource.type + service_name + metric.type` head was hand-duplicated across
+# every per-response-code alert below (and the same fragment recurs in
+# dashboards.tf), so a service rename or metric-type change meant editing many
+# strings in lockstep. Centralizing the head here makes each alert's `filter`
+# just the prefix + its response-code suffix. (SLO SLIs in slos.tf use a
+# different filter syntax — `resource.label."service_name"`, space-joined — so
+# they intentionally don't share these.)
+locals {
+  apigateway_request_count      = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\""
+  dispatcher_request_count      = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.dispatcher.name}\" AND metric.type=\"run.googleapis.com/request_count\""
+  python_services_request_count = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)\") AND metric.type=\"run.googleapis.com/request_count\""
+}
+
 # CRITICAL: DLQ Messages Detected (BQ Inserter)
 resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
   display_name = "🚨 DLQ: BQ Inserter Has Messages"
@@ -152,7 +166,7 @@ resource "google_monitoring_alert_policy" "apigateway_auth_failure_surge" {
     display_name = "401/403 rate > 10/min sustained"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=monitoring.regex.full_match(\"401|403\")"
+      filter          = "${local.apigateway_request_count} AND metric.labels.response_code=monitoring.regex.full_match(\"401|403\")"
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0.167 # ≈ 10/min under ALIGN_RATE per-second
@@ -200,7 +214,7 @@ resource "google_monitoring_alert_policy" "apigateway_not_found_surge" {
     display_name = "404 rate > 5/min sustained"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"404\""
+      filter          = "${local.apigateway_request_count} AND metric.labels.response_code=\"404\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
@@ -250,7 +264,7 @@ resource "google_monitoring_alert_policy" "apigateway_rate_limited_surge" {
     display_name = "429 rate > 5/min sustained"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"429\""
+      filter          = "${local.apigateway_request_count} AND metric.labels.response_code=\"429\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
@@ -301,7 +315,7 @@ resource "google_monitoring_alert_policy" "dispatcher_bad_request_surge" {
     display_name = "400 rate > 5/min sustained"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.dispatcher.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"400\""
+      filter          = "${local.dispatcher_request_count} AND metric.labels.response_code=\"400\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
@@ -380,11 +394,11 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
 
     condition_threshold {
       # 5xx count on the three non-SLO services
-      filter             = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+      filter             = "${local.python_services_request_count} AND metric.labels.response_code_class=\"5xx\""
       duration           = "300s" # 5 minutes
       comparison         = "COMPARISON_GT"
       threshold_value    = 0.02 # 2% of requests on the rolling window
-      denominator_filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)\") AND metric.type=\"run.googleapis.com/request_count\""
+      denominator_filter = local.python_services_request_count
 
       aggregations {
         alignment_period     = "60s"
@@ -413,7 +427,7 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
     display_name = "Non-SLO service 5xx count ≥ 5 in 10m"
 
     condition_threshold {
-      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)\") AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+      filter          = "${local.python_services_request_count} AND metric.labels.response_code_class=\"5xx\""
       duration        = "0s"
       comparison      = "COMPARISON_GT"
       threshold_value = 4 # > 4 means ≥5 5xx in the 10m window

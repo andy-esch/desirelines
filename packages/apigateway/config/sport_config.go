@@ -40,12 +40,19 @@ import (
 // proper category.
 const UnknownSportCategory = "other"
 
-// unknownSportLogMessage is the canonical log message for unmapped sport_type
-// values. The string is exported as a constant because the GCP log-based
-// metric filter must match it byte-for-byte — changing this message in code
-// without also updating terraform/modules/desirelines/monitoring.tf would
-// silently break the alert.
+// unknownSportLogMessage is the human-readable log message for unmapped
+// sport_type values. It is NO LONGER what the metric keys off (see
+// unknownSportLogEvent), so it can be reworded freely.
 const unknownSportLogMessage = "Unknown Strava sport_type detected"
+
+// unknownSportLogEvent is the stable structured "event" field the GCP
+// log-based metric (terraform/modules/desirelines/monitoring.tf) filters on:
+// jsonPayload.event="unknown_sport_type". Keying the metric on this machine
+// field instead of the prose message means a reworded message can't silently
+// break the alert. It is a MONITORING CONTRACT shared across two runtimes —
+// keep byte-identical with the Python emitter (UNKNOWN_SPORT_LOG_EVENT) and the
+// terraform filter; pinned by TestGetCategoryForStravaType_UnknownLogsWarning.
+const unknownSportLogEvent = "unknown_sport_type"
 
 //go:embed sport_types.json
 var embeddedSportConfig []byte
@@ -254,6 +261,7 @@ func (c *SportConfig) GetCategoryForStravaType(stravaType string) string {
 	}
 	if _, loaded := c.unknownSeen.LoadOrStore(stravaType, struct{}{}); !loaded {
 		slog.Default().Warn(unknownSportLogMessage,
+			"event", unknownSportLogEvent,
 			"unmapped_sport_type", stravaType,
 			"fallback_category", UnknownSportCategory,
 		)

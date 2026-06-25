@@ -224,8 +224,10 @@ func TestGetCategoryForStravaType(t *testing.T) {
 // TestGetCategoryForStravaType_UnknownLogsWarning verifies that the first time
 // a sport_type with no mapping is seen, GetCategoryForStravaType emits the
 // structured WARNING that the GCP log-based metric (and downstream alert)
-// pivots on. The message string is asserted explicitly because the metric
-// filter in terraform/modules/desirelines/monitoring.tf depends on it.
+// pivots on. The metric filter in terraform/modules/desirelines/monitoring.tf
+// keys off the structured "event" field (jsonPayload.event="unknown_sport_type"),
+// so that value is asserted as the load-bearing contract; the human-readable
+// message is asserted separately but is free to be reworded.
 //
 // Subsequent calls for the same unmapped type are deduplicated — that
 // invariant is exercised below by confirming the buffer doesn't grow.
@@ -247,6 +249,10 @@ func TestGetCategoryForStravaType_UnknownLogsWarning(t *testing.T) {
 	}
 
 	out := buf.String()
+	// Load-bearing: the log-based metric filters on this structured event field.
+	if !strings.Contains(out, `"event":"`+unknownSportLogEvent+`"`) {
+		t.Errorf("expected monitored event field %q, got: %s", unknownSportLogEvent, out)
+	}
 	if !strings.Contains(out, "Unknown Strava sport_type detected") {
 		t.Errorf("expected canonical WARNING message, got: %s", out)
 	}
