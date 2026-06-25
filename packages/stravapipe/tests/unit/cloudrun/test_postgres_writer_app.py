@@ -307,9 +307,7 @@ class TestCreateEventHandling:
                 "stravapipe.cloudrun.postgres_writer_app.decode_polyline_to_geojson",
                 return_value=None,
             ),
-            patch(
-                "stravapipe.cloudrun.postgres_writer_app.logger"
-            ) as mock_logger,
+            patch("stravapipe.cloudrun.postgres_writer_app.logger") as mock_logger,
         ):
             webhook = make_webhook_payload(
                 aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY_WITH_MAP
