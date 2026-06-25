@@ -17,6 +17,7 @@ import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
 import { DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { getSpectrumColor } from "../utils/chartColors";
+import { useIsMobile } from "../hooks/useIsMobile";
 import MapLoadingState from "../components/routes/MapLoadingState";
 import type { SportOption } from "../components/routes/MapFilterControls";
 import type { SelectedRoute } from "../components/routes/RouteMap";
@@ -64,9 +65,27 @@ export default function RoutesPage() {
   const { data: prefs } = useUserConfig("preferences");
   const { distanceUnit, elevationUnit } = getUserSettings(prefs);
   const [drawerOpen, setDrawerOpen] = useState(true);
-  // Insights (charts) live in a RHS drawer, auto-hidden by default (open via its
-  // edge handle) so the map stays unobstructed.
+  // Insights (charts) live in a separate drawer, auto-hidden by default (open via its
+  // toggle) so the map stays unobstructed.
   const [insightsOpen, setInsightsOpen] = useState(false);
+
+  // On phones both drawers are bottom sheets, so only one may be open at a time —
+  // opening either dismisses the other. On desktop (side panels) both can coexist.
+  const isMobile = useIsMobile();
+  const openFilters = useCallback(
+    (open: boolean) => {
+      setDrawerOpen(open);
+      if (open && isMobile) setInsightsOpen(false);
+    },
+    [isMobile]
+  );
+  const openInsights = useCallback(
+    (open: boolean) => {
+      setInsightsOpen(open);
+      if (open && isMobile) setDrawerOpen(false);
+    },
+    [isMobile]
+  );
 
   // App-category sports present in the data, in a stable order. Each gets a NEON
   // spectrum color by its position — the SAME full-brightness `getSpectrumColor`
@@ -337,7 +356,7 @@ export default function RoutesPage() {
           <Suspense fallback={null}>
             <MapFilterDrawer
               open={drawerOpen}
-              onOpenChange={setDrawerOpen}
+              onOpenChange={openFilters}
               totals={routeFilters.totals}
               totalCount={activities.length}
               activeFilterCount={routeFilters.activeFilterCount}
@@ -388,7 +407,7 @@ export default function RoutesPage() {
               via its edge handle. Only mounted once there's data to summarize. */}
           {activities.length > 0 && (
             <Suspense fallback={null}>
-              <MapInsightsDrawer open={insightsOpen} onOpenChange={setInsightsOpen} isDark={isDark}>
+              <MapInsightsDrawer open={insightsOpen} onOpenChange={openInsights} isDark={isDark}>
                 <SportBreakdownChart
                   activities={routeFilters.filteredActivities}
                   sportColors={sportColors}

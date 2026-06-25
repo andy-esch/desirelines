@@ -27,6 +27,22 @@ if (!Element.prototype.hasPointerCapture) {
   Element.prototype.setPointerCapture = () => {};
   Element.prototype.releasePointerCapture = () => {};
 }
+// jsdom has no matchMedia; our media-query hooks (useIsMobile, useReducedMotion)
+// call it. Default to "no match" (desktop / no-preference) with the event-listener
+// interface they subscribe to. Tests can override window.matchMedia as needed.
+if (typeof window.matchMedia === "undefined") {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList;
+}
 
 // Mock Firebase to avoid initialization errors in tests
 // Tests should mock Firebase services as needed

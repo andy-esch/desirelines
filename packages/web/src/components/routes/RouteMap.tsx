@@ -12,6 +12,7 @@ import type {
 import type { MapActivity, RegionSummary } from "../../api/map";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
 import { Button } from "../ui/button";
 import MapLoadingState from "./MapLoadingState";
@@ -94,6 +95,17 @@ const HOVER_WIDTH: ExpressionSpecification = [
   6,
 ];
 const HIGHLIGHT_LAYER_ID = "routes-lines-highlight";
+
+/**
+ * A wide, fully transparent line drawn over the visible routes purely as a
+ * pointer/touch target: the visible lines are 0.8–3.5px, which is almost
+ * impossible to tap on a phone. Mapbox hit-tests a line within its `line-width`,
+ * so this fat invisible companion makes selection forgiving for fingers (and a
+ * little more so for the mouse). It carries the same cross-filter so only visible
+ * routes are selectable.
+ */
+const HITAREA_LAYER_ID = "routes-lines-hit";
+const HIT_WIDTH = 22;
 
 /** Strava deep link for an activity. */
 function stravaUrl(activityId: number): string {
@@ -205,6 +217,7 @@ export default function RouteMap({
   fitTo,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef>(null);
+  const isMobile = useIsMobile();
 
   // Auth inputs read synchronously from inside Mapbox callbacks. Kept in refs
   // (synced each render) so `transformRequest` / `onError` stay stable — react-map-gl
@@ -464,15 +477,17 @@ export default function RouteMap({
         }
         transformRequest={transformRequest}
         onError={handleError}
-        interactiveLayerIds={[LAYER_ID]}
+        interactiveLayerIds={[HITAREA_LAYER_ID]}
         onMouseMove={onMouseMove}
         onMouseLeave={clearHover}
         onClick={onClick}
         attributionControl={true}
         style={{ width: "100%", height: "100%" }}
       >
-        {/* Bottom-right so the top-right stays clear for the insights drawer toggle. */}
-        <NavigationControl position="bottom-right" />
+        {/* Zoom/compass control, bottom-right (top-right stays clear for the insights
+            toggle). Hidden on touch, where pinch-zoom covers it and the corner would
+            crowd the required attribution. */}
+        {!isMobile && <NavigationControl position="bottom-right" />}
         {/* Remount on reloadNonce to force a clean tile re-fetch after a 401 refresh. */}
         <Source
           key={reloadNonce}
@@ -497,6 +512,18 @@ export default function RouteMap({
             {...(filter ? { filter } : {})}
             layout={{ "line-join": "round", "line-cap": "round" }}
             paint={linePaint}
+          />
+          {/* Invisible fat hit target (the only interactive layer) so taps near a
+              thin route still select it. Same `filter` as the base layer, so only
+              visible routes are selectable. */}
+          <Layer
+            id={HITAREA_LAYER_ID}
+            type="line"
+            source-layer={SOURCE_LAYER}
+            minzoom={LINE_MIN_ZOOM}
+            {...(filter ? { filter } : {})}
+            layout={{ "line-join": "round", "line-cap": "round" }}
+            paint={{ "line-color": "#000", "line-opacity": 0, "line-width": HIT_WIDTH }}
           />
           {/* Wider highlight for the hovered/selected route, on top of the base
               layer (filtered to those ids — no feature-state). */}
@@ -553,7 +580,7 @@ export default function RouteMap({
       {/* Density-tier caption: the dots aggregate every activity and don't reflect
           the active filters (the cross-filter applies to the lines once zoomed in). */}
       {dotsView && (
-        <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-slate-dark/80 px-3 py-1 text-[0.7rem] text-slate-light backdrop-blur-sm">
+        <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-full bg-slate-dark/80 px-3 py-1 text-center text-[0.7rem] text-slate-light backdrop-blur-sm sm:bottom-2">
           Zoomed-out density — dots show all activities; zoom in to filter
         </div>
       )}

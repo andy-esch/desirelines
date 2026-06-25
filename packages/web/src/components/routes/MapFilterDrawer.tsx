@@ -197,7 +197,8 @@ export default function MapFilterDrawer({
 
   return (
     <>
-      {/* Closed-state toggle handle: top-left on desktop, bottom-center on mobile.
+      {/* Closed-state toggle handle: top-left on desktop; on mobile it sits just left
+          of center in the bottom dock (the Insights toggle sits just right).
           Fades/scales out as the panel takes over, so the two never overlap. */}
       <button
         ref={toggleButtonRef}
@@ -218,7 +219,10 @@ export default function MapFilterDrawer({
           "transition-all duration-200 ease-out",
           "hover:border-accent-cyan/50 hover:text-accent-cyan focus-visible:outline-none",
           "focus-visible:ring-2 focus-visible:ring-accent-cyan/50 motion-reduce:transition-none",
-          "bottom-4 left-1/2 -translate-x-1/2 sm:bottom-auto sm:left-4 sm:top-4 sm:translate-x-0",
+          // Mobile: bottom dock, right edge just left of center (safe-area-aware).
+          "bottom-[calc(1rem+env(safe-area-inset-bottom))] right-1/2 mr-1",
+          // Desktop: top-left corner.
+          "sm:bottom-auto sm:right-auto sm:left-4 sm:top-4 sm:mr-0",
           open
             ? "pointer-events-none scale-95 opacity-0"
             : "pointer-events-auto scale-100 opacity-100"

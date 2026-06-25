@@ -202,7 +202,8 @@ describe("RouteMap layer setup", () => {
       ["get", "activity_count"],
     ]);
     // The dots are not interactive (overview only — not in the cross-filter).
-    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines"]);
+    // Interactivity is on the fat invisible hit layer, not the thin visible line.
+    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines-hit"]);
   });
 
   it("themes the basemap and passes the color expression to the line layer", () => {
@@ -245,9 +246,19 @@ describe("RouteMap interactivity (hover + click popover)", () => {
     lngLat: { lng: -74, lat: 40.7 },
   });
 
-  it("marks the route layer interactive", () => {
+  it("routes interactivity through the fat invisible hit layer (touch-friendly)", () => {
     renderMap();
-    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines"]);
+    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines-hit"]);
+    // The hit layer is transparent, wide, and carries the cross-filter so only
+    // visible routes are selectable.
+    const filter = ["in", ["get", "activity_id"], ["literal", [5]]] as never;
+    resetCaptured();
+    renderMap({ filter });
+    const hit = h.captured.layers.filter((l) => l.id === "routes-lines-hit").at(-1);
+    expect(hit).toMatchObject({ type: "line", "source-layer": "routes", filter });
+    const paint = hit!.paint as Record<string, unknown>;
+    expect(paint["line-opacity"]).toBe(0);
+    expect(paint["line-width"]).toBeGreaterThan(10);
   });
 
   it("highlights the hovered route via the highlight layer filter (not feature-state)", () => {
