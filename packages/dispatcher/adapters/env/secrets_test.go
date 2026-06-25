@@ -1,6 +1,8 @@
 package env_test
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +11,33 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/env"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 )
+
+// countingHandler is a minimal slog.Handler that tallies records by level so a
+// test can assert how often GetSecrets logs on a fault path. Single-goroutine
+// use only (the tests below call GetSecrets sequentially).
+type countingHandler struct {
+	warns  int
+	errors int
+}
+
+func (h *countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+// Handle takes slog.Record by value because the slog.Handler interface requires
+// it; gocritic's hugeParam doesn't apply to an interface-mandated signature.
+func (h *countingHandler) Handle(_ context.Context, r slog.Record) error { //nolint:gocritic // slog.Handler interface signature
+	switch r.Level {
+	case slog.LevelWarn:
+		h.warns++
+	case slog.LevelError:
+		h.errors++
+	default:
+		// Debug/Info levels aren't asserted on by these tests.
+	}
+	return nil
+}
+
+func (h *countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *countingHandler) WithGroup(string) slog.Handler      { return h }
 
 // setupTempSecrets creates a temp directory with secret files and returns cleanup func.
 func setupTempSecrets(t *testing.T, token, subID string) (tokenPath, subIDPath string, cleanup func()) {
@@ -453,5 +482,102 @@ func TestSecretCache_RejectsEmptyVerifyTokenEnv(t *testing.T) {
 	}
 	if token != "" {
 		t.Errorf("Empty env verify token leaked through cache: got %q", token)
+	}
+}
+
+// TestSecretCache_PersistentReloadFault_BacksOff pins M1 + L1(06-24) for the
+// reload-fault branch: once GetSecrets serves cached values after a failed
+// reload it advances lastCheck, so a burst of follow-up requests within the TTL
+// take the fast path instead of re-hashing + reloading + re-logging under the
+// write lock on every call. On the unfixed code lastCheck never advances, so
+// every call re-runs the fault path (6 warns instead of 1).
+func TestSecretCache_PersistentReloadFault_BacksOff(t *testing.T) {
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
+
+	tokenPath, subIDPath, cleanup := setupTempSecrets(t, "good-token", "42")
+	defer cleanup()
+
+	counter := &countingHandler{}
+	cache := env.NewSecretCache(tokenPath, subIDPath, 100*time.Millisecond, slog.New(counter))
+
+	// Initial load succeeds and caches good values.
+	if _, _, err := cache.GetSecrets(); err != nil {
+		t.Fatalf("initial load failed: %v", err)
+	}
+
+	// Corrupt the subscription ID file so every reload fails.
+	if err := os.WriteFile(subIDPath, []byte("not-a-number"), 0o600); err != nil {
+		t.Fatalf("corrupt sub id file: %v", err)
+	}
+
+	// Expire the TTL so the next call takes the slow path and hits the fault.
+	time.Sleep(150 * time.Millisecond)
+
+	// First post-fault call: reload fails, logs once, serves cached, and gates.
+	if tok, _, err := cache.GetSecrets(); err != nil || tok != "good-token" {
+		t.Fatalf("first post-fault call: expected cached fallback, got token=%q err=%v", tok, err)
+	}
+
+	// Burst of immediate follow-ups, all well within the TTL: must NOT re-hash
+	// or re-log — they take the fast path on the freshly advanced lastCheck.
+	for i := range 5 {
+		if tok, _, err := cache.GetSecrets(); err != nil || tok != "good-token" {
+			t.Fatalf("burst call %d: expected cached fallback, got token=%q err=%v", i, tok, err)
+		}
+	}
+
+	if counter.warns != 1 {
+		t.Errorf("expected exactly 1 reload-fault warn (backed off for one TTL), got %d — "+
+			"fault path is re-hashing + re-logging per request", counter.warns)
+	}
+}
+
+// TestSecretCache_PersistentHashFault_BacksOff pins L1(06-24) for the
+// hash-error branch: a persistent hashFiles() failure with cached values present
+// must likewise advance lastCheck so it doesn't re-hash + re-log every request.
+// A directory at the secret path makes hashFiles fail deterministically
+// (os.Open succeeds, io.Copy fails with "is a directory") on every OS.
+func TestSecretCache_PersistentHashFault_BacksOff(t *testing.T) {
+	t.Setenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+	t.Setenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
+
+	tokenPath, subIDPath, cleanup := setupTempSecrets(t, "good-token", "42")
+	defer cleanup()
+
+	counter := &countingHandler{}
+	cache := env.NewSecretCache(tokenPath, subIDPath, 100*time.Millisecond, slog.New(counter))
+
+	// Initial load succeeds and caches good values.
+	if _, _, err := cache.GetSecrets(); err != nil {
+		t.Fatalf("initial load failed: %v", err)
+	}
+
+	// Replace the token file with a directory so hashFiles() errors persistently.
+	if err := os.Remove(tokenPath); err != nil {
+		t.Fatalf("remove token file: %v", err)
+	}
+	if err := os.Mkdir(tokenPath, 0o700); err != nil {
+		t.Fatalf("mkdir over token path: %v", err)
+	}
+
+	// Expire the TTL so the next call takes the slow path and hits the fault.
+	time.Sleep(150 * time.Millisecond)
+
+	// First post-fault call: hash fails, logs once, serves cached, and gates.
+	if tok, _, err := cache.GetSecrets(); err != nil || tok != "good-token" {
+		t.Fatalf("first post-fault call: expected cached fallback, got token=%q err=%v", tok, err)
+	}
+
+	// Burst of immediate follow-ups within the TTL: fast path, no re-hash/re-log.
+	for i := range 5 {
+		if tok, _, err := cache.GetSecrets(); err != nil || tok != "good-token" {
+			t.Fatalf("burst call %d: expected cached fallback, got token=%q err=%v", i, tok, err)
+		}
+	}
+
+	if counter.errors != 1 {
+		t.Errorf("expected exactly 1 hash-fault error log (backed off for one TTL), got %d — "+
+			"fault path is re-hashing + re-logging per request", counter.errors)
 	}
 }
