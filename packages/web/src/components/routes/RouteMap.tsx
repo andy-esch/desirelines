@@ -12,6 +12,7 @@ import type {
 import type { MapActivity, RegionSummary } from "../../api/map";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
 import { Button } from "../ui/button";
 import MapLoadingState from "./MapLoadingState";
@@ -94,6 +95,24 @@ const HOVER_WIDTH: ExpressionSpecification = [
   6,
 ];
 const HIGHLIGHT_LAYER_ID = "routes-lines-highlight";
+
+/**
+ * A wide, fully transparent line drawn over the visible routes purely as a
+ * pointer/touch target: the visible lines are 0.8–3.5px, which is almost
+ * impossible to tap on a phone. Mapbox hit-tests a line within its `line-width`,
+ * so this fat invisible companion makes selection forgiving for fingers (and a
+ * little more so for the mouse). It carries the same cross-filter so only visible
+ * routes are selectable.
+ */
+const HITAREA_LAYER_ID = "routes-lines-hit";
+const HIT_WIDTH = 22;
+/** Static — hoisted so the paint keeps a stable identity (react-map-gl re-applies
+ *  paint on a new object each render; see `linePaint`). Fully transparent. */
+const HIT_PAINT: NonNullable<LineLayerSpecification["paint"]> = {
+  "line-color": "#000",
+  "line-opacity": 0,
+  "line-width": HIT_WIDTH,
+};
 
 /** Strava deep link for an activity. */
 function stravaUrl(activityId: number): string {
@@ -205,6 +224,7 @@ export default function RouteMap({
   fitTo,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef>(null);
+  const isMobile = useIsMobile();
 
   // Auth inputs read synchronously from inside Mapbox callbacks. Kept in refs
   // (synced each render) so `transformRequest` / `onError` stay stable — react-map-gl
@@ -361,6 +381,15 @@ export default function RouteMap({
     return () => window.clearTimeout(t);
   }, [status, remountKey]);
 
+  // When the failure surface appears, move focus to its "Try again" button so a
+  // keyboard/SR user lands on the recovery action (the alert announces, then this
+  // gives them the control). `Button` doesn't forward a ref, so reach via the
+  // container.
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (status === "error") errorRef.current?.querySelector("button")?.focus();
+  }, [status]);
+
   const onMouseMove = useCallback((e: MapMouseEvent) => {
     const map = mapRef.current;
     if (!map) return;
@@ -464,15 +493,17 @@ export default function RouteMap({
         }
         transformRequest={transformRequest}
         onError={handleError}
-        interactiveLayerIds={[LAYER_ID]}
+        interactiveLayerIds={[HITAREA_LAYER_ID]}
         onMouseMove={onMouseMove}
         onMouseLeave={clearHover}
         onClick={onClick}
         attributionControl={true}
         style={{ width: "100%", height: "100%" }}
       >
-        {/* Bottom-right so the top-right stays clear for the insights drawer toggle. */}
-        <NavigationControl position="bottom-right" />
+        {/* Zoom/compass control, bottom-right (top-right stays clear for the insights
+            toggle). Hidden on touch, where pinch-zoom covers it and the corner would
+            crowd the required attribution. */}
+        {!isMobile && <NavigationControl position="bottom-right" />}
         {/* Remount on reloadNonce to force a clean tile re-fetch after a 401 refresh. */}
         <Source
           key={reloadNonce}
@@ -497,6 +528,18 @@ export default function RouteMap({
             {...(filter ? { filter } : {})}
             layout={{ "line-join": "round", "line-cap": "round" }}
             paint={linePaint}
+          />
+          {/* Invisible fat hit target (the only interactive layer) so taps near a
+              thin route still select it. Same `filter` as the base layer, so only
+              visible routes are selectable. */}
+          <Layer
+            id={HITAREA_LAYER_ID}
+            type="line"
+            source-layer={SOURCE_LAYER}
+            minzoom={LINE_MIN_ZOOM}
+            {...(filter ? { filter } : {})}
+            layout={{ "line-join": "round", "line-cap": "round" }}
+            paint={HIT_PAINT}
           />
           {/* Wider highlight for the hovered/selected route, on top of the base
               layer (filtered to those ids — no feature-state). */}
@@ -553,7 +596,7 @@ export default function RouteMap({
       {/* Density-tier caption: the dots aggregate every activity and don't reflect
           the active filters (the cross-filter applies to the lines once zoomed in). */}
       {dotsView && (
-        <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-slate-dark/80 px-3 py-1 text-[0.7rem] text-slate-light backdrop-blur-sm">
+        <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-full bg-slate-dark/80 px-3 py-1 text-center text-[0.7rem] text-slate-light backdrop-blur-sm sm:bottom-2">
           Zoomed-out density — dots show all activities; zoom in to filter
         </div>
       )}
@@ -567,7 +610,11 @@ export default function RouteMap({
           basemap/style/WebGL can't come up (e.g. WebGL unavailable on iOS, a stalled
           style fetch). The internal-401 tile recovery above is unaffected. */}
       {status === "error" && (
-        <div className="absolute inset-0 grid place-items-center bg-bg-body/90 px-6" role="alert">
+        <div
+          ref={errorRef}
+          className="absolute inset-0 grid place-items-center bg-bg-body/90 px-6"
+          role="alert"
+        >
           <div className="flex max-w-sm flex-col items-center gap-3 text-center">
             <p className="text-sm text-slate-light">
               The map couldn’t be displayed. This can happen if your browser can’t render maps, or

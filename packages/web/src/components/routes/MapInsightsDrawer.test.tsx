@@ -12,7 +12,7 @@ describe("MapInsightsDrawer", () => {
         <div>chart</div>
       </MapInsightsDrawer>
     );
-    await user.click(screen.getByRole("button", { name: "Show insights" }));
+    await user.click(screen.getByRole("button", { name: "Insights" }));
     expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 
@@ -43,7 +43,7 @@ describe("MapInsightsDrawer", () => {
         <div>chart</div>
       </MapInsightsDrawer>
     );
-    expect(screen.getByRole("button", { name: "Show insights" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Insights" })).toHaveAttribute(
       "aria-expanded",
       "false"
     );

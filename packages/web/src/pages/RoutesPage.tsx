@@ -17,6 +17,7 @@ import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
 import { DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { getSpectrumColor } from "../utils/chartColors";
+import { useIsMobile } from "../hooks/useIsMobile";
 import MapLoadingState from "../components/routes/MapLoadingState";
 import type { SportOption } from "../components/routes/MapFilterControls";
 import type { SelectedRoute } from "../components/routes/RouteMap";
@@ -63,10 +64,40 @@ export default function RoutesPage() {
   const routeFilters = useRouteFilters(activities);
   const { data: prefs } = useUserConfig("preferences");
   const { distanceUnit, elevationUnit } = getUserSettings(prefs);
-  const [drawerOpen, setDrawerOpen] = useState(true);
-  // Insights (charts) live in a RHS drawer, auto-hidden by default (open via its
-  // edge handle) so the map stays unobstructed.
+  // On phones both drawers are bottom sheets that cover the map, so the filter drawer
+  // starts CLOSED on mobile (it's open by default on desktop, where it's a side panel
+  // that leaves the map visible). `useIsMobile` reads matchMedia synchronously on the
+  // first render, so the initial value is correct with no open-then-close flash.
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(() => !isMobile);
+  // Insights (charts) drawer — auto-hidden by default (open via its toggle).
   const [insightsOpen, setInsightsOpen] = useState(false);
+
+  // If the viewport shrinks to a phone while both side panels are open, collapse one
+  // so we never show two stacked bottom sheets.
+  useEffect(() => {
+    // Derived-state correction on breakpoint change; converges (clearing makes the
+    // condition false), so it can't loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isMobile && drawerOpen && insightsOpen) setInsightsOpen(false);
+  }, [isMobile, drawerOpen, insightsOpen]);
+
+  // On phones only one bottom sheet may be open at a time — opening either dismisses
+  // the other. On desktop (side panels) both can coexist.
+  const openFilters = useCallback(
+    (open: boolean) => {
+      setDrawerOpen(open);
+      if (open && isMobile) setInsightsOpen(false);
+    },
+    [isMobile]
+  );
+  const openInsights = useCallback(
+    (open: boolean) => {
+      setInsightsOpen(open);
+      if (open && isMobile) setDrawerOpen(false);
+    },
+    [isMobile]
+  );
 
   // App-category sports present in the data, in a stable order. Each gets a NEON
   // spectrum color by its position — the SAME full-brightness `getSpectrumColor`
@@ -337,7 +368,8 @@ export default function RoutesPage() {
           <Suspense fallback={null}>
             <MapFilterDrawer
               open={drawerOpen}
-              onOpenChange={setDrawerOpen}
+              onOpenChange={openFilters}
+              hideToggle={isMobile && insightsOpen}
               totals={routeFilters.totals}
               totalCount={activities.length}
               activeFilterCount={routeFilters.activeFilterCount}
@@ -388,7 +420,12 @@ export default function RoutesPage() {
               via its edge handle. Only mounted once there's data to summarize. */}
           {activities.length > 0 && (
             <Suspense fallback={null}>
-              <MapInsightsDrawer open={insightsOpen} onOpenChange={setInsightsOpen} isDark={isDark}>
+              <MapInsightsDrawer
+                open={insightsOpen}
+                onOpenChange={openInsights}
+                hideToggle={isMobile && drawerOpen}
+                isDark={isDark}
+              >
                 <SportBreakdownChart
                   activities={routeFilters.filteredActivities}
                   sportColors={sportColors}

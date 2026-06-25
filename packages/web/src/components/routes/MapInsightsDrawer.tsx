@@ -12,6 +12,9 @@ export interface MapInsightsDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isDark: boolean;
+  /** Hide the closed-state toggle even when collapsed — used on mobile while the
+   *  other (filter) bottom sheet is open, so the dock pill doesn't float over it. */
+  hideToggle?: boolean;
   /** Charts slot in here. */
   children?: ReactNode;
 }
@@ -34,15 +37,39 @@ function Chevron({ className }: { className?: string }) {
   );
 }
 
+/** Bar-chart glyph for the "Insights" toggle (the panel holds the charts). */
+function InsightsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="6" y1="20" x2="6" y2="14" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="18" y1="20" x2="18" y2="10" />
+    </svg>
+  );
+}
+
 /**
- * Right-hand **insights** drawer — cross-filtered charts. Auto-hidden by default
- * with a small toggle handle on the right edge; non-modal (renders inline over the
- * map, which stays interactive). Mirrors the left filter drawer's a11y: `inert`
- * when closed, Esc-to-collapse (focus-scoped), return-focus-to-toggle on close.
+ * **Insights** drawer — cross-filtered charts. Auto-hidden by default behind a
+ * toggle: a labeled "Insights" pill in the bottom dock on mobile (beside Filters),
+ * a compact icon button in the top-right corner on desktop. The panel is a bottom
+ * sheet on mobile and a right-hand side panel on desktop (mirrors the filter
+ * drawer). Non-modal (renders inline over the still-interactive map). Same a11y as
+ * the filter drawer: `inert` when closed, Esc-to-collapse (focus-scoped),
+ * return-focus-to-toggle on close.
  */
 export default function MapInsightsDrawer({
   open,
   onOpenChange,
+  hideToggle = false,
   isDark,
   children,
 }: MapInsightsDrawerProps) {
@@ -80,27 +107,34 @@ export default function MapInsightsDrawer({
 
   return (
     <>
-      {/* Closed-state toggle: a compact `‹` in the upper-right corner (no label —
-          the chevron + position imply "open the right-hand panel"). */}
+      {/* Closed-state toggle. Mobile: a labeled "Insights" pill in the bottom dock,
+          just right of center (the Filters toggle sits just left). Desktop: a compact
+          icon button in the upper-right corner. */}
       <button
         ref={toggleButtonRef}
         type="button"
         onClick={() => onOpenChange(true)}
         aria-expanded={open}
         aria-controls={DRAWER_ID}
-        aria-label="Show insights"
-        tabIndex={open ? -1 : undefined}
+        tabIndex={open || hideToggle ? -1 : undefined}
         style={neonChrome}
         className={cn(
-          "absolute right-2 top-2 z-30 inline-flex h-8 w-8 items-center justify-center rounded-md",
-          "border border-border/70 bg-card/85 text-slate-light shadow-lg backdrop-blur-md",
+          "absolute z-30 inline-flex items-center justify-center rounded-md border border-border/70",
+          "bg-card/85 text-body-text shadow-lg backdrop-blur-md",
           "transition-all duration-200 ease-out hover:border-accent-cyan/50 hover:text-accent-cyan",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/50",
           "motion-reduce:transition-none",
-          open ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"
+          // Mobile: bottom-dock pill, right of center (safe-area-aware).
+          "bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 ml-1 gap-2 px-4 py-2 text-sm font-medium",
+          // Desktop: compact icon button, top-right corner.
+          "sm:bottom-auto sm:left-auto sm:right-2 sm:top-2 sm:ml-0 sm:h-8 sm:w-8 sm:gap-0 sm:px-0 sm:py-0",
+          open || hideToggle ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"
         )}
       >
-        <Chevron className="h-4 w-4" />
+        <InsightsIcon className="h-4 w-4" />
+        {/* Visible label on mobile; sr-only on desktop (icon-only) so the accessible
+            name is "Insights" in both — matches the visible text (no aria-label). */}
+        <span className="sm:sr-only">Insights</span>
       </button>
 
       <aside
@@ -112,15 +146,21 @@ export default function MapInsightsDrawer({
         inert={!open}
         style={neonChrome}
         className={cn(
-          "absolute inset-y-0 right-0 z-20 flex w-80 max-w-[85%] flex-col bg-card/85 shadow-xl backdrop-blur-md",
-          "border-l border-border/70 transition-transform duration-300 ease-out motion-reduce:transition-none",
-          open ? "translate-x-0" : "translate-x-[110%]"
+          "absolute z-20 flex flex-col bg-card/85 shadow-xl backdrop-blur-md",
+          "transition-transform duration-300 ease-out motion-reduce:transition-none",
+          // Mobile: bottom sheet (safe-area-aware), mirroring the filter drawer.
+          "inset-x-0 bottom-0 max-h-[70%] border-t border-border/70 pb-[env(safe-area-inset-bottom)]",
+          // Desktop: full-height right panel.
+          "sm:inset-y-0 sm:bottom-auto sm:left-auto sm:right-0 sm:h-full sm:w-80 sm:max-h-none sm:max-w-[85%]",
+          "sm:border-t-0 sm:border-l sm:pb-0",
+          open
+            ? "translate-y-0 sm:translate-x-0"
+            : "translate-y-full sm:translate-y-0 sm:translate-x-[110%]"
         )}
       >
-        {/* sr-only title for the region's accessible name; the `›` collapse control
-            sits in the upper-right, mirroring the closed-state `‹` position. A
-            borderless top bar (no `border-b`) so there's no stray hline above the
-            first chart's header. */}
+        {/* sr-only title for the region's accessible name; the collapse control sits
+            top-right of the sheet/panel. A borderless top bar (no `border-b`) so
+            there's no stray hline above the first chart's header. */}
         <h2 id={headingId} className="sr-only">
           Insights
         </h2>
@@ -134,7 +174,8 @@ export default function MapInsightsDrawer({
             aria-controls={DRAWER_ID}
             className="h-7 w-7 text-slate-light"
           >
-            <Chevron className="h-4 w-4 rotate-180" />
+            {/* Down on mobile (collapses the bottom sheet) / right on desktop. */}
+            <Chevron className="h-4 w-4 -rotate-90 sm:rotate-180" />
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
