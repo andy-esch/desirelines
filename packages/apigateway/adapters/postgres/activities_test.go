@@ -13,6 +13,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -61,6 +63,24 @@ func (emptyRows) Scan(_ ...any) error                          { return nil }
 func (emptyRows) Values() ([]any, error)                       { return nil, nil }
 func (emptyRows) RawValues() [][]byte                          { return nil }
 func (emptyRows) Conn() *pgx.Conn                              { return nil }
+
+// sleepingRows is a zero-row result whose first Next() blocks, simulating
+// row-transfer/scan latency. Used to assert the query-duration timer spans the
+// caller's scan loop (M1 regression) rather than firing right after Query().
+type sleepingRows struct {
+	emptyRows
+	sleep time.Duration
+	done  bool
+}
+
+func (r *sleepingRows) Next() bool {
+	if r.done {
+		return false
+	}
+	r.done = true
+	time.Sleep(r.sleep)
+	return false
+}
 
 // newSpanRecordingRepo returns a repository wired to an in-memory span
 // recorder and a default fakeQuerier returning zero rows. Tests then either
@@ -440,9 +460,7 @@ func TestGetRouteRegionSummary(t *testing.T) {
 }
 
 func TestGetMultiSportMetricsByDateRange_EmitsSpan(t *testing.T) {
-	// Exercises both the public method's span AND the helper
-	// queryMultiSportByDateRange's RecordDuration call. Empty rows return
-	// an empty map.
+	// Exercises the public method's span. Empty rows return an empty map.
 	repo, sr := newSpanRecordingRepo(t)
 
 	result, err := repo.GetMultiSportMetricsByDateRange(
@@ -486,6 +504,70 @@ func TestGetMultiSportDailySummaryByDateRange_EmitsSpan(t *testing.T) {
 	if got := attrAsInt(span, "sport_count"); got != 1 {
 		t.Errorf("sport_count = %d, want 1", got)
 	}
+}
+
+// TestGetMultiSportMetricsByDateRange_TimerSpansRowScan is the M1 regression
+// guard: the query-duration histogram must time the full method, including the
+// row-scan loop — not just Query() dispatch. We make row iteration sleep and
+// assert the recorded duration covers it. The previous code recorded inside
+// queryMultiSportByDateRange (before the scan), so it would record ~0 here.
+func TestGetMultiSportMetricsByDateRange_TimerSpansRowScan(t *testing.T) {
+	const sleep = 30 * time.Millisecond
+
+	reader := sdkmetric.NewManualReader()
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	hist, histErr := mp.Meter("test").Float64Histogram("test")
+	if histErr != nil {
+		t.Fatalf("create histogram: %v", histErr)
+	}
+
+	repo, _ := newSpanRecordingRepo(t)
+	repo.histogram = hist
+	repo.db = &fakeQuerier{
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return &sleepingRows{sleep: sleep}, nil
+		},
+	}
+
+	if _, err := repo.GetMultiSportMetricsByDateRange(
+		context.Background(), "user-1", "2026-01-01", "2026-12-31", []string{"Run"},
+	); err != nil {
+		t.Fatalf("GetMultiSportMetricsByDateRange: %v", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	got := histogramSum(t, &rm, "test")
+	// New code records >= 30ms (the scan sleep); the old (helper-scoped) timer
+	// would record ~0. Half the sleep is a generous floor well clear of both.
+	if want := float64(sleep.Milliseconds()) / 2; got < want {
+		t.Errorf("recorded duration = %.1fms, want >= %.1fms (timer must span the row scan)", got, want)
+	}
+}
+
+// histogramSum returns the total recorded value for the named float64 histogram.
+func histogramSum(t *testing.T, rm *metricdata.ResourceMetrics, name string) float64 {
+	t.Helper()
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != name {
+				continue
+			}
+			h, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("metric %q is not a float64 histogram", name)
+			}
+			var sum float64
+			for _, dp := range h.DataPoints {
+				sum += dp.Sum
+			}
+			return sum
+		}
+	}
+	t.Fatalf("histogram %q was not recorded", name)
+	return 0
 }
 
 //nolint:dupl // Sibling year-wrapper tests intentionally have identical shape; the methods they exercise are themselves twins.
