@@ -19,7 +19,7 @@ import {
   minutesToHours,
   type MetricType,
 } from "../utils/units";
-import { toLocalDateString } from "../utils/dateUtils";
+import { formatDisplayDate, toLocalDateString } from "../utils/dateUtils";
 import { useQueries } from "@tanstack/react-query";
 import { UserConfigService } from "../services/userConfigService";
 import type { GoalsForYear } from "../types/generated/user_config";
@@ -45,13 +45,6 @@ function getMondayOfCurrentWeek(): Date {
   monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
   monday.setHours(0, 0, 0, 0);
   return monday;
-}
-
-/**
- * Format a short date label like "Feb 3".
- */
-function formatShortDate(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /**
@@ -87,7 +80,7 @@ export function useWeeklySummary(): {
     return {
       mondayStr: toLocalDateString(mon),
       todayStr: toLocalDateString(tod),
-      weekLabel: `${formatShortDate(mon)} – ${formatShortDate(tod)}`,
+      weekLabel: `${formatDisplayDate(mon)} – ${formatDisplayDate(tod)}`,
     };
   }, []);
 

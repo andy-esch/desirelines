@@ -407,6 +407,28 @@ export class UserConfigService {
     const config = await this.getConfig();
     if (!config) return null;
 
+    return this.selectConfigSection(config, configType, year, sport);
+  }
+
+  /**
+   * Drill into a config section by year/sport. Shared by getConfigSection
+   * (which returns the value) and subscribeToConfigSection (which passes it to
+   * a callback) so the goals/annotations nesting and the `as` casts live in
+   * exactly one place. Returns null when the section or requested year is absent.
+   */
+  private selectConfigSection(
+    config: UserConfig,
+    configType: "goals" | "annotations" | "preferences",
+    year?: number,
+    sport?: string
+  ):
+    | GoalsForYear
+    | SportGoalsForYear
+    | AnnotationsForYear
+    | Preferences
+    | { [key: string]: SportGoalsForYear }
+    | { [key: string]: AnnotationsForYear }
+    | null {
     const section = config[configType];
     if (!section) return null;
 
@@ -582,36 +604,7 @@ export class UserConfigService {
         return;
       }
 
-      const section = config[configType];
-      if (!section) {
-        callback(null);
-        return;
-      }
-
-      // Handle goals with year and sport
-      if (year !== undefined && sport !== undefined && configType === "goals") {
-        const goalsSection = section as { [key: string]: SportGoalsForYear };
-        const yearGoals = goalsSection[year.toString()];
-        if (!yearGoals) {
-          callback(null);
-          return;
-        }
-        callback(yearGoals.sports[sport] || null);
-      }
-      // Handle goals with year only (return all sports)
-      else if (year !== undefined && configType === "goals") {
-        const goalsSection = section as { [key: string]: SportGoalsForYear };
-        callback(goalsSection[year.toString()] || null);
-      }
-      // Handle annotations with year
-      else if (year !== undefined && configType === "annotations") {
-        const annotationsSection = section as { [key: string]: AnnotationsForYear };
-        callback(annotationsSection[year.toString()] || null);
-      }
-      // Return full section (all years)
-      else {
-        callback(section);
-      }
+      callback(this.selectConfigSection(config, configType, year, sport));
     });
   }
 }

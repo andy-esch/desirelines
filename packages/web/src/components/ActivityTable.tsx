@@ -10,6 +10,7 @@ import {
   type ElevationUnit,
 } from "../utils/units";
 import { SPORT_COLORS } from "../utils/sportConfig";
+import { formatDisplayDate } from "../utils/dateUtils";
 import NeonSpinner from "./NeonSpinner";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
 import { MapPinIcon } from "./ui/MapPinIcon";
@@ -50,16 +51,6 @@ function formatDuration(seconds: number): string {
     return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
-}
-
-/** Format date to readable format */
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 /** Calculate and format pace (running) or speed (cycling) */
@@ -146,7 +137,13 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
             <tbody>
               {activities.map((activity) => (
                 <tr key={activity.id}>
-                  <td className="whitespace-nowrap">{formatDate(activity.startDateLocal)}</td>
+                  <td className="whitespace-nowrap">
+                    {formatDisplayDate(new Date(activity.startDateLocal), {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </td>
                   <td>
                     <a
                       href={`https://www.strava.com/activities/${activity.id}`}

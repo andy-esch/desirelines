@@ -42,7 +42,7 @@ import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 import { calculateCumulativeYAxisMax } from "../../utils/chartScaling";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
-import { formatChartAxisDate } from "../../utils/dateUtils";
+import { formatChartAxisDate, formatDisplayDate } from "../../utils/dateUtils";
 
 // ============================================================================
 // Types
@@ -204,10 +204,7 @@ function AchievementLegend({ achievements }: { achievements: GoalAchievement[] }
           <span style={{ color: "var(--color-chart-tooltip-muted)" }}>
             {achievement.goalLabel}{" "}
             <span style={{ color: "var(--color-chart-tooltip-label)" }}>
-              {achievement.date.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-              })}
+              {formatDisplayDate(achievement.date)}
             </span>
           </span>
         </div>

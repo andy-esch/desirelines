@@ -13,7 +13,6 @@
  * - `getPrimaryMetric` has reserved parameter for future user preferences
  *
  * @see chartColors.ts - For goal/chart line colors
- * @see uiColors.ts - For UI element colors (toned down)
  */
 
 import type { SportConfig } from "../api/activities";
