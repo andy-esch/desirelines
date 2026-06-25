@@ -141,16 +141,14 @@ func (r *ActivityRepository) Close() error {
 	return nil
 }
 
-// queryMultiSportByDateRange is a helper that executes a multi-sport query with a date range.
-// It handles OpenTelemetry duration recording and common error wrapping.
+// queryMultiSportByDateRange is a helper that executes a multi-sport query with a date range
+// and wraps errors. It deliberately does NOT record the query-duration histogram: that timer
+// must outlive the caller's row-scan loop (where a full-year × multi-sport result spends most
+// of its latency), so each caller owns RecordDuration at method scope — like the other
+// repository methods — rather than having it fire here, immediately after Query() returns.
 func (r *ActivityRepository) queryMultiSportByDateRange(ctx context.Context, op, query, userID, from, to string, sportTypes []string) (pgx.Rows, error) {
-	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", op))
-	var retErr error
-	defer func() { done(retErr) }()
-
 	rows, err := r.db.Query(ctx, query, userID, from, to, sportTypes)
 	if err != nil {
-		retErr = err
 		return nil, fmt.Errorf("query multi-sport %s: %w", op, err)
 	}
 	return rows, nil
@@ -171,9 +169,13 @@ func (r *ActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context
 		attribute.String("to", to),
 		attribute.Int("sport_count", len(sportTypes)),
 	)
+	// operation= label aligned with span name; timed at method scope so the histogram spans
+	// the row-scan loop (queryMultiSportByDateRange deliberately does not own this timer).
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "multi_sport_metrics_by_date_range"))
 	defer func() {
 		// result.row_count = number of sports returned (each may have many timeseries points).
 		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(result)))
+		done(retErr)
 		spanDone(retErr)
 	}()
 
@@ -322,8 +324,12 @@ func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Co
 		attribute.String("to", to),
 		attribute.Int("sport_count", len(sportTypes)),
 	)
+	// operation= label aligned with span name; timed at method scope so the histogram spans
+	// the row-scan loop (queryMultiSportByDateRange deliberately does not own this timer).
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "multi_sport_daily_summary_by_date_range"))
 	defer func() {
 		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(result)))
+		done(retErr)
 		spanDone(retErr)
 	}()
 
@@ -335,7 +341,7 @@ func (r *ActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Co
 			SUM(total_elevation_gain) as elevation,
 			SUM(moving_time) / 60.0 as time,
 			COUNT(*) as activities,
-			array_agg(id) as activity_ids
+			array_agg(id ORDER BY id) as activity_ids
 		FROM desirelines.activities
 		WHERE user_id = $1
 		  AND start_date_local::date >= $2::date
