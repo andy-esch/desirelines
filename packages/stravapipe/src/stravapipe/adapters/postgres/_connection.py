@@ -156,10 +156,9 @@ def _read_raw_connection_string() -> str:
     # Try secret mount first (Cloud Run)
     secret_path = Path(_SECRET_PATH)
     if secret_path.exists():
-        with secret_path.open(encoding="utf-8") as f:
-            conn_str = f.read().strip()
-            if conn_str:
-                return conn_str
+        conn_str = secret_path.read_text(encoding="utf-8").strip()
+        if conn_str:
+            return conn_str
 
     # Fallback to environment variable (local dev)
     conn_str = os.environ.get(_ENV_VAR, "").strip()

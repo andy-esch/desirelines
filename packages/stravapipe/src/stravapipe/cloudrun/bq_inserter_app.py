@@ -32,7 +32,7 @@ from stravapipe.domain.activity import DetailedStravaActivity
 from stravapipe.ports.out.write import WriteActivities
 from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.logging import setup_logging
-from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
+from stravapipe.shared.metrics import record_duration, setup_metrics
 from stravapipe.shared.readiness import (
     build_ready_response,
     check_bigquery,
@@ -45,7 +45,7 @@ from stravapipe.shared.tracing import (
     instrument_fastapi_app,
     record_span,
     setup_tracing,
-    shutdown_tracing,
+    shutdown_otel,
 )
 from stravapipe.types.generated import webhook_pb2 as pb
 
@@ -112,11 +112,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # any final stream-close log/metric still has a tracer available.
         if app.state.writer is not None:
             app.state.writer.close()
-        # shutdown_metrics and shutdown_tracing are safe to call multiple times
-        # and handle the case where they haven't been initialized (provider is None).
-        shutdown_metrics()
-        shutdown_tracing()
-        logger.info("OTel resources shutdown")
+        # shutdown_otel guards each provider shutdown independently (and is safe
+        # to call when a provider was never initialized) and logs completion.
+        shutdown_otel()
 
 
 app = FastAPI(

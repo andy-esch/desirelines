@@ -69,9 +69,7 @@ class BigQueryClientWrapper:
         Returns:
             List of BigQuery Row objects
         """
-        job_config = QueryJobConfig(
-            query_parameters=query_parameters if query_parameters else []
-        )
+        job_config = QueryJobConfig(query_parameters=query_parameters or [])
         result = self._client.query(query, job_config=job_config).result()
         return list(result)
 
@@ -90,9 +88,7 @@ class BigQueryClientWrapper:
         Returns:
             dict: Job statistics including rows affected, execution time, etc.
         """
-        job_config = QueryJobConfig(
-            query_parameters=query_parameters if query_parameters else []
-        )
+        job_config = QueryJobConfig(query_parameters=query_parameters or [])
         job = self._client.query(query, job_config=job_config)
 
         try:
@@ -145,9 +141,7 @@ class BigQueryClientWrapper:
         Returns:
             Number of rows affected
         """
-        job_config = QueryJobConfig(
-            query_parameters=query_parameters if query_parameters else []
-        )
+        job_config = QueryJobConfig(query_parameters=query_parameters or [])
         job = self._client.query(query, job_config=job_config)
 
         try:
