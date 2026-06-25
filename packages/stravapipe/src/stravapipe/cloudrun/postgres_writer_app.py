@@ -29,7 +29,7 @@ from stravapipe.domain.geometry import decode_polyline_to_geojson
 from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.correlation import get_dispatcher_received_at_ms
 from stravapipe.shared.logging import setup_logging
-from stravapipe.shared.metrics import record_duration, setup_metrics, shutdown_metrics
+from stravapipe.shared.metrics import record_duration, setup_metrics
 from stravapipe.shared.readiness import (
     build_ready_response,
     check_postgres,
@@ -43,7 +43,7 @@ from stravapipe.shared.tracing import (
     instrument_sqlalchemy_engine,
     record_span,
     setup_tracing,
-    shutdown_tracing,
+    shutdown_otel,
 )
 from stravapipe.types.generated import webhook_pb2 as pb
 
@@ -179,11 +179,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             engine.dispose()
             logger.info("PostgreSQL engine disposed")
 
-        # shutdown_metrics and shutdown_tracing are safe to call multiple times
-        # and handle the case where they haven't been initialized (provider is None).
-        shutdown_metrics()
-        shutdown_tracing()
-        logger.info("OTel resources shutdown")
+        # shutdown_otel guards each provider shutdown independently (and is safe
+        # to call when a provider was never initialized) and logs completion.
+        shutdown_otel()
 
 
 app = FastAPI(

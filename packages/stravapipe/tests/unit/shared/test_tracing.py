@@ -27,8 +27,40 @@ from stravapipe.shared.tracing import (
     extract_context_from_attributes,
     record_span,
     setup_tracing,
+    shutdown_otel,
     shutdown_tracing,
 )
+
+
+class TestShutdownOtel:
+    """shutdown_otel must guard each provider shutdown independently."""
+
+    def test_metrics_failure_does_not_skip_tracing_or_raise(self):
+        """A raising metrics shutdown must not prevent the tracing flush."""
+        with (
+            patch(
+                "stravapipe.shared.tracing.shutdown_metrics",
+                side_effect=RuntimeError("metrics export failed"),
+            ) as mock_metrics,
+            patch("stravapipe.shared.tracing.shutdown_tracing") as mock_tracing,
+        ):
+            shutdown_otel()  # must not raise
+
+        assert mock_metrics.called
+        assert mock_tracing.called, "tracing shutdown must run even if metrics fails"
+
+    def test_tracing_failure_is_swallowed(self):
+        """A raising tracing shutdown must not propagate out of teardown."""
+        with (
+            patch("stravapipe.shared.tracing.shutdown_metrics") as mock_metrics,
+            patch(
+                "stravapipe.shared.tracing.shutdown_tracing",
+                side_effect=RuntimeError("span flush failed"),
+            ),
+        ):
+            shutdown_otel()  # must not raise
+
+        assert mock_metrics.called
 
 
 class TestSetupTracing:

@@ -28,7 +28,11 @@ from opentelemetry.trace import (
 )
 from sqlalchemy.engine import Engine
 
-from stravapipe.shared.metrics import _otel_enabled, build_gcp_resource
+from stravapipe.shared.metrics import (
+    _otel_enabled,
+    build_gcp_resource,
+    shutdown_metrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +113,26 @@ def shutdown_tracing() -> None:
     if _tracer_provider is not None:
         _tracer_provider.shutdown()
         _tracer_provider = None
+
+
+def shutdown_otel() -> None:
+    """Shut down both OTel providers, guarding each independently.
+
+    A failed flush in one provider (e.g. a network blip during a Cloud Run
+    revision swap) must not skip the other or — since this runs in the lifespan
+    ``finally`` — mask an in-flight startup/shutdown error. Each provider
+    shutdown is isolated in its own try/except (log-and-continue), so buffered
+    spans still flush even if the metrics export throws, and vice versa.
+    """
+    try:
+        shutdown_metrics()
+    except Exception:
+        logger.exception("OTel metrics shutdown failed")
+    try:
+        shutdown_tracing()
+    except Exception:
+        logger.exception("OTel tracing shutdown failed")
+    logger.info("OTel resources shutdown")
 
 
 def instrument_fastapi_app(app: FastAPI) -> None:
