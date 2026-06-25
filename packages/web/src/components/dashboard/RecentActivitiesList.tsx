@@ -10,7 +10,7 @@ import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
 
 import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
-import { toLocalDateString as toLocal } from "../../utils/dateUtils";
+import { formatDisplayDate, toLocalDateString as toLocal } from "../../utils/dateUtils";
 
 /** Height of the thead row in px */
 const HEADER_HEIGHT = 22;
@@ -37,14 +37,6 @@ function formatDuration(seconds: number): string {
     return `${hours}h ${mins}m`;
   }
   return `${mins}m`;
-}
-
-/**
- * Format activity date as "Mon DD".
- */
-function formatActivityDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /** Parse a hex color string (e.g. "#718096") into RGB components */
@@ -345,7 +337,7 @@ export default function RecentActivitiesList({
                     className="text-slate-light text-right ps-1 pe-0 py-0 align-middle"
                     style={{ whiteSpace: "nowrap" }}
                   >
-                    {formatActivityDate(activity.startDateLocal)}
+                    {formatDisplayDate(new Date(activity.startDateLocal))}
                   </td>
                 </tr>
               );
