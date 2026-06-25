@@ -76,6 +76,12 @@ func (c *SecretCache) GetSecrets() (string, int32, error) {
 		c.logger.Error("Failed to hash secrets files", "error", err)
 		// Return cached values if available
 		if c.verifyToken != "" {
+			// Advance lastCheck so a *persistent* hash fault doesn't re-hash and
+			// re-log under the write lock on every request. GetSecrets is on the
+			// per-request webhook hot path; without this the fault path runs on
+			// each call. The cached secrets are still valid — gate the retry for
+			// one TTL and recover at the next TTL boundary once the fault clears.
+			c.lastCheck = time.Now()
 			return c.verifyToken, c.subscriptionID, nil
 		}
 		// Secrets files unreadable (permission/IO error) and no value cached yet
@@ -96,6 +102,12 @@ func (c *SecretCache) GetSecrets() (string, int32, error) {
 			c.logger.Warn("Failed to reload secrets, using cached values", "error", loadErr)
 			// Return cached values if available
 			if c.verifyToken != "" {
+				// Advance lastCheck so a *persistent* reload fault doesn't
+				// re-hash + reload + re-log on every request (same hot-path
+				// concern as the hash-error branch above). contentHash is left
+				// stale on purpose so the reload is retried — and succeeds — at
+				// the next TTL boundary once the fault clears.
+				c.lastCheck = time.Now()
 				return c.verifyToken, c.subscriptionID, nil
 			}
 			return "", 0, fmt.Errorf("failed to load secrets: %w", loadErr)
