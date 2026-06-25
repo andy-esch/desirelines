@@ -1,7 +1,6 @@
 """Unit tests for BackfillService.
 
-Tests the bulk backfill orchestration logic using mocked adapters.
-Follows the same patterns as test_write_service.py:
+Tests the bulk backfill orchestration logic using mocked adapters:
 - unittest.mock with spec= for interface compliance
 - Arrange/Act/Assert structure
 - Grouped by behavior

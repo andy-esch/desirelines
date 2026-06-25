@@ -1,7 +1,7 @@
 """BQ inserter services for webhook processing.
 
-Activity data is now provided inline by the dispatcher's enriched events.
-The SyncService (which fetched from Strava API) is no longer used.
+Activity data is provided inline by the dispatcher's enriched events rather
+than fetched from the Strava API.
 """
 
 from opentelemetry.trace import Tracer

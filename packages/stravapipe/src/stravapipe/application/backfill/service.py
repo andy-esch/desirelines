@@ -4,9 +4,9 @@ This service coordinates fetching historical activities from the Strava API
 and writing them to both PostgreSQL and BigQuery. It is designed to run as a
 Cloud Run Job (not a long-lived server) triggered per-user after OAuth.
 
-Unlike the webhook-driven services (PostgresWriteService, SyncService) which
-handle single activities, BackfillService operates in bulk — fetching entire
-years of activities and inserting in batches.
+Unlike the webhook-driven write path (which handles single activities inline
+from the dispatcher's enriched events), BackfillService operates in bulk —
+fetching entire years of activities and inserting in batches.
 """
 
 from collections.abc import Callable, Iterator, Sequence
