@@ -34,6 +34,9 @@ export interface MapFilterDrawerProps {
   /** Whether the drawer is expanded. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Hide the closed-state toggle even when collapsed — used on mobile while the
+   *  other (insights) bottom sheet is open, so the dock pill doesn't float over it. */
+  hideToggle?: boolean;
   /** Totals of the currently-filtered activity set (drives the summary). */
   totals: ActivityTotals;
   /** Size of the full dataset, for the "of N" context line. */
@@ -99,6 +102,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export default function MapFilterDrawer({
   open,
   onOpenChange,
+  hideToggle = false,
   totals,
   totalCount,
   activeFilterCount,
@@ -208,7 +212,7 @@ export default function MapFilterDrawer({
         aria-controls={DRAWER_ID}
         // When open the handle is visually hidden (opacity-0/pointer-events-none) —
         // also drop it from the tab order so keyboard users don't hit a ghost button.
-        tabIndex={open ? -1 : undefined}
+        tabIndex={open || hideToggle ? -1 : undefined}
         style={neonChrome}
         className={cn(
           // Restrained glass chrome with square corners (matches the panel + sits
@@ -223,7 +227,7 @@ export default function MapFilterDrawer({
           "bottom-[calc(1rem+env(safe-area-inset-bottom))] right-1/2 mr-1",
           // Desktop: top-left corner.
           "sm:bottom-auto sm:right-auto sm:left-4 sm:top-4 sm:mr-0",
-          open
+          open || hideToggle
             ? "pointer-events-none scale-95 opacity-0"
             : "pointer-events-auto scale-100 opacity-100"
         )}

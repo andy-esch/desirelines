@@ -337,27 +337,33 @@ describe("RoutesPage", () => {
       };
     };
 
-    it("makes the filter + insights sheets mutually exclusive on a phone", async () => {
+    // Toggles are matched by anchored names so they don't collide with "Reset
+    // filters" / "Collapse insights" once a sheet/filter is active.
+    const findFiltersToggle = () =>
+      screen.findByRole("button", { name: /^filters/i }, { timeout: 4000 });
+    const findInsightsToggle = () =>
+      screen.findByRole("button", { name: /^insights$/i }, { timeout: 4000 });
+
+    it("starts both sheets closed and keeps them mutually exclusive on a phone", async () => {
       const restore = setViewport(true);
       try {
-        mockUseMapDataset.mockReturnValue({ activities: [activity], isLoading: false, error: null });
+        mockUseMapDataset.mockReturnValue({
+          activities: [activity],
+          isLoading: false,
+          error: null,
+        });
         await renderWithRouter(<RoutesPage />);
         await screen.findByTestId("route-map");
 
-        // Filters open by default; insights closed.
-        const filtersToggle = await screen.findByRole(
-          "button",
-          { name: /filters/i },
-          { timeout: 4000 }
-        );
-        expect(filtersToggle).toHaveAttribute("aria-expanded", "true");
+        // On mobile the filter sheet starts CLOSED so the map isn't buried on load.
+        const filtersToggle = await findFiltersToggle();
+        expect(filtersToggle).toHaveAttribute("aria-expanded", "false");
 
-        // Opening insights dismisses filters (only one bottom sheet at a time).
-        const insightsToggle = await screen.findByRole(
-          "button",
-          { name: /show insights/i },
-          { timeout: 4000 }
-        );
+        // Open filters, then insights — opening insights dismisses filters.
+        fireEvent.click(filtersToggle);
+        await waitFor(() => expect(filtersToggle).toHaveAttribute("aria-expanded", "true"));
+
+        const insightsToggle = await findInsightsToggle();
         fireEvent.click(insightsToggle);
 
         await waitFor(() => expect(filtersToggle).toHaveAttribute("aria-expanded", "false"));
@@ -367,23 +373,22 @@ describe("RoutesPage", () => {
       }
     });
 
-    it("lets both drawers stay open on desktop", async () => {
+    it("opens the filter drawer by default and lets both coexist on desktop", async () => {
       const restore = setViewport(false);
       try {
-        mockUseMapDataset.mockReturnValue({ activities: [activity], isLoading: false, error: null });
+        mockUseMapDataset.mockReturnValue({
+          activities: [activity],
+          isLoading: false,
+          error: null,
+        });
         await renderWithRouter(<RoutesPage />);
         await screen.findByTestId("route-map");
 
-        const filtersToggle = await screen.findByRole(
-          "button",
-          { name: /filters/i },
-          { timeout: 4000 }
-        );
-        const insightsToggle = await screen.findByRole(
-          "button",
-          { name: /show insights/i },
-          { timeout: 4000 }
-        );
+        // Filter drawer (a side panel on desktop) is open by default.
+        const filtersToggle = await findFiltersToggle();
+        expect(filtersToggle).toHaveAttribute("aria-expanded", "true");
+
+        const insightsToggle = await findInsightsToggle();
         fireEvent.click(insightsToggle);
 
         // Side panels coexist on desktop — opening insights leaves filters open.

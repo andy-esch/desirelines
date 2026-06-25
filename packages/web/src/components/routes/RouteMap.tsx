@@ -106,6 +106,13 @@ const HIGHLIGHT_LAYER_ID = "routes-lines-highlight";
  */
 const HITAREA_LAYER_ID = "routes-lines-hit";
 const HIT_WIDTH = 22;
+/** Static — hoisted so the paint keeps a stable identity (react-map-gl re-applies
+ *  paint on a new object each render; see `linePaint`). Fully transparent. */
+const HIT_PAINT: NonNullable<LineLayerSpecification["paint"]> = {
+  "line-color": "#000",
+  "line-opacity": 0,
+  "line-width": HIT_WIDTH,
+};
 
 /** Strava deep link for an activity. */
 function stravaUrl(activityId: number): string {
@@ -374,6 +381,15 @@ export default function RouteMap({
     return () => window.clearTimeout(t);
   }, [status, remountKey]);
 
+  // When the failure surface appears, move focus to its "Try again" button so a
+  // keyboard/SR user lands on the recovery action (the alert announces, then this
+  // gives them the control). `Button` doesn't forward a ref, so reach via the
+  // container.
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (status === "error") errorRef.current?.querySelector("button")?.focus();
+  }, [status]);
+
   const onMouseMove = useCallback((e: MapMouseEvent) => {
     const map = mapRef.current;
     if (!map) return;
@@ -523,7 +539,7 @@ export default function RouteMap({
             minzoom={LINE_MIN_ZOOM}
             {...(filter ? { filter } : {})}
             layout={{ "line-join": "round", "line-cap": "round" }}
-            paint={{ "line-color": "#000", "line-opacity": 0, "line-width": HIT_WIDTH }}
+            paint={HIT_PAINT}
           />
           {/* Wider highlight for the hovered/selected route, on top of the base
               layer (filtered to those ids — no feature-state). */}
@@ -594,7 +610,11 @@ export default function RouteMap({
           basemap/style/WebGL can't come up (e.g. WebGL unavailable on iOS, a stalled
           style fetch). The internal-401 tile recovery above is unaffected. */}
       {status === "error" && (
-        <div className="absolute inset-0 grid place-items-center bg-bg-body/90 px-6" role="alert">
+        <div
+          ref={errorRef}
+          className="absolute inset-0 grid place-items-center bg-bg-body/90 px-6"
+          role="alert"
+        >
           <div className="flex max-w-sm flex-col items-center gap-3 text-center">
             <p className="text-sm text-slate-light">
               The map couldn’t be displayed. This can happen if your browser can’t render maps, or

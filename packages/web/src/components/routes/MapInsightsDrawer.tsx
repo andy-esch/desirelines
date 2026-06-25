@@ -12,6 +12,9 @@ export interface MapInsightsDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isDark: boolean;
+  /** Hide the closed-state toggle even when collapsed — used on mobile while the
+   *  other (filter) bottom sheet is open, so the dock pill doesn't float over it. */
+  hideToggle?: boolean;
   /** Charts slot in here. */
   children?: ReactNode;
 }
@@ -66,6 +69,7 @@ function InsightsIcon({ className }: { className?: string }) {
 export default function MapInsightsDrawer({
   open,
   onOpenChange,
+  hideToggle = false,
   isDark,
   children,
 }: MapInsightsDrawerProps) {
@@ -112,8 +116,7 @@ export default function MapInsightsDrawer({
         onClick={() => onOpenChange(true)}
         aria-expanded={open}
         aria-controls={DRAWER_ID}
-        aria-label="Show insights"
-        tabIndex={open ? -1 : undefined}
+        tabIndex={open || hideToggle ? -1 : undefined}
         style={neonChrome}
         className={cn(
           "absolute z-30 inline-flex items-center justify-center rounded-md border border-border/70",
@@ -125,11 +128,13 @@ export default function MapInsightsDrawer({
           "bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 ml-1 gap-2 px-4 py-2 text-sm font-medium",
           // Desktop: compact icon button, top-right corner.
           "sm:bottom-auto sm:left-auto sm:right-2 sm:top-2 sm:ml-0 sm:h-8 sm:w-8 sm:gap-0 sm:px-0 sm:py-0",
-          open ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"
+          open || hideToggle ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"
         )}
       >
         <InsightsIcon className="h-4 w-4" />
-        <span className="sm:hidden">Insights</span>
+        {/* Visible label on mobile; sr-only on desktop (icon-only) so the accessible
+            name is "Insights" in both — matches the visible text (no aria-label). */}
+        <span className="sm:sr-only">Insights</span>
       </button>
 
       <aside
@@ -153,10 +158,9 @@ export default function MapInsightsDrawer({
             : "translate-y-full sm:translate-y-0 sm:translate-x-[110%]"
         )}
       >
-        {/* sr-only title for the region's accessible name; the `›` collapse control
-            sits in the upper-right, mirroring the closed-state `‹` position. A
-            borderless top bar (no `border-b`) so there's no stray hline above the
-            first chart's header. */}
+        {/* sr-only title for the region's accessible name; the collapse control sits
+            top-right of the sheet/panel. A borderless top bar (no `border-b`) so
+            there's no stray hline above the first chart's header. */}
         <h2 id={headingId} className="sr-only">
           Insights
         </h2>

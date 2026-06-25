@@ -64,14 +64,26 @@ export default function RoutesPage() {
   const routeFilters = useRouteFilters(activities);
   const { data: prefs } = useUserConfig("preferences");
   const { distanceUnit, elevationUnit } = getUserSettings(prefs);
-  const [drawerOpen, setDrawerOpen] = useState(true);
-  // Insights (charts) live in a separate drawer, auto-hidden by default (open via its
-  // toggle) so the map stays unobstructed.
+  // On phones both drawers are bottom sheets that cover the map, so the filter drawer
+  // starts CLOSED on mobile (it's open by default on desktop, where it's a side panel
+  // that leaves the map visible). `useIsMobile` reads matchMedia synchronously on the
+  // first render, so the initial value is correct with no open-then-close flash.
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(() => !isMobile);
+  // Insights (charts) drawer — auto-hidden by default (open via its toggle).
   const [insightsOpen, setInsightsOpen] = useState(false);
 
-  // On phones both drawers are bottom sheets, so only one may be open at a time —
-  // opening either dismisses the other. On desktop (side panels) both can coexist.
-  const isMobile = useIsMobile();
+  // If the viewport shrinks to a phone while both side panels are open, collapse one
+  // so we never show two stacked bottom sheets.
+  useEffect(() => {
+    // Derived-state correction on breakpoint change; converges (clearing makes the
+    // condition false), so it can't loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isMobile && drawerOpen && insightsOpen) setInsightsOpen(false);
+  }, [isMobile, drawerOpen, insightsOpen]);
+
+  // On phones only one bottom sheet may be open at a time — opening either dismisses
+  // the other. On desktop (side panels) both can coexist.
   const openFilters = useCallback(
     (open: boolean) => {
       setDrawerOpen(open);
@@ -357,6 +369,7 @@ export default function RoutesPage() {
             <MapFilterDrawer
               open={drawerOpen}
               onOpenChange={openFilters}
+              hideToggle={isMobile && insightsOpen}
               totals={routeFilters.totals}
               totalCount={activities.length}
               activeFilterCount={routeFilters.activeFilterCount}
@@ -407,7 +420,12 @@ export default function RoutesPage() {
               via its edge handle. Only mounted once there's data to summarize. */}
           {activities.length > 0 && (
             <Suspense fallback={null}>
-              <MapInsightsDrawer open={insightsOpen} onOpenChange={openInsights} isDark={isDark}>
+              <MapInsightsDrawer
+                open={insightsOpen}
+                onOpenChange={openInsights}
+                hideToggle={isMobile && drawerOpen}
+                isDark={isDark}
+              >
                 <SportBreakdownChart
                   activities={routeFilters.filteredActivities}
                   sportColors={sportColors}
