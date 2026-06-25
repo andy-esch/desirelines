@@ -19,11 +19,19 @@ SUPPORTED_CONFIG_VERSIONS = ["1.0"]
 # config.UnknownSportCategory ("other"); changes must stay in lockstep.
 UNKNOWN_SPORT_CATEGORY = "other"
 
-# UNKNOWN_SPORT_LOG_MESSAGE is the canonical WARNING message the GCP
-# log-based metric filter is bound to (see
-# terraform/modules/desirelines/monitoring.tf). Renaming this string
-# without also updating Terraform silently breaks the alert.
+# UNKNOWN_SPORT_LOG_MESSAGE is the human-readable WARNING message. It is NO
+# LONGER what the metric keys off (see UNKNOWN_SPORT_LOG_EVENT), so it can be
+# reworded freely.
 UNKNOWN_SPORT_LOG_MESSAGE = "Unknown Strava sport_type detected"
+
+# UNKNOWN_SPORT_LOG_EVENT is the stable structured "event" field the GCP
+# log-based metric (terraform/modules/desirelines/monitoring.tf) filters on:
+# jsonPayload.event="unknown_sport_type". Keying the metric on this machine
+# field instead of the prose message means a reworded message can't silently
+# break the alert. Monitoring contract shared across two runtimes — keep
+# byte-identical with the Go emitter (unknownSportLogEvent) and the terraform
+# filter; pinned by test_categorize_unknown_returns_other_and_warns.
+UNKNOWN_SPORT_LOG_EVENT = "unknown_sport_type"
 
 
 class DangerPaceModel(BaseModel):
@@ -172,9 +180,17 @@ class SportConfig:
             self._unknown_seen.add(sport_type)
             logger.warning(
                 UNKNOWN_SPORT_LOG_MESSAGE,
+                # Wrap in json_fields so these reach Cloud Logging's jsonPayload.
+                # This module uses a plain logging.getLogger, so a bare
+                # `extra={...}` only sets in-process record attributes that never
+                # surface in jsonPayload — the metric's `event` filter and its
+                # `unmapped_sport_type` label extractor would both get nothing.
                 extra={
-                    "unmapped_sport_type": sport_type,
-                    "fallback_category": UNKNOWN_SPORT_CATEGORY,
+                    "json_fields": {
+                        "event": UNKNOWN_SPORT_LOG_EVENT,
+                        "unmapped_sport_type": sport_type,
+                        "fallback_category": UNKNOWN_SPORT_CATEGORY,
+                    }
                 },
             )
         return UNKNOWN_SPORT_CATEGORY

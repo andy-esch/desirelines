@@ -8,6 +8,7 @@ import pytest
 from stravapipe.config.sport_config import (
     SUPPORTED_CONFIG_VERSIONS,
     UNKNOWN_SPORT_CATEGORY,
+    UNKNOWN_SPORT_LOG_EVENT,
     UNKNOWN_SPORT_LOG_MESSAGE,
     SportConfig,
     load_sport_config,
@@ -229,9 +230,12 @@ def test_sport_category_matches():
 def test_categorize_unknown_returns_other_and_warns(caplog):
     """Unmapped sport_types fall into the 'other' bucket and emit a WARNING.
 
-    The log-based metric in terraform/modules/desirelines/monitoring.tf is
-    bound to the exact message string, so this test guards against silent
-    drift between the code and the alert filter.
+    The log-based metric in terraform/modules/desirelines/monitoring.tf keys off
+    the structured `event` field (jsonPayload.event="unknown_sport_type") and its
+    label extractor reads jsonPayload.unmapped_sport_type. Both must travel in
+    `json_fields` to reach Cloud Logging's jsonPayload (a bare `extra={...}` on
+    this module's plain logger does NOT), so this test asserts on json_fields —
+    guarding both the drift contract and that latent surfacing bug.
     """
     config = load_sport_config()
     # Use a stable but obviously bogus sport name. Reset the per-process
@@ -247,8 +251,11 @@ def test_categorize_unknown_returns_other_and_warns(caplog):
     assert len(matching) == 1, (
         f"expected one WARNING, got: {[r.message for r in caplog.records]}"
     )
-    assert getattr(matching[0], "unmapped_sport_type", None) == sport
-    assert getattr(matching[0], "fallback_category", None) == UNKNOWN_SPORT_CATEGORY
+    fields = getattr(matching[0], "json_fields", {})
+    # Load-bearing: the metric filters on `event` and extracts unmapped_sport_type.
+    assert fields.get("event") == UNKNOWN_SPORT_LOG_EVENT
+    assert fields.get("unmapped_sport_type") == sport
+    assert fields.get("fallback_category") == UNKNOWN_SPORT_CATEGORY
 
 
 def test_categorize_unknown_dedupes_per_process(caplog):
