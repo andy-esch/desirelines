@@ -474,7 +474,13 @@ resource "google_monitoring_alert_policy" "old_messages" {
     display_name = "Oldest unacked message > 5 minutes"
 
     condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-.*\") AND NOT resource.labels.subscription_id=monitoring.regex.full_match(\".*-dlq-.*\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
+      # Scope to the three live push subscriptions (…-{service}-{env}) only.
+      # The DLQ inspection subscriptions (…-{service}-dlq-{env}) retain unacked
+      # messages by design, so they must be excluded. GCP Monitoring filters
+      # have no NOT operator and RE2 has no negative lookahead, so this is an
+      # explicit allowlist alternation: the trailing `-[a-z]+` matches the env
+      # token (dev/prod) but not the `-dlq-{env}` suffix, which fails full_match.
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)-[a-z]+\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
       duration        = "300s" # 5 minutes
       comparison      = "COMPARISON_GT"
       threshold_value = 300 # 5 minutes in seconds
