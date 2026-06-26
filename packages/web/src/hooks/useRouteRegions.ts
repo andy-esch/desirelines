@@ -10,6 +10,9 @@ export interface UseRouteRegionsResult {
   error: Error | null;
 }
 
+/** Query key for the route regions (shared so the refresh hook can invalidate it). */
+export const routeRegionsKey = (uid: string | undefined) => ["routeRegions", uid] as const;
+
 /**
  * Fetch the routes-map region summary + default viewport.
  *
@@ -20,7 +23,7 @@ export function useRouteRegions(): UseRouteRegionsResult {
   const { user, loading: authLoading } = useAuth();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["routeRegions", user?.uid],
+    queryKey: routeRegionsKey(user?.uid),
     queryFn: ({ signal }) => fetchRouteRegions(signal),
     enabled: !authLoading && !!user,
     // Stable for the session, alongside the dataset (useMapDataset): it only changes
