@@ -45,6 +45,12 @@ vi.mock("../hooks/useUserConfig", () => ({
   useUserConfig: vi.fn(() => ({ data: null })),
 }));
 
+// Mocked so the page stays a unit test (the real hook needs a QueryClientProvider,
+// which renderWithRouter doesn't supply); the wiring is covered in useRefreshMapData.test.
+vi.mock("../hooks/useRefreshMapData", () => ({
+  useRefreshMapData: vi.fn(() => ({ refresh: vi.fn(), isRefreshing: false })),
+}));
+
 // Mock config so the Mapbox token + gateway are present by default.
 vi.mock("../lib/config", () => ({
   getConfig: vi.fn(),
@@ -72,6 +78,9 @@ const mockGetConfig = vi.mocked(getConfig);
 
 import { useMapDataset } from "../hooks/useMapDataset";
 const mockUseMapDataset = vi.mocked(useMapDataset);
+
+import { useRefreshMapData } from "../hooks/useRefreshMapData";
+const mockUseRefreshMapData = vi.mocked(useRefreshMapData);
 
 /** Props of the most recent <RouteMap> render (the mock spies on them). */
 const lastMapProps = () => mapPropsSpy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
@@ -198,6 +207,19 @@ describe("RoutesPage", () => {
     expect(
       await screen.findByRole("button", { name: /collapse panel/i }, { timeout: 4000 })
     ).toBeInTheDocument();
+  });
+
+  it("wires the filter drawer's refresh control to refreshMapData", async () => {
+    const refresh = vi.fn();
+    mockUseRefreshMapData.mockReturnValue({ refresh, isRefreshing: false });
+
+    await renderWithRouter(<RoutesPage />);
+    await screen.findByTestId("route-map");
+
+    // The refresh control lives in the (lazy) filter drawer header — give findBy room.
+    const btn = await screen.findByRole("button", { name: /refresh map data/i }, { timeout: 4000 });
+    fireEvent.click(btn);
+    expect(refresh).toHaveBeenCalled();
   });
 
   it("wires the resolved token, tile URL, and viewport into the map", async () => {

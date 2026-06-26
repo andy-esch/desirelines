@@ -55,6 +55,10 @@ export interface MapFilterDrawerProps {
   isLoading?: boolean;
   /** Dataset failed to load. */
   error?: Error | null;
+  /** Pull the latest map data (Strava sync is backend-driven, so no push signal). */
+  onRefresh?: () => void;
+  /** A refresh is in flight — spins the refresh control. */
+  isRefreshing?: boolean;
   /** Filter controls / charts / activity list slot in here (later steps). */
   children?: ReactNode;
 }
@@ -73,6 +77,45 @@ function CollapseIcon({ className }: { className?: string }) {
       aria-hidden="true"
     >
       <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+/** Funnel glyph for the Filters toggle (mirrors the Charts toggle's icon). */
+function FilterIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+    </svg>
+  );
+}
+
+/** Circular-arrows glyph for the refresh control (spins while a refresh is in flight). */
+function RefreshIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+      <path d="M3 21v-5h5" />
     </svg>
   );
 }
@@ -113,6 +156,8 @@ export default function MapFilterDrawer({
   isDark,
   isLoading = false,
   error = null,
+  onRefresh,
+  isRefreshing = false,
   children,
 }: MapFilterDrawerProps) {
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
@@ -234,6 +279,7 @@ export default function MapFilterDrawer({
             : "pointer-events-auto scale-100 opacity-100"
         )}
       >
+        <FilterIcon className="h-4 w-4" />
         Filters
         {activeFilterCount > 0 && (
           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-magenta px-1.5 text-xs font-bold text-bg-body">
@@ -279,19 +325,41 @@ export default function MapFilterDrawer({
 
         {/* Hero summary — the live cross-filter readout. */}
         <div className="relative border-b border-border/60 px-4 py-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onOpenChange(false)}
-            aria-label="Collapse panel"
-            aria-expanded={open}
-            aria-controls={DRAWER_ID}
-            // 44px touch target on mobile (the sheet's main dismiss control); compact
-            // on desktop where a mouse is precise.
-            className="absolute right-2 top-2 h-11 w-11 text-slate-light sm:h-7 sm:w-7"
-          >
-            <CollapseIcon className="h-4 w-4 -rotate-90 sm:rotate-0" />
-          </Button>
+          {/* Top-right control cluster: refresh (pull the latest after a Strava sync)
+              + collapse. 44px touch targets on mobile; compact on desktop where a mouse
+              is precise. Lives here (not floating on the map) so it never overlaps the
+              open drawer; the status message below uses `pr-24` to clear it. */}
+          <div className="absolute right-2 top-2 flex items-center gap-1">
+            {onRefresh && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onRefresh}
+                // Not disabled while refreshing — invalidation is idempotent, and a
+                // disabled button wouldn't announce the label change to AT.
+                aria-label={isRefreshing ? "Refreshing map data" : "Refresh map data"}
+                className="h-11 w-11 text-slate-light sm:h-7 sm:w-7"
+              >
+                <RefreshIcon
+                  className={cn(
+                    "h-4 w-4",
+                    isRefreshing && "animate-spin motion-reduce:animate-none"
+                  )}
+                />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenChange(false)}
+              aria-label="Collapse panel"
+              aria-expanded={open}
+              aria-controls={DRAWER_ID}
+              className="h-11 w-11 text-slate-light sm:h-7 sm:w-7"
+            >
+              <CollapseIcon className="h-4 w-4 -rotate-90 sm:rotate-0" />
+            </Button>
+          </div>
           {/* Screen-reader mirror of the visual stats; announced politely as the
               filtered set changes (the visual grid is aria-hidden to avoid a
               piecemeal, number-by-number readout). */}
@@ -301,9 +369,9 @@ export default function MapFilterDrawer({
           {statusMessage ? (
             <>
               {/* Kind, non-alarming message (the sr-only status above announces it).
-                  `pr-12` keeps the wrapped text clear of the absolute collapse button
-                  (44px on mobile) in the top-right. */}
-              <p aria-hidden="true" className="pr-12 text-sm text-slate-light">
+                  `pr-24` keeps the wrapped text clear of the top-right control cluster
+                  (refresh + collapse, 44px each on mobile). */}
+              <p aria-hidden="true" className="pr-24 text-sm text-slate-light">
                 {statusMessage}
               </p>
               {/* Recourse for a filtered-to-zero set: widen to everything. The default

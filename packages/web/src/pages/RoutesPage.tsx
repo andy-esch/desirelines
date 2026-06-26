@@ -18,6 +18,7 @@ import { buildSportColorExpression } from "../utils/routeMapStyle";
 import { DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { getSpectrumColor } from "../utils/chartColors";
 import { useIsMobile } from "../hooks/useIsMobile";
+import { useRefreshMapData } from "../hooks/useRefreshMapData";
 import MapLoadingState from "../components/routes/MapLoadingState";
 import type { SportOption } from "../components/routes/MapFilterControls";
 import type { SelectedRoute } from "../components/routes/RouteMap";
@@ -61,6 +62,9 @@ export default function RoutesPage() {
   // dataset fetch never blocks the basemap/tiles; the drawer shows its own
   // loading state. Filtering is entirely client-side (see useRouteFilters).
   const { activities, isLoading: datasetLoading, error: datasetError } = useMapDataset();
+  // Manual "pull the latest" for the map data (Strava sync is backend-driven, so there's
+  // no push signal that new activities landed).
+  const { refresh: refreshMapData, isRefreshing } = useRefreshMapData();
   const routeFilters = useRouteFilters(activities);
   const { data: prefs } = useUserConfig("preferences");
   const { distanceUnit, elevationUnit } = getUserSettings(prefs);
@@ -380,6 +384,10 @@ export default function RoutesPage() {
               isDark={isDark}
               isLoading={datasetLoading}
               error={datasetError}
+              onRefresh={refreshMapData}
+              // `&& !datasetLoading` so the control reads "refresh", not "refreshing",
+              // during the initial load (useIsFetching counts the first fetch too).
+              isRefreshing={isRefreshing && !datasetLoading}
             >
               <MapFilterControls
                 filters={routeFilters.filters}
