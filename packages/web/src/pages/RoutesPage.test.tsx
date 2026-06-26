@@ -209,14 +209,16 @@ describe("RoutesPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers a refresh control wired to refreshMapData", async () => {
+  it("wires the filter drawer's refresh control to refreshMapData", async () => {
     const refresh = vi.fn();
     mockUseRefreshMapData.mockReturnValue({ refresh, isRefreshing: false });
 
     await renderWithRouter(<RoutesPage />);
     await screen.findByTestId("route-map");
 
-    fireEvent.click(screen.getByRole("button", { name: /refresh map data/i }));
+    // The refresh control lives in the (lazy) filter drawer header — give findBy room.
+    const btn = await screen.findByRole("button", { name: /refresh map data/i }, { timeout: 4000 });
+    fireEvent.click(btn);
     expect(refresh).toHaveBeenCalled();
   });
 

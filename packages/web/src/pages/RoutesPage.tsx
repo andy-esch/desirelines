@@ -20,7 +20,6 @@ import { getSpectrumColor } from "../utils/chartColors";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { useRefreshMapData } from "../hooks/useRefreshMapData";
 import MapLoadingState from "../components/routes/MapLoadingState";
-import MapRefreshButton from "../components/routes/MapRefreshButton";
 import type { SportOption } from "../components/routes/MapFilterControls";
 import type { SelectedRoute } from "../components/routes/RouteMap";
 import type { MapActivity } from "../api/map";
@@ -385,6 +384,10 @@ export default function RoutesPage() {
               isDark={isDark}
               isLoading={datasetLoading}
               error={datasetError}
+              onRefresh={refreshMapData}
+              // `&& !datasetLoading` so the control reads "refresh", not "refreshing",
+              // during the initial load (useIsFetching counts the first fetch too).
+              isRefreshing={isRefreshing && !datasetLoading}
             >
               <MapFilterControls
                 filters={routeFilters.filters}
@@ -500,9 +503,6 @@ export default function RoutesPage() {
               </p>
             </div>
           )}
-
-          {/* Pull the latest after a Strava sync (no push signal exists). */}
-          <MapRefreshButton onRefresh={refreshMapData} isRefreshing={isRefreshing} />
         </div>
       </div>
     </PageLayout>

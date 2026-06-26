@@ -62,6 +62,28 @@ describe("MapFilterDrawer", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("omits the refresh control when no onRefresh is provided", () => {
+    renderDrawer();
+    expect(screen.queryByRole("button", { name: /refresh map data/i })).not.toBeInTheDocument();
+  });
+
+  it("fires onRefresh when the refresh control is clicked", async () => {
+    const user = userEvent.setup();
+    const onRefresh = vi.fn();
+    renderDrawer({ onRefresh });
+    await user.click(screen.getByRole("button", { name: /^refresh map data$/i }));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("reflects the refreshing state in the control's label (and stays enabled)", () => {
+    renderDrawer({ onRefresh: vi.fn(), isRefreshing: true });
+    // Label flips to the in-progress wording, and the button is NOT disabled (so AT can
+    // perceive the change and the user can re-trigger).
+    const btn = screen.getByRole("button", { name: /refreshing map data/i });
+    expect(btn).toBeInTheDocument();
+    expect(btn).not.toBeDisabled();
+  });
+
   it("fires onOpenChange(true) when the closed-state handle is clicked", async () => {
     const user = userEvent.setup();
     const { onOpenChange } = renderDrawer({ open: false });
