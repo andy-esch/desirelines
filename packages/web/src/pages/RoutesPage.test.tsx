@@ -342,7 +342,7 @@ describe("RoutesPage", () => {
     const findFiltersToggle = () =>
       screen.findByRole("button", { name: /^filters/i }, { timeout: 4000 });
     const findInsightsToggle = () =>
-      screen.findByRole("button", { name: /^insights$/i }, { timeout: 4000 });
+      screen.findByRole("button", { name: /^charts$/i }, { timeout: 4000 });
 
     it("starts both sheets closed and keeps them mutually exclusive on a phone", async () => {
       const restore = setViewport(true);

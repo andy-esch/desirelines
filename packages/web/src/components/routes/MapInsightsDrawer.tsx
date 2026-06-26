@@ -37,8 +37,8 @@ function Chevron({ className }: { className?: string }) {
   );
 }
 
-/** Bar-chart glyph for the "Insights" toggle (the panel holds the charts). */
-function InsightsIcon({ className }: { className?: string }) {
+/** Line-chart glyph for the "Charts" toggle (the panel holds the charts). */
+function ChartsIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -50,16 +50,16 @@ function InsightsIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <line x1="6" y1="20" x2="6" y2="14" />
-      <line x1="12" y1="20" x2="12" y2="4" />
-      <line x1="18" y1="20" x2="18" y2="10" />
+      {/* Axes + a trending line. */}
+      <path d="M3 3v18h18" />
+      <path d="m19 9-5 5-4-4-3 3" />
     </svg>
   );
 }
 
 /**
- * **Insights** drawer — cross-filtered charts. Auto-hidden by default behind a
- * toggle: a labeled "Insights" pill in the bottom dock on mobile (beside Filters),
+ * **Charts** drawer — cross-filtered charts. Auto-hidden by default behind a
+ * toggle: a labeled "Charts" pill in the bottom dock on mobile (beside Filters),
  * a compact icon button in the top-right corner on desktop. The panel is a bottom
  * sheet on mobile and a right-hand side panel on desktop (mirrors the filter
  * drawer). Non-modal (renders inline over the still-interactive map). Same a11y as
@@ -107,7 +107,7 @@ export default function MapInsightsDrawer({
 
   return (
     <>
-      {/* Closed-state toggle. Mobile: a labeled "Insights" pill in the bottom dock,
+      {/* Closed-state toggle. Mobile: a labeled "Charts" pill in the bottom dock,
           just right of center (the Filters toggle sits just left). Desktop: a compact
           icon button in the upper-right corner. */}
       <button
@@ -133,10 +133,10 @@ export default function MapInsightsDrawer({
           open || hideToggle ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"
         )}
       >
-        <InsightsIcon className="h-4 w-4" />
+        <ChartsIcon className="h-4 w-4" />
         {/* Visible label on mobile; sr-only on desktop (icon-only) so the accessible
-            name is "Insights" in both — matches the visible text (no aria-label). */}
-        <span className="sm:sr-only">Insights</span>
+            name is "Charts" in both — matches the visible text (no aria-label). */}
+        <span className="sm:sr-only">Charts</span>
       </button>
 
       <aside
@@ -164,14 +164,14 @@ export default function MapInsightsDrawer({
             top-right of the sheet/panel. A borderless top bar (no `border-b`) so
             there's no stray hline above the first chart's header. */}
         <h2 id={headingId} className="sr-only">
-          Insights
+          Charts
         </h2>
         <div className="flex justify-end px-2 pt-2">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => onOpenChange(false)}
-            aria-label="Collapse insights"
+            aria-label="Collapse charts"
             aria-expanded={open}
             aria-controls={DRAWER_ID}
             // 44px touch target on mobile (the sheet's main dismiss control); compact
