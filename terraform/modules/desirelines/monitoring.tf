@@ -73,8 +73,7 @@ locals {
 # from their sport-config layer on first sighting (deduped per process); the
 # unmapped activity is bucketed to the "other" category so it still renders
 # in the UI. This metric counts those WARNINGs and the alert pages on the
-# first one so an operator can extend the registry. See acceptance criteria
-# in tasks/done/enhance-sport-categorization-* (planning repo).
+# first one so an operator can extend the registry.
 #
 # Filter keys on the structured `jsonPayload.event="unknown_sport_type"` field,
 # NOT the human-readable log message, so a reworded message can't silently break
