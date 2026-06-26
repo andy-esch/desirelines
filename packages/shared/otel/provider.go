@@ -175,14 +175,19 @@ func setup(
 	var shutdownFuncs []func(context.Context) error
 	shutdown := func(ctx context.Context) error {
 		var err error
-		for _, fn := range shutdownFuncs {
-			err = errors.Join(err, fn(ctx))
+		// Tear down in reverse order of construction (LIFO) so any implicit
+		// dependency between providers is unwound in the right order.
+		for i := len(shutdownFuncs) - 1; i >= 0; i-- {
+			err = errors.Join(err, shutdownFuncs[i](ctx))
 		}
 		shutdownFuncs = nil
 		return err
 	}
-	handleErr := func(cause error) error {
-		return errors.Join(cause, shutdown(ctx))
+	// Use a fresh context for the failure-path cleanup: if setup failed because
+	// the startup ctx was canceled/timed out, reusing it could skip
+	// flushing/teardown of the already-constructed providers.
+	handleErr := func(cause error) error { //nolint:contextcheck // cleanup deliberately runs on a fresh context, not the (possibly canceled) startup ctx
+		return errors.Join(cause, shutdown(context.Background()))
 	}
 
 	res, err := resource.New(ctx,
