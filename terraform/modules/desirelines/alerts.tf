@@ -172,8 +172,10 @@ resource "google_monitoring_alert_policy" "apigateway_auth_failure_surge" {
       threshold_value = 0.167 # ≈ 10/min under ALIGN_RATE per-second
 
       aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_RATE"
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["resource.label.service_name"]
       }
     }
   }
@@ -472,7 +474,7 @@ resource "google_monitoring_alert_policy" "old_messages" {
     display_name = "Oldest unacked message > 5 minutes"
 
     condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-.*\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-.*\") AND NOT resource.labels.subscription_id=monitoring.regex.full_match(\".*-dlq-.*\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
       duration        = "300s" # 5 minutes
       comparison      = "COMPARISON_GT"
       threshold_value = 300 # 5 minutes in seconds
@@ -481,7 +483,7 @@ resource "google_monitoring_alert_policy" "old_messages" {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_MAX"
         cross_series_reducer = "REDUCE_MAX"
-        group_by_fields      = ["resource.subscription_id"]
+        group_by_fields      = ["resource.label.subscription_id"]
       }
     }
   }
