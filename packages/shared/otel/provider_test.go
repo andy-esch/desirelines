@@ -2,6 +2,10 @@ package otel
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"sync"
 	"testing"
 
 	otelmetric "go.opentelemetry.io/otel/metric"
@@ -9,6 +13,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -285,4 +290,109 @@ func TestNoopProviders_ReturnsUsableNoopInstruments(t *testing.T) {
 	// A no-op span must start and end without panicking.
 	_, span := p.Tracer.Start(context.Background(), "test.span")
 	span.End()
+}
+
+// shutdownTrackingReader wraps a real ManualReader and records whether
+// Shutdown was invoked. It lets TestSetup_ShutsDownMeterProviderOnTraceExporterError
+// assert that the already-constructed MeterProvider is torn down when a later
+// Setup step fails, without needing GCP credentials.
+type shutdownTrackingReader struct {
+	sdkmetric.Reader
+	mu       sync.Mutex
+	shutdown bool
+}
+
+func (r *shutdownTrackingReader) Shutdown(ctx context.Context) error {
+	r.mu.Lock()
+	r.shutdown = true
+	r.mu.Unlock()
+	if err := r.Reader.Shutdown(ctx); err != nil {
+		return fmt.Errorf("manual reader shutdown: %w", err)
+	}
+	return nil
+}
+
+func (r *shutdownTrackingReader) wasShutdown() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.shutdown
+}
+
+// noopSpanExporter is a minimal SpanExporter used to drive setup()'s happy
+// path in tests without a real (credential-requiring) trace exporter.
+type noopSpanExporter struct{}
+
+func (noopSpanExporter) ExportSpans(context.Context, []sdktrace.ReadOnlySpan) error { return nil }
+func (noopSpanExporter) Shutdown(context.Context) error                             { return nil }
+
+// TestSetup_ShutsDownMeterProviderOnTraceExporterError pins the partial-failure
+// cleanup contract: when the trace-exporter constructor fails AFTER the
+// MeterProvider has been built, setup must shut that MeterProvider (and its
+// reader) down before returning, rather than leaking its background reader
+// goroutine and export connection. It also asserts the returned error joins
+// the original cause so callers still see why Setup failed.
+func TestSetup_ShutsDownMeterProviderOnTraceExporterError(t *testing.T) {
+	reader := &shutdownTrackingReader{Reader: sdkmetric.NewManualReader()}
+
+	wantErr := errors.New("trace exporter boom")
+	failingTraceExporter := func(context.Context) (sdktrace.SpanExporter, error) {
+		return nil, wantErr
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	providers, shutdown, err := setup(
+		context.Background(),
+		logger,
+		"test-service",
+		func() (sdkmetric.Reader, error) { return reader, nil },
+		failingTraceExporter,
+	)
+
+	if err == nil {
+		t.Fatal("expected setup to return an error when the trace exporter fails")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Errorf("returned error %v does not wrap the trace-exporter cause %v", err, wantErr)
+	}
+	if providers != nil {
+		t.Errorf("expected nil Providers on failure, got %#v", providers)
+	}
+	if shutdown != nil {
+		t.Errorf("expected nil ShutdownFunc on failure, got non-nil")
+	}
+	if !reader.wasShutdown() {
+		t.Error("MeterProvider's reader was not shut down on partial Setup failure (leak)")
+	}
+}
+
+// TestSetup_ShutdownTearsDownBothProvidersOnSuccess pins the happy-path
+// contract: on a successful setup, the returned ShutdownFunc must shut down
+// BOTH the MeterProvider and the TracerProvider. A regression that dropped one
+// provider from the accumulated shutdown list would leak it on process exit.
+func TestSetup_ShutdownTearsDownBothProvidersOnSuccess(t *testing.T) {
+	reader := &shutdownTrackingReader{Reader: sdkmetric.NewManualReader()}
+
+	traceExp := &noopSpanExporter{}
+	logger := slog.New(slog.DiscardHandler)
+
+	providers, shutdown, err := setup(
+		context.Background(),
+		logger,
+		"test-service",
+		func() (sdkmetric.Reader, error) { return reader, nil },
+		func(context.Context) (sdktrace.SpanExporter, error) { return traceExp, nil },
+	)
+	if err != nil {
+		t.Fatalf("setup returned error on happy path: %v", err)
+	}
+	if providers == nil || shutdown == nil {
+		t.Fatal("expected non-nil Providers and ShutdownFunc on success")
+	}
+
+	if shutdownErr := shutdown(context.Background()); shutdownErr != nil {
+		t.Errorf("shutdown returned error: %v", shutdownErr)
+	}
+	if !reader.wasShutdown() {
+		t.Error("ShutdownFunc did not shut down the MeterProvider's reader")
+	}
 }

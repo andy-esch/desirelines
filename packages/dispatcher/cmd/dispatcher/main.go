@@ -72,7 +72,12 @@ func run(log *slog.Logger) error {
 		providers = otel.NoopProviders()
 	} else {
 		defer func() {
-			if shutdownErr := otelShutdown(context.Background()); shutdownErr != nil {
+			// Bound the flush so a stuck span/metric exporter cannot hang
+			// process exit indefinitely. Reuse the same budget as the HTTP
+			// server shutdown below.
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+			defer cancel()
+			if shutdownErr := otelShutdown(shutdownCtx); shutdownErr != nil {
 				log.Error("OTel shutdown error", "error", shutdownErr)
 			}
 		}()

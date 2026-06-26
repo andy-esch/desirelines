@@ -152,6 +152,39 @@ type ShutdownFunc func(ctx context.Context) error
 // On error, callers should log a warning and use NoopProviders() — services must not
 // crash due to OTel initialization failures.
 func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Providers, ShutdownFunc, error) {
+	return setup(ctx, logger, serviceName, newMetricReader, newTraceExporter)
+}
+
+// setup is the testable core of Setup. The metricReaderFn and traceExporterFn
+// parameters let tests substitute credential-free fakes (e.g. a ManualReader)
+// and a failing trace-exporter constructor, so the partial-failure cleanup
+// path can be exercised without GCP credentials.
+func setup(
+	ctx context.Context,
+	logger *slog.Logger,
+	serviceName string,
+	metricReaderFn func() (sdkmetric.Reader, error),
+	traceExporterFn func(context.Context) (sdktrace.SpanExporter, error),
+) (*Providers, ShutdownFunc, error) {
+	// shutdownFuncs accumulates each provider's shutdown function as it is
+	// constructed. If a later construction step fails, handleErr runs all
+	// accumulated funcs so an already-initialized provider (and its background
+	// reader goroutine / export connection) does not leak. On success they are
+	// composed into the returned ShutdownFunc. This is the canonical OTel SDK
+	// setup shape (see go.opentelemetry.io/otel docs' setupOTelSDK example).
+	var shutdownFuncs []func(context.Context) error
+	shutdown := func(ctx context.Context) error {
+		var err error
+		for _, fn := range shutdownFuncs {
+			err = errors.Join(err, fn(ctx))
+		}
+		shutdownFuncs = nil
+		return err
+	}
+	handleErr := func(cause error) error {
+		return errors.Join(cause, shutdown(ctx))
+	}
+
 	res, err := resource.New(ctx,
 		resource.WithDetectors(gcp.NewDetector()),
 		resource.WithAttributes(semconv.ServiceName(serviceName)),
@@ -161,18 +194,20 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 	}
 
 	// --- Metrics ---
-	metricExp, err := mexporter.New()
+	reader, err := metricReaderFn()
 	if err != nil {
-		return nil, nil, fmt.Errorf("create GCP metric exporter: %w", err)
+		return nil, nil, fmt.Errorf("create metric reader: %w", err)
 	}
 
-	reader := sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(exportInterval))
 	mp := newMeterProvider(res, reader)
+	shutdownFuncs = append(shutdownFuncs, mp.Shutdown)
 
 	// --- Tracing ---
-	traceExp, err := newTraceExporter(ctx)
+	traceExp, err := traceExporterFn(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create trace exporter: %w", err)
+		// Tear down the already-constructed MeterProvider (and its periodic
+		// reader) before returning, so it does not leak on partial failure.
+		return nil, nil, handleErr(fmt.Errorf("create trace exporter: %w", err))
 	}
 
 	// Sampler: AlwaysSample is intentional. Request volume across dispatcher
@@ -190,6 +225,8 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 	)
+
+	shutdownFuncs = append(shutdownFuncs, tp.Shutdown)
 
 	// Register globally so otelhttp and propagation.Inject/Extract work.
 	otelglobal.SetTracerProvider(tp)
@@ -213,14 +250,22 @@ func Setup(ctx context.Context, logger *slog.Logger, serviceName string) (*Provi
 		"trace_sampler", "AlwaysSample",
 	)
 
-	shutdown := func(ctx context.Context) error {
-		return errors.Join(tp.Shutdown(ctx), mp.Shutdown(ctx))
-	}
-
 	return &Providers{
 		Meter:  mp.Meter(scopeName),
 		Tracer: tp.Tracer(scopeName),
 	}, shutdown, nil
+}
+
+// newMetricReader builds the production metric Reader: a PeriodicReader
+// wrapping the GCP Cloud Monitoring exporter, exporting on exportInterval.
+// Extracted from Setup so the reader can be substituted with a ManualReader
+// in provider_test.go (the GCP exporter needs credentials at construction).
+func newMetricReader() (sdkmetric.Reader, error) {
+	metricExp, err := mexporter.New()
+	if err != nil {
+		return nil, fmt.Errorf("create GCP metric exporter: %w", err)
+	}
+	return sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(exportInterval)), nil
 }
 
 // newTraceExporter returns an OTLP trace exporter when one of the standard
