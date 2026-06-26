@@ -517,7 +517,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MEAN"
                       crossSeriesReducer = "REDUCE_SUM"
-                      groupByFields      = ["resource.subscription_id"]
+                      groupByFields      = ["resource.labels.subscription_id"]
                     }
                   }
                 }
@@ -557,7 +557,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
                       alignmentPeriod    = "60s"
                       perSeriesAligner   = "ALIGN_MAX"
                       crossSeriesReducer = "REDUCE_MAX"
-                      groupByFields      = ["resource.subscription_id"]
+                      groupByFields      = ["resource.labels.subscription_id"]
                     }
                   }
                 }

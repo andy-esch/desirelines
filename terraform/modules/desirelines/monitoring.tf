@@ -73,14 +73,14 @@ locals {
 # from their sport-config layer on first sighting (deduped per process); the
 # unmapped activity is bucketed to the "other" category so it still renders
 # in the UI. This metric counts those WARNINGs and the alert pages on the
-# first one so an operator can extend the registry. See acceptance criteria
-# in tasks/done/enhance-sport-categorization-* (planning repo).
+# first one so an operator can extend the registry.
 #
-# Filter pivots on the exact log message string, which is therefore exported
-# as a constant in both runtimes (UnknownSportCategory / unknownSportLogMessage
-# in Go, UNKNOWN_SPORT_LOG_MESSAGE in Python) and asserted in their unit tests.
-# If the message string ever changes, update it here in lockstep — otherwise
-# the alert silently goes dark.
+# Filter keys on the structured `jsonPayload.event="unknown_sport_type"` field,
+# NOT the human-readable log message, so a reworded message can't silently break
+# this metric. The `event` value is the contract: both runtimes pin it with a
+# contract test (Go apigateway and Python stravapipe sport-config layers). If
+# that event value ever changes, update it here in lockstep — otherwise the
+# alert silently goes dark. See the inline comment on the filter below.
 #
 # Not gated on enable_application_metric_alerts: log-based metric descriptors
 # are created with the Terraform resource itself (no app emission required),
