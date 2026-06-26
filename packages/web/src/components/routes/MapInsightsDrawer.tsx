@@ -124,9 +124,11 @@ export default function MapInsightsDrawer({
           "transition-all duration-200 ease-out hover:border-accent-cyan/50 hover:text-accent-cyan",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/50",
           "motion-reduce:transition-none",
-          // Mobile: bottom-dock pill, right of center (safe-area-aware).
-          "bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 ml-1 gap-2 px-4 py-2 text-sm font-medium",
-          // Desktop: compact icon button, top-right corner.
+          // Mobile: bottom-dock pill, left edge just right of center. Fixed width
+          // (matching the Filters pill) so the two anchor symmetrically around center.
+          // Safe-area-aware.
+          "bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 ml-1 w-32 gap-2 px-4 py-2 text-sm font-medium",
+          // Desktop: compact icon button, top-right corner (sm:w-8 overrides the w-32).
           "sm:bottom-auto sm:left-auto sm:right-2 sm:top-2 sm:ml-0 sm:h-8 sm:w-8 sm:gap-0 sm:px-0 sm:py-0",
           open || hideToggle ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"
         )}
@@ -172,7 +174,9 @@ export default function MapInsightsDrawer({
             aria-label="Collapse insights"
             aria-expanded={open}
             aria-controls={DRAWER_ID}
-            className="h-7 w-7 text-slate-light"
+            // 44px touch target on mobile (the sheet's main dismiss control); compact
+            // on desktop where a mouse is precise.
+            className="h-11 w-11 text-slate-light sm:h-7 sm:w-7"
           >
             {/* Down on mobile (collapses the bottom sheet) / right on desktop. */}
             <Chevron className="h-4 w-4 -rotate-90 sm:rotate-180" />

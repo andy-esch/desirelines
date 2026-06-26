@@ -37,6 +37,11 @@ describe("useIsMobile", () => {
     expect(result.current).toBe(false);
   });
 
+  it("queries the sub-`sm` breakpoint", () => {
+    renderHook(() => useIsMobile());
+    expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 639px)");
+  });
+
   it("returns true on a phone-width viewport", () => {
     matchesMock = true;
     const { result } = renderHook(() => useIsMobile());
