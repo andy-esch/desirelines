@@ -163,6 +163,12 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                         />
                         {/* Percentage text positioned absolutely for visibility at any width */}
                         <span
+                          // The % overlays the colored fill *and* the dark track depending
+                          // on progress, so no single text color works for both. A dark
+                          // scrim (`bg-black/50`) gives the white text its own consistent
+                          // background → WCAG 1.4.3 passes (~4.8:1+) on every goal fill and
+                          // both themes, regardless of what's behind the bar.
+                          className="text-white bg-black/50 px-1.5 py-0.5 rounded-sm leading-none"
                           style={{
                             position: "absolute",
                             left: "50%",
@@ -170,7 +176,6 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                             transform: "translate(-50%, -50%)",
                             fontSize: "0.75rem",
                             fontWeight: 500,
-                            color: "#fff",
                             textShadow: "0 0 3px rgba(0, 0, 0, 0.7)",
                           }}
                         >

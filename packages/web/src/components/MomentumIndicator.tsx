@@ -38,16 +38,26 @@ export default function MomentumIndicator({
   momentumLevel,
   trainingMomentum,
 }: MomentumIndicatorProps) {
+  const description = getDescription(momentumLevel, trainingMomentum);
   return (
+    // The glyph carries meaning, so expose it as a labeled image: `aria-label`
+    // gives screen readers the full description (the symbol alone is opaque to
+    // them), and `title` keeps the visual hover tooltip for sighted mouse users.
+    // No `tabIndex` — it's non-interactive (no action), so it stays out of the tab
+    // order (and `role="img"` + tabindex would trip jsx-a11y anyway).
     <span
+      role="img"
+      aria-label={description}
       style={{
-        color: "#888",
+        // slate-lighter (not slate-light): clears WCAG 4.5:1 on the body bg in BOTH
+        // themes for this small glyph; slate-light fails in light mode (~4.3:1).
+        color: "var(--color-slate-lighter)",
         fontSize: "0.9em",
         marginLeft: "4px",
         cursor: "help",
         textDecoration: "underline dotted",
       }}
-      title={getDescription(momentumLevel, trainingMomentum)}
+      title={description}
     >
       {getSymbol(momentumLevel)}
     </span>
