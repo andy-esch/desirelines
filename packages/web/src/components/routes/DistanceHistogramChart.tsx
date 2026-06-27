@@ -79,6 +79,7 @@ export default function DistanceHistogramChart({
                 fill="var(--color-accent-cyan)"
                 radius={[2, 2, 0, 0]}
                 cursor="pointer"
+                isAnimationActive={false}
                 onClick={(d) => {
                   const bin = d as unknown as Record<string, unknown>;
                   if (typeof bin.start === "number" && typeof bin.end === "number") {

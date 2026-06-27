@@ -222,6 +222,32 @@ describe("RoutesPage", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("mounts the insight charts only while the charts drawer is open", async () => {
+    const activity: MapActivity = {
+      activityId: 1,
+      name: "Ride",
+      sport: "cycling",
+      distanceMeters: 10_000,
+      movingTime: 1_800,
+      startDateLocal: "2026-05-01T08:00:00",
+      regionIds: [],
+      bbox: [-74.1, 40.6, -73.8, 40.9],
+    };
+    mockUseMapDataset.mockReturnValue({ activities: [activity], isLoading: false, error: null });
+
+    await renderWithRouter(<RoutesPage />);
+    await screen.findByTestId("route-map");
+
+    // Charts drawer is closed by default → the chart subtree isn't mounted.
+    expect(screen.queryByLabelText("Region breakdown")).not.toBeInTheDocument();
+
+    // Opening it mounts the charts.
+    fireEvent.click(await screen.findByRole("button", { name: /^charts$/i }, { timeout: 4000 }));
+    expect(
+      await screen.findByLabelText("Region breakdown", {}, { timeout: 4000 })
+    ).toBeInTheDocument();
+  });
+
   it("wires the resolved token, tile URL, and viewport into the map", async () => {
     await renderWithRouter(<RoutesPage />);
     await screen.findByTestId("route-map");

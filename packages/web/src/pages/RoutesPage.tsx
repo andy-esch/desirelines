@@ -1,4 +1,13 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import type { FilterSpecification } from "mapbox-gl";
 import { PageLayout } from "../components/layout/PageLayout";
@@ -66,6 +75,11 @@ export default function RoutesPage() {
   // no push signal that new activities landed).
   const { refresh: refreshMapData, isRefreshing } = useRefreshMapData();
   const routeFilters = useRouteFilters(activities);
+  // Deferred copy for the insights charts: each chart re-aggregates (O(n), some sorted)
+  // and recharts re-renders, which is the most expensive work on the page. The map's
+  // filter is throttled separately; this lets a slider drag update the map/summary live
+  // while the heavier charts catch up at a lower priority instead of every frame.
+  const deferredFilteredActivities = useDeferredValue(routeFilters.filteredActivities);
   const { data: prefs } = useUserConfig("preferences");
   const { distanceUnit, elevationUnit } = getUserSettings(prefs);
   // On phones both drawers are bottom sheets that cover the map, so the filter drawer
@@ -434,42 +448,51 @@ export default function RoutesPage() {
                 hideToggle={isMobile && drawerOpen}
                 isDark={isDark}
               >
-                <SportBreakdownChart
-                  activities={routeFilters.filteredActivities}
-                  sportColors={sportColors}
-                  sportLabels={sportLabels}
-                  distanceUnit={distanceUnit}
-                  selectedSports={routeFilters.filters.sports}
-                  onToggleSport={routeFilters.toggleSport}
-                />
-                <div className="border-t border-border/60">
-                  <WeeklyVolumeChart
-                    activities={routeFilters.filteredActivities}
-                    distanceUnit={distanceUnit}
-                  />
-                </div>
-                <div className="border-t border-border/60">
-                  <CumulativeDistanceChart
-                    activities={routeFilters.filteredActivities}
-                    distanceUnit={distanceUnit}
-                  />
-                </div>
-                <div className="border-t border-border/60">
-                  <DistanceHistogramChart
-                    activities={routeFilters.filteredActivities}
-                    distanceUnit={distanceUnit}
-                    onSelectRange={routeFilters.setDistanceRange}
-                  />
-                </div>
-                <div className="border-t border-border/60">
-                  <RegionBreakdownChart
-                    activities={routeFilters.filteredActivities}
-                    regionNames={regionNames}
-                    distanceUnit={distanceUnit}
-                    selectedRegionId={routeFilters.filters.regionId}
-                    onSelectRegion={onSelectRegion}
-                  />
-                </div>
+                {/* Mount the chart subtree only while the drawer is open — closed, it
+                    hides via transform + inert, so without this gate recharts stays
+                    mounted and reconciles on every render. Charts read the *deferred*
+                    filtered set so a slider drag doesn't re-aggregate + re-render them
+                    every frame. */}
+                {insightsOpen && (
+                  <>
+                    <SportBreakdownChart
+                      activities={deferredFilteredActivities}
+                      sportColors={sportColors}
+                      sportLabels={sportLabels}
+                      distanceUnit={distanceUnit}
+                      selectedSports={routeFilters.filters.sports}
+                      onToggleSport={routeFilters.toggleSport}
+                    />
+                    <div className="border-t border-border/60">
+                      <WeeklyVolumeChart
+                        activities={deferredFilteredActivities}
+                        distanceUnit={distanceUnit}
+                      />
+                    </div>
+                    <div className="border-t border-border/60">
+                      <CumulativeDistanceChart
+                        activities={deferredFilteredActivities}
+                        distanceUnit={distanceUnit}
+                      />
+                    </div>
+                    <div className="border-t border-border/60">
+                      <DistanceHistogramChart
+                        activities={deferredFilteredActivities}
+                        distanceUnit={distanceUnit}
+                        onSelectRange={routeFilters.setDistanceRange}
+                      />
+                    </div>
+                    <div className="border-t border-border/60">
+                      <RegionBreakdownChart
+                        activities={deferredFilteredActivities}
+                        regionNames={regionNames}
+                        distanceUnit={distanceUnit}
+                        selectedRegionId={routeFilters.filters.regionId}
+                        onSelectRegion={onSelectRegion}
+                      />
+                    </div>
+                  </>
+                )}
               </MapInsightsDrawer>
             </Suspense>
           )}
