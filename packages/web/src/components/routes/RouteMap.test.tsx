@@ -520,6 +520,65 @@ describe("RouteMap load + error UX", () => {
 
     expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
   });
+
+  it("ignores a non-style external 401/403 (sub-resource degrades gracefully)", () => {
+    renderMap();
+    // A 403 on a glyph/sprite — not the style document — must not condemn the map.
+    act(() =>
+      h.captured.onError!({
+        error: { status: 403, url: "https://api.mapbox.com/fonts/v1/mapbox/DIN%20Pro" },
+      })
+    );
+
+    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Loading map…")).toBeInTheDocument(); // still loading, not errored
+  });
+
+  it("resizes the (remounted) map on load after a retry", () => {
+    vi.useFakeTimers();
+    try {
+      renderMap();
+      // First attempt never loads → timeout → error (no load, so no resize yet).
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(h.captured.resizeCalls).toBe(0);
+
+      // Retry → fresh map → it loads → resize re-applies (the iOS canvas-size fix).
+      act(() => screen.getByRole("button", { name: /try again/i }).click());
+      act(() => h.captured.onLoad!());
+      expect(h.captured.resizeCalls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("goes terminal after MAX_RETRIES so it can't loop forever", () => {
+    vi.useFakeTimers();
+    try {
+      renderMap();
+      // 1st failure → retryable.
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+      // Retry #1 → fail → still retryable.
+      act(() => screen.getByRole("button", { name: /try again/i }).click());
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+      // Retry #2 → fail → terminal: no button, a "try again later" message instead.
+      act(() => screen.getByRole("button", { name: /try again/i }).click());
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+      expect(screen.getByText(/try again later/i)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("RouteMap zoom control (touch vs desktop)", () => {
