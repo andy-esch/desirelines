@@ -24,22 +24,6 @@ type ActivityCursor struct {
 	ID        int64  `json:"id"` // Activity ID of last item (tiebreaker)
 }
 
-// NormalizedRoute represents an activity route centered at (0,0) for art visualization.
-// Used by the /routes page to render abstract route art on a canvas.
-type NormalizedRoute struct {
-	ActivityID int64       `json:"activityId"`
-	Name       string      `json:"name"`
-	Sport      string      `json:"sport"`
-	Distance   float64     `json:"distance"`
-	Date       string      `json:"date"`
-	Coords     [][]float64 `json:"coords"`
-}
-
-// RoutesResponse wraps normalized routes for the visualization endpoint.
-type RoutesResponse struct {
-	Routes []NormalizedRoute `json:"routes"`
-}
-
 // RegionSummary describes one region the user has activities in: the activity
 // count and the region's bounding box [minLng, minLat, maxLng, maxLat]. Used by
 // GET /activities/map/regions to pick the default map viewport (the densest
@@ -66,12 +50,6 @@ type RegionsResponse struct {
 	Regions         []RegionSummary `json:"regions"`
 	DefaultViewport *RegionSummary  `json:"defaultViewport,omitempty"`
 }
-
-// DefaultRoutesLimit is the default number of routes to return.
-const DefaultRoutesLimit = 500
-
-// MaxRoutesLimit is the maximum number of routes allowed.
-const MaxRoutesLimit = 1000
 
 // ActivityListFilter contains query filters for listing activities.
 // Used internally by the repository layer.

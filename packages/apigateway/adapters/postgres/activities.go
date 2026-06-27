@@ -51,7 +51,6 @@ package postgres
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -792,85 +791,6 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	}, nil
 }
 
-// GetNormalizedRoutes returns activity routes with coordinates centered at (0,0).
-// Uses ST_Translate to center each route's start point at the origin, and
-// ST_Simplify to reduce coordinate density for efficient frontend rendering.
-func (r *ActivityRepository) GetNormalizedRoutes(ctx context.Context, userID string, limit int) (routes []repository.NormalizedRoute, retErr error) {
-	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.list_routes",
-		attribute.String("db.system", dbSystem),
-		attribute.String("db.name", dbName),
-		attribute.String("db.operation", dbOpSelect),
-		attribute.String("enduser.id", userID),
-		attribute.Int("limit", limit),
-	)
-	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "list_routes"))
-	defer func() {
-		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(routes)))
-		done(retErr)
-		spanDone(retErr)
-	}()
-
-	// Match ListActivities pattern: default for unset, cap at max otherwise.
-	if limit <= 0 {
-		limit = repository.DefaultRoutesLimit
-	}
-	if limit > repository.MaxRoutesLimit {
-		limit = repository.MaxRoutesLimit
-	}
-
-	query := `
-		SELECT
-			a.id,
-			a.name,
-			a.sport,
-			a.distance,
-			a.start_date_local::date,
-			ST_AsGeoJSON(
-				ST_Simplify(
-					ST_Translate(ar.route,
-						-ST_X(ST_StartPoint(ar.route)),
-						-ST_Y(ST_StartPoint(ar.route))),
-					0.0001)
-			)::jsonb -> 'coordinates' AS coords
-		FROM desirelines.activity_routes ar
-		JOIN desirelines.activities a ON a.id = ar.activity_id
-		WHERE a.user_id = $1
-		ORDER BY a.start_date_local DESC
-		LIMIT $2
-	`
-
-	rows, retErr := r.db.Query(ctx, query, userID, limit)
-	if retErr != nil {
-		return nil, fmt.Errorf("query normalized routes: %w", retErr)
-	}
-	defer rows.Close()
-
-	routes = make([]repository.NormalizedRoute, 0, limit)
-	for rows.Next() {
-		var route repository.NormalizedRoute
-		var date time.Time
-		var coordsJSON []byte
-
-		if retErr = rows.Scan(&route.ActivityID, &route.Name, &route.Sport, &route.Distance, &date, &coordsJSON); retErr != nil {
-			return nil, fmt.Errorf("scan normalized route row: %w", retErr)
-		}
-
-		route.Date = date.Format("2006-01-02")
-
-		if retErr = json.Unmarshal(coordsJSON, &route.Coords); retErr != nil {
-			return nil, fmt.Errorf("unmarshal route coords for activity %d: %w", route.ActivityID, retErr)
-		}
-
-		routes = append(routes, route)
-	}
-
-	if retErr = rows.Err(); retErr != nil {
-		return nil, fmt.Errorf("iterate normalized route rows: %w", retErr)
-	}
-
-	return routes, nil
-}
-
 // lineMinZoom is the level-of-detail handoff for the MVT tile endpoint. At
 // z >= lineMinZoom a tile carries simplified route *lines* (`routes` layer); below
 // it a tile carries grid-binned density *points* (`route_points` layer) instead —
@@ -884,7 +804,7 @@ const lineMinZoom = 8
 // meters — (worldMeters / 2^z) / 4096 * 1.5 — which is tens of meters at low zoom
 // (real thinning of dense GPS tracks) and sub-meter by z14 (full fidelity at max
 // zoom). $1=z $2=x $3=y $4=user_id. Filters on the raw 4326 column so the GIST index
-// drives row selection (see GetRouteTile).
+// drives row selection (see GetMapTile).
 const routeTileLinesQuery = `
 	WITH bounds AS (
 		SELECT
@@ -976,14 +896,14 @@ var routeTilePointsQuery = fmt.Sprintf(`
 	FROM bins b
 `, pointGridCell, pointGridCell/2)
 
-// GetRouteTile returns a Mapbox Vector Tile of the user's real-world activity routes
+// GetMapTile returns a Mapbox Vector Tile of the user's real-world activity routes
 // for the z/x/y tile, with a level-of-detail switch at lineMinZoom: a simplified
 // `routes` line layer at higher zoom, a grid-binned `route_points` density layer at
 // low zoom (see those query consts). Geometry is reprojected to Web Mercator (3857)
 // and clipped to the tile envelope with ST_AsMVTGeom. Only geo-bearing activities
 // (>=1 activity_regions row) are included, excluding virtual/indoor activities. An
 // empty tile is returned (not an error) when there are no features.
-func (r *ActivityRepository) GetRouteTile(ctx context.Context, userID string, z, x, y int) (tile []byte, retErr error) {
+func (r *ActivityRepository) GetMapTile(ctx context.Context, userID string, z, x, y int) (tile []byte, retErr error) {
 	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.route_tile",
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
@@ -1022,10 +942,10 @@ func (r *ActivityRepository) GetRouteTile(ctx context.Context, userID string, z,
 	return tile, nil
 }
 
-// GetRouteRegionSummary returns each region the user has activities in, with the
+// GetMapRegionSummary returns each region the user has activities in, with the
 // activity count and the region's bounding box, sorted densest-first. The client
 // uses the top row to default the map viewport.
-func (r *ActivityRepository) GetRouteRegionSummary(ctx context.Context, userID string) (summaries []repository.RegionSummary, retErr error) {
+func (r *ActivityRepository) GetMapRegionSummary(ctx context.Context, userID string) (summaries []repository.RegionSummary, retErr error) {
 	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.route_region_summary",
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
@@ -1086,8 +1006,8 @@ func (r *ActivityRepository) GetRouteRegionSummary(ctx context.Context, userID s
 // with scalars, its aggregated region tag ids, and an optional bounding box from
 // its route geometry. Only activities that are tagged to at least one region are
 // included (the JOIN to activity_regions enforces this), which excludes
-// virtual/indoor activities — the same inclusion rule as GetRouteTile /
-// GetRouteRegionSummary. The bbox is read from the activity's route geometry via
+// virtual/indoor activities — the same inclusion rule as GetMapTile /
+// GetMapRegionSummary. The bbox is read from the activity's route geometry via
 // the O(1) ST_X/Y Min/Max accessors (one route row per activity — activity_id is
 // the activity_routes PK) and is NULL when there is no stored route geometry.
 // Sport is the raw
@@ -1109,7 +1029,7 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 	// One activity row per geo-bearing activity. The INNER JOIN to
 	// activity_regions enforces the geo-only rule; array_agg(DISTINCT region_id)
 	// collapses the many-to-many junction into the per-activity tag list (same
-	// ids GetRouteRegionSummary / GET /map/regions return). The bbox is a LEFT
+	// ids GetMapRegionSummary / GET /map/regions return). The bbox is a LEFT
 	// JOIN LATERAL over activity_routes so an activity tagged to a region but
 	// (somehow) lacking route geometry still appears, just without a bbox.
 	const query = `

@@ -94,15 +94,11 @@ func (m *mockActivityRepository) ListActivities(ctx context.Context, filter repo
 	return m.activityList, m.activityListErr
 }
 
-func (m *mockActivityRepository) GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]repository.NormalizedRoute, error) {
+func (m *mockActivityRepository) GetMapTile(ctx context.Context, userID string, z, x, y int) ([]byte, error) {
 	return nil, nil
 }
 
-func (m *mockActivityRepository) GetRouteTile(ctx context.Context, userID string, z, x, y int) ([]byte, error) {
-	return nil, nil
-}
-
-func (m *mockActivityRepository) GetRouteRegionSummary(ctx context.Context, userID string) ([]repository.RegionSummary, error) {
+func (m *mockActivityRepository) GetMapRegionSummary(ctx context.Context, userID string) ([]repository.RegionSummary, error) {
 	return nil, nil
 }
 
@@ -169,9 +165,8 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 		GetMetadata:     activitiesHandler.HandleMetadata,
 		GetMetrics:      activitiesHandler.HandleMetrics,
 		GetSource:       activitiesHandler.HandleSource,
-		GetRoutes:       activitiesHandler.HandleRoutes,
-		GetRouteTile:    activitiesHandler.HandleRouteTile,
-		GetRouteRegions: activitiesHandler.HandleRouteRegions,
+		GetMapTile:      activitiesHandler.HandleMapTile,
+		GetMapRegions:   activitiesHandler.HandleMapRegions,
 		GetMapDataset:   activitiesHandler.HandleMapDataset,
 		ListActivities:  activitiesHandler.HandleListActivities,
 		GetActivityByID: activitiesHandler.HandleGetActivity,
@@ -213,8 +208,8 @@ func TestTileRateLimitScopingAndCORS(t *testing.T) {
 		TileRateLimiter: tileLimiter,
 	}
 	authRoutes := server.AuthenticatedRoutes{
-		GetMetadata: ok, GetMetrics: ok, GetSource: ok, GetRoutes: ok,
-		GetRouteTile: ok, GetRouteRegions: ok, GetMapDataset: ok,
+		GetMetadata: ok, GetMetrics: ok, GetSource: ok,
+		GetMapTile: ok, GetMapRegions: ok, GetMapDataset: ok,
 		ListActivities: ok, GetActivityByID: ok,
 	}
 	publicRoutes := server.PublicRoutes{Health: ok, Ready: ok, SportConfig: ok, AuthInitiate: ok, AuthCallback: ok}

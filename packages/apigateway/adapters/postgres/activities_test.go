@@ -302,29 +302,6 @@ func TestListActivities_EmitsSpan(t *testing.T) {
 	}
 }
 
-func TestGetNormalizedRoutes_EmitsSpan(t *testing.T) {
-	repo, sr := newSpanRecordingRepo(t)
-
-	routes, err := repo.GetNormalizedRoutes(context.Background(), "user-1", 100)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if routes == nil {
-		t.Logf("note: routes is nil on empty result; len() is 0 either way")
-	}
-
-	span := findSpan(sr.Ended(), "repository.activities.list_routes")
-	if span == nil {
-		t.Fatalf("list_routes span not emitted")
-	}
-	if got := attrAsInt(span, "limit"); got != 100 {
-		t.Errorf("limit = %d, want 100", got)
-	}
-	if got := attrAsInt(span, "result.row_count"); got != 0 {
-		t.Errorf("result.row_count = %d, want 0", got)
-	}
-}
-
 // scriptedRows is a fake pgx.Rows that yields a fixed sequence of rows, each
 // populated by a scan func. Used to exercise row-scanning logic (e.g. the region
 // summary bbox assembly) without a real Postgres.
@@ -350,7 +327,7 @@ func setScanDest[T any](dst any, v T) {
 	}
 }
 
-func TestGetRouteTile(t *testing.T) {
+func TestGetMapTile(t *testing.T) {
 	t.Run("returns tile bytes and emits span", func(t *testing.T) {
 		repo, sr := newSpanRecordingRepo(t)
 		repo.db = &fakeQuerier{
@@ -362,7 +339,7 @@ func TestGetRouteTile(t *testing.T) {
 			},
 		}
 
-		tile, err := repo.GetRouteTile(context.Background(), "user-1", 10, 301, 384)
+		tile, err := repo.GetMapTile(context.Background(), "user-1", 10, 301, 384)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -389,13 +366,13 @@ func TestGetRouteTile(t *testing.T) {
 				return &fakeRow{scanFn: func(_ ...any) error { return errors.New("boom") }}
 			},
 		}
-		if _, err := repo.GetRouteTile(context.Background(), "user-1", 1, 0, 0); err == nil {
+		if _, err := repo.GetMapTile(context.Background(), "user-1", 1, 0, 0); err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
 }
 
-func TestGetRouteRegionSummary(t *testing.T) {
+func TestGetMapRegionSummary(t *testing.T) {
 	t.Run("maps rows to summaries with bbox and emits span", func(t *testing.T) {
 		repo, sr := newSpanRecordingRepo(t)
 		repo.db = &fakeQuerier{
@@ -414,7 +391,7 @@ func TestGetRouteRegionSummary(t *testing.T) {
 			},
 		}
 
-		got, err := repo.GetRouteRegionSummary(context.Background(), "user-1")
+		got, err := repo.GetMapRegionSummary(context.Background(), "user-1")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -437,7 +414,7 @@ func TestGetRouteRegionSummary(t *testing.T) {
 
 	t.Run("empty result returns empty slice", func(t *testing.T) {
 		repo, _ := newSpanRecordingRepo(t) // default fakeQuerier -> emptyRows
-		got, err := repo.GetRouteRegionSummary(context.Background(), "user-1")
+		got, err := repo.GetMapRegionSummary(context.Background(), "user-1")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -453,7 +430,7 @@ func TestGetRouteRegionSummary(t *testing.T) {
 				return nil, errors.New("boom")
 			},
 		}
-		if _, err := repo.GetRouteRegionSummary(context.Background(), "user-1"); err == nil {
+		if _, err := repo.GetMapRegionSummary(context.Background(), "user-1"); err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})

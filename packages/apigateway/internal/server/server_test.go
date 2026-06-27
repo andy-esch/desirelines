@@ -217,9 +217,8 @@ func noopAuthRoutes() AuthenticatedRoutes {
 		GetMetadata:     func(w http.ResponseWriter, r *http.Request) {},
 		GetMetrics:      func(w http.ResponseWriter, r *http.Request) {},
 		GetSource:       func(w http.ResponseWriter, r *http.Request) {},
-		GetRoutes:       func(w http.ResponseWriter, r *http.Request) {},
-		GetRouteTile:    func(w http.ResponseWriter, r *http.Request) {},
-		GetRouteRegions: func(w http.ResponseWriter, r *http.Request) {},
+		GetMapTile:      func(w http.ResponseWriter, r *http.Request) {},
+		GetMapRegions:   func(w http.ResponseWriter, r *http.Request) {},
 		ListActivities:  func(w http.ResponseWriter, r *http.Request) {},
 		GetActivityByID: func(w http.ResponseWriter, r *http.Request) {},
 	}
@@ -255,7 +254,6 @@ func TestNewRouter_RouteRegistration(t *testing.T) {
 		{"metadata (auth)", http.MethodGet, "/v1/activities/2024/metadata", true},
 		{"metrics (auth)", http.MethodGet, "/v1/activities/2024/metrics", true},
 		{"source (auth)", http.MethodGet, "/v1/activities/2024/source", true},
-		{"routes (auth)", http.MethodGet, "/v1/activities/routes", true},
 		{"list activities (auth)", http.MethodGet, "/v1/activities", true},
 		{"get activity by ID (auth)", http.MethodGet, "/v1/activities/123", true},
 	}
