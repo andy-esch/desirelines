@@ -70,7 +70,7 @@ func (h *Handler) HandleMapTile(w http.ResponseWriter, r *http.Request) {
 
 	tile, err := h.repo.GetMapTile(ctx, userID, z, x, y)
 	if err != nil {
-		h.logger.Error("Database query failed", "error", err, "operation", "get_route_tile")
+		h.logger.Error("Database query failed", "error", err, "operation", "get_map_tile")
 		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
@@ -79,7 +79,7 @@ func (h *Handler) HandleMapTile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", mapCacheControl)
 	w.WriteHeader(http.StatusOK)
 	if _, werr := w.Write(tile); werr != nil {
-		h.logger.Error("Failed to write tile response", "error", werr, "operation", "get_route_tile")
+		h.logger.Error("Failed to write tile response", "error", werr, "operation", "get_map_tile")
 	}
 }
 
@@ -136,7 +136,7 @@ func (h *Handler) HandleMapRegions(w http.ResponseWriter, r *http.Request) {
 
 	regions, err := h.repo.GetMapRegionSummary(ctx, userID)
 	if err != nil {
-		h.logger.Error("Database query failed", "error", err, "operation", "get_route_regions")
+		h.logger.Error("Database query failed", "error", err, "operation", "get_map_regions")
 		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}

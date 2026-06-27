@@ -904,6 +904,10 @@ var routeTilePointsQuery = fmt.Sprintf(`
 // (>=1 activity_regions row) are included, excluding virtual/indoor activities. An
 // empty tile is returned (not an error) when there are no features.
 func (r *ActivityRepository) GetMapTile(ctx context.Context, userID string, z, x, y int) (tile []byte, retErr error) {
+	// NOTE: the span/operation name stays "route_tile" (not "map_tile") on purpose —
+	// SLO/latency dashboards aggregate by this `operation` attribute, so renaming it
+	// would split the metric series. Telemetry names are intentionally decoupled from
+	// the Go symbol (GetMapTile) here.
 	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.route_tile",
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
@@ -946,6 +950,8 @@ func (r *ActivityRepository) GetMapTile(ctx context.Context, userID string, z, x
 // activity count and the region's bounding box, sorted densest-first. The client
 // uses the top row to default the map viewport.
 func (r *ActivityRepository) GetMapRegionSummary(ctx context.Context, userID string) (summaries []repository.RegionSummary, retErr error) {
+	// NOTE: span/operation name kept as "route_region_summary" (not "map_*") for
+	// SLO/dashboard metric continuity — see the GetMapTile note above.
 	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.route_region_summary",
 		attribute.String("db.system", dbSystem),
 		attribute.String("db.name", dbName),
