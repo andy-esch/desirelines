@@ -147,6 +147,13 @@ export interface RegionBreakdownRow {
   count: number;
   distanceMeters: number;
 }
+/**
+ * Per-region rollup. **By design an activity counts once in every region it's tagged
+ * to** (a ride crossing two regions adds to both), so the rows' combined `count` can
+ * exceed the number of activities — this is "how much did I ride in each region", not a
+ * partition. The chart shows per-region bars (no summed total), so this isn't
+ * misleading; do NOT de-dupe.
+ */
 export function regionBreakdown(activities: MapActivity[]): RegionBreakdownRow[] {
   const byRegion = new Map<number, RegionBreakdownRow>();
   for (const a of activities) {

@@ -93,7 +93,12 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
                 formatter={(v) => [`${Math.round(Number(v))} ${unit}`, "Volume"]}
                 labelFormatter={(d) => `Week of ${formatActivityDate(String(d), { year: true })}`}
               />
-              <Bar dataKey="value" fill="var(--color-accent-cyan)" radius={[2, 2, 0, 0]} />
+              <Bar
+                dataKey="value"
+                fill="var(--color-accent-cyan)"
+                radius={[2, 2, 0, 0]}
+                isAnimationActive={false}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
