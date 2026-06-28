@@ -53,10 +53,24 @@ const MAX_FIT_ZOOM = 14;
 /**
  * If the map hasn't emitted `load` within this window we assume it's wedged
  * (WebGL init failure, a hung style fetch on iOS WebKit, etc.) and surface a
- * retryable error instead of an indefinite grey canvas. Generous so a slow but
- * working first load on mobile isn't cut off prematurely.
+ * retryable error instead of an indefinite grey canvas.
+ *
+ * Tradeoff: too short and a genuinely slow first load on a poor mobile connection
+ * gets cut off; too long and a truly wedged map stares at a spinner. 15s is
+ * deliberately generous — `load` fires when the *style* is ready (not all tiles),
+ * which is fast even on mobile, so a working map almost always beats this. If real
+ * cellular testing shows false trips, make it adaptive (e.g. key off
+ * `navigator.connection.effectiveType`).
  */
 const MAP_LOAD_TIMEOUT_MS = 15_000;
+
+/**
+ * Cap on user-initiated retries before the failure surface becomes terminal (drops
+ * the "Try again" button). Prevents an endless loading→error→loading loop on a
+ * browser that genuinely can't render the map (no WebGL, Lockdown Mode, a hard
+ * network block) — there, every retry would fail identically.
+ */
+const MAX_RETRIES = 2;
 
 /**
  * Flat mercator, not GL JS v3's default globe: a routes map needs no globe, and the
@@ -253,8 +267,11 @@ export default function RouteMap({
   // (a fresh GL context) — distinct from `reloadNonce`, which only re-fetches tiles.
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [remountKey, setRemountKey] = useState(0);
+  // Count of retries so far; once it hits MAX_RETRIES the error surface goes terminal.
+  const [retries, setRetries] = useState(0);
 
   const retry = useCallback(() => {
+    setRetries((n) => n + 1);
     setStatus("loading");
     setRemountKey((k) => k + 1);
   }, []);
@@ -296,11 +313,24 @@ export default function RouteMap({
           });
         return;
       }
-      // A Mapbox-side auth failure (bad / over-restricted `pk.*` token, blocked
-      // style) can't be recovered by a Firebase refresh — surface the retryable
-      // error now rather than waiting out the load timeout on a guaranteed-blank
-      // map. Guarded so it never clobbers an already-rendered ("ready") map.
-      if (!isInternalUrl && (err?.status === 401 || err?.status === 403)) {
+      // A failed auth on the Mapbox **style document** (bad / over-restricted `pk.*`
+      // token) means the basemap genuinely can't render and a Firebase refresh can't
+      // fix it — surface the retryable error now rather than waiting out the load
+      // timeout on a guaranteed-blank map. Scoped to the style URL on purpose: a
+      // transient 401/403 on a sub-resource (sprite/glyph/font/telemetry) degrades
+      // gracefully (missing icons/labels) and must NOT condemn the whole map; the
+      // load timeout still catches a true hang. Guarded so it never clobbers an
+      // already-rendered ("ready") map.
+      const isStyleAuthFailure =
+        !isInternalUrl &&
+        (err?.status === 401 || err?.status === 403) &&
+        typeof err?.url === "string" &&
+        err.url.includes("/styles/") &&
+        // Sprites live under the style path too (…/styles/v1/.../sprite.json);
+        // exclude them so a sprite 401/403 degrades gracefully (missing icons)
+        // instead of condemning the whole map.
+        !err.url.includes("/sprite");
+      if (isStyleAuthFailure) {
         setStatus((s) => (s === "ready" ? s : "error"));
       }
       logger.warn("[RouteMap] mapbox error:", e.error ?? "unknown");
@@ -369,6 +399,9 @@ export default function RouteMap({
   const onMapLoad = useCallback(() => {
     mapRef.current?.resize();
     setStatus("ready");
+    // A genuine load clears the retry budget so a later transient failure in the
+    // same session starts fresh rather than inheriting an elevated count.
+    setRetries(0);
     syncZoomView();
   }, [syncZoomView]);
 
@@ -606,9 +639,11 @@ export default function RouteMap({
           grey canvas (notably the slow first load on mobile). */}
       {status === "loading" && <MapLoadingState />}
 
-      {/* Retryable failure surface — replaces the indefinite silent grey when the
-          basemap/style/WebGL can't come up (e.g. WebGL unavailable on iOS, a stalled
-          style fetch). The internal-401 tile recovery above is unaffected. */}
+      {/* Failure surface — replaces the indefinite silent grey when the basemap/style/
+          WebGL can't come up (e.g. WebGL unavailable on iOS, a stalled style fetch).
+          Retryable until MAX_RETRIES, then terminal (no button) so it can't loop
+          forever on a browser that simply can't render the map. The internal-401 tile
+          recovery above is unaffected. */}
       {status === "error" && (
         <div
           ref={errorRef}
@@ -616,13 +651,22 @@ export default function RouteMap({
           role="alert"
         >
           <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-            <p className="text-sm text-slate-light">
-              The map couldn’t be displayed. This can happen if your browser can’t render maps, or
-              the connection stalled.
-            </p>
-            <Button variant="outline" size="sm" onClick={retry}>
-              Try again
-            </Button>
+            {retries < MAX_RETRIES ? (
+              <>
+                <p className="text-sm text-slate-light">
+                  The map couldn’t be displayed. This can happen if your browser can’t render maps,
+                  or the connection stalled.
+                </p>
+                <Button variant="outline" size="sm" onClick={retry}>
+                  Try again
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-slate-light">
+                The map still couldn’t be displayed. Your browser may not support maps, or the
+                connection is unavailable — please try again later.
+              </p>
+            )}
           </div>
         </div>
       )}
