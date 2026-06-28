@@ -647,8 +647,8 @@ export default function RouteMap({
             {retries < MAX_RETRIES ? (
               <>
                 <p className="text-sm text-slate-light">
-                  The map couldn’t be displayed. This can happen if your browser can’t render
-                  maps, or the connection stalled.
+                  The map couldn’t be displayed. This can happen if your browser can’t render maps,
+                  or the connection stalled.
                 </p>
                 <Button variant="outline" size="sm" onClick={retry}>
                   Try again
